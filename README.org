@@ -1,0 +1,25 @@
+* AMARCORD — XFEL edition™
+** How to use
+
+To use just the Metadata Catalogue, create a config file as in =config.yml.sample=, then:
+
+#+begin_example
+cd amarcord-xfel
+python -m venv venv
+source venv/bin/activate
+pip install -r < requirements.txt
+python amarcord/visualizer.py
+#+end_example
+
+To also query Karabo, start the simulator:
+
+#+begin_example
+karabo-bridge-server-sim 4545
+#+end_example
+
+And add the following lines to your =config.yml=:
+
+#+begin_src yaml
+karabo:
+  server_url: tcp://localhost:4545
+#+end_src

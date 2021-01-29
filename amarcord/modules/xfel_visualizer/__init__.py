@@ -10,7 +10,10 @@ from amarcord.sources.item import Item
 from amarcord.python_schema import validate_dict
 from amarcord.sources.mc import XFELMetadataCatalogue
 from amarcord.sources.mc import XFELMetadataConnectionConfig
-from amarcord.sources.mc import logger
+from amarcord.sources.mc import logger as mc_logger
+from amarcord.sources.karabo import XFELKaraboBridge
+from amarcord.sources.karabo import XFELKaraboBridgeConfig
+from amarcord.sources.karabo import logger as karabo_logger
 
 
 class QtLoggingHandler(logging.Handler):
@@ -95,5 +98,16 @@ class XFELVisualizer:
             mc = XFELMetadataCatalogue(mc_config)
             context.ui.register_tab(
                 "Metadata Catalogue",
-                _GeneralVisualization(logger, lambda: mc.items("002252")),
+                _GeneralVisualization(mc_logger, lambda: mc.items("002252")),
+            )
+        if "karabo" in context.config:
+            karabo_config: Union[List[str], XFELKaraboBridgeConfig] = validate_dict(
+                context.config["karabo"], XFELKaraboBridgeConfig
+            )
+            if isinstance(karabo_config, list):
+                raise Exception(f"Configuration invalid: {karabo_config}")
+            karabo = XFELKaraboBridge(karabo_config)
+            context.ui.register_tab(
+                "Karabo Bridge",
+                _GeneralVisualization(karabo_logger, lambda: karabo.items()),
             )
