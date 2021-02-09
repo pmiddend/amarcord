@@ -1,7 +1,8 @@
 import datetime
 from typing import Dict
 from typing import Any
-from typing import Optional
+import sys
+from argparse import ArgumentParser
 import json
 import multiprocessing
 
@@ -18,8 +19,14 @@ from amarcord.sources.karabo import logger as karabo_logger
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.dbcontext import CreationMode
 
+parser = ArgumentParser(description="Daemon to ingest XFEL data from multiple sources")
+parser.add_argument("--database-url", required=True, help="Database url")
+parser.add_argument("--zeromq-url", required=True, help="ZeroMQ url")
 
-dbcontext = DBContext("mysql+pymysql://amarcord:foobar@localhost:3306/xfel")
+args = parser.parse_args()
+
+
+dbcontext = DBContext(args.database_url)
 
 table_train = sa.Table(
     "Train",
@@ -48,7 +55,7 @@ def metadata_to_json(metadata: Dict[str, Any]) -> Dict[str, Any]:
     for k, v in metadata.items():
         if isinstance(v, dict):
             result[k] = metadata_to_json(v)
-        elif isinstance(v, int) or isinstance(v, str) or isinstance(v, bool):
+        elif isinstance(v, (bool, int, str)):
             result[k] = v
     return result
 
@@ -69,7 +76,7 @@ if __name__ == "__main__":
         return d["ACC_SYS_DOOCS/CTRL/BEAMCONDITIONS"]["metadata"]["timestamp.tid"]
 
     def create_values(observer, scheduler):
-        karabo = XFELKaraboBridge({"socket_url": "tcp://localhost:4545"})
+        karabo = XFELKaraboBridge({"socket_url": args.zeromq_url})
         try:
             while True:
                 observer.on_next(karabo.read_data()[0])
@@ -87,8 +94,10 @@ if __name__ == "__main__":
         }
 
     def write_to_db(engine, entries):
+        if not entries:
+            return
         with engine.connect() as conn:
-            # print("writing ", entries)
+            print(f"writing {len(entries)} entry/entries")
             conn.execute(table_train.insert(), entries)
 
     # i = 0
@@ -99,9 +108,14 @@ if __name__ == "__main__":
     optimal_thread_count = multiprocessing.cpu_count()
     pool_scheduler = ThreadPoolScheduler(optimal_thread_count)
 
+    def print_and_ret(x):
+        print(x)
+        return x
+
     # composed = source.pipe(op.map(metadata_to_json), op.buffer(rx.interval(1.0)))
     composed = source.pipe(
         op.map(metadata_to_json),
+        # op.map(print_and_ret),
         # op.map(inject_train_id),
         op.buffer_with_time(1.0),
         op.map(lambda values: [convert_to_table_row(r) for r in values]),
