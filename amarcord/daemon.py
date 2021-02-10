@@ -90,7 +90,7 @@ if __name__ == "__main__":
             "train_id": train_id,
             "created": datetime.datetime.utcnow(),
             "source": "online",
-            "metadata": json.dumps(d),
+            "metadata": {},
         }
 
     def write_to_db(engine, entries):
@@ -117,8 +117,9 @@ if __name__ == "__main__":
         op.map(metadata_to_json),
         # op.map(print_and_ret),
         # op.map(inject_train_id),
-        op.buffer_with_time(1.0),
-        op.map(lambda values: [convert_to_table_row(r) for r in values]),
+        # op.buffer_with_time(1.0),
+        # op.map(lambda values: [convert_to_table_row(r) for r in values]),
+        op.map(lambda value: [convert_to_table_row(value)]),
         op.subscribe_on(pool_scheduler),
     )
     composed.subscribe(on_next=lambda v: write_to_db(dbcontext.engine, v))
