@@ -512,13 +512,14 @@ class Tags(QWidget):
             else:
                 unknown = True
 
-        # if unknown and self._ctrl.isAcceptableInput(event):
-        if unknown and True:
+        # event.text() might contain newlines due to somebody pressing "return"
+        eventText = event.text().strip()
+        if unknown and eventText:
             if self.hasSelection():
                 self.removeSelection()
             cur = self._tags[self._editing_index].text
             self._tags[self._editing_index].text = (
-                cur[: self._cursor] + event.text() + cur[self._cursor :]
+                cur[: self._cursor] + eventText + cur[self._cursor :]
             )
             self._cursor += len(event.text())
             event.accept()

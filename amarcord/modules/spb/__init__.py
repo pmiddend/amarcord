@@ -4,6 +4,7 @@ from typing import Dict
 from typing import Tuple
 from typing import Any
 from typing import List
+from typing import Set
 from typing import Union
 from dataclasses import dataclass
 from itertools import groupby
@@ -93,6 +94,7 @@ class TagsDelegate(QtWidgets.QStyledItemDelegate):
             "Editor data will be %s", index.model().data(index, QtCore.Qt.EditRole)
         )
         editor.tags(index.model().data(index, QtCore.Qt.EditRole))
+        editor.completion(index.model().available_tags)
 
     def setModelData(
         self,
@@ -100,7 +102,7 @@ class TagsDelegate(QtWidgets.QStyledItemDelegate):
         model: QtCore.QAbstractItemModel,
         index: QtCore.QModelIndex,
     ) -> None:
-        model.setData(index, editor.tagsStr(), QtCore.Qt.EditRole)
+        model.setData(index, set(editor.tagsStr()), QtCore.Qt.EditRole)
 
 
 class DBModel(QtCore.QAbstractTableModel):
@@ -118,6 +120,9 @@ class DBModel(QtCore.QAbstractTableModel):
         with self._dbcontext.connect() as conn:
             run = self._tables.table_run
             tag = self._tables.table_run_tag
+
+            self.available_tags: List[str] = self._get_available_tags(conn)
+
             select_stmt = (
                 sa.select(
                     [run.c.id, run.c.status, run.c.repetition_rate_mhz, tag.c.tag_text]
@@ -136,7 +141,7 @@ class DBModel(QtCore.QAbstractTableModel):
                         first_row[0],
                         first_row[1],
                         first_row[2],
-                        [row[3] for row in rows if row[3] is not None],
+                        set(row[3] for row in rows if row[3] is not None),
                     ]
                 )
             self._column_to_index = {
@@ -158,8 +163,16 @@ class DBModel(QtCore.QAbstractTableModel):
                 Column.TAGS: self._convert_tag_column
             }
 
+    def _get_available_tags(self, conn: Any) -> List[str]:
+        return [
+            t[0]
+            for t in conn.execute(
+                sa.select([self._tables.table_run_tag.c.tag_text]).distinct()
+            ).fetchall()
+        ]
+
     # pylint: disable=no-self-use
-    def _convert_tag_column(self, value: List[str], role: int) -> Any:
+    def _convert_tag_column(self, value: Set[str], role: int) -> Any:
         if role == QtCore.Qt.DisplayRole:
             return ", ".join(value)
         if role == QtCore.Qt.EditRole:
@@ -170,8 +183,9 @@ class DBModel(QtCore.QAbstractTableModel):
         return self._column_to_index[Column.TAGS]
 
     def _setTags(self, row: int, value: QtCore.QVariant, role: int) -> bool:
-        if not isinstance(value, list):
+        if not isinstance(value, set):
             raise Exception("didn't get a list in set tags, but " + str(type(value)))
+
         logger.info("Setting tags to %s", value)
         with self._dbcontext.connect() as conn:
             with conn.begin():
@@ -183,6 +197,8 @@ class DBModel(QtCore.QAbstractTableModel):
                         run_tag.insert(),
                         [{"run_id": run_id, "tag_text": t} for t in value],
                     )
+                self.available_tags = self._get_available_tags(conn)
+
         self._data[row][self._column_to_index[Column.TAGS]] = value
         return True
 
@@ -196,11 +212,11 @@ class DBModel(QtCore.QAbstractTableModel):
         # Taken from the tutorial:
         # https://doc.qt.io/qt-5/model-view-programming.html#creating-new-models
         if not index.isValid():
-            return QtCore.Qt.NoItemFlags | QtCore.Qt.ItemIsEnabled
+            return QtCore.Qt.ItemIsEnabled  # type: ignore
 
         result = super().flags(index)
         if self._index_to_column[index.column()] in self._column_editable:
-            result |= QtCore.Qt.ItemIsEditable
+            result |= QtCore.Qt.ItemIsEditable  # type: ignore
         return result
 
     def setData(
@@ -242,30 +258,6 @@ class DBModel(QtCore.QAbstractTableModel):
         return QtCore.QVariant()
 
 
-# class MockModel(QtCore.QAbstractTableModel):
-#     def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
-#         super().__init__(parent)
-
-#     def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
-#         return 2
-
-#     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
-#         return 3
-
-#     def data(
-#         self,
-#         index: QtCore.QModelIndex,
-#         role: int = QtCore.Qt.DisplayRole,
-#     ) -> QtCore.QVariant:
-#         if role == QtCore.Qt.DisplayRole:
-#             a = [
-#                 ["row 1 col 1", "row 1 col 2", "row 1 col 3"],
-#                 ["row 2 col 1", "row 2 col 2", "row 2 col 3"],
-#             ]
-#             return QtCore.QVariant(a[index.row()][index.column()])
-#         return QtCore.QVariant()
-
-
 class RunTable(QtWidgets.QWidget):
     def __init__(self, context: Context) -> None:
         super().__init__()
@@ -298,9 +290,6 @@ class RunTable(QtWidgets.QWidget):
         header_layout.addWidget(choose_columns)
         header_layout.addWidget(open_inspector)
 
-        tags = Tags(self)
-        tags.completion(["foo", "bar"])
-        header_layout.addWidget(tags)
         root_layout.addLayout(header_layout)
 
         root_layout.addWidget(self._table_view)
@@ -313,16 +302,19 @@ class RunTable(QtWidgets.QWidget):
         logger.info("Late initing")
 
         with self._context.db.connect() as conn:
-            sample_result = conn.execute(
+            first_sample_result = conn.execute(
                 self._tables.table_sample.insert().values(sample_name="first sample")
             )
-            sample_id = sample_result.inserted_primary_key[0]
+            conn.execute(
+                self._tables.table_sample.insert().values(sample_name="second sample")
+            )
+            first_sample_id = first_sample_result.inserted_primary_key[0]
 
             run_id = conn.execute(
                 self._tables.table_run.insert().values(
                     modified=datetime.datetime.now(),
                     status="finished",
-                    sample_id=sample_id,
+                    sample_id=first_sample_id,
                     repetition_rate_mhz=3.5,
                 )
             ).inserted_primary_key[0]
@@ -338,7 +330,7 @@ class RunTable(QtWidgets.QWidget):
                 self._tables.table_run.insert().values(
                     modified=datetime.datetime.now(),
                     status="running",
-                    sample_id=sample_id,
+                    sample_id=first_sample_id,
                     repetition_rate_mhz=4.3,
                 )
             )
