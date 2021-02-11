@@ -6,6 +6,7 @@ import yaml
 from amarcord.modules.context import Context
 from amarcord.modules.uicontext import UIContext
 from amarcord.modules.spb import RunTable
+from amarcord.modules.dbcontext import DBContext, CreationMode
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -21,7 +22,11 @@ if __name__ == "__main__":
         sys.exit(1)
     with config_file.open() as f:
         config = yaml.load(f.read(), Loader=yaml.SafeLoader)
-        context = Context(config=config, ui=UIContext(sys.argv))
+        dbcontext = DBContext(config["db"]["url"])
+        context = Context(config=config, ui=UIContext(sys.argv), db=dbcontext)
         run_table = RunTable(context)
+
+        dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+
         context.ui.register_tab("Runs", run_table)
         context.ui.exec_()
