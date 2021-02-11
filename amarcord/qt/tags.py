@@ -266,6 +266,9 @@ class Tags(QWidget):
                 i -= 1
         self._editing_index = i
 
+    def tagsStr(self) -> List[str]:
+        return [v.text for v in self._tags if v.text != ""]
+
     def tags(self, tags: List[str]) -> None:
         self._tags = [Tag(text="", rect=QRect())]
         self._tags.extend(Tag(t, QRect()) for t in tags)

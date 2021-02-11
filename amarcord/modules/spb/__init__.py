@@ -10,8 +10,8 @@ from itertools import groupby
 import datetime
 import time
 import logging
+from enum import Enum, auto
 import pandas as pd
-from pint import Quantity, UnitRegistry
 import sqlalchemy as sa
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
@@ -23,7 +23,12 @@ from amarcord.qt.tags import Tags
 
 logger = logging.getLogger(__name__)
 
-ureg = UnitRegistry()
+
+class Column(Enum):
+    RUN_ID = auto()
+    STATUS = auto()
+    REPETITION_RATE = auto()
+    TAGS = auto()
 
 
 def table_sample(metadata: sa.MetaData) -> sa.Table:
@@ -61,12 +66,6 @@ def table_run(metadata: sa.MetaData) -> sa.Table:
 
 
 @dataclass(frozen=True)
-class Run:
-    run_id: int
-    repetition_rate: Quantity
-
-
-@dataclass(frozen=True)
 class _RunTables:
     table_sample: sa.Table
     table_run_tag: sa.Table
@@ -74,6 +73,34 @@ class _RunTables:
 
 
 _db_column_to_readable: Dict[str, str] = {}
+
+
+class TagsDelegate(QtWidgets.QStyledItemDelegate):
+    # pylint: disable=no-self-use
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        return Tags(parent)
+
+    # pylint: disable=no-self-use
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        logger.info(
+            "Editor data will be %s", index.model().data(index, QtCore.Qt.EditRole)
+        )
+        editor.tags(index.model().data(index, QtCore.Qt.EditRole))
+
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        model.setData(index, editor.tagsStr(), QtCore.Qt.EditRole)
 
 
 class DBModel(QtCore.QAbstractTableModel):
@@ -98,28 +125,96 @@ class DBModel(QtCore.QAbstractTableModel):
                 .select_from(run.outerjoin(tag))
                 .order_by(run.c.id)
             )
-            self._data: List[Tuple[str, float, str, List[str]]] = []
+            self._data: List[List[Any]] = []
             for _run_id, run_rows in groupby(
                 conn.execute(select_stmt).fetchall(), lambda x: x[0]
             ):
-                rows = list(run_rows)
-                first_row = rows[0]  # type: ignore
+                rows: List[Tuple[str, float, str, str]] = list(run_rows)
+                first_row = rows[0]
                 self._data.append(
-                    (
+                    [
                         first_row[0],
                         first_row[1],
                         first_row[2],
                         [row[3] for row in rows if row[3] is not None],
-                    )
+                    ]
                 )
-            self._column_headers = ("Run", "Status", "Repetition Rate", "Tags")
-            self._column_converters = (None, None, None, lambda x: ", ".join(x))
+            self._column_to_index = {
+                Column.RUN_ID: 0,
+                Column.STATUS: 1,
+                Column.REPETITION_RATE: 2,
+                Column.TAGS: 3,
+            }
+            self._index_to_column = {v: k for k, v in self._column_to_index.items()}
+            self._column_headers = {
+                Column.RUN_ID: "Run",
+                Column.STATUS: "Status",
+                Column.REPETITION_RATE: "Repetition Rate",
+                Column.TAGS: "Tags",
+            }
+            self._column_editable = set({Column.TAGS})
+            self._column_setters = {Column.TAGS: self._setTags}
+            self._column_converters: Dict[Column, Callable[[Any, int], Any]] = {
+                Column.TAGS: self._convert_tag_column
+            }
+
+    # pylint: disable=no-self-use
+    def _convert_tag_column(self, value: List[str], role: int) -> Any:
+        if role == QtCore.Qt.DisplayRole:
+            return ", ".join(value)
+        if role == QtCore.Qt.EditRole:
+            return value
+        return QtCore.QVariant()
+
+    def tags_column_index(self) -> int:
+        return self._column_to_index[Column.TAGS]
+
+    def _setTags(self, row: int, value: QtCore.QVariant, role: int) -> bool:
+        if not isinstance(value, list):
+            raise Exception("didn't get a list in set tags, but " + str(type(value)))
+        logger.info("Setting tags to %s", value)
+        with self._dbcontext.connect() as conn:
+            with conn.begin():
+                run_id = self._data[row][self._column_to_index[Column.RUN_ID]]
+                run_tag = self._tables.table_run_tag
+                conn.execute(run_tag.delete().where(run_tag.c.run_id == run_id))
+                if value:
+                    conn.execute(
+                        run_tag.insert(),
+                        [{"run_id": run_id, "tag_text": t} for t in value],
+                    )
+        self._data[row][self._column_to_index[Column.TAGS]] = value
+        return True
 
     def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return len(self._data)
 
     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
-        return len(self._column_headers)
+        return len(Column)
+
+    def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlags:
+        # Taken from the tutorial:
+        # https://doc.qt.io/qt-5/model-view-programming.html#creating-new-models
+        if not index.isValid():
+            return QtCore.Qt.NoItemFlags | QtCore.Qt.ItemIsEnabled
+
+        result = super().flags(index)
+        if self._index_to_column[index.column()] in self._column_editable:
+            result |= QtCore.Qt.ItemIsEditable
+        return result
+
+    def setData(
+        self,
+        index: QtCore.QModelIndex,
+        value: QtCore.QVariant,
+        role: int = QtCore.Qt.EditRole,
+    ) -> bool:
+        result = self._column_setters[self._index_to_column[index.column()]](
+            index.row(), value, role
+        )
+        if result:
+            self.dataChanged.emit(index, index, [role])
+        return result
 
     def headerData(
         self,
@@ -129,46 +224,46 @@ class DBModel(QtCore.QAbstractTableModel):
     ) -> QtCore.QVariant:
         if orientation == QtCore.Qt.Vertical or role != QtCore.Qt.DisplayRole:
             return QtCore.QVariant()
-        return QtCore.QVariant(self._column_headers[section])
+        return QtCore.QVariant(self._column_headers[self._index_to_column[section]])
 
     def data(
         self,
         index: QtCore.QModelIndex,
         role: int = QtCore.Qt.DisplayRole,
-    ) -> QtCore.QVariant:
+    ) -> Any:
+        v = self._data[index.row()][index.column()]
+        column_converter = self._column_converters.get(
+            self._index_to_column[index.column()], None
+        )
+        if column_converter is not None:
+            return column_converter(v, role)
         if role == QtCore.Qt.DisplayRole:
-            v = self._data[index.row()][index.column()]
-            column_converter = self._column_converters[index.column()]
-            if column_converter is not None:
-                v = column_converter(v)
-            else:
-                v = str(v)
-            return QtCore.QVariant(v)
+            return str(v)
         return QtCore.QVariant()
 
 
-class MockModel(QtCore.QAbstractTableModel):
-    def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
-        super().__init__(parent)
+# class MockModel(QtCore.QAbstractTableModel):
+#     def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
+#         super().__init__(parent)
 
-    def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
-        return 2
+#     def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
+#         return 2
 
-    def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
-        return 3
+#     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
+#         return 3
 
-    def data(
-        self,
-        index: QtCore.QModelIndex,
-        role: int = QtCore.Qt.DisplayRole,
-    ) -> QtCore.QVariant:
-        if role == QtCore.Qt.DisplayRole:
-            a = [
-                ["row 1 col 1", "row 1 col 2", "row 1 col 3"],
-                ["row 2 col 1", "row 2 col 2", "row 2 col 3"],
-            ]
-            return QtCore.QVariant(a[index.row()][index.column()])
-        return QtCore.QVariant()
+#     def data(
+#         self,
+#         index: QtCore.QModelIndex,
+#         role: int = QtCore.Qt.DisplayRole,
+#     ) -> QtCore.QVariant:
+#         if role == QtCore.Qt.DisplayRole:
+#             a = [
+#                 ["row 1 col 1", "row 1 col 2", "row 1 col 3"],
+#                 ["row 2 col 1", "row 2 col 2", "row 2 col 3"],
+#             ]
+#             return QtCore.QVariant(a[index.row()][index.column()])
+#         return QtCore.QVariant()
 
 
 class RunTable(QtWidgets.QWidget):
@@ -179,6 +274,7 @@ class RunTable(QtWidgets.QWidget):
         choose_columns = QtWidgets.QPushButton("Choose columns")
         open_inspector = QtWidgets.QPushButton("Open inspector")
 
+        self._table_model: Optional[DBModel] = None
         self._context = context
         self._table_view = QtWidgets.QTableView()
         self._table_view.setAlternatingRowColors(True)
@@ -247,9 +343,13 @@ class RunTable(QtWidgets.QWidget):
                 )
             )
 
-        self._table_view.setModel(DBModel(self._context.db, self._tables))
+        self._table_model = DBModel(self._context.db, self._tables)
+        self._table_view.setModel(self._table_model)
         self._table_view.verticalHeader().hide()
         self._table_view.horizontalHeader().setStretchLastSection(True)
+        self._table_view.setItemDelegateForColumn(
+            self._table_model.tags_column_index(), TagsDelegate()
+        )
 
     # def handleFilterActivated(self):
     #     header = self.view.horizontalHeader()
