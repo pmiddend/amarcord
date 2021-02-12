@@ -16,9 +16,10 @@ import pandas as pd
 import sqlalchemy as sa
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
+from amarcord.util import str_to_int
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import DBContext
-from amarcord.qt.filter_header import FilterHeader
+from amarcord.qt.filter_header import FilterHeader, Filter
 from amarcord.qt.logging_handler import QtLoggingHandler
 from amarcord.qt.tags import Tags
 
@@ -128,7 +129,10 @@ class SampleDelegate(QtWidgets.QStyledItemDelegate):
         model.setData(index, editor.currentText(), QtCore.Qt.EditRole)
 
 
-def _retrieve_data(tables: _RunTables, conn: Any) -> List[List[Any]]:
+Row = Dict[Column, Any]
+
+
+def _retrieve_data(tables: _RunTables, conn: Any) -> List[Row]:
     run = tables.table_run
     tag = tables.table_run_tag
 
@@ -145,20 +149,20 @@ def _retrieve_data(tables: _RunTables, conn: Any) -> List[List[Any]]:
         .select_from(run.outerjoin(tag))
         .order_by(run.c.id)
     )
-    result: List[List[Any]] = []
+    result: List[Row] = []
     for _run_id, run_rows in groupby(
         conn.execute(select_stmt).fetchall(), lambda x: x[0]
     ):
         rows = list(run_rows)
         first_row = rows[0]
         result.append(
-            [
-                first_row[0],
-                first_row[1],
-                first_row[2],
-                first_row[3],
-                set(row[4] for row in rows if row[4] is not None),
-            ]
+            {
+                Column.RUN_ID: first_row[0],
+                Column.STATUS: first_row[1],
+                Column.SAMPLE: first_row[2],
+                Column.REPETITION_RATE: first_row[3],
+                Column.TAGS: set(row[4] for row in rows if row[4] is not None),
+            }
         )
     return result
 
@@ -180,6 +184,7 @@ class DBModel(QtCore.QAbstractTableModel):
             self.available_samples: List[str] = self._get_available_samples(conn)
 
             self._data = _retrieve_data(tables, conn)
+            self._filtered_data = self._data
             self._column_to_index = {
                 Column.RUN_ID: 0,
                 Column.STATUS: 1,
@@ -203,6 +208,36 @@ class DBModel(QtCore.QAbstractTableModel):
             self._column_converters: Dict[Column, Callable[[Any, int], Any]] = {
                 Column.TAGS: self._convert_tag_column
             }
+            self._column_filters: Dict[Column, str] = {}
+
+    def _row_matches_filters(self, row: Row) -> bool:
+        for c, f in self._column_filters.items():
+            row_value = row[c]
+            if isinstance(row_value, int):
+                logger.info(
+                    "row value is int, %s and %s: %s",
+                    row_value,
+                    f,
+                    row_value != str_to_int(f),
+                )
+                if row_value != str_to_int(f):
+                    return False
+            elif isinstance(row_value, str) and f not in row[c]:
+                return False
+            else:
+                raise Exception("invalid row value type " + str(type(row_value)))
+        return True
+
+    def set_column_filter(self, c: Column, f: str) -> None:
+        if f:
+            self._column_filters[c] = f
+        else:
+            self._column_filters.pop(c, None)
+        self.beginResetModel()
+        self._filtered_data = [
+            row for row in self._data if self._row_matches_filters(row)
+        ]
+        self.endResetModel()
 
     def _get_available_tags(self, conn: Any) -> List[str]:
         return [
@@ -228,17 +263,17 @@ class DBModel(QtCore.QAbstractTableModel):
             return value
         return QtCore.QVariant()
 
-    def tags_column_index(self) -> int:
-        return self._column_to_index[Column.TAGS]
+    def column_index(self, c: Column) -> int:
+        return self._column_to_index[c]
 
-    def sample_column_index(self) -> int:
-        return self._column_to_index[Column.SAMPLE]
+    def index_to_column(self, idx: int) -> Column:
+        return self._index_to_column[idx]
 
     def atCell(self, row: int, column: Column) -> Any:
-        return self._data[row][self._column_to_index[column]]
+        return self._filtered_data[row][column]
 
     def setCell(self, row: int, column: Column, value: Any) -> None:
-        self._data[row][self._column_to_index[column]] = value
+        self._filtered_data[row][column] = value
 
     def _setSample(self, row: int, value: QtCore.QVariant, role: int) -> bool:
         if not isinstance(value, str):
@@ -273,7 +308,7 @@ class DBModel(QtCore.QAbstractTableModel):
         return True
 
     def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
-        return len(self._data)
+        return len(self._filtered_data)
 
     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return len(Column)
@@ -317,7 +352,7 @@ class DBModel(QtCore.QAbstractTableModel):
         index: QtCore.QModelIndex,
         role: int = QtCore.Qt.DisplayRole,
     ) -> Any:
-        v = self._data[index.row()][index.column()]
+        v = self._filtered_data[index.row()][self._index_to_column[index.column()]]
         column_converter = self._column_converters.get(
             self._index_to_column[index.column()], None
         )
@@ -341,10 +376,6 @@ class RunTable(QtWidgets.QWidget):
         self._table_view = QtWidgets.QTableView()
         self._table_view.setAlternatingRowColors(True)
         self._delegates: List[QtWidgets.QAbstractItemDelegate] = []
-        # header = FilterHeader(self._table_view)
-        # header.setFilterBoxes(self._table_model.columnCount())
-        # header.filterActivated.connect(self.handleFilterActivated)
-        # self._table_view.setHorizontalHeader(header)
         self._tables = _RunTables(
             table_sample(context.db.metadata),
             table_run_tag(context.db.metadata),
@@ -412,19 +443,33 @@ class RunTable(QtWidgets.QWidget):
         self._table_view.horizontalHeader().setStretchLastSection(True)
         tags_delegate = TagsDelegate()
         self._table_view.setItemDelegateForColumn(
-            self._table_model.tags_column_index(), tags_delegate
+            self._table_model.column_index(Column.TAGS), tags_delegate
         )
         sample_delegate = SampleDelegate()
         self._table_view.setItemDelegateForColumn(
-            self._table_model.sample_column_index(), sample_delegate
+            self._table_model.column_index(Column.SAMPLE), sample_delegate
         )
         # The table doesn't own the delegates, thus our storage here
         self._delegates.extend([tags_delegate, sample_delegate])
+        header = FilterHeader(self._table_view)
+        header.setColumnFilters(
+            {self._table_model.column_index(Column.RUN_ID): Filter()}
+        )
+        header.filterChanged.connect(self._filter_changed)
+        self._table_view.setHorizontalHeader(header)
 
-    # def handleFilterActivated(self):
-    #     header = self.view.horizontalHeader()
-    #     for index in range(header.count()):
-    #         if index != 4:
-    #             print(index, header.filterText(index))
-    #         else:
-    #             print("Button")
+    def _filter_changed(self, column_index: int, f: str) -> None:
+        self._table_model.set_column_filter(
+            self._table_model.index_to_column(column_index), f
+        )
+
+
+# header.filterActivated.connect(self.handleFilterActivated)
+
+# def handleFilterActivated(self):
+#     header = self.view.horizontalHeader()
+#     for index in range(header.count()):
+#         if index != 4:
+#             print(index, header.filterText(index))
+#         else:
+#             print("Button")
