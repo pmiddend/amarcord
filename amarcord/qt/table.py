@@ -16,7 +16,8 @@ from amarcord.query_parser import filter_by_query
 from amarcord.query_parser import Query
 
 T = TypeVar("T")
-GeneralTable = List[Dict[Enum, Any]]
+Row = Dict[Enum, Any]
+GeneralTable = List[Row]
 DataRetriever = Callable[[], GeneralTable]
 
 
@@ -45,6 +46,8 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         # pylint: disable=unnecessary-comprehension
         self._enum_values = [e for e in self._enum_type]
         self._column_converters = column_converters
+        self._sort_column: Optional[T] = None
+        self._sort_reverse = False
 
     def set_data_retriever(self, data_retriever: DataRetriever) -> None:
         self.beginResetModel()
@@ -65,7 +68,15 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
             for row in self._data
             if filter_by_query(q, {k.name.lower(): v for k, v in row.items()})
         ]
+        self._resort()
         self.endResetModel()
+
+    def _resort(self) -> None:
+        if self._sort_column is not None:
+            self._filtered_data.sort(reverse=self._sort_reverse, key=self._sort_key)
+
+    def _sort_key(self, row: Row) -> Any:
+        return row[self._sort_column]
 
     def headerData(
         self,
@@ -92,6 +103,15 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
             return str(v)
         return QtCore.QVariant()
 
+    def sort(
+        self, column: int, order: QtCore.Qt.SortOrder = QtCore.Qt.AscendingOrder
+    ) -> None:
+        self.layoutAboutToBeChanged.emit()
+        self._sort_column = self._index_to_enum[column]
+        self._sort_reverse = order == QtCore.Qt.DescendingOrder
+        self._resort()
+        self.layoutChanged.emit()
+
 
 class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
     def __init__(
@@ -106,6 +126,7 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
         self.setAlternatingRowColors(True)
         self.verticalHeader().hide()
         self.horizontalHeader().setStretchLastSection(True)
+        self.setSortingEnabled(True)
         self._model = GeneralModel[T](
             enum_type,
             column_headers,
