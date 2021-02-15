@@ -184,6 +184,15 @@ def _display_column_chooser(
     buttonBox.accepted.connect(dialog.accept)
     buttonBox.rejected.connect(dialog.reject)
     root_layout.addWidget(buttonBox)
+
+    def selection_changed(
+        selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection
+    ) -> None:
+        buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(
+            bool(column_list.selectedItems())
+        )
+
+    column_list.selectionModel().selectionChanged.connect(selection_changed)
     if dialog.exec() == QtWidgets.QDialog.Rejected:
         return selected_columns
     return [Column(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()]
