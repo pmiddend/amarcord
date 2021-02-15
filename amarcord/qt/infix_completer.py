@@ -34,9 +34,11 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
         if self._completer is None or self._completer.widget() != self:
             return
 
-        # tc = self.textCursor()
-
         extra = len(completion) - len(self._completer.completionPrefix())
+
+        if extra == 0:
+            return
+
         t = self.text()
 
         previousCursorPosition = self.cursorPosition()
@@ -48,8 +50,7 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
         self.setCursorPosition(previousCursorPosition + extra)
 
     def textUnderCursor(self) -> str:
-        print(f"text: {self.text()}, cursor pos: {self.cursorPosition()}")
-        return _word_under_cursor(self.text(), self.cursorPosition())
+        return word_under_cursor(self.text(), self.cursorPosition())
 
         # tc = self.textCursor()
         # tc.select(QtGui.QTextCursor.WordUnderCursor)
@@ -92,7 +93,6 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
         eow = "~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-="
         hasModifier = e.modifiers() != QtCore.Qt.NoModifier and not ctrlOrShift
         completionPrefix = self.textUnderCursor()
-        print(completionPrefix)
 
         if not isShortcut and (
             hasModifier

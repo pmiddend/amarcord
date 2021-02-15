@@ -41,6 +41,10 @@ class Column(Enum):
     TAGS = auto()
 
 
+def _column_query_names() -> Set[str]:
+    return {f.name.lower() for f in Column}
+
+
 def table_sample(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Sample",
@@ -411,14 +415,14 @@ class RunTable(QtWidgets.QWidget):
         header_layout.addWidget(
             QtWidgets.QLabel("Filter query:"), 0, QtCore.Qt.AlignTop
         )
-        # filter_widget = InfixCompletingLineEdit(self)
-        # completer = QtWidgets.QCompleter(["fooquxbar", "bar"], self)
-        # completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
-        # filter_widget.setCompleter(completer)
+        filter_widget = InfixCompletingLineEdit(self)
+        filter_widget.textChanged.connect(self._filter_changed)
+        completer = QtWidgets.QCompleter(list(_column_query_names()), self)
+        completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
+        filter_widget.setCompleter(completer)
 
         query_layout = QtWidgets.QVBoxLayout()
-        filter_widget = QtWidgets.QLineEdit()
-        filter_widget.textChanged.connect(self._filter_changed)
+        # filter_widget = QtWidgets.QLineEdit()
         query_layout.addWidget(filter_widget)
         self._query_error = QtWidgets.QLabel("")
         self._query_error.setStyleSheet("QLabel { font: italic 10px; color: red; }")
@@ -513,12 +517,11 @@ class RunTable(QtWidgets.QWidget):
         if self._table_model is None:
             return
         try:
-            query = parse_query(f, {f.name.lower() for f in Column})
+            query = parse_query(f, _column_query_names())
             self._table_model.set_filter_query(query)
         except UnexpectedEOF:
             self._query_error.setText("")
         except Exception as e:
-            traceback.print_exc()
             self._query_error.setText(f"{e}")
 
 
