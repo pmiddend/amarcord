@@ -5,6 +5,7 @@ from typing import Dict
 from typing import Tuple
 from typing import Any
 from typing import List
+from typing import Iterable
 from typing import Set
 from typing import Union
 import traceback
@@ -142,12 +143,62 @@ def _convert_tag_column(value: Set[str], role: int) -> Any:
     return QtCore.QVariant()
 
 
+def _column_header(c: Column) -> str:
+    d = {
+        Column.RUN_ID: "Run",
+        Column.STATUS: "Status",
+        Column.SAMPLE: "Sample",
+        Column.REPETITION_RATE: "Repetition Rate",
+        Column.PULSE_ENERGY: "Pulse Energy",
+        Column.TAGS: "Tags",
+    }
+    return d[c]
+
+
+def _display_column_chooser(
+    parent: Optional[QtWidgets.QWidget], selected_columns: List[Column]
+) -> List[Column]:
+    dialog = QtWidgets.QDialog(parent)
+    dialog_layout = QtWidgets.QVBoxLayout()
+    dialog.setLayout(dialog_layout)
+    root_widget = QtWidgets.QGroupBox("Choose which columns to display:")
+    dialog_layout.addWidget(root_widget)
+    root_layout = QtWidgets.QVBoxLayout()
+    root_widget.setLayout(root_layout)
+    column_list = QtWidgets.QListWidget()
+    column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+    for col in Column:
+        new_item = QtWidgets.QListWidgetItem(_column_header(col))
+        new_item.setData(QtCore.Qt.UserRole, col.value)
+        column_list.addItem(new_item)
+    for col in selected_columns:
+        # -1 here because auto lets the enum start at 1 (which is fine actually)
+        column_list.selectionModel().select(
+            column_list.model().index(col.value - 1, 0),
+            QtCore.QItemSelectionModel.SelectionFlag.Select,
+        )
+    root_layout.addWidget(column_list)
+    buttonBox = QtWidgets.QDialogButtonBox(
+        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+    )
+    buttonBox.accepted.connect(dialog.accept)
+    buttonBox.rejected.connect(dialog.reject)
+    root_layout.addWidget(buttonBox)
+    if dialog.exec() == QtWidgets.QDialog.Rejected:
+        return selected_columns
+    return [Column(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()]
+
+
 class RunTable(QtWidgets.QWidget):
     def __init__(self, context: Context) -> None:
         super().__init__()
 
         # Init main widgets
         choose_columns = QtWidgets.QPushButton("Choose columns")
+        choose_columns.setIcon(
+            self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView)
+        )
+        choose_columns.clicked.connect(self._switch_columns)
         open_inspector = QtWidgets.QPushButton("Open inspector")
 
         self._context = context
@@ -159,14 +210,7 @@ class RunTable(QtWidgets.QWidget):
         context.db.after_db_created(self._late_init)
         self._table_view = GeneralTableWidget[Column](
             Column,
-            column_headers={
-                Column.RUN_ID: "Run",
-                Column.STATUS: "Status",
-                Column.SAMPLE: "Sample",
-                Column.REPETITION_RATE: "Repetition Rate",
-                Column.PULSE_ENERGY: "Pulse Energy",
-                Column.TAGS: "Tags",
-            },
+            column_headers={c: _column_header(c) for c in Column},
             column_visibility=[
                 Column.RUN_ID,
                 Column.STATUS,
@@ -214,6 +258,10 @@ class RunTable(QtWidgets.QWidget):
         root_layout.addWidget(QtWidgets.QLabel("Log:"))
         root_layout.addWidget(log_output)
         logger.addHandler(QtLoggingHandler(log_output))
+
+    def _switch_columns(self) -> None:
+        new_columns = _display_column_chooser(self, self._table_view.column_visibility)
+        self._table_view.set_column_visibility(new_columns)
 
     def _late_init(self) -> None:
         logger.info("Late initing")

@@ -34,19 +34,11 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         super().__init__(parent)
         self._enum_type = enum_type
         self._column_headers = column_headers
-        self._column_visibility = column_visibility
+        self.column_visibility = column_visibility
         self._enum_to_index: Dict[T, int] = {
             v: k for k, v in enumerate(column_visibility)
         }
         self._index_to_enum = {v: k for k, v in self._enum_to_index.items()}
-        # self._index_to_enum: Dict[int, T] = {
-        #     idx: v
-        #     # pylint: disable=unnecessary-comprehension
-        #     for idx, v in enumerate(e for e in enum_type)
-        # }
-        # self._enum_to_index: Dict[T, int] = {
-        #     k: v for v, k in self._index_to_enum.items()
-        # }
         self._data = data_retriever() if data_retriever is not None else []
         self._filtered_data = self._data
         # pylint: disable=unnecessary-comprehension
@@ -54,6 +46,15 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self._column_converters = column_converters
         self._sort_column: Optional[T] = None
         self._sort_reverse = False
+
+    def set_column_visibility(self, column_visibility: List[T]) -> None:
+        self.column_visibility = column_visibility
+        self.layoutAboutToBeChanged.emit()
+        self._enum_to_index: Dict[T, int] = {
+            v: k for k, v in enumerate(column_visibility)
+        }
+        self._index_to_enum = {v: k for k, v in self._enum_to_index.items()}
+        self.layoutChanged.emit()
 
     def set_data_retriever(self, data_retriever: DataRetriever) -> None:
         self.beginResetModel()
@@ -65,7 +66,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         return len(self._filtered_data)
 
     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
-        return len(self._column_visibility)
+        return len(self.column_visibility)
 
     def set_filter_query(self, q: Query) -> None:
         self.beginResetModel()
@@ -144,6 +145,13 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
             parent=None,
         )
         self.setModel(self._model)
+
+    @property
+    def column_visibility(self) -> List[T]:
+        return self._model.column_visibility
+
+    def set_column_visibility(self, columns: List[T]) -> None:
+        self._model.set_column_visibility(columns)
 
     def set_data_retriever(self, data_retriever: DataRetriever) -> None:
         self._model.set_data_retriever(data_retriever)
