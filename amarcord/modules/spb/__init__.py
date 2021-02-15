@@ -6,8 +6,10 @@ from typing import Any
 from typing import List
 from typing import Set
 from typing import Union
+import traceback
 from dataclasses import dataclass
 from itertools import groupby
+from functools import partial
 import datetime
 import time
 import logging
@@ -19,9 +21,14 @@ from PyQt5 import QtCore
 from amarcord.util import str_to_int
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import DBContext
-from amarcord.qt.filter_header import FilterHeader, Filter
+from amarcord.qt.alternative_filter_header import FilterHeader, FilterHeaderTableView
 from amarcord.qt.logging_handler import QtLoggingHandler
+from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.qt.tags import Tags
+from amarcord.query_parser import parse_query
+from amarcord.query_parser import filter_by_query
+from amarcord.query_parser import Query
+from amarcord.query_parser import UnexpectedEOF
 
 logger = logging.getLogger(__name__)
 
@@ -228,16 +235,25 @@ class DBModel(QtCore.QAbstractTableModel):
                 raise Exception("invalid row value type " + str(type(row_value)))
         return True
 
-    def set_column_filter(self, c: Column, f: str) -> None:
-        if f:
-            self._column_filters[c] = f
-        else:
-            self._column_filters.pop(c, None)
+    def set_filter_query(self, q: Query) -> None:
         self.beginResetModel()
         self._filtered_data = [
-            row for row in self._data if self._row_matches_filters(row)
+            row
+            for row in self._data
+            if filter_by_query(q, {k.name.lower(): v for k, v in row.items()})
         ]
         self.endResetModel()
+
+    # def set_column_filter(self, c: Column, f: str) -> None:
+    #     if f:
+    #         self._column_filters[c] = f
+    #     else:
+    #         self._column_filters.pop(c, None)
+    #     self.beginResetModel()
+    #     self._filtered_data = [
+    #         row for row in self._data if self._row_matches_filters(row)
+    #     ]
+    #     self.endResetModel()
 
     def _get_available_tags(self, conn: Any) -> List[str]:
         return [
@@ -373,7 +389,8 @@ class RunTable(QtWidgets.QWidget):
 
         self._table_model: Optional[DBModel] = None
         self._context = context
-        self._table_view = QtWidgets.QTableView()
+        self._table_view = QtWidgets.QTableView(self)
+        # self._table_view = FilterHeaderTableView(self)
         self._table_view.setAlternatingRowColors(True)
         self._delegates: List[QtWidgets.QAbstractItemDelegate] = []
         self._tables = _RunTables(
@@ -389,8 +406,27 @@ class RunTable(QtWidgets.QWidget):
         # Layouting stuff
         root_layout = QtWidgets.QVBoxLayout(self)
         header_layout = QtWidgets.QHBoxLayout()
-        header_layout.addWidget(choose_columns)
-        header_layout.addWidget(open_inspector)
+        header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
+        header_layout.addWidget(open_inspector, 0, QtCore.Qt.AlignTop)
+        header_layout.addWidget(
+            QtWidgets.QLabel("Filter query:"), 0, QtCore.Qt.AlignTop
+        )
+        # filter_widget = InfixCompletingLineEdit(self)
+        # completer = QtWidgets.QCompleter(["fooquxbar", "bar"], self)
+        # completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
+        # filter_widget.setCompleter(completer)
+
+        query_layout = QtWidgets.QVBoxLayout()
+        filter_widget = QtWidgets.QLineEdit()
+        filter_widget.textChanged.connect(self._filter_changed)
+        query_layout.addWidget(filter_widget)
+        self._query_error = QtWidgets.QLabel("")
+        self._query_error.setStyleSheet("QLabel { font: italic 10px; color: red; }")
+        query_layout.addWidget(self._query_error)
+        query_layout.setSpacing(0)
+        query_layout.setContentsMargins(0, 0, 0, 0)
+
+        header_layout.addLayout(query_layout)
 
         root_layout.addLayout(header_layout)
 
@@ -451,17 +487,39 @@ class RunTable(QtWidgets.QWidget):
         )
         # The table doesn't own the delegates, thus our storage here
         self._delegates.extend([tags_delegate, sample_delegate])
-        header = FilterHeader(self._table_view)
-        header.setColumnFilters(
-            {self._table_model.column_index(Column.RUN_ID): Filter()}
-        )
-        header.filterChanged.connect(self._filter_changed)
-        self._table_view.setHorizontalHeader(header)
 
-    def _filter_changed(self, column_index: int, f: str) -> None:
-        self._table_model.set_column_filter(
-            self._table_model.index_to_column(column_index), f
-        )
+        # editor = QtWidgets.QWidget()
+        # edlay = QtWidgets.QVBoxLayout()
+        # edlay.addWidget(QtWidgets.QLabel("Run ID WWWWWWWWWWWW"))
+        # editorLine = QtWidgets.QLineEdit()
+        # editorLine.setClearButtonEnabled(True)
+        # editorLine.setPlaceholderText("Filter")
+        # # editorLine.returnPressed.connect(self.filterActivated.emit)
+        # # editorLine.textChanged.connect(partial(self._textChanged, k))
+        # edlay.addWidget(editorLine)
+        # editor.setLayout(edlay)
+
+        # self._table_view.setHorizontalHeaderWidget(0, editor)
+        # self._table_view.setHorizontalHeaderWidget(0, QtWidgets.QLineEdit())
+
+        # header = FilterHeader(self._table_view)
+        # header.setColumnFilters(
+        #     {self._table_model.column_index(Column.RUN_ID): Filter()}
+        # )
+        # header.filterChanged.connect(self._filter_changed)
+        # self._table_view.setHorizontalHeader(header)
+
+    def _filter_changed(self, f: str) -> None:
+        if self._table_model is None:
+            return
+        try:
+            query = parse_query(f, {f.name.lower() for f in Column})
+            self._table_model.set_filter_query(query)
+        except UnexpectedEOF:
+            self._query_error.setText("")
+        except Exception as e:
+            traceback.print_exc()
+            self._query_error.setText(f"{e}")
 
 
 # header.filterActivated.connect(self.handleFilterActivated)
