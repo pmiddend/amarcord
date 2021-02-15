@@ -41,6 +41,7 @@ class Column(Enum):
     SAMPLE = auto()
     REPETITION_RATE = auto()
     TAGS = auto()
+    PULSE_ENERGY = auto()
 
 
 def _column_query_names() -> Set[str]:
@@ -74,7 +75,7 @@ def table_run(metadata: sa.MetaData) -> sa.Table:
         sa.Column("status", sa.String(length=255), nullable=False),
         sa.Column("sample_id", sa.Integer, nullable=False),
         sa.Column("repetition_rate_mhz", sa.Float, nullable=False),
-        # sa.Column("pulse_energy_mj", sa.Float, nullable=False),
+        sa.Column("pulse_energy_mj", sa.Float, nullable=False),
         # sa.Column("pulses_per_train", sa.Integer, nullable=False),
         # sa.Column("xray_energy_kev", sa.Float, nullable=False),
         # sa.Column("injector_position_z", sa.Float, nullable=False),
@@ -107,6 +108,7 @@ def _retrieve_data(tables: _RunTables, conn: Any) -> List[Row]:
                 run.c.status,
                 run.c.sample_id,
                 run.c.repetition_rate_mhz,
+                run.c.pulse_energy_mj,
                 tag.c.tag_text,
             ]
         )
@@ -125,7 +127,8 @@ def _retrieve_data(tables: _RunTables, conn: Any) -> List[Row]:
                 Column.STATUS: first_row[1],
                 Column.SAMPLE: first_row[2],
                 Column.REPETITION_RATE: first_row[3],
-                Column.TAGS: set(row[4] for row in rows if row[4] is not None),
+                Column.PULSE_ENERGY: first_row[4],
+                Column.TAGS: set(row[5] for row in rows if row[5] is not None),
             }
         )
     return result
@@ -161,8 +164,16 @@ class RunTable(QtWidgets.QWidget):
                 Column.STATUS: "Status",
                 Column.SAMPLE: "Sample",
                 Column.REPETITION_RATE: "Repetition Rate",
+                Column.PULSE_ENERGY: "Pulse Energy",
                 Column.TAGS: "Tags",
             },
+            column_visibility=[
+                Column.RUN_ID,
+                Column.STATUS,
+                Column.SAMPLE,
+                Column.REPETITION_RATE,
+                Column.TAGS,
+            ],
             column_converters={Column.TAGS: _convert_tag_column},
             data_retriever=None,
             parent=self,
@@ -222,6 +233,7 @@ class RunTable(QtWidgets.QWidget):
                     status="finished",
                     sample_id=first_sample_id,
                     repetition_rate_mhz=3.5,
+                    pulse_energy_mj=1,
                 )
             ).inserted_primary_key[0]
 
@@ -238,6 +250,7 @@ class RunTable(QtWidgets.QWidget):
                     status="running",
                     sample_id=first_sample_id,
                     repetition_rate_mhz=4.3,
+                    pulse_energy_mj=2,
                 )
             )
 

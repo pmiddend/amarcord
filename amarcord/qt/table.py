@@ -26,6 +26,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self,
         enum_type: Iterable[T],
         column_headers: Dict[T, str],
+        column_visibility: List[T],
         column_converters: Dict[T, Callable[[Any, int], Any]],
         data_retriever: Optional[DataRetriever],
         parent: Optional[QtCore.QObject],
@@ -33,14 +34,19 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         super().__init__(parent)
         self._enum_type = enum_type
         self._column_headers = column_headers
-        self._index_to_enum: Dict[int, T] = {
-            idx: v
-            # pylint: disable=unnecessary-comprehension
-            for idx, v in enumerate(e for e in enum_type)
-        }
+        self._column_visibility = column_visibility
         self._enum_to_index: Dict[T, int] = {
-            k: v for v, k in self._index_to_enum.items()
+            v: k for k, v in enumerate(column_visibility)
         }
+        self._index_to_enum = {v: k for k, v in self._enum_to_index.items()}
+        # self._index_to_enum: Dict[int, T] = {
+        #     idx: v
+        #     # pylint: disable=unnecessary-comprehension
+        #     for idx, v in enumerate(e for e in enum_type)
+        # }
+        # self._enum_to_index: Dict[T, int] = {
+        #     k: v for v, k in self._index_to_enum.items()
+        # }
         self._data = data_retriever() if data_retriever is not None else []
         self._filtered_data = self._data
         # pylint: disable=unnecessary-comprehension
@@ -59,7 +65,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         return len(self._filtered_data)
 
     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
-        return len(self._enum_values)
+        return len(self._column_visibility)
 
     def set_filter_query(self, q: Query) -> None:
         self.beginResetModel()
@@ -75,7 +81,8 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         if self._sort_column is not None:
             self._filtered_data.sort(reverse=self._sort_reverse, key=self._sort_key)
 
-    def _sort_key(self, row: Row) -> Any:
+    def _sort_key(self, row: Dict[T, Any]) -> Any:
+        assert self._sort_column is not None
         return row[self._sort_column]
 
     def headerData(
@@ -118,8 +125,9 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
         self,
         enum_type: Iterable[T],
         column_headers: Dict[T, str],
+        column_visibility: List[T],
         column_converters: Dict[T, Callable[[Any, int], Any]],
-        data_retriever: DataRetriever,
+        data_retriever: Optional[DataRetriever],
         parent: Optional[QtWidgets.QWidget],
     ) -> None:
         super().__init__(parent)
@@ -130,6 +138,7 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
         self._model = GeneralModel[T](
             enum_type,
             column_headers,
+            column_visibility,
             column_converters,
             data_retriever,
             parent=None,
