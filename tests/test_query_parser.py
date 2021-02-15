@@ -84,3 +84,13 @@ def test_unexpected_eof_is_expicit() -> None:
         parse_query("bar <", {"foo"})
     except Exception as e:
         assert isinstance(e, UnexpectedEOF)
+
+
+def test_single_negative_number() -> None:
+    q = parse_query("foo <= -3", {"foo"})
+    assert filter_by_query(q, {"foo": -10})
+
+
+def test_float_comparison() -> None:
+    q = parse_query("foo <= 3", {"foo"})
+    assert filter_by_query(q, {"foo": 2.5})

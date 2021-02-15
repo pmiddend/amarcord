@@ -22,6 +22,16 @@ def massage(field: Any, comparison: Any) -> Tuple[Any, Any]:
             return int(field), comparison
         except:
             return field, str(comparison)
+    if isinstance(field, float) and isinstance(comparison, str):
+        try:
+            return field, float(comparison)
+        except:
+            return str(field), comparison
+    if isinstance(field, str) and isinstance(comparison, float):
+        try:
+            return float(field), comparison
+        except:
+            return field, str(comparison)
     return field, comparison
 
 
@@ -99,7 +109,7 @@ query_parser = Lark(
 !inneroperator : "has" | "=" | "<" | ">" | "<=" | ">=" | "!="
 
 FIELD : /[a-zA-Z_][a-zA-Z0-9_]*/
-COMPARISON : /[a-zA-Z0-9_.]+/
+COMPARISON : /[a-zA-Z0-9_.-]+/
 MYWORD : /[a-zA-Z]+/
 %ignore " "
   """,
