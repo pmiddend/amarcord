@@ -8,6 +8,7 @@ from typing import Any
 import humanize
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
+from PyQt5 import QtGui
 import sqlalchemy as sa
 from amarcord.modules.context import Context
 from amarcord.qt.tags import Tags
@@ -25,6 +26,7 @@ class _RunSimple:
 
 @dataclass(frozen=True)
 class _Comment:
+    id: int
     author: str
     text: str
     created: datetime.datetime
@@ -98,6 +100,7 @@ def _retrieve_run(conn: Any, tables: Tables, run_id: int) -> _Run:
                 run_c.status,
                 run_c.repetition_rate_mhz,
                 tables.run_tag.c.tag_text,
+                tables.run_comment.c.id.label("comment_id"),
                 tables.run_comment.c.author,
                 tables.run_comment.c.text,
                 tables.run_comment.c.created,
@@ -117,11 +120,11 @@ def _retrieve_run(conn: Any, tables: Tables, run_id: int) -> _Run:
         tags=remove_duplicates(
             [row["tag_text"] for row in run_rows if row["tag_text"] is not None]
         ),
-        comments=[
-            _Comment(row["author"], row["text"], row["created"])
+        comments=remove_duplicates(
+            _Comment(row["comment_id"], row["author"], row["text"], row["created"])
             for row in run_rows
             if row["author"] is not None
-        ],
+        ),
     )
 
 
@@ -133,6 +136,26 @@ def _add_comment(
             run_id=run_id, author=author, text=text, created=datetime.datetime.utcnow()
         )
     )
+
+
+def _delete_comment(conn: Any, tables: Tables, comment_id: int) -> None:
+    conn.execute(
+        sa.delete(tables.run_comment).where(tables.run_comment.c.id == comment_id)
+    )
+
+
+class _CommentTable(QtWidgets.QTableWidget):
+    delete_current_row = QtCore.pyqtSignal()
+
+    def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
+        menu = QtWidgets.QMenu(self)
+        deleteAction = menu.addAction(
+            self.style().standardIcon(QtWidgets.QStyle.SP_DialogCancelButton),
+            "Delete comment",
+        )
+        action = menu.exec_(self.mapToGlobal(event.pos()))
+        if action == deleteAction:
+            self.delete_current_row.emit()
 
 
 class RunDetails(QtWidgets.QWidget):
@@ -182,7 +205,13 @@ class RunDetails(QtWidgets.QWidget):
                 comment_column = QtWidgets.QGroupBox("Comments")
                 comment_layout = QtWidgets.QVBoxLayout()
                 comment_column.setLayout(comment_layout)
-                self._comment_table = QtWidgets.QTableWidget()
+                self._comment_table = _CommentTable()
+                self._comment_table.setSelectionBehavior(
+                    # pylint: disable=no-member
+                    QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows  # type: ignore
+                )
+                self._comment_table.delete_current_row.connect(self._delete_comment)
+
                 comment_layout.addWidget(self._comment_table)
 
                 comment_form_layout = QtWidgets.QFormLayout()
@@ -240,6 +269,17 @@ class RunDetails(QtWidgets.QWidget):
 
     def select_run(self, run_id: int) -> None:
         self._run_changed(run_id)
+
+    def _delete_comment(self) -> None:
+        with self._context.db.connect() as conn:
+            logger.info("Will delete row %s", self._comment_table.currentRow())
+            _delete_comment(
+                conn,
+                self._tables,
+                self._run.comments[self._comment_table.currentRow()].id,
+            )
+            self._refresh()
+            self.run_changed.emit()
 
     def _tags_changed(self) -> None:
         if self._tags_widget.tagsStr() == self._run.tags:

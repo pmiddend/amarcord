@@ -26,6 +26,7 @@ def _table_run_comment(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "RunComment",
         metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("run_id", sa.Integer, sa.ForeignKey("Run.id")),
         sa.Column("author", sa.String(length=255), nullable=False),
         sa.Column("text", sa.String(length=255), nullable=False),

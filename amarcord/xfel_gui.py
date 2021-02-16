@@ -9,6 +9,7 @@ from amarcord.modules.uicontext import UIContext
 from amarcord.modules.spb.tables import create_tables, create_sample_data
 from amarcord.modules.spb import run_table
 from amarcord.modules.spb import run_details
+from amarcord.modules.spb.run_details import RunDetails
 from amarcord.modules.dbcontext import DBContext, CreationMode
 
 logging.basicConfig(
@@ -48,9 +49,11 @@ if __name__ == "__main__":
             context.ui.icon("SP_FileDialogContentsView"),
         )
 
-        def change_run(context: Context, run_id: int) -> None:
+        def change_run(
+            run_id: int,
+        ) -> None:
             run_details_tab.select_run(run_id)
             context.ui.select_tab(run_details_index)
 
-        run_table_tab.run_selected.connect(partial(change_run, context))
+        run_table_tab.run_selected.connect(change_run)
         context.ui.exec_()
