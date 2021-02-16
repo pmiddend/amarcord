@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import datetime
 import getpass
+import logging
 from typing import List
 from typing import Any
 import humanize
@@ -10,6 +11,8 @@ from amarcord.modules.context import Context
 from amarcord.qt.tags import Tags
 from amarcord.modules.spb.tables import Tables
 from amarcord.util import remove_duplicates
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,16 @@ def _change_sample(conn: Any, tables: Tables, run_id: int, new_sample: int) -> N
     )
 
 
+def _change_tags(conn: Any, tables: Tables, run_id: int, new_tags: List[str]) -> None:
+    with conn.begin():
+        conn.execute(sa.delete(tables.run_tag).where(tables.run_tag.c.run_id == run_id))
+        if new_tags:
+            conn.execute(
+                tables.run_tag.insert(),
+                [{"run_id": run_id, "tag_text": t} for t in new_tags],
+            )
+
+
 def _retrieve_run(conn: Any, tables: Tables, run_id: int) -> _Run:
     run_c = tables.run.c
     select_statement = (
@@ -116,6 +129,7 @@ def _add_comment(
             run_id=run_id, author=author, text=text, created=datetime.datetime.utcnow()
         )
     )
+    conn.commit()
 
 
 class RunDetails(QtWidgets.QWidget):
@@ -199,6 +213,7 @@ class RunDetails(QtWidgets.QWidget):
                 details_layout.addRow(QtWidgets.QLabel("Sample"), self._sample_chooser)
                 self._tags_widget = Tags()
                 self._tags_widget.completion(self._tags)
+                self._tags_widget.tagsEdited.connect(self._tags_changed)
                 details_layout.addRow(QtWidgets.QLabel("Tags"), self._tags_widget)
 
                 root_layout = QtWidgets.QVBoxLayout()
@@ -213,6 +228,19 @@ class RunDetails(QtWidgets.QWidget):
 
                 self._selected_run = -1
                 self._run_changed(max(r.run_id for r in self._run_ids))
+
+    def _tags_changed(self) -> None:
+        if self._tags_widget.tagsStr() == self._run.tags:
+            return
+        with self._context.db.connect() as conn:
+            logger.info("Tags have changed!")
+            _change_tags(
+                conn, self._tables, self._selected_run, self._tags_widget.tagsStr()
+            )
+            self._refresh()
+
+    def _refresh(self) -> None:
+        self._run_changed(self._selected_run)
 
     def _run_changed(self, run_id: int) -> None:
         with self._context.db.connect() as conn:
@@ -258,9 +286,9 @@ class RunDetails(QtWidgets.QWidget):
                 self._comment_author.text(),
                 self._comment_input.text(),
             )
-            self._run_changed(self._selected_run)
+            self._refresh()
 
     def _sample_changed(self, new_sample: int) -> None:
         with self._context.db.connect() as conn:
             _change_sample(conn, self._tables, self._selected_run, new_sample)
-        self._run_changed(self._selected_run)
+        self._refresh()

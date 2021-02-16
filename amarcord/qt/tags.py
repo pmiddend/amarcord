@@ -106,6 +106,7 @@ class Tags(QWidget):
         self.updateDisplayText()
         self.calcRects()
         self.update()
+        # self.tagsEdited.emit()
 
     def updateDisplayText(self) -> None:
         self._text_layout.clearLayout()
@@ -430,6 +431,7 @@ class Tags(QWidget):
             self.calcRects()
             self.updateCursorBlinking()
             self.update()
+            # self.tagsEdited.emit()
 
     def updateCursorBlinking(self) -> None:
         self.setCursorVisible(self.cursorVisible())
@@ -451,6 +453,7 @@ class Tags(QWidget):
         self.updateDisplayText()
         self.calcRects()
         self.update()
+        self.tagsEdited.emit()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         event.setAccepted(False)
@@ -535,7 +538,7 @@ class Tags(QWidget):
 
             self.update()
 
-            self.tagsEdited.emit()
+            # self.tagsEdited.emit()
 
     def hasSelection(self) -> bool:
         return self._select_size > 0
