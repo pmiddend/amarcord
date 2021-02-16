@@ -4,7 +4,6 @@ from typing import Any
 from typing import List
 from typing import Set
 from itertools import groupby
-import datetime
 import logging
 from enum import Enum, auto
 import sqlalchemy as sa
@@ -145,6 +144,8 @@ def _display_column_chooser(
 
 
 class RunTable(QtWidgets.QWidget):
+    run_selected = QtCore.pyqtSignal(int)
+
     def __init__(self, context: Context, tables: Tables) -> None:
         super().__init__()
 
@@ -173,6 +174,7 @@ class RunTable(QtWidgets.QWidget):
             data_retriever=None,
             parent=self,
         )
+        self._table_view.row_double_click.connect(self._row_selected)
 
         log_output = QtWidgets.QPlainTextEdit()
         log_output.setReadOnly(True)
@@ -206,6 +208,9 @@ class RunTable(QtWidgets.QWidget):
 
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
+
+    def _row_selected(self, row: Dict[Column, Any]) -> None:
+        self.run_selected.emit(row[Column.RUN_ID])
 
     def run_changed(self) -> None:
         logger.info("Refreshing run table")

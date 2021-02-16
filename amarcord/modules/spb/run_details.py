@@ -231,6 +231,9 @@ class RunDetails(QtWidgets.QWidget):
                 self._selected_run = -1
                 self._run_changed(max(r.run_id for r in self._run_ids))
 
+    def select_run(self, run_id: int) -> None:
+        self._run_changed(run_id)
+
     def _tags_changed(self) -> None:
         if self._tags_widget.tagsStr() == self._run.tags:
             return

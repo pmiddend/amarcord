@@ -28,11 +28,13 @@ class UIContext:
 
     def register_tab(
         self, label: str, w: QtWidgets.QWidget, icon: Optional[QtGui.QIcon] = None
-    ) -> None:
+    ) -> int:
         if icon is not None:
-            self._tabs.addTab(w, icon, label)
-        else:
-            self._tabs.addTab(w, label)
+            return self._tabs.addTab(w, icon, label)
+        return self._tabs.addTab(w, label)
+
+    def select_tab(self, idx: int) -> None:
+        self._tabs.setCurrentIndex(idx)
 
     def style(self) -> QtWidgets.QStyle:
         return self._app.style()

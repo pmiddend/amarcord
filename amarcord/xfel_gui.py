@@ -2,6 +2,7 @@ import sys
 import os
 from pathlib import Path
 import logging
+from functools import partial
 import yaml
 from amarcord.modules.context import Context
 from amarcord.modules.uicontext import UIContext
@@ -41,9 +42,15 @@ if __name__ == "__main__":
         )
         run_details_tab = run_details(context, tables)
         run_details_tab.run_changed.connect(run_table_tab.run_changed)
-        context.ui.register_tab(
+        run_details_index = context.ui.register_tab(
             "Run details",
             run_details_tab,
             context.ui.icon("SP_FileDialogContentsView"),
         )
+
+        def change_run(context: Context, run_id: int) -> None:
+            run_details_tab.select_run(run_id)
+            context.ui.select_tab(run_details_index)
+
+        run_table_tab.run_selected.connect(partial(change_run, context))
         context.ui.exec_()

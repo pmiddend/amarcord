@@ -7,8 +7,6 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 
-from enum import Enum
-
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 
@@ -16,7 +14,7 @@ from amarcord.query_parser import filter_by_query
 from amarcord.query_parser import Query
 
 T = TypeVar("T")
-Row = Dict[Enum, Any]
+Row = Dict[T, Any]
 GeneralTable = List[Row]
 DataRetriever = Callable[[], GeneralTable]
 
@@ -98,6 +96,9 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         assert self._sort_column is not None
         return row[self._sort_column]
 
+    def row(self, row_idx: int) -> Row:
+        return self._filtered_data[row_idx]
+
     def headerData(
         self,
         section: int,
@@ -134,6 +135,8 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
 
 
 class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
+    row_double_click = QtCore.pyqtSignal(dict)
+
     def __init__(
         self,
         enum_type: Iterable[T],
@@ -157,6 +160,14 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
             parent=None,
         )
         self.setModel(self._model)
+        self.setSelectionBehavior(
+            # pylint: disable=no-member
+            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows  # type: ignore
+        )
+        self.doubleClicked.connect(self._double_click)
+
+    def _double_click(self, index: QtCore.QModelIndex) -> None:
+        self.row_double_click.emit(self._model.row(index.row()))
 
     @property
     def column_visibility(self) -> List[T]:
