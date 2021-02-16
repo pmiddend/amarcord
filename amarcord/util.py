@@ -1,5 +1,9 @@
 from typing import Optional
+from typing import List
+from typing import TypeVar
 import re
+
+T = TypeVar("T")
 
 
 def str_to_int(s: str) -> Optional[int]:
@@ -30,3 +34,7 @@ def word_under_cursor(s: str, pos: int) -> str:
     if after_ws < 0:
         after_ws = len(s)
     return s[before_ws + 1 : after_ws]
+
+
+def remove_duplicates(l: List[T]) -> List[T]:
+    return list(set(l))

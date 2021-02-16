@@ -5,7 +5,9 @@ import logging
 import yaml
 from amarcord.modules.context import Context
 from amarcord.modules.uicontext import UIContext
-from amarcord.modules.spb import RunTable
+from amarcord.modules.spb.tables import create_tables, create_sample_data
+from amarcord.modules.spb import run_table
+from amarcord.modules.spb import run_details
 from amarcord.modules.dbcontext import DBContext, CreationMode
 
 logging.basicConfig(
@@ -24,9 +26,21 @@ if __name__ == "__main__":
         config = yaml.load(f.read(), Loader=yaml.SafeLoader)
         dbcontext = DBContext(config["db"]["url"])
         context = Context(config=config, ui=UIContext(sys.argv), db=dbcontext)
-        run_table = RunTable(context)
+
+        tables = create_tables(context.db)
 
         dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
-        context.ui.register_tab("Runs", run_table)
+        create_sample_data(dbcontext, tables)
+
+        context.ui.register_tab(
+            "Runs",
+            run_table(context, tables),
+            context.ui.icon("SP_ComputerIcon"),
+        )
+        context.ui.register_tab(
+            "Run details",
+            run_details(context, tables),
+            context.ui.icon("SP_FileDialogContentsView"),
+        )
         context.ui.exec_()

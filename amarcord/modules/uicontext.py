@@ -1,8 +1,10 @@
 from typing import List
+from typing import Optional
 import logging
 from amarcord.qt.logging_handler import QtLoggingHandler
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
+from PyQt5 import QtGui
 
 
 class UIContext:
@@ -24,8 +26,19 @@ class UIContext:
         splitter.setStretchFactor(1, 1)
         self._main_window.setCentralWidget(splitter)
 
-    def register_tab(self, label: str, w: QtWidgets.QWidget) -> None:
-        self._tabs.addTab(w, label)
+    def register_tab(
+        self, label: str, w: QtWidgets.QWidget, icon: Optional[QtGui.QIcon] = None
+    ) -> None:
+        if icon is not None:
+            self._tabs.addTab(w, icon, label)
+        else:
+            self._tabs.addTab(w, label)
+
+    def style(self) -> QtWidgets.QStyle:
+        return self._app.style()
+
+    def icon(self, icon_name: str) -> QtGui.QIcon:
+        return self._app.style().standardIcon(getattr(QtWidgets.QStyle, icon_name))
 
     def exec_(self) -> None:
         self._main_window.show()

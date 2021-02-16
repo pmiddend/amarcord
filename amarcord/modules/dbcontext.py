@@ -19,9 +19,13 @@ class DBContext:
         self.engine = create_engine(connection_url, echo=True)
         self.metadata = MetaData()
         self._after_db_created: List[Callable[[], None]] = []
+        self._db_created = False
 
     def after_db_created(self, f: Callable[[], None]) -> None:
-        self._after_db_created.append(f)
+        if self._db_created:
+            f()
+        else:
+            self._after_db_created.append(f)
 
     @property
     def dbname(self) -> str:
@@ -31,6 +35,7 @@ class DBContext:
         self.metadata.create_all(
             self.engine, checkfirst=creation_mode == CreationMode.CHECK_FIRST
         )
+        self._db_created = True
         for f in self._after_db_created:
             f()
         self._after_db_created = []
