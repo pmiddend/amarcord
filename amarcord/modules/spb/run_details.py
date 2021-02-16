@@ -99,11 +99,22 @@ def _retrieve_run(conn: Any, tables: Tables, run_id: int) -> _Run:
     )
 
 
+def _add_comment(
+    conn: Any, tables: Tables, run_id: int, author: str, text: str
+) -> None:
+    conn.execute(
+        sa.insert(tables.run_comment).values(
+            run_id=run_id, author=author, text=text, created=datetime.datetime.utcnow()
+        )
+    )
+
+
 class RunDetails(QtWidgets.QWidget):
     def __init__(self, context: Context, tables: Tables) -> None:
         super().__init__()
 
         self._context = context
+        self._tables = tables
         with context.db.connect() as conn:
             self._run_ids = _retrieve_run_ids(conn, tables)
             self._sample_ids = _retrieve_sample_ids(conn, tables)
@@ -112,19 +123,25 @@ class RunDetails(QtWidgets.QWidget):
             if not self._run_ids:
                 QtWidgets.QLabel("No runs yet, please wait or create one", self)
             else:
-                max_run = max(r.run_id for r in self._run_ids)
-                self._run = _retrieve_run(conn, tables, max_run)
 
                 top_row = QtWidgets.QWidget()
                 top_layout = QtWidgets.QHBoxLayout()
                 top_row.setLayout(top_layout)
 
-                run_selector = QtWidgets.QComboBox()
-                run_selector.addItems([str(r.run_id) for r in self._run_ids])
-                run_selector.setCurrentText(str(max_run))
+                self._run_selector = QtWidgets.QComboBox()
+                self._run_selector.addItems([str(r.run_id) for r in self._run_ids])
+                self._run_selector.currentTextChanged.connect(
+                    lambda run_id_str: self._run_changed(int(run_id_str))
+                )
                 top_layout.addWidget(QtWidgets.QLabel("Run:"))
-                top_layout.addWidget(run_selector)
-                top_layout.addWidget(QtWidgets.QPushButton("Switch to latest"))
+                top_layout.addWidget(self._run_selector)
+                self._switch_to_latest_button = QtWidgets.QPushButton(
+                    "Switch to latest"
+                )
+                self._switch_to_latest_button.setIcon(
+                    self.style().standardIcon(QtWidgets.QStyle.SP_MediaSeekForward)
+                )
+                top_layout.addWidget(self._switch_to_latest_button)
                 top_layout.addWidget(QtWidgets.QCheckBox("Auto switch to latest"))
                 top_layout.addItem(
                     QtWidgets.QSpacerItem(
@@ -142,23 +159,36 @@ class RunDetails(QtWidgets.QWidget):
                 comment_layout.addWidget(comment_table)
 
                 comment_form_layout = QtWidgets.QFormLayout()
-                comment_author = QtWidgets.QLineEdit()
-                comment_author.setText(getpass.getuser())
-                comment_form_layout.addRow(QtWidgets.QLabel("Author"), comment_author)
-                comment_input = QtWidgets.QLineEdit()
-                comment_input.setClearButtonEnabled(True)
-                comment_form_layout.addRow(QtWidgets.QLabel("Text"), comment_input)
+                self._comment_author = QtWidgets.QLineEdit()
+                self._comment_author.setText(getpass.getuser())
+                self._comment_author.textChanged.connect(self._author_changed)
+                comment_form_layout.addRow(
+                    QtWidgets.QLabel("Author"), self._comment_author
+                )
+                self._comment_input = QtWidgets.QLineEdit()
+                self._comment_input.setClearButtonEnabled(True)
+                self._comment_input.textChanged.connect(self._comment_text_changed)
+                comment_form_layout.addRow(
+                    QtWidgets.QLabel("Text"), self._comment_input
+                )
+                self._add_comment_button = QtWidgets.QPushButton("Add Comment")
+                self._add_comment_button.setIcon(
+                    self.style().standardIcon(QtWidgets.QStyle.SP_DialogOkButton)
+                )
+                self._add_comment_button.setEnabled(False)
+                self._add_comment_button.clicked.connect(self._add_comment)
+                comment_form_layout.addWidget(self._add_comment_button)
                 comment_layout.addLayout(comment_form_layout)
 
                 details_column = QtWidgets.QGroupBox("Run Details")
                 details_layout = QtWidgets.QFormLayout()
                 details_column.setLayout(details_layout)
-                sample_chooser = QtWidgets.QComboBox()
-                sample_chooser.addItems([str(s) for s in self._sample_ids])
-                details_layout.addRow(QtWidgets.QLabel("Sample"), sample_chooser)
-                tags = Tags()
-                tags.completion(self._tags)
-                details_layout.addRow(QtWidgets.QLabel("Tags"), tags)
+                self._sample_chooser = QtWidgets.QComboBox()
+                self._sample_chooser.addItems([str(s) for s in self._sample_ids])
+                details_layout.addRow(QtWidgets.QLabel("Sample"), self._sample_chooser)
+                self._tags_widget = Tags()
+                self._tags_widget.completion(self._tags)
+                details_layout.addRow(QtWidgets.QLabel("Tags"), self._tags_widget)
 
                 root_layout = QtWidgets.QVBoxLayout()
                 self.setLayout(root_layout)
@@ -169,3 +199,35 @@ class RunDetails(QtWidgets.QWidget):
                 root_layout.addLayout(root_columns)
                 root_columns.addWidget(comment_column)
                 root_columns.addWidget(details_column)
+
+                self._selected_run = -1
+                self._run_changed(max(r.run_id for r in self._run_ids))
+
+    def _run_changed(self, run_id: int) -> None:
+        with self._context.db.connect() as conn:
+            self._selected_run = run_id
+            self._run = _retrieve_run(conn, self._tables, self._selected_run)
+            self._run_selector.setCurrentText(str(self._selected_run))
+            self._sample_chooser.setCurrentText(str(self._run.sample_id))
+            self._tags_widget.tags(self._run.tags)
+
+    def _comment_text_changed(self, new_text: str) -> None:
+        self._add_comment_button.setEnabled(
+            bool(new_text) and bool(self._comment_author.text())
+        )
+
+    def _author_changed(self, new_text: str) -> None:
+        self._add_comment_button.setEnabled(
+            bool(new_text) and bool(self._comment_input.text())
+        )
+
+    def _add_comment(self) -> None:
+        with self._context.db.connect() as conn:
+            _add_comment(
+                conn,
+                self._tables,
+                self._selected_run,
+                self._comment_author.text(),
+                self._comment_input.text(),
+            )
+            self._run_changed(self._selected_run)
