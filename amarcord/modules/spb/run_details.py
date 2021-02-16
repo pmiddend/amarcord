@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from dataclasses import replace
 import datetime
 import getpass
 import logging
@@ -77,6 +78,14 @@ def _change_sample(
         sa.update(tables.run)
         .where(tables.run.c.id == run_id)
         .values(sample_id=new_sample)
+    )
+
+
+def _change_comment(conn: Any, tables: Tables, c: _Comment) -> None:
+    conn.execute(
+        sa.update(tables.run_comment)
+        .where(tables.run_comment.c.id == c.id)
+        .values(author=c.author, text=c.text)
     )
 
 
@@ -315,15 +324,31 @@ class RunDetails(QtWidgets.QWidget):
 
             now = datetime.datetime.utcnow()
             for row, c in enumerate(self._run.comments):
+                date_cell = QtWidgets.QTableWidgetItem(
+                    humanize.naturaltime(now - c.created)
+                )
+                date_cell.setFlags(QtCore.Qt.ItemIsSelectable)
                 self._comment_table.setItem(
                     row,
                     0,
-                    QtWidgets.QTableWidgetItem(humanize.naturaltime(now - c.created)),
+                    date_cell,
                 )
                 self._comment_table.setItem(
                     row, 1, QtWidgets.QTableWidgetItem(c.author)
                 )
                 self._comment_table.setItem(row, 2, QtWidgets.QTableWidgetItem(c.text))
+            self._comment_table.cellChanged.connect(self._comment_cell_changed)
+
+    def _comment_cell_changed(self, row: int, column: int) -> None:
+        with self._context.db.connect() as conn:
+            i = self._comment_table.item(row, column).text()
+            c = self._run.comments[row]
+            c = replace(
+                c,
+                author=i if column == 1 else c.author,
+                text=i if column == 2 else c.text,
+            )
+            _change_comment(conn, self._tables, c)
 
     def _comment_text_changed(self, new_text: str) -> None:
         self._add_comment_button.setEnabled(
