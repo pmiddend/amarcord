@@ -3,6 +3,7 @@ import datetime
 import getpass
 from typing import List
 from typing import Any
+import humanize
 from PyQt5 import QtWidgets
 import sqlalchemy as sa
 from amarcord.modules.context import Context
@@ -21,7 +22,7 @@ class _RunSimple:
 class _Comment:
     author: str
     text: str
-    date: datetime.datetime
+    created: datetime.datetime
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,14 @@ def _retrieve_sample_ids(conn: Any, tables: Tables) -> List[int]:
             sa.select([tables.sample.c.sample_id]).order_by(tables.sample.c.sample_id)
         ).fetchall()
     ]
+
+
+def _change_sample(conn: Any, tables: Tables, run_id: int, new_sample: int) -> None:
+    conn.execute(
+        sa.update(tables.run)
+        .where(tables.run.c.id == run_id)
+        .values(sample_id=new_sample)
+    )
 
 
 def _retrieve_run(conn: Any, tables: Tables, run_id: int) -> _Run:
@@ -123,7 +132,6 @@ class RunDetails(QtWidgets.QWidget):
             if not self._run_ids:
                 QtWidgets.QLabel("No runs yet, please wait or create one", self)
             else:
-
                 top_row = QtWidgets.QWidget()
                 top_layout = QtWidgets.QHBoxLayout()
                 top_row.setLayout(top_layout)
@@ -155,8 +163,8 @@ class RunDetails(QtWidgets.QWidget):
                 comment_column = QtWidgets.QGroupBox("Comments")
                 comment_layout = QtWidgets.QVBoxLayout()
                 comment_column.setLayout(comment_layout)
-                comment_table = QtWidgets.QTableWidget()
-                comment_layout.addWidget(comment_table)
+                self._comment_table = QtWidgets.QTableWidget()
+                comment_layout.addWidget(self._comment_table)
 
                 comment_form_layout = QtWidgets.QFormLayout()
                 self._comment_author = QtWidgets.QLineEdit()
@@ -185,6 +193,9 @@ class RunDetails(QtWidgets.QWidget):
                 details_column.setLayout(details_layout)
                 self._sample_chooser = QtWidgets.QComboBox()
                 self._sample_chooser.addItems([str(s) for s in self._sample_ids])
+                self._sample_chooser.currentTextChanged.connect(
+                    lambda new_sample_str: self._sample_changed(int(new_sample_str))
+                )
                 details_layout.addRow(QtWidgets.QLabel("Sample"), self._sample_chooser)
                 self._tags_widget = Tags()
                 self._tags_widget.completion(self._tags)
@@ -210,6 +221,23 @@ class RunDetails(QtWidgets.QWidget):
             self._run_selector.setCurrentText(str(self._selected_run))
             self._sample_chooser.setCurrentText(str(self._run.sample_id))
             self._tags_widget.tags(self._run.tags)
+            self._comment_table.setColumnCount(3)
+            self._comment_table.setRowCount(len(self._run.comments))
+            self._comment_table.setHorizontalHeaderLabels(["Created", "Author", "Text"])
+            self._comment_table.horizontalHeader().setStretchLastSection(True)
+            self._comment_table.verticalHeader().hide()
+
+            now = datetime.datetime.utcnow()
+            for row, c in enumerate(self._run.comments):
+                self._comment_table.setItem(
+                    row,
+                    0,
+                    QtWidgets.QTableWidgetItem(humanize.naturaltime(now - c.created)),
+                )
+                self._comment_table.setItem(
+                    row, 1, QtWidgets.QTableWidgetItem(c.author)
+                )
+                self._comment_table.setItem(row, 2, QtWidgets.QTableWidgetItem(c.text))
 
     def _comment_text_changed(self, new_text: str) -> None:
         self._add_comment_button.setEnabled(
@@ -231,3 +259,8 @@ class RunDetails(QtWidgets.QWidget):
                 self._comment_input.text(),
             )
             self._run_changed(self._selected_run)
+
+    def _sample_changed(self, new_sample: int) -> None:
+        with self._context.db.connect() as conn:
+            _change_sample(conn, self._tables, self._selected_run, new_sample)
+        self._run_changed(self._selected_run)

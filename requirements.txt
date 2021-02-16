@@ -3,6 +3,7 @@ altgraph==0.17
 appdirs==1.4.4
 aspy.refactor-imports==2.1.1
 astroid==2.4.2
+attrs==20.3.0
 black==20.8b1
 cached-property==1.5.2
 certifi==2020.12.5
@@ -17,12 +18,15 @@ EXtra-data==1.3.0
 fabio==0.11.0
 future==0.18.2
 h5py==3.1.0
+humanize==3.2.0
 idna==2.10
+iniconfig==1.1.1
 isort==5.7.0
 jedi==0.17.2
 karabo-bridge==0.6.0
 karabo-data==0.7.0
 kiwisolver==1.3.1
+lark==0.11.1
 lazy-object-proxy==1.4.3
 macholib==1.14
 Mako==1.1.4
@@ -46,6 +50,7 @@ Pillow==8.1.0
 Pint==0.16.1
 pluggy==0.13.1
 psutil==5.8.0
+py==1.10.0
 pycparser==2.20
 PyInstaller==3.4
 pylint==2.6.0
@@ -56,6 +61,7 @@ pyparsing==2.4.7
 PyQt5==5.15.2
 PyQt5-sip==12.8.1
 PyQt5-stubs==5.14.2.2
+pytest==6.2.2
 python-dateutil==2.8.1
 python-editor==1.0.4
 python-jsonrpc-server==0.4.0
