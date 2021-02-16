@@ -40,7 +40,7 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("status", sa.String(length=255), nullable=False),
-        sa.Column("sample_id", sa.Integer, nullable=False),
+        sa.Column("sample_id", sa.Integer, nullable=True),
         sa.Column("repetition_rate_mhz", sa.Float, nullable=False),
         sa.Column("pulse_energy_mj", sa.Float, nullable=False),
         # sa.Column("pulses_per_train", sa.Integer, nullable=False),

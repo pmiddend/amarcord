@@ -3,6 +3,7 @@ import datetime
 import getpass
 import logging
 from typing import List
+from typing import Optional
 from typing import Any
 import humanize
 from PyQt5 import QtWidgets
@@ -67,7 +68,9 @@ def _retrieve_sample_ids(conn: Any, tables: Tables) -> List[int]:
     ]
 
 
-def _change_sample(conn: Any, tables: Tables, run_id: int, new_sample: int) -> None:
+def _change_sample(
+    conn: Any, tables: Tables, run_id: int, new_sample: Optional[int]
+) -> None:
     conn.execute(
         sa.update(tables.run)
         .where(tables.run.c.id == run_id)
@@ -208,9 +211,13 @@ class RunDetails(QtWidgets.QWidget):
                 details_layout = QtWidgets.QFormLayout()
                 details_column.setLayout(details_layout)
                 self._sample_chooser = QtWidgets.QComboBox()
-                self._sample_chooser.addItems([str(s) for s in self._sample_ids])
+                self._sample_chooser.addItems(
+                    [str(s) for s in self._sample_ids] + ["None"]
+                )
                 self._sample_chooser.currentTextChanged.connect(
-                    lambda new_sample_str: self._sample_changed(int(new_sample_str))
+                    lambda new_sample_str: self._sample_changed(
+                        int(new_sample_str) if new_sample_str != "None" else None
+                    )
                 )
                 details_layout.addRow(QtWidgets.QLabel("Sample"), self._sample_chooser)
                 self._tags_widget = Tags()
@@ -256,7 +263,9 @@ class RunDetails(QtWidgets.QWidget):
             self._selected_run = run_id
             self._run = _retrieve_run(conn, self._tables, self._selected_run)
             self._run_selector.setCurrentText(str(self._selected_run))
-            self._sample_chooser.setCurrentText(str(self._run.sample_id))
+            self._sample_chooser.setCurrentText(
+                str(self._run.sample_id) if self._run.sample_id is not None else "None"
+            )
             self._tags_widget.tags(self._run.tags)
             self._comment_table.setColumnCount(3)
             self._comment_table.setRowCount(len(self._run.comments))
@@ -299,7 +308,7 @@ class RunDetails(QtWidgets.QWidget):
             self._comment_input.setText("")
             self.run_changed.emit()
 
-    def _sample_changed(self, new_sample: int) -> None:
+    def _sample_changed(self, new_sample: Optional[int]) -> None:
         with self._context.db.connect() as conn:
             _change_sample(conn, self._tables, self._selected_run, new_sample)
         self._refresh()
