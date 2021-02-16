@@ -1,5 +1,8 @@
 from typing import List
+import logging
+from amarcord.qt.logging_handler import QtLoggingHandler
 from PyQt5 import QtWidgets
+from PyQt5 import QtCore
 
 
 class UIContext:
@@ -7,8 +10,19 @@ class UIContext:
         self._app = QtWidgets.QApplication(argv)
         self._app.setApplicationName("AMARCORD")
         self._main_window = QtWidgets.QMainWindow()
-        self._tabs = QtWidgets.QTabWidget(self._main_window)
-        self._main_window.setCentralWidget(self._tabs)
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        self._tabs = QtWidgets.QTabWidget(splitter)
+        log_root = QtWidgets.QWidget(splitter)
+        log_root_layout = QtWidgets.QVBoxLayout()
+        log_root_layout.addWidget(QtWidgets.QLabel("Log:"))
+        log_output = QtWidgets.QPlainTextEdit()
+        log_output.setReadOnly(True)
+        log_root_layout.addWidget(log_output)
+        log_root.setLayout(log_root_layout)
+        logging.getLogger().addHandler(QtLoggingHandler(log_output))
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 1)
+        self._main_window.setCentralWidget(splitter)
 
     def register_tab(self, label: str, w: QtWidgets.QWidget) -> None:
         self._tabs.addTab(w, label)

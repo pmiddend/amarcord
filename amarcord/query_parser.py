@@ -106,7 +106,9 @@ query_parser = Lark(
     r"""
 !condition: "not"? FIELD inneroperator COMPARISON (outeroperator condition)?
 !outeroperator : "or" | "and"
-!inneroperator : "has" | "=" | "<" | ">" | "<=" | ">=" | "!="
+!inneroperator : "has" | EQ | "<" | ">" | "<=" | ">=" | "!="
+
+EQ: "="
 
 FIELD : /[a-zA-Z_][a-zA-Z0-9_]*/
 COMPARISON : /[a-zA-Z0-9_.-]+/
@@ -114,6 +116,7 @@ MYWORD : /[a-zA-Z]+/
 %ignore " "
   """,
     start="condition",
+    parser="lalr",
 )
 
 

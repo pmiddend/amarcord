@@ -264,10 +264,6 @@ class RunTable(QtWidgets.QWidget):
 
         root_layout.addWidget(self._table_view)
 
-        root_layout.addWidget(QtWidgets.QLabel("Log:"))
-        root_layout.addWidget(log_output)
-        logger.addHandler(QtLoggingHandler(log_output))
-
     def _switch_columns(self) -> None:
         new_columns = _display_column_chooser(self, self._table_view.column_visibility)
         self._table_view.set_column_visibility(new_columns)
