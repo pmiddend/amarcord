@@ -33,14 +33,17 @@ if __name__ == "__main__":
 
         create_sample_data(dbcontext, tables)
 
+        run_table_tab = run_table(context, tables)
         context.ui.register_tab(
             "Runs",
-            run_table(context, tables),
+            run_table_tab,
             context.ui.icon("SP_ComputerIcon"),
         )
+        run_details_tab = run_details(context, tables)
+        run_details_tab.run_changed.connect(run_table_tab.run_changed)
         context.ui.register_tab(
             "Run details",
-            run_details(context, tables),
+            run_details_tab,
             context.ui.icon("SP_FileDialogContentsView"),
         )
         context.ui.exec_()

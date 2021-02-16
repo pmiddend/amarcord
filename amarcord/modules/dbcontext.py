@@ -16,7 +16,7 @@ class CreationMode(Enum):
 
 class DBContext:
     def __init__(self, connection_url: str) -> None:
-        self.engine = create_engine(connection_url, echo=True)
+        self.engine = create_engine(connection_url, echo=False)
         self.metadata = MetaData()
         self._after_db_created: List[Callable[[], None]] = []
         self._db_created = False

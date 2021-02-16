@@ -207,6 +207,10 @@ class RunTable(QtWidgets.QWidget):
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
 
+    def run_changed(self) -> None:
+        logger.info("Refreshing run table")
+        self._table_view.refresh()
+
     def _switch_columns(self) -> None:
         new_columns = _display_column_chooser(self, self._table_view.column_visibility)
         self._table_view.set_column_visibility(new_columns)

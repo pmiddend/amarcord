@@ -6,6 +6,7 @@ from typing import List
 from typing import Any
 import humanize
 from PyQt5 import QtWidgets
+from PyQt5 import QtCore
 import sqlalchemy as sa
 from amarcord.modules.context import Context
 from amarcord.qt.tags import Tags
@@ -129,10 +130,11 @@ def _add_comment(
             run_id=run_id, author=author, text=text, created=datetime.datetime.utcnow()
         )
     )
-    conn.commit()
 
 
 class RunDetails(QtWidgets.QWidget):
+    run_changed = QtCore.pyqtSignal()
+
     def __init__(self, context: Context, tables: Tables) -> None:
         super().__init__()
 
@@ -237,7 +239,11 @@ class RunDetails(QtWidgets.QWidget):
             _change_tags(
                 conn, self._tables, self._selected_run, self._tags_widget.tagsStr()
             )
+            self._tags = _retrieve_tags(conn, self._tables)
+            self._tags_widget.completion(self._tags)
             self._refresh()
+            logger.info("emitting")
+            self.run_changed.emit()
 
     def _refresh(self) -> None:
         self._run_changed(self._selected_run)
@@ -287,8 +293,11 @@ class RunDetails(QtWidgets.QWidget):
                 self._comment_input.text(),
             )
             self._refresh()
+            self._comment_input.setText("")
+            self.run_changed.emit()
 
     def _sample_changed(self, new_sample: int) -> None:
         with self._context.db.connect() as conn:
             _change_sample(conn, self._tables, self._selected_run, new_sample)
         self._refresh()
+        self.run_changed.emit()

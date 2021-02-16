@@ -46,21 +46,27 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self._column_converters = column_converters
         self._sort_column: Optional[T] = None
         self._sort_reverse = False
+        self._filter_query: Optional[Query] = None
+        self._data_retriever: Optional[DataRetriever] = None
 
     def set_column_visibility(self, column_visibility: List[T]) -> None:
         self.column_visibility = column_visibility
-        self.layoutAboutToBeChanged.emit()
-        self._enum_to_index: Dict[T, int] = {
-            v: k for k, v in enumerate(column_visibility)
-        }
+        self.layoutAboutToBeChanged.emit()  # type: ignore
+        self._enum_to_index = {v: k for k, v in enumerate(column_visibility)}
         self._index_to_enum = {v: k for k, v in self._enum_to_index.items()}
-        self.layoutChanged.emit()
+        self.layoutChanged.emit()  # type: ignore
 
     def set_data_retriever(self, data_retriever: DataRetriever) -> None:
+        self._data_retriever = data_retriever
         self.beginResetModel()
-        self._data = data_retriever()
+        self._data = self._data_retriever()
         self._filtered_data = self._data
         self.endResetModel()
+
+    def refresh(self) -> None:
+        if self._data_retriever:
+            self._data = self._data_retriever()
+        self.set_filter_query(self._filter_query)
 
     def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return len(self._filtered_data)
@@ -68,19 +74,25 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return len(self.column_visibility)
 
-    def set_filter_query(self, q: Query) -> None:
+    def set_filter_query(self, q: Optional[Query]) -> None:
+        self._filter_query = q
         self.beginResetModel()
-        self._filtered_data = [
-            row
-            for row in self._data
-            if filter_by_query(q, {k.name.lower(): v for k, v in row.items()})
-        ]
+        if self._filter_query is not None:
+            self._filtered_data = [
+                row
+                for row in self._data
+                if filter_by_query(
+                    self._filter_query, {k.name.lower(): v for k, v in row.items()}
+                )
+            ]
+        else:
+            self._filtered_data = self._data
         self._resort()
         self.endResetModel()
 
     def _resort(self) -> None:
         if self._sort_column is not None:
-            self._filtered_data.sort(reverse=self._sort_reverse, key=self._sort_key)
+            self._filtered_data.sort(reverse=self._sort_reverse, key=self._sort_key)  # type: ignore
 
     def _sort_key(self, row: Dict[T, Any]) -> Any:
         assert self._sort_column is not None
@@ -101,7 +113,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         index: QtCore.QModelIndex,
         role: int = QtCore.Qt.DisplayRole,
     ) -> Any:
-        v = self._filtered_data[index.row()][self._index_to_enum[index.column()]]
+        v = self._filtered_data[index.row()][self._index_to_enum[index.column()]]  # type: ignore
         column_converter = self._column_converters.get(
             self._index_to_enum[index.column()], None
         )
@@ -114,11 +126,11 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
     def sort(
         self, column: int, order: QtCore.Qt.SortOrder = QtCore.Qt.AscendingOrder
     ) -> None:
-        self.layoutAboutToBeChanged.emit()
+        self.layoutAboutToBeChanged.emit()  # type: ignore
         self._sort_column = self._index_to_enum[column]
         self._sort_reverse = order == QtCore.Qt.DescendingOrder
         self._resort()
-        self.layoutChanged.emit()
+        self.layoutChanged.emit()  # type: ignore
 
 
 class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
@@ -158,3 +170,6 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
 
     def set_filter_query(self, q: Query) -> None:
         self._model.set_filter_query(q)
+
+    def refresh(self) -> None:
+        self._model.refresh()
