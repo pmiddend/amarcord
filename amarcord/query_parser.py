@@ -104,11 +104,20 @@ class QueryToFunction(Transformer):
 
 query_parser = Lark(
     r"""
-!condition: "not"? FIELD inneroperator COMPARISON (outeroperator condition)?
-!outeroperator : "or" | "and"
-!inneroperator : "has" | EQ | "<" | ">" | "<=" | ">=" | "!="
+!condition: NOT? FIELD inneroperator COMPARISON (outeroperator condition)?
+!outeroperator : OR | AND
+!inneroperator : HAS | EQ | LT | GT | LE | GE | NE
 
+NOT: "not"
+HAS: "has"
+AND: "and"
+OR: "or"
 EQ: "="
+LT: "<"
+GT: ">"
+LE: "<="
+GE: ">="
+NE: "!="
 
 FIELD : /[a-zA-Z_][a-zA-Z0-9_]*/
 COMPARISON : /[a-zA-Z0-9_.-]+/
@@ -116,7 +125,6 @@ MYWORD : /[a-zA-Z]+/
 %ignore " "
   """,
     start="condition",
-    parser="lalr",
 )
 
 
