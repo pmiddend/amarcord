@@ -92,6 +92,11 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 id=proposal_id, metadata={"data": {}, "title": "test proposal"}
             )
         )
+        conn.execute(
+            tables.proposal.insert().values(
+                id="2", metadata={"data": {}, "title": "shit proposal"}
+            )
+        )
         first_sample_result = conn.execute(
             tables.sample.insert().values(sample_name="first sample")
         )
