@@ -11,6 +11,7 @@ class UIContext:
     def __init__(self, argv: List[str]) -> None:
         self._app = QtWidgets.QApplication(argv)
         self._app.setApplicationName("AMARCORD")
+        self._app.setApplicationDisplayName("AMARCORD")
         self._main_window = QtWidgets.QMainWindow()
         splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         self._tabs = QtWidgets.QTabWidget(splitter)
@@ -25,6 +26,9 @@ class UIContext:
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 1)
         self._main_window.setCentralWidget(splitter)
+
+    def set_application_suffix(self, suffix: str) -> None:
+        self._app.setApplicationDisplayName("AMARCORD - " + suffix)
 
     def register_tab(
         self, label: str, w: QtWidgets.QWidget, icon: Optional[QtGui.QIcon] = None

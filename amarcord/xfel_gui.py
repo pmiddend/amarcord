@@ -47,9 +47,8 @@ if __name__ == "__main__":
                 proposal_id = proposal_chooser(proposal_ids)
                 if proposal_id is None:
                     sys.exit(0)
-                # sys.stderr.write("Couldn't find proposal_id in configuration\n")
-                # sys.exit(2)
 
+        context.ui.set_application_suffix(f"proposal {proposal_id}")
         run_table_tab = run_table(context, tables, proposal_id)
         context.ui.register_tab(
             "Runs",
