@@ -36,12 +36,14 @@ def _column_query_names() -> Set[str]:
 Row = Dict[Column, Any]
 
 
-def _retrieve_data_no_connection(context: DBContext, tables: Tables) -> List[Row]:
+def _retrieve_data_no_connection(
+    context: DBContext, tables: Tables, proposal_id: str
+) -> List[Row]:
     with context.connect() as conn:
-        return _retrieve_data(tables, conn)
+        return _retrieve_runs(tables, conn, proposal_id)
 
 
-def _retrieve_data(tables: Tables, conn: Any) -> List[Row]:
+def _retrieve_runs(tables: Tables, conn: Any, proposal_id: str) -> List[Row]:
     run = tables.run
     tag = tables.run_tag
 
@@ -57,6 +59,7 @@ def _retrieve_data(tables: Tables, conn: Any) -> List[Row]:
             ]
         )
         .select_from(run.outerjoin(tag))
+        .where(run.c.proposal_id == proposal_id)
         .order_by(run.c.id)
     )
     result: List[Row] = []
@@ -146,9 +149,10 @@ def _display_column_chooser(
 class RunTable(QtWidgets.QWidget):
     run_selected = QtCore.pyqtSignal(int)
 
-    def __init__(self, context: Context, tables: Tables) -> None:
+    def __init__(self, context: Context, tables: Tables, proposal_id: str) -> None:
         super().__init__()
 
+        self._proposal_id = proposal_id
         self._tables = tables
 
         # Init main widgets
@@ -224,7 +228,7 @@ class RunTable(QtWidgets.QWidget):
         logger.info("Late initing")
 
         self._table_view.set_data_retriever(
-            lambda: _retrieve_data_no_connection(self._context.db, self._tables)  # type: ignore
+            lambda: _retrieve_data_no_connection(self._context.db, self._tables, self._proposal_id)  # type: ignore
         )
 
     def _filter_changed(self, f: str) -> None:

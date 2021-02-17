@@ -34,11 +34,26 @@ def _table_run_comment(metadata: sa.MetaData) -> sa.Table:
     )
 
 
+def _table_proposal(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "Proposal",
+        metadata,
+        sa.Column("id", sa.String(length=255), primary_key=True),
+        sa.Column("metadata", sa.JSON, nullable=False),
+    )
+
+
 def _table_run(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Run",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "proposal_id",
+            sa.String(length=255),
+            sa.ForeignKey("Proposal.id"),
+            nullable=False,
+        ),
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("status", sa.String(length=255), nullable=False),
         sa.Column("sample_id", sa.Integer, nullable=True),
@@ -53,6 +68,7 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
 @dataclass(frozen=True)
 class Tables:
     sample: sa.Table
+    proposal: sa.Table
     run_tag: sa.Table
     run: sa.Table
     run_comment: sa.Table
@@ -60,15 +76,22 @@ class Tables:
 
 def create_tables(context: DBContext) -> Tables:
     return Tables(
-        _table_sample(context.metadata),
-        _table_run_tag(context.metadata),
-        _table_run(context.metadata),
-        _table_run_comment(context.metadata),
+        sample=_table_sample(context.metadata),
+        proposal=_table_proposal(context.metadata),
+        run_tag=_table_run_tag(context.metadata),
+        run=_table_run(context.metadata),
+        run_comment=_table_run_comment(context.metadata),
     )
 
 
 def create_sample_data(context: DBContext, tables: Tables) -> None:
     with context.connect() as conn:
+        proposal_id = "1"
+        conn.execute(
+            tables.proposal.insert().values(
+                id=proposal_id, metadata={"data": {}, "title": "test proposal"}
+            )
+        )
         first_sample_result = conn.execute(
             tables.sample.insert().values(sample_name="first sample")
         )
@@ -77,6 +100,7 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
 
         run_id = conn.execute(
             tables.run.insert().values(
+                proposal_id=proposal_id,
                 modified=datetime.datetime.now(),
                 status="finished",
                 sample_id=first_sample_id,
@@ -90,6 +114,7 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
 
         conn.execute(
             tables.run.insert().values(
+                proposal_id=proposal_id,
                 modified=datetime.datetime.now(),
                 status="running",
                 sample_id=first_sample_id,

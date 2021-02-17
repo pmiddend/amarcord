@@ -42,11 +42,13 @@ class _Run:
     comments: List[_Comment]
 
 
-def _retrieve_run_ids(conn: Any, tables: Tables) -> List[_RunSimple]:
+def _retrieve_run_ids(conn: Any, tables: Tables, proposal_id: str) -> List[_RunSimple]:
     return [
         _RunSimple(row[0], row[1] == "finished")
         for row in conn.execute(
-            sa.select([tables.run.c.id, tables.run.c.status]).order_by(tables.run.c.id)
+            sa.select([tables.run.c.id, tables.run.c.status])
+            .where(tables.run.c.proposal_id == proposal_id)
+            .order_by(tables.run.c.id)
         ).fetchall()
     ]
 
@@ -170,13 +172,14 @@ class _CommentTable(QtWidgets.QTableWidget):
 class RunDetails(QtWidgets.QWidget):
     run_changed = QtCore.pyqtSignal()
 
-    def __init__(self, context: Context, tables: Tables) -> None:
+    def __init__(self, context: Context, tables: Tables, proposal_id: str) -> None:
         super().__init__()
 
+        self._proposal_id = proposal_id
         self._context = context
         self._tables = tables
         with context.db.connect() as conn:
-            self._run_ids = _retrieve_run_ids(conn, tables)
+            self._run_ids = _retrieve_run_ids(conn, tables, self._proposal_id)
             self._sample_ids = _retrieve_sample_ids(conn, tables)
             self._tags = _retrieve_tags(conn, tables)
 

@@ -6,9 +6,11 @@ from amarcord.modules.spb.tables import Tables
 from amarcord.modules.context import Context
 
 
-def run_table(context: Context, tables: Tables) -> QtWidgets.QWidget:
-    return RunTable(context, tables)
+def run_table(context: Context, tables: Tables, proposal_id: str) -> QtWidgets.QWidget:
+    return RunTable(context, tables, proposal_id)
 
 
-def run_details(context: Context, tables: Tables) -> QtWidgets.QWidget:
-    return RunDetails(context, tables)
+def run_details(
+    context: Context, tables: Tables, proposal_id: str
+) -> QtWidgets.QWidget:
+    return RunDetails(context, tables, proposal_id)
