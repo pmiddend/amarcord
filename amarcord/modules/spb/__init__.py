@@ -25,7 +25,7 @@ def retrieve_proposal_ids(context: Context, tables: Tables) -> Set[str]:
         )
 
 
-def proposal_chooser(proposal_ids: Set[str]) -> Optional[str]:
+def proposal_chooser(proposal_ids: Set[int]) -> Optional[int]:
     dialog = QtWidgets.QDialog()
     dialog_layout = QtWidgets.QVBoxLayout()
     dialog.setLayout(dialog_layout)
@@ -37,7 +37,7 @@ def proposal_chooser(proposal_ids: Set[str]) -> Optional[str]:
     group_box.setLayout(root_layout)
 
     proposal_combo = QtWidgets.QComboBox()
-    proposal_combo.addItems(list(proposal_ids))
+    proposal_combo.addItems([str(s) for s in proposal_ids])
 
     root_layout.addWidget(proposal_combo)
 
@@ -50,4 +50,4 @@ def proposal_chooser(proposal_ids: Set[str]) -> Optional[str]:
 
     if dialog.exec() == QtWidgets.QDialog.Rejected:
         return None
-    return proposal_combo.currentText()
+    return int(proposal_combo.currentText())

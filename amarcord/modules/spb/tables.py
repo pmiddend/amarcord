@@ -38,7 +38,7 @@ def _table_proposal(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Proposal",
         metadata,
-        sa.Column("id", sa.String(length=255), primary_key=True),
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=False),
         sa.Column("metadata", sa.JSON, nullable=False),
     )
 
@@ -50,7 +50,7 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column(
             "proposal_id",
-            sa.String(length=255),
+            sa.Integer,
             sa.ForeignKey("Proposal.id"),
             nullable=False,
         ),
@@ -86,7 +86,7 @@ def create_tables(context: DBContext) -> Tables:
 
 def create_sample_data(context: DBContext, tables: Tables) -> None:
     with context.connect() as conn:
-        proposal_id = "1"
+        proposal_id = 1
         conn.execute(
             tables.proposal.insert().values(
                 id=proposal_id, metadata={"data": {}, "title": "test proposal"}
@@ -94,7 +94,7 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
         )
         conn.execute(
             tables.proposal.insert().values(
-                id="2", metadata={"data": {}, "title": "shit proposal"}
+                id=2, metadata={"data": {}, "title": "shit proposal"}
             )
         )
         first_sample_result = conn.execute(
