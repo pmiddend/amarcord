@@ -43,6 +43,7 @@ def _new_run_dialog(
     run_id = QtWidgets.QSpinBox()
     run_id.setMinimum(0)
     run_id.setMaximum(2 ** 30)
+    run_id.setValue(RunId(highest_id + 1) if highest_id is not None else 1)
 
     sample_chooser = QtWidgets.QComboBox()
     sample_chooser.addItems([str(s) for s in sample_ids] + ["None"])
