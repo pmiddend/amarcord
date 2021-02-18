@@ -17,6 +17,7 @@ T = TypeVar("T")
 Row = Dict[T, Any]
 GeneralTable = List[Row]
 DataRetriever = Callable[[], GeneralTable]
+MenuCallback = Callable[[QtCore.QPoint, T], None]
 
 
 class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
@@ -36,7 +37,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self._enum_to_index: Dict[T, int] = {
             v: k for k, v in enumerate(column_visibility)
         }
-        self._index_to_enum = {v: k for k, v in self._enum_to_index.items()}
+        self.index_to_enum = {v: k for k, v in self._enum_to_index.items()}
         self._data = data_retriever() if data_retriever is not None else []
         self._filtered_data = self._data
         # pylint: disable=unnecessary-comprehension
@@ -47,11 +48,14 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self._filter_query: Optional[Query] = None
         self._data_retriever: Optional[DataRetriever] = None
 
+    def get_column_values(self, c: T) -> List[Any]:
+        return [d[c] for d in self._filtered_data if c in d]
+
     def set_column_visibility(self, column_visibility: List[T]) -> None:
         self.column_visibility = column_visibility
         self.layoutAboutToBeChanged.emit()  # type: ignore
         self._enum_to_index = {v: k for k, v in enumerate(column_visibility)}
-        self._index_to_enum = {v: k for k, v in self._enum_to_index.items()}
+        self.index_to_enum = {v: k for k, v in self._enum_to_index.items()}
         self.layoutChanged.emit()  # type: ignore
 
     def set_data_retriever(self, data_retriever: DataRetriever) -> None:
@@ -107,16 +111,16 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
     ) -> QtCore.QVariant:
         if orientation == QtCore.Qt.Vertical or role != QtCore.Qt.DisplayRole:
             return QtCore.QVariant()
-        return QtCore.QVariant(self._column_headers[self._index_to_enum[section]])
+        return QtCore.QVariant(self._column_headers[self.index_to_enum[section]])
 
     def data(
         self,
         index: QtCore.QModelIndex,
         role: int = QtCore.Qt.DisplayRole,
     ) -> Any:
-        v = self._filtered_data[index.row()][self._index_to_enum[index.column()]]  # type: ignore
+        v = self._filtered_data[index.row()][self.index_to_enum[index.column()]]  # type: ignore
         column_converter = self._column_converters.get(
-            self._index_to_enum[index.column()], None
+            self.index_to_enum[index.column()], None
         )
         if column_converter is not None:
             return column_converter(v, role)
@@ -128,7 +132,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self, column: int, order: QtCore.Qt.SortOrder = QtCore.Qt.AscendingOrder
     ) -> None:
         self.layoutAboutToBeChanged.emit()  # type: ignore
-        self._sort_column = self._index_to_enum[column]
+        self._sort_column = self.index_to_enum[column]
         self._sort_reverse = order == QtCore.Qt.DescendingOrder
         self._resort()
         self.layoutChanged.emit()  # type: ignore
@@ -165,6 +169,12 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
             QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows  # type: ignore
         )
         self.doubleClicked.connect(self._double_click)
+        self._menu_callback: Optional[MenuCallback] = None
+
+    def set_menu_callback(self, f: MenuCallback) -> None:
+        self._menu_callback = f
+        self.horizontalHeader().setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.horizontalHeader().customContextMenuRequested.connect(self._context_menu)
 
     def _double_click(self, index: QtCore.QModelIndex) -> None:
         self.row_double_click.emit(self._model.row(index.row()))
@@ -184,3 +194,13 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
 
     def refresh(self) -> None:
         self._model.refresh()
+
+    def _context_menu(self, pos: QtCore.QPoint) -> None:
+        column = self.indexAt(pos).column()
+        if self._menu_callback is not None:
+            self._menu_callback(
+                self.mapToGlobal(pos), self.model().index_to_enum[column]
+            )
+
+    def get_column_values(self, c: T) -> List[Any]:
+        return self._model.get_column_values(c)

@@ -33,7 +33,8 @@ class DBContext:
 
     def create_all(self, creation_mode: CreationMode) -> None:
         self.metadata.create_all(
-            self.engine, checkfirst=creation_mode == CreationMode.CHECK_FIRST
+            self.engine,
+            checkfirst=creation_mode == CreationMode.CHECK_FIRST,
         )
         self._db_created = True
         for f in self._after_db_created:

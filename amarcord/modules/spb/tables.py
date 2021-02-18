@@ -54,6 +54,7 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
             sa.ForeignKey("Proposal.id"),
             nullable=False,
         ),
+        sa.Column("started", sa.DateTime, nullable=False),
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("status", sa.String(length=255), nullable=False),
         sa.Column("sample_id", sa.Integer, nullable=True),
@@ -106,6 +107,7 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
         run_id = conn.execute(
             tables.run.insert().values(
                 proposal_id=proposal_id,
+                started=datetime.datetime.now(),
                 modified=datetime.datetime.now(),
                 status="finished",
                 sample_id=first_sample_id,
@@ -120,6 +122,7 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
         conn.execute(
             tables.run.insert().values(
                 proposal_id=proposal_id,
+                started=datetime.datetime.now() + datetime.timedelta(seconds=1),
                 modified=datetime.datetime.now(),
                 status="running",
                 sample_id=first_sample_id,

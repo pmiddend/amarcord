@@ -7,6 +7,7 @@ from itertools import groupby
 import logging
 from enum import Enum, auto
 import sqlalchemy as sa
+import pyqtgraph as pg
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 from amarcord.modules.context import Context
@@ -24,6 +25,7 @@ class Column(Enum):
     RUN_ID = auto()
     STATUS = auto()
     SAMPLE = auto()
+    STARTED = auto()
     REPETITION_RATE = auto()
     TAGS = auto()
     PULSE_ENERGY = auto()
@@ -56,6 +58,7 @@ def _retrieve_runs(tables: Tables, conn: Any, proposal_id: str) -> List[Row]:
                 run.c.repetition_rate_mhz,
                 run.c.pulse_energy_mj,
                 tag.c.tag_text,
+                run.c.started,
             ]
         )
         .select_from(run.outerjoin(tag))
@@ -76,6 +79,7 @@ def _retrieve_runs(tables: Tables, conn: Any, proposal_id: str) -> List[Row]:
                 Column.REPETITION_RATE: first_row[3],
                 Column.PULSE_ENERGY: first_row[4],
                 Column.TAGS: set(row[5] for row in rows if row[5] is not None),
+                Column.STARTED: first_row[6],
             }
         )
     return result
@@ -97,6 +101,7 @@ def _column_header(c: Column) -> str:
         Column.REPETITION_RATE: "Repetition Rate",
         Column.PULSE_ENERGY: "Pulse Energy",
         Column.TAGS: "Tags",
+        Column.STARTED: "Started",
     }
     return d[c]
 
@@ -178,6 +183,7 @@ class RunTable(QtWidgets.QWidget):
             data_retriever=None,
             parent=self,
         )
+        self._table_view.set_menu_callback(self._header_menu_callback)
         self._table_view.row_double_click.connect(self._row_selected)
 
         log_output = QtWidgets.QPlainTextEdit()
@@ -212,6 +218,35 @@ class RunTable(QtWidgets.QWidget):
 
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
+
+    def _header_menu_callback(self, pos: QtCore.QPoint, column: Column) -> None:
+        logger.info("plotting column %s", column)
+        menu = QtWidgets.QMenu(self)
+        plotAction = menu.addAction(
+            self.style().standardIcon(QtWidgets.QStyle.SP_DesktopIcon),
+            "Plot this column",
+        )
+        action = menu.exec_(pos)
+        if action == plotAction:
+            dialog = QtWidgets.QDialog(self)
+            dialog_layout = QtWidgets.QVBoxLayout()
+            dialog.setLayout(dialog_layout)
+
+            axis = pg.DateAxisItem()
+            graph_widget = pg.PlotWidget(axisItems={"bottom": axis})
+
+            # TODO: Sort by time first
+            graph_widget.plot(
+                [
+                    t.timestamp()
+                    for t in self._table_view.get_column_values(Column.STARTED)
+                ],
+                self._table_view.get_column_values(column),
+            )
+
+            dialog_layout.addWidget(graph_widget)
+
+            dialog.exec()
 
     def _row_selected(self, row: Dict[Column, Any]) -> None:
         self.run_selected.emit(row[Column.RUN_ID])

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class XFELKaraboBridgeConfig(TypedDict):
-    socket_url: Optional[str]
+    soFcket_url: Optional[str]
 
 
 class XFELKaraboBridge:
