@@ -137,7 +137,7 @@ def _display_column_chooser(
     return [Column(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()]
 
 
-class MplCanvas(FigureCanvasQTAgg):
+class _MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = fig.add_subplot(111)
@@ -160,13 +160,13 @@ class RunTable(QtWidgets.QWidget):
         choose_columns.setIcon(
             self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView)
         )
-        choose_columns.clicked.connect(self._switch_columns)
+        choose_columns.clicked.connect(self._slot_switch_columns)
 
         manual_creation = QtWidgets.QPushButton("New Run")
         manual_creation.setIcon(
             self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder)
         )
-        manual_creation.clicked.connect(self._new_run)
+        manual_creation.clicked.connect(self._slot_new_run)
 
         self._context = context
         self._table_view = GeneralTableWidget[Column](
@@ -178,7 +178,7 @@ class RunTable(QtWidgets.QWidget):
             parent=self,
         )
         self._table_view.set_menu_callback(self._header_menu_callback)
-        self._table_view.row_double_click.connect(self._row_selected)
+        self._table_view.row_double_click.connect(self._slot_row_selected)
 
         log_output = QtWidgets.QPlainTextEdit()
         log_output.setReadOnly(True)
@@ -192,7 +192,7 @@ class RunTable(QtWidgets.QWidget):
             QtWidgets.QLabel("Filter query:"), 0, QtCore.Qt.AlignTop
         )
         filter_widget = InfixCompletingLineEdit(self)
-        filter_widget.textChanged.connect(self._filter_changed)
+        filter_widget.textChanged.connect(self._slot_filter_changed)
         completer = QtWidgets.QCompleter(list(_column_query_names()), self)
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
         filter_widget.setCompleter(completer)
@@ -218,7 +218,7 @@ class RunTable(QtWidgets.QWidget):
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
 
-    def _new_run(self) -> None:
+    def _slot_new_run(self) -> None:
         if new_run_dialog(
             parent=self,
             proposal_id=self._proposal_id,
@@ -240,7 +240,7 @@ class RunTable(QtWidgets.QWidget):
             dialog_layout = QtWidgets.QVBoxLayout()
             dialog.setLayout(dialog_layout)
 
-            sc = MplCanvas(self, width=5, height=4, dpi=100)
+            sc = _MplCanvas(self, width=5, height=4, dpi=100)
 
             df = pd.DataFrame(
                 self._table_view.get_filtered_column_values(column),
@@ -261,14 +261,14 @@ class RunTable(QtWidgets.QWidget):
 
             dialog.exec()
 
-    def _row_selected(self, row: Dict[Column, Any]) -> None:
+    def _slot_row_selected(self, row: Dict[Column, Any]) -> None:
         self.run_selected.emit(row[Column.RUN_ID])
 
     def run_changed(self) -> None:
         logger.info("Refreshing run table")
         self._table_view.refresh()
 
-    def _switch_columns(self) -> None:
+    def _slot_switch_columns(self) -> None:
         new_columns = _display_column_chooser(self, self._table_view.column_visibility)
         self._table_view.set_column_visibility(new_columns)
 
@@ -279,7 +279,7 @@ class RunTable(QtWidgets.QWidget):
             lambda: _retrieve_data_no_connection(self._db, self._proposal_id)  # type: ignore
         )
 
-    def _filter_changed(self, f: str) -> None:
+    def _slot_filter_changed(self, f: str) -> None:
         try:
             query = parse_query(f, _column_query_names())
             self._table_view.set_filter_query(query)

@@ -57,7 +57,9 @@ class RunDetails(QtWidgets.QWidget):
 
                 self._run_selector = QtWidgets.QComboBox()
                 self._run_selector.addItems([str(r.run_id) for r in self._run_ids])
-                self._run_selector.currentTextChanged.connect(self._current_run_changed)
+                self._run_selector.currentTextChanged.connect(
+                    self._slot_current_run_changed
+                )
                 top_layout.addWidget(QtWidgets.QLabel("Run:"))
                 top_layout.addWidget(self._run_selector)
                 self._switch_to_latest_button = QtWidgets.QPushButton(
@@ -80,7 +82,7 @@ class RunDetails(QtWidgets.QWidget):
                 manual_creation.setIcon(
                     self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder)
                 )
-                manual_creation.clicked.connect(self._new_run)
+                manual_creation.clicked.connect(self._slot_new_run)
                 top_layout.addWidget(manual_creation)
 
                 comment_column = QtWidgets.QGroupBox("Comments")
@@ -91,21 +93,23 @@ class RunDetails(QtWidgets.QWidget):
                     # pylint: disable=no-member
                     QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows  # type: ignore
                 )
-                self._comment_table.delete_current_row.connect(self._delete_comment)
+                self._comment_table.delete_current_row.connect(
+                    self._slot_delete_comment
+                )
 
                 comment_layout.addWidget(self._comment_table)
 
                 comment_form_layout = QtWidgets.QFormLayout()
                 self._comment_author = QtWidgets.QLineEdit()
                 self._comment_author.setText(getpass.getuser())
-                self._comment_author.textChanged.connect(self._author_changed)
+                self._comment_author.textChanged.connect(self._slot_author_changed)
                 comment_form_layout.addRow(
                     QtWidgets.QLabel("Author"), self._comment_author
                 )
                 self._comment_input = QtWidgets.QLineEdit()
                 self._comment_input.setClearButtonEnabled(True)
-                self._comment_input.textChanged.connect(self._comment_text_changed)
-                self._comment_input.returnPressed.connect(self._add_comment)
+                self._comment_input.textChanged.connect(self._slot_comment_text_changed)
+                self._comment_input.returnPressed.connect(self._slot_add_comment)
                 comment_form_layout.addRow(
                     QtWidgets.QLabel("Text"), self._comment_input
                 )
@@ -114,7 +118,7 @@ class RunDetails(QtWidgets.QWidget):
                     self.style().standardIcon(QtWidgets.QStyle.SP_DialogOkButton)
                 )
                 self._add_comment_button.setEnabled(False)
-                self._add_comment_button.clicked.connect(self._add_comment)
+                self._add_comment_button.clicked.connect(self._slot_add_comment)
                 comment_form_layout.addWidget(self._add_comment_button)
                 comment_layout.addLayout(comment_form_layout)
 
@@ -133,7 +137,7 @@ class RunDetails(QtWidgets.QWidget):
                 details_layout.addRow(QtWidgets.QLabel("Sample"), self._sample_chooser)
                 self._tags_widget = Tags()
                 self._tags_widget.completion(self._tags)
-                self._tags_widget.tagsEdited.connect(self._tags_changed)
+                self._tags_widget.tagsEdited.connect(self._slot_tags_changed)
                 details_layout.addRow(QtWidgets.QLabel("Tags"), self._tags_widget)
 
                 root_layout = QtWidgets.QVBoxLayout()
@@ -149,10 +153,10 @@ class RunDetails(QtWidgets.QWidget):
                 self._selected_run = RunId(-1)
                 self._run_changed(max(r.run_id for r in self._run_ids))
 
-    def _current_run_changed(self, new_run_id: str) -> None:
+    def _slot_current_run_changed(self, new_run_id: str) -> None:
         self._run_changed(RunId(int(new_run_id)))
 
-    def _new_run(self) -> None:
+    def _slot_new_run(self) -> None:
         new_run_id = new_run_dialog(
             parent=self,
             proposal_id=self._proposal_id,
@@ -166,7 +170,7 @@ class RunDetails(QtWidgets.QWidget):
     def select_run(self, run_id: RunId) -> None:
         self._run_changed(run_id)
 
-    def _delete_comment(self) -> None:
+    def _slot_delete_comment(self) -> None:
         with self._context.db.connect() as conn:
             logger.info("Will delete row %s", self._comment_table.currentRow())
             self._db.delete_comment(
@@ -176,7 +180,7 @@ class RunDetails(QtWidgets.QWidget):
             self._refresh()
             self.run_changed.emit()
 
-    def _tags_changed(self) -> None:
+    def _slot_tags_changed(self) -> None:
         if self._tags_widget.tagsStr() == self._run.tags:
             return
         with self._context.db.connect() as conn:
@@ -243,17 +247,17 @@ class RunDetails(QtWidgets.QWidget):
             )
             self._db.change_comment(conn, c)
 
-    def _comment_text_changed(self, new_text: str) -> None:
+    def _slot_comment_text_changed(self, new_text: str) -> None:
         self._add_comment_button.setEnabled(
             bool(new_text) and bool(self._comment_author.text())
         )
 
-    def _author_changed(self, new_text: str) -> None:
+    def _slot_author_changed(self, new_text: str) -> None:
         self._add_comment_button.setEnabled(
             bool(new_text) and bool(self._comment_input.text())
         )
 
-    def _add_comment(self) -> None:
+    def _slot_add_comment(self) -> None:
         if not self._comment_author.text() or not self._comment_input.text():
             return
         with self._context.db.connect() as conn:
