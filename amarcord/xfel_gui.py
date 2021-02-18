@@ -1,5 +1,6 @@
 import sys
 import logging
+from time import time
 from amarcord.modules.context import Context
 from amarcord.modules.uicontext import UIContext
 from amarcord.modules.spb.tables import create_tables, create_sample_data

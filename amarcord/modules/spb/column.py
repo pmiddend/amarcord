@@ -9,3 +9,6 @@ class Column(Enum):
     REPETITION_RATE = auto()
     TAGS = auto()
     PULSE_ENERGY = auto()
+    HIT_RATE = auto()
+    INDEXING_RATE = auto()
+    COMMENTS = auto()

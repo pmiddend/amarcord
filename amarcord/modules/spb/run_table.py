@@ -15,10 +15,9 @@ from matplotlib.backends.backend_qt5agg import (
 from matplotlib.figure import Figure
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.column import Column
-from amarcord.modules.spb.queries import SPBQueries
+from amarcord.modules.spb.queries import SPBQueries, Comment
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.context import Context
-from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.tables import Tables
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.qt.table import GeneralTableWidget
@@ -48,6 +47,14 @@ def _convert_tag_column(value: Set[str], role: int) -> Any:
     return QtCore.QVariant()
 
 
+def _convert_comment_column(comments: List[Comment], role: int) -> Any:
+    if role == QtCore.Qt.DisplayRole:
+        return "\n".join(f"{c.author}: {c.text}" for c in comments)
+    if role == QtCore.Qt.EditRole:
+        return comments
+    return QtCore.QVariant()
+
+
 def _column_header(c: Column) -> str:
     d = {
         Column.RUN_ID: "Run",
@@ -57,13 +64,32 @@ def _column_header(c: Column) -> str:
         Column.PULSE_ENERGY: "Pulse Energy",
         Column.TAGS: "Tags",
         Column.STARTED: "Started",
+        Column.HIT_RATE: "Hit rate",
+        Column.INDEXING_RATE: "Indexing rate",
+        Column.COMMENTS: "Comments",
     }
     return d[c]
 
 
 _unplottable_columns: Final = set(
-    {Column.RUN_ID, Column.STATUS, Column.SAMPLE, Column.TAGS}
+    {Column.RUN_ID, Column.STATUS, Column.SAMPLE, Column.TAGS, Column.COMMENTS}
 )
+
+_default_visible_columns: Final = [
+    Column.RUN_ID,
+    Column.STATUS,
+    Column.SAMPLE,
+    Column.REPETITION_RATE,
+    Column.TAGS,
+    Column.HIT_RATE,
+    Column.INDEXING_RATE,
+    Column.COMMENTS,
+]
+
+_column_converters: Final = {
+    Column.TAGS: _convert_tag_column,
+    Column.COMMENTS: _convert_comment_column,
+}
 
 
 def _display_column_chooser(
@@ -146,14 +172,8 @@ class RunTable(QtWidgets.QWidget):
         self._table_view = GeneralTableWidget[Column](
             Column,
             column_headers={c: _column_header(c) for c in Column},
-            column_visibility=[
-                Column.RUN_ID,
-                Column.STATUS,
-                Column.SAMPLE,
-                Column.REPETITION_RATE,
-                Column.TAGS,
-            ],
-            column_converters={Column.TAGS: _convert_tag_column},
+            column_visibility=_default_visible_columns,
+            column_converters=_column_converters,
             data_retriever=None,
             parent=self,
         )

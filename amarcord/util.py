@@ -1,5 +1,6 @@
 from typing import Optional
 from typing import List
+from typing import Set
 from typing import Iterable
 from typing import TypeVar
 import re
@@ -39,3 +40,8 @@ def word_under_cursor(s: str, pos: int) -> str:
 
 def remove_duplicates(l: Iterable[T]) -> List[T]:
     return list(set(l))
+
+
+# See https://stackoverflow.com/a/17016257
+def remove_duplicates_stable(seq: Iterable[T]) -> List[T]:
+    return list(dict.fromkeys(seq))

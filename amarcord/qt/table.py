@@ -191,12 +191,16 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
 
     def set_data_retriever(self, data_retriever: DataRetriever) -> None:
         self._model.set_data_retriever(data_retriever)
+        self.resizeRowsToContents()
+        self.resizeColumnsToContents()
 
     def set_filter_query(self, q: Query) -> None:
         self._model.set_filter_query(q)
 
     def refresh(self) -> None:
         self._model.refresh()
+        self.resizeRowsToContents()
+        self.resizeColumnsToContents()
 
     def _context_menu(self, pos: QtCore.QPoint) -> None:
         column = self.indexAt(pos).column()

@@ -11,7 +11,7 @@ from amarcord.modules.spb.column import Column
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.dbcontext import DBContext
-from amarcord.util import remove_duplicates
+from amarcord.util import remove_duplicates_stable
 
 
 @dataclass(frozen=True)
@@ -50,6 +50,7 @@ class SPBQueries:
     ) -> List[Dict[Column, Any]]:
         run = self._tables.run
         tag = self._tables.run_tag
+        comment = self._tables.run_comment
 
         select_stmt = (
             sa.select(
@@ -61,11 +62,17 @@ class SPBQueries:
                     run.c.pulse_energy_mj,
                     tag.c.tag_text,
                     run.c.started,
+                    run.c.hit_rate,
+                    run.c.indexing_rate,
+                    comment.c.id.label("comment_id"),
+                    comment.c.author,
+                    comment.c.comment_text,
+                    comment.c.created,
                 ]
             )
-            .select_from(run.outerjoin(tag))
+            .select_from(run.outerjoin(tag).outerjoin(comment))
             .where(run.c.proposal_id == proposal_id)
-            .order_by(run.c.id)
+            .order_by(run.c.id, comment.c.id)
         )
         result: List[Dict[Column, Any]] = []
         for _run_id, run_rows in groupby(
@@ -73,6 +80,12 @@ class SPBQueries:
         ):
             rows = list(run_rows)
             first_row = rows[0]
+            tags = set(row[5] for row in rows if row[5] is not None)
+            comments = remove_duplicates_stable(
+                Comment(row[9], row[10], row[11], row[12])
+                for row in rows
+                if row[9] is not None
+            )
             result.append(
                 {
                     Column.RUN_ID: first_row[0],
@@ -80,8 +93,11 @@ class SPBQueries:
                     Column.SAMPLE: first_row[2],
                     Column.REPETITION_RATE: first_row[3],
                     Column.PULSE_ENERGY: first_row[4],
-                    Column.TAGS: set(row[5] for row in rows if row[5] is not None),
+                    Column.TAGS: tags,
                     Column.STARTED: first_row[6],
+                    Column.HIT_RATE: first_row[7],
+                    Column.INDEXING_RATE: first_row[8],
+                    Column.COMMENTS: comments,
                 }
             )
         return result
@@ -131,7 +147,7 @@ class SPBQueries:
         conn.execute(
             sa.update(self._tables.run_comment)
             .where(self._tables.run_comment.c.id == c.id)
-            .values(author=c.author, text=c.text)
+            .values(author=c.author, comment_text=c.text)
         )
 
     def change_tags(self, conn: Connection, run_id: int, new_tags: List[str]) -> None:
@@ -159,7 +175,7 @@ class SPBQueries:
                     self._tables.run_tag.c.tag_text,
                     self._tables.run_comment.c.id.label("comment_id"),
                     self._tables.run_comment.c.author,
-                    self._tables.run_comment.c.text,
+                    self._tables.run_comment.c.comment_text,
                     self._tables.run_comment.c.created,
                 ]
             )
@@ -178,11 +194,16 @@ class SPBQueries:
             sample_id=run_meta["sample_id"],
             status=run_meta["status"],
             repetition_rate_mhz=run_meta["repetition_rate_mhz"],
-            tags=remove_duplicates(
+            tags=remove_duplicates_stable(
                 [row["tag_text"] for row in run_rows if row["tag_text"] is not None]
             ),
-            comments=remove_duplicates(
-                Comment(row["comment_id"], row["author"], row["text"], row["created"])
+            comments=remove_duplicates_stable(
+                Comment(
+                    row["comment_id"],
+                    row["author"],
+                    row["comment_text"],
+                    row["created"],
+                )
                 for row in run_rows
                 if row["author"] is not None
             ),
@@ -195,7 +216,7 @@ class SPBQueries:
             sa.insert(self._tables.run_comment).values(
                 run_id=run_id,
                 author=author,
-                text=text,
+                comment_text=text,
                 created=datetime.datetime.utcnow(),
             )
         )

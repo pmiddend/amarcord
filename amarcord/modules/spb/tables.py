@@ -29,7 +29,7 @@ def _table_run_comment(metadata: sa.MetaData) -> sa.Table:
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("run_id", sa.Integer, sa.ForeignKey("Run.id")),
         sa.Column("author", sa.String(length=255), nullable=False),
-        sa.Column("text", sa.String(length=255), nullable=False),
+        sa.Column("comment_text", sa.String(length=255), nullable=False),
         sa.Column("created", sa.DateTime(), nullable=False),
     )
 
@@ -60,6 +60,8 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         sa.Column("sample_id", sa.Integer, nullable=True),
         sa.Column("repetition_rate_mhz", sa.Float),
         sa.Column("pulse_energy_mj", sa.Float),
+        sa.Column("hit_rate", sa.Float),
+        sa.Column("indexing_rate", sa.Float),
         # sa.Column("pulses_per_train", sa.Integer, nullable=False),
         # sa.Column("xray_energy_kev", sa.Float, nullable=False),
         # sa.Column("injector_position_z", sa.Float, nullable=False),
@@ -75,7 +77,7 @@ class Tables:
     run_comment: sa.Table
 
 
-def create_tablesn(context: DBContext) -> Tables:
+def create_tables(context: DBContext) -> Tables:
     return Tables(
         sample=_table_sample(context.metadata),
         proposal=_table_proposal(context.metadata),
@@ -113,6 +115,8 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 sample_id=first_sample_id,
                 repetition_rate_mhz=3.5,
                 pulse_energy_mj=1,
+                hit_rate=0.5,
+                indexing_rate=0.8,
             )
         ).inserted_primary_key[0]
 
@@ -128,5 +132,7 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 sample_id=first_sample_id,
                 repetition_rate_mhz=4.3,
                 pulse_energy_mj=2,
+                hit_rate=0.9,
+                indexing_rate=0.2,
             )
         )

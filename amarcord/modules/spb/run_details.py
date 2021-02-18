@@ -105,6 +105,7 @@ class RunDetails(QtWidgets.QWidget):
                 self._comment_input = QtWidgets.QLineEdit()
                 self._comment_input.setClearButtonEnabled(True)
                 self._comment_input.textChanged.connect(self._comment_text_changed)
+                self._comment_input.returnPressed.connect(self._add_comment)
                 comment_form_layout.addRow(
                     QtWidgets.QLabel("Text"), self._comment_input
                 )
@@ -240,7 +241,7 @@ class RunDetails(QtWidgets.QWidget):
                 author=i if column == 1 else c.author,
                 text=i if column == 2 else c.text,
             )
-            self._change_comment(conn, c)
+            self._db.change_comment(conn, c)
 
     def _comment_text_changed(self, new_text: str) -> None:
         self._add_comment_button.setEnabled(
@@ -253,6 +254,8 @@ class RunDetails(QtWidgets.QWidget):
         )
 
     def _add_comment(self) -> None:
+        if not self._comment_author.text() or not self._comment_input.text():
+            return
         with self._context.db.connect() as conn:
             self._db.add_comment(
                 conn,
