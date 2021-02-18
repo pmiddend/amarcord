@@ -13,17 +13,7 @@ from amarcord.qt.tags import Tags
 from amarcord.modules.spb.tables import Tables
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.queries import (
-    retrieve_run_ids,
-    retrieve_tags,
-    retrieve_sample_ids,
-    change_sample,
-    change_comment,
-    change_tags,
-    retrieve_run,
-    add_comment,
-    delete_comment,
-)
+from amarcord.modules.spb.queries import SPBQueries
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +42,11 @@ class RunDetails(QtWidgets.QWidget):
 
         self._proposal_id = proposal_id
         self._context = context
-        self._tables = tables
+        self._db = SPBQueries(context.db, tables)
         with context.db.connect() as conn:
-            self._run_ids = retrieve_run_ids(conn, tables, self._proposal_id)
-            self._sample_ids = retrieve_sample_ids(conn, tables)
-            self._tags = retrieve_tags(conn, tables)
+            self._run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
+            self._sample_ids = self._db.retrieve_sample_ids(conn)
+            self._tags = self._db.retrieve_tags(conn)
 
             if not self._run_ids:
                 QtWidgets.QLabel("No runs yet, please wait or create one", self)
@@ -165,8 +155,7 @@ class RunDetails(QtWidgets.QWidget):
         new_run_id = new_run_dialog(
             parent=self,
             proposal_id=self._proposal_id,
-            context=self._context.db,
-            tables=self._tables,
+            queries=self._db,
         )
         if new_run_id is not None:
             logger.info("Selecting new run %s", new_run_id)
@@ -179,9 +168,8 @@ class RunDetails(QtWidgets.QWidget):
     def _delete_comment(self) -> None:
         with self._context.db.connect() as conn:
             logger.info("Will delete row %s", self._comment_table.currentRow())
-            delete_comment(
+            self._db.delete_comment(
                 conn,
-                self._tables,
                 self._run.comments[self._comment_table.currentRow()].id,
             )
             self._refresh()
@@ -192,10 +180,8 @@ class RunDetails(QtWidgets.QWidget):
             return
         with self._context.db.connect() as conn:
             logger.info("Tags have changed!")
-            change_tags(
-                conn, self._tables, self._selected_run, self._tags_widget.tagsStr()
-            )
-            self._tags = retrieve_tags(conn, self._tables)
+            self._db.change_tags(conn, self._selected_run, self._tags_widget.tagsStr())
+            self._tags = self._db.retrieve_tags(conn)
             self._tags_widget.completion(self._tags)
             self._refresh()
             self.run_changed.emit()
@@ -206,9 +192,9 @@ class RunDetails(QtWidgets.QWidget):
     def _run_changed(self, run_id: RunId) -> None:
         with self._context.db.connect() as conn:
             self._selected_run = run_id
-            self._run = retrieve_run(conn, self._tables, self._selected_run)
+            self._run = self._db.retrieve_run(conn, self._selected_run)
 
-            new_run_ids = retrieve_run_ids(conn, self._tables, self._proposal_id)
+            new_run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
 
             if new_run_ids != self._run_ids:
                 self._run_ids = new_run_ids
@@ -254,7 +240,7 @@ class RunDetails(QtWidgets.QWidget):
                 author=i if column == 1 else c.author,
                 text=i if column == 2 else c.text,
             )
-            change_comment(conn, self._tables, c)
+            self._change_comment(conn, c)
 
     def _comment_text_changed(self, new_text: str) -> None:
         self._add_comment_button.setEnabled(
@@ -268,9 +254,8 @@ class RunDetails(QtWidgets.QWidget):
 
     def _add_comment(self) -> None:
         with self._context.db.connect() as conn:
-            add_comment(
+            self._db.add_comment(
                 conn,
-                self._tables,
                 self._selected_run,
                 self._comment_author.text(),
                 self._comment_input.text(),
@@ -281,6 +266,6 @@ class RunDetails(QtWidgets.QWidget):
 
     def _sample_changed(self, new_sample: Optional[int]) -> None:
         with self._context.db.connect() as conn:
-            change_sample(conn, self._tables, self._selected_run, new_sample)
+            self._db.change_sample(conn, self._selected_run, new_sample)
         self._refresh()
         self.run_changed.emit()

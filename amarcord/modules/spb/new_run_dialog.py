@@ -2,14 +2,8 @@ from dataclasses import dataclass
 from typing import Optional, List
 from PyQt5 import QtWidgets
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.queries import (
-    retrieve_run_ids,
-    retrieve_sample_ids,
-    create_run,
-)
-from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.spb.tables import Tables
 from amarcord.modules.spb.run_id import RunId
+from amarcord.modules.spb.queries import SPBQueries
 
 
 @dataclass(frozen=True)
@@ -21,6 +15,7 @@ class NewRunData:
 def _new_run_dialog(
     parent: Optional[QtWidgets.QWidget],
     highest_id: Optional[int],
+    queries: SPBQueries,
     sample_ids: List[int],
 ) -> Optional[NewRunData]:
     dialog = QtWidgets.QDialog(parent)
@@ -68,22 +63,22 @@ def _new_run_dialog(
 def new_run_dialog(
     parent: Optional[QtWidgets.QWidget],
     proposal_id: ProposalId,
-    context: DBContext,
-    tables: Tables,
+    queries: SPBQueries,
 ) -> Optional[RunId]:
-    with context.connect() as conn:
+    with queries.dbcontext.connect() as conn:
         new_run = _new_run_dialog(
             parent=parent,
+            queries=queries,
             highest_id=max(
-                (r.run_id for r in retrieve_run_ids(conn, tables, proposal_id)),
+                (r.run_id for r in queries.retrieve_run_ids(conn, proposal_id)),
                 default=None,
             ),
-            sample_ids=retrieve_sample_ids(conn, tables),
+            sample_ids=queries.retrieve_sample_ids(conn),
         )
 
     if new_run is None:
         return None
 
-    with context.connect() as conn:
-        create_run(tables, conn, proposal_id, new_run.id, new_run.sample_id)
+    with queries.dbcontext.connect() as conn:
+        queries.create_run(conn, proposal_id, new_run.id, new_run.sample_id)
         return new_run.id

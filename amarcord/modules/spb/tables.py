@@ -75,7 +75,7 @@ class Tables:
     run_comment: sa.Table
 
 
-def create_tables(context: DBContext) -> Tables:
+def create_tablesn(context: DBContext) -> Tables:
     return Tables(
         sample=_table_sample(context.metadata),
         proposal=_table_proposal(context.metadata),

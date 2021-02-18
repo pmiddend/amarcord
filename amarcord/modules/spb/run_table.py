@@ -15,11 +15,7 @@ from matplotlib.backends.backend_qt5agg import (
 from matplotlib.figure import Figure
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.column import Column
-from amarcord.modules.spb.queries import (
-    retrieve_runs,
-    retrieve_sample_ids,
-    retrieve_run_ids,
-)
+from amarcord.modules.spb.queries import SPBQueries
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import DBContext
@@ -39,11 +35,9 @@ def _column_query_names() -> Set[str]:
 Row = Dict[Column, Any]
 
 
-def _retrieve_data_no_connection(
-    context: DBContext, tables: Tables, proposal_id: ProposalId
-) -> List[Row]:
-    with context.connect() as conn:
-        return retrieve_runs(tables, conn, proposal_id)
+def _retrieve_data_no_connection(db: SPBQueries, proposal_id: ProposalId) -> List[Row]:
+    with db.dbcontext.connect() as conn:
+        return db.retrieve_runs(conn, proposal_id)
 
 
 def _convert_tag_column(value: Set[str], role: int) -> Any:
@@ -133,7 +127,7 @@ class RunTable(QtWidgets.QWidget):
         super().__init__()
 
         self._proposal_id = proposal_id
-        self._tables = tables
+        self._db = SPBQueries(context.db, tables)
 
         # Init main widgets
         choose_columns = QtWidgets.QPushButton("Choose columns")
@@ -208,8 +202,7 @@ class RunTable(QtWidgets.QWidget):
         if new_run_dialog(
             parent=self,
             proposal_id=self._proposal_id,
-            context=self._context.db,
-            tables=self._tables,
+            queries=self._db,
         ):
             self.run_changed()
 
@@ -263,7 +256,7 @@ class RunTable(QtWidgets.QWidget):
         logger.info("Late initing")
 
         self._table_view.set_data_retriever(
-            lambda: _retrieve_data_no_connection(self._context.db, self._tables, self._proposal_id)  # type: ignore
+            lambda: _retrieve_data_no_connection(self._db, self._proposal_id)  # type: ignore
         )
 
     def _filter_changed(self, f: str) -> None:
