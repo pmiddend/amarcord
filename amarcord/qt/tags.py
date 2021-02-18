@@ -53,6 +53,12 @@ tag_cross_width = 4
 tag_cross_spacing = 2
 
 
+def _crossRect(r: QRectF) -> QRectF:
+    cross = QRectF(QPointF(0, 0), QSizeF(tag_cross_width, tag_cross_width))
+    cross.moveCenter(QPointF(r.right() - tag_cross_width, r.center().y()))
+    return cross
+
+
 class Tags(QWidget):
     tagsEdited = pyqtSignal()
 
@@ -345,7 +351,7 @@ class Tags(QWidget):
 
             p.drawText(text_pos, it.text)
 
-            i_cross_r = self.crossRect(i_r)
+            i_cross_r = _crossRect(i_r)
 
             pen = p.pen()
 
@@ -357,11 +363,6 @@ class Tags(QWidget):
             p.drawLine(QLineF(i_cross_r.topLeft(), i_cross_r.bottomRight()))
             p.drawLine(QLineF(i_cross_r.bottomLeft(), i_cross_r.topRight()))
             p.restore()
-
-    def crossRect(self, r: QRectF) -> QRectF:
-        cross = QRectF(QPointF(0, 0), QSizeF(tag_cross_width, tag_cross_width))
-        cross.moveCenter(QPointF(r.right() - tag_cross_width, r.center().y()))
-        return cross
 
     def naturalWidth(self) -> float:
         return self._tags[-1].rect.right() - self._tags[0].rect.left()
@@ -572,7 +573,7 @@ class Tags(QWidget):
         self.setCursor(Qt.IBeamCursor)
 
     def inCrossArea(self, tag_index: int, point: QPoint) -> bool:
-        return self.crossRect(QRectF(self._tags[tag_index].rect)).adjusted(
+        return _crossRect(QRectF(self._tags[tag_index].rect)).adjusted(
             -2, 0, 0, 0
         ).translated(-self._hscroll, 0).contains(point) and (
             not self.cursorVisible() or tag_index != self._editing_index

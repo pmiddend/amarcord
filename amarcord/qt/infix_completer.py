@@ -1,7 +1,5 @@
 from typing import Optional
 
-import re
-
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
@@ -16,7 +14,8 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
 
     def setCompleter(self, completer: Optional[QtWidgets.QCompleter]) -> None:
         if self._completer is not None:
-            self._completer.disconnect(self)
+            # mypy complains about too many arguments to "disconnect"
+            self._completer.disconnect(self)  # type: ignore
 
         self._completer = completer
 
@@ -27,7 +26,9 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
         self._completer.setCompletionMode(QtWidgets.QCompleter.PopupCompletion)
         self._completer.activated.connect(self.insertCompletion)
 
-    def completer(self) -> Optional[QtWidgets.QCompleter]:
+    # mypy complains about Optional[QCompleter] not being in the
+    # supertype, but I cannot invent a completer either
+    def completer(self) -> Optional[QtWidgets.QCompleter]:  # type: ignore
         return self._completer
 
     def insertCompletion(self, completion: str) -> None:
@@ -77,15 +78,16 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
                 e.ignore()
                 return
 
+        # mypy complains about: Unsupported operand types for & ("KeyboardModifiers" and "KeyboardModifier")
         isShortcut = (
-            e.modifiers() & QtCore.Qt.ControlModifier and e.key() == QtCore.Qt.Key_E
+            e.modifiers() & QtCore.Qt.ControlModifier and e.key() == QtCore.Qt.Key_E  # type: ignore
         )
         if self._completer is None or not isShortcut:
             super().keyPressEvent(e)
 
         ctrlOrShift = (
-            e.modifiers() & QtCore.Qt.ControlModifier
-            or e.modifiers() & QtCore.Qt.ShiftModifier
+            e.modifiers() & QtCore.Qt.ControlModifier  # type: ignore
+            or e.modifiers() & QtCore.Qt.ShiftModifier  # type: ignore
         )
         if self._completer is None or ctrlOrShift and not e.text():
             return

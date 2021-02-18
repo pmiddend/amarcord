@@ -1,5 +1,6 @@
 from typing import Optional
 from typing import Dict
+from typing import Final
 from typing import Any
 from typing import List
 from typing import Set
@@ -7,9 +8,14 @@ from itertools import groupby
 import logging
 from enum import Enum, auto
 import sqlalchemy as sa
-import pyqtgraph as pg
+import pandas as pd
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
+from matplotlib.backends.backend_qt5agg import (
+    FigureCanvasQTAgg,
+    NavigationToolbar2QT as NavigationToolbar,
+)
+from matplotlib.figure import Figure
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.tables import Tables
@@ -106,6 +112,11 @@ def _column_header(c: Column) -> str:
     return d[c]
 
 
+_unplottable_columns: Final = set(
+    {Column.RUN_ID, Column.STATUS, Column.SAMPLE, Column.TAGS}
+)
+
+
 def _display_column_chooser(
     parent: Optional[QtWidgets.QWidget], selected_columns: List[Column]
 ) -> List[Column]:
@@ -151,6 +162,13 @@ def _display_column_chooser(
     return [Column(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()]
 
 
+class MplCanvas(FigureCanvasQTAgg):
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = fig.add_subplot(111)
+        super().__init__(fig)
+
+
 class RunTable(QtWidgets.QWidget):
     run_selected = QtCore.pyqtSignal(int)
 
@@ -166,7 +184,6 @@ class RunTable(QtWidgets.QWidget):
             self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView)
         )
         choose_columns.clicked.connect(self._switch_columns)
-        open_inspector = QtWidgets.QPushButton("Open inspector")
 
         self._context = context
         self._table_view = GeneralTableWidget[Column](
@@ -193,7 +210,6 @@ class RunTable(QtWidgets.QWidget):
         root_layout = QtWidgets.QVBoxLayout(self)
         header_layout = QtWidgets.QHBoxLayout()
         header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
-        header_layout.addWidget(open_inspector, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(
             QtWidgets.QLabel("Filter query:"), 0, QtCore.Qt.AlignTop
         )
@@ -215,12 +231,18 @@ class RunTable(QtWidgets.QWidget):
         header_layout.addLayout(query_layout)
 
         root_layout.addLayout(header_layout)
+        root_layout.addWidget(
+            QtWidgets.QLabel(
+                "<b>Double-click</b> row to view details. <b>Right-click</b> column header to show options."
+            )
+        )
 
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
 
     def _header_menu_callback(self, pos: QtCore.QPoint, column: Column) -> None:
-        logger.info("plotting column %s", column)
+        if column in _unplottable_columns:
+            return
         menu = QtWidgets.QMenu(self)
         plotAction = menu.addAction(
             self.style().standardIcon(QtWidgets.QStyle.SP_DesktopIcon),
@@ -232,19 +254,31 @@ class RunTable(QtWidgets.QWidget):
             dialog_layout = QtWidgets.QVBoxLayout()
             dialog.setLayout(dialog_layout)
 
-            axis = pg.DateAxisItem()
-            graph_widget = pg.PlotWidget(axisItems={"bottom": axis})
+            sc = MplCanvas(self, width=5, height=4, dpi=100)
 
-            # TODO: Sort by time first
-            graph_widget.plot(
-                [
-                    t.timestamp()
-                    for t in self._table_view.get_column_values(Column.STARTED)
-                ],
+            df = pd.DataFrame(
                 self._table_view.get_column_values(column),
+                index=self._table_view.get_column_values(Column.STARTED),
+                columns=[_column_header(column)],
             )
 
-            dialog_layout.addWidget(graph_widget)
+            df.plot(ax=sc.axes)
+
+            # Create toolbar, passing canvas as first parament, parent (self, the MainWindow) as second.
+            toolbar = NavigationToolbar(sc, self)
+
+            dialog_layout.addWidget(toolbar)
+            dialog_layout.addWidget(sc)
+
+            # graph_widget.plot(
+            #     [
+            #         t.timestamp()
+            #         for t in self._table_view.get_column_values(Column.STARTED)
+            #     ],
+            #     self._table_view.get_column_values(column),
+            # )
+
+            # dialog_layout.addWidget(graph_widget)
 
             dialog.exec()
 

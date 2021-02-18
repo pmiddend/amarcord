@@ -1,10 +1,10 @@
 from typing import List
 from typing import Optional
 import logging
-from amarcord.qt.logging_handler import QtLoggingHandler
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 from PyQt5 import QtGui
+from amarcord.qt.logging_handler import QtLoggingHandler
 
 
 class UIContext:

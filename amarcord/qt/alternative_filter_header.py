@@ -35,7 +35,7 @@ class FilterHeader(QHeaderView):
             if iitem is None:
                 continue
             print(f"section {i} resized")
-            self._items[logical].item.setGeometry(
+            self._items[logical].item.setGeometry(  # type: ignore
                 self.sectionViewportPosition(logical) + iitem.margins.left,
                 iitem.margins.top,
                 self.sectionSize(logical)
@@ -53,7 +53,7 @@ class FilterHeader(QHeaderView):
     def fix_combo_positions(self) -> None:
         for i in range(self.count()):
             print(f"section {i} fixed combo positions")
-            self._items[i].item.setGeometry(
+            self._items[i].item.setGeometry(  # type: ignore
                 self.sectionViewportPosition(i) + self._items[i].margins.left,
                 self._items[i].margins.top,
                 self.sectionSize(i)
@@ -79,8 +79,8 @@ class FilterHeader(QHeaderView):
         if visual in self._items and self._items[visual].item is not None:
             i = self._items[visual].item
             # print("special: " + str(i.sizeHint()) + ", has layout: " + str(i.layout()))
-            print(f"size hint for {visual} is: " + str(i.sizeHint()))
-            return i.sizeHint()
+            print(f"size hint for {visual} is: " + str(i.sizeHint()))  # type: ignore
+            return i.sizeHint()  # type: ignore
         return super().sectionSizeFromContents(logical)
 
     def sectionSize(self, logicalIndex: int) -> int:
@@ -130,7 +130,7 @@ class FilterHeader(QHeaderView):
             top = item.margins.top
             width = self.sectionSize(i) - item.margins.left - item.margins.right - 1
             height = self.height() - item.margins.top - item.margins.bottom - 1
-            item.item.setGeometry(
+            item.item.setGeometry(  # type: ignore
                 left,
                 top,
                 width,

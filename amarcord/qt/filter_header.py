@@ -1,16 +1,12 @@
 from functools import partial
 from dataclasses import dataclass
-from typing import List
 from typing import Dict
 
 from PyQt5 import QtCore
-from PyQt5.QtWidgets import QCheckBox
-from PyQt5.QtWidgets import QComboBox
 from PyQt5.QtGui import QPainter, QPen
 from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QHeaderView
 from PyQt5.QtWidgets import QLineEdit
-from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QWidget
 
 
@@ -30,8 +26,11 @@ class FilterHeader(QHeaderView):
         self._last_size_hint = 0
         self._padding = 0
         self.setStretchLastSection(True)
-        # self.setResizeMode(QHeaderView.Stretch)
-        self.setDefaultAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        # self.setResizeMode(QHeaderView.Stretch) mypy complains:
+        # Argument 1 to "setDefaultAlignment" of "QHeaderView" has
+        # incompatible type "int"; expected "Union[Alignment,
+        # AlignmentFlag]"
+        self.setDefaultAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)  # type: ignore
         # self.setSortIndicatorShown(False)
         self.sectionResized.connect(self.adjustPositions)
         parent.horizontalScrollBar().valueChanged.connect(self.adjustPositions)
@@ -178,6 +177,7 @@ class FilterHeader(QHeaderView):
         if index in self._editors:
             self._editors[index].setText(text)
 
+    # pylint: disable=no-self-use
     def paintSection(
         self, painter: QPainter, rect: QtCore.QRect, logicalIndex: int
     ) -> None:

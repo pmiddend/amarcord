@@ -18,7 +18,7 @@ def run_details(
     return RunDetails(context, tables, proposal_id)
 
 
-def retrieve_proposal_ids(context: Context, tables: Tables) -> Set[str]:
+def retrieve_proposal_ids(context: Context, tables: Tables) -> Set[int]:
     with context.db.connect() as conn:
         return set(
             r[0] for r in conn.execute(sa.select([tables.proposal.c.id])).fetchall()

@@ -98,7 +98,7 @@ class XFELVisualizer:
             mc = XFELMetadataCatalogue(mc_config)
             context.ui.register_tab(
                 "Metadata Catalogue",
-                _GeneralVisualization(mc_logger, lambda: mc.items("002252")),
+                _GeneralVisualization(mc_logger, lambda: mc.items(2252)),
             )
         if "karabo" in context.config:
             karabo_config: Union[List[str], XFELKaraboBridgeConfig] = validate_dict(
@@ -109,5 +109,5 @@ class XFELVisualizer:
             karabo = XFELKaraboBridge(karabo_config)
             context.ui.register_tab(
                 "Karabo Bridge",
-                _GeneralVisualization(karabo_logger, lambda: karabo.items()),
+                _GeneralVisualization(karabo_logger, karabo.items),
             )
