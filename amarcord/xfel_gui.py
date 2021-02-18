@@ -5,8 +5,10 @@ from amarcord.modules.uicontext import UIContext
 from amarcord.modules.spb.tables import create_tables, create_sample_data
 from amarcord.modules.spb import run_table
 from amarcord.modules.spb import run_details
+from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb import proposal_chooser
 from amarcord.modules.spb import retrieve_proposal_ids
+from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.dbcontext import DBContext, CreationMode
 from amarcord.config import load_config
 
@@ -37,6 +39,8 @@ if __name__ == "__main__":
             proposal_id = proposal_chooser(proposal_ids)
             if proposal_id is None:
                 sys.exit(0)
+    else:
+        proposal_id = ProposalId(proposal_id)
 
     context.ui.set_application_suffix(f"proposal {proposal_id}")
     run_table_tab = run_table(context, tables, proposal_id)
@@ -56,7 +60,7 @@ if __name__ == "__main__":
     def change_run(
         run_id: int,
     ) -> None:
-        run_details_tab.select_run(run_id)
+        run_details_tab.select_run(RunId(run_id))
         context.ui.select_tab(run_details_index)
 
     run_table_tab.run_selected.connect(change_run)

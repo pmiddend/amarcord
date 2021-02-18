@@ -4,10 +4,7 @@ from typing import Final
 from typing import Any
 from typing import List
 from typing import Set
-from itertools import groupby
 import logging
-from enum import Enum, auto
-import sqlalchemy as sa
 import pandas as pd
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
@@ -16,6 +13,14 @@ from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar,
 )
 from matplotlib.figure import Figure
+from amarcord.modules.spb.new_run_dialog import new_run_dialog
+from amarcord.modules.spb.column import Column
+from amarcord.modules.spb.queries import (
+    retrieve_runs,
+    retrieve_sample_ids,
+    retrieve_run_ids,
+)
+from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.tables import Tables
@@ -27,16 +32,6 @@ from amarcord.query_parser import UnexpectedEOF
 logger = logging.getLogger(__name__)
 
 
-class Column(Enum):
-    RUN_ID = auto()
-    STATUS = auto()
-    SAMPLE = auto()
-    STARTED = auto()
-    REPETITION_RATE = auto()
-    TAGS = auto()
-    PULSE_ENERGY = auto()
-
-
 def _column_query_names() -> Set[str]:
     return {f.name.lower() for f in Column}
 
@@ -45,50 +40,10 @@ Row = Dict[Column, Any]
 
 
 def _retrieve_data_no_connection(
-    context: DBContext, tables: Tables, proposal_id: str
+    context: DBContext, tables: Tables, proposal_id: ProposalId
 ) -> List[Row]:
     with context.connect() as conn:
-        return _retrieve_runs(tables, conn, proposal_id)
-
-
-def _retrieve_runs(tables: Tables, conn: Any, proposal_id: str) -> List[Row]:
-    run = tables.run
-    tag = tables.run_tag
-
-    select_stmt = (
-        sa.select(
-            [
-                run.c.id,
-                run.c.status,
-                run.c.sample_id,
-                run.c.repetition_rate_mhz,
-                run.c.pulse_energy_mj,
-                tag.c.tag_text,
-                run.c.started,
-            ]
-        )
-        .select_from(run.outerjoin(tag))
-        .where(run.c.proposal_id == proposal_id)
-        .order_by(run.c.id)
-    )
-    result: List[Row] = []
-    for _run_id, run_rows in groupby(
-        conn.execute(select_stmt).fetchall(), lambda x: x[0]
-    ):
-        rows = list(run_rows)
-        first_row = rows[0]
-        result.append(
-            {
-                Column.RUN_ID: first_row[0],
-                Column.STATUS: first_row[1],
-                Column.SAMPLE: first_row[2],
-                Column.REPETITION_RATE: first_row[3],
-                Column.PULSE_ENERGY: first_row[4],
-                Column.TAGS: set(row[5] for row in rows if row[5] is not None),
-                Column.STARTED: first_row[6],
-            }
-        )
-    return result
+        return retrieve_runs(tables, conn, proposal_id)
 
 
 def _convert_tag_column(value: Set[str], role: int) -> Any:
@@ -172,7 +127,9 @@ class MplCanvas(FigureCanvasQTAgg):
 class RunTable(QtWidgets.QWidget):
     run_selected = QtCore.pyqtSignal(int)
 
-    def __init__(self, context: Context, tables: Tables, proposal_id: str) -> None:
+    def __init__(
+        self, context: Context, tables: Tables, proposal_id: ProposalId
+    ) -> None:
         super().__init__()
 
         self._proposal_id = proposal_id
@@ -184,6 +141,12 @@ class RunTable(QtWidgets.QWidget):
             self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView)
         )
         choose_columns.clicked.connect(self._switch_columns)
+
+        manual_creation = QtWidgets.QPushButton("New Run")
+        manual_creation.setIcon(
+            self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder)
+        )
+        manual_creation.clicked.connect(self._new_run)
 
         self._context = context
         self._table_view = GeneralTableWidget[Column](
@@ -210,6 +173,7 @@ class RunTable(QtWidgets.QWidget):
         root_layout = QtWidgets.QVBoxLayout(self)
         header_layout = QtWidgets.QHBoxLayout()
         header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
+        header_layout.addWidget(manual_creation, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(
             QtWidgets.QLabel("Filter query:"), 0, QtCore.Qt.AlignTop
         )
@@ -240,6 +204,15 @@ class RunTable(QtWidgets.QWidget):
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
 
+    def _new_run(self) -> None:
+        if new_run_dialog(
+            parent=self,
+            proposal_id=self._proposal_id,
+            context=self._context.db,
+            tables=self._tables,
+        ):
+            self.run_changed()
+
     def _header_menu_callback(self, pos: QtCore.QPoint, column: Column) -> None:
         if column in _unplottable_columns:
             return
@@ -257,8 +230,8 @@ class RunTable(QtWidgets.QWidget):
             sc = MplCanvas(self, width=5, height=4, dpi=100)
 
             df = pd.DataFrame(
-                self._table_view.get_column_values(column),
-                index=self._table_view.get_column_values(Column.STARTED),
+                self._table_view.get_filtered_column_values(column),
+                index=self._table_view.get_filtered_column_values(Column.STARTED),
                 columns=[_column_header(column)],
             )
 
@@ -269,16 +242,9 @@ class RunTable(QtWidgets.QWidget):
 
             dialog_layout.addWidget(toolbar)
             dialog_layout.addWidget(sc)
-
-            # graph_widget.plot(
-            #     [
-            #         t.timestamp()
-            #         for t in self._table_view.get_column_values(Column.STARTED)
-            #     ],
-            #     self._table_view.get_column_values(column),
-            # )
-
-            # dialog_layout.addWidget(graph_widget)
+            button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
+            button_box.rejected.connect(dialog.reject)
+            dialog_layout.addWidget(button_box)
 
             dialog.exec()
 

@@ -48,8 +48,11 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self._filter_query: Optional[Query] = None
         self._data_retriever: Optional[DataRetriever] = None
 
-    def get_column_values(self, c: T) -> List[Any]:
+    def get_filtered_column_values(self, c: T) -> List[Any]:
         return [d[c] for d in self._filtered_data if c in d]
+
+    def get_column_values(self, c: T) -> List[Any]:
+        return [d[c] for d in self._data if c in d]
 
     def set_column_visibility(self, column_visibility: List[T]) -> None:
         self.column_visibility = column_visibility
@@ -204,3 +207,6 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
 
     def get_column_values(self, c: T) -> List[Any]:
         return self._model.get_column_values(c)
+
+    def get_filtered_column_values(self, c: T) -> List[Any]:
+        return self._model.get_filtered_column_values(c)

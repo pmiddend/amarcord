@@ -5,27 +5,31 @@ import sqlalchemy as sa
 from amarcord.modules.spb.run_table import RunTable
 from amarcord.modules.spb.run_details import RunDetails
 from amarcord.modules.spb.tables import Tables
+from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.context import Context
 
 
-def run_table(context: Context, tables: Tables, proposal_id: str) -> QtWidgets.QWidget:
+def run_table(
+    context: Context, tables: Tables, proposal_id: ProposalId
+) -> QtWidgets.QWidget:
     return RunTable(context, tables, proposal_id)
 
 
 def run_details(
-    context: Context, tables: Tables, proposal_id: str
+    context: Context, tables: Tables, proposal_id: ProposalId
 ) -> QtWidgets.QWidget:
     return RunDetails(context, tables, proposal_id)
 
 
-def retrieve_proposal_ids(context: Context, tables: Tables) -> Set[int]:
+def retrieve_proposal_ids(context: Context, tables: Tables) -> Set[ProposalId]:
     with context.db.connect() as conn:
         return set(
-            r[0] for r in conn.execute(sa.select([tables.proposal.c.id])).fetchall()
+            ProposalId(r[0])
+            for r in conn.execute(sa.select([tables.proposal.c.id])).fetchall()
         )
 
 
-def proposal_chooser(proposal_ids: Set[int]) -> Optional[int]:
+def proposal_chooser(proposal_ids: Set[ProposalId]) -> Optional[ProposalId]:
     dialog = QtWidgets.QDialog()
     dialog_layout = QtWidgets.QVBoxLayout()
     dialog.setLayout(dialog_layout)
@@ -50,4 +54,4 @@ def proposal_chooser(proposal_ids: Set[int]) -> Optional[int]:
 
     if dialog.exec() == QtWidgets.QDialog.Rejected:
         return None
-    return int(proposal_combo.currentText())
+    return ProposalId(int(proposal_combo.currentText()))

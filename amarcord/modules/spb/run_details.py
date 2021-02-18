@@ -1,158 +1,31 @@
-from dataclasses import dataclass
 from dataclasses import replace
 import datetime
 import getpass
 import logging
-from typing import List
 from typing import Optional
-from typing import Any
 import humanize
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 from PyQt5 import QtGui
-import sqlalchemy as sa
+from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.context import Context
 from amarcord.qt.tags import Tags
 from amarcord.modules.spb.tables import Tables
-from amarcord.util import remove_duplicates
+from amarcord.modules.spb.run_id import RunId
+from amarcord.modules.spb.proposal_id import ProposalId
+from amarcord.modules.spb.queries import (
+    retrieve_run_ids,
+    retrieve_tags,
+    retrieve_sample_ids,
+    change_sample,
+    change_comment,
+    change_tags,
+    retrieve_run,
+    add_comment,
+    delete_comment,
+)
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class _RunSimple:
-    run_id: int
-    finished: bool
-
-
-@dataclass(frozen=True)
-class _Comment:
-    id: int
-    author: str
-    text: str
-    created: datetime.datetime
-
-
-@dataclass(frozen=True)
-class _Run:
-    sample_id: int
-    tags: List[str]
-    status: str
-    repetition_rate_mhz: float
-    comments: List[_Comment]
-
-
-def _retrieve_run_ids(conn: Any, tables: Tables, proposal_id: str) -> List[_RunSimple]:
-    return [
-        _RunSimple(row[0], row[1] == "finished")
-        for row in conn.execute(
-            sa.select([tables.run.c.id, tables.run.c.status])
-            .where(tables.run.c.proposal_id == proposal_id)
-            .order_by(tables.run.c.id)
-        ).fetchall()
-    ]
-
-
-def _retrieve_tags(conn: Any, tables: Tables) -> List[str]:
-    return [
-        row[0]
-        for row in conn.execute(
-            sa.select([tables.run_tag.c.tag_text])
-            .order_by(tables.run_tag.c.tag_text)
-            .distinct()
-        ).fetchall()
-    ]
-
-
-def _retrieve_sample_ids(conn: Any, tables: Tables) -> List[int]:
-    return [
-        row[0]
-        for row in conn.execute(
-            sa.select([tables.sample.c.sample_id]).order_by(tables.sample.c.sample_id)
-        ).fetchall()
-    ]
-
-
-def _change_sample(
-    conn: Any, tables: Tables, run_id: int, new_sample: Optional[int]
-) -> None:
-    conn.execute(
-        sa.update(tables.run)
-        .where(tables.run.c.id == run_id)
-        .values(sample_id=new_sample)
-    )
-
-
-def _change_comment(conn: Any, tables: Tables, c: _Comment) -> None:
-    conn.execute(
-        sa.update(tables.run_comment)
-        .where(tables.run_comment.c.id == c.id)
-        .values(author=c.author, text=c.text)
-    )
-
-
-def _change_tags(conn: Any, tables: Tables, run_id: int, new_tags: List[str]) -> None:
-    with conn.begin():
-        conn.execute(sa.delete(tables.run_tag).where(tables.run_tag.c.run_id == run_id))
-        if new_tags:
-            conn.execute(
-                tables.run_tag.insert(),
-                [{"run_id": run_id, "tag_text": t} for t in new_tags],
-            )
-
-
-def _retrieve_run(conn: Any, tables: Tables, run_id: int) -> _Run:
-    run_c = tables.run.c
-    select_statement = (
-        sa.select(
-            [
-                run_c.id,
-                run_c.sample_id,
-                run_c.status,
-                run_c.repetition_rate_mhz,
-                tables.run_tag.c.tag_text,
-                tables.run_comment.c.id.label("comment_id"),
-                tables.run_comment.c.author,
-                tables.run_comment.c.text,
-                tables.run_comment.c.created,
-            ]
-        )
-        .select_from(tables.run.outerjoin(tables.run_tag).outerjoin(tables.run_comment))
-        .where(run_c.id == run_id)
-    )
-    run_rows = conn.execute(select_statement).fetchall()
-    if not run_rows:
-        raise Exception(f"couldn't find any runs with id {run_id}")
-    run_meta = run_rows[0]
-    return _Run(
-        sample_id=run_meta["sample_id"],
-        status=run_meta["status"],
-        repetition_rate_mhz=run_meta["repetition_rate_mhz"],
-        tags=remove_duplicates(
-            [row["tag_text"] for row in run_rows if row["tag_text"] is not None]
-        ),
-        comments=remove_duplicates(
-            _Comment(row["comment_id"], row["author"], row["text"], row["created"])
-            for row in run_rows
-            if row["author"] is not None
-        ),
-    )
-
-
-def _add_comment(
-    conn: Any, tables: Tables, run_id: int, author: str, text: str
-) -> None:
-    conn.execute(
-        sa.insert(tables.run_comment).values(
-            run_id=run_id, author=author, text=text, created=datetime.datetime.utcnow()
-        )
-    )
-
-
-def _delete_comment(conn: Any, tables: Tables, comment_id: int) -> None:
-    conn.execute(
-        sa.delete(tables.run_comment).where(tables.run_comment.c.id == comment_id)
-    )
 
 
 class _CommentTable(QtWidgets.QTableWidget):
@@ -172,16 +45,18 @@ class _CommentTable(QtWidgets.QTableWidget):
 class RunDetails(QtWidgets.QWidget):
     run_changed = QtCore.pyqtSignal()
 
-    def __init__(self, context: Context, tables: Tables, proposal_id: str) -> None:
+    def __init__(
+        self, context: Context, tables: Tables, proposal_id: ProposalId
+    ) -> None:
         super().__init__()
 
         self._proposal_id = proposal_id
         self._context = context
         self._tables = tables
         with context.db.connect() as conn:
-            self._run_ids = _retrieve_run_ids(conn, tables, self._proposal_id)
-            self._sample_ids = _retrieve_sample_ids(conn, tables)
-            self._tags = _retrieve_tags(conn, tables)
+            self._run_ids = retrieve_run_ids(conn, tables, self._proposal_id)
+            self._sample_ids = retrieve_sample_ids(conn, tables)
+            self._tags = retrieve_tags(conn, tables)
 
             if not self._run_ids:
                 QtWidgets.QLabel("No runs yet, please wait or create one", self)
@@ -192,9 +67,7 @@ class RunDetails(QtWidgets.QWidget):
 
                 self._run_selector = QtWidgets.QComboBox()
                 self._run_selector.addItems([str(r.run_id) for r in self._run_ids])
-                self._run_selector.currentTextChanged.connect(
-                    lambda run_id_str: self._run_changed(int(run_id_str))
-                )
+                self._run_selector.currentTextChanged.connect(self._current_run_changed)
                 top_layout.addWidget(QtWidgets.QLabel("Run:"))
                 top_layout.addWidget(self._run_selector)
                 self._switch_to_latest_button = QtWidgets.QPushButton(
@@ -213,6 +86,12 @@ class RunDetails(QtWidgets.QWidget):
                         QtWidgets.QSizePolicy.Minimum,
                     )
                 )
+                manual_creation = QtWidgets.QPushButton("New Run")
+                manual_creation.setIcon(
+                    self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder)
+                )
+                manual_creation.clicked.connect(self._new_run)
+                top_layout.addWidget(manual_creation)
 
                 comment_column = QtWidgets.QGroupBox("Comments")
                 comment_layout = QtWidgets.QVBoxLayout()
@@ -276,16 +155,31 @@ class RunDetails(QtWidgets.QWidget):
                 root_columns.addWidget(comment_column)
                 root_columns.addWidget(details_column)
 
-                self._selected_run = -1
+                self._selected_run = RunId(-1)
                 self._run_changed(max(r.run_id for r in self._run_ids))
 
-    def select_run(self, run_id: int) -> None:
+    def _current_run_changed(self, new_run_id: str) -> None:
+        self._run_changed(RunId(int(new_run_id)))
+
+    def _new_run(self) -> None:
+        new_run_id = new_run_dialog(
+            parent=self,
+            proposal_id=self._proposal_id,
+            context=self._context.db,
+            tables=self._tables,
+        )
+        if new_run_id is not None:
+            logger.info("Selecting new run %s", new_run_id)
+            self.select_run(new_run_id)
+            self.run_changed.emit()
+
+    def select_run(self, run_id: RunId) -> None:
         self._run_changed(run_id)
 
     def _delete_comment(self) -> None:
         with self._context.db.connect() as conn:
             logger.info("Will delete row %s", self._comment_table.currentRow())
-            _delete_comment(
+            delete_comment(
                 conn,
                 self._tables,
                 self._run.comments[self._comment_table.currentRow()].id,
@@ -298,23 +192,32 @@ class RunDetails(QtWidgets.QWidget):
             return
         with self._context.db.connect() as conn:
             logger.info("Tags have changed!")
-            _change_tags(
+            change_tags(
                 conn, self._tables, self._selected_run, self._tags_widget.tagsStr()
             )
-            self._tags = _retrieve_tags(conn, self._tables)
+            self._tags = retrieve_tags(conn, self._tables)
             self._tags_widget.completion(self._tags)
             self._refresh()
-            logger.info("emitting")
             self.run_changed.emit()
 
     def _refresh(self) -> None:
         self._run_changed(self._selected_run)
 
-    def _run_changed(self, run_id: int) -> None:
+    def _run_changed(self, run_id: RunId) -> None:
         with self._context.db.connect() as conn:
             self._selected_run = run_id
-            self._run = _retrieve_run(conn, self._tables, self._selected_run)
+            self._run = retrieve_run(conn, self._tables, self._selected_run)
+
+            new_run_ids = retrieve_run_ids(conn, self._tables, self._proposal_id)
+
+            if new_run_ids != self._run_ids:
+                self._run_ids = new_run_ids
+                self._run_selector.blockSignals(True)
+                self._run_selector.clear()
+                self._run_selector.addItems([str(r.run_id) for r in self._run_ids])
+
             self._run_selector.setCurrentText(str(self._selected_run))
+            self._run_selector.blockSignals(False)
             self._sample_chooser.setCurrentText(
                 str(self._run.sample_id) if self._run.sample_id is not None else "None"
             )
@@ -351,7 +254,7 @@ class RunDetails(QtWidgets.QWidget):
                 author=i if column == 1 else c.author,
                 text=i if column == 2 else c.text,
             )
-            _change_comment(conn, self._tables, c)
+            change_comment(conn, self._tables, c)
 
     def _comment_text_changed(self, new_text: str) -> None:
         self._add_comment_button.setEnabled(
@@ -365,7 +268,7 @@ class RunDetails(QtWidgets.QWidget):
 
     def _add_comment(self) -> None:
         with self._context.db.connect() as conn:
-            _add_comment(
+            add_comment(
                 conn,
                 self._tables,
                 self._selected_run,
@@ -378,6 +281,6 @@ class RunDetails(QtWidgets.QWidget):
 
     def _sample_changed(self, new_sample: Optional[int]) -> None:
         with self._context.db.connect() as conn:
-            _change_sample(conn, self._tables, self._selected_run, new_sample)
+            change_sample(conn, self._tables, self._selected_run, new_sample)
         self._refresh()
         self.run_changed.emit()
