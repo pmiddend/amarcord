@@ -64,9 +64,12 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         sa.Column("hit_rate", sa.Float, nullable=True),
         sa.Column("indexing_rate", sa.Float, nullable=True),
         sa.Column("karabo", sa.BLOB, nullable=True),
-        # sa.Column("pulses_per_train", sa.Integer, nullable=False),
-        # sa.Column("xray_energy_kev", sa.Float, nullable=False),
-        # sa.Column("injector_position_z", sa.Float, nullable=False),
+        sa.Column("xray_energy_kev", sa.Float, nullable=True),
+        sa.Column("injector_position_z_mm", sa.Float, nullable=True),
+        sa.Column("trains", sa.Integer, nullable=True),
+        sa.Column("sample_delivery_rate", sa.Float, nullable=True),
+        sa.Column("detector_distance_mm", sa.Float, nullable=True),
+        sa.Column("injector_flow_rate", sa.Float, nullable=True),
     )
 
 
@@ -90,6 +93,7 @@ def create_tables(context: DBContext) -> Tables:
 
 
 def create_sample_data(context: DBContext, tables: Tables) -> None:
+    karabo_data: Optional[bytes]
     try:
         with open("data/pickled_karabo", "rb") as f:
             karabo_data = f.read()
@@ -125,7 +129,13 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 pulse_energy_mj=1,
                 hit_rate=0.5,
                 indexing_rate=0.8,
+                xray_energy_kev=1.2,
+                injector_position_z_mm=10,
+                injector_flow_rate=5.0,
+                trains=1000,
+                sample_delivery_rate=102,
                 karabo=karabo_data,
+                detector_distance_mm=10.0,
             )
         ).inserted_primary_key[0]
 
@@ -143,6 +153,12 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 pulse_energy_mj=2,
                 hit_rate=0.9,
                 indexing_rate=0.2,
+                xray_energy_kev=3.2,
+                injector_position_z_mm=12,
+                injector_flow_rate=6.0,
+                trains=1001,
+                sample_delivery_rate=103,
                 karabo=karabo_data,
+                detector_distance_mm=10.0,
             )
         )

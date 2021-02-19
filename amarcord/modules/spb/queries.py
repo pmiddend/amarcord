@@ -71,6 +71,12 @@ class SPBQueries:
                     comment.c.author,
                     comment.c.comment_text,
                     comment.c.created,
+                    run.c.xray_energy_kev,
+                    run.c.injector_position_z_mm,
+                    run.c.detector_distance_mm,
+                    run.c.injector_flow_rate,
+                    run.c.trains,
+                    run.c.sample_delivery_rate,
                 ]
             )
             .select_from(run.outerjoin(tag).outerjoin(comment))
@@ -100,6 +106,12 @@ class SPBQueries:
                     Column.STARTED: first_row[6],
                     Column.HIT_RATE: first_row[7],
                     Column.INDEXING_RATE: first_row[8],
+                    Column.X_RAY_ENERGY: first_row[13],
+                    Column.INJECTOR_POSITION_Z_MM: first_row[14],
+                    Column.DETECTOR_DISTANCE_MM: first_row[15],
+                    Column.INJECTOR_FLOW_RATE: first_row[16],
+                    Column.TRAINS: first_row[17],
+                    Column.SAMPLE_DELIVERY_RATE: first_row[18],
                     Column.COMMENTS: comments,
                 }
             )

@@ -13,7 +13,12 @@ from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar,
 )
 from matplotlib.figure import Figure
-from amarcord.modules.spb.column import Column
+from amarcord.modules.spb.column import (
+    Column,
+    column_header,
+    unplottable_columns,
+    default_visible_columns,
+)
 from amarcord.modules.spb.queries import SPBQueries, Comment
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.context import Context
@@ -54,37 +59,6 @@ def _convert_comment_column(comments: List[Comment], role: int) -> Any:
     return QtCore.QVariant()
 
 
-def _column_header(c: Column) -> str:
-    d = {
-        Column.RUN_ID: "Run",
-        Column.STATUS: "Status",
-        Column.SAMPLE: "Sample",
-        Column.REPETITION_RATE: "Repetition Rate",
-        Column.PULSE_ENERGY: "Pulse Energy",
-        Column.TAGS: "Tags",
-        Column.STARTED: "Started",
-        Column.HIT_RATE: "Hit rate",
-        Column.INDEXING_RATE: "Indexing rate",
-        Column.COMMENTS: "Comments",
-    }
-    return d[c]
-
-
-_unplottable_columns: Final = set(
-    {Column.RUN_ID, Column.STATUS, Column.SAMPLE, Column.TAGS, Column.COMMENTS}
-)
-
-_default_visible_columns: Final = [
-    Column.RUN_ID,
-    Column.STATUS,
-    Column.SAMPLE,
-    Column.REPETITION_RATE,
-    Column.TAGS,
-    Column.HIT_RATE,
-    Column.INDEXING_RATE,
-    Column.COMMENTS,
-]
-
 _column_converters: Final = {
     Column.TAGS: _convert_tag_column,
     Column.COMMENTS: _convert_comment_column,
@@ -104,7 +78,7 @@ def _display_column_chooser(
     column_list = QtWidgets.QListWidget()
     column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
     for col in Column:
-        new_item = QtWidgets.QListWidgetItem(_column_header(col))
+        new_item = QtWidgets.QListWidgetItem(column_header(col))
         new_item.setData(QtCore.Qt.UserRole, col.value)
         column_list.addItem(new_item)
     for col in selected_columns:
@@ -164,8 +138,8 @@ class RunTable(QtWidgets.QWidget):
         self._context = context
         self._table_view = GeneralTableWidget[Column](
             Column,
-            column_headers={c: _column_header(c) for c in Column},
-            column_visibility=_default_visible_columns,
+            column_headers={c: column_header(c) for c in Column},
+            column_visibility=default_visible_columns,
             column_converters=_column_converters,
             data_retriever=None,
             parent=self,
@@ -211,7 +185,7 @@ class RunTable(QtWidgets.QWidget):
         context.db.after_db_created(self._late_init)
 
     def _header_menu_callback(self, pos: QtCore.QPoint, column: Column) -> None:
-        if column in _unplottable_columns:
+        if column in unplottable_columns:
             return
         menu = QtWidgets.QMenu(self)
         plotAction = menu.addAction(
@@ -229,7 +203,7 @@ class RunTable(QtWidgets.QWidget):
             df = pd.DataFrame(
                 self._table_view.get_filtered_column_values(column),
                 index=self._table_view.get_filtered_column_values(Column.STARTED),
-                columns=[_column_header(column)],
+                columns=[column_header(column)],
             )
 
             df.plot(ax=sc.axes)
