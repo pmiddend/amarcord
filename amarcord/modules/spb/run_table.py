@@ -13,7 +13,6 @@ from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar,
 )
 from matplotlib.figure import Figure
-from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.column import Column
 from amarcord.modules.spb.queries import SPBQueries, Comment
 from amarcord.modules.spb.proposal_id import ProposalId
@@ -162,12 +161,6 @@ class RunTable(QtWidgets.QWidget):
         )
         choose_columns.clicked.connect(self._slot_switch_columns)
 
-        manual_creation = QtWidgets.QPushButton("New Run")
-        manual_creation.setIcon(
-            self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder)
-        )
-        manual_creation.clicked.connect(self._slot_new_run)
-
         self._context = context
         self._table_view = GeneralTableWidget[Column](
             Column,
@@ -187,7 +180,6 @@ class RunTable(QtWidgets.QWidget):
         root_layout = QtWidgets.QVBoxLayout(self)
         header_layout = QtWidgets.QHBoxLayout()
         header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
-        header_layout.addWidget(manual_creation, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(
             QtWidgets.QLabel("Filter query:"), 0, QtCore.Qt.AlignTop
         )
@@ -217,14 +209,6 @@ class RunTable(QtWidgets.QWidget):
 
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
-
-    def _slot_new_run(self) -> None:
-        if new_run_dialog(
-            parent=self,
-            proposal_id=self._proposal_id,
-            queries=self._db,
-        ):
-            self.run_changed()
 
     def _header_menu_callback(self, pos: QtCore.QPoint, column: Column) -> None:
         if column in _unplottable_columns:
