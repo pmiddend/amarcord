@@ -50,6 +50,9 @@ async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> No
             raw_data = await socket.recv_multipart(copy=False)
             data = deserialize(raw_data)
 
+            # with open("/tmp/pickled_karabo", "wb") as f:
+            #     f.write(pickle.dumps(data))
+
             with queries.dbcontext.connect() as conn:
                 queries.update_run(conn, RunId(1), karabo=pickle.dumps(data))
 

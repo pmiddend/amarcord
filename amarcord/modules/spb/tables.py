@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import datetime
+import pickle
 import sqlalchemy as sa
 from amarcord.modules.dbcontext import DBContext
 
@@ -89,6 +90,12 @@ def create_tables(context: DBContext) -> Tables:
 
 
 def create_sample_data(context: DBContext, tables: Tables) -> None:
+    try:
+        with open("data/pickled_karabo", "rb") as f:
+            karabo_data = f.read()
+    except:
+        karabo_data = None
+
     with context.connect() as conn:
         proposal_id = 1
         conn.execute(
@@ -118,6 +125,7 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 pulse_energy_mj=1,
                 hit_rate=0.5,
                 indexing_rate=0.8,
+                karabo=karabo_data,
             )
         ).inserted_primary_key[0]
 
@@ -135,5 +143,6 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 pulse_energy_mj=2,
                 hit_rate=0.9,
                 indexing_rate=0.2,
+                karabo=karabo_data,
             )
         )
