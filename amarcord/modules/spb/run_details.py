@@ -2,7 +2,9 @@ from dataclasses import replace
 import datetime
 import getpass
 import logging
+from enum import Enum
 from typing import Optional
+from typing import Tuple
 from typing import Dict
 from typing import List
 from typing import Any
@@ -23,6 +25,122 @@ from amarcord.modules.spb.queries import SPBQueries
 logger = logging.getLogger(__name__)
 
 
+def _table_layout_selection_dialog(
+    parent: QtWidgets.QWidget, d: np.ndarray
+) -> Optional[Tuple[int, int]]:
+    dialog = QtWidgets.QDialog()
+    dialog_layout = QtWidgets.QVBoxLayout()
+    dialog.setLayout(dialog_layout)
+
+    group_box = QtWidgets.QGroupBox("Choose columns and rows:", dialog)
+    dialog_layout.addWidget(group_box)
+    root_layout = QtWidgets.QFormLayout()
+    group_box.setLayout(root_layout)
+
+    rows_combo = QtWidgets.QComboBox()
+    for idx, a in enumerate(d.shape):
+        rows_combo.addItem(f"Dimension {idx} ({a} item" + ("s" if a > 1 else "") + ")")
+
+    columns_combo = QtWidgets.QComboBox()
+    for idx, a in enumerate(d.shape):
+        columns_combo.addItem(
+            f"Dimension {idx} ({a} item" + ("s" if a > 1 else "") + ")"
+        )
+    columns_combo.setCurrentIndex(1)
+
+    root_layout.addRow(QtWidgets.QLabel("Rows:"), rows_combo)
+    root_layout.addRow(QtWidgets.QLabel("Columns:"), columns_combo)
+
+    buttonBox = QtWidgets.QDialogButtonBox(  # type: ignore
+        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+    )
+    buttonBox.accepted.connect(dialog.accept)
+    buttonBox.rejected.connect(dialog.reject)
+    root_layout.addWidget(buttonBox)
+
+    def index_changed(new_index: int) -> None:
+        # pylint: disable=no-member
+        buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(  # type: ignore
+            rows_combo.currentIndex() != columns_combo.currentIndex()
+        )
+
+    rows_combo.currentIndexChanged.connect(index_changed)
+    columns_combo.currentIndexChanged.connect(index_changed)
+
+    if dialog.exec() == QtWidgets.QDialog.Rejected:
+        return None
+
+    return rows_combo.currentIndex(), columns_combo.currentIndex()
+
+
+def _data_shower(d: np.ndarray, rows: int, columns: Optional[int]) -> None:
+    assert columns is None or columns < len(d.shape)
+    assert rows < len(d.shape)
+    dialog = QtWidgets.QDialog()
+    dialog_layout = QtWidgets.QVBoxLayout()
+    dialog.setLayout(dialog_layout)
+
+    # plot_button = QtWidgets.QPushButton("Plot data")
+    # plot_button.clicked.connect(plot)
+    # dialog_layout.addWidget(plot_button)
+
+    # tabs = QtWidgets.QtTabWidget(dialog)
+
+    table = QtWidgets.QTableWidget()
+
+    table.setRowCount(d.shape[rows])
+
+    table.setColumnCount(d.shape[columns] if columns is not None else 1)
+
+    if columns is None:
+        for row in range(d.shape[rows]):
+            table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(d[row, 0])))
+    else:
+        for row in range(d.shape[rows]):
+            for column in range(d.shape[columns]):
+                table.setItem(
+                    row, column, QtWidgets.QTableWidgetItem(str(d[row, column]))
+                )
+
+    table.resizeColumnsToContents()
+    table.resizeRowsToContents()
+    table.horizontalHeader().setStretchLastSection(True)
+    # tabs.addTab(table, "Table")
+
+    # plot = Plotter()
+    # df = pd.DataFrame(
+    #     {
+    #         "x": d[]
+    #         }
+    # )
+    # df.plot(ax=plot.axes())
+
+    # tabs.addTab(plotter, "Plot")
+    dialog_layout.addWidget(table)
+
+    buttonBox = QtWidgets.QDialogButtonBox(  # type: ignore
+        QtWidgets.QDialogButtonBox.Close
+    )
+    buttonBox.accepted.connect(dialog.accept)
+    buttonBox.rejected.connect(dialog.reject)
+    dialog_layout.addWidget(buttonBox)
+
+    dialog.exec()
+
+
+class _MyTreeWidgetItem(QtWidgets.QTreeWidgetItem):
+    def __init__(
+        self, additional_data: Any, parent: Optional[QtWidgets.QTreeWidgetItem]
+    ) -> None:
+        super().__init__(parent)
+        self.additional_data = additional_data
+
+
+class _TreeColumn(Enum):
+    TREE_COLUMN_NAME = 0
+    TREE_COLUMN_VALUE = 1
+
+
 class _CommentTable(QtWidgets.QTableWidget):
     delete_current_row = QtCore.pyqtSignal()
 
@@ -39,22 +157,23 @@ class _CommentTable(QtWidgets.QTableWidget):
 
 def _recurse_to_items(new_item: QtWidgets.QTreeWidgetItem, k: str, v: Any) -> None:
     if isinstance(v, dict):
-        new_item.setText(1, "Dictionary")
+        new_item.setText(_TreeColumn.TREE_COLUMN_VALUE.value, "Dictionary")
         _dict_to_items(v, new_item)
     elif isinstance(v, list):
-        new_item.setText(1, "List")
+        new_item.setText(_TreeColumn.TREE_COLUMN_VALUE.value, "List")
         _list_to_items(v, new_item)
     elif isinstance(v, (bool, str, int, float)):
         if k == "timestamp":
             new_item.setText(
-                1, str(datetime.datetime.fromtimestamp(v / 1000 / 1000 / 1000))
+                _TreeColumn.TREE_COLUMN_VALUE.value,
+                str(datetime.datetime.fromtimestamp(v / 1000 / 1000 / 1000)),
             )
         else:
-            new_item.setText(1, str(v))
+            new_item.setText(_TreeColumn.TREE_COLUMN_VALUE.value, str(v))
     elif isinstance(v, np.ndarray):
-        new_item.setText(1, "Array " + str(v.shape))
+        new_item.setText(_TreeColumn.TREE_COLUMN_VALUE.value, "Array " + str(v.shape))
     else:
-        new_item.setText(1, str(type(v)))
+        new_item.setText(_TreeColumn.TREE_COLUMN_VALUE.value, str(type(v)))
 
 
 def _preprocess_dict(d: Dict[str, Any]) -> Dict[str, Any]:
@@ -86,8 +205,8 @@ def _list_to_items(
 ) -> List[QtWidgets.QTreeWidgetItem]:
     items: List[QtWidgets.QTreeWidgetItem] = []
     for idx, v in enumerate(d):
-        new_item = QtWidgets.QTreeWidgetItem(parent)
-        new_item.setText(0, str(idx))
+        new_item = _MyTreeWidgetItem(v, parent)
+        new_item.setText(_TreeColumn.TREE_COLUMN_NAME.value, str(idx))
         _recurse_to_items(new_item, idx, v)
         items.append(new_item)
     return items
@@ -98,8 +217,8 @@ def _dict_to_items(
 ) -> List[QtWidgets.QTreeWidgetItem]:
     items: List[QtWidgets.QTreeWidgetItem] = []
     for k, v in d.items():
-        new_item = QtWidgets.QTreeWidgetItem(parent)  # type: ignore
-        new_item.setText(0, k)
+        new_item = _MyTreeWidgetItem(v, parent)  # type: ignore
+        new_item.setText(_TreeColumn.TREE_COLUMN_NAME.value, k)
         _recurse_to_items(new_item, k, v)
         items.append(new_item)
     return items
@@ -261,6 +380,9 @@ class RunDetails(QtWidgets.QWidget):
                 self._details_tree = QtWidgets.QTreeWidget()
                 self._details_tree.setColumnCount(2)
                 self._details_tree.setHeaderLabels(["Key", "Type or value"])
+                self._details_tree.itemDoubleClicked.connect(
+                    self._slot_tree_double_click
+                )
                 details_column_layout.addWidget(self._details_tree)
 
                 tree_search_row = QtWidgets.QHBoxLayout()
@@ -300,6 +422,25 @@ class RunDetails(QtWidgets.QWidget):
                 while p is not None:
                     p.setExpanded(True)
                     p = p.parent()
+
+    def _slot_tree_double_click(self, item: QtWidgets.QTreeWidgetItem) -> None:
+        if item is None or not isinstance(item, _MyTreeWidgetItem):
+            return
+
+        d = item.additional_data
+
+        if not isinstance(d, np.ndarray):
+            return
+
+        if len(d.shape) == 1:
+            _data_shower(d, rows=0, columns=None)
+
+        row_and_column = _table_layout_selection_dialog(self, d)
+
+        if row_and_column is None:
+            return
+
+        _data_shower(d, rows=row_and_column[0], columns=row_and_column[1])
 
     def _slot_current_run_changed(self, new_run_id: str) -> None:
         self._run_changed(RunId(int(new_run_id)))
