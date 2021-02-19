@@ -14,6 +14,7 @@ from PyQt5 import QtGui
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.context import Context
 from amarcord.qt.tags import Tags
+from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.modules.spb.tables import Tables
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.proposal_id import ProposalId
@@ -97,11 +98,33 @@ def _dict_to_items(
 ) -> List[QtWidgets.QTreeWidgetItem]:
     items: List[QtWidgets.QTreeWidgetItem] = []
     for k, v in d.items():
-        new_item = QtWidgets.QTreeWidgetItem(parent)
+        new_item = QtWidgets.QTreeWidgetItem(parent)  # type: ignore
         new_item.setText(0, k)
         _recurse_to_items(new_item, k, v)
         items.append(new_item)
     return items
+
+
+def _filter_dict(d: Dict[str, Any], filter_text: str) -> Dict[str, Any]:
+    if not filter_text:
+        return d
+
+    def _keep_subtree(sd: Dict[str, Any]) -> bool:
+        for k, v in sd.items():
+            if filter_text.lower() in k.lower():
+                return True
+            if isinstance(v, dict) and _keep_subtree(v):
+                return True
+        return False
+
+    new_dict: Dict[str, Any] = {}
+    for k, v in d.items():
+        if filter_text.lower() in k.lower():
+            new_dict[k] = v
+
+        if isinstance(v, dict) and _keep_subtree(v):
+            new_dict[k] = _filter_dict(v, filter_text)
+    return new_dict
 
 
 class RunDetails(QtWidgets.QWidget):
@@ -240,6 +263,16 @@ class RunDetails(QtWidgets.QWidget):
                 self._details_tree.setHeaderLabels(["Key", "Type or value"])
                 details_column_layout.addWidget(self._details_tree)
 
+                tree_search_row = QtWidgets.QHBoxLayout()
+                tree_search_row.addWidget(QtWidgets.QLabel("Filter:"))
+                self._tree_filter_line = DebouncedLineEdit()
+                self._tree_filter_line.setClearButtonEnabled(True)
+                self._tree_filter_line.textChanged.connect(
+                    self._slot_tree_filter_changed
+                )
+                tree_search_row.addWidget(self._tree_filter_line)
+                details_column_layout.addLayout(tree_search_row)
+
                 root_columns.addWidget(editable_column)
                 root_columns.addWidget(details_column)
                 root_columns.setStretch(0, 1)
@@ -247,6 +280,26 @@ class RunDetails(QtWidgets.QWidget):
 
                 self._selected_run = RunId(-1)
                 self._run_changed(max(r.run_id for r in self._run_ids))
+
+    def _slot_tree_filter_changed(self, new_filter: str) -> None:
+        self._details_tree.clear()
+        self._details_tree.insertTopLevelItems(
+            0,
+            _dict_to_items(
+                _filter_dict(_preprocess_dict(self._run.karabo[0]), new_filter),
+                parent=None,
+            ),
+        )
+        if self._tree_filter_line.text():
+            for i in self._details_tree.findItems(
+                self._tree_filter_line.text(),
+                QtCore.Qt.MatchFlag.MatchContains | QtCore.Qt.MatchFlag.MatchRecursive,
+            ):
+                i.setExpanded(True)
+                p = i.parent()
+                while p is not None:
+                    p.setExpanded(True)
+                    p = p.parent()
 
     def _slot_current_run_changed(self, new_run_id: str) -> None:
         self._run_changed(RunId(int(new_run_id)))
@@ -329,10 +382,7 @@ class RunDetails(QtWidgets.QWidget):
                 )
                 self._comment_table.setItem(row, 2, QtWidgets.QTableWidgetItem(c.text))
             self._comment_table.cellChanged.connect(self._comment_cell_changed)
-            self._details_tree.clear()
-            self._details_tree.insertTopLevelItems(
-                0, _dict_to_items(_preprocess_dict(self._run.karabo[0]), None)
-            )
+            self._slot_tree_filter_changed(self._tree_filter_line.text())
             self._details_tree.resizeColumnToContents(0)
             self._details_tree.resizeColumnToContents(1)
 
