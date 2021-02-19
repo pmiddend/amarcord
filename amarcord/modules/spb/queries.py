@@ -3,7 +3,9 @@ from typing import List
 from typing import Dict
 from typing import Optional
 from typing import Any
+from typing import Tuple
 from itertools import groupby
+import pickle
 import datetime
 import sqlalchemy as sa
 from amarcord.modules.spb.tables import Tables
@@ -35,6 +37,7 @@ class Run:
     status: str
     repetition_rate_mhz: float
     comments: List[Comment]
+    karabo: Tuple[Dict[str, Any], Dict[str, Any]]
 
 
 Connection = Any
@@ -177,6 +180,7 @@ class SPBQueries:
                     self._tables.run_comment.c.author,
                     self._tables.run_comment.c.comment_text,
                     self._tables.run_comment.c.created,
+                    run_c.karabo,
                 ]
             )
             .select_from(
@@ -207,6 +211,9 @@ class SPBQueries:
                 for row in run_rows
                 if row["author"] is not None
             ),
+            karabo=pickle.loads(run_meta["karabo"])
+            if run_meta["karabo"] is not None
+            else None,
         )
 
     def add_comment(
@@ -232,7 +239,7 @@ class SPBQueries:
         self,
         conn: Connection,
         proposal_id: ProposalId,
-        run_id: int,
+        run_id: RunId,
         sample_id: Optional[int],
     ) -> bool:
         with conn.begin():
@@ -255,3 +262,13 @@ class SPBQueries:
                 )
             )
             return True
+
+    def create_proposal(self, conn: Connection, prop_id: ProposalId) -> None:
+        conn.execute(self._tables.proposal.insert().values(id=prop_id))
+
+    def update_run(self, conn: Connection, run_id: RunId, karabo: bytes) -> None:
+        conn.execute(
+            sa.update(self._tables.run)
+            .where(self._tables.run.c.id == run_id)
+            .values(karabo=karabo)
+        )

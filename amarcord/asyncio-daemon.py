@@ -5,6 +5,7 @@ from typing import Any
 from typing import Union
 import concurrent
 import logging
+import pickle
 
 import zmq
 import sqlalchemy as sa
@@ -19,6 +20,10 @@ from amarcord.sources.mc import XFELMetadataConnectionConfig
 from amarcord.sources.karabo import XFELKaraboBridgeConfig
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.spb.tables import create_tables, Tables
+from amarcord.modules.spb.run_id import RunId
+from amarcord.modules.spb.proposal_id import ProposalId
+from amarcord.modules.spb.queries import SPBQueries
+from amarcord.modules.spb.tables import create_tables
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -27,9 +32,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def karabo_loop(
-    dbctx: DBContext, tables: Tables, config: XFELKaraboBridgeConfig
-) -> None:
+async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> None:
+    # TESTING
+    with queries.dbcontext.connect() as conn:
+        queries.create_run(conn, ProposalId(1), RunId(1), sample_id=None)
+
     ctx = Context.instance()
 
     # pylint: disable=no-member
@@ -41,8 +48,13 @@ async def karabo_loop(
         await socket.send(b"next")
         try:
             raw_data = await socket.recv_multipart(copy=False)
-            _data = deserialize(raw_data)
-            logger.info("karabo: new data received: %s", _data)
+            data = deserialize(raw_data)
+
+            with queries.dbcontext.connect() as conn:
+                queries.update_run(conn, RunId(1), karabo=pickle.dumps(data))
+
+            logger.info("karabo: new data received")
+
             await asyncio.sleep(5)
         except zmq.error.Again:
             logger.error("No data received in time")
@@ -87,15 +99,14 @@ async def mc_loop(
 
 
 async def main(
-    dbcontext: DBContext,
-    tables: Tables,
+    queries: SPBQueries,
     executor: concurrent.futures.ThreadPoolExecutor,
     mc_config: XFELMetadataConnectionConfig,
     karabo_config: XFELKaraboBridgeConfig,
 ) -> None:
     await asyncio.gather(
-        karabo_loop(dbcontext, tables, karabo_config),
-        mc_loop(dbcontext, tables, executor, mc_config),
+        karabo_loop(queries, karabo_config),
+        # mc_loop(dbcontext, tables, executor, mc_config),
     )
 
 
@@ -116,15 +127,19 @@ if __name__ == "__main__":
 
     global_dbcontext = DBContext(c["db"]["url"])
 
-    global_tables = create_tables(global_dbcontext)
-
+    tables = create_tables(global_dbcontext)
     global_dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+
+    global_queries = SPBQueries(global_dbcontext, tables)
+
+    # Just for testing!
+    with global_queries.dbcontext.connect() as conn:
+        global_queries.create_proposal(conn, ProposalId(1))
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as global_executor:
         asyncio.run(
             main(
-                global_dbcontext,
-                global_tables,
+                global_queries,
                 global_executor,
                 global_mc_config,
                 global_karabo_config,

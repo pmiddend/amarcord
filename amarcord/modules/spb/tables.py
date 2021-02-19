@@ -39,7 +39,7 @@ def _table_proposal(metadata: sa.MetaData) -> sa.Table:
         "Proposal",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=False),
-        sa.Column("metadata", sa.JSON, nullable=False),
+        sa.Column("metadata", sa.JSON, nullable=True),
     )
 
 
@@ -58,10 +58,11 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("status", sa.String(length=255), nullable=False),
         sa.Column("sample_id", sa.Integer, nullable=True),
-        sa.Column("repetition_rate_mhz", sa.Float),
-        sa.Column("pulse_energy_mj", sa.Float),
-        sa.Column("hit_rate", sa.Float),
-        sa.Column("indexing_rate", sa.Float),
+        sa.Column("repetition_rate_mhz", sa.Float, nullable=True),
+        sa.Column("pulse_energy_mj", sa.Float, nullable=True),
+        sa.Column("hit_rate", sa.Float, nullable=True),
+        sa.Column("indexing_rate", sa.Float, nullable=True),
+        sa.Column("karabo", sa.BLOB, nullable=True),
         # sa.Column("pulses_per_train", sa.Integer, nullable=False),
         # sa.Column("xray_energy_kev", sa.Float, nullable=False),
         # sa.Column("injector_position_z", sa.Float, nullable=False),
