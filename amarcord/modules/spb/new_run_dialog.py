@@ -15,7 +15,6 @@ class NewRunData:
 def _new_run_dialog(
     parent: Optional[QtWidgets.QWidget],
     highest_id: Optional[int],
-    queries: SPBQueries,
     sample_ids: List[int],
 ) -> Optional[NewRunData]:
     dialog = QtWidgets.QDialog(parent)
@@ -68,7 +67,6 @@ def new_run_dialog(
     with queries.dbcontext.connect() as conn:
         new_run = _new_run_dialog(
             parent=parent,
-            queries=queries,
             highest_id=max(
                 (r.run_id for r in queries.retrieve_run_ids(conn, proposal_id)),
                 default=None,

@@ -1,7 +1,9 @@
-from dataclasses import dataclass
 import datetime
-import pickle
+from dataclasses import dataclass
+from typing import Optional
+
 import sqlalchemy as sa
+
 from amarcord.modules.dbcontext import DBContext
 
 

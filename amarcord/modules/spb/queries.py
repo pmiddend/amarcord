@@ -9,7 +9,7 @@ import pickle
 import datetime
 import sqlalchemy as sa
 from amarcord.modules.spb.tables import Tables
-from amarcord.modules.spb.column import Column
+from amarcord.modules.spb.column import RunProperty
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.dbcontext import DBContext
@@ -32,11 +32,7 @@ class Comment:
 
 @dataclass(frozen=True)
 class Run:
-    sample_id: int
-    tags: List[str]
-    status: str
-    repetition_rate_mhz: float
-    comments: List[Comment]
+    properties: Dict[RunProperty, Any]
     karabo: Tuple[Dict[str, Any], Dict[str, Any]]
 
 
@@ -50,7 +46,7 @@ class SPBQueries:
 
     def retrieve_runs(
         self, conn: Connection, proposal_id: ProposalId
-    ) -> List[Dict[Column, Any]]:
+    ) -> List[Dict[RunProperty, Any]]:
         run = self._tables.run
         tag = self._tables.run_tag
         comment = self._tables.run_comment
@@ -83,7 +79,7 @@ class SPBQueries:
             .where(run.c.proposal_id == proposal_id)
             .order_by(run.c.id, comment.c.id)
         )
-        result: List[Dict[Column, Any]] = []
+        result: List[Dict[RunProperty, Any]] = []
         for _run_id, run_rows in groupby(
             conn.execute(select_stmt).fetchall(), lambda x: x[0]
         ):
@@ -97,22 +93,22 @@ class SPBQueries:
             )
             result.append(
                 {
-                    Column.RUN_ID: first_row[0],
-                    Column.STATUS: first_row[1],
-                    Column.SAMPLE: first_row[2],
-                    Column.REPETITION_RATE: first_row[3],
-                    Column.PULSE_ENERGY: first_row[4],
-                    Column.TAGS: tags,
-                    Column.STARTED: first_row[6],
-                    Column.HIT_RATE: first_row[7],
-                    Column.INDEXING_RATE: first_row[8],
-                    Column.X_RAY_ENERGY: first_row[13],
-                    Column.INJECTOR_POSITION_Z_MM: first_row[14],
-                    Column.DETECTOR_DISTANCE_MM: first_row[15],
-                    Column.INJECTOR_FLOW_RATE: first_row[16],
-                    Column.TRAINS: first_row[17],
-                    Column.SAMPLE_DELIVERY_RATE: first_row[18],
-                    Column.COMMENTS: comments,
+                    RunProperty.RUN_ID: first_row[0],
+                    RunProperty.STATUS: first_row[1],
+                    RunProperty.SAMPLE: first_row[2],
+                    RunProperty.REPETITION_RATE: first_row[3],
+                    RunProperty.PULSE_ENERGY: first_row[4],
+                    RunProperty.TAGS: tags,
+                    RunProperty.STARTED: first_row[6],
+                    RunProperty.HIT_RATE: first_row[7],
+                    RunProperty.INDEXING_RATE: first_row[8],
+                    RunProperty.X_RAY_ENERGY: first_row[13],
+                    RunProperty.INJECTOR_POSITION_Z_MM: first_row[14],
+                    RunProperty.DETECTOR_DISTANCE_MM: first_row[15],
+                    RunProperty.INJECTOR_FLOW_RATE: first_row[16],
+                    RunProperty.TRAINS: first_row[17],
+                    RunProperty.SAMPLE_DELIVERY_RATE: first_row[18],
+                    RunProperty.COMMENTS: comments,
                 }
             )
         return result
@@ -207,22 +203,24 @@ class SPBQueries:
             raise Exception(f"couldn't find any runs with id {run_id}")
         run_meta = run_rows[0]
         return Run(
-            sample_id=run_meta["sample_id"],
-            status=run_meta["status"],
-            repetition_rate_mhz=run_meta["repetition_rate_mhz"],
-            tags=remove_duplicates_stable(
-                [row["tag_text"] for row in run_rows if row["tag_text"] is not None]
-            ),
-            comments=remove_duplicates_stable(
-                Comment(
-                    row["comment_id"],
-                    row["author"],
-                    row["comment_text"],
-                    row["created"],
-                )
-                for row in run_rows
-                if row["author"] is not None
-            ),
+            properties={
+                RunProperty.SAMPLE: run_meta["sample_id"],
+                RunProperty.STATUS: run_meta["status"],
+                RunProperty.REPETITION_RATE: run_meta["repetition_rate_mhz"],
+                RunProperty.TAGS: remove_duplicates_stable(
+                    [row["tag_text"] for row in run_rows if row["tag_text"] is not None]
+                ),
+                RunProperty.COMMENTS: remove_duplicates_stable(
+                    Comment(
+                        row["comment_id"],
+                        row["author"],
+                        row["comment_text"],
+                        row["created"],
+                    )
+                    for row in run_rows
+                    if row["author"] is not None
+                ),
+            },
             karabo=pickle.loads(run_meta["karabo"])
             if run_meta["karabo"] is not None
             else None,

@@ -13,11 +13,12 @@ from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar,
 )
 from matplotlib.figure import Figure
+
 from amarcord.modules.spb.column import (
-    Column,
-    column_header,
-    unplottable_columns,
-    default_visible_columns,
+    RunProperty,
+    default_visible_properties,
+    run_property_name,
+    unplottable_properties,
 )
 from amarcord.modules.spb.queries import SPBQueries, Comment
 from amarcord.modules.spb.proposal_id import ProposalId
@@ -32,10 +33,10 @@ logger = logging.getLogger(__name__)
 
 
 def _column_query_names() -> Set[str]:
-    return {f.name.lower() for f in Column}
+    return {f.name.lower() for f in RunProperty}
 
 
-Row = Dict[Column, Any]
+Row = Dict[RunProperty, Any]
 
 
 def _retrieve_data_no_connection(db: SPBQueries, proposal_id: ProposalId) -> List[Row]:
@@ -60,14 +61,14 @@ def _convert_comment_column(comments: List[Comment], role: int) -> Any:
 
 
 _column_converters: Final = {
-    Column.TAGS: _convert_tag_column,
-    Column.COMMENTS: _convert_comment_column,
+    RunProperty.TAGS: _convert_tag_column,
+    RunProperty.COMMENTS: _convert_comment_column,
 }
 
 
 def _display_column_chooser(
-    parent: Optional[QtWidgets.QWidget], selected_columns: List[Column]
-) -> List[Column]:
+    parent: Optional[QtWidgets.QWidget], selected_columns: List[RunProperty]
+) -> List[RunProperty]:
     dialog = QtWidgets.QDialog(parent)
     dialog_layout = QtWidgets.QVBoxLayout()
     dialog.setLayout(dialog_layout)
@@ -77,8 +78,8 @@ def _display_column_chooser(
     root_widget.setLayout(root_layout)
     column_list = QtWidgets.QListWidget()
     column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-    for col in Column:
-        new_item = QtWidgets.QListWidgetItem(column_header(col))
+    for col in RunProperty:
+        new_item = QtWidgets.QListWidgetItem(run_property_name(col))
         new_item.setData(QtCore.Qt.UserRole, col.value)
         column_list.addItem(new_item)
     for col in selected_columns:
@@ -107,7 +108,9 @@ def _display_column_chooser(
     column_list.selectionModel().selectionChanged.connect(selection_changed)  # type: ignore
     if dialog.exec() == QtWidgets.QDialog.Rejected:
         return selected_columns
-    return [Column(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()]
+    return [
+        RunProperty(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()
+    ]
 
 
 class _MplCanvas(FigureCanvasQTAgg):
@@ -136,10 +139,10 @@ class RunTable(QtWidgets.QWidget):
         choose_columns.clicked.connect(self._slot_switch_columns)
 
         self._context = context
-        self._table_view = GeneralTableWidget[Column](
-            Column,
-            column_headers={c: column_header(c) for c in Column},
-            column_visibility=default_visible_columns,
+        self._table_view = GeneralTableWidget[RunProperty](
+            RunProperty,
+            column_headers={c: run_property_name(c) for c in RunProperty},
+            column_visibility=default_visible_properties,
             column_converters=_column_converters,
             data_retriever=None,
             parent=self,
@@ -184,8 +187,8 @@ class RunTable(QtWidgets.QWidget):
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
 
-    def _header_menu_callback(self, pos: QtCore.QPoint, column: Column) -> None:
-        if column in unplottable_columns:
+    def _header_menu_callback(self, pos: QtCore.QPoint, column: RunProperty) -> None:
+        if column in unplottable_properties:
             return
         menu = QtWidgets.QMenu(self)
         plotAction = menu.addAction(
@@ -202,8 +205,8 @@ class RunTable(QtWidgets.QWidget):
 
             df = pd.DataFrame(
                 self._table_view.get_filtered_column_values(column),
-                index=self._table_view.get_filtered_column_values(Column.STARTED),
-                columns=[column_header(column)],
+                index=self._table_view.get_filtered_column_values(RunProperty.STARTED),
+                columns=[run_property_name(column)],
             )
 
             df.plot(ax=sc.axes)
@@ -219,8 +222,8 @@ class RunTable(QtWidgets.QWidget):
 
             dialog.exec()
 
-    def _slot_row_selected(self, row: Dict[Column, Any]) -> None:
-        self.run_selected.emit(row[Column.RUN_ID])
+    def _slot_row_selected(self, row: Dict[RunProperty, Any]) -> None:
+        self.run_selected.emit(row[RunProperty.RUN_ID])
 
     def run_changed(self) -> None:
         logger.info("Refreshing run table")

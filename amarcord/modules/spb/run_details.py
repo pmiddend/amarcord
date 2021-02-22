@@ -13,6 +13,12 @@ import numpy as np
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 from PyQt5 import QtGui
+
+from amarcord.modules.spb.column import (
+    RunProperty,
+    run_property_name,
+    run_property_to_string,
+)
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.context import Context
 from amarcord.qt.tags import Tags
@@ -20,9 +26,74 @@ from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.modules.spb.tables import Tables
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.queries import SPBQueries
+from amarcord.modules.spb.queries import Run, SPBQueries
 
 logger = logging.getLogger(__name__)
+
+
+class MetadataModel(QtCore.QAbstractTableModel):
+    def __init__(
+        self, run: Run, queries: SPBQueries, parent: Optional[QtCore.QObject] = None
+    ) -> None:
+        super().__init__(parent)
+
+        self._headers = ["Field", "Value"]
+        self._queries = queries
+        self._run = run
+        self._props = list(set(r for r in RunProperty) - {RunProperty.COMMENTS})
+        self._row_index_to_property: Dict[int, RunProperty] = {
+            idx: v for idx, v in enumerate(self._props)
+        }
+
+    def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
+        return len(self._props)
+
+    def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
+        return 2
+
+    def headerData(
+        self,
+        section: int,
+        orientation: QtCore.Qt.Orientation,
+        role: int = QtCore.Qt.DisplayRole,
+    ) -> QtCore.QVariant:
+        if (
+            orientation == QtCore.Qt.Vertical
+            or role != QtCore.Qt.DisplayRole
+            or section > len(self._headers)
+        ):
+            return QtCore.QVariant()
+        return QtCore.QVariant(self._headers[section])
+
+    def data(
+        self,
+        index: QtCore.QModelIndex,
+        role: int = QtCore.Qt.DisplayRole,
+    ) -> Any:
+        runprop = self._row_index_to_property[index.row()]
+        if role == QtCore.Qt.DisplayRole:
+            return (
+                run_property_name(runprop)
+                if index.column() == 0
+                else run_property_to_string(runprop, self._run.properties[runprop])
+                if runprop in self._run.properties
+                else "N/A"
+            )
+        return None
+
+
+class MetadataTable(QtWidgets.QTableView):
+    def __init__(
+        self, run: Run, queries: SPBQueries, parent: QtWidgets.QWidget
+    ) -> None:
+        super().__init__(parent)
+        self.setAlternatingRowColors(True)
+        self.verticalHeader().hide()
+        self.horizontalHeader().setStretchLastSection(True)
+        self.setModel(MetadataModel(run, queries))
+
+
+# class SpinBoxDelegate(QtWidgets.QStyledItemDelegate):
 
 
 def _table_layout_selection_dialog(
@@ -51,16 +122,17 @@ def _table_layout_selection_dialog(
     root_layout.addRow(QtWidgets.QLabel("Rows:"), rows_combo)
     root_layout.addRow(QtWidgets.QLabel("Columns:"), columns_combo)
 
-    buttonBox = QtWidgets.QDialogButtonBox(  # type: ignore
+    button_box = QtWidgets.QDialogButtonBox(  # type: ignore
         QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
     )
-    buttonBox.accepted.connect(dialog.accept)
-    buttonBox.rejected.connect(dialog.reject)
-    root_layout.addWidget(buttonBox)
+    button_box.accepted.connect(dialog.accept)
+    button_box.rejected.connect(dialog.reject)
+    root_layout.addWidget(button_box)
 
     def index_changed(new_index: int) -> None:
         # pylint: disable=no-member
-        buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(  # type: ignore
+        # noinspection PyUnresolvedReferences
+        button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(  # type: ignore
             rows_combo.currentIndex() != columns_combo.currentIndex()
         )
 
@@ -118,12 +190,12 @@ def _data_shower(d: np.ndarray, rows: int, columns: Optional[int]) -> None:
     # tabs.addTab(plotter, "Plot")
     dialog_layout.addWidget(table)
 
-    buttonBox = QtWidgets.QDialogButtonBox(  # type: ignore
+    button_box = QtWidgets.QDialogButtonBox(  # type: ignore
         QtWidgets.QDialogButtonBox.Close
     )
-    buttonBox.accepted.connect(dialog.accept)
-    buttonBox.rejected.connect(dialog.reject)
-    dialog_layout.addWidget(buttonBox)
+    button_box.accepted.connect(dialog.accept)
+    button_box.rejected.connect(dialog.reject)
+    dialog_layout.addWidget(button_box)
 
     dialog.exec()
 
@@ -177,11 +249,6 @@ def _recurse_to_items(new_item: QtWidgets.QTreeWidgetItem, k: str, v: Any) -> No
 
 
 def _preprocess_dict(d: Dict[str, Any]) -> Dict[str, Any]:
-    def _maybe_recurse(v: Any) -> Any:
-        if isinstance(v, dict):
-            return _preprocess_dict(v)
-        return v
-
     result: Dict[str, Any] = {}
     for k, v in d.items():
         if "." not in k:
@@ -207,7 +274,7 @@ def _list_to_items(
     for idx, v in enumerate(d):
         new_item = _MyTreeWidgetItem(v, parent)
         new_item.setText(_TreeColumn.TREE_COLUMN_NAME.value, str(idx))
-        _recurse_to_items(new_item, idx, v)
+        _recurse_to_items(new_item, str(idx), v)
         items.append(new_item)
     return items
 
@@ -303,6 +370,7 @@ class RunDetails(QtWidgets.QWidget):
                 comment_layout = QtWidgets.QVBoxLayout()
                 comment_column.setLayout(comment_layout)
                 self._comment_table = _CommentTable()
+                # noinspection PyUnresolvedReferences
                 self._comment_table.setSelectionBehavior(
                     # pylint: disable=no-member
                     QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows  # type: ignore
@@ -397,7 +465,7 @@ class RunDetails(QtWidgets.QWidget):
 
                 root_columns.addWidget(editable_column)
                 root_columns.addWidget(details_column)
-                root_columns.setStretch(0, 1)
+                root_columns.setStretch(0, 2)
                 root_columns.setStretch(1, 3)
 
                 self._selected_run = RunId(-1)
@@ -413,6 +481,7 @@ class RunDetails(QtWidgets.QWidget):
             ),
         )
         if self._tree_filter_line.text():
+            # noinspection PyUnresolvedReferences
             for i in self._details_tree.findItems(
                 self._tree_filter_line.text(),
                 QtCore.Qt.MatchFlag.MatchContains | QtCore.Qt.MatchFlag.MatchRecursive,
@@ -463,13 +532,15 @@ class RunDetails(QtWidgets.QWidget):
         with self._context.db.connect() as conn:
             self._db.delete_comment(
                 conn,
-                self._run.comments[self._comment_table.currentRow()].id,
+                self._run.properties[RunProperty.COMMENTS][
+                    self._comment_table.currentRow()
+                ].id,
             )
             self._refresh()
             self.run_changed.emit()
 
     def _slot_tags_changed(self) -> None:
-        if self._tags_widget.tagsStr() == self._run.tags:
+        if self._tags_widget.tagsStr() == self._run.properties[RunProperty.TAGS]:
             return
         with self._context.db.connect() as conn:
             logger.info("Tags have changed!")
@@ -498,17 +569,21 @@ class RunDetails(QtWidgets.QWidget):
             self._run_selector.setCurrentText(str(self._selected_run))
             self._run_selector.blockSignals(False)
             self._sample_chooser.setCurrentText(
-                str(self._run.sample_id) if self._run.sample_id is not None else "None"
+                str(self._run.properties[RunProperty.SAMPLE])
+                if self._run.properties[RunProperty.SAMPLE] is not None
+                else "None"
             )
-            self._tags_widget.tags(self._run.tags)
+            self._tags_widget.tags(self._run.properties[RunProperty.TAGS])
             self._comment_table.setColumnCount(3)
-            self._comment_table.setRowCount(len(self._run.comments))
+            self._comment_table.setRowCount(
+                len(self._run.properties[RunProperty.COMMENTS])
+            )
             self._comment_table.setHorizontalHeaderLabels(["Created", "Author", "Text"])
             self._comment_table.horizontalHeader().setStretchLastSection(True)
             self._comment_table.verticalHeader().hide()
 
             now = datetime.datetime.utcnow()
-            for row, c in enumerate(self._run.comments):
+            for row, c in enumerate(self._run.properties[RunProperty.COMMENTS]):
                 date_cell = QtWidgets.QTableWidgetItem(
                     humanize.naturaltime(now - c.created)
                 )
@@ -530,7 +605,7 @@ class RunDetails(QtWidgets.QWidget):
     def _comment_cell_changed(self, row: int, column: int) -> None:
         with self._context.db.connect() as conn:
             i = self._comment_table.item(row, column).text()
-            c = self._run.comments[row]
+            c = self._run.properties[RunProperty.COMMENTS][row]
             c = replace(
                 c,
                 author=i if column == 1 else c.author,
