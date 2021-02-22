@@ -1,11 +1,13 @@
-from typing import Optional
+from typing import Dict, Optional
 from typing import List
-from typing import Set
 from typing import Iterable
 from typing import TypeVar
 import re
 
 T = TypeVar("T")
+
+K = TypeVar("K")
+V = TypeVar("V")
 
 
 def str_to_int(s: str) -> Optional[int]:
@@ -45,3 +47,9 @@ def remove_duplicates(l: Iterable[T]) -> List[T]:
 # See https://stackoverflow.com/a/17016257
 def remove_duplicates_stable(seq: Iterable[T]) -> List[T]:
     return list(dict.fromkeys(seq))
+
+
+def dict_union(a: Dict[K, V], b: Dict[K, V]) -> Dict[K, V]:
+    result = a.copy()
+    result.update(b)
+    return result

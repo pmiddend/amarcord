@@ -31,16 +31,22 @@ from amarcord.modules.spb.queries import Run, SPBQueries
 logger = logging.getLogger(__name__)
 
 
+class MetadataColumn(Enum):
+    NAME = 0
+    VALUE = 1
+
+
 class MetadataModel(QtCore.QAbstractTableModel):
     def __init__(
-        self, run: Run, queries: SPBQueries, parent: Optional[QtCore.QObject] = None
+        self, db: SPBQueries, run: Run, parent: Optional[QtCore.QObject] = None
     ) -> None:
         super().__init__(parent)
 
+        self._db = db
         self._headers = ["Field", "Value"]
-        self._queries = queries
         self._run = run
         self._props = list(set(r for r in RunProperty) - {RunProperty.COMMENTS})
+        self._props.sort(key=lambda f: f.name)
         self._row_index_to_property: Dict[int, RunProperty] = {
             idx: v for idx, v in enumerate(self._props)
         }
@@ -50,6 +56,31 @@ class MetadataModel(QtCore.QAbstractTableModel):
 
     def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return 2
+
+    def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlags:
+        flags = super().flags(index)
+        if index.column() != MetadataColumn.VALUE.value:
+            return flags
+        # noinspection PyTypeChecker
+        return flags | QtCore.Qt.ItemIsEditable  # type: ignore
+
+    def setData(
+        self, index: QtCore.QModelIndex, value: Any, role: int = QtCore.Qt.EditRole
+    ) -> bool:
+        assert index.column() == MetadataColumn.VALUE.value
+        if role != QtCore.Qt.EditRole:
+            return False
+        runprop = self._row_index_to_property[index.row()]
+        with self._db.connect() as conn:
+            self._db.update_run_property(
+                conn, self._run.properties[RunProperty.RUN_ID], runprop, value
+            )
+            self._run.properties[runprop] = value
+            self.dataChanged.emit(
+                index,
+                index,
+            )
+            return True
 
     def headerData(
         self,
@@ -71,10 +102,10 @@ class MetadataModel(QtCore.QAbstractTableModel):
         role: int = QtCore.Qt.DisplayRole,
     ) -> Any:
         runprop = self._row_index_to_property[index.row()]
-        if role == QtCore.Qt.DisplayRole:
+        if role in (QtCore.Qt.DisplayRole, QtCore.Qt.EditRole):
             return (
                 run_property_name(runprop)
-                if index.column() == 0
+                if index.column() == MetadataColumn.NAME.value
                 else run_property_to_string(runprop, self._run.properties[runprop])
                 if runprop in self._run.properties
                 else "N/A"
@@ -84,21 +115,31 @@ class MetadataModel(QtCore.QAbstractTableModel):
 
 class MetadataTable(QtWidgets.QTableView):
     def __init__(
-        self, run: Run, queries: SPBQueries, parent: QtWidgets.QWidget
+        self,
+        db: SPBQueries,
+        run: Optional[Run] = None,
+        parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
+        self._db = db
         self.setAlternatingRowColors(True)
         self.verticalHeader().hide()
         self.horizontalHeader().setStretchLastSection(True)
-        self.setModel(MetadataModel(run, queries))
+        if run is not None:
+            self.setModel(MetadataModel(self._db, run))
+        self.setItemDelegate(QtWidgets.QStyledItemDelegate())
+        # noinspection PyUnresolvedReferences
+        self.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.DoubleClicked)
+
+    def run_changed(self, run: Run) -> None:
+        self.setModel(MetadataModel(self._db, run))
+        self.resizeColumnsToContents()
 
 
 # class SpinBoxDelegate(QtWidgets.QStyledItemDelegate):
 
 
-def _table_layout_selection_dialog(
-    parent: QtWidgets.QWidget, d: np.ndarray
-) -> Optional[Tuple[int, int]]:
+def _table_layout_selection_dialog(d: np.ndarray) -> Optional[Tuple[int, int]]:
     dialog = QtWidgets.QDialog()
     dialog_layout = QtWidgets.QVBoxLayout()
     dialog.setLayout(dialog_layout)
@@ -129,7 +170,7 @@ def _table_layout_selection_dialog(
     button_box.rejected.connect(dialog.reject)
     root_layout.addWidget(button_box)
 
-    def index_changed(new_index: int) -> None:
+    def index_changed() -> None:
         # pylint: disable=no-member
         # noinspection PyUnresolvedReferences
         button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(  # type: ignore
@@ -229,7 +270,7 @@ class _CommentTable(QtWidgets.QTableWidget):
 
 def _recurse_to_items(new_item: QtWidgets.QTreeWidgetItem, k: str, v: Any) -> None:
     if isinstance(v, dict):
-        new_item.setText(_TreeColumn.TREE_COLUMN_VALUE.value, "Dictionary")
+        new_item.setText(_TreeColumn.TREE_COLUMN_VALUE.value, "")
         _dict_to_items(v, new_item)
     elif isinstance(v, list):
         new_item.setText(_TreeColumn.TREE_COLUMN_VALUE.value, "List")
@@ -406,26 +447,32 @@ class RunDetails(QtWidgets.QWidget):
 
                 additional_data_column = QtWidgets.QGroupBox("Metadata")
 
-                additional_data_layout = QtWidgets.QFormLayout()
+                self._metadata_table = MetadataTable(self._db)
+
+                additional_data_layout = QtWidgets.QVBoxLayout()
+                additional_data_layout.addWidget(self._metadata_table)
                 additional_data_column.setLayout(additional_data_layout)
-                self._sample_chooser = QtWidgets.QComboBox()
-                self._sample_chooser.addItems(
-                    [str(s) for s in self._sample_ids] + ["None"]
-                )
-                self._sample_chooser.currentTextChanged.connect(
-                    lambda new_sample_str: self._sample_changed(
-                        int(new_sample_str) if new_sample_str != "None" else None
-                    )
-                )
-                additional_data_layout.addRow(
-                    QtWidgets.QLabel("Sample"), self._sample_chooser
-                )
+
+                # additional_data_layout = QtWidgets.QFormLayout()
+                # additional_data_column.setLayout(additional_data_layout)
+                # self._sample_chooser = QtWidgets.QComboBox()
+                # self._sample_chooser.addItems(
+                #     [str(s) for s in self._sample_ids] + ["None"]
+                # )
+                # self._sample_chooser.currentTextChanged.connect(
+                #     lambda new_sample_str: self._sample_changed(
+                #         int(new_sample_str) if new_sample_str != "None" else None
+                #     )
+                # )
+                # additional_data_layout.addRow(
+                #     QtWidgets.QLabel("Sample"), self._sample_chooser
+                # )
                 self._tags_widget = Tags()
                 self._tags_widget.completion(self._tags)
                 self._tags_widget.tagsEdited.connect(self._slot_tags_changed)
-                additional_data_layout.addRow(
-                    QtWidgets.QLabel("Tags"), self._tags_widget
-                )
+                # additional_data_layout.addRow(
+                #     QtWidgets.QLabel("Tags"), self._tags_widget
+                # )
 
                 root_layout = QtWidgets.QVBoxLayout()
                 self.setLayout(root_layout)
@@ -438,8 +485,8 @@ class RunDetails(QtWidgets.QWidget):
                 editable_column = QtWidgets.QWidget()
                 editable_column_layout = QtWidgets.QVBoxLayout()
                 editable_column.setLayout(editable_column_layout)
-                editable_column_layout.addWidget(additional_data_column)
                 editable_column_layout.addWidget(comment_column)
+                editable_column_layout.addWidget(additional_data_column)
                 editable_column_layout.addStretch()
 
                 details_column = QtWidgets.QGroupBox("Run details")
@@ -504,7 +551,7 @@ class RunDetails(QtWidgets.QWidget):
         if len(d.shape) == 1:
             _data_shower(d, rows=0, columns=None)
 
-        row_and_column = _table_layout_selection_dialog(self, d)
+        row_and_column = _table_layout_selection_dialog(d)
 
         if row_and_column is None:
             return
@@ -543,7 +590,6 @@ class RunDetails(QtWidgets.QWidget):
         if self._tags_widget.tagsStr() == self._run.properties[RunProperty.TAGS]:
             return
         with self._context.db.connect() as conn:
-            logger.info("Tags have changed!")
             self._db.change_tags(conn, self._selected_run, self._tags_widget.tagsStr())
             self._tags = self._db.retrieve_tags(conn)
             self._tags_widget.completion(self._tags)
@@ -568,12 +614,12 @@ class RunDetails(QtWidgets.QWidget):
 
             self._run_selector.setCurrentText(str(self._selected_run))
             self._run_selector.blockSignals(False)
-            self._sample_chooser.setCurrentText(
-                str(self._run.properties[RunProperty.SAMPLE])
-                if self._run.properties[RunProperty.SAMPLE] is not None
-                else "None"
-            )
-            self._tags_widget.tags(self._run.properties[RunProperty.TAGS])
+            # self._sample_chooser.setCurrentText(
+            #     str(self._run.properties[RunProperty.SAMPLE])
+            #     if self._run.properties[RunProperty.SAMPLE] is not None
+            #     else "None"
+            # )
+            # self._tags_widget.tags(self._run.properties[RunProperty.TAGS])
             self._comment_table.setColumnCount(3)
             self._comment_table.setRowCount(
                 len(self._run.properties[RunProperty.COMMENTS])
@@ -601,6 +647,11 @@ class RunDetails(QtWidgets.QWidget):
             self._slot_tree_filter_changed(self._tree_filter_line.text())
             self._details_tree.resizeColumnToContents(0)
             self._details_tree.resizeColumnToContents(1)
+
+            self._metadata_table.run_changed(self._run)
+            self._metadata_table.model().dataChanged.connect(
+                lambda idxfrom, idxto: self.run_changed.emit()
+            )
 
     def _comment_cell_changed(self, row: int, column: int) -> None:
         with self._context.db.connect() as conn:

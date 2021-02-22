@@ -1,5 +1,6 @@
-from typing import Any, Final
+import datetime
 from enum import Enum, auto
+from typing import Any, Final
 
 
 class RunProperty(Enum):
@@ -66,6 +67,9 @@ default_visible_properties: Final = [
 def run_property_to_string(r: RunProperty, v: Any) -> str:
     if r == RunProperty.TAGS:
         assert isinstance(v, list)
-        return ", ".join(r)
-    assert isinstance(r, (int, float, str, bool))
+        return ", ".join(v)
+    if isinstance(v, datetime.datetime):
+        return v.strftime("%Y-%m-%d %H:%M:%S")
+    if not isinstance(v, (int, float, str, bool)):
+        raise Exception(f"run property {r} has invalid type {type(v)}")
     return str(v)

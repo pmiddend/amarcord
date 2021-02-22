@@ -1,10 +1,11 @@
 import datetime
 from dataclasses import dataclass
-from typing import Optional
+from typing import Dict, Optional
 
 import sqlalchemy as sa
 
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.spb.column import RunProperty
 
 
 def _table_sample(metadata: sa.MetaData) -> sa.Table:
@@ -164,3 +165,22 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 detector_distance_mm=10.0,
             )
         )
+
+
+def run_property_atomic_db_columns(tables: Tables) -> Dict[RunProperty, sa.Column]:
+    return {
+        RunProperty.RUN_ID: tables.run.c.id,
+        RunProperty.STATUS: tables.run.c.status,
+        RunProperty.SAMPLE: tables.run.c.sample_id,
+        RunProperty.STARTED: tables.run.c.started,
+        RunProperty.REPETITION_RATE: tables.run.c.repetition_rate_mhz,
+        RunProperty.PULSE_ENERGY: tables.run.c.pulse_energy_mj,
+        RunProperty.HIT_RATE: tables.run.c.hit_rate,
+        RunProperty.INDEXING_RATE: tables.run.c.indexing_rate,
+        RunProperty.X_RAY_ENERGY: tables.run.c.xray_energy_kev,
+        RunProperty.INJECTOR_POSITION_Z_MM: tables.run.c.injector_position_z_mm,
+        RunProperty.DETECTOR_DISTANCE_MM: tables.run.c.detector_distance_mm,
+        RunProperty.INJECTOR_FLOW_RATE: tables.run.c.injector_flow_rate,
+        RunProperty.TRAINS: tables.run.c.trains,
+        RunProperty.SAMPLE_DELIVERY_RATE: tables.run.c.sample_delivery_rate,
+    }

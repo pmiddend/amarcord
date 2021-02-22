@@ -54,7 +54,7 @@ async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> No
             #     f.write(pickle.dumps(data))
 
             with queries.dbcontext.connect() as conn:
-                queries.update_run(conn, RunId(1), karabo=pickle.dumps(data))
+                queries.update_run_karabo(conn, RunId(1), karabo=pickle.dumps(data))
 
             logger.info("karabo: new data received")
 

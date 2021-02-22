@@ -8,12 +8,12 @@ from itertools import groupby
 import pickle
 import datetime
 import sqlalchemy as sa
-from amarcord.modules.spb.tables import Tables
+from amarcord.modules.spb.tables import Tables, run_property_atomic_db_columns
 from amarcord.modules.spb.column import RunProperty
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.dbcontext import DBContext
-from amarcord.util import remove_duplicates_stable
+from amarcord.util import dict_union, remove_duplicates_stable
 
 
 @dataclass(frozen=True)
@@ -51,29 +51,17 @@ class SPBQueries:
         tag = self._tables.run_tag
         comment = self._tables.run_comment
 
+        interesting_columns = run_property_atomic_db_columns(self._tables)
         select_stmt = (
             sa.select(
                 [
-                    run.c.id,
-                    run.c.status,
-                    run.c.sample_id,
-                    run.c.repetition_rate_mhz,
-                    run.c.pulse_energy_mj,
-                    tag.c.tag_text,
-                    run.c.started,
-                    run.c.hit_rate,
-                    run.c.indexing_rate,
                     comment.c.id.label("comment_id"),
                     comment.c.author,
                     comment.c.comment_text,
                     comment.c.created,
-                    run.c.xray_energy_kev,
-                    run.c.injector_position_z_mm,
-                    run.c.detector_distance_mm,
-                    run.c.injector_flow_rate,
-                    run.c.trains,
-                    run.c.sample_delivery_rate,
+                    tag.c.tag_text,
                 ]
+                + list(interesting_columns.values())
             )
             .select_from(run.outerjoin(tag).outerjoin(comment))
             .where(run.c.proposal_id == proposal_id)
@@ -81,35 +69,30 @@ class SPBQueries:
         )
         result: List[Dict[RunProperty, Any]] = []
         for _run_id, run_rows in groupby(
-            conn.execute(select_stmt).fetchall(), lambda x: x[0]
+            conn.execute(select_stmt).fetchall(),
+            lambda x: x[interesting_columns[RunProperty.RUN_ID].name],
         ):
             rows = list(run_rows)
             first_row = rows[0]
-            tags = set(row[5] for row in rows if row[5] is not None)
+            tags = set(row["tag_text"] for row in rows if row["tag_text"] is not None)
             comments = remove_duplicates_stable(
-                Comment(row[9], row[10], row[11], row[12])
+                Comment(
+                    id=row["comment_id"],
+                    author=row["author"],
+                    text=row["comment_text"],
+                    created=row["created"],
+                )
                 for row in rows
-                if row[9] is not None
+                if row[0] is not None
             )
             result.append(
-                {
-                    RunProperty.RUN_ID: first_row[0],
-                    RunProperty.STATUS: first_row[1],
-                    RunProperty.SAMPLE: first_row[2],
-                    RunProperty.REPETITION_RATE: first_row[3],
-                    RunProperty.PULSE_ENERGY: first_row[4],
-                    RunProperty.TAGS: tags,
-                    RunProperty.STARTED: first_row[6],
-                    RunProperty.HIT_RATE: first_row[7],
-                    RunProperty.INDEXING_RATE: first_row[8],
-                    RunProperty.X_RAY_ENERGY: first_row[13],
-                    RunProperty.INJECTOR_POSITION_Z_MM: first_row[14],
-                    RunProperty.DETECTOR_DISTANCE_MM: first_row[15],
-                    RunProperty.INJECTOR_FLOW_RATE: first_row[16],
-                    RunProperty.TRAINS: first_row[17],
-                    RunProperty.SAMPLE_DELIVERY_RATE: first_row[18],
-                    RunProperty.COMMENTS: comments,
-                }
+                dict_union(
+                    {
+                        RunProperty.TAGS: tags,
+                        RunProperty.COMMENTS: comments,
+                    },
+                    {k: first_row[v.name] for k, v in interesting_columns.items()},
+                )
             )
         return result
 
@@ -117,7 +100,7 @@ class SPBQueries:
         self, conn: Connection, proposal_id: ProposalId
     ) -> List[RunSimple]:
         return [
-            RunSimple(row[0], row[1] == "finished")
+            RunSimple(row["id"], row["status"] == "finished")
             for row in conn.execute(
                 sa.select([self._tables.run.c.id, self._tables.run.c.status])
                 .where(self._tables.run.c.proposal_id == proposal_id)
@@ -175,27 +158,24 @@ class SPBQueries:
                 )
 
     def retrieve_run(self, conn: Connection, run_id: int) -> Run:
-        run_c = self._tables.run.c
+        run = self._tables.run
+        run_c = run.c
+        comment = self._tables.run_comment
+        tag = self._tables.run_tag
+        interesting_columns = run_property_atomic_db_columns(self._tables)
         select_statement = (
             sa.select(
                 [
-                    run_c.id,
-                    run_c.sample_id,
-                    run_c.status,
-                    run_c.repetition_rate_mhz,
-                    self._tables.run_tag.c.tag_text,
-                    self._tables.run_comment.c.id.label("comment_id"),
-                    self._tables.run_comment.c.author,
-                    self._tables.run_comment.c.comment_text,
-                    self._tables.run_comment.c.created,
+                    comment.c.id.label("comment_id"),
+                    comment.c.author,
+                    comment.c.comment_text,
+                    comment.c.created,
+                    tag.c.tag_text,
                     run_c.karabo,
                 ]
+                + list(interesting_columns.values())
             )
-            .select_from(
-                self._tables.run.outerjoin(self._tables.run_tag).outerjoin(
-                    self._tables.run_comment
-                )
-            )
+            .select_from(run.outerjoin(tag).outerjoin(comment))
             .where(run_c.id == run_id)
         )
         run_rows = conn.execute(select_statement).fetchall()
@@ -203,24 +183,28 @@ class SPBQueries:
             raise Exception(f"couldn't find any runs with id {run_id}")
         run_meta = run_rows[0]
         return Run(
-            properties={
-                RunProperty.SAMPLE: run_meta["sample_id"],
-                RunProperty.STATUS: run_meta["status"],
-                RunProperty.REPETITION_RATE: run_meta["repetition_rate_mhz"],
-                RunProperty.TAGS: remove_duplicates_stable(
-                    [row["tag_text"] for row in run_rows if row["tag_text"] is not None]
-                ),
-                RunProperty.COMMENTS: remove_duplicates_stable(
-                    Comment(
-                        row["comment_id"],
-                        row["author"],
-                        row["comment_text"],
-                        row["created"],
-                    )
-                    for row in run_rows
-                    if row["author"] is not None
-                ),
-            },
+            properties=dict_union(
+                {
+                    RunProperty.TAGS: remove_duplicates_stable(
+                        [
+                            row["tag_text"]
+                            for row in run_rows
+                            if row["tag_text"] is not None
+                        ]
+                    ),
+                    RunProperty.COMMENTS: remove_duplicates_stable(
+                        Comment(
+                            row["comment_id"],
+                            row["author"],
+                            row["comment_text"],
+                            row["created"],
+                        )
+                        for row in run_rows
+                        if row["author"] is not None
+                    ),
+                },
+                {k: run_meta[v.name] for k, v in interesting_columns.items()},
+            ),
             karabo=pickle.loads(run_meta["karabo"])
             if run_meta["karabo"] is not None
             else None,
@@ -276,9 +260,23 @@ class SPBQueries:
     def create_proposal(self, conn: Connection, prop_id: ProposalId) -> None:
         conn.execute(self._tables.proposal.insert().values(id=prop_id))
 
-    def update_run(self, conn: Connection, run_id: RunId, karabo: bytes) -> None:
+    def update_run_karabo(self, conn: Connection, run_id: RunId, karabo: bytes) -> None:
         conn.execute(
             sa.update(self._tables.run)
             .where(self._tables.run.c.id == run_id)
             .values(karabo=karabo)
         )
+
+    def update_run_property(
+        self, conn: Connection, run_id: int, runprop: RunProperty, value: Any
+    ) -> None:
+        db_columns = run_property_atomic_db_columns(self._tables)
+        assert runprop in db_columns
+        conn.execute(
+            sa.update(self._tables.run)
+            .where(self._tables.run.c.id == run_id)
+            .values({db_columns[runprop]: value})
+        )
+
+    def connect(self) -> Connection:
+        return self.dbcontext.connect()
