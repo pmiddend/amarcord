@@ -270,6 +270,11 @@ class SPBQueries:
     def update_run_property(
         self, conn: Connection, run_id: int, runprop: RunProperty, value: Any
     ) -> None:
+        if runprop == RunProperty.TAGS:
+            if not isinstance(value, list):
+                raise ValueError(f"tags should be a list, got {type(value)}")
+            self.change_tags(conn, run_id, value)
+            return
         db_columns = run_property_atomic_db_columns(self._tables)
         assert runprop in db_columns
         conn.execute(

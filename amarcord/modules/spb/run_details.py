@@ -1,34 +1,40 @@
-from dataclasses import replace
 import datetime
 import getpass
 import logging
+from dataclasses import replace
 from enum import Enum
-from typing import Optional
-from typing import Tuple
-from typing import Dict
-from typing import List
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple, TypeVar, cast
+
 import humanize
 import numpy as np
-from PyQt5 import QtWidgets
-from PyQt5 import QtCore
-from PyQt5 import QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 
+from amarcord.modules.context import Context
 from amarcord.modules.spb.column import (
+    PropertyChoice,
+    PropertyDateTime,
+    PropertyDouble,
+    PropertyInt,
+    PropertySample,
+    PropertyTags,
+    PropertyType,
     RunProperty,
     run_property_name,
     run_property_to_string,
+    run_property_type,
 )
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
-from amarcord.modules.context import Context
-from amarcord.qt.tags import Tags
-from amarcord.qt.debounced_line_edit import DebouncedLineEdit
-from amarcord.modules.spb.tables import Tables
-from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.queries import Run, SPBQueries
+from amarcord.modules.spb.run_id import RunId
+from amarcord.modules.spb.tables import Tables
+from amarcord.qt.datetime import from_qt_datetime, to_qt_datetime
+from amarcord.qt.debounced_line_edit import DebouncedLineEdit
+from amarcord.qt.tags import Tags
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class MetadataColumn(Enum):
@@ -38,18 +44,32 @@ class MetadataColumn(Enum):
 
 class MetadataModel(QtCore.QAbstractTableModel):
     def __init__(
-        self, db: SPBQueries, run: Run, parent: Optional[QtCore.QObject] = None
+        self,
+        db: SPBQueries,
+        run: Run,
+        sample_ids: List[int],
+        available_tags: List[str],
+        parent: Optional[QtCore.QObject] = None,
     ) -> None:
         super().__init__(parent)
 
         self._db = db
         self._headers = ["Field", "Value"]
         self._run = run
+        self._sample_ids = sample_ids
+        self._available_tags = available_tags
         self._props = list(set(r for r in RunProperty) - {RunProperty.COMMENTS})
         self._props.sort(key=lambda f: f.name)
         self._row_index_to_property: Dict[int, RunProperty] = {
             idx: v for idx, v in enumerate(self._props)
         }
+
+    def delegate_for_row(self, row: int) -> QtWidgets.QAbstractItemDelegate:
+        return delegate_for_property_type(
+            run_property_type[self._row_index_to_property[row]],
+            sample_ids=self._sample_ids,
+            available_tags=self._available_tags,
+        )
 
     def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return len(self._props)
@@ -102,7 +122,9 @@ class MetadataModel(QtCore.QAbstractTableModel):
         role: int = QtCore.Qt.DisplayRole,
     ) -> Any:
         runprop = self._row_index_to_property[index.row()]
-        if role in (QtCore.Qt.DisplayRole, QtCore.Qt.EditRole):
+        if role == QtCore.Qt.EditRole:
+            return self._run.properties.get(runprop, None)
+        if role == QtCore.Qt.DisplayRole:
             return (
                 run_property_name(runprop)
                 if index.column() == MetadataColumn.NAME.value
@@ -113,11 +135,272 @@ class MetadataModel(QtCore.QAbstractTableModel):
         return None
 
 
+class ComboItemDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(
+        self, values: List[Tuple[str, T]], parent: Optional[QtCore.QObject]
+    ) -> None:
+        super().__init__(parent)
+        self._values = values
+
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        editor = QtWidgets.QComboBox(parent)
+        editor.addItems([v[0] for v in self._values])
+        editor.setFrame(False)
+        return editor
+
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        assert isinstance(editor, QtWidgets.QComboBox)
+        model_data = index.model().data(index, QtCore.Qt.EditRole)
+        cast(QtWidgets.QComboBox, editor).setCurrentIndex(
+            [v[1] for v in self._values].index(model_data)
+        )
+
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        assert isinstance(editor, QtWidgets.QComboBox)
+        model.setData(
+            index,
+            self._values[cast(QtWidgets.QComboBox, editor).currentIndex()][1],
+            QtCore.Qt.EditRole,
+        )
+
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
+class TagsItemDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(
+        self, available_tags: List[str], parent: Optional[QtCore.QObject]
+    ) -> None:
+        super().__init__(parent)
+        self._available_tags = available_tags
+
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        editor = Tags(parent)
+        editor.completion(self._available_tags)
+        return editor
+
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        assert isinstance(editor, Tags)
+        data = index.model().data(index, QtCore.Qt.EditRole)
+        assert isinstance(data, list)
+        cast(Tags, editor).tags(data)
+
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        assert isinstance(editor, Tags)
+        model.setData(index, cast(Tags, editor).tagsStr(), QtCore.Qt.EditRole)
+
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
+class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        editor = QtWidgets.QDateTimeEdit(parent)
+        editor.setFrame(False)
+        return editor
+
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        assert isinstance(editor, QtWidgets.QDateTimeEdit)
+        data = index.model().data(index, QtCore.Qt.EditRole)
+        assert isinstance(data, datetime.datetime)
+        cast(QtWidgets.QDateTimeEdit, editor).setDateTime(to_qt_datetime(data))
+
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        assert isinstance(editor, QtWidgets.QDateTimeEdit)
+        model.setData(
+            index,
+            from_qt_datetime(cast(QtWidgets.QDateTimeEdit, editor).dateTime()),
+            QtCore.Qt.EditRole,
+        )
+
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
+class IntItemDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(
+        self,
+        nonNegative: bool,
+        range: Optional[Tuple[int, int]],
+        parent: Optional[QtCore.QObject],
+    ) -> None:
+        super().__init__(parent)
+        self._nonNegative = nonNegative
+        self._range = (
+            range if range is not None else [0, 1 ** 31] if nonNegative else None
+        )
+
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        editor = QtWidgets.QSpinBox(parent)
+        editor.setFrame(False)
+        if self._range is not None:
+            editor.setRange(self._range[0], self._range[1])
+        return editor
+
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        assert isinstance(editor, QtWidgets.QSpinBox)
+        data = index.model().data(index, QtCore.Qt.EditRole)
+        assert isinstance(data, int)
+        cast(QtWidgets.QSpinBox, editor).setValue(data)
+
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        assert isinstance(editor, QtWidgets.QSpinBox)
+        model.setData(
+            index, cast(QtWidgets.QSpinBox, editor).value(), QtCore.Qt.EditRole
+        )
+
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
+class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(
+        self,
+        nonNegative: bool,
+        range: Optional[Tuple[float, float]],
+        parent: Optional[QtCore.QObject],
+    ) -> None:
+        super().__init__(parent)
+        self._range = (
+            range if range is not None else [0, 10000] if nonNegative else None
+        )
+
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        editor = QtWidgets.QDoubleSpinBox(parent)
+        editor.setFrame(False)
+        if self._range is not None:
+            editor.setRange(self._range[0], self._range[1])
+        return editor
+
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        assert isinstance(editor, QtWidgets.QDoubleSpinBox)
+        data = index.model().data(index, QtCore.Qt.EditRole)
+        if not isinstance(data, float):
+            raise ValueError(f"expected float, got {type(data)}")
+        cast(QtWidgets.QDoubleSpinBox, editor).setValue(data)
+
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        assert isinstance(editor, QtWidgets.QDoubleSpinBox)
+        model.setData(
+            index, cast(QtWidgets.QDoubleSpinBox, editor).value(), QtCore.Qt.EditRole
+        )
+
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
+def delegate_for_property_type(
+    proptype: PropertyType,
+    sample_ids: List[int],
+    available_tags: List[str],
+    parent: Optional[QtCore.QObject] = None,
+) -> QtWidgets.QAbstractItemDelegate:
+    if isinstance(proptype, PropertyInt):
+        return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
+    if isinstance(proptype, PropertyDouble):
+        return DoubleItemDelegate(proptype.nonNegative, proptype.range, parent)
+    if isinstance(proptype, PropertyChoice):
+        return ComboItemDelegate(values=proptype.values, parent=parent)
+    if isinstance(proptype, PropertySample):
+        return ComboItemDelegate(
+            values=[(str(v), v) for v in sample_ids], parent=parent
+        )
+    if isinstance(proptype, PropertyTags):
+        return TagsItemDelegate(available_tags=available_tags, parent=parent)
+    if isinstance(proptype, PropertyDateTime):
+        return DateTimeItemDelegate(parent=parent)
+    raise Exception(f"invalid property type {proptype}")
+
+
 class MetadataTable(QtWidgets.QTableView):
     def __init__(
         self,
         db: SPBQueries,
-        run: Optional[Run] = None,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -125,18 +408,25 @@ class MetadataTable(QtWidgets.QTableView):
         self.setAlternatingRowColors(True)
         self.verticalHeader().hide()
         self.horizontalHeader().setStretchLastSection(True)
-        if run is not None:
-            self.setModel(MetadataModel(self._db, run))
-        self.setItemDelegate(QtWidgets.QStyledItemDelegate())
+        self._run = None
         # noinspection PyUnresolvedReferences
         self.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.DoubleClicked)
+        self._item_delegates: List[QtWidgets.QAbstractItemDelegate] = []
 
     def run_changed(self, run: Run) -> None:
-        self.setModel(MetadataModel(self._db, run))
-        self.resizeColumnsToContents()
-
-
-# class SpinBoxDelegate(QtWidgets.QStyledItemDelegate):
+        with self._db.connect() as conn:
+            model = MetadataModel(
+                db=self._db,
+                run=run,
+                sample_ids=self._db.retrieve_sample_ids(conn),
+                available_tags=self._db.retrieve_tags(conn),
+            )
+            self.setModel(model)
+            self.resizeColumnsToContents()
+            for row in range(model.rowCount()):
+                delegate = model.delegate_for_row(row)
+                self.setItemDelegateForRow(row, delegate)
+                self._item_delegates.append(delegate)
 
 
 def _table_layout_selection_dialog(d: np.ndarray) -> Optional[Tuple[int, int]]:
