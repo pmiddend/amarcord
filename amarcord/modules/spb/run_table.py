@@ -155,27 +155,24 @@ class RunTable(QtWidgets.QWidget):
 
         # Layouting stuff
         root_layout = QtWidgets.QVBoxLayout(self)
+
         header_layout = QtWidgets.QHBoxLayout()
         header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
-        header_layout.addWidget(
-            QtWidgets.QLabel("Filter query:"), 0, QtCore.Qt.AlignTop
-        )
+
+        filter_query_layout = QtWidgets.QFormLayout()
+        header_layout.addLayout(filter_query_layout)
+
         filter_widget = InfixCompletingLineEdit(self)
         filter_widget.textChanged.connect(self._slot_filter_changed)
         completer = QtWidgets.QCompleter(list(_column_query_names()), self)
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
         filter_widget.setCompleter(completer)
+        filter_query_layout.addRow("Filter query:", filter_widget)
 
-        query_layout = QtWidgets.QVBoxLayout()
-        # filter_widget = QtWidgets.QLineEdit()
-        query_layout.addWidget(filter_widget)
         self._query_error = QtWidgets.QLabel("")
         self._query_error.setStyleSheet("QLabel { font: italic 10px; color: red; }")
-        query_layout.addWidget(self._query_error)
-        query_layout.setSpacing(0)
-        query_layout.setContentsMargins(0, 0, 0, 0)
 
-        header_layout.addLayout(query_layout)
+        filter_query_layout.addRow("", self._query_error)
 
         root_layout.addLayout(header_layout)
         root_layout.addWidget(
