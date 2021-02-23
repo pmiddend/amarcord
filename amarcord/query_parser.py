@@ -44,6 +44,8 @@ def to_python_operator(
         massaged_value, massaged_comparison = massage(
             row[field.value], comparison.value
         )
+        if massaged_value is None:
+            return True
         if op == "<":
             return possibly_negate(negate, massaged_value < massaged_comparison)
         if op == "<=":
