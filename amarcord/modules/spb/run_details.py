@@ -178,7 +178,6 @@ class RunDetails(QtWidgets.QWidget):
                 editable_column.setLayout(editable_column_layout)
                 editable_column_layout.addWidget(comment_column)
                 editable_column_layout.addWidget(additional_data_column)
-                editable_column_layout.addStretch()
 
                 details_column = QtWidgets.QGroupBox("Run details")
                 details_column_layout = QtWidgets.QVBoxLayout()
