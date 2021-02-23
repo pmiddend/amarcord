@@ -164,6 +164,8 @@ class RunDetails(QtWidgets.QWidget):
 
     def _slot_tree_filter_changed(self, new_filter: str) -> None:
         self._details_tree.clear()
+        if self._run.karabo is None:
+            return
         self._details_tree.insertTopLevelItems(
             0,
             _dict_to_items(

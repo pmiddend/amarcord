@@ -98,6 +98,8 @@ manual_run_properties: Final = {RunProperty.TAGS, RunProperty.SAMPLE}
 
 
 def run_property_to_string(r: RunProperty, v: Any) -> str:
+    if v is None:
+        return "None"
     if r == RunProperty.TAGS:
         assert isinstance(v, list)
         return ", ".join(v)

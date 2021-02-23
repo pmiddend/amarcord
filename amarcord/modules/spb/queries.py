@@ -251,7 +251,7 @@ class SPBQueries:
                     proposal_id=proposal_id,
                     id=run_id,
                     sample_id=sample_id,
-                    status="started",
+                    status="running",
                     started=datetime.datetime.utcnow(),
                     modified=datetime.datetime.utcnow(),
                 )

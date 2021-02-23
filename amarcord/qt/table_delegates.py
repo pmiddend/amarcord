@@ -80,6 +80,8 @@ class TagsItemDelegate(QtWidgets.QStyledItemDelegate):
     ) -> None:
         assert isinstance(editor, Tags)
         data = index.model().data(index, QtCore.Qt.EditRole)
+        if data is None:
+            return
         assert isinstance(data, list)
         cast(Tags, editor).tags(data)
 
@@ -117,6 +119,8 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
     ) -> None:
         assert isinstance(editor, QtWidgets.QDateTimeEdit)
         data = index.model().data(index, QtCore.Qt.EditRole)
+        if data is None:
+            return
         assert isinstance(data, datetime.datetime)
         cast(QtWidgets.QDateTimeEdit, editor).setDateTime(to_qt_datetime(data))
 
@@ -145,14 +149,14 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
 class IntItemDelegate(QtWidgets.QStyledItemDelegate):
     def __init__(
         self,
-        nonNegative: bool,
+        non_negative: bool,
         range: Optional[Tuple[int, int]],
         parent: Optional[QtCore.QObject],
     ) -> None:
         super().__init__(parent)
-        self._nonNegative = nonNegative
+        self._nonNegative = non_negative
         self._range = (
-            range if range is not None else [0, 1 ** 31] if nonNegative else None
+            range if range is not None else [0, 2 ** 30] if non_negative else None
         )
 
     def createEditor(
@@ -172,6 +176,8 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
     ) -> None:
         assert isinstance(editor, QtWidgets.QSpinBox)
         data = index.model().data(index, QtCore.Qt.EditRole)
+        if data is None:
+            return
         assert isinstance(data, int)
         cast(QtWidgets.QSpinBox, editor).setValue(data)
 
@@ -228,6 +234,8 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
     ) -> None:
         assert isinstance(editor, QtWidgets.QDoubleSpinBox)
         data = index.model().data(index, QtCore.Qt.EditRole)
+        if data is None:
+            return
         if not isinstance(data, float):
             raise ValueError(f"expected float, got {type(data)}")
         cast(QtWidgets.QDoubleSpinBox, editor).setValue(data)

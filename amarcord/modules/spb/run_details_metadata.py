@@ -106,7 +106,9 @@ class _MetadataModel(QtCore.QAbstractTableModel):
             return (
                 run_property_name(runprop)
                 if index.column() == _MetadataColumn.NAME.value
-                else run_property_to_string(runprop, self._run.properties[runprop])
+                else run_property_to_string(
+                    runprop, self._run.properties.get(runprop, None)
+                )
                 if runprop in self._run.properties
                 else "N/A"
             )
