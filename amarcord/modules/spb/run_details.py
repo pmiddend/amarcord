@@ -25,36 +25,12 @@ from amarcord.modules.spb.run_details_tree import (
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.tables import Tables
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
+from amarcord.qt.rectangle_widget import RectangleWidget
 from amarcord.qt.tags import Tags
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-
-
-class RectangleWidget(QtWidgets.QWidget):
-    def __init__(
-        self, color: QtGui.QColor, parent: Optional[QtWidgets.QWidget] = None
-    ) -> None:
-        super().__init__(parent)
-
-        self._color = color
-        font = QtWidgets.QApplication.font()
-        metrics = QtGui.QFontMetrics(font)
-        r = metrics.boundingRect("W").size()
-        self._size = QtCore.QSize(r.height(), r.height())
-
-    def paintEvent(self, e: QtGui.QPaintEvent) -> None:
-        p = QtGui.QPainter(self)
-
-        rect = self.rect()
-        height = rect.height()
-        p.fillRect(
-            QtCore.QRect(rect.topLeft(), QtCore.QSize(height, height)), self._color
-        )
-
-    def sizeHint(self) -> QtCore.QSize:
-        return self._size
 
 
 class _CommentTable(QtWidgets.QTableWidget):
@@ -299,12 +275,6 @@ class RunDetails(QtWidgets.QWidget):
 
             self._run_selector.setCurrentText(str(self._selected_run))
             self._run_selector.blockSignals(False)
-            # self._sample_chooser.setCurrentText(
-            #     str(self._run.properties[RunProperty.SAMPLE])
-            #     if self._run.properties[RunProperty.SAMPLE] is not None
-            #     else "None"
-            # )
-            # self._tags_widget.tags(self._run.properties[RunProperty.TAGS])
             self._comment_table.setColumnCount(3)
             self._comment_table.setRowCount(
                 len(self._run.properties[RunProperty.COMMENTS])

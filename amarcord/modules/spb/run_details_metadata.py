@@ -140,7 +140,7 @@ class MetadataTable(QtWidgets.QTableView):
                 available_tags=self._db.retrieve_tags(conn),
             )
             self.setModel(model)
-            self.resizeColumnsToContents()
+            self.resizeColumnToContents(0)
             for row in range(model.rowCount()):
                 delegate = model.delegate_for_row(row)
                 self.setItemDelegateForRow(row, delegate)
