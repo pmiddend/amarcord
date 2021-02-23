@@ -9,7 +9,7 @@ import pickle
 import datetime
 import sqlalchemy as sa
 from amarcord.modules.spb.tables import Tables, run_property_atomic_db_columns
-from amarcord.modules.spb.column import RunProperty
+from amarcord.modules.spb.run_property import RunProperty
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.dbcontext import DBContext

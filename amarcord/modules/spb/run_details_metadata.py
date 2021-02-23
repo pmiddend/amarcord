@@ -3,27 +3,14 @@ from typing import Any, Dict, List, Optional
 
 from PyQt5 import QtCore, QtWidgets
 
-from amarcord.modules.spb.column import (
-    PropertyChoice,
-    PropertyDateTime,
-    PropertyDouble,
-    PropertyInt,
-    PropertySample,
-    PropertyTags,
-    PropertyType,
+from amarcord.modules.spb.run_property import (
     RunProperty,
     run_property_name,
     run_property_to_string,
     run_property_type,
 )
+from amarcord.qt.properties import delegate_for_property_type
 from amarcord.modules.spb.queries import Run, SPBQueries
-from amarcord.qt.table_delegates import (
-    ComboItemDelegate,
-    DateTimeItemDelegate,
-    DoubleItemDelegate,
-    IntItemDelegate,
-    TagsItemDelegate,
-)
 
 
 class _MetadataColumn(Enum):
@@ -54,7 +41,7 @@ class _MetadataModel(QtCore.QAbstractTableModel):
         }
 
     def delegate_for_row(self, row: int) -> QtWidgets.QAbstractItemDelegate:
-        return _delegate_for_property_type(
+        return delegate_for_property_type(
             run_property_type[self._row_index_to_property[row]],
             sample_ids=self._sample_ids,
             available_tags=self._available_tags,
@@ -154,26 +141,3 @@ class MetadataTable(QtWidgets.QTableView):
                 delegate = model.delegate_for_row(row)
                 self.setItemDelegateForRow(row, delegate)
                 self._item_delegates.append(delegate)
-
-
-def _delegate_for_property_type(
-    proptype: PropertyType,
-    sample_ids: List[int],
-    available_tags: List[str],
-    parent: Optional[QtCore.QObject] = None,
-) -> QtWidgets.QAbstractItemDelegate:
-    if isinstance(proptype, PropertyInt):
-        return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
-    if isinstance(proptype, PropertyDouble):
-        return DoubleItemDelegate(proptype.nonNegative, proptype.range, parent)
-    if isinstance(proptype, PropertyChoice):
-        return ComboItemDelegate(values=proptype.values, parent=parent)
-    if isinstance(proptype, PropertySample):
-        return ComboItemDelegate(
-            values=[(str(v), v) for v in sample_ids], parent=parent
-        )
-    if isinstance(proptype, PropertyTags):
-        return TagsItemDelegate(available_tags=available_tags, parent=parent)
-    if isinstance(proptype, PropertyDateTime):
-        return DateTimeItemDelegate(parent=parent)
-    raise Exception(f"invalid property type {proptype}")

@@ -14,7 +14,7 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.figure import Figure
 
-from amarcord.modules.spb.column import (
+from amarcord.modules.spb.run_property import (
     RunProperty,
     default_visible_properties,
     run_property_name,

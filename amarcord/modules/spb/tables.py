@@ -5,7 +5,7 @@ from typing import Dict, Optional
 import sqlalchemy as sa
 
 from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.spb.column import RunProperty
+from amarcord.modules.spb.run_property import RunProperty
 
 
 def _table_sample(metadata: sa.MetaData) -> sa.Table:

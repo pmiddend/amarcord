@@ -8,7 +8,7 @@ import humanize
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from amarcord.modules.context import Context
-from amarcord.modules.spb.column import (
+from amarcord.modules.spb.run_property import (
     RunProperty,
 )
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
