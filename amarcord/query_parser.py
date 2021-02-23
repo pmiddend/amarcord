@@ -105,7 +105,7 @@ class QueryToFunction(Transformer):
 query_parser = Lark(
     r"""
 !condition: NOT? FIELD inneroperator COMPARISON (outeroperator condition)?
-!outeroperator : OR | AND
+!outeroperator : AND | OR
 !inneroperator : HAS | EQ | LT | GT | LE | GE | NE
 
 NOT: "not"

@@ -1,4 +1,3 @@
-from typing import Optional
 from typing import Dict
 from typing import Final
 from typing import Any
@@ -14,6 +13,8 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.figure import Figure
 
+from amarcord.modules.spb.column_chooser import display_column_chooser
+from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.run_property import (
     RunProperty,
     default_visible_properties,
@@ -66,53 +67,6 @@ _column_converters: Final = {
 }
 
 
-def _display_column_chooser(
-    parent: Optional[QtWidgets.QWidget], selected_columns: List[RunProperty]
-) -> List[RunProperty]:
-    dialog = QtWidgets.QDialog(parent)
-    dialog_layout = QtWidgets.QVBoxLayout()
-    dialog.setLayout(dialog_layout)
-    root_widget = QtWidgets.QGroupBox("Choose which columns to display:")
-    dialog_layout.addWidget(root_widget)
-    root_layout = QtWidgets.QVBoxLayout()
-    root_widget.setLayout(root_layout)
-    column_list = QtWidgets.QListWidget()
-    column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-    for col in RunProperty:
-        new_item = QtWidgets.QListWidgetItem(run_property_name(col))
-        new_item.setData(QtCore.Qt.UserRole, col.value)
-        column_list.addItem(new_item)
-    for col in selected_columns:
-        # -1 here because auto lets the enum start at 1 (which is fine actually)
-        column_list.selectionModel().select(
-            column_list.model().index(col.value - 1, 0),
-            # pylint: disable=no-member
-            QtCore.QItemSelectionModel.SelectionFlag.Select,  # type: ignore
-        )
-    root_layout.addWidget(column_list)
-    buttonBox = QtWidgets.QDialogButtonBox(  # type: ignore
-        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-    )
-    buttonBox.accepted.connect(dialog.accept)
-    buttonBox.rejected.connect(dialog.reject)
-    root_layout.addWidget(buttonBox)
-
-    def selection_changed(
-        selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection
-    ) -> None:
-        # pylint: disable=no-member
-        buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(  # type: ignore
-            bool(column_list.selectedItems())
-        )
-
-    column_list.selectionModel().selectionChanged.connect(selection_changed)  # type: ignore
-    if dialog.exec() == QtWidgets.QDialog.Rejected:
-        return selected_columns
-    return [
-        RunProperty(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()
-    ]
-
-
 class _MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
@@ -153,7 +107,6 @@ class RunTable(QtWidgets.QWidget):
         log_output = QtWidgets.QPlainTextEdit()
         log_output.setReadOnly(True)
 
-        # Layouting stuff
         root_layout = QtWidgets.QVBoxLayout(self)
 
         header_layout = QtWidgets.QHBoxLayout()
@@ -162,12 +115,23 @@ class RunTable(QtWidgets.QWidget):
         filter_query_layout = QtWidgets.QFormLayout()
         header_layout.addLayout(filter_query_layout)
 
+        inner_filter_widget = QtWidgets.QWidget()
+        inner_filter_layout = QtWidgets.QHBoxLayout()
+        inner_filter_layout.setContentsMargins(0, 0, 0, 0)
+        inner_filter_widget.setLayout(inner_filter_layout)
         filter_widget = InfixCompletingLineEdit(self)
         filter_widget.textChanged.connect(self._slot_filter_changed)
         completer = QtWidgets.QCompleter(list(_column_query_names()), self)
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
         filter_widget.setCompleter(completer)
-        filter_query_layout.addRow("Filter query:", filter_widget)
+        inner_filter_layout.addWidget(filter_widget)
+        icon_button = QtWidgets.QPushButton(
+            self.style().standardIcon(QtWidgets.QStyle.SP_MessageBoxQuestion), ""
+        )
+        icon_button.setStyleSheet("QPushButton{border:none;}")
+        icon_button.clicked.connect(lambda: filter_query_help(self))
+        inner_filter_layout.addWidget(icon_button)
+        filter_query_layout.addRow("Filter query:", inner_filter_widget)
 
         self._query_error = QtWidgets.QLabel("")
         self._query_error.setStyleSheet("QLabel { font: italic 10px; color: red; }")
@@ -206,9 +170,9 @@ class RunTable(QtWidgets.QWidget):
                 columns=[run_property_name(column)],
             )
 
+            # noinspection PyArgumentList
             df.plot(ax=sc.axes)
 
-            # Create toolbar, passing canvas as first parament, parent (self, the MainWindow) as second.
             toolbar = NavigationToolbar(sc, self)
 
             dialog_layout.addWidget(toolbar)
@@ -227,12 +191,10 @@ class RunTable(QtWidgets.QWidget):
         self._table_view.refresh()
 
     def _slot_switch_columns(self) -> None:
-        new_columns = _display_column_chooser(self, self._table_view.column_visibility)
+        new_columns = display_column_chooser(self, self._table_view.column_visibility)
         self._table_view.set_column_visibility(new_columns)
 
     def _late_init(self) -> None:
-        logger.info("Late initing")
-
         self._table_view.set_data_retriever(
             lambda: _retrieve_data_no_connection(self._db, self._proposal_id)  # type: ignore
         )
