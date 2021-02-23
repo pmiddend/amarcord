@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum, auto
-from typing import Any, Dict, Final
+from typing import Any, Dict, Final, Set
 
 from amarcord.qt.properties import (
     PropertyChoice,
@@ -104,3 +104,5 @@ run_property_type: Final[Dict[RunProperty, PropertyType]] = {
     RunProperty.TRAINS: PropertyInt(nonNegative=True),
     RunProperty.X_RAY_ENERGY: PropertyDouble(nonNegative=True),
 }
+
+manual_run_properties: Final = {RunProperty.TAGS, RunProperty.SAMPLE}

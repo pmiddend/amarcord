@@ -1,10 +1,12 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 
+from amarcord.modules.spb.colors import color_manual_run_property
 from amarcord.modules.spb.run_property import (
     RunProperty,
+    manual_run_properties,
     run_property_name,
     run_property_to_string,
     run_property_type,
@@ -108,6 +110,8 @@ class _MetadataModel(QtCore.QAbstractTableModel):
                 if runprop in self._run.properties
                 else "N/A"
             )
+        if role == QtCore.Qt.BackgroundRole and runprop in manual_run_properties:
+            return QtGui.QBrush(color_manual_run_property)
         return None
 
 

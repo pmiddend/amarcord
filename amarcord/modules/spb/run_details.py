@@ -8,6 +8,7 @@ import humanize
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from amarcord.modules.context import Context
+from amarcord.modules.spb.colors import color_manual_run_property
 from amarcord.modules.spb.run_property import (
     RunProperty,
 )
@@ -29,6 +30,31 @@ from amarcord.qt.tags import Tags
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+class RectangleWidget(QtWidgets.QWidget):
+    def __init__(
+        self, color: QtGui.QColor, parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
+        super().__init__(parent)
+
+        self._color = color
+        font = QtWidgets.QApplication.font()
+        metrics = QtGui.QFontMetrics(font)
+        r = metrics.boundingRect("W").size()
+        self._size = QtCore.QSize(r.height(), r.height())
+
+    def paintEvent(self, e: QtGui.QPaintEvent) -> None:
+        p = QtGui.QPainter(self)
+
+        rect = self.rect()
+        height = rect.height()
+        p.fillRect(
+            QtCore.QRect(rect.topLeft(), QtCore.QSize(height, height)), self._color
+        )
+
+    def sizeHint(self) -> QtCore.QSize:
+        return self._size
 
 
 class _CommentTable(QtWidgets.QTableWidget):
@@ -142,6 +168,16 @@ class RunDetails(QtWidgets.QWidget):
 
                 additional_data_layout = QtWidgets.QVBoxLayout()
                 additional_data_layout.addWidget(self._metadata_table)
+                table_legend_layout = QtWidgets.QHBoxLayout()
+                table_legend_layout.addStretch()
+                table_legend_layout.addWidget(
+                    RectangleWidget(color_manual_run_property)
+                )
+                table_legend_layout.addWidget(
+                    QtWidgets.QLabel("<i>manually edited</i>")
+                )
+                table_legend_layout.addStretch()
+                additional_data_layout.addLayout(table_legend_layout)
                 additional_data_column.setLayout(additional_data_layout)
 
                 self._tags_widget = Tags()
