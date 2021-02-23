@@ -1,17 +1,11 @@
-import datetime
-import getpass
 import logging
-from dataclasses import replace
-from typing import Optional, TypeVar
+from typing import TypeVar
 
-import humanize
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from amarcord.modules.context import Context
 from amarcord.modules.spb.colors import color_manual_run_property
-from amarcord.modules.spb.run_property import (
-    RunProperty,
-)
+from amarcord.modules.spb.comments import Comments
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.queries import SPBQueries
@@ -23,10 +17,12 @@ from amarcord.modules.spb.run_details_tree import (
     _preprocess_dict,
 )
 from amarcord.modules.spb.run_id import RunId
+from amarcord.modules.spb.run_property import (
+    RunProperty,
+)
 from amarcord.modules.spb.tables import Tables
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
-from amarcord.qt.tags import Tags
 
 logger = logging.getLogger(__name__)
 
@@ -101,38 +97,11 @@ class RunDetails(QtWidgets.QWidget):
                 top_layout.addWidget(manual_creation)
 
                 comment_column = QtWidgets.QGroupBox("Comments")
-                comment_layout = QtWidgets.QVBoxLayout()
-                comment_column.setLayout(comment_layout)
-                self._comment_table = _CommentTable()
-                # noinspection PyUnresolvedReferences
-                self._comment_table.setSelectionBehavior(
-                    # pylint: disable=no-member
-                    QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows  # type: ignore
-                )
-                self._comment_table.delete_current_row.connect(
-                    self._slot_delete_comment
-                )
-
-                comment_layout.addWidget(self._comment_table)
-
-                comment_form_layout = QtWidgets.QFormLayout()
-                self._comment_author = QtWidgets.QLineEdit()
-                self._comment_author.setText(getpass.getuser())
-                self._comment_author.textChanged.connect(self._slot_author_changed)
-                comment_form_layout.addRow("Author", self._comment_author)
-                self._comment_input = QtWidgets.QLineEdit()
-                self._comment_input.setClearButtonEnabled(True)
-                self._comment_input.textChanged.connect(self._slot_comment_text_changed)
-                self._comment_input.returnPressed.connect(self._slot_add_comment)
-                comment_form_layout.addRow("Text", self._comment_input)
-                self._add_comment_button = QtWidgets.QPushButton("Add Comment")
-                self._add_comment_button.setIcon(
-                    self.style().standardIcon(QtWidgets.QStyle.SP_DialogOkButton)
-                )
-                self._add_comment_button.setEnabled(False)
-                self._add_comment_button.clicked.connect(self._slot_add_comment)
-                comment_form_layout.addWidget(self._add_comment_button)
-                comment_layout.addLayout(comment_form_layout)
+                comment_column_layout = QtWidgets.QVBoxLayout()
+                comment_column.setLayout(comment_column_layout)
+                self._comments = Comments(self._db)
+                self._comments.comments_changed.connect(self._comments_changed)
+                comment_column_layout.addWidget(self._comments)
 
                 additional_data_column = QtWidgets.QGroupBox("Metadata")
 
@@ -151,10 +120,6 @@ class RunDetails(QtWidgets.QWidget):
                 table_legend_layout.addStretch()
                 additional_data_layout.addLayout(table_legend_layout)
                 additional_data_column.setLayout(additional_data_layout)
-
-                self._tags_widget = Tags()
-                self._tags_widget.completion(self._tags)
-                self._tags_widget.tagsEdited.connect(self._slot_tags_changed)
 
                 root_layout = QtWidgets.QVBoxLayout()
                 self.setLayout(root_layout)
@@ -194,6 +159,9 @@ class RunDetails(QtWidgets.QWidget):
                 self._selected_run = RunId(-1)
                 self._run_changed(max(r.run_id for r in self._run_ids))
 
+    def _comments_changed(self) -> None:
+        self.run_changed.emit()
+
     def _slot_tree_filter_changed(self, new_filter: str) -> None:
         self._details_tree.clear()
         self._details_tree.insertTopLevelItems(
@@ -232,27 +200,6 @@ class RunDetails(QtWidgets.QWidget):
     def select_run(self, run_id: RunId) -> None:
         self._run_changed(run_id)
 
-    def _slot_delete_comment(self) -> None:
-        with self._context.db.connect() as conn:
-            self._db.delete_comment(
-                conn,
-                self._run.properties[RunProperty.COMMENTS][
-                    self._comment_table.currentRow()
-                ].id,
-            )
-            self._refresh()
-            self.run_changed.emit()
-
-    def _slot_tags_changed(self) -> None:
-        if self._tags_widget.tagsStr() == self._run.properties[RunProperty.TAGS]:
-            return
-        with self._context.db.connect() as conn:
-            self._db.change_tags(conn, self._selected_run, self._tags_widget.tagsStr())
-            self._tags = self._db.retrieve_tags(conn)
-            self._tags_widget.completion(self._tags)
-            self._refresh()
-            self.run_changed.emit()
-
     def _refresh(self) -> None:
         self._run_changed(self._selected_run)
 
@@ -271,30 +218,12 @@ class RunDetails(QtWidgets.QWidget):
 
             self._run_selector.setCurrentText(str(self._selected_run))
             self._run_selector.blockSignals(False)
-            self._comment_table.setColumnCount(3)
-            self._comment_table.setRowCount(
-                len(self._run.properties[RunProperty.COMMENTS])
-            )
-            self._comment_table.setHorizontalHeaderLabels(["Created", "Author", "Text"])
-            self._comment_table.horizontalHeader().setStretchLastSection(True)
-            self._comment_table.verticalHeader().hide()
 
-            now = datetime.datetime.utcnow()
-            for row, c in enumerate(self._run.properties[RunProperty.COMMENTS]):
-                date_cell = QtWidgets.QTableWidgetItem(
-                    humanize.naturaltime(now - c.created)
-                )
-                date_cell.setFlags(QtCore.Qt.ItemIsSelectable)
-                self._comment_table.setItem(
-                    row,
-                    0,
-                    date_cell,
-                )
-                self._comment_table.setItem(
-                    row, 1, QtWidgets.QTableWidgetItem(c.author)
-                )
-                self._comment_table.setItem(row, 2, QtWidgets.QTableWidgetItem(c.text))
-            self._comment_table.cellChanged.connect(self._comment_cell_changed)
+            self._comments.set_comments(
+                self._run.properties[RunProperty.RUN_ID],
+                self._run.properties[RunProperty.COMMENTS],
+            )
+
             self._slot_tree_filter_changed(self._tree_filter_line.text())
             self._details_tree.resizeColumnToContents(0)
             self._details_tree.resizeColumnToContents(1)
@@ -303,44 +232,3 @@ class RunDetails(QtWidgets.QWidget):
             self._metadata_table.model().dataChanged.connect(
                 lambda idxfrom, idxto: self.run_changed.emit()
             )
-
-    def _comment_cell_changed(self, row: int, column: int) -> None:
-        with self._context.db.connect() as conn:
-            i = self._comment_table.item(row, column).text()
-            c = self._run.properties[RunProperty.COMMENTS][row]
-            c = replace(
-                c,
-                author=i if column == 1 else c.author,
-                text=i if column == 2 else c.text,
-            )
-            self._db.change_comment(conn, c)
-
-    def _slot_comment_text_changed(self, new_text: str) -> None:
-        self._add_comment_button.setEnabled(
-            bool(new_text) and bool(self._comment_author.text())
-        )
-
-    def _slot_author_changed(self, new_text: str) -> None:
-        self._add_comment_button.setEnabled(
-            bool(new_text) and bool(self._comment_input.text())
-        )
-
-    def _slot_add_comment(self) -> None:
-        if not self._comment_author.text() or not self._comment_input.text():
-            return
-        with self._context.db.connect() as conn:
-            self._db.add_comment(
-                conn,
-                self._selected_run,
-                self._comment_author.text(),
-                self._comment_input.text(),
-            )
-            self._refresh()
-            self._comment_input.setText("")
-            self.run_changed.emit()
-
-    def _sample_changed(self, new_sample: Optional[int]) -> None:
-        with self._context.db.connect() as conn:
-            self._db.change_sample(conn, self._selected_run, new_sample)
-        self._refresh()
-        self.run_changed.emit()

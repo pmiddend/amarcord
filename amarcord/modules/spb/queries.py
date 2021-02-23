@@ -24,7 +24,7 @@ class RunSimple:
 
 @dataclass(frozen=True)
 class Comment:
-    id: int
+    id: Optional[int]
     author: str
     text: str
     created: datetime.datetime
@@ -138,6 +138,8 @@ class SPBQueries:
         )
 
     def change_comment(self, conn: Connection, c: Comment) -> None:
+        assert c.id is not None
+
         conn.execute(
             sa.update(self._tables.run_comment)
             .where(self._tables.run_comment.c.id == c.id)
@@ -200,7 +202,7 @@ class SPBQueries:
                             row["created"],
                         )
                         for row in run_rows
-                        if row["author"] is not None
+                        if row["comment_id"] is not None
                     ),
                 },
                 {k: run_meta[v.name] for k, v in interesting_columns.items()},
@@ -210,10 +212,8 @@ class SPBQueries:
             else None,
         )
 
-    def add_comment(
-        self, conn: Connection, run_id: int, author: str, text: str
-    ) -> None:
-        conn.execute(
+    def add_comment(self, conn: Connection, run_id: int, author: str, text: str) -> int:
+        result = conn.execute(
             sa.insert(self._tables.run_comment).values(
                 run_id=run_id,
                 author=author,
@@ -221,6 +221,7 @@ class SPBQueries:
                 created=datetime.datetime.utcnow(),
             )
         )
+        return result.inserted_primary_key[0]
 
     def delete_comment(self, conn: Connection, comment_id: int) -> None:
         conn.execute(

@@ -1,4 +1,6 @@
 from PyQt5 import QtWidgets
+from PyQt5 import QtGui
+from PyQt5 import QtCore
 
 
 def filter_query_help(parent: QtWidgets.QWidget) -> None:

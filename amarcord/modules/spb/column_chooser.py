@@ -1,4 +1,3 @@
-from enum import __call__
 from typing import List, Optional
 
 from PyQt5 import QtCore, QtWidgets
