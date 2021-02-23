@@ -193,8 +193,8 @@ def _table_layout_selection_dialog(d: np.ndarray) -> Optional[Tuple[int, int]]:
         )
     columns_combo.setCurrentIndex(1)
 
-    root_layout.addRow(QtWidgets.QLabel("Rows:"), rows_combo)
-    root_layout.addRow(QtWidgets.QLabel("Columns:"), columns_combo)
+    root_layout.addRow("Rows:", rows_combo)
+    root_layout.addRow("Columns:", columns_combo)
 
     button_box = QtWidgets.QDialogButtonBox(  # type: ignore
         QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel

@@ -119,16 +119,12 @@ class RunDetails(QtWidgets.QWidget):
                 self._comment_author = QtWidgets.QLineEdit()
                 self._comment_author.setText(getpass.getuser())
                 self._comment_author.textChanged.connect(self._slot_author_changed)
-                comment_form_layout.addRow(
-                    QtWidgets.QLabel("Author"), self._comment_author
-                )
+                comment_form_layout.addRow("Author", self._comment_author)
                 self._comment_input = QtWidgets.QLineEdit()
                 self._comment_input.setClearButtonEnabled(True)
                 self._comment_input.textChanged.connect(self._slot_comment_text_changed)
                 self._comment_input.returnPressed.connect(self._slot_add_comment)
-                comment_form_layout.addRow(
-                    QtWidgets.QLabel("Text"), self._comment_input
-                )
+                comment_form_layout.addRow("Text", self._comment_input)
                 self._add_comment_button = QtWidgets.QPushButton("Add Comment")
                 self._add_comment_button.setIcon(
                     self.style().standardIcon(QtWidgets.QStyle.SP_DialogOkButton)

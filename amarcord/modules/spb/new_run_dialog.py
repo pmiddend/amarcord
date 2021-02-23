@@ -42,8 +42,8 @@ def _new_run_dialog(
     sample_chooser = QtWidgets.QComboBox()
     sample_chooser.addItems([str(s) for s in sample_ids] + ["None"])
 
-    form_layout.addRow(QtWidgets.QLabel("Run ID"), run_id)
-    form_layout.addRow(QtWidgets.QLabel("Sample"), sample_chooser)
+    form_layout.addRow("Run ID", run_id)
+    form_layout.addRow("Sample", sample_chooser)
 
     dialog_layout.addLayout(form_layout)
 
