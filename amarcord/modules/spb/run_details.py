@@ -144,26 +144,9 @@ class RunDetails(QtWidgets.QWidget):
                 additional_data_layout.addWidget(self._metadata_table)
                 additional_data_column.setLayout(additional_data_layout)
 
-                # additional_data_layout = QtWidgets.QFormLayout()
-                # additional_data_column.setLayout(additional_data_layout)
-                # self._sample_chooser = QtWidgets.QComboBox()
-                # self._sample_chooser.addItems(
-                #     [str(s) for s in self._sample_ids] + ["None"]
-                # )
-                # self._sample_chooser.currentTextChanged.connect(
-                #     lambda new_sample_str: self._sample_changed(
-                #         int(new_sample_str) if new_sample_str != "None" else None
-                #     )
-                # )
-                # additional_data_layout.addRow(
-                #     QtWidgets.QLabel("Sample"), self._sample_chooser
-                # )
                 self._tags_widget = Tags()
                 self._tags_widget.completion(self._tags)
                 self._tags_widget.tagsEdited.connect(self._slot_tags_changed)
-                # additional_data_layout.addRow(
-                #     QtWidgets.QLabel("Tags"), self._tags_widget
-                # )
 
                 root_layout = QtWidgets.QVBoxLayout()
                 self.setLayout(root_layout)
