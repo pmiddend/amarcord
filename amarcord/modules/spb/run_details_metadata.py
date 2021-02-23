@@ -129,8 +129,7 @@ class MetadataTable(QtWidgets.QTableView):
         self.verticalHeader().hide()
         self.horizontalHeader().setStretchLastSection(True)
         self._run = None
-        # noinspection PyUnresolvedReferences
-        self.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.DoubleClicked)
+        self.setEditTriggers(QtWidgets.QAbstractItemView.DoubleClicked)
         self._item_delegates: List[QtWidgets.QAbstractItemDelegate] = []
 
     def run_changed(self, run: Run) -> None:

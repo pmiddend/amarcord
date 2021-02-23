@@ -92,7 +92,7 @@ class TagsItemDelegate(QtWidgets.QStyledItemDelegate):
         index: QtCore.QModelIndex,
     ) -> None:
         assert isinstance(editor, Tags)
-        model.setData(index, cast(Tags, editor).tagsStr(), QtCore.Qt.EditRole)
+        model.setData(index, cast(Tags, editor).tags_str(), QtCore.Qt.EditRole)
 
     def updateEditorGeometry(
         self,
@@ -150,13 +150,17 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
     def __init__(
         self,
         non_negative: bool,
-        range: Optional[Tuple[int, int]],
+        value_range: Optional[Tuple[int, int]],
         parent: Optional[QtCore.QObject],
     ) -> None:
         super().__init__(parent)
         self._nonNegative = non_negative
         self._range = (
-            range if range is not None else [0, 2 ** 30] if non_negative else None
+            value_range
+            if value_range is not None
+            else [0, 2 ** 30]
+            if non_negative
+            else None
         )
 
     def createEditor(
@@ -204,14 +208,18 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
 class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
     def __init__(
         self,
-        nonNegative: bool,
-        range: Optional[Tuple[float, float]],
+        non_negative: bool,
+        value_range: Optional[Tuple[float, float]],
         suffix: Optional[str],
         parent: Optional[QtCore.QObject],
     ) -> None:
         super().__init__(parent)
         self._range = (
-            range if range is not None else [0, 10000] if nonNegative else None
+            value_range
+            if value_range is not None
+            else [0, 10000]
+            if non_negative
+            else None
         )
         self._suffix = suffix
 

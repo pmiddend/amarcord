@@ -56,9 +56,11 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
 
     def set_column_visibility(self, column_visibility: List[T]) -> None:
         self.column_visibility = column_visibility
+        # noinspection PyUnresolvedReferences
         self.layoutAboutToBeChanged.emit()  # type: ignore
         self._enum_to_index = {v: k for k, v in enumerate(column_visibility)}
         self.index_to_enum = {v: k for k, v in self._enum_to_index.items()}
+        # noinspection PyUnresolvedReferences
         self.layoutChanged.emit()  # type: ignore
 
     def set_data_retriever(self, data_retriever: DataRetriever) -> None:
@@ -134,10 +136,12 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
     def sort(
         self, column: int, order: QtCore.Qt.SortOrder = QtCore.Qt.AscendingOrder
     ) -> None:
+        # noinspection PyUnresolvedReferences
         self.layoutAboutToBeChanged.emit()  # type: ignore
         self._sort_column = self.index_to_enum[column]
         self._sort_reverse = order == QtCore.Qt.DescendingOrder
         self._resort()
+        # noinspection PyUnresolvedReferences
         self.layoutChanged.emit()  # type: ignore
 
 
@@ -167,6 +171,7 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
             parent=None,
         )
         self.setModel(self._model)
+        # noinspection PyUnresolvedReferences
         self.setSelectionBehavior(
             # pylint: disable=no-member
             QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows  # type: ignore

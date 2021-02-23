@@ -25,8 +25,7 @@ def display_column_chooser(
         # -1 here because auto lets the enum start at 1 (which is fine actually)
         column_list.selectionModel().select(
             column_list.model().index(col.value - 1, 0),
-            # pylint: disable=no-member
-            QtCore.QItemSelectionModel.SelectionFlag.Select,  # type: ignore
+            QtCore.QItemSelectionModel.Select,
         )
     root_layout.addWidget(column_list)
     buttonBox = QtWidgets.QDialogButtonBox(  # type: ignore
@@ -37,13 +36,13 @@ def display_column_chooser(
     root_layout.addWidget(buttonBox)
 
     def selection_changed(
-        selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection
+        _selected: QtCore.QItemSelection, _deselected: QtCore.QItemSelection
     ) -> None:
-        # pylint: disable=no-member
-        buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(  # type: ignore
+        buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(
             bool(column_list.selectedItems())
         )
 
+    # noinspection PyUnresolvedReferences
     column_list.selectionModel().selectionChanged.connect(selection_changed)  # type: ignore
     if dialog.exec() == QtWidgets.QDialog.Rejected:
         return selected_columns

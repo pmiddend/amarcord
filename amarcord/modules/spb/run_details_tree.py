@@ -43,6 +43,7 @@ def _data_shower(d: np.ndarray, rows: int, columns: Optional[int]) -> None:
     dialog.setLayout(dialog_layout)
 
     table = QtWidgets.QTableWidget()
+    table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
     table.setRowCount(d.shape[rows])
 
@@ -77,7 +78,7 @@ class _MyTreeWidgetItem(QtWidgets.QTreeWidgetItem):
     def __init__(
         self, additional_data: Any, parent: Optional[QtWidgets.QTreeWidgetItem]
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent)  # type: ignore
         self.additional_data = additional_data
 
 
@@ -95,6 +96,7 @@ def _recurse_to_items(new_item: QtWidgets.QTreeWidgetItem, k: str, v: Any) -> No
         _list_to_items(v, new_item)
     elif isinstance(v, (bool, str, int, float)):
         if k == "timestamp":
+            assert isinstance(v, int)
             new_item.setText(
                 _TreeColumn.TREE_COLUMN_VALUE.value,
                 str(datetime.datetime.fromtimestamp(v / 1000 / 1000 / 1000)),
@@ -155,10 +157,10 @@ def _filter_dict(d: Dict[str, Any], filter_text: str) -> Dict[str, Any]:
         return d
 
     def _keep_subtree(sd: Dict[str, Any]) -> bool:
-        for k, v in sd.items():
-            if filter_text.lower() in k.lower():
+        for ki, vi in sd.items():
+            if filter_text.lower() in ki.lower():
                 return True
-            if isinstance(v, dict) and _keep_subtree(v):
+            if isinstance(vi, dict) and _keep_subtree(vi):
                 return True
         return False
 
@@ -204,9 +206,7 @@ def _table_layout_selection_dialog(d: np.ndarray) -> Optional[Tuple[int, int]]:
     root_layout.addWidget(button_box)
 
     def index_changed() -> None:
-        # pylint: disable=no-member
-        # noinspection PyUnresolvedReferences
-        button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(  # type: ignore
+        button_box.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(
             rows_combo.currentIndex() != columns_combo.currentIndex()
         )
 

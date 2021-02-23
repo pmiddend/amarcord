@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Final, Optional
 from typing import List
 from typing import Tuple
 from dataclasses import dataclass
@@ -33,27 +33,27 @@ class Tag:
     rect: QRect
 
 
-top_text_margin = 1
-bottom_text_margin = 1
-left_text_margin = 1
-right_text_margin = 1
+top_text_margin: Final = 1
+bottom_text_margin: Final = 1
+left_text_margin: Final = 1
+right_text_margin: Final = 1
 
-vertical_margin = 3
-bottommargin = 1
-topmargin = 1
+vertical_margin: Final = 3
+bottom_margin: Final = 1
+top_margin: Final = 1
 
-horizontal_margin = 3
-leftmargin = 1
-rightmargin = 1
+horizontal_margin: Final = 3
+left_margin: Final = 1
+right_margin: Final = 1
 
-tag_spacing = 3
-tag_inner_left_padding = 3
-tag_inner_right_padding = 4
-tag_cross_width = 4
-tag_cross_spacing = 2
+tag_spacing: Final = 3
+tag_inner_left_padding: Final = 3
+tag_inner_right_padding: Final = 4
+tag_cross_width: Final = 4
+tag_cross_spacing: Final = 2
 
 
-def _crossRect(r: QRectF) -> QRectF:
+def _cross_rect(r: QRectF) -> QRectF:
     cross = QRectF(QPointF(0, 0), QSizeF(tag_cross_width, tag_cross_width))
     cross.moveCenter(QPointF(r.right() - tag_cross_width, r.center().y()))
     return cross
@@ -82,11 +82,11 @@ class Tags(QWidget):
         self.setAttribute(Qt.WA_InputMethodEnabled, True)
         self.setMouseTracking(True)
         self._completer = QCompleter()
-        self.setupCompleter()
-        self.setCursorVisible(self.hasFocus())
-        self.updateDisplayText()
+        self.setup_completer()
+        self.set_cursor_visible(self.hasFocus())
+        self.update_display_text()
 
-    def setCursorVisible(self, visible: bool) -> None:
+    def set_cursor_visible(self, visible: bool) -> None:
         if self._blink_timer:
             self.killTimer(self._blink_timer)
             self._blink_timer = 0
@@ -99,29 +99,29 @@ class Tags(QWidget):
         else:
             self._blink_status = False
 
-    def setupCompleter(self) -> None:
+    def setup_completer(self) -> None:
         self._completer.setWidget(self)
-        self._completer.activated.connect(self._completerActivated)
+        self._completer.activated.connect(self._completer_activated)
 
-    def currentText(self) -> str:
+    def current_text(self) -> str:
         return self._tags[self._editing_index].text
 
-    def _completerActivated(self, t: str) -> None:
+    def _completer_activated(self, t: str) -> None:
         self._tags[self._editing_index].text = t
-        self.moveCursor(len(self.currentText()), False)
-        self.updateDisplayText()
-        self.calcRects()
+        self.move_cursor(len(self.current_text()), False)
+        self.update_display_text()
+        self.calc_rects()
         self.update()
         # self.tagsEdited.emit()
 
-    def updateDisplayText(self) -> None:
+    def update_display_text(self) -> None:
         self._text_layout.clearLayout()
-        self._text_layout.setText(self.currentText())
+        self._text_layout.setText(self.current_text())
         self._text_layout.beginLayout()
         self._text_layout.createLine()
         self._text_layout.endLayout()
 
-    def initStyleOption(self, option: QStyleOptionFrame) -> None:
+    def init_style_option(self, option: QStyleOptionFrame) -> None:
         option.initFrom(self)
         option.rect = self.contentsRect()
         option.lineWidth = self.style().pixelMetric(
@@ -131,30 +131,30 @@ class Tags(QWidget):
         option.state |= QStyle.State_Sunken  # type: ignore
         option.features = QStyleOptionFrame.None_
 
-    def cRect(self) -> QRect:
+    def c_rect(self) -> QRect:
         panel = QStyleOptionFrame()
-        self.initStyleOption(panel)
+        self.init_style_option(panel)
         r = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
         r.adjust(
             left_text_margin, top_text_margin, -right_text_margin, -bottom_text_margin
         )
         return r
 
-    def calcRects(self) -> None:
-        r = self.cRect()
+    def calc_rects(self) -> None:
+        r = self.c_rect()
         lt = r.topLeft()
 
-        if self.cursorVisible():
-            self.calcRects2(lt, r.height(), self._tags[0 : self._editing_index])
-            self.calcEditorRect(lt, r.height())
-            self.calcRects2(lt, r.height(), self._tags[self._editing_index + 1 :])
+        if self.cursor_visible():
+            self.calc_rects_2(lt, r.height(), self._tags[0 : self._editing_index])
+            self.calc_editor_rect(lt, r.height())
+            self.calc_rects_2(lt, r.height(), self._tags[self._editing_index + 1 :])
         else:
-            self.calcRects2(lt, r.height(), self._nonEmptyTags())
+            self.calc_rects_2(lt, r.height(), self._non_empty_tags())
 
-    def _nonEmptyTags(self) -> List[Tag]:
+    def _non_empty_tags(self) -> List[Tag]:
         return [f for f in self._tags if f.text != ""]
 
-    def calcEditorRect(self, lt: QPoint, height: int) -> None:
+    def calc_editor_rect(self, lt: QPoint, height: int) -> None:
         w = (
             self.fontMetrics().horizontalAdvance(self._text_layout.text())
             + tag_inner_left_padding
@@ -163,7 +163,7 @@ class Tags(QWidget):
         self._tags[self._editing_index].rect = QRect(lt, QSize(w, height))
         lt += QPoint(w + tag_spacing, 0)
 
-    def calcRects2(self, lt: QPoint, height: int, range_: List[Tag]) -> None:
+    def calc_rects_2(self, lt: QPoint, height: int, range_: List[Tag]) -> None:
         for t in range_:
             i_width = self.fontMetrics().horizontalAdvance(t.text)
             i_r = QRect(lt, QSize(i_width, height))
@@ -177,7 +177,7 @@ class Tags(QWidget):
             t.rect = i_r
             lt.setX(i_r.right() + tag_spacing)
 
-    def moveCursor(self, pos: int, mark: bool) -> None:
+    def move_cursor(self, pos: int, mark: bool) -> None:
         if mark:
             e = self._select_start + self._select_size
             anchor = (
@@ -190,15 +190,15 @@ class Tags(QWidget):
             self._select_start = min(anchor, pos)
             self._select_size = max(anchor, pos) - self._select_start
         else:
-            self.deselectAll()
+            self.deselect_all()
 
         self._cursor = pos
 
-    def selectAll(self) -> None:
+    def select_all(self) -> None:
         self._select_start = 0
-        self._select_size = len(self.currentText())
+        self._select_size = len(self.current_text())
 
-    def deselectAll(self) -> None:
+    def deselect_all(self) -> None:
         self._select_start = 0
         self._select_size = 0
 
@@ -210,17 +210,17 @@ class Tags(QWidget):
             + 2 * vertical_margin
             + top_text_margin
             + bottom_text_margin
-            + topmargin
-            + bottommargin
+            + top_margin
+            + bottom_margin
         )
         w = (
             fm.boundingRect("x").width() * 17
             + 2 * horizontal_margin
-            + leftmargin
-            + rightmargin
+            + left_margin
+            + right_margin
         )
         opt = QStyleOptionFrame()
-        self.initStyleOption(opt)
+        self.init_style_option(opt)
         return self.style().sizeFromContents(
             QStyle.CT_LineEdit,
             opt,
@@ -238,13 +238,13 @@ class Tags(QWidget):
             + max(2 * vertical_margin, fm.leading())
             + top_text_margin
             + bottom_text_margin
-            + topmargin
-            + bottommargin
+            + top_margin
+            + bottom_margin
         )
-        w = fm.maxWidth() + leftmargin + rightmargin
+        w = fm.maxWidth() + left_margin + right_margin
 
         opt = QStyleOptionFrame()
-        self.initStyleOption(opt)
+        self.init_style_option(opt)
         return self.style().sizeFromContents(
             QStyle.CT_LineEdit,
             opt,
@@ -254,63 +254,63 @@ class Tags(QWidget):
 
     def completion(self, completions: List[str]) -> None:
         self._completer = QCompleter(completions)
-        self.setupCompleter()
+        self.setup_completer()
 
-    def editNextTag(self) -> None:
+    def edit_next_tag(self) -> None:
         if self._editing_index < len(self._tags) - 1:
-            self.setEditingIndex(self._editing_index + 1)
-            self.moveCursor(0, False)
+            self.set_editing_index(self._editing_index + 1)
+            self.move_cursor(0, False)
 
-    def editNewTag(self) -> None:
+    def edit_new_tag(self) -> None:
         self._tags.append(Tag(text="", rect=QRect()))
-        self.setEditingIndex(len(self._tags) - 1)
-        self.moveCursor(0, False)
+        self.set_editing_index(len(self._tags) - 1)
+        self.move_cursor(0, False)
 
-    def setEditingIndex(self, i: int) -> None:
-        if not self.currentText():
+    def set_editing_index(self, i: int) -> None:
+        if not self.current_text():
             self._tags.pop(self._editing_index)
             if self._editing_index <= i:
                 i -= 1
         self._editing_index = i
 
-    def tagsStr(self) -> List[str]:
+    def tags_str(self) -> List[str]:
         return [v.text for v in self._tags if v.text != ""]
 
     def tags(self, tags: List[str]) -> None:
         self._tags = [Tag(text="", rect=QRect())]
         self._tags.extend(Tag(t, QRect()) for t in tags)
         self._editing_index = 0
-        self.moveCursor(0, False)
-        self.editNewTag()
-        self.updateDisplayText()
-        self.calcRects()
+        self.move_cursor(0, False)
+        self.edit_new_tag()
+        self.update_display_text()
+        self.calc_rects()
 
         self.update()
 
-    def currentRect(self) -> QRect:
+    def current_rect(self) -> QRect:
         return self._tags[self._editing_index].rect
 
     def paintEvent(self, event: QPaintEvent) -> None:
         p = QPainter(self)
 
         panel = QStyleOptionFrame()
-        self.initStyleOption(panel)
+        self.init_style_option(panel)
 
         self.style().drawPrimitive(QStyle.PE_PanelLineEdit, panel, p, self)
 
-        rect = self.cRect()
+        rect = self.c_rect()
 
         p.setClipRect(rect)
 
-        if self.cursorVisible():
-            r = self.currentRect()
+        if self.cursor_visible():
+            r = self.current_rect()
             txt_p = QPointF(r.topLeft()) + QPointF(
                 tag_inner_left_padding, ((r.height() - self.fontMetrics().height()) / 2)
             )
 
-            self.calcHScroll(r)
+            self.calc_h_scroll(r)
 
-            self.drawTags(p, self._tags[0 : self._editing_index])
+            self.draw_tags(p, self._tags[0 : self._editing_index])
 
             formatting = self.formatting()
             self._text_layout.draw(p, txt_p - QPointF(self._hscroll, 0), formatting)
@@ -320,9 +320,9 @@ class Tags(QWidget):
                     p, txt_p - QPointF(self._hscroll, 0), self._cursor
                 )
 
-            self.drawTags(p, self._tags[self._editing_index + 1 :])
+            self.draw_tags(p, self._tags[self._editing_index + 1 :])
         else:
-            self.drawTags(p, self._nonEmptyTags())
+            self.draw_tags(p, self._non_empty_tags())
 
     def formatting(self) -> List[QTextLayout.FormatRange]:
         if self._select_size == 0:
@@ -335,7 +335,7 @@ class Tags(QWidget):
         selection.format.setForeground(self.palette().brush(QPalette.HighlightedText))
         return [selection]
 
-    def drawTags(self, p: QPainter, ts: List[Tag]) -> None:
+    def draw_tags(self, p: QPainter, ts: List[Tag]) -> None:
         for it in ts:
             i_r = QRectF(it.rect.translated(-self._hscroll, 0))
             text_pos = i_r.topLeft() + QPointF(
@@ -351,7 +351,7 @@ class Tags(QWidget):
 
             p.drawText(text_pos, it.text)
 
-            i_cross_r = _crossRect(i_r)
+            i_cross_r = _cross_rect(i_r)
 
             pen = p.pen()
 
@@ -364,16 +364,16 @@ class Tags(QWidget):
             p.drawLine(QLineF(i_cross_r.bottomLeft(), i_cross_r.topRight()))
             p.restore()
 
-    def naturalWidth(self) -> float:
+    def natural_width(self) -> float:
         return self._tags[-1].rect.right() - self._tags[0].rect.left()
 
-    def cursorToX(self) -> Tuple[float, int]:
+    def cursor_to_x(self) -> Tuple[float, int]:
         return self._text_layout.lineAt(0).cursorToX(self._cursor)
 
-    def calcHScroll(self, r: QRect) -> None:
-        rect = self.cRect()
-        width_used = round(self.naturalWidth()) + 1
-        cix = r.x() + round(self.cursorToX()[0])
+    def calc_h_scroll(self, r: QRect) -> None:
+        rect = self.c_rect()
+        width_used = round(self.natural_width()) + 1
+        cix = r.x() + round(self.cursor_to_x()[0])
         if width_used <= rect.width():
             self._hscroll = 0
         elif cix - self._hscroll >= rect.width():
@@ -393,7 +393,7 @@ class Tags(QWidget):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         found = False
         for i in range(len(self._tags)):
-            if self.inCrossArea(i, event.pos()):
+            if self.in_cross_area(i, event.pos()):
                 self._tags.pop(i)
                 if i <= self._editing_index:
                     self._editing_index -= 1
@@ -408,51 +408,53 @@ class Tags(QWidget):
                 continue
 
             if self._editing_index == i:
-                self.moveCursor(
+                self.move_cursor(
                     self._text_layout.lineAt(0).xToCursor(
                         (
                             event.pos()
-                            - self.currentRect().translated(-self._hscroll, 0).topLeft()
+                            - self.current_rect()
+                            .translated(-self._hscroll, 0)
+                            .topLeft()
                         ).x()
                     ),
                     False,
                 )
             else:
-                self.editTag(i)
+                self.edit_tag(i)
 
             found = True
             break
 
         if not found:
-            self.editNewTag()
+            self.edit_new_tag()
             event.accept()
 
         if event.isAccepted():
-            self.updateDisplayText()
-            self.calcRects()
-            self.updateCursorBlinking()
+            self.update_display_text()
+            self.calc_rects()
+            self.update_cursor_blinking()
             self.update()
             # self.tagsEdited.emit()
 
-    def updateCursorBlinking(self) -> None:
-        self.setCursorVisible(self.cursorVisible())
+    def update_cursor_blinking(self) -> None:
+        self.set_cursor_visible(self.cursor_visible())
 
-    def cursorVisible(self) -> bool:
+    def cursor_visible(self) -> bool:
         return self._blink_timer != 0
 
     def resizeEvent(self, event: QResizeEvent) -> None:
-        self.calcRects()
+        self.calc_rects()
 
     def focusInEvent(self, event: QFocusEvent) -> None:
-        self.setCursorVisible(True)
-        self.updateDisplayText()
-        self.calcRects()
+        self.set_cursor_visible(True)
+        self.update_display_text()
+        self.calc_rects()
         self.update()
 
     def focusOutEvent(self, event: QFocusEvent) -> None:
-        self.setCursorVisible(False)
-        self.updateDisplayText()
-        self.calcRects()
+        self.set_cursor_visible(False)
+        self.update_display_text()
+        self.calc_rects()
         self.update()
         self.tagsEdited.emit()
 
@@ -461,57 +463,57 @@ class Tags(QWidget):
         unknown = False
 
         if event == QKeySequence.SelectAll:
-            self.selectAll()
+            self.select_all()
             event.accept()
         elif event == QKeySequence.SelectPreviousChar:
-            self.moveCursor(
+            self.move_cursor(
                 self._text_layout.previousCursorPosition(self._cursor), True
             )
             event.accept()
         elif event == QKeySequence.SelectNextChar:
-            self.moveCursor(self._text_layout.nextCursorPosition(self._cursor), True)
+            self.move_cursor(self._text_layout.nextCursorPosition(self._cursor), True)
             event.accept()
         else:
             if event.key() == Qt.Key_Left:
                 if self._cursor == 0:
-                    self.editPreviousTag()
+                    self.edit_previous_tag()
                 else:
-                    self.moveCursor(
+                    self.move_cursor(
                         self._text_layout.previousCursorPosition(self._cursor), False
                     )
                 event.accept()
             elif event.key() == Qt.Key_Right:
-                if self._cursor == len(self.currentText()):
-                    self.editNextTag()
+                if self._cursor == len(self.current_text()):
+                    self.edit_next_tag()
                 else:
-                    self.moveCursor(
+                    self.move_cursor(
                         self._text_layout.nextCursorPosition(self._cursor), False
                     )
                 event.accept()
             elif event.key() == Qt.Key_Home:
                 if self._cursor == 0:
-                    self.editTag(0)
+                    self.edit_tag(0)
                 else:
-                    self.moveCursor(0, False)
+                    self.move_cursor(0, False)
                 event.accept()
             elif event.key() == Qt.Key_End:
-                if self._cursor == len(self.currentText()):
-                    self.editTag(len(self._tags) - 1)
+                if self._cursor == len(self.current_text()):
+                    self.edit_tag(len(self._tags) - 1)
                 else:
-                    self.moveCursor(len(self.currentText()), False)
+                    self.move_cursor(len(self.current_text()), False)
                 event.accept()
             elif event.key() == Qt.Key_Backspace:
-                if self.currentText():
-                    self.removeBackwardOne()
+                if self.current_text():
+                    self.remove_backward_one()
                 elif self._editing_index > 0:
-                    self.editPreviousTag()
+                    self.edit_previous_tag()
                 event.accept()
             elif event.key() == Qt.Key_Space:
-                if self.currentText():
+                if self.current_text():
                     self._tags.insert(
                         self._editing_index + 1, Tag(text="", rect=QRect())
                     )
-                    self.editNextTag()
+                    self.edit_next_tag()
                 event.accept()
             else:
                 unknown = True
@@ -519,46 +521,43 @@ class Tags(QWidget):
         # event.text() might contain newlines due to somebody pressing "return"
         eventText = event.text().strip()
         if unknown and eventText:
-            if self.hasSelection():
-                self.removeSelection()
+            if self.has_selection():
+                self.remove_selection()
             cur = self._tags[self._editing_index].text
             self._tags[self._editing_index].text = (
                 cur[: self._cursor] + eventText + cur[self._cursor :]
             )
             self._cursor += len(event.text())
             event.accept()
-            unknown = False
 
         if event.isAccepted():
-            self.updateDisplayText()
-            self.calcRects()
-            self.updateCursorBlinking()
+            self.update_display_text()
+            self.calc_rects()
+            self.update_cursor_blinking()
 
-            self._completer.setCompletionPrefix(self.currentText())
+            self._completer.setCompletionPrefix(self.current_text())
             self._completer.complete()
 
             self.update()
 
-            # self.tagsEdited.emit()
-
-    def hasSelection(self) -> bool:
+    def has_selection(self) -> bool:
         return self._select_size > 0
 
-    def editPreviousTag(self) -> None:
+    def edit_previous_tag(self) -> None:
         if self._editing_index > 0:
-            self.setEditingIndex(self._editing_index - 1)
-            self.moveCursor(len(self.currentText()), False)
+            self.set_editing_index(self._editing_index - 1)
+            self.move_cursor(len(self.current_text()), False)
 
-    def removeSelection(self) -> None:
+    def remove_selection(self) -> None:
         self._cursor = self._select_start
         self._tags[self._editing_index].text = _remove(
             self._tags[self._editing_index].text, self._cursor, self._select_size
         )
-        self.deselectAll()
+        self.deselect_all()
 
-    def removeBackwardOne(self) -> None:
-        if self.hasSelection():
-            self.removeSelection()
+    def remove_backward_one(self) -> None:
+        if self.has_selection():
+            self.remove_selection()
         else:
             self._cursor -= 1
             self._tags[self._editing_index].text = _remove(
@@ -567,18 +566,18 @@ class Tags(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         for i in range(len(self._tags)):
-            if self.inCrossArea(i, event.pos()):
+            if self.in_cross_area(i, event.pos()):
                 self.setCursor(Qt.ArrowCursor)
                 return
         self.setCursor(Qt.IBeamCursor)
 
-    def inCrossArea(self, tag_index: int, point: QPoint) -> bool:
-        return _crossRect(QRectF(self._tags[tag_index].rect)).adjusted(
+    def in_cross_area(self, tag_index: int, point: QPoint) -> bool:
+        return _cross_rect(QRectF(self._tags[tag_index].rect)).adjusted(
             -2, 0, 0, 0
         ).translated(-self._hscroll, 0).contains(point) and (
-            not self.cursorVisible() or tag_index != self._editing_index
+            not self.cursor_visible() or tag_index != self._editing_index
         )
 
-    def editTag(self, i: int) -> None:
-        self.setEditingIndex(i)
-        self.moveCursor(len(self.currentText()), False)
+    def edit_tag(self, i: int) -> None:
+        self.set_editing_index(i)
+        self.move_cursor(len(self.current_text()), False)

@@ -61,11 +61,7 @@ class Comments(QtWidgets.QWidget):
         self.setLayout(layout)
 
         self._comment_table = _CommentTable()
-        # noinspection PyUnresolvedReferences
-        self._comment_table.setSelectionBehavior(
-            # pylint: disable=no-member
-            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows  # type: ignore
-        )
+        self._comment_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self._comment_table.delete_current_row.connect(self._slot_delete_comment)
         self._comment_table.cellChanged.connect(self._comment_cell_changed)
 
@@ -131,7 +127,9 @@ class Comments(QtWidgets.QWidget):
     def _slot_delete_comment(self) -> None:
         with self._db.connect() as conn:
             row_idx = self._comment_table.currentRow()
-            self._db.delete_comment(conn, self._comments[row_idx].id)
+            comment = self._comments[row_idx]
+            assert comment.id is not None
+            self._db.delete_comment(conn, comment.id)
             self._comments.pop(row_idx)
             self._comment_table.removeRow(row_idx)
             self.comments_changed.emit()
@@ -161,6 +159,7 @@ class Comments(QtWidgets.QWidget):
     def _slot_add_comment(self) -> None:
         if not self._comment_author.text() or not self._comment_input.text():
             return
+        assert self._run_id is not None
         with self._db.connect() as conn:
             now = datetime.datetime.utcnow()
             comment_id = self._db.add_comment(

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, TypeVar, Union
+from typing import Any, List, Optional, Tuple, Union
 
 from PyQt5 import QtCore, QtWidgets
 
@@ -10,8 +10,6 @@ from amarcord.qt.table_delegates import (
     IntItemDelegate,
     TagsItemDelegate,
 )
-
-T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -44,7 +42,7 @@ class PropertyDateTime:
 
 @dataclass(frozen=True)
 class PropertyChoice:
-    values: List[Tuple[str, T]]
+    values: List[Tuple[str, Any]]
 
 
 PropertyType = Union[

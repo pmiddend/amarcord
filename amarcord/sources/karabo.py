@@ -22,6 +22,7 @@ class XFELKaraboBridge:
 
     def read_data(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         # pylint: disable=not-callable
+        # noinspection PyTypeChecker
         return self._client.next()
 
     def items(self) -> List[Item]:

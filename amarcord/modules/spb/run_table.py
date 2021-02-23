@@ -68,7 +68,7 @@ _column_converters: Final = {
 
 
 class _MplCanvas(FigureCanvasQTAgg):
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
+    def __init__(self, width=5, height=4, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = fig.add_subplot(111)
         super().__init__(fig)
@@ -97,7 +97,7 @@ class RunTable(QtWidgets.QWidget):
             RunProperty,
             column_headers={c: run_property_name(c) for c in RunProperty},
             column_visibility=default_visible_properties,
-            column_converters=_column_converters,
+            column_converters=_column_converters,  # type: ignore
             data_retriever=None,
             parent=self,
         )
@@ -162,7 +162,7 @@ class RunTable(QtWidgets.QWidget):
             dialog_layout = QtWidgets.QVBoxLayout()
             dialog.setLayout(dialog_layout)
 
-            sc = _MplCanvas(self, width=5, height=4, dpi=100)
+            sc = _MplCanvas(width=5, height=4, dpi=100)
 
             df = pd.DataFrame(
                 self._table_view.get_filtered_column_values(column),
@@ -171,7 +171,7 @@ class RunTable(QtWidgets.QWidget):
             )
 
             # noinspection PyArgumentList
-            df.plot(ax=sc.axes)
+            df.plot(ax=sc.axes)  # type: ignore
 
             toolbar = NavigationToolbar(sc, self)
 

@@ -174,11 +174,8 @@ class RunDetails(QtWidgets.QWidget):
             ),
         )
         if self._tree_filter_line.text():
-            # noinspection PyUnresolvedReferences
-            for i in self._details_tree.findItems(
-                self._tree_filter_line.text(),
-                QtCore.Qt.MatchFlag.MatchContains | QtCore.Qt.MatchFlag.MatchRecursive,
-            ):
+            mf = QtCore.Qt.MatchContains | QtCore.Qt.MatchRecursive
+            for i in self._details_tree.findItems(self._tree_filter_line.text(), mf):  # type: ignore
                 i.setExpanded(True)
                 p = i.parent()
                 while p is not None:
