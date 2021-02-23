@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum, auto
-from typing import Any, Dict, Final, Set
+from typing import Any, Dict, Final
 
 from amarcord.qt.properties import (
     PropertyChoice,
@@ -74,17 +74,6 @@ default_visible_properties: Final = [
 ]
 
 
-def run_property_to_string(r: RunProperty, v: Any) -> str:
-    if r == RunProperty.TAGS:
-        assert isinstance(v, list)
-        return ", ".join(v)
-    if isinstance(v, datetime.datetime):
-        return v.strftime("%Y-%m-%d %H:%M:%S")
-    if not isinstance(v, (int, float, str, bool)):
-        raise Exception(f"run property {r} has invalid type {type(v)}")
-    return str(v)
-
-
 run_property_type: Final[Dict[RunProperty, PropertyType]] = {
     RunProperty.RUN_ID: PropertyInt(),
     RunProperty.TAGS: PropertyTags(),
@@ -93,16 +82,33 @@ run_property_type: Final[Dict[RunProperty, PropertyType]] = {
     ),
     RunProperty.SAMPLE: PropertySample(),
     RunProperty.REPETITION_RATE: PropertyDouble(),
-    RunProperty.DETECTOR_DISTANCE_MM: PropertyDouble(),
+    RunProperty.DETECTOR_DISTANCE_MM: PropertyDouble(suffix="mm"),
     RunProperty.HIT_RATE: PropertyDouble(range=(0.0, 100.0)),
     RunProperty.INDEXING_RATE: PropertyDouble(range=(0.0, 100.0)),
-    RunProperty.INJECTOR_FLOW_RATE: PropertyDouble(nonNegative=True),
-    RunProperty.PULSE_ENERGY: PropertyDouble(nonNegative=True),
-    RunProperty.INJECTOR_POSITION_Z_MM: PropertyDouble(),
-    RunProperty.SAMPLE_DELIVERY_RATE: PropertyDouble(nonNegative=True),
+    RunProperty.INJECTOR_FLOW_RATE: PropertyDouble(nonNegative=True, suffix="μL/min"),
+    RunProperty.PULSE_ENERGY: PropertyDouble(nonNegative=True, suffix="mJ"),
+    RunProperty.INJECTOR_POSITION_Z_MM: PropertyDouble(suffix="mm"),
+    RunProperty.SAMPLE_DELIVERY_RATE: PropertyDouble(nonNegative=True, suffix="uL/min"),
     RunProperty.STARTED: PropertyDateTime(),
     RunProperty.TRAINS: PropertyInt(nonNegative=True),
-    RunProperty.X_RAY_ENERGY: PropertyDouble(nonNegative=True),
+    RunProperty.X_RAY_ENERGY: PropertyDouble(nonNegative=True, suffix="keV"),
 }
 
 manual_run_properties: Final = {RunProperty.TAGS, RunProperty.SAMPLE}
+
+
+def run_property_to_string(r: RunProperty, v: Any) -> str:
+    if r == RunProperty.TAGS:
+        assert isinstance(v, list)
+        return ", ".join(v)
+    if isinstance(v, datetime.datetime):
+        return v.strftime("%Y-%m-%d %H:%M:%S")
+    if not isinstance(v, (int, float, str, bool)):
+        raise Exception(f"run property {r} has invalid type {type(v)}")
+    result = str(v)
+    suffix = getattr(run_property_type.get(r, None), "suffix", None)
+    if suffix is not None:
+        if not isinstance(suffix, str):
+            raise Exception(f"got a suffix of type {(type(suffix))}")
+        result += f" {suffix}"
+    return result

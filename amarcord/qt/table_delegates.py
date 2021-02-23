@@ -200,12 +200,14 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
         self,
         nonNegative: bool,
         range: Optional[Tuple[float, float]],
+        suffix: Optional[str],
         parent: Optional[QtCore.QObject],
     ) -> None:
         super().__init__(parent)
         self._range = (
             range if range is not None else [0, 10000] if nonNegative else None
         )
+        self._suffix = suffix
 
     def createEditor(
         self,
@@ -215,6 +217,8 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
     ) -> QtWidgets.QWidget:
         editor = QtWidgets.QDoubleSpinBox(parent)
         editor.setFrame(False)
+        if self._suffix is not None:
+            editor.setSuffix(f" {self._suffix}")
         if self._range is not None:
             editor.setRange(self._range[0], self._range[1])
         return editor

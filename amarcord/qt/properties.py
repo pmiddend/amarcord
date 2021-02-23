@@ -24,6 +24,7 @@ class PropertyInt:
 class PropertyDouble:
     range: Optional[Tuple[float, float]] = None
     nonNegative: bool = False
+    suffix: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -65,7 +66,9 @@ def delegate_for_property_type(
     if isinstance(proptype, PropertyInt):
         return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
     if isinstance(proptype, PropertyDouble):
-        return DoubleItemDelegate(proptype.nonNegative, proptype.range, parent)
+        return DoubleItemDelegate(
+            proptype.nonNegative, proptype.range, proptype.suffix, parent
+        )
     if isinstance(proptype, PropertyChoice):
         return ComboItemDelegate(values=proptype.values, parent=parent)
     if isinstance(proptype, PropertySample):
