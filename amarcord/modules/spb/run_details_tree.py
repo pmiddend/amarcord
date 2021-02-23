@@ -17,13 +17,13 @@ def _slot_tree_double_click(item: QtWidgets.QTreeWidgetItem) -> None:
 
     if len(d.shape) == 1:
         _data_shower(d, rows=0, columns=None)
+    else:
+        row_and_column = _table_layout_selection_dialog(d)
 
-    row_and_column = _table_layout_selection_dialog(d)
+        if row_and_column is None:
+            return
 
-    if row_and_column is None:
-        return
-
-    _data_shower(d, rows=row_and_column[0], columns=row_and_column[1])
+        _data_shower(d, rows=row_and_column[0], columns=row_and_column[1])
 
 
 class RunDetailsTree(QtWidgets.QTreeWidget):
@@ -42,12 +42,6 @@ def _data_shower(d: np.ndarray, rows: int, columns: Optional[int]) -> None:
     dialog_layout = QtWidgets.QVBoxLayout()
     dialog.setLayout(dialog_layout)
 
-    # plot_button = QtWidgets.QPushButton("Plot data")
-    # plot_button.clicked.connect(plot)
-    # dialog_layout.addWidget(plot_button)
-
-    # tabs = QtWidgets.QtTabWidget(dialog)
-
     table = QtWidgets.QTableWidget()
 
     table.setRowCount(d.shape[rows])
@@ -56,7 +50,7 @@ def _data_shower(d: np.ndarray, rows: int, columns: Optional[int]) -> None:
 
     if columns is None:
         for row in range(d.shape[rows]):
-            table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(d[row, 0])))
+            table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(d[row])))
     else:
         for row in range(d.shape[rows]):
             for column in range(d.shape[columns]):
@@ -67,17 +61,6 @@ def _data_shower(d: np.ndarray, rows: int, columns: Optional[int]) -> None:
     table.resizeColumnsToContents()
     table.resizeRowsToContents()
     table.horizontalHeader().setStretchLastSection(True)
-    # tabs.addTab(table, "Table")
-
-    # plot = Plotter()
-    # df = pd.DataFrame(
-    #     {
-    #         "x": d[]
-    #         }
-    # )
-    # df.plot(ax=plot.axes())
-
-    # tabs.addTab(plotter, "Plot")
     dialog_layout.addWidget(table)
 
     button_box = QtWidgets.QDialogButtonBox(  # type: ignore
