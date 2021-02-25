@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum, auto
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import sqlalchemy as sa
 
@@ -13,6 +13,7 @@ from amarcord.qt.properties import (
     PropertyInt,
     PropertySample,
     PropertyTags,
+    PropertyType,
 )
 
 
@@ -125,7 +126,7 @@ class Tables:
         self.property_started = RunProperty(self.run.c.started.name)
         self.property_proposal_id = RunProperty(self.run.c.proposal_id.name)
         self.manual_properties = {self.property_tags, self.property_sample}
-        self.property_types = {
+        self.property_types: Dict[RunProperty, PropertyType] = {
             self.property_run_id: PropertyInt(),
             self.property_proposal_id: PropertyInt(),
             self.property_tags: PropertyTags(),
