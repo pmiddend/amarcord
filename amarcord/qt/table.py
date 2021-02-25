@@ -6,6 +6,7 @@ from typing import Dict
 from typing import Any
 from typing import Callable
 from typing import Optional
+import logging
 
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
@@ -19,25 +20,31 @@ GeneralTable = List[Row]
 DataRetriever = Callable[[], GeneralTable]
 MenuCallback = Callable[[QtCore.QPoint, T], None]
 
+logger = logging.getLogger(__name__)
+
 
 class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
     def __init__(
         self,
-        enum_type: Iterable[T],
-        column_headers: Dict[T, str],
+        enum_type_retriever: Callable[[], Iterable[T]],
+        column_header_retriever: Callable[[], Dict[T, str]],
         column_visibility: List[T],
         column_converters: Dict[T, Callable[[Any, int], Any]],
         data_retriever: Optional[DataRetriever],
         parent: Optional[QtCore.QObject],
     ) -> None:
         super().__init__(parent)
-        self._enum_type = enum_type
-        self._column_headers = column_headers
+        self._enum_type_retriever = enum_type_retriever
+        self._enum_type = enum_type_retriever()
+        self._column_header_retriever = column_header_retriever
+        self._column_headers = column_header_retriever()
         self.column_visibility = column_visibility
         self._enum_to_index: Dict[T, int] = {
             v: k for k, v in enumerate(column_visibility)
         }
-        self.index_to_enum = {v: k for k, v in self._enum_to_index.items()}
+        self.index_to_enum: Dict[int, T] = {
+            v: k for k, v in self._enum_to_index.items()
+        }
         self._data = data_retriever() if data_retriever is not None else []
         self._filtered_data = self._data
         # pylint: disable=unnecessary-comprehension
@@ -55,6 +62,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         return [d[c] for d in self._data if c in d]
 
     def set_column_visibility(self, column_visibility: List[T]) -> None:
+        logger.info("Changing column visibility to %s", column_visibility)
         self.column_visibility = column_visibility
         # noinspection PyUnresolvedReferences
         self.layoutAboutToBeChanged.emit()  # type: ignore
@@ -71,6 +79,8 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self.endResetModel()
 
     def refresh(self) -> None:
+        self._enum_type = self._enum_type_retriever()
+        self._column_headers = self._column_header_retriever()
         if self._data_retriever:
             self._data = self._data_retriever()
         self.set_filter_query(self._filter_query)
@@ -123,15 +133,19 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         index: QtCore.QModelIndex,
         role: int = QtCore.Qt.DisplayRole,
     ) -> Any:
-        v = self._filtered_data[index.row()][self.index_to_enum[index.column()]]  # type: ignore
+        if role not in (QtCore.Qt.DisplayRole, QtCore.Qt.EditRole):
+            return QtCore.QVariant()
+        v = self._filtered_data[index.row()].get(
+            self.index_to_enum[index.column()], None
+        )
+        if v is None:
+            return "None"
         column_converter = self._column_converters.get(
             self.index_to_enum[index.column()], None
         )
         if column_converter is not None:
             return column_converter(v, role)
-        if role in (QtCore.Qt.DisplayRole, QtCore.Qt.EditRole):
-            return str(v)
-        return QtCore.QVariant()
+        return str(v)
 
     def sort(
         self, column: int, order: QtCore.Qt.SortOrder = QtCore.Qt.AscendingOrder
@@ -147,11 +161,12 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
 
 class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
     row_double_click = QtCore.pyqtSignal(dict)
+    data_changed = QtCore.pyqtSignal()
 
     def __init__(
         self,
-        enum_type: Iterable[T],
-        column_headers: Dict[T, str],
+        enum_type_retriever: Callable[[], Iterable[T]],
+        column_header_retriever: Callable[[], Dict[T, str]],
         column_visibility: List[T],
         column_converters: Dict[T, Callable[[Any, int], Any]],
         data_retriever: Optional[DataRetriever],
@@ -163,8 +178,8 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
         self.horizontalHeader().setStretchLastSection(True)
         self.setSortingEnabled(True)
         self._model = GeneralModel[T](
-            enum_type,
-            column_headers,
+            enum_type_retriever,
+            column_header_retriever,
             column_visibility,
             column_converters,
             data_retriever,
@@ -203,6 +218,7 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
         self._model.set_filter_query(q)
 
     def refresh(self) -> None:
+        logger.info("refreshing")
         self._model.refresh()
         self.resizeRowsToContents()
         self.resizeColumnsToContents()

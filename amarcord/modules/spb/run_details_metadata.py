@@ -1,14 +1,19 @@
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from amarcord.modules.spb.colors import color_manual_run_property
-from amarcord.modules.spb.queries import Run, SPBQueries
+from amarcord.modules.spb.queries import (
+    Connection,
+    Run,
+    RunPropertyMetadata,
+    SPBQueries,
+)
 from amarcord.modules.spb.run_property import RunProperty
-from amarcord.qt.properties import delegate_for_property_type
+from amarcord.qt.properties import RichPropertyType, delegate_for_property_type
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +24,10 @@ class _MetadataColumn(Enum):
 
 
 @dataclass(frozen=True)
-class RunPropWithName:
+class AugmentedRunProperty:
     prop: RunProperty
     name: str
+    rich_prop_type: RichPropertyType
 
 
 class _MetadataModel(QtCore.QAbstractTableModel):
@@ -42,18 +48,21 @@ class _MetadataModel(QtCore.QAbstractTableModel):
         self._available_tags = available_tags
         with db.connect() as conn:
             self._props = [
-                RunPropWithName(k, v)
-                for k, v in db.run_property_names(conn).items()
+                (k, v)
+                for k, v in db.run_property_metadata(conn).items()
                 if k not in (db.tables.property_comments, db.tables.property_karabo)
             ]
-            self._props.sort(key=lambda x: x.name)
-            self._row_index_to_property: Dict[int, RunPropWithName] = {
-                idx: v for idx, v in enumerate(self._props)
-            }
+            self._props.sort(key=lambda x: x[1].name)
+            self._row_index_to_property: Dict[
+                int, Tuple[RunProperty, RunPropertyMetadata]
+            ] = {idx: v for idx, v in enumerate(self._props)}
 
-    def delegate_for_row(self, row: int) -> QtWidgets.QAbstractItemDelegate:
+    def delegate_for_row(self, row: int) -> Optional[QtWidgets.QAbstractItemDelegate]:
+        prop_type = self._row_index_to_property[row][1].rich_prop_type
+        if prop_type is None:
+            return None
         return delegate_for_property_type(
-            self._db.tables.property_types[self._row_index_to_property[row].prop],
+            prop_type,
             sample_ids=self._sample_ids,
             available_tags=self._available_tags,
         )
@@ -77,15 +86,16 @@ class _MetadataModel(QtCore.QAbstractTableModel):
         assert index.column() == _MetadataColumn.VALUE.value
         if role != QtCore.Qt.EditRole:
             return False
-        runprop = self._row_index_to_property[index.row()]
+        runprop, _md = self._row_index_to_property[index.row()]
         with self._db.connect() as conn:
             self._db.update_run_property(
                 conn,
-                self._run.properties[self.db.tables.property_run_id],
-                runprop.prop,
+                self._run.properties[self._db.tables.property_run_id],
+                runprop,
                 value,
             )
-            self._run.properties[runprop.prop] = value
+            self._run.properties[runprop] = value
+            logger.info("Emitting data changed")
             self.dataChanged.emit(
                 index,
                 index,
@@ -111,28 +121,30 @@ class _MetadataModel(QtCore.QAbstractTableModel):
         index: QtCore.QModelIndex,
         role: int = QtCore.Qt.DisplayRole,
     ) -> Any:
-        runprop = self._row_index_to_property[index.row()]
+        runprop, metadata = self._row_index_to_property[index.row()]
         if role == QtCore.Qt.EditRole:
-            return self._run.properties.get(runprop.prop, None)
+            return self._run.properties.get(runprop, None)
         if role == QtCore.Qt.DisplayRole:
             return (
-                runprop.name
+                metadata.name
                 if index.column() == _MetadataColumn.NAME.value
                 else self._db.tables.run_property_to_string(
-                    runprop.prop, self._run.properties.get(runprop.prop, None)
+                    runprop, self._run.properties.get(runprop, None)
                 )
-                if runprop.prop in self._run.properties
+                if runprop in self._run.properties
                 else "N/A"
             )
         if (
             role == QtCore.Qt.BackgroundRole
-            and runprop.prop in self._db.tables.manual_properties
+            and runprop in self._db.tables.manual_properties
         ):
             return QtGui.QBrush(color_manual_run_property)
         return None
 
 
 class MetadataTable(QtWidgets.QTableView):
+    data_changed = QtCore.pyqtSignal()
+
     def __init__(
         self,
         db: SPBQueries,
@@ -143,21 +155,34 @@ class MetadataTable(QtWidgets.QTableView):
         self.setAlternatingRowColors(True)
         self.verticalHeader().hide()
         self.horizontalHeader().setStretchLastSection(True)
-        self._run = None
+        self._run: Optional[Run] = None
         self.setEditTriggers(QtWidgets.QAbstractItemView.DoubleClicked)
         self._item_delegates: List[QtWidgets.QAbstractItemDelegate] = []
 
-    def run_changed(self, run: Run) -> None:
-        with self._db.connect() as conn:
-            model = _MetadataModel(
-                db=self._db,
-                run=run,
-                sample_ids=self._db.retrieve_sample_ids(conn),
-                available_tags=self._db.retrieve_tags(conn),
-            )
-            self.setModel(model)
-            self.resizeColumnToContents(0)
-            for row in range(model.rowCount()):
-                delegate = model.delegate_for_row(row)
+    def _run_changed(self, conn: Connection, run: Run) -> None:
+        self._run = run
+        model = _MetadataModel(
+            db=self._db,
+            run=run,
+            sample_ids=self._db.retrieve_sample_ids(conn),
+            available_tags=self._db.retrieve_tags(conn),
+        )
+        self.setModel(model)
+        model.dataChanged.connect(self._data_changed)
+        self.resizeColumnToContents(0)
+        for row in range(model.rowCount()):
+            delegate = model.delegate_for_row(row)
+            if delegate is not None:
                 self.setItemDelegateForRow(row, delegate)
                 self._item_delegates.append(delegate)
+
+    def _data_changed(self) -> None:
+        self.data_changed.emit()
+
+    def custom_metadata_changed(self, conn: Connection) -> None:
+        assert self._run is not None, "Metadata changed, but have no run"
+        self._run_changed(conn, self._run)
+
+    def run_changed(self, run: Run) -> None:
+        with self._db.connect() as conn:
+            self._run_changed(conn, run)

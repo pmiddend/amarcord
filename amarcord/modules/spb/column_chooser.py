@@ -2,7 +2,7 @@ from typing import Dict, List, Optional
 
 from PyQt5 import QtCore, QtWidgets
 
-from amarcord.modules.spb.queries import SPBQueries
+from amarcord.modules.spb.queries import RunPropertyMetadata, SPBQueries
 from amarcord.modules.spb.run_property import RunProperty
 
 
@@ -21,10 +21,12 @@ def display_column_chooser(
     column_list = QtWidgets.QListWidget()
     column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
     with queries.connect() as conn:
-        names: Dict[RunProperty, str] = queries.run_property_names(conn)
+        metadata_dict: Dict[
+            RunProperty, RunPropertyMetadata
+        ] = queries.run_property_metadata(conn)
         name_to_idx: Dict[RunProperty, int] = {}
-        for idx, (prop, name) in enumerate(names.items()):
-            new_item = QtWidgets.QListWidgetItem(name)
+        for idx, (prop, run_metadata) in enumerate(metadata_dict.items()):
+            new_item = QtWidgets.QListWidgetItem(run_metadata.name)
             new_item.setData(QtCore.Qt.UserRole, str(prop))
             column_list.addItem(new_item)
             name_to_idx[prop] = idx

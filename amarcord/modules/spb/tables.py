@@ -13,12 +13,12 @@ from amarcord.qt.properties import (
     PropertyInt,
     PropertySample,
     PropertyTags,
-    PropertyType,
+    RichPropertyType,
 )
 
 
 class CustomRunPropertyType(Enum):
-    INTEGER = auto()
+    DOUBLE = auto()
     STRING = auto()
 
 
@@ -126,7 +126,7 @@ class Tables:
         self.property_started = RunProperty(self.run.c.started.name)
         self.property_proposal_id = RunProperty(self.run.c.proposal_id.name)
         self.manual_properties = {self.property_tags, self.property_sample}
-        self.property_types: Dict[RunProperty, PropertyType] = {
+        self.property_types: Dict[RunProperty, RichPropertyType] = {
             self.property_run_id: PropertyInt(),
             self.property_proposal_id: PropertyInt(),
             self.property_tags: PropertyTags(),

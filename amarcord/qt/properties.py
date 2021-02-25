@@ -19,6 +19,11 @@ class PropertyInt:
 
 
 @dataclass(frozen=True)
+class PropertyString:
+    pass
+
+
+@dataclass(frozen=True)
 class PropertyDouble:
     range: Optional[Tuple[float, float]] = None
     nonNegative: bool = False
@@ -45,18 +50,19 @@ class PropertyChoice:
     values: List[Tuple[str, Any]]
 
 
-PropertyType = Union[
+RichPropertyType = Union[
     PropertyInt,
     PropertyChoice,
     PropertyDouble,
     PropertyTags,
     PropertySample,
+    PropertyString,
     PropertyDateTime,
 ]
 
 
 def delegate_for_property_type(
-    proptype: PropertyType,
+    proptype: RichPropertyType,
     sample_ids: List[int],
     available_tags: List[str],
     parent: Optional[QtCore.QObject] = None,
@@ -67,6 +73,8 @@ def delegate_for_property_type(
         return DoubleItemDelegate(
             proptype.nonNegative, proptype.range, proptype.suffix, parent
         )
+    if isinstance(proptype, PropertyString):
+        return QtWidgets.QStyledItemDelegate()
     if isinstance(proptype, PropertyChoice):
         return ComboItemDelegate(values=proptype.values, parent=parent)
     if isinstance(proptype, PropertySample):

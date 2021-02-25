@@ -17,7 +17,7 @@ from amarcord.modules.spb.run_details_tree import (
     _preprocess_dict,
 )
 from amarcord.modules.spb.run_id import RunId
-from amarcord.modules.spb.tables import Tables
+from amarcord.modules.spb.tables import CustomRunPropertyType, Tables
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
 
@@ -103,6 +103,7 @@ class RunDetails(QtWidgets.QWidget):
                 additional_data_column = QtWidgets.QGroupBox("Metadata")
 
                 self._metadata_table = MetadataTable(self._db)
+                self._metadata_table.data_changed.connect(self.run_changed.emit)
 
                 additional_data_layout = QtWidgets.QVBoxLayout()
                 additional_data_layout.addWidget(self._metadata_table)
@@ -115,6 +116,12 @@ class RunDetails(QtWidgets.QWidget):
                     QtWidgets.QLabel("<i>manually edited</i>")
                 )
                 table_legend_layout.addStretch()
+                custom_column_button = QtWidgets.QPushButton("New custom column")
+                custom_column_button.setIcon(
+                    self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder)
+                )
+                custom_column_button.clicked.connect(self._slot_new_custom_column)
+                additional_data_layout.addWidget(custom_column_button)
                 additional_data_layout.addLayout(table_legend_layout)
                 additional_data_column.setLayout(additional_data_layout)
 
@@ -155,6 +162,44 @@ class RunDetails(QtWidgets.QWidget):
 
                 self._selected_run = RunId(-1)
                 self._run_changed(max(r.run_id for r in self._run_ids))
+
+    def _slot_new_custom_column(self) -> None:
+        dialog = QtWidgets.QDialog(self)
+        dialog_layout = QtWidgets.QVBoxLayout()
+        dialog.setLayout(dialog_layout)
+
+        form = QtWidgets.QFormLayout()
+        name_input = QtWidgets.QLineEdit()
+        name_input.setValidator(
+            QtGui.QRegExpValidator(QtCore.QRegExp(r"[a-zA-Z_][a-zA-Z_0-9]*"))
+        )
+        form.addRow("Name", name_input)
+
+        type_combo = QtWidgets.QComboBox()
+        type_combo.addItems([f.name for f in CustomRunPropertyType])
+        form.addRow("Type", type_combo)
+        dialog_layout.addLayout(form)
+
+        # FIXME: add check for empty name and existing column!
+        # also add initial value maybe?
+
+        button_box = QtWidgets.QDialogButtonBox(  # type: ignore
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+
+        dialog_layout.addWidget(button_box)
+
+        if dialog.exec() == QtWidgets.QDialog.Rejected:
+            return None
+
+        with self._db.connect() as conn:
+            self._db.add_custom_run_property(
+                conn, name_input.text(), CustomRunPropertyType[type_combo.currentText()]
+            )
+
+            self._metadata_table.custom_metadata_changed(conn)
 
     def _comments_changed(self) -> None:
         self.run_changed.emit()
@@ -225,6 +270,3 @@ class RunDetails(QtWidgets.QWidget):
             self._details_tree.resizeColumnToContents(1)
 
             self._metadata_table.run_changed(self._run)
-            self._metadata_table.model().dataChanged.connect(
-                lambda idxfrom, idxto: self.run_changed.emit()
-            )

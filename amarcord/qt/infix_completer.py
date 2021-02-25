@@ -93,7 +93,7 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
             return
 
         eow = "~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-="
-        hasModifier = e.modifiers() != QtCore.Qt.NoModifier and not ctrlOrShift
+        hasModifier = e.modifiers() != QtCore.Qt.NoModifier and not ctrlOrShift  # type: ignore
         completionPrefix = self.textUnderCursor()
 
         if not isShortcut and (

@@ -462,15 +462,15 @@ class Tags(QWidget):
         event.setAccepted(False)
         unknown = False
 
-        if event == QKeySequence.SelectAll:
+        if event == QKeySequence.SelectAll:  # type:ignore
             self.select_all()
             event.accept()
-        elif event == QKeySequence.SelectPreviousChar:
+        elif event == QKeySequence.SelectPreviousChar:  # type:ignore
             self.move_cursor(
                 self._text_layout.previousCursorPosition(self._cursor), True
             )
             event.accept()
-        elif event == QKeySequence.SelectNextChar:
+        elif event == QKeySequence.SelectNextChar:  # type:ignore
             self.move_cursor(self._text_layout.nextCursorPosition(self._cursor), True)
             event.accept()
         else:

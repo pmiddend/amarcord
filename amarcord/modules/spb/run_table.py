@@ -89,10 +89,12 @@ class RunTable(QtWidgets.QWidget):
 
         self._context = context
         with self._db.connect() as conn:
-            self._run_property_names = self._db.run_property_names(conn)
+            self._run_property_names = self._db.run_property_metadata(conn)
             self._table_view = GeneralTableWidget[RunProperty](
-                self._run_property_names.keys(),
-                column_headers=self._run_property_names,
+                enum_type_retriever=lambda: list(self._run_property_names.keys()),
+                column_header_retriever=lambda: {
+                    k: v.name for k, v in self._run_property_names.items()
+                },
                 column_visibility=_default_visible_properties(tables),
                 column_converters={
                     self._db.tables.property_tags: _convert_tag_column,
@@ -193,7 +195,9 @@ class RunTable(QtWidgets.QWidget):
 
     def run_changed(self) -> None:
         logger.info("Refreshing run table")
-        self._table_view.refresh()
+        with self._db.connect() as conn:
+            self._run_property_names = self._db.run_property_metadata(conn)
+            self._table_view.refresh()
 
     def _slot_switch_columns(self) -> None:
         new_columns = display_column_chooser(

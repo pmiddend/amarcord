@@ -1,24 +1,28 @@
-from dataclasses import dataclass
-from typing import List
-from typing import Dict
-from typing import Optional
-from typing import Any
-from typing import Tuple
-from itertools import groupby
-import pickle
 import datetime
+import pickle
+from dataclasses import dataclass
+from itertools import groupby
+from typing import Any, Dict, List, Optional, Tuple
+
 import sqlalchemy as sa
+
+from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.spb.proposal_id import ProposalId
+from amarcord.modules.spb.run_id import RunId
+from amarcord.modules.spb.run_property import (
+    RunProperty,
+)
 from amarcord.modules.spb.tables import (
     CustomRunPropertyType,
     Tables,
     run_property_db_columns,
 )
-from amarcord.modules.spb.run_property import (
-    RunProperty,
+from amarcord.qt.properties import (
+    PropertyDouble,
+    PropertyString,
+    PropertyTags,
+    RichPropertyType,
 )
-from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.run_id import RunId
-from amarcord.modules.dbcontext import DBContext
 from amarcord.util import capitalized_decamelized, dict_union, remove_duplicates_stable
 
 
@@ -47,8 +51,21 @@ class CustomRunProperty:
     name: RunProperty
     prop_type: CustomRunPropertyType
 
+    def to_rich_property_type(self) -> RichPropertyType:
+        return (
+            PropertyDouble()
+            if self.prop_type == CustomRunPropertyType.DOUBLE
+            else PropertyString()
+        )
+
 
 Connection = Any
+
+
+@dataclass(frozen=True)
+class RunPropertyMetadata:
+    name: str
+    rich_prop_type: Optional[RichPropertyType]
 
 
 class SPBQueries:
@@ -73,7 +90,7 @@ class SPBQueries:
                     comment.c.created,
                     tag.c.tag_text,
                 ]
-                + interesting_columns
+                + interesting_columns  # type: ignore
             )
             .select_from(run.outerjoin(tag).outerjoin(comment))
             .where(run.c.proposal_id == proposal_id)
@@ -198,7 +215,7 @@ class SPBQueries:
                     comment.c.created,
                     tag.c.tag_text,
                 ]
-                + interesting_columns
+                + interesting_columns  # type: ignore
             )
             .select_from(run.outerjoin(tag).outerjoin(comment))
             .where(run_c.id == run_id)
@@ -311,19 +328,31 @@ class SPBQueries:
             ).fetchall()
         ]
 
-    def run_property_names(self, conn: Connection) -> Dict[RunProperty, str]:
+    def run_property_metadata(
+        self, conn: Connection
+    ) -> Dict[RunProperty, RunPropertyMetadata]:
         custom_props = self.custom_run_properties(conn)
         return dict_union(
             [
-                {c.name: str(c.name) for c in custom_props},
                 {
-                    RunProperty(c.name): capitalized_decamelized(c.name)
+                    c.name: RunPropertyMetadata(str(c.name), c.to_rich_property_type())
+                    for c in custom_props
+                },
+                {
+                    RunProperty(c.name): RunPropertyMetadata(
+                        capitalized_decamelized(c.name),
+                        self.tables.property_types.get(RunProperty(c.name), None),
+                    )
                     for c in run_property_db_columns(self.tables)
                     if c.name != self.tables.property_custom
                 },
                 {
-                    self.tables.property_tags: "Tags",
-                    self.tables.property_comments: "Comments",
+                    self.tables.property_tags: RunPropertyMetadata(
+                        "Tags", PropertyTags()
+                    ),
+                    self.tables.property_comments: RunPropertyMetadata(
+                        "Comments", None
+                    ),
                 },
             ]
         )
@@ -355,10 +384,12 @@ class SPBQueries:
                 sa.select([self.tables.run.c.custom]).where(
                     self.tables.run.c.id == run_id
                 )
-            )
-            assert isinstance(
+            ).first()[0]
+            assert current_json is None or isinstance(
                 current_json, dict
             ), f"custom column should be dictionary, got {type(current_json)}"
+            if current_json is None:
+                current_json = {}
             current_json[str(runprop)] = value
             conn.execute(
                 sa.update(self.tables.run)
@@ -368,3 +399,10 @@ class SPBQueries:
 
     def connect(self) -> Connection:
         return self.dbcontext.connect()
+
+    def add_custom_run_property(
+        self, conn: Connection, name: str, type: CustomRunPropertyType
+    ) -> None:
+        conn.execute(
+            self.tables.custom_run_property.insert().values(name=name, prop_type=type)
+        )
