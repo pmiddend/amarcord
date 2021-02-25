@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 from typing import List
 from typing import Iterable
 from typing import TypeVar
@@ -45,7 +45,14 @@ def remove_duplicates_stable(seq: Iterable[T]) -> List[T]:
     return list(dict.fromkeys(seq))
 
 
-def dict_union(a: Dict[K, V], b: Dict[K, V]) -> Dict[K, V]:
-    result = a.copy()
-    result.update(b)
+def dict_union(a: Sequence[Dict[K, V]]) -> Dict[K, V]:
+    if not a:
+        return {}
+    result = a[0].copy()
+    for v in a[1:]:
+        result.update(v)
     return result
+
+
+def capitalized_decamelized(s: str) -> str:
+    return s.replace("_", " ").capitalize()

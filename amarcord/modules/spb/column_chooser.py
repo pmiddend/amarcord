@@ -1,12 +1,15 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from PyQt5 import QtCore, QtWidgets
 
-from amarcord.modules.spb.run_property import RunProperty, run_property_name
+from amarcord.modules.spb.queries import SPBQueries
+from amarcord.modules.spb.run_property import RunProperty
 
 
 def display_column_chooser(
-    parent: Optional[QtWidgets.QWidget], selected_columns: List[RunProperty]
+    parent: Optional[QtWidgets.QWidget],
+    selected_columns: List[RunProperty],
+    queries: SPBQueries,
 ) -> List[RunProperty]:
     dialog = QtWidgets.QDialog(parent)
     dialog_layout = QtWidgets.QVBoxLayout()
@@ -17,14 +20,18 @@ def display_column_chooser(
     root_widget.setLayout(root_layout)
     column_list = QtWidgets.QListWidget()
     column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-    for col in RunProperty:
-        new_item = QtWidgets.QListWidgetItem(run_property_name(col))
-        new_item.setData(QtCore.Qt.UserRole, col.value)
-        column_list.addItem(new_item)
+    with queries.connect() as conn:
+        names: Dict[RunProperty, str] = queries.run_property_names(conn)
+        name_to_idx: Dict[RunProperty, int] = {}
+        for idx, (prop, name) in enumerate(names.items()):
+            new_item = QtWidgets.QListWidgetItem(name)
+            new_item.setData(QtCore.Qt.UserRole, str(prop))
+            column_list.addItem(new_item)
+            name_to_idx[prop] = idx
     for col in selected_columns:
         # -1 here because auto lets the enum start at 1 (which is fine actually)
         column_list.selectionModel().select(
-            column_list.model().index(col.value - 1, 0),
+            column_list.model().index(name_to_idx[col], 0),
             QtCore.QItemSelectionModel.Select,
         )
     root_layout.addWidget(column_list)

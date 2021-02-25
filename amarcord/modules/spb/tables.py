@@ -1,11 +1,33 @@
 import datetime
-from dataclasses import dataclass
-from typing import Dict, Optional
+from enum import Enum, auto
+from typing import Any, List, Optional
 
 import sqlalchemy as sa
 
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.run_property import RunProperty
+from amarcord.qt.properties import (
+    PropertyChoice,
+    PropertyDateTime,
+    PropertyDouble,
+    PropertyInt,
+    PropertySample,
+    PropertyTags,
+)
+
+
+class CustomRunPropertyType(Enum):
+    INTEGER = auto()
+    STRING = auto()
+
+
+def _table_custom_run_property(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "CustomRunProperty",
+        metadata,
+        sa.Column("name", sa.String(length=255), primary_key=True),
+        sa.Column("prop_type", sa.Enum(CustomRunPropertyType), nullable=False),
+    )
 
 
 def _table_sample(metadata: sa.MetaData) -> sa.Table:
@@ -59,7 +81,6 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
             nullable=False,
         ),
         sa.Column("started", sa.DateTime, nullable=False),
-        sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("status", sa.String(length=255), nullable=False),
         sa.Column("sample_id", sa.Integer, nullable=True),
         sa.Column("repetition_rate_mhz", sa.Float, nullable=True),
@@ -73,16 +94,90 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         sa.Column("sample_delivery_rate", sa.Float, nullable=True),
         sa.Column("detector_distance_mm", sa.Float, nullable=True),
         sa.Column("injector_flow_rate", sa.Float, nullable=True),
+        sa.Column("custom", sa.JSON, nullable=True),
     )
 
 
-@dataclass(frozen=True)
 class Tables:
-    sample: sa.Table
-    proposal: sa.Table
-    run_tag: sa.Table
-    run: sa.Table
-    run_comment: sa.Table
+    def __init__(
+        self,
+        sample: sa.Table,
+        proposal: sa.Table,
+        run_tag: sa.Table,
+        run: sa.Table,
+        run_comment: sa.Table,
+        custom_run_property: sa.Table,
+    ) -> None:
+        self.sample = sample
+        self.proposal = proposal
+        self.run_tag = run_tag
+        self.run = run
+        self.run_comment = run_comment
+        self.custom_run_property = custom_run_property
+        self.property_tags = RunProperty("tags")
+        self.property_comments = RunProperty("comments")
+        self.property_karabo = RunProperty(self.run.c.karabo.name)
+        self.property_custom = RunProperty(self.run.c.custom.name)
+        self.property_started = RunProperty(self.run.c.started.name)
+        self.property_status = RunProperty(self.run.c.status.name)
+        self.property_run_id = RunProperty(self.run.c.id.name)
+        self.property_sample = RunProperty(self.run.c.sample_id.name)
+        self.property_started = RunProperty(self.run.c.started.name)
+        self.property_proposal_id = RunProperty(self.run.c.proposal_id.name)
+        self.manual_properties = {self.property_tags, self.property_sample}
+        self.property_types = {
+            self.property_run_id: PropertyInt(),
+            self.property_proposal_id: PropertyInt(),
+            self.property_tags: PropertyTags(),
+            self.property_status: PropertyChoice(
+                values=[("finished", "finished"), ("running", "running")]
+            ),
+            self.property_sample: PropertySample(),
+            RunProperty(self.run.c.repetition_rate_mhz.name): PropertyDouble(),
+            RunProperty(self.run.c.detector_distance_mm.name): PropertyDouble(
+                suffix="mm"
+            ),
+            RunProperty(self.run.c.hit_rate.name): PropertyDouble(range=(0.0, 100.0)),
+            RunProperty(self.run.c.indexing_rate.name): PropertyDouble(
+                range=(0.0, 100.0)
+            ),
+            RunProperty(self.run.c.injector_flow_rate.name): PropertyDouble(
+                nonNegative=True, suffix="μL/min"
+            ),
+            RunProperty(self.run.c.pulse_energy_mj.name): PropertyDouble(
+                nonNegative=True, suffix="mJ"
+            ),
+            RunProperty(self.run.c.injector_position_z_mm.name): PropertyDouble(
+                suffix="mm"
+            ),
+            RunProperty(self.run.c.sample_delivery_rate.name): PropertyDouble(
+                nonNegative=True, suffix="uL/min"
+            ),
+            self.property_started: PropertyDateTime(),
+            RunProperty(self.run.c.trains.name): PropertyInt(nonNegative=True),
+            RunProperty(self.run.c.xray_energy_kev.name): PropertyDouble(
+                nonNegative=True, suffix="keV"
+            ),
+        }
+
+    def run_property_to_string(self, r: RunProperty, v: Any) -> str:
+        if v is None:
+            return "None"
+        run_prop_type = self.property_types.get(r, None)
+        if isinstance(run_prop_type, PropertyTags):
+            assert isinstance(v, list)
+            return ", ".join(v)
+        if isinstance(v, datetime.datetime):
+            return v.strftime("%Y-%m-%d %H:%M:%S")
+        if not isinstance(v, (int, float, str, bool)):
+            raise Exception(f"run property {r} has invalid type {type(v)}")
+        result = str(v)
+        suffix = getattr(run_prop_type, "suffix", None)
+        if suffix is not None:
+            if not isinstance(suffix, str):
+                raise Exception(f"got a suffix of type {(type(suffix))}")
+            result += f" {suffix}"
+        return result
 
 
 def create_tables(context: DBContext) -> Tables:
@@ -92,6 +187,7 @@ def create_tables(context: DBContext) -> Tables:
         run_tag=_table_run_tag(context.metadata),
         run=_table_run(context.metadata),
         run_comment=_table_run_comment(context.metadata),
+        custom_run_property=_table_custom_run_property(context.metadata),
     )
 
 
@@ -110,11 +206,11 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                 id=proposal_id, metadata={"data": {}, "title": "test proposal"}
             )
         )
-        conn.execute(
-            tables.proposal.insert().values(
-                id=2, metadata={"data": {}, "title": "shit proposal"}
-            )
-        )
+        # conn.execute(
+        #     tables.proposal.insert().values(
+        #         id=2, metadata={"data": {}, "title": "shit proposal"}
+        #     )
+        # )
         first_sample_result = conn.execute(
             tables.sample.insert().values(sample_name="first sample")
         )
@@ -125,7 +221,6 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
             tables.run.insert().values(
                 proposal_id=proposal_id,
                 started=datetime.datetime.now(),
-                modified=datetime.datetime.now(),
                 status="finished",
                 sample_id=first_sample_id,
                 repetition_rate_mhz=3.5,
@@ -149,7 +244,6 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
             tables.run.insert().values(
                 proposal_id=proposal_id,
                 started=datetime.datetime.now() + datetime.timedelta(seconds=1),
-                modified=datetime.datetime.now(),
                 status="running",
                 sample_id=first_sample_id,
                 repetition_rate_mhz=4.3,
@@ -167,20 +261,24 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
         )
 
 
-def run_property_atomic_db_columns(tables: Tables) -> Dict[RunProperty, sa.Column]:
-    return {
-        RunProperty.RUN_ID: tables.run.c.id,
-        RunProperty.STATUS: tables.run.c.status,
-        RunProperty.SAMPLE: tables.run.c.sample_id,
-        RunProperty.STARTED: tables.run.c.started,
-        RunProperty.REPETITION_RATE: tables.run.c.repetition_rate_mhz,
-        RunProperty.PULSE_ENERGY: tables.run.c.pulse_energy_mj,
-        RunProperty.HIT_RATE: tables.run.c.hit_rate,
-        RunProperty.INDEXING_RATE: tables.run.c.indexing_rate,
-        RunProperty.X_RAY_ENERGY: tables.run.c.xray_energy_kev,
-        RunProperty.INJECTOR_POSITION_Z_MM: tables.run.c.injector_position_z_mm,
-        RunProperty.DETECTOR_DISTANCE_MM: tables.run.c.detector_distance_mm,
-        RunProperty.INJECTOR_FLOW_RATE: tables.run.c.injector_flow_rate,
-        RunProperty.TRAINS: tables.run.c.trains,
-        RunProperty.SAMPLE_DELIVERY_RATE: tables.run.c.sample_delivery_rate,
-    }
+def run_property_db_columns(tables: Tables) -> List[sa.Column]:
+    return list(tables.run.c.values())
+
+
+def run_property_atomic_db_columns(tables: Tables) -> List[sa.Column]:
+    return [
+        tables.run.c.id,
+        tables.run.c.status,
+        tables.run.c.sample_id,
+        tables.run.c.started,
+        tables.run.c.repetition_rate_mhz,
+        tables.run.c.pulse_energy_mj,
+        tables.run.c.hit_rate,
+        tables.run.c.indexing_rate,
+        tables.run.c.xray_energy_kev,
+        tables.run.c.injector_position_z_mm,
+        tables.run.c.detector_distance_mm,
+        tables.run.c.injector_flow_rate,
+        tables.run.c.trains,
+        tables.run.c.sample_delivery_rate,
+    ]

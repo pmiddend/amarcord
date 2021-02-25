@@ -1,43 +1,44 @@
-from typing import Dict
-from typing import Final
-from typing import Any
-from typing import List
-from typing import Set
 import logging
+from typing import Any, Dict, List, Set
+
 import pandas as pd
-from PyQt5 import QtWidgets
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar,
 )
 from matplotlib.figure import Figure
 
+from amarcord.modules.context import Context
 from amarcord.modules.spb.column_chooser import display_column_chooser
 from amarcord.modules.spb.filter_query_help import filter_query_help
-from amarcord.modules.spb.run_property import (
-    RunProperty,
-    default_visible_properties,
-    run_property_name,
-    unplottable_properties,
-)
-from amarcord.modules.spb.queries import SPBQueries, Comment
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.context import Context
+from amarcord.modules.spb.queries import Comment, SPBQueries
+from amarcord.modules.spb.run_property import RunProperty
 from amarcord.modules.spb.tables import Tables
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
+from amarcord.qt.properties import PropertyDouble, PropertyInt
 from amarcord.qt.table import GeneralTableWidget
-from amarcord.query_parser import parse_query
-from amarcord.query_parser import UnexpectedEOF
+from amarcord.query_parser import UnexpectedEOF, parse_query
 
 logger = logging.getLogger(__name__)
 
 
-def _column_query_names() -> Set[str]:
-    return {f.name.lower() for f in RunProperty}
-
-
 Row = Dict[RunProperty, Any]
+
+
+def _default_visible_properties(t: Tables) -> List[RunProperty]:
+    run_c = t.run.c
+    return [
+        t.property_run_id,
+        RunProperty(run_c.status.name),
+        RunProperty(run_c.sample_id.name),
+        RunProperty(run_c.repetition_rate_mhz.name),
+        t.property_tags,
+        RunProperty(run_c.hit_rate.name),
+        RunProperty(run_c.indexing_rate.name),
+        t.property_comments,
+    ]
 
 
 def _retrieve_data_no_connection(db: SPBQueries, proposal_id: ProposalId) -> List[Row]:
@@ -59,12 +60,6 @@ def _convert_comment_column(comments: List[Comment], role: int) -> Any:
     if role == QtCore.Qt.EditRole:
         return comments
     return QtCore.QVariant()
-
-
-_column_converters: Final = {
-    RunProperty.TAGS: _convert_tag_column,
-    RunProperty.COMMENTS: _convert_comment_column,
-}
 
 
 class _MplCanvas(FigureCanvasQTAgg):
@@ -93,16 +88,21 @@ class RunTable(QtWidgets.QWidget):
         choose_columns.clicked.connect(self._slot_switch_columns)
 
         self._context = context
-        self._table_view = GeneralTableWidget[RunProperty](
-            RunProperty,
-            column_headers={c: run_property_name(c) for c in RunProperty},
-            column_visibility=default_visible_properties,
-            column_converters=_column_converters,  # type: ignore
-            data_retriever=None,
-            parent=self,
-        )
-        self._table_view.set_menu_callback(self._header_menu_callback)
-        self._table_view.row_double_click.connect(self._slot_row_selected)
+        with self._db.connect() as conn:
+            self._run_property_names = self._db.run_property_names(conn)
+            self._table_view = GeneralTableWidget[RunProperty](
+                self._run_property_names.keys(),
+                column_headers=self._run_property_names,
+                column_visibility=_default_visible_properties(tables),
+                column_converters={
+                    self._db.tables.property_tags: _convert_tag_column,
+                    self._db.tables.property_comments: _convert_comment_column,
+                },  # type: ignore
+                data_retriever=None,
+                parent=self,
+            )
+            self._table_view.set_menu_callback(self._header_menu_callback)
+            self._table_view.row_double_click.connect(self._slot_row_selected)
 
         log_output = QtWidgets.QPlainTextEdit()
         log_output.setReadOnly(True)
@@ -121,7 +121,7 @@ class RunTable(QtWidgets.QWidget):
         inner_filter_widget.setLayout(inner_filter_layout)
         filter_widget = InfixCompletingLineEdit(self)
         filter_widget.textChanged.connect(self._slot_filter_changed)
-        completer = QtWidgets.QCompleter(list(_column_query_names()), self)
+        completer = QtWidgets.QCompleter(list(self._run_property_names.keys()), self)
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
         filter_widget.setCompleter(completer)
         inner_filter_layout.addWidget(filter_widget)
@@ -149,7 +149,10 @@ class RunTable(QtWidgets.QWidget):
         context.db.after_db_created(self._late_init)
 
     def _header_menu_callback(self, pos: QtCore.QPoint, column: RunProperty) -> None:
-        if column in unplottable_properties:
+        prop_type = self._db.tables.property_types.get(column, None)
+        if prop_type is None or not isinstance(
+            prop_type, (PropertyInt, PropertyDouble)
+        ):
             return
         menu = QtWidgets.QMenu(self)
         plotAction = menu.addAction(
@@ -166,8 +169,10 @@ class RunTable(QtWidgets.QWidget):
 
             df = pd.DataFrame(
                 self._table_view.get_filtered_column_values(column),
-                index=self._table_view.get_filtered_column_values(RunProperty.STARTED),
-                columns=[run_property_name(column)],
+                index=self._table_view.get_filtered_column_values(
+                    self._db.tables.property_started
+                ),
+                columns=["Values"],
             )
 
             # noinspection PyArgumentList
@@ -184,14 +189,16 @@ class RunTable(QtWidgets.QWidget):
             dialog.exec()
 
     def _slot_row_selected(self, row: Dict[RunProperty, Any]) -> None:
-        self.run_selected.emit(row[RunProperty.RUN_ID])
+        self.run_selected.emit(row[self._db.tables.property_run_id])
 
     def run_changed(self) -> None:
         logger.info("Refreshing run table")
         self._table_view.refresh()
 
     def _slot_switch_columns(self) -> None:
-        new_columns = display_column_chooser(self, self._table_view.column_visibility)
+        new_columns = display_column_chooser(
+            self, self._table_view.column_visibility, self._db
+        )
         self._table_view.set_column_visibility(new_columns)
 
     def _late_init(self) -> None:
@@ -201,7 +208,7 @@ class RunTable(QtWidgets.QWidget):
 
     def _slot_filter_changed(self, f: str) -> None:
         try:
-            query = parse_query(f, _column_query_names())
+            query = parse_query(f, set(self._run_property_names.keys()))
             self._table_view.set_filter_query(query)
         except UnexpectedEOF:
             self._query_error.setText("")

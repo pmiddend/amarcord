@@ -1,23 +1,27 @@
+import logging
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from amarcord.modules.spb.colors import color_manual_run_property
-from amarcord.modules.spb.run_property import (
-    RunProperty,
-    manual_run_properties,
-    run_property_name,
-    run_property_to_string,
-    run_property_type,
-)
-from amarcord.qt.properties import delegate_for_property_type
 from amarcord.modules.spb.queries import Run, SPBQueries
+from amarcord.modules.spb.run_property import RunProperty
+from amarcord.qt.properties import delegate_for_property_type
+
+logger = logging.getLogger(__name__)
 
 
 class _MetadataColumn(Enum):
     NAME = 0
     VALUE = 1
+
+
+@dataclass(frozen=True)
+class RunPropWithName:
+    prop: RunProperty
+    name: str
 
 
 class _MetadataModel(QtCore.QAbstractTableModel):
@@ -36,15 +40,20 @@ class _MetadataModel(QtCore.QAbstractTableModel):
         self._run = run
         self._sample_ids = sample_ids
         self._available_tags = available_tags
-        self._props = list(set(r for r in RunProperty) - {RunProperty.COMMENTS})
-        self._props.sort(key=lambda f: f.name)
-        self._row_index_to_property: Dict[int, RunProperty] = {
-            idx: v for idx, v in enumerate(self._props)
-        }
+        with db.connect() as conn:
+            self._props = [
+                RunPropWithName(k, v)
+                for k, v in db.run_property_names(conn).items()
+                if k not in (db.tables.property_comments, db.tables.property_karabo)
+            ]
+            self._props.sort(key=lambda x: x.name)
+            self._row_index_to_property: Dict[int, RunPropWithName] = {
+                idx: v for idx, v in enumerate(self._props)
+            }
 
     def delegate_for_row(self, row: int) -> QtWidgets.QAbstractItemDelegate:
         return delegate_for_property_type(
-            run_property_type[self._row_index_to_property[row]],
+            self._db.tables.property_types[self._row_index_to_property[row].prop],
             sample_ids=self._sample_ids,
             available_tags=self._available_tags,
         )
@@ -71,9 +80,12 @@ class _MetadataModel(QtCore.QAbstractTableModel):
         runprop = self._row_index_to_property[index.row()]
         with self._db.connect() as conn:
             self._db.update_run_property(
-                conn, self._run.properties[RunProperty.RUN_ID], runprop, value
+                conn,
+                self._run.properties[self.db.tables.property_run_id],
+                runprop.prop,
+                value,
             )
-            self._run.properties[runprop] = value
+            self._run.properties[runprop.prop] = value
             self.dataChanged.emit(
                 index,
                 index,
@@ -101,18 +113,21 @@ class _MetadataModel(QtCore.QAbstractTableModel):
     ) -> Any:
         runprop = self._row_index_to_property[index.row()]
         if role == QtCore.Qt.EditRole:
-            return self._run.properties.get(runprop, None)
+            return self._run.properties.get(runprop.prop, None)
         if role == QtCore.Qt.DisplayRole:
             return (
-                run_property_name(runprop)
+                runprop.name
                 if index.column() == _MetadataColumn.NAME.value
-                else run_property_to_string(
-                    runprop, self._run.properties.get(runprop, None)
+                else self._db.tables.run_property_to_string(
+                    runprop.prop, self._run.properties.get(runprop.prop, None)
                 )
-                if runprop in self._run.properties
+                if runprop.prop in self._run.properties
                 else "N/A"
             )
-        if role == QtCore.Qt.BackgroundRole and runprop in manual_run_properties:
+        if (
+            role == QtCore.Qt.BackgroundRole
+            and runprop.prop in self._db.tables.manual_properties
+        ):
             return QtGui.QBrush(color_manual_run_property)
         return None
 

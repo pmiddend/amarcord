@@ -17,9 +17,6 @@ from amarcord.modules.spb.run_details_tree import (
     _preprocess_dict,
 )
 from amarcord.modules.spb.run_id import RunId
-from amarcord.modules.spb.run_property import (
-    RunProperty,
-)
 from amarcord.modules.spb.tables import Tables
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
@@ -219,8 +216,8 @@ class RunDetails(QtWidgets.QWidget):
             self._run_selector.blockSignals(False)
 
             self._comments.set_comments(
-                self._run.properties[RunProperty.RUN_ID],
-                self._run.properties[RunProperty.COMMENTS],
+                self._run.properties[self._db.tables.property_run_id],
+                self._run.properties[self._db.tables.property_comments],
             )
 
             self._slot_tree_filter_changed(self._tree_filter_line.text())
