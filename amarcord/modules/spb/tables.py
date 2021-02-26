@@ -21,12 +21,16 @@ class CustomRunPropertyType(Enum):
     DOUBLE = auto()
     STRING = auto()
 
+    def description(self) -> str:
+        return "number" if self == CustomRunPropertyType.DOUBLE else "string"
+
 
 def _table_custom_run_property(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "CustomRunProperty",
         metadata,
         sa.Column("name", sa.String(length=255), primary_key=True),
+        sa.Column("description", sa.String(length=255)),
         sa.Column("prop_type", sa.Enum(CustomRunPropertyType), nullable=False),
     )
 
@@ -241,7 +245,7 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
         conn.execute(tables.run_tag.insert().values(run_id=run_id, tag_text="t1"))
         conn.execute(tables.run_tag.insert().values(run_id=run_id, tag_text="t2"))
 
-        for i in range(50):
+        for _ in range(50):
             conn.execute(
                 tables.run_comment.insert().values(
                     run_id=run_id,

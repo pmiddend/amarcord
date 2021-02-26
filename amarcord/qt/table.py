@@ -62,7 +62,6 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         return [d[c] for d in self._data if c in d]
 
     def set_column_visibility(self, column_visibility: List[T]) -> None:
-        logger.info("Changing column visibility to %s", column_visibility)
         self.column_visibility = column_visibility
         # noinspection PyUnresolvedReferences
         self.layoutAboutToBeChanged.emit()  # type: ignore
@@ -85,10 +84,10 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
             self._data = self._data_retriever()
         self.set_filter_query(self._filter_query)
 
-    def rowCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
+    def rowCount(self, _parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return len(self._filtered_data)
 
-    def columnCount(self, parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
+    def columnCount(self, _parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return len(self.column_visibility)
 
     def set_filter_query(self, q: Optional[Query]) -> None:

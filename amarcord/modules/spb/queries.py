@@ -2,7 +2,6 @@ import datetime
 import pickle
 from dataclasses import dataclass
 from itertools import groupby
-from time import time
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 
@@ -57,6 +56,7 @@ class Run:
 class CustomRunProperty:
     name: RunProperty
     prop_type: CustomRunPropertyType
+    description: str
 
     def to_rich_property_type(self) -> RichPropertyType:
         return (
@@ -215,7 +215,6 @@ class SPBQueries:
         comment = self.tables.run_comment
         tag = self.tables.run_tag
         interesting_columns = run_property_db_columns(self.tables, with_blobs=False)
-        before = time()
         select_statement = (
             sa.select(
                 [
@@ -231,7 +230,6 @@ class SPBQueries:
             .where(run_c.id == run_id)
         )
         run_rows = conn.execute(select_statement).fetchall()
-        after = time()
         if not run_rows:
             raise Exception(f"couldn't find any runs with id {run_id}")
         run_meta = run_rows[0]
@@ -326,12 +324,15 @@ class SPBQueries:
 
     def custom_run_properties(self, conn: Connection) -> List[CustomRunProperty]:
         return [
-            CustomRunProperty(name=RunProperty(row[0]), prop_type=row[1])
+            CustomRunProperty(
+                name=RunProperty(row[0]), prop_type=row[1], description=row[2]
+            )
             for row in conn.execute(
                 sa.select(
                     [
                         self.tables.custom_run_property.c.name,
                         self.tables.custom_run_property.c.prop_type,
+                        self.tables.custom_run_property.c.description,
                     ]
                 )
             ).fetchall()
@@ -416,8 +417,14 @@ class SPBQueries:
         return pickle.loads(result[0][0]) if result else None
 
     def add_custom_run_property(
-        self, conn: Connection, name: str, type: CustomRunPropertyType
+        self,
+        conn: Connection,
+        name: str,
+        description: str,
+        prop_type: CustomRunPropertyType,
     ) -> None:
         conn.execute(
-            self.tables.custom_run_property.insert().values(name=name, prop_type=type)
+            self.tables.custom_run_property.insert().values(
+                name=name, prop_type=prop_type, description=description
+            )
         )

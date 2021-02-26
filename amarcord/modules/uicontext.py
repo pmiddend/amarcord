@@ -1,10 +1,7 @@
-from typing import List
-from typing import Optional
 import logging
-from PyQt5 import QtWidgets
-from PyQt5 import QtCore
-from PyQt5 import QtGui
-from PyQt5.QtCore import qInstallMessageHandler
+from typing import List, Optional
+
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from amarcord.qt.logging_handler import QtLoggingHandler
 

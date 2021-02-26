@@ -289,7 +289,7 @@ class Tags(QWidget):
     def current_rect(self) -> QRect:
         return self._tags[self._editing_index].rect
 
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, _event: QPaintEvent) -> None:
         p = QPainter(self)
 
         panel = QStyleOptionFrame()
@@ -440,16 +440,16 @@ class Tags(QWidget):
     def cursor_visible(self) -> bool:
         return self._blink_timer.isActive()
 
-    def resizeEvent(self, event: QResizeEvent) -> None:
+    def resizeEvent(self, _event: QResizeEvent) -> None:
         self.calc_rects()
 
-    def focusInEvent(self, event: QFocusEvent) -> None:
+    def focusInEvent(self, _event: QFocusEvent) -> None:
         self.set_cursor_visible(True)
         self.update_display_text()
         self.calc_rects()
         self.update()
 
-    def focusOutEvent(self, event: QFocusEvent) -> None:
+    def focusOutEvent(self, _event: QFocusEvent) -> None:
         self.set_cursor_visible(False)
         self.update_display_text()
         self.calc_rects()

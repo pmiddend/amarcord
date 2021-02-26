@@ -57,8 +57,8 @@ class MetadataTable(QtWidgets.QWidget):
         layout.addWidget(self._table)
         self._run: Optional[Run] = None
 
-    def _property_changed(self, property: RunProperty, new_value: Any) -> None:
-        self._property_change(property, new_value)
+    def _property_changed(self, prop: RunProperty, new_value: Any) -> None:
+        self._property_change(prop, new_value)
 
     def data_changed(
         self,

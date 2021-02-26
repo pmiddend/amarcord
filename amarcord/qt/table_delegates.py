@@ -22,8 +22,8 @@ class ComboItemDelegate(QtWidgets.QStyledItemDelegate):
     def createEditor(
         self,
         parent: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
         editor = QtWidgets.QComboBox(parent)
         editor.addItems([v[0] for v in self._values])
@@ -52,11 +52,12 @@ class ComboItemDelegate(QtWidgets.QStyledItemDelegate):
             QtCore.Qt.EditRole,
         )
 
+    # pylint: disable=no-self-use
     def updateEditorGeometry(
         self,
         editor: QtWidgets.QWidget,
         option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _index: QtCore.QModelIndex,
     ) -> None:
         editor.setGeometry(option.rect)
 
@@ -71,13 +72,14 @@ class TagsItemDelegate(QtWidgets.QStyledItemDelegate):
     def createEditor(
         self,
         parent: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
         editor = Tags(parent)
         editor.completion(self._available_tags)
         return editor
 
+    # pylint: disable=no-self-use
     def setEditorData(
         self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
     ) -> None:
@@ -88,6 +90,7 @@ class TagsItemDelegate(QtWidgets.QStyledItemDelegate):
         assert isinstance(data, list)
         cast(Tags, editor).tags(data)
 
+    # pylint: disable=no-self-use
     def setModelData(
         self,
         editor: QtWidgets.QWidget,
@@ -97,26 +100,29 @@ class TagsItemDelegate(QtWidgets.QStyledItemDelegate):
         assert isinstance(editor, Tags)
         model.setData(index, cast(Tags, editor).tags_str(), QtCore.Qt.EditRole)
 
+    # pylint: disable=no-self-use
     def updateEditorGeometry(
         self,
         editor: QtWidgets.QWidget,
         option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _index: QtCore.QModelIndex,
     ) -> None:
         editor.setGeometry(option.rect)
 
 
 class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
+    # pylint: disable=no-self-use
     def createEditor(
         self,
         parent: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
         editor = QtWidgets.QDateTimeEdit(parent)
         editor.setFrame(False)
         return editor
 
+    # pylint: disable=no-self-use
     def setEditorData(
         self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
     ) -> None:
@@ -127,6 +133,7 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
         assert isinstance(data, datetime.datetime)
         cast(QtWidgets.QDateTimeEdit, editor).setDateTime(to_qt_datetime(data))
 
+    # pylint: disable=no-self-use
     def setModelData(
         self,
         editor: QtWidgets.QWidget,
@@ -140,11 +147,12 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
             QtCore.Qt.EditRole,
         )
 
+    # pylint: disable=no-self-use
     def updateEditorGeometry(
         self,
         editor: QtWidgets.QWidget,
         option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _index: QtCore.QModelIndex,
     ) -> None:
         editor.setGeometry(option.rect)
 
@@ -166,11 +174,12 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
             else None
         )
 
+    # pylint: disable=no-self-use
     def createEditor(
         self,
         parent: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
         editor = QtWidgets.QSpinBox(parent)
         editor.setFrame(False)
@@ -178,6 +187,7 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
             editor.setRange(self._range[0], self._range[1])
         return editor
 
+    # pylint: disable=no-self-use
     def setEditorData(
         self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
     ) -> None:
@@ -188,6 +198,7 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
         assert isinstance(data, int)
         cast(QtWidgets.QSpinBox, editor).setValue(data)
 
+    # pylint: disable=no-self-use
     def setModelData(
         self,
         editor: QtWidgets.QWidget,
@@ -199,11 +210,12 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
             index, cast(QtWidgets.QSpinBox, editor).value(), QtCore.Qt.EditRole
         )
 
+    # pylint: disable=no-self-use
     def updateEditorGeometry(
         self,
         editor: QtWidgets.QWidget,
         option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _index: QtCore.QModelIndex,
     ) -> None:
         editor.setGeometry(option.rect)
 
@@ -229,8 +241,8 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
     def createEditor(
         self,
         parent: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
         editor = QtWidgets.QDoubleSpinBox(parent)
         editor.setFrame(False)
@@ -240,6 +252,7 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
             editor.setRange(self._range[0], self._range[1])
         return editor
 
+    # pylint: disable=no-self-use
     def setEditorData(
         self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
     ) -> None:
@@ -251,6 +264,7 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
             raise ValueError(f"expected float, got {type(data)}")
         cast(QtWidgets.QDoubleSpinBox, editor).setValue(data)
 
+    # pylint: disable=no-self-use
     def setModelData(
         self,
         editor: QtWidgets.QWidget,
@@ -262,10 +276,11 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
             index, cast(QtWidgets.QDoubleSpinBox, editor).value(), QtCore.Qt.EditRole
         )
 
+    # pylint: disable=no-self-use
     def updateEditorGeometry(
         self,
         editor: QtWidgets.QWidget,
         option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
+        _index: QtCore.QModelIndex,
     ) -> None:
         editor.setGeometry(option.rect)

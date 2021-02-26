@@ -2,12 +2,13 @@ import logging
 from dataclasses import replace
 from typing import Any, Optional, cast
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QVariant
 
 from amarcord.modules.context import Context
 from amarcord.modules.spb.colors import color_manual_run_property
 from amarcord.modules.spb.comments import Comments
+from amarcord.modules.spb.new_custom_column_dialog import new_custom_column_dialog
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.queries import Comment, Connection, Run, SPBQueries
@@ -20,7 +21,7 @@ from amarcord.modules.spb.run_details_tree import (
 )
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.run_property import RunProperty
-from amarcord.modules.spb.tables import CustomRunPropertyType, Tables
+from amarcord.modules.spb.tables import Tables
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
@@ -167,7 +168,7 @@ class RunDetails(QtWidgets.QWidget):
             self._db.add_comment(conn, selected_run, comment.author, comment.text)
             self._run_changed(conn)
 
-    def _property_change(self, property: RunProperty, new_value: Any) -> None:
+    def _property_change(self, prop: RunProperty, new_value: Any) -> None:
         assert self._run is not None, "Got a property change but have no run"
         with self._db.connect() as conn:
             selected_run = self.selected_run_id()
@@ -177,46 +178,27 @@ class RunDetails(QtWidgets.QWidget):
             self._db.update_run_property(
                 conn,
                 selected_run,
-                property,
+                prop,
                 new_value,
             )
             self._run_changed(conn)
             self.run_changed.emit()
 
     def _slot_new_custom_column(self) -> None:
-        dialog = QtWidgets.QDialog(self)
-        dialog_layout = QtWidgets.QVBoxLayout()
-        dialog.setLayout(dialog_layout)
+        with self._db.connect() as conn:
+            existing_properties = self._db.run_property_metadata(conn)
 
-        form = QtWidgets.QFormLayout()
-        name_input = QtWidgets.QLineEdit()
-        name_input.setValidator(
-            QtGui.QRegExpValidator(QtCore.QRegExp(r"[a-zA-Z_][a-zA-Z_0-9]*"))
-        )
-        form.addRow("Name", name_input)
+        new_column = new_custom_column_dialog(existing_properties.keys(), self)
 
-        type_combo = QtWidgets.QComboBox()
-        type_combo.addItems([f.name for f in CustomRunPropertyType])
-        form.addRow("Type", type_combo)
-        dialog_layout.addLayout(form)
-
-        # FIXME: add check for empty name and existing column!
-        # also add initial value maybe?
-
-        button_box = QtWidgets.QDialogButtonBox(  # type: ignore
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        button_box.accepted.connect(dialog.accept)
-        button_box.rejected.connect(dialog.reject)
-
-        dialog_layout.addWidget(button_box)
-
-        if dialog.exec() == QtWidgets.QDialog.Rejected:
-            return None
+        if new_column is None:
+            return
 
         with self._db.connect() as conn:
             self._db.add_custom_run_property(
-                conn, name_input.text(), CustomRunPropertyType[type_combo.currentText()]
+                conn,
+                new_column.name,
+                new_column.description,
+                new_column.prop_type,
             )
 
             assert self._run is not None, "Tried to add a new property, but have no run"

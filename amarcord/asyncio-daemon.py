@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> None:
     # TESTING
-    # noinspection PyShadowingNames
     with queries.dbcontext.connect() as conn:
         queries.create_run(conn, ProposalId(1), RunId(1), sample_id=None)
 
@@ -62,31 +61,33 @@ async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> No
 
 
 # noinspection PyShadowingNames
-def _update_db_from_mc(dbctx: DBContext, tables: Tables, infos: Dict[int, Any]) -> None:
+def _update_db_from_mc(
+    dbctx: DBContext, db_tables: Tables, infos: Dict[int, Any]
+) -> None:
     with dbctx.connect() as conn:
         with conn.begin():
             existing_props = set(
                 row[0]
-                for row in conn.execute(sa.select([tables.proposal.c.id])).fetchall()
+                for row in conn.execute(sa.select([db_tables.proposal.c.id])).fetchall()
             )
             for prop_id, info in infos.items():
                 data = info["data"]
                 if prop_id in existing_props:
                     conn.execute(
-                        sa.update(tables.proposal)
-                        .where(tables.proposal.c.id == prop_id)
+                        sa.update(db_tables.proposal)
+                        .where(db_tables.proposal.c.id == prop_id)
                         .values(metadata=data)
                     )
                 else:
                     conn.execute(
-                        tables.proposal.insert().values(id=prop_id, metadata=data)
+                        db_tables.proposal.insert().values(id=prop_id, metadata=data)
                     )
 
 
 # noinspection PyUnresolvedReferences,PyShadowingNames
 async def mc_loop(
     dbctx: DBContext,
-    tables: Tables,
+    db_tables: Tables,
     executor: concurrent.futures.ThreadPoolExecutor,
     mc_config: XFELMetadataConnectionConfig,
 ) -> None:
@@ -97,7 +98,9 @@ async def mc_loop(
         loop = asyncio.get_running_loop()
         infos = await loop.run_in_executor(executor, mc.get_proposal_infos)
         logger.info("metadata-client: Retrieved info about proposals: %s", len(infos))
-        await loop.run_in_executor(executor, _update_db_from_mc, dbctx, tables, infos)
+        await loop.run_in_executor(
+            executor, _update_db_from_mc, dbctx, db_tables, infos
+        )
         await asyncio.sleep(5)
 
 
@@ -137,8 +140,8 @@ if __name__ == "__main__":
     global_queries = SPBQueries(global_dbcontext, tables)
 
     # Just for testing!
-    with global_queries.dbcontext.connect() as conn:
-        global_queries.create_proposal(conn, ProposalId(1))
+    with global_queries.dbcontext.connect() as local_conn:
+        global_queries.create_proposal(local_conn, ProposalId(1))
 
     # noinspection PyUnresolvedReferences
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as global_executor:

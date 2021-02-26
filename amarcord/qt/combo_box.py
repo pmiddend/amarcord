@@ -18,5 +18,8 @@ class ComboBox(QComboBox, Generic[T]):
         self.currentIndexChanged.connect(self._index_changed)
         self.addItems([i[0] for i in items])
 
+    def current_value(self) -> T:
+        return self._items[self.currentIndex()][1]
+
     def _index_changed(self, idx: int) -> None:
         self.item_selected.emit(QVariant(self._items[idx][1]))

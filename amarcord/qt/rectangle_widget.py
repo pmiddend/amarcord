@@ -15,7 +15,7 @@ class RectangleWidget(QtWidgets.QWidget):
         r = metrics.boundingRect("W").size()
         self._size = QtCore.QSize(r.height(), r.height())
 
-    def paintEvent(self, e: QtGui.QPaintEvent) -> None:
+    def paintEvent(self, _event: QtGui.QPaintEvent) -> None:
         p = QtGui.QPainter(self)
 
         rect = self.rect()
