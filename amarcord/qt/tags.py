@@ -6,9 +6,8 @@ from dataclasses import dataclass
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtWidgets import QStyle
 from PyQt5.QtWidgets import QStyleOptionFrame, QApplication
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSize, QTimer
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtCore import QTimerEvent
 from PyQt5.QtCore import QPoint
 from PyQt5.QtCore import QPointF, QLineF, QSizeF
 from PyQt5.QtGui import QPaintEvent, QGuiApplication, QFontMetrics, QPalette
@@ -72,9 +71,12 @@ class Tags(QWidget):
         self._cursor = 0
         self._hscroll = 0
         self._text_layout = QTextLayout()
-        self._blink_timer = 0
+        self._blink_timer = QTimer()
+        self._blink_timer.setInterval(
+            QGuiApplication.styleHints().cursorFlashTime() // 2
+        )
+        self._blink_timer.timeout.connect(self._blink_timeout)
         self._blink_status = True
-        # self._ctrl = QInputControl.LineEdit
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFocusPolicy(Qt.StrongFocus)
@@ -87,15 +89,12 @@ class Tags(QWidget):
         self.update_display_text()
 
     def set_cursor_visible(self, visible: bool) -> None:
-        if self._blink_timer:
-            self.killTimer(self._blink_timer)
-            self._blink_timer = 0
+        if self._blink_timer.isActive():
+            self._blink_timer.stop()
             self._blink_status = True
 
         if visible:
-            flashTime = QGuiApplication.styleHints().cursorFlashTime()
-            if flashTime >= 2:
-                self._blink_timer = self.startTimer(flashTime // 2)
+            self._blink_timer.start()
         else:
             self._blink_status = False
 
@@ -385,10 +384,9 @@ class Tags(QWidget):
         else:
             self._hscroll = max(0, self._hscroll)
 
-    def timerEvent(self, event: QTimerEvent) -> None:
-        if event.timerId() == self._blink_timer:
-            self._blink_status = not self._blink_status
-            self.update()
+    def _blink_timeout(self) -> None:
+        self._blink_status = not self._blink_status
+        self.update()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         found = False
@@ -440,7 +438,7 @@ class Tags(QWidget):
         self.set_cursor_visible(self.cursor_visible())
 
     def cursor_visible(self) -> bool:
-        return self._blink_timer != 0
+        return self._blink_timer.isActive()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         self.calc_rects()
