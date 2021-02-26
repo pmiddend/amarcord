@@ -218,7 +218,6 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
         self._model.set_filter_query(q)
 
     def refresh(self) -> None:
-        logger.info("refreshing")
         self._model.refresh()
         self.resizeRowsToContents()
         self.resizeColumnsToContents()

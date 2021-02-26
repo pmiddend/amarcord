@@ -1,5 +1,6 @@
 import datetime
 from typing import List, Optional, Tuple, TypeVar, cast
+import logging
 
 from PyQt5 import QtCore, QtWidgets
 
@@ -7,6 +8,8 @@ from amarcord.qt.datetime import from_qt_datetime, to_qt_datetime
 from amarcord.qt.tags import Tags
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class ComboItemDelegate(QtWidgets.QStyledItemDelegate):

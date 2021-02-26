@@ -2,7 +2,9 @@ import datetime
 import pickle
 from dataclasses import dataclass
 from itertools import groupby
+from time import time
 from typing import Any, Dict, List, Optional, Tuple
+import logging
 
 import sqlalchemy as sa
 
@@ -25,6 +27,8 @@ from amarcord.qt.properties import (
 )
 from amarcord.util import capitalized_decamelized, dict_union, remove_duplicates_stable
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class RunSimple:
@@ -40,10 +44,13 @@ class Comment:
     created: datetime.datetime
 
 
+Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
+
+
 @dataclass(frozen=True)
 class Run:
     properties: Dict[RunProperty, Any]
-    karabo: Tuple[Dict[str, Any], Dict[str, Any]]
+    karabo: Karabo
 
 
 @dataclass(frozen=True)
@@ -80,7 +87,9 @@ class SPBQueries:
         tag = self.tables.run_tag
         comment = self.tables.run_comment
 
-        interesting_columns: List[sa.Column] = run_property_db_columns(self.tables)
+        interesting_columns: List[sa.Column] = run_property_db_columns(
+            self.tables, with_blobs=False
+        )
         select_stmt = (
             sa.select(
                 [
@@ -113,7 +122,7 @@ class SPBQueries:
                 )
                 for row in rows
                 if row[0] is not None
-            )
+            )[0:5]
             custom = run_meta["custom"]
             assert custom is None or isinstance(
                 custom, dict
@@ -200,12 +209,13 @@ class SPBQueries:
                     [{"run_id": run_id, "tag_text": t} for t in new_tags],
                 )
 
-    def retrieve_run(self, conn: Connection, run_id: int) -> Run:
+    def retrieve_run(self, conn: Connection, run_id: RunId) -> Run:
         run = self.tables.run
         run_c = run.c
         comment = self.tables.run_comment
         tag = self.tables.run_tag
-        interesting_columns = run_property_db_columns(self.tables)
+        interesting_columns = run_property_db_columns(self.tables, with_blobs=False)
+        before = time()
         select_statement = (
             sa.select(
                 [
@@ -221,6 +231,7 @@ class SPBQueries:
             .where(run_c.id == run_id)
         )
         run_rows = conn.execute(select_statement).fetchall()
+        after = time()
         if not run_rows:
             raise Exception(f"couldn't find any runs with id {run_id}")
         run_meta = run_rows[0]
@@ -256,9 +267,7 @@ class SPBQueries:
                     else {},
                 ],
             ),
-            karabo=pickle.loads(run_meta["karabo"])
-            if run_meta["karabo"] is not None
-            else None,
+            karabo=None,
         )
 
     def add_comment(self, conn: Connection, run_id: int, author: str, text: str) -> int:
@@ -343,7 +352,7 @@ class SPBQueries:
                         capitalized_decamelized(c.name),
                         self.tables.property_types.get(RunProperty(c.name), None),
                     )
-                    for c in run_property_db_columns(self.tables)
+                    for c in run_property_db_columns(self.tables, with_blobs=False)
                     if c.name != self.tables.property_custom
                 },
                 {
@@ -399,6 +408,12 @@ class SPBQueries:
 
     def connect(self) -> Connection:
         return self.dbcontext.connect()
+
+    def retrieve_karabo(self, conn: Connection, run_id: RunId) -> Optional[Karabo]:
+        result = conn.execute(
+            sa.select([self.tables.run.c.karabo]).where(self.tables.run.c.id == run_id)
+        ).fetchall()
+        return pickle.loads(result[0][0]) if result else None
 
     def add_custom_run_property(
         self, conn: Connection, name: str, type: CustomRunPropertyType

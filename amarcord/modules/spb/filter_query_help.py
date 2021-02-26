@@ -13,13 +13,13 @@ def filter_query_help(parent: QtWidgets.QWidget) -> None:
     <h1>Filter queries</h1>
     <h2>Description</h2>
     <p>
-      A filter queries consist of a single line of text that contains <b>conditions</b> 
+      A filter queries consist of a single line of text that contains <b>conditions</b>
       separated by <b>logical operators</b>.
     </p>
     <p>
       Supported logical operators are <i>and</i>, <i>or</i> and <i>not</i>. Conditions are of the form:
       <pre>field operator comparison</pre>
-      Supported operators are <i>!=, =, &lt;, &lt;=, &gt;, &gt;=</i> and <i>has</i>. The latter can 
+      Supported operators are <i>!=, =, &lt;, &lt;=, &gt;, &gt;=</i> and <i>has</i>. The latter can
       inversely be read as &quot;in&quot; and applies to strings and lists.
     </p>
     <h2>Special notes</h2>

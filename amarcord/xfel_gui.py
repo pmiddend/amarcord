@@ -4,7 +4,7 @@ import sys
 from amarcord.config import load_config
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode, DBContext
-from amarcord.modules.spb import (
+from amarcord.modules.spb.factories import (
     proposal_chooser,
     retrieve_proposal_ids,
     run_details,

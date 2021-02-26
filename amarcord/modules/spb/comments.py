@@ -3,12 +3,13 @@ import getpass
 import logging
 from dataclasses import replace
 from enum import Enum
-from typing import Dict, Final, List, Optional
+from typing import Callable, Dict, Final, List, Optional
 
 import humanize
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from amarcord.modules.spb.queries import Comment, SPBQueries
+from amarcord.modules.spb.queries import Comment
+from amarcord.qt.signal_blocker import SignalBlocker
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,18 @@ class Comments(QtWidgets.QWidget):
     comments_changed = QtCore.pyqtSignal()
 
     def __init__(
-        self, db: SPBQueries, parent: Optional[QtWidgets.QWidget] = None
+        self,
+        comment_deleted: Callable[[int], None],
+        comment_changed: Callable[[Comment], None],
+        comment_added: Callable[[Comment], None],
+        parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
-        self._db = db
+        self._comment_deleted = comment_deleted
+        self._comment_changed = comment_changed
+        self._comment_added = comment_added
+
         layout = QtWidgets.QVBoxLayout()
         self.setLayout(layout)
 
@@ -94,22 +102,23 @@ class Comments(QtWidgets.QWidget):
         self._timer.start()
 
     def set_comments(self, run_id: int, comments: List[Comment]) -> None:
-        assert all(c.id is not None for c in comments)
+        with SignalBlocker(self._comment_table):
+            assert all(c.id is not None for c in comments)
 
-        self._run_id = run_id
-        self._comments = comments
+            self._run_id = run_id
+            self._comments = comments
 
-        self._comment_table.setColumnCount(3)
-        self._comment_table.setRowCount(len(self._comments))
-        self._comment_table.setHorizontalHeaderLabels(
-            [_column_labels[c] for c in Column]
-        )
-        self._comment_table.horizontalHeader().setStretchLastSection(True)
-        self._comment_table.verticalHeader().hide()
+            self._comment_table.setColumnCount(3)
+            self._comment_table.setRowCount(len(self._comments))
+            self._comment_table.setHorizontalHeaderLabels(
+                [_column_labels[c] for c in Column]
+            )
+            self._comment_table.horizontalHeader().setStretchLastSection(True)
+            self._comment_table.verticalHeader().hide()
 
-        now = datetime.datetime.utcnow()
-        for row, c in enumerate(self._comments):
-            self._set_row(c, now, row)
+            now = datetime.datetime.utcnow()
+            for row, c in enumerate(self._comments):
+                self._set_row(c, now, row)
 
     def _set_row(self, c: Comment, now: datetime.datetime, row: int) -> None:
         self._comment_table.setItem(
@@ -125,26 +134,20 @@ class Comments(QtWidgets.QWidget):
         )
 
     def _slot_delete_comment(self) -> None:
-        with self._db.connect() as conn:
-            row_idx = self._comment_table.currentRow()
-            comment = self._comments[row_idx]
-            assert comment.id is not None
-            self._db.delete_comment(conn, comment.id)
-            self._comments.pop(row_idx)
-            self._comment_table.removeRow(row_idx)
-            self.comments_changed.emit()
+        row_idx = self._comment_table.currentRow()
+        comment = self._comments[row_idx]
+        assert comment.id is not None
+        self._comment_deleted(comment.id)
 
     def _comment_cell_changed(self, row: int, column: int) -> None:
-        with self._db.connect() as conn:
-            i = self._comment_table.item(row, column).text()
-            c = self._comments[row]
-            c = replace(
-                c,
-                author=i if column == Column.AUTHOR.value else c.author,
-                text=i if column == Column.TEXT.value else c.text,
-            )
-            self._db.change_comment(conn, c)
-            self.comments_changed.emit()
+        i = self._comment_table.item(row, column).text()
+        c = self._comments[row]
+        c = replace(
+            c,
+            author=i if column == Column.AUTHOR.value else c.author,
+            text=i if column == Column.TEXT.value else c.text,
+        )
+        self._comment_changed(c)
 
     def _slot_comment_text_changed(self, new_text: str) -> None:
         self._add_comment_button.setEnabled(
@@ -160,34 +163,18 @@ class Comments(QtWidgets.QWidget):
         if not self._comment_author.text() or not self._comment_input.text():
             return
         assert self._run_id is not None
-        with self._db.connect() as conn:
-            now = datetime.datetime.utcnow()
-            comment_id = self._db.add_comment(
-                conn,
-                self._run_id,
-                self._comment_author.text(),
-                self._comment_input.text(),
-            )
-            new_comment = Comment(
-                comment_id, self._comment_author.text(), self._comment_input.text(), now
-            )
-            self._comments.append(new_comment)
-            self._comment_table.setRowCount(self._comment_table.rowCount() + 1)
-            self._comment_table.blockSignals(True)
-            self._set_row(
-                new_comment, datetime.datetime.utcnow(), len(self._comments) - 1
-            )
-            self._comment_table.blockSignals(False)
-            self._comment_input.setText("")
-            self.comments_changed.emit()
-            self._refresh_times()
+        now = datetime.datetime.utcnow()
+        new_comment = Comment(
+            None, self._comment_author.text(), self._comment_input.text(), now
+        )
+        self._comment_added(new_comment)
+        self._comment_input.setText("")
 
     def _refresh_times(self) -> None:
-        self._comment_table.blockSignals(True)
-        for row, c in enumerate(self._comments):
-            self._comment_table.setItem(
-                row,
-                Column.CREATED.value,
-                _date_cell(datetime.datetime.utcnow(), c.created),
-            )
-        self._comment_table.blockSignals(False)
+        with SignalBlocker(self._comment_table):
+            for row, c in enumerate(self._comments):
+                self._comment_table.setItem(
+                    row,
+                    Column.CREATED.value,
+                    _date_cell(datetime.datetime.utcnow(), c.created),
+                )

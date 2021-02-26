@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> None:
     # TESTING
+    # noinspection PyShadowingNames
     with queries.dbcontext.connect() as conn:
         queries.create_run(conn, ProposalId(1), RunId(1), sample_id=None)
 
@@ -39,14 +40,17 @@ async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> No
     socket.connect(config["socket_url"])
 
     while True:
+        # noinspection PyUnresolvedReferences
         await socket.send(b"next")
         try:
+            # noinspection PyUnresolvedReferences
             raw_data = await socket.recv_multipart(copy=False)
             data = deserialize(raw_data)
 
             # with open("/tmp/pickled_karabo", "wb") as f:
             #     f.write(pickle.dumps(data))
 
+            # noinspection PyShadowingNames
             with queries.dbcontext.connect() as conn:
                 queries.update_run_karabo(conn, RunId(1), karabo=pickle.dumps(data))
 
@@ -57,6 +61,7 @@ async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> No
             logger.error("No data received in time")
 
 
+# noinspection PyShadowingNames
 def _update_db_from_mc(dbctx: DBContext, tables: Tables, infos: Dict[int, Any]) -> None:
     with dbctx.connect() as conn:
         with conn.begin():
@@ -78,6 +83,7 @@ def _update_db_from_mc(dbctx: DBContext, tables: Tables, infos: Dict[int, Any]) 
                     )
 
 
+# noinspection PyUnresolvedReferences,PyShadowingNames
 async def mc_loop(
     dbctx: DBContext,
     tables: Tables,
@@ -95,10 +101,11 @@ async def mc_loop(
         await asyncio.sleep(5)
 
 
+# noinspection PyUnresolvedReferences
 async def main(
     queries: SPBQueries,
-    executor: concurrent.futures.ThreadPoolExecutor,
-    mc_config: XFELMetadataConnectionConfig,
+    _executor: concurrent.futures.ThreadPoolExecutor,
+    _mc_config: XFELMetadataConnectionConfig,
     karabo_config: XFELKaraboBridgeConfig,
 ) -> None:
     await asyncio.gather(
@@ -133,6 +140,7 @@ if __name__ == "__main__":
     with global_queries.dbcontext.connect() as conn:
         global_queries.create_proposal(conn, ProposalId(1))
 
+    # noinspection PyUnresolvedReferences
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as global_executor:
         asyncio.run(
             main(
