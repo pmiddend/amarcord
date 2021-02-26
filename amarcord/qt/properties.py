@@ -74,7 +74,7 @@ def delegate_for_property_type(
             proptype.nonNegative, proptype.range, proptype.suffix, parent
         )
     if isinstance(proptype, PropertyString):
-        return QtWidgets.QStyledItemDelegate()
+        return QtWidgets.QStyledItemDelegate(parent=parent)
     if isinstance(proptype, PropertyChoice):
         return ComboItemDelegate(values=proptype.values, parent=parent)
     if isinstance(proptype, PropertySample):

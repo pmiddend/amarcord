@@ -108,6 +108,7 @@ class DeclarativeTable(QTableView):
         super().__init__(parent)
 
         self._data = data
+        self._prior_delegates: List[QAbstractItemDelegate] = []
         model = DeclarativeTableModel(data)
         self.setModel(model)
         model.cell_changed.connect(self._cell_changed)
@@ -126,6 +127,16 @@ class DeclarativeTable(QTableView):
             cb(new_value)
 
     def set_data(self, data: Data) -> None:
+        # When this is called, we might be in the middle of an edit
+        # operation, so the editor is still open. The current delegate needs to
+        # survive in this case to do cleanup work, so we store the previous delegates.
+        # Shouldn't harm anyone.
+        # You can check this case using isPersistentEditorOpen on all indices. It will be
+        # true at the beginning of this function and false at the end.
+        # If you don't store the previous delegates you will get a random segfault, because
+        # Python will decide to kill the old delegate at some point.
+        self._prior_delegates = list(self._data.row_delegates.values())
+
         for row_idx, delegate in self._data.row_delegates.items():
             # noinspection PyTypeChecker
             self.setItemDelegateForRow(row_idx, QStyledItemDelegate())  # type: ignore
@@ -142,3 +153,18 @@ class DeclarativeTable(QTableView):
 
         for row_idx, delegate in data.column_delegates.items():
             self.setItemDelegateForColumn(row_idx, delegate)
+
+    # Keep these commented out. Maybe we want to really delete the delegates when
+    # we're done with them, instead of keeping them around like idiots.
+    # The commitData signal is called, but I'm not using that information, yet.
+    # def closeEditor(
+    #     self, editor: QWidget, hint: QAbstractItemDelegate.EndEditHint
+    # ) -> None:
+    #     logger.info("close editor begin")
+    #     super().closeEditor(editor, hint)
+    #     logger.info("close editor end")
+    #
+    # def commitData(self, editor: QWidget) -> None:
+    #     logger.info("commit data begin")
+    #     super().commitData(editor)
+    #     logger.info("commit data end")
