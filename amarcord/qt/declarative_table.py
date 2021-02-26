@@ -10,6 +10,7 @@ from PyQt5.QtCore import (
     Qt,
     pyqtSignal,
 )
+from PyQt5.QtGui import QBrush
 from PyQt5.QtWidgets import (
     QAbstractItemDelegate,
     QAbstractItemView,
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 class Row:
     display_roles: List[str]
     edit_roles: List[Optional[Any]]
+    background_roles: Dict[int, QBrush] = field(default_factory={})  # type: ignore
     change_callbacks: List[Optional[Callable[[Any], None]]] = field(
         hash=False, default_factory=lambda: [], compare=False
     )
@@ -80,6 +82,10 @@ class DeclarativeTableModel(QAbstractTableModel):
             return self._data.rows[index.row()].display_roles[index.column()]
         if role == Qt.EditRole:
             return self._data.rows[index.row()].edit_roles[index.column()]
+        if role == Qt.BackgroundRole:
+            return self._data.rows[index.row()].background_roles.get(
+                index.column(), None
+            )
         return None
 
     def set_data(self, data: Data) -> None:
