@@ -291,9 +291,15 @@ class RunDetails(QtWidgets.QWidget):
         assert (
             run_id is not None or selected_run_id is not None
         ), "Either give a run ID or have a run present already"
+        old_karabo = self._run.karabo if self._run is not None else None
         run_id = cast(RunId, run_id if run_id is not None else selected_run_id)
         self._run = self._db.retrieve_run(conn, run_id)
-        self._run = replace(self._run, karabo=self._db.retrieve_karabo(conn, run_id))
+        self._run = replace(
+            self._run,
+            karabo=self._db.retrieve_karabo(conn, run_id)
+            if old_karabo is None
+            else old_karabo,
+        )
 
         self._run_selector_changed(conn)
 
