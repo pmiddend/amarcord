@@ -63,8 +63,8 @@ class DeclarativeTableModel(QAbstractTableModel):
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
         flags = super().flags(index)
         if self._data.columns[index.column()].editable:
-            # noinspection Mypy,PyTypeChecker
-            return flags | Qt.ItemIsEditable
+            # noinspection PyTypeChecker
+            return flags | Qt.ItemIsEditable  # type: ignore
         return flags
 
     def headerData(
@@ -88,9 +88,11 @@ class DeclarativeTableModel(QAbstractTableModel):
         # Here we can, later on, compare old/new and emit dataChanged signals
         # (or layout change if everything changed)
 
-        self.modelAboutToBeReset.emit()
+        # noinspection PyUnresolvedReferences
+        self.modelAboutToBeReset.emit()  # type: ignore
         self._data = data
-        self.modelReset.emit()
+        # noinspection PyUnresolvedReferences
+        self.modelReset.emit()  # type: ignore
 
     def setData(self, index: QModelIndex, value: Any, role: int = Qt.EditRole) -> bool:
         if not index.isValid():

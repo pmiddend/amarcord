@@ -50,7 +50,7 @@ Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
 @dataclass(frozen=True)
 class Run:
     properties: Dict[RunProperty, Any]
-    karabo: Karabo
+    karabo: Optional[Karabo]
 
 
 @dataclass(frozen=True)
