@@ -4,7 +4,17 @@ import logging
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
 from PyQt5 import QtGui
+from PyQt5.QtCore import qInstallMessageHandler
+
 from amarcord.qt.logging_handler import QtLoggingHandler
+
+
+# def _shit(type, context, msg):
+#     import os
+#     import signal
+#
+#     os.kill(os.getpid(), signal.SIGUSR1)
+#     print("SHIT " + msg)
 
 
 class UIContext:
@@ -26,6 +36,9 @@ class UIContext:
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 1)
         self._main_window.setCentralWidget(splitter)
+
+        # Enable this if you want to gdb-debug weird assertion messages
+        # qInstallMessageHandler(_shit)
 
     def set_application_suffix(self, suffix: str) -> None:
         self._app.setApplicationDisplayName("AMARCORD - " + suffix)
