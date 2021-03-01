@@ -9,12 +9,12 @@ from PyQt5.QtGui import QBrush
 from PyQt5.QtWidgets import QHBoxLayout
 
 from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
-from amarcord.modules.spb.queries import (
-    Run,
-    RunPropertyMetadata,
+from amarcord.modules.spb.db import (
+    DBRun,
+    DBRunPropertyMetadata,
 )
 from amarcord.modules.spb.run_property import RunProperty
-from amarcord.modules.spb.tables import Tables
+from amarcord.modules.spb.db_tables import DBTables
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
 from amarcord.qt.properties import RichPropertyType, delegate_for_property_type
 
@@ -57,13 +57,13 @@ class MetadataTable(QtWidgets.QWidget):
         self._table.verticalHeader().hide()
         self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
-        self._run: Optional[Run] = None
+        self._run: Optional[DBRun] = None
 
     def _property_changed(self, prop: RunProperty, new_value: Any) -> None:
         self._property_change(prop, new_value)
 
     def _run_property_to_string(
-        self, prop: RunProperty, metadata: RunPropertyMetadata, value: Any
+        self, prop: RunProperty, metadata: DBRunPropertyMetadata, value: Any
     ) -> str:
         suffix: str = getattr(metadata.rich_prop_type, "suffix", None)
         value_str = ", ".join(value) if isinstance(value, list) else str(value)
@@ -71,15 +71,15 @@ class MetadataTable(QtWidgets.QWidget):
 
     def data_changed(
         self,
-        run: Run,
-        metadata: Dict[RunProperty, RunPropertyMetadata],
-        tables: Tables,
+        run: DBRun,
+        metadata: Dict[RunProperty, DBRunPropertyMetadata],
+        tables: DBTables,
         sample_ids: List[int],
     ) -> None:
 
         self._run = run
 
-        run_properties: List[Tuple[RunProperty, RunPropertyMetadata]] = [
+        run_properties: List[Tuple[RunProperty, DBRunPropertyMetadata]] = [
             (k, v)
             for k, v in metadata.items()
             if k not in (tables.property_comments, tables.property_karabo)

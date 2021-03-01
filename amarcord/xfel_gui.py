@@ -12,7 +12,7 @@ from amarcord.modules.spb.factories import (
 )
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_id import RunId
-from amarcord.modules.spb.tables import create_sample_data, create_tables
+from amarcord.modules.spb.db_tables import create_sample_data, create_tables
 from amarcord.modules.uicontext import UIContext
 
 logging.basicConfig(

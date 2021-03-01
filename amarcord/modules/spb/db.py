@@ -22,8 +22,8 @@ from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.run_property import (
     RunProperty,
 )
-from amarcord.modules.spb.tables import (
-    Tables,
+from amarcord.modules.spb.db_tables import (
+    DBTables,
 )
 from amarcord.qt.properties import (
     PropertyChoice,
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class Comment:
+class DBRunComment:
     id: Optional[int]
     author: str
     text: str
@@ -50,7 +50,7 @@ Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
 
 
 @dataclass(frozen=True)
-class Run:
+class DBRun:
     properties: Dict[RunProperty, Any]
     karabo: Optional[Karabo]
     manual_properties: Set[RunProperty]
@@ -65,10 +65,11 @@ class CustomRunProperty:
 
 
 Connection = Any
+RawJSONSchema = Dict[str, Any]
 
 
 def _schema_to_property_type(
-    json_schema: Dict[str, Any], suffix: Optional[str]
+    json_schema: RawJSONSchema, suffix: Optional[str]
 ) -> RichPropertyType:
     parsed_schema = parse_schema_type(json_schema)
     if isinstance(parsed_schema, JSONSchemaNumber):
@@ -93,7 +94,7 @@ def _schema_to_property_type(
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
 
-def _property_type_to_schema(rp: RichPropertyType) -> Dict[str, Any]:
+def _property_type_to_schema(rp: RichPropertyType) -> RawJSONSchema:
     if isinstance(rp, PropertyInt):
         result_int: Dict[str, Any] = {"type": "number"}
         if rp.range is not None:
@@ -111,15 +112,18 @@ def _property_type_to_schema(rp: RichPropertyType) -> Dict[str, Any]:
     raise Exception(f"invalid property type {type(rp)}")
 
 
+Source = str
+
+
 @dataclass(frozen=True)
-class ValueWithSource:
+class PropertyValueWithSource:
     value: Any
-    source: str
+    source: Source
 
 
 def _decode_custom_to_values(
     custom: Mapping[str, Any]
-) -> Dict[RunProperty, ValueWithSource]:
+) -> Dict[RunProperty, PropertyValueWithSource]:
     result: Dict[RunProperty, Any] = {}
     for source in custom.keys() - {MANUAL_SOURCE_NAME}:
         values: Dict[str, Any] = custom[source]
@@ -133,29 +137,29 @@ def _decode_custom_to_values(
                     "source values overlap for %s, overriding (introduce priorities!)",
                     run_property_str,
                 )
-            result[run_property] = ValueWithSource(value=value, source=source)
+            result[run_property] = PropertyValueWithSource(value=value, source=source)
     if MANUAL_SOURCE_NAME in custom:
         manual_values: Dict[str, Any] = custom[MANUAL_SOURCE_NAME]
         assert isinstance(
             manual_values, dict
         ), f"custom source data isn't a dict for manual source"
         for run_property_str, value in manual_values.items():
-            result[RunProperty(run_property_str)] = ValueWithSource(
+            result[RunProperty(run_property_str)] = PropertyValueWithSource(
                 value, source=MANUAL_SOURCE_NAME
             )
     return result
 
 
 @dataclass(frozen=True)
-class RunPropertyMetadata:
+class DBRunPropertyMetadata:
     name: str
     description: str
     suffix: Optional[str]
     rich_prop_type: Optional[RichPropertyType]
 
 
-class SPBQueries:
-    def __init__(self, dbcontext: DBContext, tables: Tables) -> None:
+class DB:
+    def __init__(self, dbcontext: DBContext, tables: DBTables) -> None:
         self.dbcontext = dbcontext
         self.tables = tables
 
@@ -194,7 +198,7 @@ class SPBQueries:
             rows = list(run_rows)
             run_meta = rows[0]
             comments = remove_duplicates_stable(
-                Comment(
+                DBRunComment(
                     id=row["comment_id"],
                     author=row["author"],
                     text=row["comment_text"],
@@ -249,16 +253,7 @@ class SPBQueries:
             ).fetchall()
         ]
 
-    def change_sample(
-        self, conn: Connection, run_id: int, new_sample: Optional[int]
-    ) -> None:
-        conn.execute(
-            sa.update(self.tables.run)
-            .where(self.tables.run.c.id == run_id)
-            .values(sample_id=new_sample)
-        )
-
-    def change_comment(self, conn: Connection, c: Comment) -> None:
+    def change_comment(self, conn: Connection, c: DBRunComment) -> None:
         assert c.id is not None
 
         conn.execute(
@@ -267,7 +262,7 @@ class SPBQueries:
             .values(author=c.author, comment_text=c.text)
         )
 
-    def retrieve_run(self, conn: Connection, run_id: RunId) -> Run:
+    def retrieve_run(self, conn: Connection, run_id: RunId) -> DBRun:
         run = self.tables.run
         run_c = run.c
         comment = self.tables.run_comment
@@ -293,7 +288,7 @@ class SPBQueries:
         run_meta = run_rows[0]
         custom = run_meta["custom"]
         custom_decoded = _decode_custom_to_values(custom)
-        return Run(
+        return DBRun(
             properties=dict_union(
                 [
                     {
@@ -303,7 +298,7 @@ class SPBQueries:
                     },
                     {
                         self.tables.property_comments: remove_duplicates_stable(
-                            Comment(
+                            DBRunComment(
                                 row["comment_id"],
                                 row["author"],
                                 row["comment_text"],
@@ -355,12 +350,7 @@ class SPBQueries:
 
             conn.execute(
                 self.tables.run.insert().values(
-                    proposal_id=proposal_id,
-                    id=run_id,
-                    sample_id=sample_id,
-                    status="running",
-                    started=datetime.datetime.utcnow(),
-                    modified=datetime.datetime.utcnow(),
+                    proposal_id=proposal_id, id=run_id, sample_id=sample_id, custom={}
                 )
             )
             return True
@@ -399,12 +389,12 @@ class SPBQueries:
 
     def run_property_metadata(
         self, conn: Connection
-    ) -> Dict[RunProperty, RunPropertyMetadata]:
+    ) -> Dict[RunProperty, DBRunPropertyMetadata]:
         custom_props = self.custom_run_properties(conn)
         return dict_union(
             [
                 {
-                    k: RunPropertyMetadata(
+                    k: DBRunPropertyMetadata(
                         name=str(k),
                         description=self.tables.property_descriptions.get(k, str(k)),
                         rich_prop_type=v,
@@ -413,7 +403,7 @@ class SPBQueries:
                     for k, v in self.tables.property_types.items()
                 },
                 {
-                    c.name: RunPropertyMetadata(
+                    c.name: DBRunPropertyMetadata(
                         name=str(c.name),
                         description=c.description,
                         rich_prop_type=c.rich_property_type,
@@ -422,7 +412,7 @@ class SPBQueries:
                     for c in custom_props
                 },
                 {
-                    self.tables.property_comments: RunPropertyMetadata(
+                    self.tables.property_comments: DBRunPropertyMetadata(
                         name="comments",
                         description="Comments",
                         rich_prop_type=None,

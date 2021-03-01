@@ -4,24 +4,24 @@ from PyQt5 import QtWidgets
 import sqlalchemy as sa
 from amarcord.modules.spb.run_table import RunTable
 from amarcord.modules.spb.run_details import RunDetails
-from amarcord.modules.spb.tables import Tables
+from amarcord.modules.spb.db_tables import DBTables
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.context import Context
 
 
 def run_table(
-    context: Context, table_data: Tables, prop_id: ProposalId
+    context: Context, table_data: DBTables, prop_id: ProposalId
 ) -> QtWidgets.QWidget:
     return RunTable(context, table_data, prop_id)
 
 
 def run_details(
-    context: Context, table_data: Tables, prop_id: ProposalId
+    context: Context, table_data: DBTables, prop_id: ProposalId
 ) -> QtWidgets.QWidget:
     return RunDetails(context, table_data, prop_id)
 
 
-def retrieve_proposal_ids(context: Context, table_data: Tables) -> Set[ProposalId]:
+def retrieve_proposal_ids(context: Context, table_data: DBTables) -> Set[ProposalId]:
     with context.db.connect() as conn:
         return set(
             ProposalId(r[0])

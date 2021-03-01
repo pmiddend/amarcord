@@ -71,7 +71,7 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-class Tables:
+class DBTables:
     def __init__(
         self,
         sample: sa.Table,
@@ -103,8 +103,8 @@ class Tables:
         }
 
 
-def create_tables(context: DBContext) -> Tables:
-    return Tables(
+def create_tables(context: DBContext) -> DBTables:
+    return DBTables(
         sample=_table_sample(context.metadata),
         proposal=_table_proposal(context.metadata),
         run=_table_run(context.metadata),
@@ -113,7 +113,7 @@ def create_tables(context: DBContext) -> Tables:
     )
 
 
-def create_sample_data(context: DBContext, tables: Tables) -> None:
+def create_sample_data(context: DBContext, tables: DBTables) -> None:
     karabo_data: Optional[bytes]
     try:
         with open("data/pickled_karabo", "rb") as f:
@@ -238,7 +238,9 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
         #     )
 
 
-def run_property_db_columns(tables: Tables, with_blobs: bool = True) -> List[sa.Column]:
+def run_property_db_columns(
+    tables: DBTables, with_blobs: bool = True
+) -> List[sa.Column]:
     return [
         x
         for x in tables.run.c.values()
@@ -246,7 +248,7 @@ def run_property_db_columns(tables: Tables, with_blobs: bool = True) -> List[sa.
     ]
 
 
-def run_property_atomic_db_columns(tables: Tables) -> List[sa.Column]:
+def run_property_atomic_db_columns(tables: DBTables) -> List[sa.Column]:
     return [
         tables.run.c.id,
         tables.run.c.status,

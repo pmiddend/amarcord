@@ -12,9 +12,9 @@ from zmq.asyncio import Context
 from amarcord.config import load_config
 from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.queries import SPBQueries
+from amarcord.modules.spb.db import DB
 from amarcord.modules.spb.run_id import RunId
-from amarcord.modules.spb.tables import Tables, create_tables
+from amarcord.modules.spb.db_tables import DBTables, create_tables
 from amarcord.python_schema import validate_dict
 from amarcord.sources.karabo import XFELKaraboBridgeConfig
 from amarcord.sources.mc import XFELMetadataCatalogue, XFELMetadataConnectionConfig
@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> None:
+async def karabo_loop(queries: DB, config: XFELKaraboBridgeConfig) -> None:
     # TESTING
     with queries.dbcontext.connect() as conn:
         queries.create_run(conn, ProposalId(1), RunId(1), sample_id=None)
@@ -62,7 +62,7 @@ async def karabo_loop(queries: SPBQueries, config: XFELKaraboBridgeConfig) -> No
 
 # noinspection PyShadowingNames
 def _update_db_from_mc(
-    dbctx: DBContext, db_tables: Tables, infos: Dict[int, Any]
+    dbctx: DBContext, db_tables: DBTables, infos: Dict[int, Any]
 ) -> None:
     with dbctx.connect() as conn:
         with conn.begin():
@@ -87,7 +87,7 @@ def _update_db_from_mc(
 # noinspection PyUnresolvedReferences,PyShadowingNames
 async def mc_loop(
     dbctx: DBContext,
-    db_tables: Tables,
+    db_tables: DBTables,
     executor: concurrent.futures.ThreadPoolExecutor,
     mc_config: XFELMetadataConnectionConfig,
 ) -> None:
@@ -106,7 +106,7 @@ async def mc_loop(
 
 # noinspection PyUnresolvedReferences
 async def main(
-    queries: SPBQueries,
+    queries: DB,
     _executor: concurrent.futures.ThreadPoolExecutor,
     _mc_config: XFELMetadataConnectionConfig,
     karabo_config: XFELKaraboBridgeConfig,
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     tables = create_tables(global_dbcontext)
     global_dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
-    global_queries = SPBQueries(global_dbcontext, tables)
+    global_queries = DB(global_dbcontext, tables)
 
     # Just for testing!
     with global_queries.dbcontext.connect() as local_conn:

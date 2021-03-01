@@ -8,7 +8,7 @@ from typing import Callable, Dict, Final, List, Optional
 import humanize
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from amarcord.modules.spb.queries import Comment
+from amarcord.modules.spb.db import DBRunComment
 from amarcord.qt.signal_blocker import SignalBlocker
 
 logger = logging.getLogger(__name__)
@@ -55,8 +55,8 @@ class Comments(QtWidgets.QWidget):
     def __init__(
         self,
         comment_deleted: Callable[[int], None],
-        comment_changed: Callable[[Comment], None],
-        comment_added: Callable[[Comment], None],
+        comment_changed: Callable[[DBRunComment], None],
+        comment_added: Callable[[DBRunComment], None],
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -93,14 +93,14 @@ class Comments(QtWidgets.QWidget):
         comment_form_layout.addWidget(self._add_comment_button)
         layout.addLayout(comment_form_layout)
 
-        self._comments: List[Comment] = []
+        self._comments: List[DBRunComment] = []
         self._run_id: Optional[int] = None
         self._timer = QtCore.QTimer(self)
         self._timer.setInterval(10 * 1000)
         self._timer.timeout.connect(self._refresh_times)
         self._timer.start()
 
-    def set_comments(self, run_id: int, comments: List[Comment]) -> None:
+    def set_comments(self, run_id: int, comments: List[DBRunComment]) -> None:
         with SignalBlocker(self._comment_table):
             assert all(c.id is not None for c in comments)
 
@@ -119,7 +119,7 @@ class Comments(QtWidgets.QWidget):
             for row, c in enumerate(self._comments):
                 self._set_row(c, now, row)
 
-    def _set_row(self, c: Comment, now: datetime.datetime, row: int) -> None:
+    def _set_row(self, c: DBRunComment, now: datetime.datetime, row: int) -> None:
         self._comment_table.setItem(
             row,
             Column.CREATED.value,
@@ -163,7 +163,7 @@ class Comments(QtWidgets.QWidget):
             return
         assert self._run_id is not None
         now = datetime.datetime.utcnow()
-        new_comment = Comment(
+        new_comment = DBRunComment(
             None, self._comment_author.text(), self._comment_input.text(), now
         )
         self._comment_added(new_comment)

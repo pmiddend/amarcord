@@ -3,7 +3,7 @@ from typing import Optional, List
 from PyQt5 import QtWidgets
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_id import RunId
-from amarcord.modules.spb.queries import SPBQueries
+from amarcord.modules.spb.db import DB
 
 
 @dataclass(frozen=True)
@@ -62,21 +62,21 @@ def _new_run_dialog(
 def new_run_dialog(
     parent: Optional[QtWidgets.QWidget],
     proposal_id: ProposalId,
-    queries: SPBQueries,
+    db: DB,
 ) -> Optional[RunId]:
-    with queries.dbcontext.connect() as conn:
+    with db.dbcontext.connect() as conn:
         new_run = _new_run_dialog(
             parent=parent,
             highest_id=max(
-                (r for r in queries.retrieve_run_ids(conn, proposal_id)),
+                (r for r in db.retrieve_run_ids(conn, proposal_id)),
                 default=None,
             ),
-            sample_ids=queries.retrieve_sample_ids(conn),
+            sample_ids=db.retrieve_sample_ids(conn),
         )
 
     if new_run is None:
         return None
 
-    with queries.dbcontext.connect() as conn:
-        queries.create_run(conn, proposal_id, new_run.id, new_run.sample_id)
+    with db.dbcontext.connect() as conn:
+        db.create_run(conn, proposal_id, new_run.id, new_run.sample_id)
         return new_run.id

@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from amarcord.modules.spb.queries import CustomRunProperty
+from amarcord.modules.spb.db import CustomRunProperty
 from amarcord.modules.spb.run_property import RunProperty
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.properties import PropertyDouble, PropertyString, RichPropertyType

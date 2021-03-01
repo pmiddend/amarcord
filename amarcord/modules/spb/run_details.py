@@ -11,7 +11,7 @@ from amarcord.modules.spb.comments import Comments
 from amarcord.modules.spb.new_custom_column_dialog import new_custom_column_dialog
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.queries import Comment, Connection, Run, SPBQueries
+from amarcord.modules.spb.db import DBRunComment, Connection, DBRun, DB
 from amarcord.modules.spb.run_details_metadata import MetadataTable
 from amarcord.modules.spb.run_details_tree import (
     RunDetailsTree,
@@ -21,7 +21,7 @@ from amarcord.modules.spb.run_details_tree import (
 )
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.run_property import RunProperty
-from amarcord.modules.spb.tables import Tables
+from amarcord.modules.spb.db_tables import DBTables
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
@@ -33,13 +33,13 @@ class RunDetails(QtWidgets.QWidget):
     run_changed = QtCore.pyqtSignal()
 
     def __init__(
-        self, context: Context, tables: Tables, proposal_id: ProposalId
+        self, context: Context, tables: DBTables, proposal_id: ProposalId
     ) -> None:
         super().__init__()
 
         self._proposal_id = proposal_id
         self._context = context
-        self._db = SPBQueries(context.db, tables)
+        self._db = DB(context.db, tables)
         with context.db.connect() as conn:
             self._run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
             self._sample_ids = self._db.retrieve_sample_ids(conn)
@@ -149,7 +149,7 @@ class RunDetails(QtWidgets.QWidget):
                 root_columns.setStretch(0, 2)
                 root_columns.setStretch(1, 3)
 
-                self._run: Optional[Run] = None
+                self._run: Optional[DBRun] = None
                 self._run_changed(conn, selected_run_id)
 
     def _slot_delete_comment(self, comment_id: int) -> None:
@@ -158,13 +158,13 @@ class RunDetails(QtWidgets.QWidget):
             self._run_changed(conn)
             self.run_changed.emit()
 
-    def _slot_change_comment(self, comment: Comment) -> None:
+    def _slot_change_comment(self, comment: DBRunComment) -> None:
         with self._db.connect() as conn:
             self._db.change_comment(conn, comment)
             self._run_changed(conn)
             self.run_changed.emit()
 
-    def _slot_add_comment(self, comment: Comment) -> None:
+    def _slot_add_comment(self, comment: DBRunComment) -> None:
         with self._db.connect() as conn:
             selected_run = self.selected_run_id()
             assert selected_run is not None, "Tried to add a comment, but have no run"
@@ -247,7 +247,7 @@ class RunDetails(QtWidgets.QWidget):
         new_run_id = new_run_dialog(
             parent=self,
             proposal_id=self._proposal_id,
-            queries=self._db,
+            db=self._db,
         )
         if new_run_id is not None:
             logger.info("Selecting new run %s", new_run_id)

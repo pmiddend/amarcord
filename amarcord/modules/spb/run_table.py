@@ -13,9 +13,9 @@ from amarcord.modules.context import Context
 from amarcord.modules.spb.column_chooser import display_column_chooser
 from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.queries import Comment, SPBQueries
+from amarcord.modules.spb.db import DBRunComment, DB
 from amarcord.modules.spb.run_property import RunProperty
-from amarcord.modules.spb.tables import Tables
+from amarcord.modules.spb.db_tables import DBTables
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.qt.properties import PropertyDouble, PropertyInt
 from amarcord.qt.table import GeneralTableWidget
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 Row = Dict[RunProperty, Any]
 
 
-def _default_visible_properties(t: Tables) -> List[RunProperty]:
+def _default_visible_properties(t: DBTables) -> List[RunProperty]:
     return [
         t.property_run_id,
         t.property_sample,
@@ -35,7 +35,7 @@ def _default_visible_properties(t: Tables) -> List[RunProperty]:
     ]
 
 
-def _retrieve_data_no_connection(db: SPBQueries, proposal_id: ProposalId) -> List[Row]:
+def _retrieve_data_no_connection(db: DB, proposal_id: ProposalId) -> List[Row]:
     with db.dbcontext.connect() as conn:
         return db.retrieve_runs(conn, proposal_id)
 
@@ -48,7 +48,7 @@ def _convert_tag_column(value: Set[str], role: int) -> Any:
     return QtCore.QVariant()
 
 
-def _convert_comment_column(comments: List[Comment], role: int) -> Any:
+def _convert_comment_column(comments: List[DBRunComment], role: int) -> Any:
     if role == QtCore.Qt.DisplayRole:
         return "\n".join(f"{c.author}: {c.text}" for c in comments)
     if role == QtCore.Qt.EditRole:
@@ -67,12 +67,12 @@ class RunTable(QtWidgets.QWidget):
     run_selected = QtCore.pyqtSignal(int)
 
     def __init__(
-        self, context: Context, tables: Tables, proposal_id: ProposalId
+        self, context: Context, tables: DBTables, proposal_id: ProposalId
     ) -> None:
         super().__init__()
 
         self._proposal_id = proposal_id
-        self._db = SPBQueries(context.db, tables)
+        self._db = DB(context.db, tables)
 
         # Init main widgets
         choose_columns = QtWidgets.QPushButton(
