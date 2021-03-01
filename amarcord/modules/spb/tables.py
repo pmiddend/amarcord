@@ -97,26 +97,6 @@ class Tables:
             self.property_sample: PropertySample(),
         }
 
-    #
-    # def run_property_to_string(self, r: RunProperty, v: Any) -> str:
-    #     if v is None:
-    #         return "None"
-    #     run_prop_type = self.property_types.get(r, None)
-    #     if isinstance(run_prop_type, PropertyTags):
-    #         assert isinstance(v, list)
-    #         return ", ".join(v)
-    #     if isinstance(v, datetime.datetime):
-    #         return v.strftime("%Y-%m-%d %H:%M:%S")
-    #     if not isinstance(v, (int, float, str, bool)):
-    #         raise Exception(f"run property {r} has invalid type {type(v)}")
-    #     result = str(v)
-    #     suffix = getattr(run_prop_type, "suffix", None)
-    #     if suffix is not None:
-    #         if not isinstance(suffix, str):
-    #             raise Exception(f"got a suffix of type {(type(suffix))}")
-    #         result += f" {suffix}"
-    #     return result
-
 
 def create_tables(context: DBContext) -> Tables:
     return Tables(
@@ -198,6 +178,14 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                         "suffix": "mm",
                         "json_schema": {"type": "number"},
                     },
+                    # {
+                    #     "name": "tags",
+                    #     "description": "Tags",
+                    #     "json_schema": {
+                    #         "type": "array",
+                    #         "items": {"type": "string", "minLength": 1},
+                    #     },
+                    # },
                     {
                         "name": "started",
                         "description": "Started",

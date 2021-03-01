@@ -8,6 +8,12 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import sqlalchemy as sa
 
+from amarcord.json_schema import (
+    JSONSchemaInteger,
+    JSONSchemaNumber,
+    JSONSchemaString,
+    parse_schema_type,
+)
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_id import RunId
@@ -18,6 +24,7 @@ from amarcord.modules.spb.tables import (
     Tables,
 )
 from amarcord.qt.properties import (
+    PropertyChoice,
     PropertyDouble,
     PropertyInt,
     PropertyString,
@@ -59,24 +66,19 @@ Connection = Any
 def _schema_to_property_type(
     json_schema: Dict[str, Any], suffix: Optional[str]
 ) -> RichPropertyType:
-    value_type = json_schema.get("type", None)
-    assert value_type is not None, "No type in schema found"
-    if value_type == "number":
+    parsed_schema = parse_schema_type(json_schema)
+    if isinstance(parsed_schema, JSONSchemaNumber):
         return PropertyDouble(
-            range=(json_schema["minimum"], json_schema["maximum"])
-            if "minimum" in json_schema and "maximum" in json_schema
-            else None,
+            range=None,
             suffix=suffix,
         )
-    if value_type == "integer":
-        return PropertyInt(
-            range=(json_schema["minimum"], json_schema["maximum"])
-            if "minimum" in json_schema and "maximum" in json_schema
-            else None
-        )
-    if value_type == "string":
+    if isinstance(parsed_schema, JSONSchemaInteger):
+        return PropertyInt(range=None)
+    if isinstance(parsed_schema, JSONSchemaString):
+        if parsed_schema.enum_ is not None:
+            return PropertyChoice([(s, s) for s in parsed_schema.enum_])
         return PropertyString()
-    raise Exception(f'invalid schema type "{value_type}"')
+    raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
 
 def _property_type_to_schema(rp: RichPropertyType) -> Dict[str, Any]:
