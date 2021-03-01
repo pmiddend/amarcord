@@ -29,7 +29,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         enum_type_retriever: Callable[[], Iterable[T]],
         column_header_retriever: Callable[[], Dict[T, str]],
         column_visibility: List[T],
-        column_converters: Dict[T, Callable[[Any, int], Any]],
+        column_converter: Callable[[T, int, Any], str],
         data_retriever: Optional[DataRetriever],
         parent: Optional[QtCore.QObject],
     ) -> None:
@@ -49,7 +49,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self._filtered_data = self._data
         # pylint: disable=unnecessary-comprehension
         self._enum_values = [e for e in self._enum_type]
-        self._column_converters = column_converters
+        self._column_converter = column_converter
         self._sort_column: Optional[T] = None
         self._sort_reverse = False
         self._filter_query: Optional[Query] = None
@@ -139,11 +139,8 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         )
         if v is None:
             return "None"
-        column_converter = self._column_converters.get(
-            self.index_to_enum[index.column()], None
-        )
-        if column_converter is not None:
-            return column_converter(v, role)
+        if self._column_converter is not None:
+            return self._column_converter(self.index_to_enum[index.column()], role, v)
         return str(v)
 
     def sort(
@@ -167,7 +164,7 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
         enum_type_retriever: Callable[[], Iterable[T]],
         column_header_retriever: Callable[[], Dict[T, str]],
         column_visibility: List[T],
-        column_converters: Dict[T, Callable[[Any, int], Any]],
+        column_converter: Callable[[T, int, Any], str],
         data_retriever: Optional[DataRetriever],
         parent: Optional[QtWidgets.QWidget],
     ) -> None:
@@ -180,7 +177,7 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
             enum_type_retriever,
             column_header_retriever,
             column_visibility,
-            column_converters,
+            column_converter,
             data_retriever,
             parent=None,
         )

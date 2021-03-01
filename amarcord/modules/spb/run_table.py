@@ -28,15 +28,9 @@ Row = Dict[RunProperty, Any]
 
 
 def _default_visible_properties(t: Tables) -> List[RunProperty]:
-    run_c = t.run.c
     return [
         t.property_run_id,
-        RunProperty(run_c.status.name),
-        RunProperty(run_c.sample_id.name),
-        RunProperty(run_c.repetition_rate_mhz.name),
-        t.property_tags,
-        RunProperty(run_c.hit_rate.name),
-        RunProperty(run_c.indexing_rate.name),
+        t.property_sample,
         t.property_comments,
     ]
 
@@ -95,11 +89,8 @@ class RunTable(QtWidgets.QWidget):
                 column_header_retriever=lambda: {
                     k: v.name for k, v in self._run_property_names.items()
                 },
-                column_visibility=_default_visible_properties(tables),
-                column_converters={
-                    self._db.tables.property_tags: _convert_tag_column,
-                    self._db.tables.property_comments: _convert_comment_column,
-                },  # type: ignore
+                column_visibility=list(self._run_property_names.keys()),
+                column_converter=self._convert_column,
                 data_retriever=None,
                 parent=self,
             )
@@ -150,11 +141,22 @@ class RunTable(QtWidgets.QWidget):
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
 
+    def _convert_column(self, run_property: RunProperty, role: int, value: Any) -> str:
+        if run_property == self._db.tables.property_comments:
+            assert isinstance(value, list), "Comment column isn't a list"
+            return _convert_comment_column(value, role)
+        return str(value)
+
     def _header_menu_callback(self, pos: QtCore.QPoint, column: RunProperty) -> None:
-        prop_type = self._db.tables.property_types.get(column, None)
-        if prop_type is None or not isinstance(
-            prop_type, (PropertyInt, PropertyDouble)
+        property_metadata = self._run_property_names.get(column, None)
+        if property_metadata is None or property_metadata.rich_prop_type is None:
+            return
+        if not isinstance(
+            property_metadata.rich_prop_type, (PropertyInt, PropertyDouble)
         ):
+            return
+        started_property = RunProperty("started")
+        if started_property not in self._run_property_names:
             return
         menu = QtWidgets.QMenu(self)
         plotAction = menu.addAction(
@@ -171,9 +173,7 @@ class RunTable(QtWidgets.QWidget):
 
             df = pd.DataFrame(
                 self._table_view.get_filtered_column_values(column),
-                index=self._table_view.get_filtered_column_values(
-                    self._db.tables.property_started
-                ),
+                index=self._table_view.get_filtered_column_values(started_property),
                 columns=["Values"],
             )
 
@@ -201,7 +201,7 @@ class RunTable(QtWidgets.QWidget):
 
     def _slot_switch_columns(self) -> None:
         new_columns = display_column_chooser(
-            self, self._table_view.column_visibility, self._db
+            self, self._table_view.column_visibility, self._run_property_names
         )
         self._table_view.set_column_visibility(new_columns)
 

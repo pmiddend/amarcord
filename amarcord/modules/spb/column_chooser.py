@@ -1,15 +1,15 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 from PyQt5 import QtCore, QtWidgets
 
-from amarcord.modules.spb.queries import RunPropertyMetadata, SPBQueries
+from amarcord.modules.spb.queries import RunPropertyMetadata
 from amarcord.modules.spb.run_property import RunProperty
 
 
 def display_column_chooser(
     parent: Optional[QtWidgets.QWidget],
     selected_columns: List[RunProperty],
-    queries: SPBQueries,
+    available_properties: Mapping[RunProperty, RunPropertyMetadata],
 ) -> List[RunProperty]:
     dialog = QtWidgets.QDialog(parent)
     dialog_layout = QtWidgets.QVBoxLayout()
@@ -20,16 +20,12 @@ def display_column_chooser(
     root_widget.setLayout(root_layout)
     column_list = QtWidgets.QListWidget()
     column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-    with queries.connect() as conn:
-        metadata_dict: Dict[
-            RunProperty, RunPropertyMetadata
-        ] = queries.run_property_metadata(conn)
-        name_to_idx: Dict[RunProperty, int] = {}
-        for idx, (prop, run_metadata) in enumerate(metadata_dict.items()):
-            new_item = QtWidgets.QListWidgetItem(run_metadata.name)
-            new_item.setData(QtCore.Qt.UserRole, str(prop))
-            column_list.addItem(new_item)
-            name_to_idx[prop] = idx
+    name_to_idx: Dict[RunProperty, int] = {}
+    for idx, (prop, md) in enumerate(available_properties.items()):
+        new_item = QtWidgets.QListWidgetItem(md.description)
+        new_item.setData(QtCore.Qt.UserRole, str(prop))
+        column_list.addItem(new_item)
+        name_to_idx[prop] = idx
     for col in selected_columns:
         # -1 here because auto lets the enum start at 1 (which is fine actually)
         column_list.selectionModel().select(
