@@ -154,11 +154,13 @@ class RunDetails(QtWidgets.QWidget):
         with self._db.connect() as conn:
             self._db.delete_comment(conn, comment_id)
             self._run_changed(conn)
+            self.run_changed.emit()
 
     def _slot_change_comment(self, comment: Comment) -> None:
         with self._db.connect() as conn:
             self._db.change_comment(conn, comment)
             self._run_changed(conn)
+            self.run_changed.emit()
 
     def _slot_add_comment(self, comment: Comment) -> None:
         with self._db.connect() as conn:
@@ -166,6 +168,7 @@ class RunDetails(QtWidgets.QWidget):
             assert selected_run is not None, "Tried to add a comment, but have no run"
             self._db.add_comment(conn, selected_run, comment.author, comment.text)
             self._run_changed(conn)
+            self.run_changed.emit()
 
     def _property_change(self, prop: RunProperty, new_value: Any) -> None:
         assert self._run is not None, "Got a property change but have no run"

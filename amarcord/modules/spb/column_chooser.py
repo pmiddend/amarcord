@@ -22,7 +22,9 @@ def display_column_chooser(
     column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
     name_to_idx: Dict[RunProperty, int] = {}
     for idx, (prop, md) in enumerate(available_properties.items()):
-        new_item = QtWidgets.QListWidgetItem(md.description)
+        new_item = QtWidgets.QListWidgetItem(
+            md.description if md.description else md.name
+        )
         new_item.setData(QtCore.Qt.UserRole, str(prop))
         column_list.addItem(new_item)
         name_to_idx[prop] = idx
