@@ -6,7 +6,7 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QVariant
 
 from amarcord.modules.context import Context
-from amarcord.modules.spb.colors import color_manual_run_property
+from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
 from amarcord.modules.spb.comments import Comments
 from amarcord.modules.spb.new_custom_column_dialog import new_custom_column_dialog
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
@@ -97,7 +97,7 @@ class RunDetails(QtWidgets.QWidget):
                 table_legend_layout = QtWidgets.QHBoxLayout()
                 table_legend_layout.addStretch()
                 table_legend_layout.addWidget(
-                    RectangleWidget(color_manual_run_property)
+                    RectangleWidget(COLOR_MANUAL_RUN_PROPERTY)
                 )
                 table_legend_layout.addWidget(
                     QtWidgets.QLabel("<i>manually edited</i>")

@@ -5,8 +5,10 @@ from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PyQt5 import QtWidgets
+from PyQt5.QtGui import QBrush
 from PyQt5.QtWidgets import QHBoxLayout
 
+from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
 from amarcord.modules.spb.queries import (
     Run,
     RunPropertyMetadata,
@@ -97,13 +99,12 @@ class MetadataTable(QtWidgets.QWidget):
                             else "None",
                         ],
                         edit_roles=[None, run.properties.get(property, None)],
-                        background_roles={},
-                        # background_roles={
-                        #     0: QBrush(color_manual_run_property),
-                        #     1: QBrush(color_manual_run_property),
-                        # }
-                        # if property in tables.manual_properties
-                        # else {},
+                        background_roles={
+                            0: QBrush(COLOR_MANUAL_RUN_PROPERTY),
+                            1: QBrush(COLOR_MANUAL_RUN_PROPERTY),
+                        }
+                        if property in run.manual_properties
+                        else {},
                         change_callbacks=[
                             None,
                             partial(self._property_changed, property),

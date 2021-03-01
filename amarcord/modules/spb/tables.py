@@ -96,6 +96,11 @@ class Tables:
             self.property_proposal_id: PropertyInt(),
             self.property_sample: PropertySample(),
         }
+        self.property_descriptions: Dict[RunProperty, str] = {
+            self.property_run_id: "Run",
+            self.property_proposal_id: "Proposal",
+            self.property_sample: "Sample",
+        }
 
 
 def create_tables(context: DBContext) -> Tables:

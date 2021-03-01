@@ -4,7 +4,7 @@ import pickle
 from dataclasses import dataclass
 from itertools import groupby
 from time import time
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 import sqlalchemy as sa
 
@@ -16,6 +16,7 @@ from amarcord.json_schema import (
     parse_schema_type,
 )
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.spb.constants import MANUAL_SOURCE_NAME
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.run_property import (
@@ -52,6 +53,7 @@ Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
 class Run:
     properties: Dict[RunProperty, Any]
     karabo: Optional[Karabo]
+    manual_properties: Set[RunProperty]
 
 
 @dataclass(frozen=True)
@@ -109,9 +111,17 @@ def _property_type_to_schema(rp: RichPropertyType) -> Dict[str, Any]:
     raise Exception(f"invalid property type {type(rp)}")
 
 
-def _decode_custom_to_values(custom: Mapping[str, Any]) -> Dict[RunProperty, Any]:
+@dataclass(frozen=True)
+class ValueWithSource:
+    value: Any
+    source: str
+
+
+def _decode_custom_to_values(
+    custom: Mapping[str, Any]
+) -> Dict[RunProperty, ValueWithSource]:
     result: Dict[RunProperty, Any] = {}
-    for source in custom.keys() - {"manual"}:
+    for source in custom.keys() - {MANUAL_SOURCE_NAME}:
         values: Dict[str, Any] = custom[source]
         assert isinstance(
             values, dict
@@ -123,14 +133,16 @@ def _decode_custom_to_values(custom: Mapping[str, Any]) -> Dict[RunProperty, Any
                     "source values overlap for %s, overriding (introduce priorities!)",
                     run_property_str,
                 )
-            result[run_property] = value
-    if "manual" in custom:
-        manual_values: Dict[str, Any] = custom["manual"]
+            result[run_property] = ValueWithSource(value=value, source=source)
+    if MANUAL_SOURCE_NAME in custom:
+        manual_values: Dict[str, Any] = custom[MANUAL_SOURCE_NAME]
         assert isinstance(
             manual_values, dict
         ), f"custom source data isn't a dict for manual source"
         for run_property_str, value in manual_values.items():
-            result[RunProperty(run_property_str)] = value
+            result[RunProperty(run_property_str)] = ValueWithSource(
+                value, source=MANUAL_SOURCE_NAME
+            )
     return result
 
 
@@ -204,7 +216,12 @@ class SPBQueries:
                             self.tables.property_sample: run_meta["sample_id"],
                             self.tables.property_proposal_id: run_meta["proposal_id"],
                         },
-                        _decode_custom_to_values(run_meta["custom"]),
+                        {
+                            k: v.value
+                            for k, v in _decode_custom_to_values(
+                                run_meta["custom"]
+                            ).items()
+                        },
                     ]
                 )
             )
@@ -275,6 +292,7 @@ class SPBQueries:
             raise Exception(f"couldn't find any runs with id {run_id}")
         run_meta = run_rows[0]
         custom = run_meta["custom"]
+        custom_decoded = _decode_custom_to_values(custom)
         return Run(
             properties=dict_union(
                 [
@@ -295,9 +313,11 @@ class SPBQueries:
                             if row["comment_id"] is not None
                         ),
                     },
-                    _decode_custom_to_values(custom),
+                    {k: v.value for k, v in custom_decoded.items()},
                 ],
             ),
+            manual_properties={self.tables.property_sample}
+            | {k for k, v in custom_decoded.items() if v.source == MANUAL_SOURCE_NAME},
             karabo=None,
         )
 
@@ -385,7 +405,10 @@ class SPBQueries:
             [
                 {
                     k: RunPropertyMetadata(
-                        name=str(k), description=str(k), rich_prop_type=v, suffix=None
+                        name=str(k),
+                        description=self.tables.property_descriptions.get(k, str(k)),
+                        rich_prop_type=v,
+                        suffix=None,
                     )
                     for k, v in self.tables.property_types.items()
                 },
@@ -435,9 +458,9 @@ class SPBQueries:
             assert isinstance(
                 current_json, dict
             ), f"custom column should be dictionary, got {type(current_json)}"
-            if "manual" not in current_json:
-                current_json["manual"] = {}
-            manual = current_json["manual"]
+            if MANUAL_SOURCE_NAME not in current_json:
+                current_json[MANUAL_SOURCE_NAME] = {}
+            manual = current_json[MANUAL_SOURCE_NAME]
             assert isinstance(
                 manual, dict
             ), f"manual input should be dictionary, not {type(manual)}"
