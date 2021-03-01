@@ -1,14 +1,16 @@
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union
+import logging
 
 from PyQt5 import QtCore, QtWidgets
+
+logger = logging.getLogger(__name__)
 
 from amarcord.qt.table_delegates import (
     ComboItemDelegate,
     DateTimeItemDelegate,
     DoubleItemDelegate,
     IntItemDelegate,
-    TagsItemDelegate,
 )
 
 
@@ -64,7 +66,6 @@ RichPropertyType = Union[
 def delegate_for_property_type(
     proptype: RichPropertyType,
     sample_ids: List[int],
-    available_tags: List[str],
     parent: Optional[QtCore.QObject] = None,
 ) -> QtWidgets.QAbstractItemDelegate:
     if isinstance(proptype, PropertyInt):
@@ -81,8 +82,8 @@ def delegate_for_property_type(
         return ComboItemDelegate(
             values=[(str(v), v) for v in sample_ids], parent=parent
         )
-    if isinstance(proptype, PropertyTags):
-        return TagsItemDelegate(available_tags=available_tags, parent=parent)
+    # if isinstance(proptype, PropertyTags):
+    #     return TagsItemDelegate(available_tags=available_tags, parent=parent)
     if isinstance(proptype, PropertyDateTime):
         return DateTimeItemDelegate(parent=parent)
     raise Exception(f"invalid property type {proptype}")

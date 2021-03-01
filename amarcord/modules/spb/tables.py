@@ -187,6 +187,12 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                         },
                     },
                     {
+                        "name": "trains",
+                        "description": "Train count",
+                        "suffix": None,
+                        "json_schema": {"type": "integer"},
+                    },
+                    {
                         "name": "injector_position_z",
                         "description": "Injector Position Z",
                         "suffix": "mm",

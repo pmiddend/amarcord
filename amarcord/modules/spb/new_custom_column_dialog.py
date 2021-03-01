@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Iterable, Optional
 
 from PyQt5.QtCore import QRegExp
@@ -14,6 +15,16 @@ from PyQt5.QtWidgets import (
 from amarcord.modules.spb.queries import CustomRunProperty
 from amarcord.modules.spb.run_property import RunProperty
 from amarcord.qt.combo_box import ComboBox
+from amarcord.qt.properties import PropertyDouble, PropertyString, RichPropertyType
+
+
+class _CustomRunPropertyType(Enum):
+    NUMBER = "number"
+    STRING = "string"
+
+
+def _custom_type_to_rich(p: _CustomRunPropertyType) -> RichPropertyType:
+    return PropertyDouble() if p == _CustomRunPropertyType.NUMBER else PropertyString()
 
 
 def new_custom_column_dialog(
@@ -34,7 +45,7 @@ def new_custom_column_dialog(
     form.addRow("Description", description_input)
 
     type_combo = ComboBox(
-        [(f.description(), f.value) for f in CustomRunPropertyType],
+        [(f.value, f) for f in _CustomRunPropertyType],
     )
     form.addRow("Type", type_combo)
     dialog_layout.addLayout(form)
@@ -61,6 +72,7 @@ def new_custom_column_dialog(
 
     return CustomRunProperty(
         name=RunProperty(name_input.text()),
-        prop_type=CustomRunPropertyType(type_combo.current_value()),
         description=description_input.text(),
+        suffix=None,
+        rich_property_type=_custom_type_to_rich(type_combo.current_value()),
     )

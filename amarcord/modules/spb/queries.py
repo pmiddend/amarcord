@@ -1,9 +1,9 @@
 import datetime
 import logging
-from time import time
 import pickle
 from dataclasses import dataclass
 from itertools import groupby
+from time import time
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import sqlalchemy as sa
@@ -16,15 +16,14 @@ from amarcord.modules.spb.run_property import (
 )
 from amarcord.modules.spb.tables import (
     Tables,
-    run_property_db_columns,
 )
 from amarcord.qt.properties import (
+    PropertyDouble,
     PropertyInt,
     PropertyString,
-    PropertyTags,
     RichPropertyType,
 )
-from amarcord.util import capitalized_decamelized, dict_union, remove_duplicates_stable
+from amarcord.util import dict_union, remove_duplicates_stable
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ class Run:
 class CustomRunProperty:
     name: RunProperty
     description: str
-    suffix: str
+    suffix: Optional[str]
     rich_property_type: RichPropertyType
 
 
@@ -61,6 +60,12 @@ def _schema_to_property_type(json_schema: Dict[str, Any]) -> RichPropertyType:
     value_type = json_schema.get("type", None)
     assert value_type is not None, "No type in schema found"
     if value_type == "number":
+        return PropertyDouble(
+            range=(json_schema["minimum"], json_schema["maximum"])
+            if "minimum" in json_schema and "maximum" in json_schema
+            else None
+        )
+    if value_type == "integer":
         return PropertyInt(
             range=(json_schema["minimum"], json_schema["maximum"])
             if "minimum" in json_schema and "maximum" in json_schema
@@ -69,6 +74,24 @@ def _schema_to_property_type(json_schema: Dict[str, Any]) -> RichPropertyType:
     if value_type == "string":
         return PropertyString()
     raise Exception(f'invalid schema type "{value_type}"')
+
+
+def _property_type_to_schema(rp: RichPropertyType) -> Dict[str, Any]:
+    if isinstance(rp, PropertyInt):
+        result_int: Dict[str, Any] = {"type": "number"}
+        if rp.range is not None:
+            result_int["minimum"] = rp.range[0]
+            result_int["maximum"] = rp.range[1]
+        return result_int
+    if isinstance(rp, PropertyDouble):
+        result_double: Dict[str, Any] = {"type": "number"}
+        if rp.range is not None:
+            result_double["minimum"] = rp.range[0]
+            result_double["maximum"] = rp.range[1]
+        return result_double
+    if isinstance(rp, PropertyString):
+        return {"type": "string"}
+    raise Exception(f"invalid property type {type(rp)}")
 
 
 def _decode_custom_to_values(custom: Mapping[str, Any]) -> Dict[RunProperty, Any]:
@@ -183,16 +206,6 @@ class SPBQueries:
             ).fetchall()
         ]
 
-    def retrieve_tags(self, conn: Connection) -> List[str]:
-        return [
-            row[0]
-            for row in conn.execute(
-                sa.select([self.tables.run_tag.c.tag_text])
-                .order_by(self.tables.run_tag.c.tag_text)
-                .distinct()
-            ).fetchall()
-        ]
-
     def retrieve_sample_ids(self, conn: Connection) -> List[int]:
         return [
             row[0]
@@ -221,25 +234,10 @@ class SPBQueries:
             .values(author=c.author, comment_text=c.text)
         )
 
-    def change_tags(self, conn: Connection, run_id: int, new_tags: List[str]) -> None:
-        with conn.begin():
-            conn.execute(
-                sa.delete(self.tables.run_tag).where(
-                    self.tables.run_tag.c.run_id == run_id
-                )
-            )
-            if new_tags:
-                conn.execute(
-                    self.tables.run_tag.insert(),
-                    [{"run_id": run_id, "tag_text": t} for t in new_tags],
-                )
-
     def retrieve_run(self, conn: Connection, run_id: RunId) -> Run:
         run = self.tables.run
         run_c = run.c
         comment = self.tables.run_comment
-        tag = self.tables.run_tag
-        interesting_columns = run_property_db_columns(self.tables, with_blobs=False)
         select_statement = (
             sa.select(
                 [
@@ -247,11 +245,13 @@ class SPBQueries:
                     comment.c.author,
                     comment.c.comment_text,
                     comment.c.created,
-                    tag.c.tag_text,
+                    run.c.id,
+                    run.c.sample_id,
+                    run.c.proposal_id,
+                    run.c.custom,
                 ]
-                + interesting_columns  # type: ignore
             )
-            .select_from(run.outerjoin(tag).outerjoin(comment))
+            .select_from(run.outerjoin(comment))
             .where(run_c.id == run_id)
         )
         run_rows = conn.execute(select_statement).fetchall()
@@ -263,13 +263,11 @@ class SPBQueries:
             properties=dict_union(
                 [
                     {
-                        self.tables.property_tags: remove_duplicates_stable(
-                            [
-                                row["tag_text"]
-                                for row in run_rows
-                                if row["tag_text"] is not None
-                            ]
-                        ),
+                        self.tables.property_run_id: run_meta["id"],
+                        self.tables.property_sample: run_meta["sample_id"],
+                        self.tables.property_proposal_id: run_meta["proposal_id"],
+                    },
+                    {
                         self.tables.property_comments: remove_duplicates_stable(
                             Comment(
                                 row["comment_id"],
@@ -281,13 +279,7 @@ class SPBQueries:
                             if row["comment_id"] is not None
                         ),
                     },
-                    {
-                        RunProperty(v.name): run_meta[v.name]
-                        for v in interesting_columns
-                    },
-                    {RunProperty(k): v for k, v in custom.items() if custom is not None}
-                    if custom is not None
-                    else {},
+                    _decode_custom_to_values(custom),
                 ],
             ),
             karabo=None,
@@ -394,20 +386,15 @@ class SPBQueries:
     def update_run_property(
         self, conn: Connection, run_id: int, runprop: RunProperty, value: Any
     ) -> None:
-        if runprop == self.tables.property_tags:
-            if not isinstance(value, list):
-                raise ValueError(f"tags should be a list, got {type(value)}")
-            self.change_tags(conn, run_id, value)
+        if runprop == self.tables.property_sample:
+            assert isinstance(value, int), "sample ID should be an integer"
+
+            conn.execute(
+                sa.update(self.tables.run)
+                .where(self.tables.run.c.id == run_id)
+                .values({self.tables.run.c.sample_id: value})
+            )
             return
-        interesting_columns = run_property_db_columns(self.tables)
-        for c in interesting_columns:
-            if c.name == str(runprop):
-                conn.execute(
-                    sa.update(self.tables.run)
-                    .where(self.tables.run.c.id == run_id)
-                    .values({c: value})
-                )
-                return
 
         assert isinstance(
             value, (str, int, float)
@@ -419,12 +406,16 @@ class SPBQueries:
                     self.tables.run.c.id == run_id
                 )
             ).first()[0]
-            assert current_json is None or isinstance(
+            assert isinstance(
                 current_json, dict
             ), f"custom column should be dictionary, got {type(current_json)}"
-            if current_json is None:
-                current_json = {}
-            current_json[str(runprop)] = value
+            if "manual" not in current_json:
+                current_json["manual"] = {}
+            manual = current_json["manual"]
+            assert isinstance(
+                manual, dict
+            ), f"manual input should be dictionary, not {type(manual)}"
+            manual[str(runprop)] = value
             conn.execute(
                 sa.update(self.tables.run)
                 .where(self.tables.run.c.id == run_id)
@@ -440,15 +431,19 @@ class SPBQueries:
         ).fetchall()
         return pickle.loads(result[0][0]) if result else None
 
-    # def add_custom_run_property(
-    #     self,
-    #     conn: Connection,
-    #     name: str,
-    #     description: str,
-    #     prop_type: CustomRunPropertyType,
-    # ) -> None:
-    #     conn.execute(
-    #         self.tables.custom_run_property.insert().values(
-    #             name=name, prop_type=prop_type, description=description
-    #         )
-    #     )
+    def add_custom_run_property(
+        self,
+        conn: Connection,
+        name: str,
+        description: str,
+        suffix: Optional[str],
+        prop_type: RichPropertyType,
+    ) -> None:
+        conn.execute(
+            self.tables.custom_run_property.insert().values(
+                name=name,
+                description=description,
+                suffix=suffix,
+                json_schema=_property_type_to_schema(prop_type),
+            )
+        )

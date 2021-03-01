@@ -43,7 +43,6 @@ class RunDetails(QtWidgets.QWidget):
         with context.db.connect() as conn:
             self._run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
             self._sample_ids = self._db.retrieve_sample_ids(conn)
-            self._tags = self._db.retrieve_tags(conn)
 
             if not self._run_ids:
                 QtWidgets.QLabel("No runs yet, please wait or create one", self)
@@ -53,7 +52,7 @@ class RunDetails(QtWidgets.QWidget):
                 top_row.setLayout(top_layout)
 
                 self._run_selector = ComboBox(
-                    [(str(r.run_id), QVariant(r.run_id)) for r in self._run_ids]
+                    [(str(r), QVariant(r)) for r in self._run_ids]
                 )
                 self._run_selector.item_selected.connect(self._slot_current_run_changed)
                 top_layout.addWidget(QtWidgets.QLabel("Run:"))
@@ -149,7 +148,7 @@ class RunDetails(QtWidgets.QWidget):
                 root_columns.setStretch(1, 3)
 
                 self._run: Optional[Run] = None
-                self._run_changed(conn, max(r.run_id for r in self._run_ids))
+                self._run_changed(conn, max(r for r in self._run_ids))
 
     def _slot_delete_comment(self, comment_id: int) -> None:
         with self._db.connect() as conn:
@@ -196,9 +195,10 @@ class RunDetails(QtWidgets.QWidget):
         with self._db.connect() as conn:
             self._db.add_custom_run_property(
                 conn,
-                new_column.name,
-                new_column.description,
-                new_column.prop_type,
+                name=new_column.name,
+                description=new_column.description,
+                suffix=None,
+                prop_type=new_column.rich_property_type,
             )
 
             assert self._run is not None, "Tried to add a new property, but have no run"
@@ -207,7 +207,6 @@ class RunDetails(QtWidgets.QWidget):
                 self._db.run_property_metadata(conn),
                 self._db.tables,
                 self._sample_ids,
-                self._tags,
             )
             self.run_changed.emit()
 
@@ -261,7 +260,7 @@ class RunDetails(QtWidgets.QWidget):
             self._run_ids = new_run_ids
             self._run_selector.blockSignals(True)
             self._run_selector.clear()
-            self._run_selector.addItems([str(r.run_id) for r in self._run_ids])
+            self._run_selector.addItems([str(r) for r in self._run_ids])
 
         if self._run is not None:
             self._run_selector.setCurrentText(
@@ -300,7 +299,6 @@ class RunDetails(QtWidgets.QWidget):
             self._db.run_property_metadata(conn),
             self._db.tables,
             self._sample_ids,
-            self._tags,
         )
 
     def selected_run_id(self) -> Optional[RunId]:
