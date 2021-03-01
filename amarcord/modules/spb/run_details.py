@@ -51,8 +51,10 @@ class RunDetails(QtWidgets.QWidget):
                 top_layout = QtWidgets.QHBoxLayout()
                 top_row.setLayout(top_layout)
 
+                selected_run_id = max(r for r in self._run_ids)
                 self._run_selector = ComboBox(
-                    [(str(r), QVariant(r)) for r in self._run_ids]
+                    [(str(r), QVariant(r)) for r in self._run_ids],
+                    selected=QVariant(selected_run_id),
                 )
                 self._run_selector.item_selected.connect(self._slot_current_run_changed)
                 top_layout.addWidget(QtWidgets.QLabel("Run:"))
@@ -148,7 +150,7 @@ class RunDetails(QtWidgets.QWidget):
                 root_columns.setStretch(1, 3)
 
                 self._run: Optional[Run] = None
-                self._run_changed(conn, max(r for r in self._run_ids))
+                self._run_changed(conn, selected_run_id)
 
     def _slot_delete_comment(self, comment_id: int) -> None:
         with self._db.connect() as conn:
