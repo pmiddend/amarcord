@@ -45,7 +45,8 @@ def new_custom_column_dialog(
     form.addRow("Description", description_input)
 
     type_combo = ComboBox(
-        [(f.value, f) for f in _CustomRunPropertyType],
+        items=[(f.value, f) for f in _CustomRunPropertyType],
+        selected=_CustomRunPropertyType.NUMBER,
     )
     form.addRow("Type", type_combo)
     dialog_layout.addLayout(form)
