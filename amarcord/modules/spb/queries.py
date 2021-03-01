@@ -30,12 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class RunSimple:
-    run_id: RunId
-    finished: bool
-
-
-@dataclass(frozen=True)
 class Comment:
     id: Optional[int]
     author: str
@@ -179,11 +173,11 @@ class SPBQueries:
 
     def retrieve_run_ids(
         self, conn: Connection, proposal_id: ProposalId
-    ) -> List[RunSimple]:
+    ) -> List[RunId]:
         return [
-            RunSimple(row["id"], row["status"] == "finished")
+            RunId(row[0])
             for row in conn.execute(
-                sa.select([self.tables.run.c.id, self.tables.run.c.status])
+                sa.select([self.tables.run.c.id])
                 .where(self.tables.run.c.proposal_id == proposal_id)
                 .order_by(self.tables.run.c.id)
             ).fetchall()

@@ -98,7 +98,7 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
                 row
                 for row in self._data
                 if filter_by_query(
-                    self._filter_query, {k.name.lower(): v for k, v in row.items()}
+                    self._filter_query, {str(k).lower(): v for k, v in row.items()}
                 )
             ]
         else:
