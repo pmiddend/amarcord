@@ -137,8 +137,6 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         v = self._filtered_data[index.row()].get(
             self.index_to_enum[index.column()], None
         )
-        if v is None:
-            return "None"
         if self._column_converter is not None:
             return self._column_converter(self.index_to_enum[index.column()], role, v)
         return str(v)

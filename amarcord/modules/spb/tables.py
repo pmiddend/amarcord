@@ -178,14 +178,15 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
                         "suffix": "mm",
                         "json_schema": {"type": "number"},
                     },
-                    # {
-                    #     "name": "tags",
-                    #     "description": "Tags",
-                    #     "json_schema": {
-                    #         "type": "array",
-                    #         "items": {"type": "string", "minLength": 1},
-                    #     },
-                    # },
+                    {
+                        "name": "tags",
+                        "description": "Tags",
+                        "suffix": None,
+                        "json_schema": {
+                            "type": "array",
+                            "items": {"type": "string", "minLength": 1},
+                        },
+                    },
                     {
                         "name": "started",
                         "description": "Started",

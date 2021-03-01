@@ -64,7 +64,8 @@ class MetadataTable(QtWidgets.QWidget):
         self, prop: RunProperty, metadata: RunPropertyMetadata, value: Any
     ) -> str:
         suffix: str = getattr(metadata.rich_prop_type, "suffix", None)
-        return str(value) if suffix is None else f"{value} {suffix}"
+        value_str = ", ".join(value) if isinstance(value, list) else str(value)
+        return value_str if suffix is None else f"{value_str} {suffix}"
 
     def data_changed(
         self,
@@ -88,7 +89,7 @@ class MetadataTable(QtWidgets.QWidget):
                 rows=[
                     Row(
                         display_roles=[
-                            md.name,
+                            md.description if md.description else md.name,
                             self._run_property_to_string(
                                 property, metadata[property], run.properties[property]
                             )

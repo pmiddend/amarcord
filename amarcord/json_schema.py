@@ -23,7 +23,14 @@ class JSONSchemaString:
     enum_: Optional[List[str]]
 
 
-JSONSchemaType = Union[JSONSchemaInteger, JSONSchemaNumber, JSONSchemaString]
+@dataclass(frozen=True)
+class JSONSchemaArray:
+    value_type: "JSONSchemaType"
+
+
+JSONSchemaType = Union[
+    JSONSchemaInteger, JSONSchemaNumber, JSONSchemaString, JSONSchemaArray
+]
 
 
 def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
@@ -52,5 +59,11 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
             enum_, list
         ), f"enum has wrong type {type(enum_)}"
         return JSONSchemaString(enum_=enum_)
+
+    if type_ == "array":
+        items = s.get("items", None)
+        assert items is not None, 'array without "items" property'
+        assert isinstance(items, dict), f"array items type is {type(items)}"
+        return JSONSchemaArray(parse_schema_type(items))
 
     raise Exception(f'invalid schema type "{type_}"')

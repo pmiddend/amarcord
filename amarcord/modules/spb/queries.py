@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 import sqlalchemy as sa
 
 from amarcord.json_schema import (
+    JSONSchemaArray,
     JSONSchemaInteger,
     JSONSchemaNumber,
     JSONSchemaString,
@@ -28,6 +29,7 @@ from amarcord.qt.properties import (
     PropertyDouble,
     PropertyInt,
     PropertyString,
+    PropertyTags,
     RichPropertyType,
 )
 from amarcord.util import dict_union, remove_duplicates_stable
@@ -74,6 +76,14 @@ def _schema_to_property_type(
         )
     if isinstance(parsed_schema, JSONSchemaInteger):
         return PropertyInt(range=None)
+    if isinstance(parsed_schema, JSONSchemaArray):
+        assert isinstance(
+            parsed_schema.value_type, JSONSchemaString
+        ), "arrays of non-strings aren't supported yet"
+        assert (
+            parsed_schema.value_type.enum_ is None
+        ), "arrays of enum strings aren't supported yet"
+        return PropertyTags()
     if isinstance(parsed_schema, JSONSchemaString):
         if parsed_schema.enum_ is not None:
             return PropertyChoice([(s, s) for s in parsed_schema.enum_])
@@ -413,7 +423,7 @@ class SPBQueries:
             return
 
         assert isinstance(
-            value, (str, int, float)
+            value, (str, int, float, list)
         ), f"custom properties can only have str, int and float values currently, got {type(value)}"
 
         with conn.begin():

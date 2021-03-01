@@ -11,6 +11,7 @@ from amarcord.qt.table_delegates import (
     DateTimeItemDelegate,
     DoubleItemDelegate,
     IntItemDelegate,
+    TagsItemDelegate,
 )
 
 
@@ -82,8 +83,8 @@ def delegate_for_property_type(
         return ComboItemDelegate(
             values=[(str(v), v) for v in sample_ids], parent=parent
         )
-    # if isinstance(proptype, PropertyTags):
-    #     return TagsItemDelegate(available_tags=available_tags, parent=parent)
+    if isinstance(proptype, PropertyTags):
+        return TagsItemDelegate(available_tags=[], parent=parent)
     if isinstance(proptype, PropertyDateTime):
         return DateTimeItemDelegate(parent=parent)
     raise Exception(f"invalid property type {proptype}")

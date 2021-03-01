@@ -87,7 +87,8 @@ class RunTable(QtWidgets.QWidget):
             self._table_view = GeneralTableWidget[RunProperty](
                 enum_type_retriever=lambda: list(self._run_property_names.keys()),
                 column_header_retriever=lambda: {
-                    k: v.name for k, v in self._run_property_names.items()
+                    k: v.description if v.description else v.name
+                    for k, v in self._run_property_names.items()
                 },
                 column_visibility=list(self._run_property_names.keys()),
                 column_converter=self._convert_column,
@@ -145,7 +146,11 @@ class RunTable(QtWidgets.QWidget):
         if run_property == self._db.tables.property_comments:
             assert isinstance(value, list), "Comment column isn't a list"
             return _convert_comment_column(value, role)
-        return str(value)
+        if isinstance(value, list):
+            return ", ".join(value)
+        if isinstance(value, float):
+            return f"{value:.2f}"
+        return str(value) if value is not None else ""
 
     def _header_menu_callback(self, pos: QtCore.QPoint, column: RunProperty) -> None:
         property_metadata = self._run_property_names.get(column, None)
