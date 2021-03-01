@@ -56,14 +56,17 @@ class CustomRunProperty:
 Connection = Any
 
 
-def _schema_to_property_type(json_schema: Dict[str, Any]) -> RichPropertyType:
+def _schema_to_property_type(
+    json_schema: Dict[str, Any], suffix: Optional[str]
+) -> RichPropertyType:
     value_type = json_schema.get("type", None)
     assert value_type is not None, "No type in schema found"
     if value_type == "number":
         return PropertyDouble(
             range=(json_schema["minimum"], json_schema["maximum"])
             if "minimum" in json_schema and "maximum" in json_schema
-            else None
+            else None,
+            suffix=suffix,
         )
     if value_type == "integer":
         return PropertyInt(
@@ -123,6 +126,7 @@ def _decode_custom_to_values(custom: Mapping[str, Any]) -> Dict[RunProperty, Any
 class RunPropertyMetadata:
     name: str
     description: str
+    suffix: Optional[str]
     rich_prop_type: Optional[RichPropertyType]
 
 
@@ -345,7 +349,9 @@ class SPBQueries:
                 name=RunProperty(row[0]),
                 description=row[1],
                 suffix=row[2],
-                rich_property_type=_schema_to_property_type(row[3]),
+                rich_property_type=_schema_to_property_type(
+                    json_schema=row[3], suffix=row[2]
+                ),
             )
             for row in conn.execute(
                 sa.select(
@@ -366,18 +372,26 @@ class SPBQueries:
         return dict_union(
             [
                 {
-                    k: RunPropertyMetadata(str(k), str(k), v)
+                    k: RunPropertyMetadata(
+                        name=str(k), description=str(k), rich_prop_type=v, suffix=None
+                    )
                     for k, v in self.tables.property_types.items()
                 },
                 {
                     c.name: RunPropertyMetadata(
-                        str(c.name), c.description, c.rich_property_type
+                        name=str(c.name),
+                        description=c.description,
+                        rich_prop_type=c.rich_property_type,
+                        suffix=c.suffix,
                     )
                     for c in custom_props
                 },
                 {
                     self.tables.property_comments: RunPropertyMetadata(
-                        "comments", "Comments", None
+                        name="comments",
+                        description="Comments",
+                        rich_prop_type=None,
+                        suffix=None,
                     )
                 },
             ]

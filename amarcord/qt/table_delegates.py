@@ -260,9 +260,9 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
         data = index.model().data(index, QtCore.Qt.EditRole)
         if data is None:
             return
-        if not isinstance(data, float):
+        if not isinstance(data, (int, float)):
             raise ValueError(f"expected float, got {type(data)}")
-        cast(QtWidgets.QDoubleSpinBox, editor).setValue(data)
+        cast(QtWidgets.QDoubleSpinBox, editor).setValue(float(data))
 
     # pylint: disable=no-self-use
     def setModelData(
