@@ -85,9 +85,8 @@ class Comments(QtWidgets.QWidget):
         self._comment_input.textChanged.connect(self._slot_comment_text_changed)
         self._comment_input.returnPressed.connect(self._slot_add_comment)
         comment_form_layout.addRow("Text", self._comment_input)
-        self._add_comment_button = QtWidgets.QPushButton("Add Comment")
-        self._add_comment_button.setIcon(
-            self.style().standardIcon(QtWidgets.QStyle.SP_DialogOkButton)
+        self._add_comment_button = QtWidgets.QPushButton(
+            self.style().standardIcon(QtWidgets.QStyle.SP_DialogOkButton), "Add Comment"
         )
         self._add_comment_button.setEnabled(False)
         self._add_comment_button.clicked.connect(self._slot_add_comment)

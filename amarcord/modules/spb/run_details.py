@@ -104,13 +104,13 @@ class RunDetails(QtWidgets.QWidget):
                     QtWidgets.QLabel("<i>manually edited</i>")
                 )
                 table_legend_layout.addStretch()
-                custom_column_button = QtWidgets.QPushButton("New custom column")
-                custom_column_button.setIcon(
-                    self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder)
+                custom_column_button = QtWidgets.QPushButton(
+                    self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
+                    "New custom column",
                 )
                 custom_column_button.clicked.connect(self._slot_new_custom_column)
-                additional_data_layout.addWidget(custom_column_button)
                 additional_data_layout.addLayout(table_legend_layout)
+                additional_data_layout.addWidget(custom_column_button)
                 additional_data_column.setLayout(additional_data_layout)
 
                 root_layout = QtWidgets.QVBoxLayout()
@@ -209,6 +209,7 @@ class RunDetails(QtWidgets.QWidget):
                 self._sample_ids,
                 self._tags,
             )
+            self.run_changed.emit()
 
     def _comments_changed(self) -> None:
         self.run_changed.emit()

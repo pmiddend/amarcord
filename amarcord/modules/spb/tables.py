@@ -245,15 +245,15 @@ def create_sample_data(context: DBContext, tables: Tables) -> None:
         conn.execute(tables.run_tag.insert().values(run_id=run_id, tag_text="t1"))
         conn.execute(tables.run_tag.insert().values(run_id=run_id, tag_text="t2"))
 
-        for _ in range(50):
-            conn.execute(
-                tables.run_comment.insert().values(
-                    run_id=run_id,
-                    author="testauthor",
-                    comment_text="foooooo",
-                    created=datetime.datetime.utcnow(),
-                )
-            )
+        # for _ in range(50):
+        #     conn.execute(
+        #         tables.run_comment.insert().values(
+        #             run_id=run_id,
+        #             author="testauthor",
+        #             comment_text="foooooo",
+        #             created=datetime.datetime.utcnow(),
+        #         )
+        #     )
 
         conn.execute(
             tables.run.insert().values(

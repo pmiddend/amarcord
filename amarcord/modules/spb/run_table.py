@@ -81,9 +81,9 @@ class RunTable(QtWidgets.QWidget):
         self._db = SPBQueries(context.db, tables)
 
         # Init main widgets
-        choose_columns = QtWidgets.QPushButton("Choose columns")
-        choose_columns.setIcon(
-            self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView)
+        choose_columns = QtWidgets.QPushButton(
+            self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView),
+            "Choose columns",
         )
         choose_columns.clicked.connect(self._slot_switch_columns)
 
