@@ -3,8 +3,14 @@ from typing import List, Optional, Tuple, TypeVar, cast
 import logging
 
 from PyQt5 import QtCore, QtWidgets
+from PyQt5.QtWidgets import QDateTimeEdit
 
-from amarcord.qt.datetime import from_qt_datetime, to_qt_datetime
+from amarcord.qt.datetime import (
+    from_qt_datetime,
+    qt_from_isoformat,
+    qt_to_isoformat,
+    to_qt_datetime,
+)
 from amarcord.qt.numeric_input_widget import NumericInputWidget
 from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.tags import Tags
@@ -132,8 +138,8 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
         data = index.model().data(index, QtCore.Qt.EditRole)
         if data is None:
             return
-        assert isinstance(data, datetime.datetime)
-        cast(QtWidgets.QDateTimeEdit, editor).setDateTime(to_qt_datetime(data))
+        assert isinstance(data, str)
+        cast(QtWidgets.QDateTimeEdit, editor).setDateTime(qt_from_isoformat(data))
 
     # pylint: disable=no-self-use
     def setModelData(
@@ -145,7 +151,7 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
         assert isinstance(editor, QtWidgets.QDateTimeEdit)
         model.setData(
             index,
-            from_qt_datetime(cast(QtWidgets.QDateTimeEdit, editor).dateTime()),
+            qt_to_isoformat(cast(QDateTimeEdit, editor).dateTime()),
             QtCore.Qt.EditRole,
         )
 

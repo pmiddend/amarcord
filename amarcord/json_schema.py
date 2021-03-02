@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 
@@ -18,9 +19,14 @@ class JSONSchemaNumber:
     exclusiveMaximum: Optional[float]
 
 
+class JSONSchemaStringFormat(Enum):
+    DATE_TIME = "date-time"
+
+
 @dataclass(frozen=True)
 class JSONSchemaString:
     enum_: Optional[List[str]]
+    format_: Optional[JSONSchemaStringFormat]
 
 
 @dataclass(frozen=True)
@@ -58,7 +64,13 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
         assert enum_ is None or isinstance(
             enum_, list
         ), f"enum has wrong type {type(enum_)}"
-        return JSONSchemaString(enum_=enum_)
+        format_ = s.get("format", None)
+        return JSONSchemaString(
+            enum_=enum_,
+            format_=JSONSchemaStringFormat.DATE_TIME
+            if format_ == "date-time"
+            else None,
+        )
 
     if type_ == "array":
         items = s.get("items", None)

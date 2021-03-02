@@ -14,6 +14,7 @@ from amarcord.json_schema import (
     JSONSchemaInteger,
     JSONSchemaNumber,
     JSONSchemaString,
+    JSONSchemaStringFormat,
     parse_schema_type,
 )
 from amarcord.modules.dbcontext import DBContext
@@ -28,6 +29,7 @@ from amarcord.modules.spb.db_tables import (
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.properties import (
     PropertyChoice,
+    PropertyDateTime,
     PropertyDouble,
     PropertyInt,
     PropertyString,
@@ -106,6 +108,8 @@ def _schema_to_property_type(
     if isinstance(parsed_schema, JSONSchemaString):
         if parsed_schema.enum_ is not None:
             return PropertyChoice([(s, s) for s in parsed_schema.enum_])
+        if parsed_schema.format_ == JSONSchemaStringFormat.DATE_TIME:
+            return PropertyDateTime()
         return PropertyString()
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
