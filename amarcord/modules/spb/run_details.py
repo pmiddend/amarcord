@@ -1,10 +1,9 @@
 import logging
-import datetime
 from dataclasses import replace
 from typing import Any, Final, Optional, cast
 
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import QTimer, Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
 from amarcord.modules.context import Context

@@ -89,6 +89,7 @@ class RunDetailsInner(QtWidgets.QWidget):
             self.style().standardIcon(QtWidgets.QStyle.SP_MediaSeekForward),
             "Switch to latest",
         )
+        self._switch_to_latest_button.clicked.connect(self._slot_switch_to_lastest)
         top_layout.addWidget(self._switch_to_latest_button)
         top_layout.addWidget(QtWidgets.QCheckBox("Auto switch to latest"))
         top_layout.addItem(
@@ -174,6 +175,9 @@ class RunDetailsInner(QtWidgets.QWidget):
         self._refresh_timer.timeout.connect(self._timed_refresh)
         self._refresh_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
+    def _slot_switch_to_lastest(self) -> None:
+        self.current_run_changed.emit(max(r for r in self.run_ids))
+
     def _timed_refresh(self) -> None:
         self.refresh.emit()
 
@@ -224,6 +228,10 @@ class RunDetailsInner(QtWidgets.QWidget):
             self.runs_metadata,
             self.tables,
             self.sample_ids,
+        )
+
+        self._switch_to_latest_button.setEnabled(
+            self.run.properties[self.tables.property_run_id] != max(self.run_ids)
         )
 
     def _slot_tree_filter_changed(self, new_filter: str) -> None:
