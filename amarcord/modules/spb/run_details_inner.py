@@ -79,6 +79,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         self._run_selector.item_selected.connect(self.current_run_changed.emit)
         refresh_button = _refresh_button(self.style())
         refresh_button.clicked.connect(self.refresh.emit)
+        top_layout.addWidget(refresh_button)
         auto_refresh = QCheckBox("Auto refresh")
         auto_refresh.setChecked(True)
         auto_refresh.clicked.connect(self._slot_toggle_auto_refresh)
@@ -89,9 +90,11 @@ class RunDetailsInner(QtWidgets.QWidget):
             self.style().standardIcon(QtWidgets.QStyle.SP_MediaSeekForward),
             "Switch to latest",
         )
-        self._switch_to_latest_button.clicked.connect(self._slot_switch_to_lastest)
+        self._switch_to_latest_button.clicked.connect(self._slot_switch_to_latest)
         top_layout.addWidget(self._switch_to_latest_button)
-        top_layout.addWidget(QtWidgets.QCheckBox("Auto switch to latest"))
+        self._auto_switch_to_latest = QtWidgets.QCheckBox("Auto switch to latest")
+        self._auto_switch_to_latest.toggled.connect(self._toggle_auto_switch_to_latest)
+        top_layout.addWidget(self._auto_switch_to_latest)
         top_layout.addItem(
             QtWidgets.QSpacerItem(
                 40,
@@ -175,7 +178,12 @@ class RunDetailsInner(QtWidgets.QWidget):
         self._refresh_timer.timeout.connect(self._timed_refresh)
         self._refresh_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
-    def _slot_switch_to_lastest(self) -> None:
+    def _toggle_auto_switch_to_latest(self, new_state: bool) -> None:
+        max_run_id = max(self.run_ids)
+        if new_state and self.run.properties[self.tables.property_run_id] != max_run_id:
+            self.current_run_changed.emit(max_run_id)
+
+    def _slot_switch_to_latest(self) -> None:
         self.current_run_changed.emit(max(r for r in self.run_ids))
 
     def _timed_refresh(self) -> None:
@@ -205,15 +213,21 @@ class RunDetailsInner(QtWidgets.QWidget):
         self.run = new_run
         self.runs_metadata = new_metadata
 
-        if self.run_ids != new_run_ids:
+        old_run_ids = self.run_ids
+        self.run_ids = new_run_ids
+        self.sample_ids = new_sample_ids
+
+        if old_run_ids != new_run_ids:
             self._run_selector.reset_items([(str(s), s) for s in new_run_ids])
+
+            max_run_id = max(self.run_ids)
+            if self.run.properties[self.tables.property_run_id] != max_run_id:
+                self.current_run_changed.emit(max_run_id)
 
         self._run_selector.set_current_value(
             new_run.properties[self.tables.property_run_id]
         )
 
-        self.run_ids = new_run_ids
-        self.sample_ids = new_sample_ids
         self._comments.set_comments(
             self.run.properties[self.tables.property_run_id],
             self.run.properties[self.tables.property_comments],

@@ -117,7 +117,7 @@ class RunTable(QtWidgets.QWidget):
         header_layout = QtWidgets.QHBoxLayout()
         auto_refresh = QCheckBox("Auto refresh")
         auto_refresh.setChecked(True)
-        auto_refresh.clicked.connect(self._slot_toggle_auto_refresh)
+        auto_refresh.toggled.connect(self._slot_toggle_auto_refresh)
         header_layout.addWidget(auto_refresh, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(refresh_button, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
@@ -162,7 +162,7 @@ class RunTable(QtWidgets.QWidget):
         self._update_timer.timeout.connect(self._slot_refresh)
         self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
-    def _slot_toggle_auto_refresh(self) -> None:
+    def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
         if self._update_timer.isActive():
             self._update_timer.stop()
         else:
