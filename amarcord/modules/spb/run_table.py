@@ -1,10 +1,11 @@
 import logging
 import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Final, List, Optional, Set
 
 import pandas as pd
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QTimer
+from PyQt5.QtWidgets import QCheckBox, QPushButton
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar,
@@ -22,6 +23,8 @@ from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.qt.properties import PropertyDouble, PropertyInt
 from amarcord.qt.table import GeneralTableWidget
 from amarcord.query_parser import UnexpectedEOF, parse_query
+
+AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +80,13 @@ class RunTable(QtWidgets.QWidget):
         self._db = DB(context.db, tables)
 
         # Init main widgets
-        choose_columns = QtWidgets.QPushButton(
+        refresh_button = QPushButton(
+            self.style().standardIcon(QtWidgets.QStyle.SP_BrowserReload),
+            "Refresh",
+        )
+        refresh_button.clicked.connect(self._slot_refresh)
+
+        choose_columns = QPushButton(
             self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView),
             "Choose columns",
         )
@@ -106,6 +115,11 @@ class RunTable(QtWidgets.QWidget):
         root_layout = QtWidgets.QVBoxLayout(self)
 
         header_layout = QtWidgets.QHBoxLayout()
+        auto_refresh = QCheckBox("Auto refresh")
+        auto_refresh.setChecked(True)
+        auto_refresh.clicked.connect(self._slot_toggle_auto_refresh)
+        header_layout.addWidget(auto_refresh, 0, QtCore.Qt.AlignTop)
+        header_layout.addWidget(refresh_button, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
 
         filter_query_layout = QtWidgets.QFormLayout()
@@ -121,7 +135,7 @@ class RunTable(QtWidgets.QWidget):
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
         filter_widget.setCompleter(completer)
         inner_filter_layout.addWidget(filter_widget)
-        icon_button = QtWidgets.QPushButton(
+        icon_button = QPushButton(
             self.style().standardIcon(QtWidgets.QStyle.SP_MessageBoxQuestion), ""
         )
         icon_button.setStyleSheet("QPushButton{border:none;}")
@@ -146,7 +160,13 @@ class RunTable(QtWidgets.QWidget):
 
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._slot_refresh)
-        self._update_timer.start(5000)
+        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+
+    def _slot_toggle_auto_refresh(self) -> None:
+        if self._update_timer.isActive():
+            self._update_timer.stop()
+        else:
+            self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _slot_refresh(self) -> None:
         with self._db.connect() as conn:
