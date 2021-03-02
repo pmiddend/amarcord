@@ -3,7 +3,7 @@ from dataclasses import replace
 from typing import Any, Final, Optional, cast
 
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import QVariant, Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
 from amarcord.modules.context import Context
@@ -161,21 +161,6 @@ class RunDetails(QWidget):
                 old_run=self.selected_run(),
                 new_run_id=new_run_id,
             )
-
-    def _run_selector_changed(self, conn: Connection) -> None:
-        new_run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
-
-        if new_run_ids != self._run_ids:
-            self._run_ids = new_run_ids
-            self._run_selector.blockSignals(True)
-            self._run_selector.clear()
-            self._run_selector.addItems([str(r) for r in self._run_ids])
-
-        if self._run is not None:
-            self._run_selector.setCurrentText(
-                str(self._run.properties[self._db.tables.property_run_id])
-            )
-        self._run_selector.blockSignals(False)
 
     def _slot_refresh_run(
         self,
