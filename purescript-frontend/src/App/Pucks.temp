@@ -1,0 +1,354 @@
+module App.Pucks where
+
+import App.API (graphqlMutation, graphqlQuery)
+import App.AmarQL.Mutation as Mutation
+import App.AmarQL.Object.AddPuck as AddPuck
+import App.AmarQL.Object.EditPuck as EditPuck
+import App.AmarQL.Object.Puck as QLPuck
+import App.AmarQL.Object.RemovePuck as RemovePuck
+import App.AmarQL.Query (pucks)
+import App.AmarQL.Scopes (Scope__AddPuck, Scope__EditPuck, Scope__Puck, Scope__RemovePuck)
+import App.AppMonad (AppMonad)
+import App.Halogen.FontAwesome (IconSize(..), spinner)
+import App.HalogenUtils (classList, makeRequestResult, scope)
+import App.Lenses (_editData, _editId, _editPuck, _id, _modalTarget, _type_)
+import App.ModalComponent (Output, modal)
+import App.Utils (foldMap')
+import Control.Applicative (pure)
+import Control.Apply ((<*>))
+import Control.Bind (bind, discard, (>>=))
+import Control.Category ((<<<), (>>>))
+import DOM.HTML.Indexed.ButtonType (ButtonType(..))
+import DOM.HTML.Indexed.InputType (InputType(..))
+import DOM.HTML.Indexed.ScopeValue (ScopeValue(..))
+import Data.Either (Either(..))
+import Data.Eq (class Eq, (==))
+import Data.Foldable (find, foldMap)
+import Data.Function (const, ($))
+import Data.Lens (assign, set, traversed, use, view, (.=), (?=))
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe')
+import Data.Semigroup ((<>))
+import Data.Symbol (SProxy(..))
+import Data.Unit (Unit)
+import GraphQLClient (GraphQLError, SelectionSet)
+import GraphQLClient.HTTP (printGraphQLError)
+import Halogen (lift)
+import Halogen as H
+import Halogen.HTML as HH
+import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties as HP
+import Network.RemoteData (RemoteData(..), isSuccess, toMaybe)
+import Prelude (class Show, show, (<$>))
+
+data PuckType
+  = Uni
+  | Spine
+
+instance showPuckType :: Show PuckType where
+  show Uni = "Uni"
+  show Spine = "Spine"
+
+derive instance eqPuckType :: Eq PuckType
+
+type Puck
+  = { id :: String
+    , type_ :: PuckType
+    }
+
+type RowsRemoteData
+  = RemoteData String (Array Puck)
+
+type ParentState
+  = RowsRemoteData
+
+data ParentAction
+  = Initialize
+  | ChildFetchFailed RowsRemoteData
+
+type ParentSlots
+  = ( child :: forall query. H.Slot query ChildOutput Int )
+
+deleteModalId :: String
+deleteModalId = "delete-modal"
+
+parentRender :: ParentState -> H.ComponentHTML ParentAction ParentSlots AppMonad
+parentRender state =
+  let
+    loading = HH.div [ HP.classes [] ] [ HH.h1_ [ HH.text "Pucks" ], HH.p_ [ HH.text "Loading pucks, please wait..." ], HH.p_ [ spinner (Just Twice) ] ]
+
+    handleOutput (RowFetchFailed result) = Just (ChildFetchFailed result)
+  in
+    case state of
+      NotAsked -> loading
+      Loading -> loading
+      Failure e -> HH.div [ HP.classes [] ] [ HH.h1_ [ HH.text "Pucks" ], HH.p_ [ HH.text "Error loading pucks:" ], HH.pre_ [ HH.text e ], HH.p_ [ HH.button [ classList [ "btn", "btn-primary" ], HE.onClick \_ -> Just Initialize ] [ HH.text "Retry" ] ] ]
+      Success state' ->
+        HH.div [ HP.classes [] ]
+          [ HH.h1_ [ HH.text "Pucks" ]
+          , HH.slot (SProxy :: SProxy "child") 0 childComponent state' handleOutput
+          ]
+
+parsePuckType :: String -> PuckType
+parsePuckType "Spine" = Spine
+
+parsePuckType _ = Uni
+
+puckSelection :: SelectionSet Scope__Puck Puck
+puckSelection = { id: _, type_: _ } <$> QLPuck.id <*> (parsePuckType <$> QLPuck.type_)
+
+fetchRows :: AppMonad (RemoteData String (Array Puck))
+fetchRows = do
+  result <- graphqlQuery (pucks puckSelection)
+  case result of
+    Left e -> pure (Failure (printGraphQLError e))
+    Right v -> pure (Success v)
+
+addPuck :: Puck -> AppMonad (RemoteData String String)
+addPuck puck = messageFromResult ("Add puck “" <> puck.id <> "”") <$> graphqlMutation (Mutation.addPuck { id: puck.id, "type": show puck.type_ } resultSelectionAdd)
+
+editPuck :: EditData -> AppMonad (RemoteData String String)
+editPuck puck = messageFromResult ("Edit puck “" <> puck.editId <> "”") <$> graphqlMutation (Mutation.editPuck { id: puck.editId, newId: puck.editPuck.id, newType: show puck.editPuck.type_ } resultSelectionEdit)
+
+removePuck :: String -> AppMonad (RemoteData String String)
+removePuck id = messageFromResult ("Remove puck “" <> id <> "”") <$> graphqlMutation (Mutation.removePuck { id: id } resultSelectionRemove)
+
+parentHandleAction :: forall slots output. ParentAction -> H.HalogenM ParentState ParentAction slots output AppMonad Unit
+parentHandleAction = case _ of
+  Initialize -> do
+    H.put Loading
+    result <- lift fetchRows
+    H.put result
+  ChildFetchFailed rows -> do
+    H.put rows
+
+component :: forall q i o. H.Component HH.HTML q i o AppMonad
+component =
+  H.mkComponent
+    { initialState: \_ -> NotAsked
+    , render: parentRender
+    , eval:
+        H.mkEval
+          H.defaultEval
+            { handleAction = parentHandleAction
+            , initialize = Just Initialize
+            }
+    }
+
+type EditData
+  = { editPuck :: Puck
+    , editId :: String
+    }
+
+type ChildState
+  = { rows :: Array Puck
+    , editPuck :: Puck
+    , requestResult :: RemoteData String String
+    , modalTarget :: Maybe String
+    , editData :: Maybe EditData
+    }
+
+data ChildAction
+  = IdChange String
+  | TypeChange PuckType
+  | EditIdChange String
+  | EditTypeChange PuckType
+  | EditComplete
+  | EditCancel
+  | EditStart String
+  | AddEntry Puck
+  | SetModalTarget String
+  | RemoveEntry
+
+resultSelectionAdd :: SelectionSet Scope__AddPuck { errorMessage :: Maybe String }
+resultSelectionAdd = { errorMessage: _ } <$> AddPuck.errorMessage
+
+resultSelectionEdit :: SelectionSet Scope__EditPuck { errorMessage :: Maybe String }
+resultSelectionEdit = { errorMessage: _ } <$> EditPuck.errorMessage
+
+resultSelectionRemove :: SelectionSet Scope__RemovePuck { errorMessage :: Maybe String }
+resultSelectionRemove = { errorMessage: _ } <$> RemovePuck.errorMessage
+
+data ChildOutput
+  = RowFetchFailed RowsRemoteData
+
+mutateAndReload action = do
+  result <- lift action
+  if isSuccess result then do
+    rowResult <- lift fetchRows
+    case toMaybe rowResult of
+      Nothing -> do
+        H.raise (RowFetchFailed rowResult)
+        pure Nothing
+      Just newRows -> do
+        currentState <- H.get
+        pure (Just (currentState { requestResult = result, rows = newRows }))
+  else do
+    H.modify_ \state -> state { requestResult = result }
+    pure Nothing
+
+childHandleAction :: forall slots. ChildAction -> H.HalogenM ChildState ChildAction slots ChildOutput AppMonad Unit
+childHandleAction = case _ of
+  IdChange newId -> (_editPuck <<< _id) .= newId
+  TypeChange newType -> (_editPuck <<< _type_) .= newType
+  AddEntry puck -> do
+    newState <- mutateAndReload (addPuck puck)
+    foldMap (H.put <<< (set _editPuck initialPuck)) newState
+  SetModalTarget pid -> _modalTarget ?= pid
+  EditIdChange newId -> assign (_editData <<< traversed <<< _editPuck <<< _id) newId
+  EditTypeChange newType -> assign (_editData <<< traversed <<< _editPuck <<< _type_) newType
+  EditStart id -> H.modify_ \state -> state { editData = (\row -> { editId: row.id, editPuck: row }) <$> find (\row -> row.id == id) state.rows }
+  EditCancel -> _editData .= Nothing
+  EditComplete -> do
+    ed <- use _editData
+    foldMap' ed \ed' -> do
+      newState <- mutateAndReload (editPuck ed')
+      foldMap (H.put <<< (set _editData Nothing)) newState
+  RemoveEntry -> do
+    id <- use _modalTarget
+    _modalTarget .= Nothing
+    foldMap' id \id' -> do
+      newState <- mutateAndReload (removePuck id')
+      foldMap' newState H.put
+
+initialPuck :: Puck
+initialPuck = { id: "", type_: Uni }
+
+childComponent :: forall q. H.Component HH.HTML q (Array Puck) ChildOutput AppMonad
+childComponent =
+  H.mkComponent
+    { initialState: \rows -> { rows, editPuck: initialPuck, requestResult: NotAsked, modalTarget: Nothing, editData: Nothing }
+    , render: childRender
+    , eval: H.mkEval H.defaultEval { handleAction = childHandleAction }
+    }
+
+filterMaybe :: forall t176. (t176 -> Boolean) -> t176 -> Maybe t176
+filterMaybe f x = if f x then Just x else Nothing
+
+table :: forall w. ChildState -> HH.HTML w ChildAction
+table state =
+  let
+    makeHeader text = HH.th [ scope ScopeCol ] [ HH.text text ]
+
+    maybeEditData :: Puck -> Maybe EditData
+    maybeEditData row = (state.editData >>= filterMaybe (view _editId >>> (\eid -> eid == row.id)))
+
+    makeRow row =
+      maybe'
+        ( \_ ->
+            HH.tr_
+              [ HH.td_
+                  [ HH.text (row.id)
+                  ]
+              , HH.td_ [ HH.text (show (row.type_)) ]
+              , HH.td_
+                  [ HH.button
+                      [ classList [ "btn", "btn-secondary", "mr-2" ]
+                      , HE.onClick \_ -> Just (EditStart row.id)
+                      ]
+                      [ HH.text "Edit" ]
+                  , HH.button
+                      [ classList [ "btn", "btn-danger" ]
+                      , HE.onClick \_ -> Just (SetModalTarget row.id)
+                      ]
+                      [ HH.text "Remove" ]
+                  ]
+              ]
+        )
+        ( \ed ->
+            HH.tr_
+              [ HH.td_
+                  [ HH.input
+                      [ HP.type_ InputText
+                      , HP.id_ "editInputId"
+                      , HP.classes [ HH.ClassName "form-control" ]
+                      , HE.onValueInput (Just <<< EditIdChange)
+                      , HP.value ed.editPuck.id
+                      ]
+                  ]
+              , HH.td_
+                  [ HH.div_ (inputRadios ed.editPuck.type_ EditTypeChange) ]
+              , HH.td_
+                  [ HH.button
+                      [ classList [ "btn", "btn-primary", "mr-2" ]
+                      , HE.onClick \_ -> Just EditComplete
+                      ]
+                      [ HH.text "Complete edit" ]
+                  , HH.button
+                      [ classList [ "btn", "btn-danger" ]
+                      , HE.onClick \_ -> Just EditCancel
+                      ]
+                      [ HH.text "Cancel edit" ]
+                  ]
+              ]
+        )
+        (maybeEditData row)
+
+    headers = [ "ID", "Type", "Actions" ]
+  in
+    HH.table [ classList [ "table" ] ]
+      [ HH.thead_
+          [ HH.tr_ (makeHeader <$> headers)
+          ]
+      , HH.tbody_
+          (makeRow <$> (state.rows))
+      ]
+
+inputRadios :: forall w i. PuckType -> (PuckType -> i) -> Array (HH.HTML w i)
+inputRadios current f =
+  ( \t ->
+      HH.div [ classList [ "form-check", "form-check-inline" ] ]
+        [ HH.input
+            [ HP.type_ InputRadio
+            , HP.name "inputType"
+            , HP.id_ ("inputType" <> show t)
+            , HP.classes [ HH.ClassName "form-check-input" ]
+            , HP.value (show current)
+            , HE.onValueInput (const (Just (f t)))
+            , HP.checked (current == t)
+            ]
+        , HH.label [ HP.for ("inputType" <> show t), classList [ "form-check-label" ] ] [ HH.text (show t) ]
+        ]
+  )
+    <$> [ Uni, Spine ]
+
+input :: forall r w. { editPuck :: Puck | r } -> HH.HTML w ChildAction
+input state =
+  HH.div_
+    [ HH.h2_ [ HH.text "New Puck" ]
+    , HH.form_
+        [ HH.div [ classList [ "mb-3", "form-group" ] ]
+            [ HH.label [ HP.for "inputId", HP.classes [ HH.ClassName "form-label" ] ]
+                [ HH.text "ID"
+                ]
+            , HH.input
+                [ HP.type_ InputText
+                , HP.id_ "inputId"
+                , HP.classes [ HH.ClassName "form-control" ]
+                , HE.onValueInput (Just <<< IdChange)
+                , HP.value state.editPuck.id
+                ]
+            ]
+        , HH.div [ classList [ "mb-3", "form-group" ] ] (inputRadios (state.editPuck.type_) TypeChange)
+        , HH.button
+            [ HP.type_ ButtonButton, classList [ "btn", "btn-primary" ], HE.onClick \_ -> Just (AddEntry { id: state.editPuck.id, type_: state.editPuck.type_ }) ]
+            [ HH.text "Add" ]
+        ]
+    ]
+
+childRender :: forall q. ChildState -> HH.ComponentHTML ChildAction ( deleteModal :: H.Slot q Output Int ) AppMonad
+childRender state =
+  HH.div [ classList [] ]
+    [ HH.slot
+        (SProxy :: SProxy "deleteModal")
+        0
+        modal
+        { modalId: "delete-modal"
+        , confirmText: "Delete!"
+        , open: isJust (state.modalTarget)
+        , renderBody: \_ -> HH.div_ [ HH.text ("Really delete puck " <> (fromMaybe "" (state.modalTarget)) <> "?") ]
+        }
+        (const (Just RemoveEntry))
+    , makeRequestResult (state.requestResult)
+    , table state
+    , input state
+    ]

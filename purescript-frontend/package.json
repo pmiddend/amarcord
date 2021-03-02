@@ -1,0 +1,19 @@
+{
+  "private": true,
+  "devDependencies": {
+    "http-server": "^0.12.3",
+    "parcel": "^1.12.4",
+    "parcel-plugin-static-files-copy": "^2.5.0",
+    "purescript": "^0.13.8",
+    "purty": "^6.3.0",
+    "spago": "^0.18.1"
+  },
+  "scripts": {
+    "build": "spago build",
+    "serve": "http-server dist & parcel serve dev/index.html",
+    "build-prod": "mkdir -p prod && cp -R dev/index.html dev/webfonts dev/css dev/favicon.png static/* prod/ && rm -rf dist && spago --no-color bundle-app --to prod/index.js && parcel build prod/index.html"
+  },
+  "dependencies": {
+    "purescript-graphql-client": "git+https://github.com/purescript-graphql-client/purescript-graphql-client.git#89a7ba850222dd0118840c83fc099c8ff649be6c"
+  }
+}
