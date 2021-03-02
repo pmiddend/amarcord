@@ -59,6 +59,7 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         "Run",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column(
             "proposal_id",
             sa.Integer,
@@ -210,6 +211,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
             run_id = conn.execute(
                 tables.run.insert().values(
                     proposal_id=proposal_id,
+                    modified=datetime.datetime.utcnow(),
                     sample_id=first_sample_id,
                     karabo=karabo_data,
                     custom={

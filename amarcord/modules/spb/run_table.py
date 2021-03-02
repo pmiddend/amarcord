@@ -1,8 +1,10 @@
 import logging
-from typing import Any, Dict, List, Set
+import datetime
+from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd
 from PyQt5 import QtCore, QtWidgets
+from PyQt5.QtCore import QTimer
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar,
@@ -92,7 +94,7 @@ class RunTable(QtWidgets.QWidget):
                 },
                 column_visibility=list(self._run_property_names.keys()),
                 column_converter=self._convert_column,
-                data_retriever=None,
+                primary_key_getter=lambda row: row[self._db.tables.property_run_id],
                 parent=self,
             )
             self._table_view.set_menu_callback(self._header_menu_callback)
@@ -141,6 +143,15 @@ class RunTable(QtWidgets.QWidget):
 
         root_layout.addWidget(self._table_view)
         context.db.after_db_created(self._late_init)
+
+        self._update_timer = QTimer(self)
+        self._update_timer.timeout.connect(self._slot_refresh)
+        self._update_timer.start(5000)
+
+    def _slot_refresh(self) -> None:
+        with self._db.connect() as conn:
+            self._run_property_names = self._db.run_property_metadata(conn)
+            self._table_view.refresh()
 
     def _convert_column(self, run_property: RunProperty, role: int, value: Any) -> str:
         if run_property == self._db.tables.property_comments:
@@ -199,10 +210,7 @@ class RunTable(QtWidgets.QWidget):
         self.run_selected.emit(row[self._db.tables.property_run_id])
 
     def run_changed(self) -> None:
-        logger.info("Refreshing run table")
-        with self._db.connect() as conn:
-            self._run_property_names = self._db.run_property_metadata(conn)
-            self._table_view.refresh()
+        self._slot_refresh()
 
     def _slot_switch_columns(self) -> None:
         new_columns = display_column_chooser(
@@ -210,10 +218,12 @@ class RunTable(QtWidgets.QWidget):
         )
         self._table_view.set_column_visibility(new_columns)
 
+    def _retrieve_runs(self, since: Optional[datetime.datetime]) -> List[Row]:
+        with self._db.connect() as conn:
+            return self._db.retrieve_runs(conn, self._proposal_id, since)
+
     def _late_init(self) -> None:
-        self._table_view.set_data_retriever(
-            lambda: _retrieve_data_no_connection(self._db, self._proposal_id)  # type: ignore
-        )
+        self._table_view.set_data_retriever(self._retrieve_runs)
 
     def _slot_filter_changed(self, f: str) -> None:
         try:

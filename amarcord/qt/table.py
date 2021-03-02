@@ -1,4 +1,5 @@
 from typing import List
+import datetime
 from typing import TypeVar
 from typing import Generic
 from typing import Iterable
@@ -17,7 +18,7 @@ from amarcord.query_parser import Query
 T = TypeVar("T")
 Row = Dict[T, Any]
 GeneralTable = List[Row]
-DataRetriever = Callable[[], GeneralTable]
+DataRetriever = Callable[[Optional[datetime.datetime]], GeneralTable]
 MenuCallback = Callable[[QtCore.QPoint, T], None]
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,11 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         column_header_retriever: Callable[[], Dict[T, str]],
         column_visibility: List[T],
         column_converter: Callable[[T, int, Any], str],
-        data_retriever: Optional[DataRetriever],
+        primary_key_getter: Optional[Callable[[Row], Any]],
         parent: Optional[QtCore.QObject],
     ) -> None:
         super().__init__(parent)
+        self._primary_key_getter = primary_key_getter
         self._enum_type_retriever = enum_type_retriever
         self._enum_type = enum_type_retriever()
         self._column_header_retriever = column_header_retriever
@@ -45,7 +47,9 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self.index_to_enum: Dict[int, T] = {
             v: k for k, v in self._enum_to_index.items()
         }
-        self._data = data_retriever() if data_retriever is not None else []
+        self._data_retriever: Optional[DataRetriever] = None
+        self._data: GeneralTable = []
+        self._last_refresh: Optional[datetime.datetime] = None
         self._filtered_data = self._data
         # pylint: disable=unnecessary-comprehension
         self._enum_values = [e for e in self._enum_type]
@@ -53,7 +57,6 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
         self._sort_column: Optional[T] = None
         self._sort_reverse = False
         self._filter_query: Optional[Query] = None
-        self._data_retriever: Optional[DataRetriever] = None
 
     def get_filtered_column_values(self, c: T) -> List[Any]:
         return [d[c] for d in self._filtered_data if c in d]
@@ -73,16 +76,38 @@ class GeneralModel(QtCore.QAbstractTableModel, Generic[T]):
     def set_data_retriever(self, data_retriever: DataRetriever) -> None:
         self._data_retriever = data_retriever
         self.beginResetModel()
-        self._data = self._data_retriever()
+        self._data = self._data_retriever(None)
+        self._last_refresh = datetime.datetime.utcnow()
         self._filtered_data = self._data
         self.endResetModel()
 
     def refresh(self) -> None:
         self._enum_type = self._enum_type_retriever()
         self._column_headers = self._column_header_retriever()
-        if self._data_retriever:
-            self._data = self._data_retriever()
-        self.set_filter_query(self._filter_query)
+        updated = False
+        if self._data_retriever is not None:
+            if self._last_refresh is None or self._primary_key_getter is None:
+                logger.info("last refresh none or no primary key getter")
+                self._data = self._data_retriever(None)
+                updated = True
+            else:
+                new_data = self._data_retriever(self._last_refresh)
+                for new_row in new_data:
+                    found_row = False
+                    for idx, old_row in enumerate(self._data):
+                        if self._primary_key_getter(
+                            old_row
+                        ) == self._primary_key_getter(new_row):
+                            self._data[idx] = new_row
+                            found_row = True
+                            break
+                    if not found_row:
+                        self._data.append(new_row)
+                        break
+                updated = bool(len(new_data))
+            self._last_refresh = datetime.datetime.utcnow()
+        if updated:
+            self.set_filter_query(self._filter_query)
 
     def rowCount(self, _parent: QtCore.QModelIndex = QtCore.QModelIndex()) -> int:
         return len(self._filtered_data)
@@ -163,20 +188,20 @@ class GeneralTableWidget(QtWidgets.QTableView, Generic[T]):
         column_header_retriever: Callable[[], Dict[T, str]],
         column_visibility: List[T],
         column_converter: Callable[[T, int, Any], str],
-        data_retriever: Optional[DataRetriever],
+        primary_key_getter: Optional[Callable[[Row], Any]],
         parent: Optional[QtWidgets.QWidget],
     ) -> None:
         super().__init__(parent)
         self.setAlternatingRowColors(True)
         self.verticalHeader().hide()
-        self.horizontalHeader().setStretchLastSection(True)
+        # self.horizontalHeader().setStretchLastSection(True)
         self.setSortingEnabled(True)
         self._model = GeneralModel[T](
             enum_type_retriever,
             column_header_retriever,
             column_visibility,
             column_converter,
-            data_retriever,
+            primary_key_getter,
             parent=None,
         )
         self.setModel(self._model)

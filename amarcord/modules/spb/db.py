@@ -7,6 +7,7 @@ from time import time
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 import sqlalchemy as sa
+from sqlalchemy import and_
 
 from amarcord.json_schema import (
     JSONSchemaArray,
@@ -41,6 +42,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class DBRunComment:
     id: Optional[int]
+    run_id: int
     author: str
     text: str
     created: datetime.datetime
@@ -164,11 +166,19 @@ class DB:
         self.tables = tables
 
     def retrieve_runs(
-        self, conn: Connection, proposal_id: ProposalId
+        self,
+        conn: Connection,
+        proposal_id: ProposalId,
+        since: Optional[datetime.datetime],
     ) -> List[Dict[RunProperty, Any]]:
+        logger.info("retrieving runs since %s", since)
+
         run = self.tables.run
         comment = self.tables.run_comment
 
+        where_condition = run.c.proposal_id == proposal_id
+        if since:
+            where_condition = and_(where_condition, run.c.modified >= since)
         select_stmt = (
             sa.select(
                 [
@@ -183,7 +193,7 @@ class DB:
                 ]
             )
             .select_from(run.outerjoin(comment))
-            .where(run.c.proposal_id == proposal_id)
+            .where(where_condition)
             .order_by(run.c.id, comment.c.id)
         )
         result: List[Dict[RunProperty, Any]] = []
@@ -200,6 +210,7 @@ class DB:
             comments = remove_duplicates_stable(
                 DBRunComment(
                     id=row["comment_id"],
+                    run_id=run_meta["id"],
                     author=row["author"],
                     text=row["comment_text"],
                     created=row["created"],
@@ -261,6 +272,11 @@ class DB:
             .where(self.tables.run_comment.c.id == c.id)
             .values(author=c.author, comment_text=c.text)
         )
+        conn.execute(
+            sa.update(self.tables.run)
+            .where(self.tables.run.c.id == c.run_id)
+            .values(modified=datetime.datetime.utcnow())
+        )
 
     def retrieve_run(self, conn: Connection, run_id: RunId) -> DBRun:
         run = self.tables.run
@@ -300,6 +316,7 @@ class DB:
                         self.tables.property_comments: remove_duplicates_stable(
                             DBRunComment(
                                 row["comment_id"],
+                                run_meta["id"],
                                 row["author"],
                                 row["comment_text"],
                                 row["created"],
@@ -317,6 +334,11 @@ class DB:
         )
 
     def add_comment(self, conn: Connection, run_id: int, author: str, text: str) -> int:
+        conn.execute(
+            sa.update(self.tables.run)
+            .where(self.tables.run.c.id == run_id)
+            .values(modified=datetime.datetime.utcnow())
+        )
         result = conn.execute(
             sa.insert(self.tables.run_comment).values(
                 run_id=run_id,
@@ -327,11 +349,16 @@ class DB:
         )
         return result.inserted_primary_key[0]
 
-    def delete_comment(self, conn: Connection, comment_id: int) -> None:
+    def delete_comment(self, conn: Connection, run_id: int, comment_id: int) -> None:
         conn.execute(
             sa.delete(self.tables.run_comment).where(
                 self.tables.run_comment.c.id == comment_id
             )
+        )
+        conn.execute(
+            sa.update(self.tables.run)
+            .where(self.tables.run.c.id == run_id)
+            .values(modified=datetime.datetime.utcnow())
         )
 
     def create_run(
@@ -350,7 +377,11 @@ class DB:
 
             conn.execute(
                 self.tables.run.insert().values(
-                    proposal_id=proposal_id, id=run_id, sample_id=sample_id, custom={}
+                    proposal_id=proposal_id,
+                    id=run_id,
+                    sample_id=sample_id,
+                    custom={},
+                    modified=datetime.datetime.utcnow(),
                 )
             )
             return True
@@ -362,7 +393,7 @@ class DB:
         conn.execute(
             sa.update(self.tables.run)
             .where(self.tables.run.c.id == run_id)
-            .values(karabo=karabo)
+            .values(karabo=karabo, modified=datetime.datetime.utcnow())
         )
 
     def custom_run_properties(self, conn: Connection) -> List[CustomRunProperty]:
@@ -431,7 +462,7 @@ class DB:
             conn.execute(
                 sa.update(self.tables.run)
                 .where(self.tables.run.c.id == run_id)
-                .values({self.tables.run.c.sample_id: value})
+                .values(sample_id=value, modified=datetime.datetime.utcnow())
             )
             return
 
@@ -458,7 +489,7 @@ class DB:
             conn.execute(
                 sa.update(self.tables.run)
                 .where(self.tables.run.c.id == run_id)
-                .values({self.tables.run.c.custom: current_json})
+                .values(custom=current_json, modified=datetime.datetime.utcnow())
             )
 
     def connect(self) -> Connection:

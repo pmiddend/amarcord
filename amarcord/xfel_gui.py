@@ -53,7 +53,7 @@ if __name__ == "__main__":
         context.ui.icon("SP_ComputerIcon"),
     )
     run_details_tab = run_details(context, tables, proposal_id)
-    run_details_tab.run_changed.connect(run_table_tab.run_changed)
+    # run_details_tab.run_changed.connect(run_table_tab.run_changed)
     run_details_index = context.ui.register_tab(
         "Run details",
         run_details_tab,

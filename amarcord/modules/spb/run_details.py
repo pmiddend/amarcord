@@ -154,7 +154,10 @@ class RunDetails(QtWidgets.QWidget):
 
     def _slot_delete_comment(self, comment_id: int) -> None:
         with self._db.connect() as conn:
-            self._db.delete_comment(conn, comment_id)
+            assert self._run is not None
+            self._db.delete_comment(
+                conn, self._run.properties[self._db.tables.property_run_id], comment_id
+            )
             self._run_changed(conn)
             self.run_changed.emit()
 
