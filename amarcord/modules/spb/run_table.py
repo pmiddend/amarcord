@@ -32,27 +32,6 @@ logger = logging.getLogger(__name__)
 Row = Dict[RunProperty, Any]
 
 
-def _default_visible_properties(t: DBTables) -> List[RunProperty]:
-    return [
-        t.property_run_id,
-        t.property_sample,
-        t.property_comments,
-    ]
-
-
-def _retrieve_data_no_connection(db: DB, proposal_id: ProposalId) -> List[Row]:
-    with db.dbcontext.connect() as conn:
-        return db.retrieve_runs(conn, proposal_id)
-
-
-def _convert_tag_column(value: Set[str], role: int) -> Any:
-    if role == QtCore.Qt.DisplayRole:
-        return ", ".join(value)
-    if role == QtCore.Qt.EditRole:
-        return value
-    return QtCore.QVariant()
-
-
 def _convert_comment_column(comments: List[DBRunComment], role: int) -> Any:
     if role == QtCore.Qt.DisplayRole:
         return "\n".join(f"{c.author}: {c.text}" for c in comments)
