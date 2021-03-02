@@ -19,7 +19,6 @@ from amarcord.json_schema import (
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.constants import MANUAL_SOURCE_NAME
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.run_property import (
     RunProperty,
 )
@@ -266,11 +265,9 @@ class DB:
             )
         return result
 
-    def retrieve_run_ids(
-        self, conn: Connection, proposal_id: ProposalId
-    ) -> List[RunId]:
+    def retrieve_run_ids(self, conn: Connection, proposal_id: ProposalId) -> List[int]:
         return [
-            RunId(row[0])
+            row[0]
             for row in conn.execute(
                 sa.select([self.tables.run.c.id])
                 .where(self.tables.run.c.proposal_id == proposal_id)
@@ -302,7 +299,7 @@ class DB:
             .values(modified=datetime.datetime.utcnow())
         )
 
-    def retrieve_run(self, conn: Connection, run_id: RunId) -> DBRun:
+    def retrieve_run(self, conn: Connection, run_id: int) -> DBRun:
         run = self.tables.run
         run_c = run.c
         comment = self.tables.run_comment
@@ -316,6 +313,7 @@ class DB:
                     run.c.id,
                     run.c.sample_id,
                     run.c.proposal_id,
+                    run.c.modified,
                     run.c.custom,
                 ]
             )
@@ -335,6 +333,7 @@ class DB:
                         self.tables.property_run_id: run_meta["id"],
                         self.tables.property_sample: run_meta["sample_id"],
                         self.tables.property_proposal_id: run_meta["proposal_id"],
+                        self.tables.property_modified: run_meta["modified"],
                     },
                     {
                         self.tables.property_comments: remove_duplicates_stable(
@@ -389,7 +388,7 @@ class DB:
         self,
         conn: Connection,
         proposal_id: ProposalId,
-        run_id: RunId,
+        run_id: int,
         sample_id: Optional[int],
     ) -> bool:
         with conn.begin():
@@ -413,7 +412,7 @@ class DB:
     def create_proposal(self, conn: Connection, prop_id: ProposalId) -> None:
         conn.execute(self.tables.proposal.insert().values(id=prop_id))
 
-    def update_run_karabo(self, conn: Connection, run_id: RunId, karabo: bytes) -> None:
+    def update_run_karabo(self, conn: Connection, run_id: int, karabo: bytes) -> None:
         conn.execute(
             sa.update(self.tables.run)
             .where(self.tables.run.c.id == run_id)
@@ -519,11 +518,13 @@ class DB:
     def connect(self) -> Connection:
         return self.dbcontext.connect()
 
-    def retrieve_karabo(self, conn: Connection, run_id: RunId) -> Optional[Karabo]:
+    def retrieve_karabo(self, conn: Connection, run_id: int) -> Optional[Karabo]:
         result = conn.execute(
             sa.select([self.tables.run.c.karabo]).where(self.tables.run.c.id == run_id)
         ).fetchall()
-        return pickle.loads(result[0][0]) if result else None
+        return (
+            pickle.loads(result[0][0]) if result and result[0][0] is not None else None
+        )
 
     def add_custom_run_property(
         self,

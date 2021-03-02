@@ -1,20 +1,18 @@
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
+
 from PyQt5 import QtWidgets
-from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.run_id import RunId
-from amarcord.modules.spb.db import DB
 
 
 @dataclass(frozen=True)
 class NewRunData:
-    id: RunId
+    id: int
     sample_id: Optional[int]
 
 
-def _new_run_dialog(
+def new_run_dialog(
     parent: Optional[QtWidgets.QWidget],
-    highest_id: Optional[RunId],
+    highest_id: Optional[int],
     sample_ids: List[int],
 ) -> Optional[NewRunData]:
     dialog = QtWidgets.QDialog(parent)
@@ -37,7 +35,7 @@ def _new_run_dialog(
     run_id = QtWidgets.QSpinBox()
     run_id.setMinimum(0)
     run_id.setMaximum(2 ** 30)
-    run_id.setValue(RunId(highest_id + 1) if highest_id is not None else 1)
+    run_id.setValue(highest_id + 1 if highest_id is not None else 1)
 
     sample_chooser = QtWidgets.QComboBox()
     sample_chooser.addItems([str(s) for s in sample_ids] + ["None"])
@@ -54,29 +52,6 @@ def _new_run_dialog(
 
     chosen_sample = sample_chooser.currentText()
     return NewRunData(
-        id=RunId(run_id.value()),
+        id=run_id.value(),
         sample_id=int(chosen_sample) if chosen_sample != "None" else None,
     )
-
-
-def new_run_dialog(
-    parent: Optional[QtWidgets.QWidget],
-    proposal_id: ProposalId,
-    db: DB,
-) -> Optional[RunId]:
-    with db.dbcontext.connect() as conn:
-        new_run = _new_run_dialog(
-            parent=parent,
-            highest_id=max(
-                (r for r in db.retrieve_run_ids(conn, proposal_id)),
-                default=None,
-            ),
-            sample_ids=db.retrieve_sample_ids(conn),
-        )
-
-    if new_run is None:
-        return None
-
-    with db.dbcontext.connect() as conn:
-        db.create_run(conn, proposal_id, new_run.id, new_run.sample_id)
-        return new_run.id

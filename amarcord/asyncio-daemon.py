@@ -13,7 +13,6 @@ from amarcord.config import load_config
 from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.db import DB
-from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.db_tables import DBTables, create_tables
 from amarcord.python_schema import validate_dict
 from amarcord.sources.karabo import XFELKaraboBridgeConfig
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def karabo_loop(queries: DB, config: XFELKaraboBridgeConfig) -> None:
     # TESTING
     with queries.dbcontext.connect() as conn:
-        queries.create_run(conn, ProposalId(1), RunId(1), sample_id=None)
+        queries.create_run(conn, ProposalId(1), 1, sample_id=None)
 
     ctx = Context.instance()
 
@@ -51,7 +50,7 @@ async def karabo_loop(queries: DB, config: XFELKaraboBridgeConfig) -> None:
 
             # noinspection PyShadowingNames
             with queries.dbcontext.connect() as conn:
-                queries.update_run_karabo(conn, RunId(1), karabo=pickle.dumps(data))
+                queries.update_run_karabo(conn, 1, karabo=pickle.dumps(data))
 
             logger.info("karabo: new data received")
 

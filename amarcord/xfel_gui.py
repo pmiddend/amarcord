@@ -11,7 +11,6 @@ from amarcord.modules.spb.factories import (
     run_table,
 )
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.run_id import RunId
 from amarcord.modules.spb.db_tables import create_sample_data, create_tables
 from amarcord.modules.uicontext import UIContext
 
@@ -63,7 +62,7 @@ if __name__ == "__main__":
     def change_run(
         run_id: int,
     ) -> None:
-        run_details_tab.select_run(RunId(run_id))
+        run_details_tab.select_run(run_id)
         context.ui.select_tab(run_details_index)
 
     run_table_tab.run_selected.connect(change_run)

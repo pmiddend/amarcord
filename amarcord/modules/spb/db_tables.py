@@ -90,6 +90,7 @@ class DBTables:
         self.property_karabo = RunProperty(self.run.c.karabo.name)
         self.property_custom = RunProperty(self.run.c.custom.name)
         self.property_run_id = RunProperty(self.run.c.id.name)
+        self.property_modified = RunProperty(self.run.c.modified.name)
         self.property_sample = RunProperty(self.run.c.sample_id.name)
         self.property_proposal_id = RunProperty(self.run.c.proposal_id.name)
         self.property_types: Dict[RunProperty, RichPropertyType] = {
@@ -204,29 +205,29 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         )
 
         # Create runs
-        base_date = datetime.datetime.utcnow()
-        # To always get the same sample data, yet somewhat random values
-        seed(1337)
-        for _ in range(20):
-            run_id = conn.execute(
-                tables.run.insert().values(
-                    proposal_id=proposal_id,
-                    modified=datetime.datetime.utcnow(),
-                    sample_id=first_sample_id,
-                    karabo=karabo_data,
-                    custom={
-                        "karabo": {
-                            "started": (
-                                base_date + datetime.timedelta(0, randint(10, 200))
-                            ).isoformat(),
-                            "status": "running",
-                            "repetition_rate": randrange(0, 20),
-                            "hit_rate": random(),
-                            "injector_position_z": randrange(0, 100),
-                        }
-                    },
-                )
-            ).inserted_primary_key[0]
+        # base_date = datetime.datetime.utcnow()
+        # # To always get the same sample data, yet somewhat random values
+        # seed(1337)
+        # for _ in range(20):
+        #     run_id = conn.execute(
+        #         tables.run.insert().values(
+        #             proposal_id=proposal_id,
+        #             modified=datetime.datetime.utcnow(),
+        #             sample_id=first_sample_id,
+        #             karabo=karabo_data,
+        #             custom={
+        #                 "karabo": {
+        #                     "started": (
+        #                         base_date + datetime.timedelta(0, randint(10, 200))
+        #                     ).isoformat(),
+        #                     "status": "running",
+        #                     "repetition_rate": randrange(0, 20),
+        #                     "hit_rate": random(),
+        #                     "injector_position_z": randrange(0, 100),
+        #                 }
+        #             },
+        #         )
+        #     ).inserted_primary_key[0]
 
         # Add comments as well?
         # for _ in range(50):

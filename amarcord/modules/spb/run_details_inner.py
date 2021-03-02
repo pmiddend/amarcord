@@ -1,0 +1,242 @@
+import logging
+from typing import Dict, Final, List, Optional
+
+from PyQt5 import QtCore, QtWidgets
+from PyQt5.QtCore import QVariant, pyqtSignal
+from PyQt5.QtWidgets import QPushButton, QStyle, QWidget
+
+from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
+from amarcord.modules.spb.comments import Comments
+from amarcord.modules.spb.db import (
+    CustomRunProperty,
+    DBRun,
+    DBRunComment,
+    DBRunPropertyMetadata,
+)
+from amarcord.modules.spb.db_tables import DBTables
+from amarcord.modules.spb.new_custom_column_dialog import new_custom_column_dialog
+from amarcord.modules.spb.run_details_metadata import MetadataTable
+from amarcord.modules.spb.run_details_tree import (
+    RunDetailsTree,
+    _dict_to_items,
+    _filter_dict,
+    _preprocess_dict,
+)
+from amarcord.modules.spb.run_property import RunProperty
+from amarcord.qt.combo_box import ComboBox
+from amarcord.qt.debounced_line_edit import DebouncedLineEdit
+from amarcord.qt.rectangle_widget import RectangleWidget
+
+AUTO_REFRESH_TIMER_MSEC: Final = 5000
+
+
+logger = logging.getLogger(__name__)
+
+
+def _refresh_button(style: QStyle) -> QPushButton:
+    return QPushButton(
+        style.standardIcon(QtWidgets.QStyle.SP_BrowserReload),
+        "Refresh",
+    )
+
+
+class RunDetailsInner(QtWidgets.QWidget):
+    current_run_changed = pyqtSignal(int)
+    refresh = pyqtSignal()
+    comment_delete = pyqtSignal(int)
+    comment_add = pyqtSignal(DBRunComment)
+    comment_changed = pyqtSignal(DBRunComment)
+    property_change = pyqtSignal(str, QVariant)
+    new_custom_column = pyqtSignal(CustomRunProperty)
+    manual_new_run = pyqtSignal()
+
+    def __init__(
+        self,
+        tables: DBTables,
+        run_ids: List[int],
+        sample_ids: List[int],
+        run: DBRun,
+        runs_metadata: Dict[RunProperty, DBRunPropertyMetadata],
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.tables = tables
+        self.run = run
+        self.runs_metadata = runs_metadata
+        self.run_ids = run_ids
+        self.sample_ids = sample_ids
+
+        top_row = QtWidgets.QWidget()
+        top_layout = QtWidgets.QHBoxLayout()
+        top_row.setLayout(top_layout)
+
+        selected_run_id = max(r for r in self.run_ids)
+        self._run_selector = ComboBox[int](
+            [(str(r), r) for r in self.run_ids],  # type: ignore
+            selected=selected_run_id,  # type: ignore
+        )
+        self._run_selector.item_selected.connect(self.current_run_changed.emit)
+        # refresh_button = _refresh_button(self.style())
+        # refresh_button.clicked.connect(self.refresh.emit)
+        # auto_refresh = QCheckBox("Auto refresh")
+        # auto_refresh.setChecked(True)
+        # auto_refresh.clicked.connect(self._slot_toggle_auto_refresh)
+        # top_layout.addWidget(auto_refresh)
+        top_layout.addWidget(QtWidgets.QLabel("Run:"))
+        top_layout.addWidget(self._run_selector)
+        self._switch_to_latest_button = QtWidgets.QPushButton(
+            self.style().standardIcon(QtWidgets.QStyle.SP_MediaSeekForward),
+            "Switch to latest",
+        )
+        top_layout.addWidget(self._switch_to_latest_button)
+        top_layout.addWidget(QtWidgets.QCheckBox("Auto switch to latest"))
+        top_layout.addItem(
+            QtWidgets.QSpacerItem(
+                40,
+                20,
+                QtWidgets.QSizePolicy.Expanding,
+                QtWidgets.QSizePolicy.Minimum,
+            )
+        )
+        manual_creation = QtWidgets.QPushButton(
+            self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
+            "New Run",
+        )
+        manual_creation.clicked.connect(self.manual_new_run.emit)
+        top_layout.addWidget(manual_creation)
+
+        comment_column = QtWidgets.QGroupBox("Comments")
+        comment_column_layout = QtWidgets.QVBoxLayout()
+        comment_column.setLayout(comment_column_layout)
+        self._comments = Comments(
+            self.comment_delete.emit, self.comment_changed.emit, self.comment_add.emit
+        )
+        comment_column_layout.addWidget(self._comments)
+
+        additional_data_column = QtWidgets.QGroupBox("Metadata")
+
+        self._metadata_table = MetadataTable(
+            lambda prop, value: self.property_change.emit(prop, value)
+        )
+        additional_data_layout = QtWidgets.QVBoxLayout()
+        additional_data_layout.addWidget(self._metadata_table)
+        table_legend_layout = QtWidgets.QHBoxLayout()
+        table_legend_layout.addStretch()
+        table_legend_layout.addWidget(RectangleWidget(COLOR_MANUAL_RUN_PROPERTY))
+        table_legend_layout.addWidget(QtWidgets.QLabel("<i>manually edited</i>"))
+        table_legend_layout.addStretch()
+        custom_column_button = QtWidgets.QPushButton(
+            self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
+            "New custom column",
+        )
+        custom_column_button.clicked.connect(self._slot_new_custom_column)
+        additional_data_layout.addLayout(table_legend_layout)
+        additional_data_layout.addWidget(custom_column_button)
+        additional_data_column.setLayout(additional_data_layout)
+
+        self._root_layout = QtWidgets.QVBoxLayout()
+        self.setLayout(self._root_layout)
+
+        self._root_layout.addWidget(top_row)
+
+        root_columns = QtWidgets.QHBoxLayout()
+        self._root_layout.addLayout(root_columns)
+
+        editable_column = QtWidgets.QWidget()
+        editable_column_layout = QtWidgets.QVBoxLayout()
+        editable_column.setLayout(editable_column_layout)
+        editable_column_layout.addWidget(comment_column)
+        editable_column_layout.addWidget(additional_data_column)
+
+        details_column = QtWidgets.QGroupBox("Run details")
+        details_column_layout = QtWidgets.QVBoxLayout()
+        details_column.setLayout(details_column_layout)
+        self._details_tree = RunDetailsTree()
+        details_column_layout.addWidget(self._details_tree)
+
+        tree_search_row = QtWidgets.QHBoxLayout()
+        tree_search_row.addWidget(QtWidgets.QLabel("Filter:"))
+        self._tree_filter_line = DebouncedLineEdit()
+        self._tree_filter_line.setClearButtonEnabled(True)
+        self._tree_filter_line.textChanged.connect(self._slot_tree_filter_changed)
+        tree_search_row.addWidget(self._tree_filter_line)
+        details_column_layout.addLayout(tree_search_row)
+
+        root_columns.addWidget(editable_column)
+        root_columns.addWidget(details_column)
+        root_columns.setStretch(0, 2)
+        root_columns.setStretch(1, 3)
+
+        self.run_changed(self.run, run_ids, sample_ids, runs_metadata)
+
+    def runs_metadata_changed(
+        self, new_runs_metadata: Dict[RunProperty, DBRunPropertyMetadata]
+    ) -> None:
+        self.runs_metadata = new_runs_metadata
+        self._metadata_table.data_changed(
+            self.run, self.runs_metadata, self.tables, self.sample_ids
+        )
+
+    def run_changed(
+        self,
+        new_run: DBRun,
+        new_run_ids: List[int],
+        new_sample_ids: List[int],
+        new_metadata: Dict[RunProperty, DBRunPropertyMetadata],
+    ) -> None:
+        self.run = new_run
+        self.runs_metadata = new_metadata
+
+        if self.run_ids != new_run_ids:
+            self._run_selector.reset_items([(str(s), s) for s in new_run_ids])
+
+        self._run_selector.set_current_value(
+            new_run.properties[self.tables.property_run_id]
+        )
+
+        self.run_ids = new_run_ids
+        self.sample_ids = new_sample_ids
+        self._comments.set_comments(
+            self.run.properties[self.tables.property_run_id],
+            self.run.properties[self.tables.property_comments],
+        )
+
+        self._slot_tree_filter_changed(self._tree_filter_line.text())
+        self._details_tree.resizeColumnToContents(0)
+        self._details_tree.resizeColumnToContents(1)
+
+        self._metadata_table.data_changed(
+            self.run,
+            self.runs_metadata,
+            self.tables,
+            self.sample_ids,
+        )
+
+    def _slot_tree_filter_changed(self, new_filter: str) -> None:
+        self._details_tree.clear()
+        if self.run.karabo is None:
+            return
+        self._details_tree.insertTopLevelItems(
+            0,
+            _dict_to_items(
+                _filter_dict(_preprocess_dict(self.run.karabo[0]), new_filter),
+                parent=None,
+            ),
+        )
+        if self._tree_filter_line.text():
+            mf = QtCore.Qt.MatchContains | QtCore.Qt.MatchRecursive
+            for i in self._details_tree.findItems(self._tree_filter_line.text(), mf):  # type: ignore
+                i.setExpanded(True)
+                p = i.parent()
+                while p is not None:
+                    p.setExpanded(True)
+                    p = p.parent()
+
+    def _slot_new_custom_column(self) -> None:
+        new_column = new_custom_column_dialog(self.runs_metadata.keys(), self)
+
+        if new_column is None:
+            return
+
+        self.new_custom_column.emit(new_column)

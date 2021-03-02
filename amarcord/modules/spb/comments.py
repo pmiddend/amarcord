@@ -50,8 +50,6 @@ def _date_cell(
 
 
 class Comments(QtWidgets.QWidget):
-    comments_changed = QtCore.pyqtSignal()
-
     def __init__(
         self,
         comment_deleted: Callable[[int], None],
@@ -164,7 +162,11 @@ class Comments(QtWidgets.QWidget):
         assert self._run_id is not None
         now = datetime.datetime.utcnow()
         new_comment = DBRunComment(
-            None, self._comment_author.text(), self._comment_input.text(), now
+            None,
+            self._run_id,
+            self._comment_author.text(),
+            self._comment_input.text(),
+            now,
         )
         self._comment_added(new_comment)
         self._comment_input.setText("")

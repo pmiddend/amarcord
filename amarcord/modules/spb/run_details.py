@@ -1,36 +1,39 @@
 import logging
 from dataclasses import replace
-from typing import Any, Optional, cast
+from typing import Any, Final, Optional, cast
 
-from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QVariant
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import QVariant, Qt, pyqtSignal
+from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
 from amarcord.modules.context import Context
-from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
-from amarcord.modules.spb.comments import Comments
-from amarcord.modules.spb.new_custom_column_dialog import new_custom_column_dialog
+from amarcord.modules.spb.db import (
+    Connection,
+    CustomRunProperty,
+    DB,
+    DBRun,
+    DBRunComment,
+)
+from amarcord.modules.spb.db_tables import DBTables
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.db import DBRunComment, Connection, DBRun, DB
-from amarcord.modules.spb.run_details_metadata import MetadataTable
-from amarcord.modules.spb.run_details_tree import (
-    RunDetailsTree,
-    _dict_to_items,
-    _filter_dict,
-    _preprocess_dict,
-)
-from amarcord.modules.spb.run_id import RunId
+from amarcord.modules.spb.run_details_inner import RunDetailsInner
 from amarcord.modules.spb.run_property import RunProperty
-from amarcord.modules.spb.db_tables import DBTables
-from amarcord.qt.combo_box import ComboBox
-from amarcord.qt.debounced_line_edit import DebouncedLineEdit
-from amarcord.qt.rectangle_widget import RectangleWidget
+
+AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
 logger = logging.getLogger(__name__)
 
 
-class RunDetails(QtWidgets.QWidget):
-    run_changed = QtCore.pyqtSignal()
+def _refresh_button(style: QStyle) -> QPushButton:
+    return QPushButton(
+        style.standardIcon(QtWidgets.QStyle.SP_BrowserReload),
+        "Refresh",
+    )
+
+
+class RunDetails(QWidget):
+    run_changed = pyqtSignal()
 
     def __init__(
         self, context: Context, tables: DBTables, proposal_id: ProposalId
@@ -40,166 +43,104 @@ class RunDetails(QtWidgets.QWidget):
         self._proposal_id = proposal_id
         self._context = context
         self._db = DB(context.db, tables)
-        with context.db.connect() as conn:
-            self._run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
-            self._sample_ids = self._db.retrieve_sample_ids(conn)
 
-            if not self._run_ids:
-                QtWidgets.QLabel("No runs yet, please wait or create one", self)
-            else:
-                top_row = QtWidgets.QWidget()
-                top_layout = QtWidgets.QHBoxLayout()
-                top_row.setLayout(top_layout)
+        self._root_layout = QtWidgets.QVBoxLayout()
+        self.setLayout(self._root_layout)
+        self._inner: Optional[RunDetailsInner] = None
+        self._first_run = True
 
-                selected_run_id = max(r for r in self._run_ids)
-                self._run_selector = ComboBox(
-                    [(str(r), QVariant(r)) for r in self._run_ids],
-                    selected=QVariant(selected_run_id),
+        self._refresh_run_ids()
+
+    def _refresh_run_ids(self) -> None:
+        with self._db.connect() as conn:
+            new_run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
+            if not new_run_ids and self._first_run:
+                self._first_run = False
+                self._root_layout.addStretch()
+                self._root_layout.addWidget(
+                    QLabel("No runs present"), 0, Qt.AlignCenter
                 )
-                self._run_selector.item_selected.connect(self._slot_current_run_changed)
-                top_layout.addWidget(QtWidgets.QLabel("Run:"))
-                top_layout.addWidget(self._run_selector)
-                self._switch_to_latest_button = QtWidgets.QPushButton(
-                    self.style().standardIcon(QtWidgets.QStyle.SP_MediaSeekForward),
-                    "Switch to latest",
-                )
-                top_layout.addWidget(self._switch_to_latest_button)
-                top_layout.addWidget(QtWidgets.QCheckBox("Auto switch to latest"))
-                top_layout.addItem(
-                    QtWidgets.QSpacerItem(
-                        40,
-                        20,
-                        QtWidgets.QSizePolicy.Expanding,
-                        QtWidgets.QSizePolicy.Minimum,
-                    )
-                )
-                manual_creation = QtWidgets.QPushButton(
+                refresh_button = _refresh_button(self.style())
+                refresh_button.clicked.connect(self._refresh_run_ids)
+                refresh_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                new_run_button = QPushButton(
                     self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
-                    "New Run",
+                    "New run",
                 )
-                manual_creation.clicked.connect(self._slot_new_run)
-                top_layout.addWidget(manual_creation)
-
-                comment_column = QtWidgets.QGroupBox("Comments")
-                comment_column_layout = QtWidgets.QVBoxLayout()
-                comment_column.setLayout(comment_column_layout)
-                self._comments = Comments(
-                    self._slot_delete_comment,
-                    self._slot_change_comment,
-                    self._slot_add_comment,
+                new_run_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                new_run_button.clicked.connect(self._slot_manual_new_run)
+                self._root_layout.addWidget(refresh_button, 0, Qt.AlignCenter)
+                self._root_layout.addWidget(new_run_button, 0, Qt.AlignCenter)
+                self._root_layout.addStretch()
+            elif new_run_ids:
+                if not self._first_run:
+                    while True:
+                        removed_item = self._root_layout.takeAt(0)
+                        if removed_item is None:
+                            break
+                        if removed_item.widget() is not None:
+                            removed_item.widget().deleteLater()
+                self._inner = RunDetailsInner(
+                    tables=self._db.tables,
+                    run_ids=new_run_ids,
+                    sample_ids=self._db.retrieve_sample_ids(conn),
+                    run=self._db.retrieve_run(conn, max(new_run_ids)),
+                    runs_metadata=self._db.run_property_metadata(conn),
                 )
-                self._comments.comments_changed.connect(self._comments_changed)
-                comment_column_layout.addWidget(self._comments)
+                self._inner.current_run_changed.connect(self._slot_current_run_changed)
+                self._inner.comment_add.connect(self._slot_add_comment)
+                self._inner.comment_delete.connect(self._slot_delete_comment)
+                self._inner.comment_changed.connect(self._slot_change_comment)
+                self._inner.property_change.connect(self._slot_property_change)
+                self._inner.refresh.connect(self._slot_refresh)
+                self._inner.new_custom_column.connect(self._slot_new_custom_column)
+                self._inner.manual_new_run.connect(self._slot_manual_new_run)
+                self._root_layout.addWidget(self._inner)
 
-                additional_data_column = QtWidgets.QGroupBox("Metadata")
-
-                self._metadata_table = MetadataTable(self._property_change)
-                additional_data_layout = QtWidgets.QVBoxLayout()
-                additional_data_layout.addWidget(self._metadata_table)
-                table_legend_layout = QtWidgets.QHBoxLayout()
-                table_legend_layout.addStretch()
-                table_legend_layout.addWidget(
-                    RectangleWidget(COLOR_MANUAL_RUN_PROPERTY)
-                )
-                table_legend_layout.addWidget(
-                    QtWidgets.QLabel("<i>manually edited</i>")
-                )
-                table_legend_layout.addStretch()
-                custom_column_button = QtWidgets.QPushButton(
-                    self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
-                    "New custom column",
-                )
-                custom_column_button.clicked.connect(self._slot_new_custom_column)
-                additional_data_layout.addLayout(table_legend_layout)
-                additional_data_layout.addWidget(custom_column_button)
-                additional_data_column.setLayout(additional_data_layout)
-
-                root_layout = QtWidgets.QVBoxLayout()
-                self.setLayout(root_layout)
-
-                root_layout.addWidget(top_row)
-
-                root_columns = QtWidgets.QHBoxLayout()
-                root_layout.addLayout(root_columns)
-
-                editable_column = QtWidgets.QWidget()
-                editable_column_layout = QtWidgets.QVBoxLayout()
-                editable_column.setLayout(editable_column_layout)
-                editable_column_layout.addWidget(comment_column)
-                editable_column_layout.addWidget(additional_data_column)
-
-                details_column = QtWidgets.QGroupBox("Run details")
-                details_column_layout = QtWidgets.QVBoxLayout()
-                details_column.setLayout(details_column_layout)
-                self._details_tree = RunDetailsTree()
-                details_column_layout.addWidget(self._details_tree)
-
-                tree_search_row = QtWidgets.QHBoxLayout()
-                tree_search_row.addWidget(QtWidgets.QLabel("Filter:"))
-                self._tree_filter_line = DebouncedLineEdit()
-                self._tree_filter_line.setClearButtonEnabled(True)
-                self._tree_filter_line.textChanged.connect(
-                    self._slot_tree_filter_changed
-                )
-                tree_search_row.addWidget(self._tree_filter_line)
-                details_column_layout.addLayout(tree_search_row)
-
-                root_columns.addWidget(editable_column)
-                root_columns.addWidget(details_column)
-                root_columns.setStretch(0, 2)
-                root_columns.setStretch(1, 3)
-
-                self._run: Optional[DBRun] = None
-                self._run_changed(conn, selected_run_id)
+    def _slot_refresh(self) -> None:
+        with self._db.connect() as conn:
+            self._slot_refresh_run(conn, self.selected_run())
 
     def _slot_delete_comment(self, comment_id: int) -> None:
         with self._db.connect() as conn:
-            assert self._run is not None
             self._db.delete_comment(
-                conn, self._run.properties[self._db.tables.property_run_id], comment_id
+                conn,
+                self.selected_run_id(),
+                comment_id,
             )
-            self._run_changed(conn)
+            self._slot_refresh_run(conn, self.selected_run())
             self.run_changed.emit()
 
     def _slot_change_comment(self, comment: DBRunComment) -> None:
         with self._db.connect() as conn:
             self._db.change_comment(conn, comment)
-            self._run_changed(conn)
+            self._slot_refresh_run(conn, self.selected_run())
             self.run_changed.emit()
 
     def _slot_add_comment(self, comment: DBRunComment) -> None:
         with self._db.connect() as conn:
-            selected_run = self.selected_run_id()
-            assert selected_run is not None, "Tried to add a comment, but have no run"
-            self._db.add_comment(conn, selected_run, comment.author, comment.text)
-            self._run_changed(conn)
+            self._db.add_comment(
+                conn,
+                self.selected_run_id(),
+                comment.author,
+                comment.text,
+            )
+            self._slot_refresh_run(conn, self.selected_run())
             self.run_changed.emit()
 
-    def _property_change(self, prop: RunProperty, new_value: Any) -> None:
-        assert self._run is not None, "Got a property change but have no run"
+    def _slot_property_change(self, prop: RunProperty, new_value: Any) -> None:
         with self._db.connect() as conn:
             selected_run = self.selected_run_id()
-            assert (
-                selected_run is not None
-            ), "Tried to change a run property, but have no run"
             self._db.update_run_property(
                 conn,
                 selected_run,
                 prop,
                 new_value,
             )
-            self._run_changed(conn)
+            self._slot_refresh_run(conn, self.selected_run())
             self.run_changed.emit()
 
-    def _slot_new_custom_column(self) -> None:
-        with self._db.connect() as conn:
-            existing_properties = self._db.run_property_metadata(conn)
-
-        new_column = new_custom_column_dialog(existing_properties.keys(), self)
-
-        if new_column is None:
-            return
-
+    def _slot_new_custom_column(self, new_column: CustomRunProperty) -> None:
         with self._db.connect() as conn:
             self._db.add_custom_run_property(
                 conn,
@@ -208,58 +149,18 @@ class RunDetails(QtWidgets.QWidget):
                 suffix=None,
                 prop_type=new_column.rich_property_type,
             )
-
-            assert self._run is not None, "Tried to add a new property, but have no run"
-            self._metadata_table.data_changed(
-                self._run,
-                self._db.run_property_metadata(conn),
-                self._db.tables,
-                self._sample_ids,
+            cast(RunDetailsInner, self._inner).runs_metadata_changed(
+                self._db.run_property_metadata(conn)
             )
             self.run_changed.emit()
 
-    def _comments_changed(self) -> None:
-        self.run_changed.emit()
-
-    def _slot_tree_filter_changed(self, new_filter: str) -> None:
-        assert self._run is not None, "Tried to change karabo filter, but have no run"
-        self._details_tree.clear()
-        if self._run.karabo is None:
-            return
-        self._details_tree.insertTopLevelItems(
-            0,
-            _dict_to_items(
-                _filter_dict(_preprocess_dict(self._run.karabo[0]), new_filter),
-                parent=None,
-            ),
-        )
-        if self._tree_filter_line.text():
-            mf = QtCore.Qt.MatchContains | QtCore.Qt.MatchRecursive
-            for i in self._details_tree.findItems(self._tree_filter_line.text(), mf):  # type: ignore
-                i.setExpanded(True)
-                p = i.parent()
-                while p is not None:
-                    p.setExpanded(True)
-                    p = p.parent()
-
-    def _slot_current_run_changed(self, run_id: int) -> None:
+    def _slot_current_run_changed(self, new_run_id: int) -> None:
         with self._db.connect() as conn:
-            self._run_changed(conn, RunId(run_id))
-
-    def _slot_new_run(self) -> None:
-        new_run_id = new_run_dialog(
-            parent=self,
-            proposal_id=self._proposal_id,
-            db=self._db,
-        )
-        if new_run_id is not None:
-            logger.info("Selecting new run %s", new_run_id)
-            self.select_run(new_run_id)
-            self.run_changed.emit()
-
-    def select_run(self, run_id: RunId) -> None:
-        with self._db.connect() as conn:
-            self._run_changed(conn, run_id)
+            self._slot_refresh_run(
+                conn,
+                old_run=self.selected_run(),
+                new_run_id=new_run_id,
+            )
 
     def _run_selector_changed(self, conn: Connection) -> None:
         new_run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
@@ -276,42 +177,69 @@ class RunDetails(QtWidgets.QWidget):
             )
         self._run_selector.blockSignals(False)
 
-    def _run_changed(self, conn: Connection, run_id: Optional[RunId] = None) -> None:
+    def _slot_refresh_run(
+        self,
+        conn: Connection,
+        old_run: Optional[DBRun] = None,
+        new_run_id: Optional[int] = None,
+    ) -> DBRun:
         selected_run_id = self.selected_run_id()
-        assert (
-            run_id is not None or selected_run_id is not None
-        ), "Either give a run ID or have a run present already"
-        old_karabo = self._run.karabo if self._run is not None else None
-        run_id = cast(RunId, run_id if run_id is not None else selected_run_id)
-        self._run = self._db.retrieve_run(conn, run_id)
-        self._run = replace(
-            self._run,
-            karabo=self._db.retrieve_karabo(conn, run_id)
+        old_modified = (
+            old_run.properties[self._db.tables.property_modified]
+            if old_run is not None
+            else None
+        )
+        old_karabo = old_run.karabo if old_run is not None else None
+        new_run_id = cast(
+            int, new_run_id if new_run_id is not None else selected_run_id
+        )
+        new_run = self._db.retrieve_run(conn, new_run_id)
+
+        if (
+            new_run.properties[self._db.tables.property_modified] == old_modified
+            and selected_run_id == new_run_id
+        ):
+            logger.info("no updates, not refreshing")
+            return new_run
+
+        new_run = replace(
+            new_run,
+            karabo=self._db.retrieve_karabo(conn, new_run_id)
             if old_karabo is None
             else old_karabo,
         )
 
-        self._run_selector_changed(conn)
-
-        self._comments.set_comments(
-            self._run.properties[self._db.tables.property_run_id],
-            self._run.properties[self._db.tables.property_comments],
-        )
-
-        self._slot_tree_filter_changed(self._tree_filter_line.text())
-        self._details_tree.resizeColumnToContents(0)
-        self._details_tree.resizeColumnToContents(1)
-
-        self._metadata_table.data_changed(
-            self._run,
+        cast(RunDetailsInner, self._inner).run_changed(
+            new_run,
+            self._db.retrieve_run_ids(conn, self._proposal_id),
+            self._db.retrieve_sample_ids(conn),
             self._db.run_property_metadata(conn),
-            self._db.tables,
-            self._sample_ids,
         )
 
-    def selected_run_id(self) -> Optional[RunId]:
-        return (
-            RunId(self._run.properties[self._db.tables.property_run_id])
-            if self._run is not None
-            else None
-        )
+        return new_run
+
+    def selected_run(self) -> DBRun:
+        return cast(RunDetailsInner, self._inner).run
+
+    def selected_run_id(self) -> int:
+        return self.selected_run().properties[self._db.tables.property_run_id]
+
+    def _slot_manual_new_run(self) -> None:
+        with self._db.connect() as conn:
+            new_run = new_run_dialog(
+                parent=self,
+                highest_id=max(
+                    self._db.retrieve_run_ids(conn, self._proposal_id), default=None
+                ),
+                sample_ids=self._db.retrieve_sample_ids(conn),
+            )
+            if new_run is not None:
+                if not self._db.create_run(
+                    conn, self._proposal_id, new_run.id, new_run.sample_id
+                ):
+                    raise Exception("couldn't create run for some reason")
+                if self._inner is None:
+                    self._refresh_run_ids()
+                else:
+                    self._slot_refresh_run(conn, self.selected_run(), new_run.id)
+                self.run_changed.emit()
