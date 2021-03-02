@@ -1,45 +1,14 @@
 from dataclasses import dataclass
 from typing import Optional
-import lark.exceptions as le
+
 from PyQt5.QtCore import QVariant, pyqtSignal
-
 from PyQt5.QtWidgets import QLabel, QLineEdit, QVBoxLayout, QWidget
-from lark import Lark, Token, Tree
+from lark import Tree, exceptions as le
+from lark.lark import Lark
+from lark.lexer import Token
 
+from amarcord.numeric_range import NumericRange
 from amarcord.query_parser import FieldNameError
-
-
-@dataclass(frozen=True, eq=True)
-class NumericRange:
-    minimum: Optional[float]
-    minimum_inclusive: bool
-    maximum: Optional[float]
-    maximum_inclusive: bool
-
-
-def empty_range() -> NumericRange:
-    return NumericRange(None, False, None, False)
-
-
-_range_parser = Lark(
-    r"""
-!start: left_bound value COMMA value right_bound
-!left_bound : LEFT_INCLUSIVE | LEFT_EXCLUSIVE
-!right_bound : RIGHT_INCLUSIVE | RIGHT_EXCLUSIVE
-!value: INFINITY | NUMBER
-
-%import common.SIGNED_NUMBER    -> NUMBER
-
-INFINITY: "oo"
-LEFT_INCLUSIVE: "["
-LEFT_EXCLUSIVE: "("
-RIGHT_INCLUSIVE: "]"
-RIGHT_EXCLUSIVE: ")"
-COMMA: ","
-
-%ignore " "
-  """
-)
 
 
 class UnexpectedEOF(Exception):
@@ -82,8 +51,8 @@ def parse_range(s: str) -> NumericRange:
             else None
         )
         # noinspection PyUnresolvedReferences
-        return NumericRange(left_value, left_inclusive, right_value, right_inclusive)  # type: ignore
-    except le.UnexpectedEOF as e:
+        return NumericRange(float(left_value), left_inclusive, float(right_value), right_inclusive)  # type: ignore
+    except le.UnexpectedEOF:
         # pylint: disable=raise-missing-from
         raise UnexpectedEOF()
     except Exception as e:
@@ -92,7 +61,7 @@ def parse_range(s: str) -> NumericRange:
         raise e
 
 
-class NumericRangeWidget(QWidget):
+class NumericRangeFormatWidget(QWidget):
     range_changed = pyqtSignal(QVariant)
 
     def __init__(
@@ -100,15 +69,16 @@ class NumericRangeWidget(QWidget):
     ) -> None:
         super().__init__(parent)
         self._numeric_range = numeric_range
-        self._input = QLineEdit()
+        self._input = QLineEdit(str(numeric_range) if numeric_range is not None else "")
         self._input.textChanged.connect(self._text_changed)
-        self._query_error = QLabel()
+        self._input.setPlaceholderText("example: [3,4] or (oo, 3] or (0,1)")
+        self._query_error = QLabel(self)
         self._query_error.setStyleSheet("QLabel { font: italic 10px; color: red; }")
         self._layout = QVBoxLayout()
+        self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
         self._layout.addWidget(self._input)
-        self._layout.addWidget(self._query_error)
 
     @property
     def numeric_range(self) -> Optional[NumericRange]:
@@ -119,11 +89,40 @@ class NumericRangeWidget(QWidget):
         self._numeric_range = new_value
 
     def _text_changed(self, new_text: str) -> None:
+        old_range = self._numeric_range
         self._numeric_range = None
         try:
             self._numeric_range = parse_range(new_text)
+            if self._query_error.text():
+                self._layout.removeWidget(self._query_error)
         except UnexpectedEOF:
             self._query_error.setText("")
+            self._layout.removeWidget(self._query_error)
         except Exception as e:
+            error_before = bool(self._query_error.text())
             self._query_error.setText(f"{e}")
-        self.range_changed.emit(self._numeric_range)
+            if not error_before:
+                self._layout.addWidget(self._query_error)
+        if old_range != self._numeric_range:
+            self.range_changed.emit(self._numeric_range)
+
+
+_range_parser = Lark(
+    r"""
+!start: left_bound value COMMA value right_bound
+!left_bound : LEFT_INCLUSIVE | LEFT_EXCLUSIVE
+!right_bound : RIGHT_INCLUSIVE | RIGHT_EXCLUSIVE
+!value: INFINITY | NUMBER
+
+%import common.SIGNED_NUMBER    -> NUMBER
+
+INFINITY: "oo"
+LEFT_INCLUSIVE: "["
+LEFT_EXCLUSIVE: "("
+RIGHT_INCLUSIVE: "]"
+RIGHT_EXCLUSIVE: ")"
+COMMA: ","
+
+%ignore " "
+  """
+)

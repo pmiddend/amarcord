@@ -26,6 +26,7 @@ from amarcord.modules.spb.run_property import (
 from amarcord.modules.spb.db_tables import (
     DBTables,
 )
+from amarcord.numeric_range import NumericRange
 from amarcord.qt.properties import (
     PropertyChoice,
     PropertyDouble,
@@ -76,7 +77,21 @@ def _schema_to_property_type(
     parsed_schema = parse_schema_type(json_schema)
     if isinstance(parsed_schema, JSONSchemaNumber):
         return PropertyDouble(
-            range=None,
+            range=None
+            if parsed_schema.minimum is None
+            and parsed_schema.maximum is None
+            and parsed_schema.exclusiveMaximum is None
+            and parsed_schema.exclusiveMinimum is None
+            else NumericRange(
+                parsed_schema.minimum
+                if parsed_schema.minimum is not None
+                else parsed_schema.exclusiveMinimum,
+                parsed_schema.exclusiveMinimum is not None,
+                parsed_schema.maximum
+                if parsed_schema.maximum is not None
+                else parsed_schema.exclusiveMaximum,
+                parsed_schema.exclusiveMaximum is not None,
+            ),
             suffix=suffix,
         )
     if isinstance(parsed_schema, JSONSchemaInteger):
@@ -106,8 +121,17 @@ def _property_type_to_schema(rp: RichPropertyType) -> RawJSONSchema:
     if isinstance(rp, PropertyDouble):
         result_double: Dict[str, Any] = {"type": "number"}
         if rp.range is not None:
-            result_double["minimum"] = rp.range[0]
-            result_double["maximum"] = rp.range[1]
+            if rp.range.minimum is not None:
+                if rp.range.minimum_inclusive:
+                    result_double["minimum"] = rp.range.minimum
+                else:
+                    result_double["exclusiveMinimum"] = rp.range.minimum
+            if rp.range.maximum is not None:
+                if rp.range.maximum_inclusive:
+                    result_double["maximum"] = rp.range.maximum
+                else:
+                    result_double["exclusiveMaximum"] = rp.range.maximum
+        logger.info("wrote the following dict: %s", result_double)
         return result_double
     if isinstance(rp, PropertyString):
         return {"type": "string"}

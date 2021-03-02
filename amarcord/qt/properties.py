@@ -4,6 +4,8 @@ import logging
 
 from PyQt5 import QtCore, QtWidgets
 
+from amarcord.qt.numeric_range_format_widget import NumericRange
+
 logger = logging.getLogger(__name__)
 
 from amarcord.qt.table_delegates import (
@@ -28,8 +30,7 @@ class PropertyString:
 
 @dataclass(frozen=True)
 class PropertyDouble:
-    range: Optional[Tuple[float, float]] = None
-    nonNegative: bool = False
+    range: Optional[NumericRange] = None
     suffix: Optional[str] = None
 
 
@@ -72,9 +73,7 @@ def delegate_for_property_type(
     if isinstance(proptype, PropertyInt):
         return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
     if isinstance(proptype, PropertyDouble):
-        return DoubleItemDelegate(
-            proptype.nonNegative, proptype.range, proptype.suffix, parent
-        )
+        return DoubleItemDelegate(proptype.range, proptype.suffix, parent)
     if isinstance(proptype, PropertyString):
         return QtWidgets.QStyledItemDelegate(parent=parent)
     if isinstance(proptype, PropertyChoice):

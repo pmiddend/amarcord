@@ -5,6 +5,8 @@ import logging
 from PyQt5 import QtCore, QtWidgets
 
 from amarcord.qt.datetime import from_qt_datetime, to_qt_datetime
+from amarcord.qt.numeric_input_widget import NumericInputWidget
+from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.tags import Tags
 
 T = TypeVar("T")
@@ -223,19 +225,12 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
 class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
     def __init__(
         self,
-        non_negative: bool,
-        value_range: Optional[Tuple[float, float]],
+        numeric_range: Optional[NumericRange],
         suffix: Optional[str],
         parent: Optional[QtCore.QObject],
     ) -> None:
         super().__init__(parent)
-        self._range = (
-            value_range
-            if value_range is not None
-            else [0, 10000]
-            if non_negative
-            else None
-        )
+        self._range = numeric_range
         self._suffix = suffix
 
     def createEditor(
@@ -244,25 +239,19 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
         _option: QtWidgets.QStyleOptionViewItem,
         _index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
-        editor = QtWidgets.QDoubleSpinBox(parent)
-        editor.setFrame(False)
-        if self._suffix is not None:
-            editor.setSuffix(f" {self._suffix}")
-        if self._range is not None:
-            editor.setRange(self._range[0], self._range[1])
-        return editor
+        return NumericInputWidget(None, self._range, parent)
 
     # pylint: disable=no-self-use
     def setEditorData(
         self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
     ) -> None:
-        assert isinstance(editor, QtWidgets.QDoubleSpinBox)
+        assert isinstance(editor, NumericInputWidget)
         data = index.model().data(index, QtCore.Qt.EditRole)
         if data is None:
             return
         if not isinstance(data, (int, float)):
             raise ValueError(f"expected float, got {type(data)}")
-        cast(QtWidgets.QDoubleSpinBox, editor).setValue(float(data))
+        cast(NumericInputWidget, editor).set_value(float(data))
 
     # pylint: disable=no-self-use
     def setModelData(
@@ -271,10 +260,10 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
         model: QtCore.QAbstractItemModel,
         index: QtCore.QModelIndex,
     ) -> None:
-        assert isinstance(editor, QtWidgets.QDoubleSpinBox)
-        model.setData(
-            index, cast(QtWidgets.QDoubleSpinBox, editor).value(), QtCore.Qt.EditRole
-        )
+        assert isinstance(editor, NumericInputWidget)
+        value = editor.value()
+        if value is not None:
+            model.setData(index, value, QtCore.Qt.EditRole)
 
     # pylint: disable=no-self-use
     def updateEditorGeometry(
