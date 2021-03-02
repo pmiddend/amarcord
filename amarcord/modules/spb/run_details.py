@@ -13,6 +13,7 @@ from amarcord.modules.spb.db import (
     DB,
     DBRun,
     DBRunComment,
+    Karabo,
 )
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
@@ -88,7 +89,7 @@ class RunDetails(QWidget):
                     tables=self._db.tables,
                     run_ids=new_run_ids,
                     sample_ids=self._db.retrieve_sample_ids(conn),
-                    run=self._db.retrieve_run(conn, max(new_run_ids)),
+                    run=self._retrieve_run_with_karabo(conn, max(new_run_ids), None),
                     runs_metadata=self._db.run_property_metadata(conn),
                 )
                 self._inner.current_run_changed.connect(self._slot_current_run_changed)
@@ -166,6 +167,16 @@ class RunDetails(QWidget):
                 new_run_id=new_run_id,
             )
 
+    def _retrieve_run_with_karabo(
+        self, conn: Connection, run_id: int, old_karabo: Optional[Karabo]
+    ) -> DBRun:
+        return replace(
+            self._db.retrieve_run(conn, run_id),
+            karabo=self._db.retrieve_karabo(conn, run_id)
+            if old_karabo is None
+            else old_karabo,
+        )
+
     def _slot_refresh_run(
         self,
         conn: Connection,
@@ -177,14 +188,7 @@ class RunDetails(QWidget):
         new_run_id = cast(
             int, new_run_id if new_run_id is not None else selected_run_id
         )
-        new_run = self._db.retrieve_run(conn, new_run_id)
-
-        new_run = replace(
-            new_run,
-            karabo=self._db.retrieve_karabo(conn, new_run_id)
-            if old_karabo is None
-            else old_karabo,
-        )
+        new_run = self._retrieve_run_with_karabo(conn, new_run_id, old_karabo)
 
         cast(RunDetailsInner, self._inner).run_changed(
             new_run,

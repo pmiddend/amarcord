@@ -205,29 +205,29 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         )
 
         # Create runs
-        # base_date = datetime.datetime.utcnow()
-        # # To always get the same sample data, yet somewhat random values
-        # seed(1337)
-        # for _ in range(20):
-        #     run_id = conn.execute(
-        #         tables.run.insert().values(
-        #             proposal_id=proposal_id,
-        #             modified=datetime.datetime.utcnow(),
-        #             sample_id=first_sample_id,
-        #             karabo=karabo_data,
-        #             custom={
-        #                 "karabo": {
-        #                     "started": (
-        #                         base_date + datetime.timedelta(0, randint(10, 200))
-        #                     ).isoformat(),
-        #                     "status": "running",
-        #                     "repetition_rate": randrange(0, 20),
-        #                     "hit_rate": random(),
-        #                     "injector_position_z": randrange(0, 100),
-        #                 }
-        #             },
-        #         )
-        #     ).inserted_primary_key[0]
+        base_date = datetime.datetime.utcnow()
+        # To always get the same sample data, yet somewhat random values
+        seed(1337)
+        for _ in range(20):
+            run_id = conn.execute(
+                tables.run.insert().values(
+                    proposal_id=proposal_id,
+                    modified=datetime.datetime.utcnow(),
+                    sample_id=first_sample_id,
+                    karabo=karabo_data,
+                    custom={
+                        "karabo": {
+                            "started": (
+                                base_date + datetime.timedelta(0, randint(10, 200))
+                            ).isoformat(),
+                            "status": "running",
+                            "repetition_rate": randrange(0, 20),
+                            "hit_rate": random(),
+                            "injector_position_z": randrange(0, 100),
+                        }
+                    },
+                )
+            ).inserted_primary_key[0]
 
         # Add comments as well?
         # for _ in range(50):

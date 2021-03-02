@@ -58,12 +58,13 @@ class MetadataTable(QtWidgets.QWidget):
         self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
         self._run: Optional[DBRun] = None
+        self._metadata: Dict[RunProperty, DBRunPropertyMetadata] = {}
 
     def _property_changed(self, prop: RunProperty, new_value: Any) -> None:
         self._property_change(prop, new_value)
 
     def _run_property_to_string(
-        self, prop: RunProperty, metadata: DBRunPropertyMetadata, value: Any
+        self, metadata: DBRunPropertyMetadata, value: Any
     ) -> str:
         suffix: str = getattr(metadata.rich_prop_type, "suffix", None)
         value_str = ", ".join(value) if isinstance(value, list) else str(value)
@@ -77,7 +78,18 @@ class MetadataTable(QtWidgets.QWidget):
         sample_ids: List[int],
     ) -> None:
 
+        run_properties_changed = (
+            self._run is None or run.properties != self._run.properties
+        )
+
         self._run = run
+
+        metadata_changed = self._metadata != metadata
+
+        self._metadata = metadata
+
+        if not run_properties_changed and not metadata_changed:
+            return
 
         run_properties: List[Tuple[RunProperty, DBRunPropertyMetadata]] = [
             (k, v)
@@ -93,7 +105,7 @@ class MetadataTable(QtWidgets.QWidget):
                         display_roles=[
                             md.description if md.description else md.name,
                             self._run_property_to_string(
-                                property, metadata[property], run.properties[property]
+                                metadata[property], run.properties[property]
                             )
                             if property in run.properties
                             else "None",
