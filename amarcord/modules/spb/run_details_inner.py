@@ -2,8 +2,8 @@ import logging
 from typing import Dict, Final, List, Optional
 
 from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QVariant, pyqtSignal
-from PyQt5.QtWidgets import QPushButton, QStyle, QWidget
+from PyQt5.QtCore import QTimer, QVariant, pyqtSignal
+from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
 
 from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
 from amarcord.modules.spb.comments import Comments
@@ -77,12 +77,12 @@ class RunDetailsInner(QtWidgets.QWidget):
             selected=selected_run_id,  # type: ignore
         )
         self._run_selector.item_selected.connect(self.current_run_changed.emit)
-        # refresh_button = _refresh_button(self.style())
-        # refresh_button.clicked.connect(self.refresh.emit)
-        # auto_refresh = QCheckBox("Auto refresh")
-        # auto_refresh.setChecked(True)
-        # auto_refresh.clicked.connect(self._slot_toggle_auto_refresh)
-        # top_layout.addWidget(auto_refresh)
+        refresh_button = _refresh_button(self.style())
+        refresh_button.clicked.connect(self.refresh.emit)
+        auto_refresh = QCheckBox("Auto refresh")
+        auto_refresh.setChecked(True)
+        auto_refresh.clicked.connect(self._slot_toggle_auto_refresh)
+        top_layout.addWidget(auto_refresh)
         top_layout.addWidget(QtWidgets.QLabel("Run:"))
         top_layout.addWidget(self._run_selector)
         self._switch_to_latest_button = QtWidgets.QPushButton(
@@ -169,6 +169,19 @@ class RunDetailsInner(QtWidgets.QWidget):
         root_columns.setStretch(1, 3)
 
         self.run_changed(self.run, run_ids, sample_ids, runs_metadata)
+
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.timeout.connect(self._timed_refresh)
+        self._refresh_timer.start(AUTO_REFRESH_TIMER_MSEC)
+
+    def _timed_refresh(self) -> None:
+        self.refresh.emit()
+
+    def _slot_toggle_auto_refresh(self) -> None:
+        if self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+        else:
+            self._refresh_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def runs_metadata_changed(
         self, new_runs_metadata: Dict[RunProperty, DBRunPropertyMetadata]

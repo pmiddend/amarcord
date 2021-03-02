@@ -1,9 +1,10 @@
 import logging
+import datetime
 from dataclasses import replace
 from typing import Any, Final, Optional, cast
 
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
 from amarcord.modules.context import Context
@@ -47,15 +48,19 @@ class RunDetails(QWidget):
         self._root_layout = QtWidgets.QVBoxLayout()
         self.setLayout(self._root_layout)
         self._inner: Optional[RunDetailsInner] = None
-        self._first_run = True
+        self._empty_gui_present = False
 
         self._refresh_run_ids()
+
+    def _timed_refresh(self) -> None:
+        if self._inner is not None:
+            self._slot_refresh()
 
     def _refresh_run_ids(self) -> None:
         with self._db.connect() as conn:
             new_run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
-            if not new_run_ids and self._first_run:
-                self._first_run = False
+            if not new_run_ids and not self._empty_gui_present:
+                self._empty_gui_present = True
                 self._root_layout.addStretch()
                 self._root_layout.addWidget(
                     QLabel("No runs present"), 0, Qt.AlignCenter
@@ -73,7 +78,7 @@ class RunDetails(QWidget):
                 self._root_layout.addWidget(new_run_button, 0, Qt.AlignCenter)
                 self._root_layout.addStretch()
             elif new_run_ids:
-                if not self._first_run:
+                if self._empty_gui_present:
                     while True:
                         removed_item = self._root_layout.takeAt(0)
                         if removed_item is None:
@@ -169,23 +174,11 @@ class RunDetails(QWidget):
         new_run_id: Optional[int] = None,
     ) -> DBRun:
         selected_run_id = self.selected_run_id()
-        old_modified = (
-            old_run.properties[self._db.tables.property_modified]
-            if old_run is not None
-            else None
-        )
         old_karabo = old_run.karabo if old_run is not None else None
         new_run_id = cast(
             int, new_run_id if new_run_id is not None else selected_run_id
         )
         new_run = self._db.retrieve_run(conn, new_run_id)
-
-        if (
-            new_run.properties[self._db.tables.property_modified] == old_modified
-            and selected_run_id == new_run_id
-        ):
-            logger.info("no updates, not refreshing")
-            return new_run
 
         new_run = replace(
             new_run,
