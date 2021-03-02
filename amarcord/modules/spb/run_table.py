@@ -188,7 +188,12 @@ class RunTable(QtWidgets.QWidget):
 
             df = pd.DataFrame(
                 self._table_view.get_filtered_column_values(column),
-                index=self._table_view.get_filtered_column_values(started_property),
+                index=[
+                    datetime.datetime.fromisoformat(s)
+                    for s in self._table_view.get_filtered_column_values(
+                        started_property
+                    )
+                ],
                 columns=["Values"],
             )
 
