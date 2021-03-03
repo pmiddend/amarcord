@@ -171,7 +171,7 @@ def _decode_custom_to_values(
         manual_values: Dict[str, Any] = custom[MANUAL_SOURCE_NAME]
         assert isinstance(
             manual_values, dict
-        ), f"custom source data isn't a dict for manual source"
+        ), "custom source data isn't a dict for manual source"
         for run_property_str, value in manual_values.items():
             result[RunProperty(run_property_str)] = PropertyValueWithSource(
                 value, source=MANUAL_SOURCE_NAME
