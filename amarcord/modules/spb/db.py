@@ -4,7 +4,7 @@ import pickle
 from dataclasses import dataclass
 from itertools import groupby
 from time import time
-from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple, Union
 
 import sqlalchemy as sa
 from sqlalchemy import and_
@@ -18,6 +18,7 @@ from amarcord.json_schema import (
     parse_schema_type,
 )
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.json import JSONDict
 from amarcord.modules.spb.constants import MANUAL_SOURCE_NAME
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_property import (
@@ -32,6 +33,7 @@ from amarcord.qt.properties import (
     PropertyDateTime,
     PropertyDouble,
     PropertyInt,
+    PropertySample,
     PropertyString,
     PropertyTags,
     RichPropertyType,
@@ -52,6 +54,8 @@ class DBRunComment:
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
 
+RunPropertyValue = Union[List[DBRunComment], str, int, float, List[str]]
+
 
 @dataclass(frozen=True)
 class DBRun:
@@ -69,11 +73,10 @@ class CustomRunProperty:
 
 
 Connection = Any
-RawJSONSchema = Dict[str, Any]
 
 
 def _schema_to_property_type(
-    json_schema: RawJSONSchema, suffix: Optional[str]
+    json_schema: JSONDict, suffix: Optional[str]
 ) -> RichPropertyType:
     parsed_schema = parse_schema_type(json_schema)
     if isinstance(parsed_schema, JSONSchemaNumber):
@@ -114,7 +117,7 @@ def _schema_to_property_type(
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
 
-def _property_type_to_schema(rp: RichPropertyType) -> RawJSONSchema:
+def property_type_to_schema(rp: RichPropertyType) -> JSONDict:
     if isinstance(rp, PropertyInt):
         result_int: Dict[str, Any] = {"type": "number"}
         if rp.range is not None:
@@ -134,10 +137,17 @@ def _property_type_to_schema(rp: RichPropertyType) -> RawJSONSchema:
                     result_double["maximum"] = rp.range.maximum
                 else:
                     result_double["exclusiveMaximum"] = rp.range.maximum
-        logger.info("wrote the following dict: %s", result_double)
         return result_double
     if isinstance(rp, PropertyString):
         return {"type": "string"}
+    if isinstance(rp, PropertySample):
+        return {"type": "integer"}
+    if isinstance(rp, PropertyChoice):
+        return {"type": "string", "enum": [v[1] for v in rp.values]}
+    if isinstance(rp, PropertyDateTime):
+        return {"type": "string", "format": "date-time"}
+    if isinstance(rp, PropertyTags):
+        return {"type": "array", "items": {"type": "string"}}
     raise Exception(f"invalid property type {type(rp)}")
 
 
@@ -153,7 +163,7 @@ class PropertyValueWithSource:
 def _decode_custom_to_values(
     custom: Mapping[str, Any]
 ) -> Dict[RunProperty, PropertyValueWithSource]:
-    result: Dict[RunProperty, Any] = {}
+    result: Dict[RunProperty, PropertyValueWithSource] = {}
     for source in custom.keys() - {MANUAL_SOURCE_NAME}:
         values: Dict[str, Any] = custom[source]
         assert isinstance(
@@ -197,7 +207,7 @@ class DB:
         conn: Connection,
         proposal_id: ProposalId,
         since: Optional[datetime.datetime],
-    ) -> List[Dict[RunProperty, Any]]:
+    ) -> List[Dict[RunProperty, RunPropertyValue]]:
         logger.info("retrieving runs since %s", since)
 
         run = self.tables.run
@@ -223,7 +233,7 @@ class DB:
             .where(where_condition)
             .order_by(run.c.id, comment.c.id)
         )
-        result: List[Dict[RunProperty, Any]] = []
+        result: List[Dict[RunProperty, RunPropertyValue]] = []
         before = time()
         select_results = conn.execute(select_stmt).fetchall()
         after = time()
@@ -247,6 +257,15 @@ class DB:
             )[0:5]
             custom = run_meta["custom"]
             assert isinstance(custom, dict), f"custom column has type {type(custom)}"
+            run_dict: Dict[RunProperty, RunPropertyValue] = {}
+            run_dict.update(
+                {
+                    self.tables.property_comments: comments,
+                    self.tables.property_run_id: run_meta["id"],
+                    self.tables.property_sample: run_meta["sample_id"],
+                    self.tables.property_proposal_id: run_meta["proposal_id"],
+                }
+            )
             result.append(
                 dict_union(
                     [
@@ -543,6 +562,6 @@ class DB:
                 name=name,
                 description=description,
                 suffix=suffix,
-                json_schema=_property_type_to_schema(prop_type),
+                json_schema=property_type_to_schema(prop_type),
             )
         )

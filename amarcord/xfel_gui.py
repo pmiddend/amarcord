@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 
 from amarcord.config import load_config
 from amarcord.modules.context import Context
@@ -28,7 +29,8 @@ if __name__ == "__main__":
 
     dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
-    create_sample_data(dbcontext, tables)
+    if "AMARCORD_CREATE_SAMPLE_DATA" in os.environ:
+        create_sample_data(dbcontext, tables)
 
     proposal_ids = retrieve_proposal_ids(context, tables)
 

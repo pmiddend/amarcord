@@ -2,6 +2,8 @@ import datetime
 from random import randint, random, randrange, seed
 from typing import Dict, List, Optional
 
+import logging
+
 import sqlalchemy as sa
 
 from amarcord.modules.dbcontext import DBContext
@@ -11,6 +13,8 @@ from amarcord.qt.properties import (
     PropertySample,
     RichPropertyType,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _table_custom_run_property(metadata: sa.MetaData) -> sa.Table:
@@ -116,6 +120,7 @@ def create_tables(context: DBContext) -> DBTables:
 
 
 def create_sample_data(context: DBContext, tables: DBTables) -> None:
+    logger.info("Creating sample data...")
     karabo_data: Optional[bytes]
     try:
         with open("data/pickled_karabo", "rb") as f:
@@ -239,6 +244,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         #             created=datetime.datetime.utcnow(),
         #         )
         #     )
+    logger.info("Done")
 
 
 def run_property_db_columns(
