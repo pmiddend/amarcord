@@ -111,7 +111,7 @@ render st =
         Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found" ]
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
-          Runs sort -> HH.slot (SProxy :: _ "runs") unit Runs.component sortp absurd
+          Runs sort -> HH.slot (SProxy :: _ "runs") unit Runs.component sort absurd
 
 navItems ::
   Array

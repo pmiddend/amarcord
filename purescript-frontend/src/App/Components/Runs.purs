@@ -1,12 +1,13 @@
 module App.Components.Runs where
 
 import Prelude hiding (comparing)
+
 import App.API (RunPropertiesResponse, RunsResponse, retrieveRunProperties, retrieveRuns)
 import App.AppMonad (AppMonad)
 import App.Autocomplete as Autocomplete
 import App.Comment (Comment)
+import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
 import App.HalogenUtils (scope)
-import App.Components.ParentComponent (ParentError, parentComponent)
 import App.Run (Run, runId, runLookup, runScalarProperty)
 import App.RunProperty (RunProperty, rpDescription, rpIsSortable, rpName)
 import App.RunScalar (RunScalar(..))
@@ -35,19 +36,19 @@ type State
 data Action
   = SortBy String
 
-initialState :: Tuple RunsResponse RunPropertiesResponse -> State
-initialState (Tuple runsResponse runPropertiesResponse) =
+initialState :: ChildInput String (Tuple RunsResponse RunPropertiesResponse) -> State
+initialState { input: x, remoteData: Tuple runsResponse runPropertiesResponse } =
   { runProperties: runPropertiesResponse.metadata
   , selectedRunProperties: runPropertiesResponse.metadata
-  , runs: sortWith runId (runsResponse.runs)
-  , runSortProperty: "id"
+  , runSortProperty: x
+  , runs: sortBy (comparing Ascending (flip runScalarProperty x)) runsResponse.runs
   , runSortOrder: Ascending
   }
 
 component :: forall output query. H.Component HH.HTML query String output AppMonad
 component = parentComponent fetchInitialData childComponent
 
-childComponent :: forall q. H.Component HH.HTML q (Tuple RunsResponse RunPropertiesResponse) ParentError AppMonad
+childComponent :: forall q. H.Component HH.HTML q (ChildInput String (Tuple RunsResponse RunPropertiesResponse)) ParentError AppMonad
 childComponent =
   H.mkComponent
     { initialState
@@ -95,7 +96,7 @@ render state =
         HH.th [ scope ScopeCol ]
           ( if rpIsSortable t then
               [ HH.a
-                  [ HP.href "#", HE.onClick \_ -> Just (SortBy (rpName t)) ]
+                  [ HP.href ("#/runs?sort=" <> rpName t), HE.onClick \_ -> Just (SortBy (rpName t)) ]
                   ([ HH.text (rpDescription t) ] <> (if isSortProp then [ orderingToIcon state.runSortOrder ] else []))
               ]
             else
