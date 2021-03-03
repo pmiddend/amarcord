@@ -1,20 +1,61 @@
 module App.API where
 
 import Prelude
-
+import Affjax (printError)
+import Affjax as AX
+import Affjax.ResponseFormat as ResponseFormat
+import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
+import App.Run (Run)
+import App.RunProperty (RunProperty)
 import Control.Monad.Reader (asks)
-import Data.Either (Either)
-import GraphQLClient (GraphQLError, Scope__RootMutation, Scope__RootQuery, SelectionSet, defaultRequestOptions, graphqlMutationRequest, graphqlQueryRequest)
+import Data.Argonaut (JsonDecodeError)
+import Data.Argonaut.Core (Json, stringifyWithIndent)
+import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
+import Data.Either (Either(..))
 import Halogen (liftAff)
 
-graphqlQuery :: forall t96. SelectionSet Scope__RootQuery t96 -> AppMonad (Either (GraphQLError t96) t96)
-graphqlQuery ss = do
-  baseUrl' <- asks (_.baseUrl)
-  liftAff $ graphqlQueryRequest baseUrl' defaultRequestOptions ss
+type RunsResponse
+  = { runs :: Array Run
+    }
 
-graphqlMutation :: forall t98. SelectionSet Scope__RootMutation t98 -> AppMonad (Either (GraphQLError t98) t98)
-graphqlMutation ss = do
+retrieveRuns :: AppMonad (Either String RunsResponse)
+retrieveRuns = do
   baseUrl' <- asks (_.baseUrl)
-  liftAff $ graphqlMutationRequest baseUrl' defaultRequestOptions ss
+  let
+    url :: String
+    url = (baseUrl' <> "/1/runs")
+  response <- liftAff $ AX.get ResponseFormat.json url
+  case response of
+    Left httpError -> pure (Left (printError httpError))
+    Right httpResult -> do
+      let
+        httpBody :: Json
+        httpBody = httpResult.body
 
+        decodedJson :: Either JsonDecodeError RunsResponse
+        decodedJson = decodeJson httpBody
+      case httpResult.status of
+        StatusCode 200 -> case decodedJson of
+          Left jsonError -> pure (Left (printJsonDecodeError jsonError))
+          Right jsonResult -> pure (Right jsonResult)
+        StatusCode sc -> pure (Left ("Status code: " <> show sc <> "\n\nJSON response:\n" <> stringifyWithIndent 2 httpResult.body))
+
+type RunPropertiesResponse
+  = { metadata :: Array RunProperty
+    }
+
+retrieveRunProperties :: AppMonad (Either String RunPropertiesResponse)
+retrieveRunProperties = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/run_properties")
+  response <- liftAff $ AX.get ResponseFormat.json url
+  case response of
+    Left httpError -> pure (Left (printError httpError))
+    Right httpResult -> case httpResult.status of
+      StatusCode 200 -> case decodeJson (httpResult.body) of
+        Left jsonError -> pure (Left (printJsonDecodeError jsonError))
+        Right jsonResult -> pure (Right jsonResult)
+      StatusCode sc -> pure (Left ("Status code: " <> show sc <> "\n\nJSON response:\n" <> stringifyWithIndent 2 httpResult.body))

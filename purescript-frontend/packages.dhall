@@ -117,15 +117,10 @@ let additions =
 -------------------------------
 -}
 
-let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20201021/packages.dhall sha256:55ebdbda1bd6ede4d5307fbc1ef19988c80271b4225d833c8d6fb9b6fb1aa6d8
-      -- This was what I had before, but purescript-graphql-client doesn't work with it (some module missing in argonaut-codecs)
-      -- https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20200615/packages.dhall sha256:5d0cfad9408c84db0a3fdcea2d708f9ed8f64297e164dc57a7cf6328706df93a
-
+let upstream = https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20201021/packages.dhall sha256:55ebdbda1bd6ede4d5307fbc1ef19988c80271b4225d833c8d6fb9b6fb1aa6d8
 let overrides = {=}
-
 let additions = {
-unordered-collection =
+  unordered-collection =
     { dependencies =
       [ "enums"
       , "functions"
@@ -139,31 +134,7 @@ unordered-collection =
     , repo =
         "https://github.com/fehrenbach/purescript-unordered-collections.git"
     , version = "19f9c2312f39b04528ab79713767835cd3b7a2f0"
-    },
-  purescript-graphql-client = {
- dependencies =
-  [ "affjax"
-  , "effect"
-  , "generics-rep"
-  , "node-fs-aff"
-  , "prelude"
-  , "proxy"
-  , "psci-support"
-  , "record"
-  , "argonaut-core"
-  , "argonaut-codecs"
-  , "argonaut-generic"
-  , "typelevel-prelude"
-  , "debug"
-  , "spec"
-  , "variant"
-  , "web-socket"
-  , "unordered-collection"
-  ],
-  repo = "https://github.com/purescript-graphql-client/purescript-graphql-client.git",
-  version = "89a7ba850222dd0118840c83fc099c8ff649be6c"
-}
-
+    }
 }
 
 in  upstream // overrides // additions

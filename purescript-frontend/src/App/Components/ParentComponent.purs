@@ -1,4 +1,4 @@
-module App.ParentComponent where
+module App.Components.ParentComponent where
 
 import App.AppMonad (AppMonad)
 import App.Halogen.FontAwesome (IconSize(..), spinner)

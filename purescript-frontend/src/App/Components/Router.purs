@@ -1,8 +1,9 @@
-module App.Router where
+module App.Components.Router where
 
 import Prelude
+
 import App.AppMonad (AppMonad)
-import App.Hits as Hits
+import App.Components.Runs as Runs
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
 import App.Root as Root
@@ -17,7 +18,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Properties.ARIA as HPA
-import Routing.Duplex (RouteDuplex', parse, path, print, root)
+import Routing.Duplex (RouteDuplex', param, parse, path, print, root, string)
 import Routing.Duplex.Generic as G
 import Routing.Hash (getHash, matchesWith, setHash)
 import Web.Event.Event (preventDefault)
@@ -28,7 +29,7 @@ amarcordProgramVersion = "latest"
 
 data Route
   = Root
-  | Hits
+  | Runs String
 
 derive instance genericRoute :: Generic Route _
 
@@ -37,7 +38,7 @@ derive instance eqRoute :: Eq Route
 routeCodec :: RouteDuplex' Route
 routeCodec = root $ G.sum {
     "Root": G.noArgs
-  , "Hits": path "hits" G.noArgs
+  , "Runs": path "runs" (string (param "sort"))
   }
 
 matchRoute :: (Maybe Route -> Route -> Effect Unit) -> Effect (Effect Unit)
@@ -59,7 +60,7 @@ type OpaqueSlot slot
 
 type ChildSlots
   = ( root :: OpaqueSlot Unit
-    , hits :: OpaqueSlot Unit
+    , runs :: OpaqueSlot Unit
     )
 
 component ::
@@ -110,7 +111,7 @@ render st =
         Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found" ]
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
-          Hits -> HH.slot (SProxy :: _ "hits") unit Hits.component unit absurd
+          Runs sort -> HH.slot (SProxy :: _ "runs") unit Runs.component sortp absurd
 
 navItems ::
   Array
@@ -119,7 +120,7 @@ navItems ::
     , title :: String
     }
 navItems = [
-    { title: "Hits", link: Hits, fa: "thumbs-up" }
+    { title: "Runs", link: (Runs "id"), fa: "running" }
   ]
 
 makeNavItem ::

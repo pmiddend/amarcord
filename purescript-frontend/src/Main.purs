@@ -3,8 +3,8 @@ module Main where
 import Prelude
 import App.Config(baseUrl)
 import App.AppMonad (runAppMonad)
-import App.Router (routeCodec)
-import App.Router as Router
+import App.Components.Router (routeCodec)
+import App.Components.Router as Router
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (launchAff_)

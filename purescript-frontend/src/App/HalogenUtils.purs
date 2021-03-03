@@ -5,7 +5,6 @@ import Prelude
 import DOM.HTML.Indexed.ScopeValue (ScopeValue)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
-import GraphQLClient (GraphQLError, printGraphQLError)
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Properties.ARIA as HPA
@@ -42,13 +41,13 @@ makeRequestResult (Success e) = makeAlert "alert-primary" e
 
 makeRequestResult _ = HH.text ""
 
-messageFromResult :: forall e r. String -> Either (GraphQLError e) (Maybe { errorMessage :: Maybe String | r }) -> RemoteData String String
-messageFromResult opName result =
-  let
-    successMessage = Success (opName <> " successful!")
-  in
-    case result of
-      Left e -> Failure $ "HTTP Error: " <> printGraphQLError e
-      Right Nothing -> successMessage
-      Right (Just { errorMessage: Just errorMessage' }) -> Failure errorMessage'
-      Right (Just { errorMessage: Nothing }) -> successMessage
+-- messageFromResult :: forall e r. String -> Either (GraphQLError e) (Maybe { errorMessage :: Maybe String | r }) -> RemoteData String String
+-- messageFromResult opName result =
+--   let
+--     successMessage = Success (opName <> " successful!")
+--   in
+--     case result of
+--       Left e -> Failure $ "HTTP Error: " <> printGraphQLError e
+--       Right Nothing -> successMessage
+--       Right (Just { errorMessage: Just errorMessage' }) -> Failure errorMessage'
+--       Right (Just { errorMessage: Nothing }) -> successMessage

@@ -1,10 +1,12 @@
 import datetime
+import json
 import logging
 import os
 from typing import Any, Dict
 
 from flask import Flask, request
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 
 from amarcord.config import load_config
 from amarcord.modules.dbcontext import CreationMode, DBContext
@@ -100,8 +102,24 @@ def retrieve_run_properties() -> JSONDict:
     global db
     with db.connect() as conn:
         return {
-            "metadata": {
-                str(k): _convert_metadata(v)
-                for k, v in db.run_property_metadata(conn).items()
-            }
+            "metadata": [
+                _convert_metadata(v) for v in db.run_property_metadata(conn).values()
+            ]
         }
+
+
+@app.errorhandler(HTTPException)
+def handle_exception(e):
+    """Return JSON instead of HTML for HTTP errors."""
+    # start with the correct headers and status code from the error
+    response = e.get_response()
+    # replace the body with JSON
+    response.data = json.dumps(
+        {
+            "code": e.code,
+            "name": e.name,
+            "description": e.description,
+        }
+    )
+    response.content_type = "application/json"
+    return response
