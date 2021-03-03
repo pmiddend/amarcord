@@ -1,24 +1,19 @@
-import logging
 import datetime
-from typing import Any, Dict, Final, List, Optional, Set
+import logging
+from typing import Any, Dict, Final, List, Optional
 
-import pandas as pd
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QCheckBox, QPushButton
-from matplotlib.backends.backend_qt5agg import (
-    FigureCanvasQTAgg,
-    NavigationToolbar2QT as NavigationToolbar,
-)
-from matplotlib.figure import Figure
 
 from amarcord.modules.context import Context
 from amarcord.modules.spb.column_chooser import display_column_chooser
-from amarcord.modules.spb.filter_query_help import filter_query_help
-from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.db import DBRunComment, DB
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.db import DB, DBRunComment
 from amarcord.modules.spb.db_tables import DBTables
+from amarcord.modules.spb.filter_query_help import filter_query_help
+from amarcord.modules.spb.plot_dialog import PlotDialog
+from amarcord.modules.spb.proposal_id import ProposalId
+from amarcord.modules.spb.run_property import RunProperty
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.qt.properties import PropertyDouble, PropertyInt
 from amarcord.qt.table import GeneralTableWidget
@@ -38,13 +33,6 @@ def _convert_comment_column(comments: List[DBRunComment], role: int) -> Any:
     if role == QtCore.Qt.EditRole:
         return comments
     return QtCore.QVariant()
-
-
-class _MplCanvas(FigureCanvasQTAgg):
-    def __init__(self, width=5, height=4, dpi=100):
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = fig.add_subplot(111)
-        super().__init__(fig)
 
 
 class RunTable(QtWidgets.QWidget):
@@ -108,12 +96,12 @@ class RunTable(QtWidgets.QWidget):
         inner_filter_layout = QtWidgets.QHBoxLayout()
         inner_filter_layout.setContentsMargins(0, 0, 0, 0)
         inner_filter_widget.setLayout(inner_filter_layout)
-        filter_widget = InfixCompletingLineEdit(self)
-        filter_widget.textChanged.connect(self._slot_filter_changed)
+        self._filter_widget = InfixCompletingLineEdit(parent=self)
+        self._filter_widget.textChanged.connect(self._slot_filter_changed)
         completer = QtWidgets.QCompleter(list(self._run_property_names.keys()), self)
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
-        filter_widget.setCompleter(completer)
-        inner_filter_layout.addWidget(filter_widget)
+        self._filter_widget.setCompleter(completer)
+        inner_filter_layout.addWidget(self._filter_widget)
         icon_button = QPushButton(
             self.style().standardIcon(QtWidgets.QStyle.SP_MessageBoxQuestion), ""
         )
@@ -184,31 +172,10 @@ class RunTable(QtWidgets.QWidget):
             dialog_layout = QtWidgets.QVBoxLayout()
             dialog.setLayout(dialog_layout)
 
-            sc = _MplCanvas(width=5, height=4, dpi=100)
-
-            df = pd.DataFrame(
-                self._table_view.get_filtered_column_values(column),
-                index=[
-                    datetime.datetime.fromisoformat(s)
-                    for s in self._table_view.get_filtered_column_values(
-                        started_property
-                    )
-                ],
-                columns=["Values"],
+            plot_dialog = PlotDialog(
+                self._db, self._proposal_id, self._filter_widget.text(), column, self
             )
-
-            # noinspection PyArgumentList
-            df.plot(ax=sc.axes)  # type: ignore
-
-            toolbar = NavigationToolbar(sc, self)
-
-            dialog_layout.addWidget(toolbar)
-            dialog_layout.addWidget(sc)
-            button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
-            button_box.rejected.connect(dialog.reject)
-            dialog_layout.addWidget(button_box)
-
-            dialog.exec()
+            plot_dialog.show()
 
     def _slot_row_selected(self, row: Dict[RunProperty, Any]) -> None:
         self.run_selected.emit(row[self._db.tables.property_run_id])

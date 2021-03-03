@@ -8,14 +8,12 @@ def possibly_negate(negate: bool, c: bool) -> bool:
 
 
 class SemanticError(Exception):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
+    pass
 
-
-Row = Dict[str, Any]
-Query = Callable[[Row], bool]
 
 Field = Union[int, str, float, List[str]]
+Row = Dict[str, Field]
+Query = Callable[[Row], bool]
 
 
 def massage(field: Field, comparison: Field) -> Tuple[Field, Field]:
@@ -191,5 +189,5 @@ def parse_query(query_string: str, field_names: Set[str]) -> Query:
         raise e
 
 
-def filter_by_query(query: Query, row: Dict[str, Any]) -> bool:
+def filter_by_query(query: Query, row: Dict[str, Field]) -> bool:
     return query(row)

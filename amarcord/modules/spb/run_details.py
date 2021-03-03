@@ -52,6 +52,9 @@ class RunDetails(QWidget):
 
         self._refresh_run_ids()
 
+    def select_run(self, new_run_id: int) -> None:
+        self._slot_current_run_changed(new_run_id)
+
     def _timed_refresh(self) -> None:
         if self._inner is not None:
             self._slot_refresh()

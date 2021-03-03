@@ -8,9 +8,13 @@ from amarcord.util import word_under_cursor
 
 
 class InfixCompletingLineEdit(QtWidgets.QLineEdit):
-    def __init__(self, parent: Optional[QtWidgets.QWidget]) -> None:
+    def __init__(
+        self, content: Optional[str] = None, parent: Optional[QtWidgets.QWidget] = None
+    ) -> None:
         super().__init__(parent)
         self._completer: Optional[QtWidgets.QCompleter] = None
+        if content is not None:
+            self.setText(content)
 
     def setCompleter(self, completer: Optional[QtWidgets.QCompleter]) -> None:
         if self._completer is not None:
