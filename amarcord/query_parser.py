@@ -1,5 +1,5 @@
-from typing import Dict, Any, Set, List, Callable, Tuple
-from lark import Lark, Transformer
+from typing import Dict, Any, Set, List, Callable, Tuple, Union
+from lark import Lark, Token, Transformer, Tree
 import lark.exceptions as le
 
 
@@ -7,11 +7,18 @@ def possibly_negate(negate: bool, c: bool) -> bool:
     return not c if negate else c
 
 
+class SemanticError(Exception):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
 Row = Dict[str, Any]
 Query = Callable[[Row], bool]
 
+Field = Union[int, str, float, List[str]]
 
-def massage(field: Any, comparison: Any) -> Tuple[Any, Any]:
+
+def massage(field: Field, comparison: Field) -> Tuple[Field, Field]:
     if isinstance(field, int) and isinstance(comparison, str):
         try:
             return field, int(comparison)
@@ -36,37 +43,67 @@ def massage(field: Any, comparison: Any) -> Tuple[Any, Any]:
 
 
 def to_python_operator(
-    innerop: Any, field: Any, comparison: Any, negate: bool
+    innerop: Tree,
+    field: Token,
+    comparison: Token,
+    negate: bool,
 ) -> Query:
-    op = innerop.children[0].value
+    innerop_child = innerop.children[0]
+    assert isinstance(innerop_child, Token)
+    op = innerop_child.value
 
     def with_row(row: Dict[str, Any]) -> bool:
-        massaged_value, massaged_comparison = massage(
-            row[field.value], comparison.value
-        )
+        row_value = row[field.value]
+        if not isinstance(row_value, (str, int, float, list)):
+            raise SemanticError(
+                f'row "{field.value}" has invalid type {type(row_value)}'
+            )
+        if isinstance(row_value, list) and not isinstance(
+            row_value[0], (str, int, float)
+        ):
+            raise SemanticError(
+                f'row "{field.value}" has invalid list type {type(row_value[0])}'
+            )
+        massaged_value, massaged_comparison = massage(row_value, comparison.value)
         if massaged_value is None:
             return True
         if op == "<":
-            return possibly_negate(negate, massaged_value < massaged_comparison)
+            if isinstance(massaged_value, list) or isinstance(
+                massaged_comparison, list
+            ):
+                raise SemanticError("'<' is not supported for lists")
+            return possibly_negate(negate, massaged_value < massaged_comparison)  # type: ignore
         if op == "<=":
-            return possibly_negate(negate, massaged_value <= massaged_comparison)
+            if isinstance(massaged_value, list):
+                raise SemanticError("'<=' is not supported for lists")
+            return possibly_negate(negate, massaged_value <= massaged_comparison)  # type: ignore
         if op == ">":
-            return possibly_negate(negate, massaged_value > massaged_comparison)
+            if isinstance(massaged_value, list):
+                raise SemanticError("'>' is not supported for lists")
+            return possibly_negate(negate, massaged_value > massaged_comparison)  # type: ignore
         if op == ">=":
-            return possibly_negate(negate, massaged_value >= massaged_comparison)
+            if isinstance(massaged_value, list):
+                raise SemanticError("'>=' is not supported for lists")
+            return possibly_negate(negate, massaged_value >= massaged_comparison)  # type: ignore
         if op == "!=":
-            return possibly_negate(negate, massaged_value != massaged_comparison)
+            return possibly_negate(negate, massaged_value != massaged_comparison)  # type: ignore
         if op == "=":
-            return possibly_negate(negate, massaged_value == massaged_comparison)
+            return possibly_negate(negate, massaged_value == massaged_comparison)  # type: ignore
         if op == "has":
+            if not isinstance(massaged_value, (list, str)):
+                raise SemanticError('"has" only works on lists of strings')
+            if not isinstance(massaged_comparison, str):
+                raise SemanticError('"has" only works on lists of strings')
             return possibly_negate(negate, massaged_comparison in massaged_value)
         return True
 
     return with_row
 
 
-def and_then(first_function: Query, outerop: Any, anothercondition: Query) -> Query:
-    op = outerop.children[0].value
+def and_then(first_function: Query, outerop: Tree, anothercondition: Query) -> Query:
+    first_child = outerop.children[0]
+    assert isinstance(first_child, Token)
+    op = first_child.value
     if op == "and":
         return lambda row: first_function(row) and anothercondition(row)
     if op == "or":
@@ -89,19 +126,26 @@ class QueryToFunction(Transformer):
         super().__init__()
         self._field_names = field_names
 
-    def condition(self, s: List[Any]) -> Any:
+    def condition(self, s: List[Union[Tree, Token, Query]]) -> Any:
+        assert isinstance(s[0], Token)
         base_index = 0 if s[0].type != "NOT" else 1
         field = s[base_index]
-        if field not in self._field_names:
-            raise FieldNameError(field, self._field_names)
-        inneroperator = s[base_index + 1]
+        assert isinstance(field, Token)
+        if field.value not in self._field_names:
+            raise FieldNameError(field.value, self._field_names)
+        inner_operator = s[base_index + 1]
+        assert isinstance(inner_operator, Tree)
         comparison = s[base_index + 2]
+        assert isinstance(comparison, Token)
         first_function = to_python_operator(
-            inneroperator, field, comparison, s[0].type == "NOT"
+            inner_operator, field, comparison, s[0].type == "NOT"
         )
         if len(s) == base_index + 3:
             return first_function
-        return and_then(first_function, s[base_index + 3], s[base_index + 4])
+        outerop = s[base_index + 3]
+        assert isinstance(outerop, Tree)
+        remainder = s[base_index + 4]
+        return and_then(first_function, outerop, remainder)  # type: ignore
 
 
 query_parser = Lark(
@@ -138,7 +182,7 @@ def parse_query(query_string: str, field_names: Set[str]) -> Query:
 
     try:
         return QueryToFunction(field_names).transform(query_parser.parse(query_string))
-    except le.UnexpectedEOF as e:
+    except le.UnexpectedEOF:
         # pylint: disable=raise-missing-from
         raise UnexpectedEOF()
     except Exception as e:

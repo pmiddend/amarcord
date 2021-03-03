@@ -1,4 +1,5 @@
 from amarcord.query_parser import (
+    SemanticError,
     parse_query,
     filter_by_query,
     FieldNameError,
@@ -94,3 +95,19 @@ def test_single_negative_number() -> None:
 def test_float_comparison() -> None:
     q = parse_query("foo <= 3", {"foo"})
     assert filter_by_query(q, {"foo": 2.5})
+
+
+def test_smaller_than_for_lists() -> None:
+    q = parse_query("foo < 3", {"foo"})
+    try:
+        filter_by_query(q, {"foo": ["a", "b"]})
+    except Exception as e:
+        assert isinstance(e, SemanticError)
+
+
+def test_invalid_type() -> None:
+    q = parse_query("foo < 3", {"foo"})
+    try:
+        filter_by_query(q, {"foo": {"x": "u"}})
+    except Exception as e:
+        assert isinstance(e, SemanticError)
