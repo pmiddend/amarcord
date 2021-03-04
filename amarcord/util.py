@@ -56,3 +56,10 @@ def dict_union(a: Sequence[Dict[K, V]]) -> Dict[K, V]:
 
 def capitalized_decamelized(s: str) -> str:
     return s.replace("_", " ").capitalize()
+
+
+def str_to_float(s: str) -> Optional[float]:
+    try:
+        return float(s)
+    except:
+        return None

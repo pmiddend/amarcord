@@ -1,7 +1,7 @@
 import logging
 import urllib.request
 from dataclasses import replace
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent
@@ -25,7 +25,9 @@ from amarcord.modules.context import Context
 from amarcord.modules.spb.db import DB, DBSample
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.numeric_range import NumericRange
+from amarcord.qt.number_list_validator import NumberListValidator, parse_float_list
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
+from amarcord.qt.validated_line_edit import ValidatedLineEdit
 
 NEW_SAMPLE_HEADLINE = "New sample"
 
@@ -33,7 +35,9 @@ logger = logging.getLogger(__name__)
 
 
 def _empty_sample():
-    return DBSample(id=None, target_id=-1, average_crystal_size=None)
+    return DBSample(
+        id=None, target_id=-1, average_crystal_size=None, crystal_shape=None
+    )
 
 
 def _validate_uniprot(uniprot_id: str) -> bool:
@@ -111,6 +115,15 @@ class Samples(QWidget):
             "Average crystal size",
             self._average_crystal_size_edit,
         )
+        self._crystal_shape_edit = ValidatedLineEdit(
+            None,
+            NumberListValidator(3),
+            lambda float_list: ", ".join(str(s) for s in float_list),  # type: ignore
+            lambda float_list_str: parse_float_list(float_list_str, 3),  # type: ignore
+            "a, b, c separated by commas",
+        )
+        self._crystal_shape_edit.value_change.connect(self._crystal_shape_change)
+        right_form_layout.addRow("Crystal shape", self._crystal_shape_edit)
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
@@ -210,6 +223,11 @@ class Samples(QWidget):
         self._average_crystal_size_edit.set_value(None)
         self._current_sample = _empty_sample()
 
+    def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(self._current_sample, crystal_shape=value)
+        self._reset_button()
+
     def _average_crystal_size_change(self, value: NumericInputValue) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(
@@ -218,14 +236,10 @@ class Samples(QWidget):
         self._reset_button()
 
     def _button_enabled(self) -> bool:
-        return True
-        # return (
-        #     bool(self._current_sample.short_name)
-        #     and bool(self._current_sample.name)
-        #     and not isinstance(self._molecular_weight, str)
-        #     and self._current_sample.short_name
-        #     not in [t.short_name for t in self._samples]
-        # )
+        return (
+            self._average_crystal_size_edit.valid_value()
+            and self._crystal_shape_edit.valid_value()
+        )
 
     def _reset_button(self) -> None:
         self._add_button.setEnabled(self._button_enabled())

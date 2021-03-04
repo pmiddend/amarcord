@@ -47,6 +47,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("target_id", sa.Integer, sa.ForeignKey("Target.id"), nullable=False),
         sa.Column("average_crystal_size", sa.Float, nullable=True),
+        sa.Column("crystal_shape", sa.JSON, nullable=True),
     )
 
 
@@ -166,7 +167,9 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         # Create samples
         first_sample_result = conn.execute(
             tables.sample.insert().values(
-                target_id=first_target_id, average_crystal_size=1.0
+                target_id=first_target_id,
+                average_crystal_size=1.0,
+                crystal_shape=[3.0, 4.0, 5.0],
             )
         )
         conn.execute(
