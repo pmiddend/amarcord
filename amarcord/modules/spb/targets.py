@@ -1,5 +1,6 @@
 import logging
 from dataclasses import replace
+import urllib.request
 from typing import List, Optional
 
 from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
@@ -25,6 +26,7 @@ from amarcord.modules.context import Context
 from amarcord.modules.spb.db import DB, DBTarget
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.numeric_range import NumericRange
+from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
 
 NEW_TARGET_HEADLINE = "New target"
@@ -36,6 +38,16 @@ def _empty_target():
     return DBTarget(
         id=None, name="", short_name="", molecular_weight=None, uniprot_id=""
     )
+
+
+def _validate_uniprot(uniprot_id: str) -> bool:
+    try:
+        with urllib.request.urlopen(
+            f"https://www.uniprot.org/uniprot/{uniprot_id}.fasta"
+        ):
+            return True
+    except:
+        return False
 
 
 class _TargetTable(QTableWidget):
@@ -89,7 +101,7 @@ class Targets(QWidget):
         right_root_layout.addStretch()
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
-        self._uniprot_edit = QLineEdit()
+        self._uniprot_edit = DebouncedLineEdit()
         self._short_name_edit = QLineEdit()
         self._short_name_edit.textChanged.connect(self._short_name_changed)
         right_form_layout.addRow("Short Name", self._short_name_edit)
@@ -109,7 +121,7 @@ class Targets(QWidget):
             "Molecular weight",
             self._molecular_weight_edit,
         )
-        self._uniprot_edit.textEdited.connect(self._uniprot_change)
+        self._uniprot_edit.debouncedTextChanged.connect(self._uniprot_change)
         right_form_layout.addRow("Uniprot ID", self._uniprot_edit)
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
@@ -117,7 +129,6 @@ class Targets(QWidget):
         self._submit_widget.setLayout(self._submit_layout)
         self._add_button = self._create_add_button()
         self._add_button.setEnabled(False)
-        self._add_button.clicked.connect(self._add_target)
         self._submit_layout.addWidget(self._add_button)
         right_form_layout.addWidget(self._submit_widget)
 
@@ -143,6 +154,9 @@ class Targets(QWidget):
                 self._db.delete_target(conn, target.id)
                 self._log_widget.setText(f"“{target.short_name}” deleted!")
                 self._fill_table()
+                if self._current_target.id == target.id:
+                    self._reset_input_fields()
+                    self._right_headline.setText(NEW_TARGET_HEADLINE)
 
     def _create_add_button(self):
         b = QPushButton(
@@ -191,6 +205,11 @@ class Targets(QWidget):
         self._right_headline.setText(NEW_TARGET_HEADLINE)
 
     def _uniprot_change(self, new_uniprot: str) -> None:
+        self._uniprot_edit.setStyleSheet(
+            "background-color: #ffb8b8"
+            if new_uniprot != "" and not _validate_uniprot(new_uniprot)
+            else ""
+        )
         self._current_target = replace(self._current_target, uniprot_id=new_uniprot)
 
     def _add_target(self) -> None:
