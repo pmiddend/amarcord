@@ -218,7 +218,7 @@ class RunDetails(QWidget):
                 sample_ids=self._db.retrieve_sample_ids(conn),
             )
             if new_run is not None:
-                if not self._db.create_run(
+                if not self._db.add_run(
                     conn, self._proposal_id, new_run.id, new_run.sample_id
                 ):
                     raise Exception("couldn't create run for some reason")

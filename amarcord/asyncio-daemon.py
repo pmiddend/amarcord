@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def karabo_loop(queries: DB, config: XFELKaraboBridgeConfig) -> None:
     # TESTING
     with queries.dbcontext.connect() as conn:
-        queries.create_run(conn, ProposalId(1), 1, sample_id=None)
+        queries.add_run(conn, ProposalId(1), 1, sample_id=None)
 
     ctx = Context.instance()
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
 
     # Just for testing!
     with global_queries.dbcontext.connect() as local_conn:
-        global_queries.create_proposal(local_conn, ProposalId(1))
+        global_queries.add_proposal(local_conn, ProposalId(1))
 
     # noinspection PyUnresolvedReferences
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as global_executor:

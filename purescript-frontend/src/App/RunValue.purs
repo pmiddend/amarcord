@@ -20,6 +20,11 @@ runValueScalar (Scalar r) = Just r
 
 runValueScalar _ = Nothing
 
+runValueComments :: RunValue -> Maybe (Array Comment)
+runValueComments (Comments a) = Just a
+runValueComments _ = Nothing
+
+
 instance showRunValue :: Show RunValue where
   show (Scalar x) = show x
   show (Comments xs) = show xs

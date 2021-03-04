@@ -50,9 +50,11 @@ def _convert_run(r: Dict[RunProperty, RunPropertyValue]) -> JSONDict:
     def _convert_to_json(value: Any) -> JSONValue:
         if value is None or isinstance(value, (str, int, float, bool)):
             return value
-        elif isinstance(value, list):
+        if isinstance(value, datetime.datetime):
+            return value.isoformat()
+        if isinstance(value, list):
             return [_convert_to_json(av) for av in value]
-        elif isinstance(value, DBRunComment):
+        if isinstance(value, DBRunComment):
             return {
                 "id": value.id,
                 "text": value.text,
@@ -106,6 +108,15 @@ def retrieve_run_properties() -> JSONDict:
                 _convert_metadata(v) for v in db.run_property_metadata(conn).values()
             ]
         }
+
+
+@app.route("/run/<int:run_id>")
+def retrieve_run(run_id: int) -> JSONDict:
+    global db
+    with db.connect() as conn:
+        run = db.retrieve_run(conn, run_id)
+        run_props = _convert_run(run.properties)
+        return {"run": run_props, "manual_properties": list(run.manual_properties)}
 
 
 @app.errorhandler(HTTPException)

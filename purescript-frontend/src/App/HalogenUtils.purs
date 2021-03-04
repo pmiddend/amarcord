@@ -3,8 +3,6 @@ module App.HalogenUtils where
 import Prelude
 
 import DOM.HTML.Indexed.ScopeValue (ScopeValue)
-import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Properties.ARIA as HPA
@@ -51,3 +49,7 @@ makeRequestResult _ = HH.text ""
 --       Right Nothing -> successMessage
 --       Right (Just { errorMessage: Just errorMessage' }) -> Failure errorMessage'
 --       Right (Just { errorMessage: Nothing }) -> successMessage
+
+faIcon :: forall w i. String -> HH.HTML w i
+faIcon name = HH.i [ HP.classes [ HH.ClassName "fa", HH.ClassName ("fa-" <> name) ] ] []
+

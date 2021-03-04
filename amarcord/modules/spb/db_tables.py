@@ -28,6 +28,18 @@ def _table_custom_run_property(metadata: sa.MetaData) -> sa.Table:
     )
 
 
+def _table_target(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "Target",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("name", sa.String, nullable=False),
+        sa.Column("short_name", sa.String, nullable=False),
+        sa.Column("molecular_weight", sa.Float, nullable=True),
+        sa.Column("uniprot_id", sa.String(length=64), nullable=True),
+    )
+
+
 def _table_sample(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Sample",
@@ -84,11 +96,13 @@ class DBTables:
         run: sa.Table,
         run_comment: sa.Table,
         custom_run_property: sa.Table,
+        target: sa.Table,
     ) -> None:
         self.sample = sample
         self.proposal = proposal
         self.run = run
         self.run_comment = run_comment
+        self.target = target
         self.custom_run_property = custom_run_property
         self.property_comments = RunProperty("comments")
         self.property_karabo = RunProperty(self.run.c.karabo.name)
@@ -116,6 +130,7 @@ def create_tables(context: DBContext) -> DBTables:
         run=_table_run(context.metadata),
         run_comment=_table_run_comment(context.metadata),
         custom_run_property=_table_custom_run_property(context.metadata),
+        target=_table_target(context.metadata),
     )
 
 

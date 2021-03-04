@@ -52,6 +52,15 @@ class DBRunComment:
     created: datetime.datetime
 
 
+@dataclass(frozen=True)
+class DBTarget:
+    id: Optional[int]
+    name: str
+    short_name: str
+    molecular_weight: Optional[float]
+    uniprot_id: str
+
+
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
 
 RunPropertyValue = Union[List[DBRunComment], str, int, float, List[str]]
@@ -59,7 +68,7 @@ RunPropertyValue = Union[List[DBRunComment], str, int, float, List[str]]
 
 @dataclass(frozen=True)
 class DBRun:
-    properties: Dict[RunProperty, Any]
+    properties: Dict[RunProperty, RunPropertyValue]
     karabo: Optional[Karabo]
     manual_properties: Set[RunProperty]
 
@@ -407,7 +416,7 @@ class DB:
             .values(modified=datetime.datetime.utcnow())
         )
 
-    def create_run(
+    def add_run(
         self,
         conn: Connection,
         proposal_id: ProposalId,
@@ -432,7 +441,7 @@ class DB:
             )
             return True
 
-    def create_proposal(self, conn: Connection, prop_id: ProposalId) -> None:
+    def add_proposal(self, conn: Connection, prop_id: ProposalId) -> None:
         conn.execute(self.tables.proposal.insert().values(id=prop_id))
 
     def update_run_karabo(self, conn: Connection, run_id: int, karabo: bytes) -> None:
@@ -564,4 +573,48 @@ class DB:
                 suffix=suffix,
                 json_schema=property_type_to_schema(prop_type),
             )
+        )
+
+    def retrieve_targets(self, conn: Connection) -> List[DBTarget]:
+        tc = self.tables.target.c
+        return [
+            DBTarget(
+                row["id"],
+                row["name"],
+                row["short_name"],
+                row["molecular_weight"],
+                row["uniprot_id"],
+            )
+            for row in conn.execute(
+                sa.select(
+                    [tc.id, tc.name, tc.short_name, tc.molecular_weight, tc.uniprot_id]
+                ).order_by(tc.short_name)
+            ).fetchall()
+        ]
+
+    def add_target(self, conn: Connection, t: DBTarget) -> None:
+        conn.execute(
+            sa.insert(self.tables.target).values(
+                name=t.name,
+                short_name=t.short_name,
+                molecular_weight=t.molecular_weight,
+                uniprot_id=t.uniprot_id,
+            )
+        )
+
+    def edit_target(self, conn: Connection, t: DBTarget) -> None:
+        conn.execute(
+            sa.update(self.tables.target)
+            .values(
+                name=t.name,
+                short_name=t.short_name,
+                molecular_weight=t.molecular_weight,
+                uniprot_id=t.uniprot_id,
+            )
+            .where(self.tables.target.c.id == t.id)
+        )
+
+    def delete_target(self, conn: Connection, tid: int) -> None:
+        conn.execute(
+            sa.delete(self.tables.target).where(self.tables.target.c.id == tid)
         )

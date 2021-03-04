@@ -6,15 +6,15 @@ import App.AppMonad (AppMonad)
 import App.Autocomplete as Autocomplete
 import App.Comment (Comment)
 import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
-import App.HalogenUtils (scope)
-import App.Route (Route(..), RunsRouteInput, createLink, routeCodec)
-import App.Run (Run, runLookup, runScalarProperty)
+import App.HalogenUtils (scope, faIcon)
+import App.Route (Route(..), RunsRouteInput, createLink)
+import App.Run (Run, runId, runLookup, runScalarProperty)
 import App.RunProperty (RunProperty, rpDescription, rpIsSortable, rpName)
 import App.RunScalar (RunScalar(..))
 import App.RunValue (RunValue(..))
 import App.SortOrder (SortOrder(..), comparing, invertOrder)
 import DOM.HTML.Indexed.ScopeValue (ScopeValue(ScopeCol))
-import Data.Array (sortBy)
+import Data.Array (sortBy, (:))
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Number.Format (precision, toStringWith)
@@ -24,7 +24,6 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData, fromEither)
-import Routing.Duplex (print)
 
 type State
   = { runs :: Array Run
@@ -77,9 +76,6 @@ handleAction = case _ of
         , runs = resort by (state.runs)
         }
 
-faIcon :: forall w i. String -> HH.HTML w i
-faIcon name = HH.i [ HP.classes [ HH.ClassName "fa", HH.ClassName ("fa-" <> name) ] ] []
-
 orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
 orderingToIcon Ascending = faIcon "sort-up"
 
@@ -120,14 +116,14 @@ render state =
       Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
       _ -> HH.td_ [ HH.text (maybe "" show value) ]
 
-    makeRow run = HH.tr_ ((\rp -> makeProperty rp (runLookup run (rpName rp))) <$> state.selectedRunProperties)
+    makeRow run = HH.tr_ (HH.td_ [ HH.a [ HP.href (createLink (EditRun (runId run))) ] [ faIcon "edit" ] ] : ((\rp -> makeProperty rp (runLookup run (rpName rp))) <$> state.selectedRunProperties))
   in
     HH.div [ HP.classes [ HH.ClassName "container-fluid" ] ]
       [ HH.h1_ [ HH.text "Runs" ]
       , HH.table
           [ HP.classes [ HH.ClassName "table" ] ]
           [ HH.thead_
-              [ HH.tr_ (makeHeader <$> (state.runProperties))
+              [ HH.tr_ (HH.th_ [ HH.text "Actions" ] : (makeHeader <$> (state.runProperties)))
               ]
           , HH.tbody_ (makeRow <$> state.runs)
           ]

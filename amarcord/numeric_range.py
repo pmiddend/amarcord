@@ -18,11 +18,11 @@ class NumericRange:
 
     def value_is_inside(self, v: float) -> bool:
         if self.minimum is not None and (
-            v < self.minimum or v == self.minimum and self.minimum_inclusive
+            v < self.minimum or v == self.minimum and not self.minimum_inclusive
         ):
             return False
         if self.maximum is not None and (
-            v > self.maximum or v == self.maximum and self.maximum_inclusive
+            v > self.maximum or v == self.maximum and not self.maximum_inclusive
         ):
             return False
         return True

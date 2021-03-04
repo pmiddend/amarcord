@@ -59,3 +59,23 @@ retrieveRunProperties = do
         Left jsonError -> pure (Left (printJsonDecodeError jsonError))
         Right jsonResult -> pure (Right jsonResult)
       StatusCode sc -> pure (Left ("Status code: " <> show sc <> "\n\nJSON response:\n" <> stringifyWithIndent 2 httpResult.body))
+
+type RunResponse
+  = { run :: Run
+    , manual_properties :: Array String
+    }
+
+retrieveRun :: Int -> AppMonad (Either String RunResponse)
+retrieveRun runId = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/run/" <> show runId)
+  response <- liftAff $ AX.get ResponseFormat.json url
+  case response of
+    Left httpError -> pure (Left (printError httpError))
+    Right httpResult -> case httpResult.status of
+      StatusCode 200 -> case decodeJson (httpResult.body) of
+        Left jsonError -> pure (Left (printJsonDecodeError jsonError))
+        Right jsonResult -> pure (Right jsonResult)
+      StatusCode sc -> pure (Left ("Status code: " <> show sc <> "\n\nJSON response:\n" <> stringifyWithIndent 2 httpResult.body))

@@ -4,6 +4,7 @@ import Prelude
 
 import App.AppMonad (AppMonad)
 import App.Components.Runs as Runs
+import App.Components.EditRun as EditRun
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
 import App.Root as Root
@@ -44,6 +45,7 @@ type OpaqueSlot slot
 type ChildSlots
   = ( root :: OpaqueSlot Unit
     , runs :: OpaqueSlot Unit
+    , editRun :: OpaqueSlot Unit
     )
 
 component ::
@@ -95,6 +97,7 @@ render st =
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
           Runs sort -> HH.slot (SProxy :: _ "runs") unit Runs.component sort absurd
+          EditRun runId -> HH.slot (SProxy :: _ "editRun") unit EditRun.component runId absurd
 
 navItems ::
   Array

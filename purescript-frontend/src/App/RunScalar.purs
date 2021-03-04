@@ -22,6 +22,11 @@ runScalarNumber (RunScalarNumber r) = Just r
 
 runScalarNumber _ = Nothing
 
+runScalarInt :: RunScalar -> Maybe Int
+runScalarInt (RunScalarInt r) = Just r
+
+runScalarInt _ = Nothing
+
 instance showRunScalar :: Show RunScalar where
   show (RunScalarNumber n) = show n
   show (RunScalarInt n) = show n

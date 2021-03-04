@@ -2,11 +2,12 @@ module App.Run where
 
 import Prelude
 
-import App.RunScalar (RunScalar(..), runScalarNumber)
+import App.RunScalar (RunScalar(..), runScalarInt, runScalarNumber)
 import App.RunValue (RunValue, runValueScalar)
 import Data.Argonaut (class DecodeJson, Json, JsonDecodeError, decodeJson)
 import Data.Either (Either)
-import Data.Map (Map, insert, lookup)
+import Data.List (toUnfoldable)
+import Data.Map (Map, insert, lookup, values)
 import Data.Maybe (Maybe, fromMaybe)
 import Foreign.Object (foldM)
 
@@ -16,11 +17,14 @@ newtype Run
 runLookup :: Run -> String -> Maybe RunValue
 runLookup (Run r) s = lookup s r
 
+runValues :: Run -> Array RunValue
+runValues (Run r) = toUnfoldable (values r)
+
 instance showRun :: Show Run where
   show (Run r) = show r
 
-runId :: Run -> Number
-runId (Run r) = fromMaybe 0.0 (lookup "id" r >>= runValueScalar >>= runScalarNumber)
+runId :: Run -> Int
+runId (Run r) = fromMaybe 0 (lookup "id" r >>= runValueScalar >>= runScalarInt)
 
 runScalarProperty :: String -> Run -> RunScalar
 runScalarProperty prop run = fromMaybe (RunScalarNumber 0.0) (runLookup run prop >>= runValueScalar)

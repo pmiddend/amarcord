@@ -6,7 +6,7 @@ import App.SortOrder (SortOrder, sortFromString, sortToString)
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
 import Effect (Effect)
-import Routing.Duplex (RouteDuplex', as, parse, print, root, string)
+import Routing.Duplex (RouteDuplex', as, int, parse, path, print, root, segment, string)
 import Routing.Duplex.Generic as G
 import Routing.Duplex.Generic.Syntax ((?))
 import Routing.Hash (matchesWith)
@@ -16,6 +16,7 @@ type RunsRouteInput = { sort :: String, sortOrder :: SortOrder }
 data Route
   = Root
   | Runs RunsRouteInput
+  | EditRun Int
 
 derive instance genericRoute :: Generic Route _
 
@@ -27,6 +28,7 @@ routeCodec :: RouteDuplex' Route
 routeCodec = root $ G.sum {
     "Root": G.noArgs
   , "Runs": "runs" ? { sort: string, sortOrder: sort }
+  , "EditRun": path "editRun" (int segment)
   }
 
 matchRoute :: (Maybe Route -> Route -> Effect Unit) -> Effect (Effect Unit)
