@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 import logging
 
 import sqlalchemy as sa
+from sqlalchemy import func
 
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.run_property import RunProperty
@@ -48,6 +49,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("target_id", sa.Integer, sa.ForeignKey("Target.id"), nullable=False),
         sa.Column("average_crystal_size", sa.Float, nullable=True),
         sa.Column("crystal_shape", sa.JSON, nullable=True),
+        sa.Column("created", sa.DateTime, nullable=False, server_default=func.now()),
     )
 
 
@@ -244,7 +246,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         # To always get the same sample data, yet somewhat random values
         seed(1337)
         for _ in range(20):
-            run_id = conn.execute(
+            _run_id = conn.execute(
                 tables.run.insert().values(
                     proposal_id=proposal_id,
                     modified=datetime.datetime.utcnow(),

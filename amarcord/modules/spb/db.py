@@ -64,6 +64,7 @@ class DBTarget:
 @dataclass(frozen=True)
 class DBSample:
     id: Optional[int]
+    created: datetime.datetime
     target_id: int
     average_crystal_size: Optional[float]
     crystal_shape: Optional[Tuple[float, float, float]]
@@ -630,13 +631,20 @@ class DB:
         return [
             DBSample(
                 id=row["id"],
+                created=row["created"],
                 target_id=row["target_id"],
                 average_crystal_size=row["average_crystal_size"],
                 crystal_shape=row["crystal_shape"],
             )
             for row in conn.execute(
                 sa.select(
-                    [tc.id, tc.average_crystal_size, tc.target_id, tc.crystal_shape]
+                    [
+                        tc.id,
+                        tc.created,
+                        tc.average_crystal_size,
+                        tc.target_id,
+                        tc.crystal_shape,
+                    ]
                 ).order_by(tc.id)
             ).fetchall()
         ]
@@ -646,6 +654,7 @@ class DB:
             sa.insert(self.tables.sample).values(
                 target_id=t.target_id,
                 average_crystal_size=t.average_crystal_size,
+                crystal_shape=t.crystal_shape,
             )
         )
 
@@ -655,6 +664,7 @@ class DB:
             .values(
                 target_id=t.target_id,
                 average_crystal_size=t.average_crystal_size,
+                crystal_shape=t.crystal_shape,
             )
             .where(self.tables.sample.c.id == t.id)
         )

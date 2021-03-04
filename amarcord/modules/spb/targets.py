@@ -1,6 +1,5 @@
 import logging
 from dataclasses import replace
-import urllib.request
 from typing import List, Optional
 
 from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
@@ -28,6 +27,7 @@ from amarcord.modules.spb.db_tables import DBTables
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
+from amarcord.uniprot import validate_uniprot
 
 NEW_TARGET_HEADLINE = "New target"
 
@@ -38,16 +38,6 @@ def _empty_target():
     return DBTarget(
         id=None, name="", short_name="", molecular_weight=None, uniprot_id=""
     )
-
-
-def _validate_uniprot(uniprot_id: str) -> bool:
-    try:
-        with urllib.request.urlopen(
-            f"https://www.uniprot.org/uniprot/{uniprot_id}.fasta"
-        ):
-            return True
-    except:
-        return False
 
 
 class _TargetTable(QTableWidget):
@@ -208,7 +198,7 @@ class Targets(QWidget):
     def _uniprot_change(self, new_uniprot: str) -> None:
         self._uniprot_edit.setStyleSheet(
             "background-color: #ffb8b8"
-            if new_uniprot != "" and not _validate_uniprot(new_uniprot)
+            if new_uniprot != "" and not validate_uniprot(new_uniprot)
             else ""
         )
         self._current_target = replace(self._current_target, uniprot_id=new_uniprot)

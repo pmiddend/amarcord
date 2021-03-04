@@ -1,5 +1,5 @@
 import logging
-import urllib.request
+import datetime
 from dataclasses import replace
 from typing import List, Optional, Union
 
@@ -36,18 +36,12 @@ logger = logging.getLogger(__name__)
 
 def _empty_sample():
     return DBSample(
-        id=None, target_id=-1, average_crystal_size=None, crystal_shape=None
+        id=None,
+        created=datetime.datetime.utcnow(),
+        target_id=-1,
+        average_crystal_size=None,
+        crystal_shape=None,
     )
-
-
-def _validate_uniprot(uniprot_id: str) -> bool:
-    try:
-        with urllib.request.urlopen(
-            f"https://www.uniprot.org/uniprot/{uniprot_id}.fasta"
-        ):
-            return True
-    except:
-        return False
 
 
 class _SampleTable(QTableWidget):
@@ -186,6 +180,7 @@ class Samples(QWidget):
         self._average_crystal_size_edit.set_value(
             self._current_sample.average_crystal_size
         )
+        self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)
         self._clear_submit()
         self._submit_layout.addWidget(self._create_edit_button())
         self._submit_layout.addWidget(self._create_cancel_button())
@@ -224,6 +219,7 @@ class Samples(QWidget):
         self._current_sample = _empty_sample()
 
     def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
+        print("crystal shape change to " + str(value))
         if not isinstance(value, str):
             self._current_sample = replace(self._current_sample, crystal_shape=value)
         self._reset_button()
@@ -259,19 +255,22 @@ class Samples(QWidget):
 
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._sample_table.clear()
-        self._sample_table.setColumnCount(3)
+        headers = ["ID", "Created", "Avg Crystal Size", "Crystal Shape", "Target"]
+        self._sample_table.setColumnCount(len(headers))
+        self._sample_table.setHorizontalHeaderLabels(headers)
         self._sample_table.setRowCount(len(self._samples))
         self._sample_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._sample_table.setHorizontalHeaderLabels(
-            ["ID", "Avg Crystal Size", "Target"]
-        )
         self._sample_table.verticalHeader().hide()
 
         for row, sample in enumerate(self._samples):
             for col, column_value in enumerate(
                 (
                     str(sample.id),
+                    str(sample.created),
                     str(sample.average_crystal_size),
+                    ", ".join(str(s) for s in sample.crystal_shape)
+                    if sample.crystal_shape is not None
+                    else "",
                     [t.short_name for t in self._targets if sample.target_id == t.id][
                         0
                     ],
