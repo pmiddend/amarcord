@@ -13,6 +13,7 @@ from amarcord.modules.spb.factories import (
 )
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.db_tables import create_sample_data, create_tables
+from amarcord.modules.spb.samples import Samples
 from amarcord.modules.spb.targets import Targets
 from amarcord.modules.uicontext import UIContext
 
@@ -47,10 +48,16 @@ if __name__ == "__main__":
     else:
         proposal_id = ProposalId(proposal_id)
 
-    run_details_index = context.ui.register_tab(
+    targets_index = context.ui.register_tab(
         "Targets",
         Targets(context, tables),
         context.ui.icon("SP_MediaStop"),
+    )
+
+    samples_index = context.ui.register_tab(
+        "Samples",
+        Samples(context, tables),
+        context.ui.icon("SP_DialogResetButton"),
     )
 
     context.ui.set_application_suffix(f"proposal {proposal_id}")

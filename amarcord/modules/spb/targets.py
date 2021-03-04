@@ -141,7 +141,7 @@ class Targets(QWidget):
 
         assert target.id is not None
 
-        result = QMessageBox(
+        result = QMessageBox(  # type: ignore
             QMessageBox.Critical,
             f"Delete “{target.short_name}”",
             f"Are you sure you want to delete “{target.short_name}”?",
@@ -182,7 +182,6 @@ class Targets(QWidget):
     def _slot_row_selected(self, index: QModelIndex) -> None:
         self._current_target = self._targets[index.row()]
         self._right_headline.setText(f"Edit “{self._current_target.short_name}”")
-        self._add_button.setText("Edit target")
         self._name_edit.setText(self._current_target.name)
         self._short_name_edit.setText(self._current_target.short_name)
         self._molecular_weight_edit.set_value(self._current_target.molecular_weight)
@@ -195,6 +194,8 @@ class Targets(QWidget):
     def _clear_submit(self):
         while True:
             result = self._submit_layout.takeAt(0)
+            if result is not None and result.widget() is not None:
+                result.widget().hide()
             if result is None:
                 break
 

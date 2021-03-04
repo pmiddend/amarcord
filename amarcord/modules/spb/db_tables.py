@@ -44,8 +44,9 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Sample",
         metadata,
-        sa.Column("sample_id", sa.Integer, primary_key=True),
-        sa.Column("sample_name", sa.String(length=255)),
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("target_id", sa.Integer, sa.ForeignKey("Target.id"), nullable=False),
+        sa.Column("average_crystal_size", sa.Float, nullable=True),
     )
 
 
@@ -157,11 +158,22 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         #         id=2, metadata={"data": {}, "title": "shit proposal"}
         #     )
         # )
+        # Create targets
+        first_target_id = conn.execute(
+            tables.target.insert().values(name="Main Protease", short_name="MPro")
+        ).inserted_primary_key[0]
+
         # Create samples
         first_sample_result = conn.execute(
-            tables.sample.insert().values(sample_name="first sample")
+            tables.sample.insert().values(
+                target_id=first_target_id, average_crystal_size=1.0
+            )
         )
-        conn.execute(tables.sample.insert().values(sample_name="second sample"))
+        conn.execute(
+            tables.sample.insert().values(
+                target_id=first_target_id, average_crystal_size=2.0
+            )
+        )
         first_sample_id = first_sample_result.inserted_primary_key[0]
 
         # Create run properties

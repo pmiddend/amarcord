@@ -61,6 +61,13 @@ class DBTarget:
     uniprot_id: str
 
 
+@dataclass(frozen=True)
+class DBSample:
+    id: Optional[int]
+    target_id: int
+    average_crystal_size: Optional[float]
+
+
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
 
 RunPropertyValue = Union[List[DBRunComment], str, int, float, List[str]]
@@ -311,9 +318,7 @@ class DB:
         return [
             row[0]
             for row in conn.execute(
-                sa.select([self.tables.sample.c.sample_id]).order_by(
-                    self.tables.sample.c.sample_id
-                )
+                sa.select([self.tables.sample.c.id]).order_by(self.tables.sample.c.id)
             ).fetchall()
         ]
 
@@ -617,4 +622,42 @@ class DB:
     def delete_target(self, conn: Connection, tid: int) -> None:
         conn.execute(
             sa.delete(self.tables.target).where(self.tables.target.c.id == tid)
+        )
+
+    def retrieve_samples(self, conn: Connection) -> List[DBSample]:
+        tc = self.tables.sample.c
+        return [
+            DBSample(
+                id=row["id"],
+                target_id=row["target_id"],
+                average_crystal_size=row["average_crystal_size"],
+            )
+            for row in conn.execute(
+                sa.select([tc.id, tc.average_crystal_size, tc.target_id]).order_by(
+                    tc.id
+                )
+            ).fetchall()
+        ]
+
+    def add_sample(self, conn: Connection, t: DBSample) -> None:
+        conn.execute(
+            sa.insert(self.tables.sample).values(
+                target_id=t.target_id,
+                average_crystal_size=t.average_crystal_size,
+            )
+        )
+
+    def edit_sample(self, conn: Connection, t: DBSample) -> None:
+        conn.execute(
+            sa.update(self.tables.sample)
+            .values(
+                target_id=t.target_id,
+                average_crystal_size=t.average_crystal_size,
+            )
+            .where(self.tables.sample.c.id == t.id)
+        )
+
+    def delete_sample(self, conn: Connection, tid: int) -> None:
+        conn.execute(
+            sa.delete(self.tables.sample).where(self.tables.sample.c.id == tid)
         )
