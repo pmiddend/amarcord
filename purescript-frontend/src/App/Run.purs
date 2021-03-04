@@ -22,8 +22,8 @@ instance showRun :: Show Run where
 runId :: Run -> Number
 runId (Run r) = fromMaybe 0.0 (lookup "id" r >>= runValueScalar >>= runScalarNumber)
 
-runScalarProperty :: Run -> String -> RunScalar
-runScalarProperty run prop = fromMaybe (RunScalarNumber 0.0) (runLookup run prop >>= runValueScalar)
+runScalarProperty :: String -> Run -> RunScalar
+runScalarProperty prop run = fromMaybe (RunScalarNumber 0.0) (runLookup run prop >>= runValueScalar)
 
 instance eqRun :: Eq Run where
   eq (Run a) (Run b) = a == b

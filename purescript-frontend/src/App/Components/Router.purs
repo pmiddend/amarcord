@@ -7,42 +7,25 @@ import App.Components.Runs as Runs
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
 import App.Root as Root
+import App.Route (Route(..), routeCodec)
+import App.SortOrder (SortOrder(..))
 import Data.Either (hush)
-import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
-import Effect (Effect)
 import Effect.Class (class MonadEffect, liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Properties.ARIA as HPA
-import Routing.Duplex (RouteDuplex', param, parse, path, print, root, string)
-import Routing.Duplex.Generic as G
-import Routing.Hash (getHash, matchesWith, setHash)
+import Routing.Duplex (parse, print)
+import Routing.Hash (getHash, setHash)
 import Web.Event.Event (preventDefault)
 import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
 amarcordProgramVersion :: String
 amarcordProgramVersion = "latest"
 
-data Route
-  = Root
-  | Runs String
-
-derive instance genericRoute :: Generic Route _
-
-derive instance eqRoute :: Eq Route
-
-routeCodec :: RouteDuplex' Route
-routeCodec = root $ G.sum {
-    "Root": G.noArgs
-  , "Runs": path "runs" (string (param "sort"))
-  }
-
-matchRoute :: (Maybe Route -> Route -> Effect Unit) -> Effect (Effect Unit)
-matchRoute = matchesWith (parse routeCodec)
 
 type State
   = { route :: Maybe Route
@@ -108,7 +91,7 @@ render :: State -> H.ComponentHTML Action ChildSlots AppMonad
 render st =
   skeleton (st.route)
     $ case st.route of
-        Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found" ]
+        Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found!" ]
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
           Runs sort -> HH.slot (SProxy :: _ "runs") unit Runs.component sort absurd
@@ -120,7 +103,7 @@ navItems ::
     , title :: String
     }
 navItems = [
-    { title: "Runs", link: (Runs "id"), fa: "running" }
+    { title: "Runs", link: (Runs { sort: "id", sortOrder: Ascending }), fa: "running" }
   ]
 
 makeNavItem ::
