@@ -51,6 +51,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("crystal_shape", sa.JSON, nullable=True),
         sa.Column("created", sa.DateTime, nullable=False, server_default=func.now()),
         sa.Column("incubation_time", sa.DateTime, nullable=True),
+        sa.Column("crystallization_temperature", sa.Float, nullable=True),
         sa.Column("crystal_buffer", sa.String(length=255), nullable=True),
     )
 

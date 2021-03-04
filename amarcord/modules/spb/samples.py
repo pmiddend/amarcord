@@ -46,6 +46,7 @@ def _empty_sample():
         crystal_shape=None,
         incubation_time=None,
         crystal_buffer=None,
+        crystallization_temperature=None,
     )
 
 
@@ -113,6 +114,20 @@ class Samples(QWidget):
         right_form_layout.addRow(
             "Average crystal size",
             self._average_crystal_size_edit,
+        )
+        self._crystallization_temperature_edit = NumericInputWidget(
+            None,
+            NumericRange(
+                None, minimum_inclusive=True, maximum=None, maximum_inclusive=False
+            ),
+            placeholder="Value in °C",
+        )
+        self._crystallization_temperature_edit.value_change.connect(
+            self._crystallization_temperature_change
+        )
+        right_form_layout.addRow(
+            "Crystallization Temperature",
+            self._crystallization_temperature_edit,
         )
         self._crystal_shape_edit = ValidatedLineEdit(
             None,
@@ -195,6 +210,9 @@ class Samples(QWidget):
         self._average_crystal_size_edit.set_value(
             self._current_sample.average_crystal_size
         )
+        self._crystallization_temperature_edit.set_value(
+            self._current_sample.crystallization_temperature
+        )
         # noinspection PyTypeChecker
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
         self._incubation_time_edit.setText(
@@ -256,6 +274,13 @@ class Samples(QWidget):
             self._current_sample = replace(self._current_sample, incubation_time=value)
         self._reset_button()
 
+    def _crystallization_temperature_change(self, value: NumericInputValue) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(
+                self._current_sample, crystallization_temperature=value
+            )
+        self._reset_button()
+
     def _average_crystal_size_change(self, value: NumericInputValue) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(
@@ -268,6 +293,7 @@ class Samples(QWidget):
             self._average_crystal_size_edit.valid_value()
             and self._crystal_shape_edit.valid_value()
             and self._incubation_time_edit.valid_value()
+            and self._crystallization_temperature_edit.valid_value()
         )
 
     def _reset_button(self) -> None:
@@ -293,6 +319,7 @@ class Samples(QWidget):
             "Created",
             "Incubation Time",
             "Crystal Buffer",
+            "Crystallization Temperature",
             "Avg Crystal Size",
             "Crystal Shape",
             "Target",
@@ -312,6 +339,9 @@ class Samples(QWidget):
                     if sample.incubation_time is not None
                     else "",
                     sample.crystal_buffer if sample.crystal_buffer is not None else "",
+                    str(sample.crystallization_temperature)
+                    if sample.crystallization_temperature is not None
+                    else "",
                     str(sample.average_crystal_size),
                     ", ".join(str(s) for s in sample.crystal_shape)
                     if sample.crystal_shape is not None

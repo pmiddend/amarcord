@@ -70,6 +70,7 @@ class DBSample:
     crystal_shape: Optional[Tuple[float, float, float]]
     incubation_time: Optional[datetime.datetime]
     crystal_buffer: Optional[str]
+    crystallization_temperature: Optional[float]
 
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
@@ -639,6 +640,7 @@ class DB:
                 crystal_shape=row["crystal_shape"],
                 incubation_time=row["incubation_time"],
                 crystal_buffer=row["crystal_buffer"],
+                crystallization_temperature=row["crystallization_temperature"],
             )
             for row in conn.execute(
                 sa.select(
@@ -650,6 +652,7 @@ class DB:
                         tc.crystal_shape,
                         tc.incubation_time,
                         tc.crystal_buffer,
+                        tc.crystallization_temperature,
                     ]
                 ).order_by(tc.id)
             ).fetchall()
@@ -663,6 +666,7 @@ class DB:
                 crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
                 crystal_buffer=t.crystal_buffer,
+                crystallization_temperature=t.crystallization_temperature,
             )
         )
 
@@ -675,6 +679,7 @@ class DB:
                 crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
                 crystal_buffer=t.crystal_buffer,
+                crystallization_temperature=t.crystallization_temperature,
             )
             .where(self.tables.sample.c.id == t.id)
         )
