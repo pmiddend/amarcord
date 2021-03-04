@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -44,6 +45,7 @@ def _empty_sample():
         average_crystal_size=None,
         crystal_shape=None,
         incubation_time=None,
+        crystal_buffer=None,
     )
 
 
@@ -127,6 +129,9 @@ class Samples(QWidget):
             "2020-02-24 15:34",
         )
         right_form_layout.addRow("Incubation time", self._incubation_time_edit)
+        self._crystal_buffer_edit = QLineEdit()
+        self._crystal_buffer_edit.textEdited.connect(self._crystal_buffer_change)
+        right_form_layout.addRow("Crystal Buffer", self._crystal_buffer_edit)
         self._incubation_time_edit.value_change.connect(self._incubation_time_change)
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
@@ -197,6 +202,11 @@ class Samples(QWidget):
             if self._current_sample.incubation_time is not None
             else ""
         )
+        self._crystal_buffer_edit.setText(
+            self._current_sample.crystal_buffer
+            if self._current_sample.crystal_buffer
+            else ""
+        )
         self._clear_submit()
         self._submit_layout.addWidget(self._create_edit_button())
         self._submit_layout.addWidget(self._create_cancel_button())
@@ -235,6 +245,10 @@ class Samples(QWidget):
     def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(self._current_sample, crystal_shape=value)
+        self._reset_button()
+
+    def _crystal_buffer_change(self, value: str) -> None:
+        self._current_sample = replace(self._current_sample, crystal_buffer=value)
         self._reset_button()
 
     def _incubation_time_change(self, value: Union[str, datetime.datetime]) -> None:
@@ -278,6 +292,7 @@ class Samples(QWidget):
             "ID",
             "Created",
             "Incubation Time",
+            "Crystal Buffer",
             "Avg Crystal Size",
             "Crystal Shape",
             "Target",
@@ -296,6 +311,7 @@ class Samples(QWidget):
                     sample.incubation_time.strftime(DATE_TIME_FORMAT)
                     if sample.incubation_time is not None
                     else "",
+                    sample.crystal_buffer if sample.crystal_buffer is not None else "",
                     str(sample.average_crystal_size),
                     ", ".join(str(s) for s in sample.crystal_shape)
                     if sample.crystal_shape is not None
