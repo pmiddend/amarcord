@@ -50,6 +50,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("average_crystal_size", sa.Float, nullable=True),
         sa.Column("crystal_shape", sa.JSON, nullable=True),
         sa.Column("created", sa.DateTime, nullable=False, server_default=func.now()),
+        sa.Column("incubation_time", sa.DateTime, nullable=True),
     )
 
 

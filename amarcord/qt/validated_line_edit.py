@@ -1,7 +1,7 @@
 import logging
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Tuple, Union
 
-from PyQt5.QtCore import QVariant, pyqtSignal
+from PyQt5.QtCore import QObject, QVariant, pyqtSignal
 from PyQt5.QtGui import QValidator
 from PyQt5.QtWidgets import QLineEdit, QWidget
 
@@ -11,15 +11,36 @@ logger = logging.getLogger(__name__)
 ValidatedInputValue = Union[str, None, QVariant]
 
 
+class _Validator(QValidator):
+    def __init__(
+        self, f: Callable[[str], ValidatedInputValue], parent: Optional[QObject] = None
+    ) -> None:
+        super().__init__(parent)
+        self._f = f
+
+    def validate(self, input_: str, pos: int) -> Tuple[QValidator.State, str, int]:
+        if input_ == "":
+            return QValidator.Acceptable, input_, pos
+
+        result = self._f(input_)
+
+        if isinstance(result, str):
+            return QValidator.Intermediate, input_, pos
+
+        if result is None:
+            return QValidator.Invalid, input_, pos
+
+        return QValidator.Acceptable, input_, pos
+
+
 class ValidatedLineEdit(QLineEdit):
     value_change = pyqtSignal(QVariant)
 
     def __init__(
         self,
         value: ValidatedInputValue,
-        validator: QValidator,
         to_string: Callable[[QVariant], str],
-        from_string: Callable[[str], QVariant],
+        from_string: Callable[[str], ValidatedInputValue],
         placeholder: Optional[str] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
@@ -36,7 +57,7 @@ class ValidatedLineEdit(QLineEdit):
             self.setText(self._to_string(value))
 
         self.textEdited.connect(self._text_changed)
-        self.setValidator(validator)
+        self.setValidator(_Validator(from_string))
         if placeholder is not None:
             self.setPlaceholderText(placeholder)
 
@@ -65,4 +86,9 @@ class ValidatedLineEdit(QLineEdit):
         self._text_changed(self.text())
 
     def value(self) -> Optional[QVariant]:
-        return self._from_string(self.text()) if self.text() else None
+        if not self.text():
+            return None
+        result = self._from_string(self.text())
+        if isinstance(result, str):
+            return None
+        return result

@@ -1,5 +1,5 @@
-import logging
 import datetime
+import logging
 from dataclasses import replace
 from typing import List, Optional, Union
 
@@ -25,9 +25,11 @@ from amarcord.modules.context import Context
 from amarcord.modules.spb.db import DB, DBSample
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.numeric_range import NumericRange
-from amarcord.qt.number_list_validator import NumberListValidator, parse_float_list
+from amarcord.qt.validators import parse_date_time, parse_float_list
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
+
+DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
 NEW_SAMPLE_HEADLINE = "New sample"
 
@@ -41,6 +43,7 @@ def _empty_sample():
         target_id=-1,
         average_crystal_size=None,
         crystal_shape=None,
+        incubation_time=None,
     )
 
 
@@ -111,13 +114,20 @@ class Samples(QWidget):
         )
         self._crystal_shape_edit = ValidatedLineEdit(
             None,
-            NumberListValidator(3),
             lambda float_list: ", ".join(str(s) for s in float_list),  # type: ignore
             lambda float_list_str: parse_float_list(float_list_str, 3),  # type: ignore
             "a, b, c separated by commas",
         )
         self._crystal_shape_edit.value_change.connect(self._crystal_shape_change)
         right_form_layout.addRow("Crystal shape", self._crystal_shape_edit)
+        self._incubation_time_edit = ValidatedLineEdit(
+            None,
+            lambda pydatetime: pydatetime.strftime(DATE_TIME_FORMAT),  # type: ignore
+            lambda datetimestr: parse_date_time(datetimestr, DATE_TIME_FORMAT),  # type: ignore
+            "2020-02-24 15:34",
+        )
+        right_form_layout.addRow("Incubation time", self._incubation_time_edit)
+        self._incubation_time_edit.value_change.connect(self._incubation_time_change)
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
@@ -180,7 +190,13 @@ class Samples(QWidget):
         self._average_crystal_size_edit.set_value(
             self._current_sample.average_crystal_size
         )
-        self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)
+        # noinspection PyTypeChecker
+        self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
+        self._incubation_time_edit.setText(
+            self._current_sample.incubation_time.strftime(DATE_TIME_FORMAT)
+            if self._current_sample.incubation_time is not None
+            else ""
+        )
         self._clear_submit()
         self._submit_layout.addWidget(self._create_edit_button())
         self._submit_layout.addWidget(self._create_cancel_button())
@@ -209,9 +225,7 @@ class Samples(QWidget):
     def _edit_sample(self) -> None:
         with self._db.connect() as conn:
             self._db.edit_sample(conn, self._current_sample)
-            self._reset_input_fields()
             self._log_widget.setText("Sample successfully edited!")
-            self._right_headline.setText(NEW_SAMPLE_HEADLINE)
             self._fill_table()
 
     def _reset_input_fields(self):
@@ -219,9 +233,13 @@ class Samples(QWidget):
         self._current_sample = _empty_sample()
 
     def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
-        print("crystal shape change to " + str(value))
         if not isinstance(value, str):
             self._current_sample = replace(self._current_sample, crystal_shape=value)
+        self._reset_button()
+
+    def _incubation_time_change(self, value: Union[str, datetime.datetime]) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(self._current_sample, incubation_time=value)
         self._reset_button()
 
     def _average_crystal_size_change(self, value: NumericInputValue) -> None:
@@ -235,6 +253,7 @@ class Samples(QWidget):
         return (
             self._average_crystal_size_edit.valid_value()
             and self._crystal_shape_edit.valid_value()
+            and self._incubation_time_edit.valid_value()
         )
 
     def _reset_button(self) -> None:
@@ -255,7 +274,14 @@ class Samples(QWidget):
 
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._sample_table.clear()
-        headers = ["ID", "Created", "Avg Crystal Size", "Crystal Shape", "Target"]
+        headers = [
+            "ID",
+            "Created",
+            "Incubation Time",
+            "Avg Crystal Size",
+            "Crystal Shape",
+            "Target",
+        ]
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
         self._sample_table.setRowCount(len(self._samples))
@@ -267,6 +293,9 @@ class Samples(QWidget):
                 (
                     str(sample.id),
                     str(sample.created),
+                    sample.incubation_time.strftime(DATE_TIME_FORMAT)
+                    if sample.incubation_time is not None
+                    else "",
                     str(sample.average_crystal_size),
                     ", ".join(str(s) for s in sample.crystal_shape)
                     if sample.crystal_shape is not None

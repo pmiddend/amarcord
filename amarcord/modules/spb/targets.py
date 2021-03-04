@@ -213,9 +213,7 @@ class Targets(QWidget):
     def _edit_target(self) -> None:
         with self._db.connect() as conn:
             self._db.edit_target(conn, self._current_target)
-            self._reset_input_fields()
             self._log_widget.setText("Target successfully edited!")
-            self._right_headline.setText(NEW_TARGET_HEADLINE)
             self._fill_table()
 
     def _reset_input_fields(self):

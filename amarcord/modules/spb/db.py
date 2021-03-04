@@ -68,6 +68,7 @@ class DBSample:
     target_id: int
     average_crystal_size: Optional[float]
     crystal_shape: Optional[Tuple[float, float, float]]
+    incubation_time: Optional[datetime.datetime]
 
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
@@ -635,6 +636,7 @@ class DB:
                 target_id=row["target_id"],
                 average_crystal_size=row["average_crystal_size"],
                 crystal_shape=row["crystal_shape"],
+                incubation_time=row["incubation_time"],
             )
             for row in conn.execute(
                 sa.select(
@@ -644,6 +646,7 @@ class DB:
                         tc.average_crystal_size,
                         tc.target_id,
                         tc.crystal_shape,
+                        tc.incubation_time,
                     ]
                 ).order_by(tc.id)
             ).fetchall()
@@ -655,6 +658,7 @@ class DB:
                 target_id=t.target_id,
                 average_crystal_size=t.average_crystal_size,
                 crystal_shape=t.crystal_shape,
+                incubation_time=t.incubation_time,
             )
         )
 
@@ -665,6 +669,7 @@ class DB:
                 target_id=t.target_id,
                 average_crystal_size=t.average_crystal_size,
                 crystal_shape=t.crystal_shape,
+                incubation_time=t.incubation_time,
             )
             .where(self.tables.sample.c.id == t.id)
         )
