@@ -75,6 +75,7 @@ class DBSample:
     shaking_strength: Optional[float]
     protein_concentration: Optional[float]
     comment: str
+    crystal_settlement_volume: Optional[float]
 
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
@@ -651,6 +652,7 @@ class DB:
                 shaking_strength=row["shaking_strength"],
                 protein_concentration=row["protein_concentration"],
                 comment=row["comment"],
+                crystal_settlement_volume=row["crystal_settlement_volume"],
             )
             for row in conn.execute(
                 sa.select(
@@ -667,6 +669,7 @@ class DB:
                         tc.shaking_strength,
                         tc.protein_concentration,
                         tc.comment,
+                        tc.crystal_settlement_volume,
                     ]
                 ).order_by(tc.id)
             ).fetchall()
@@ -687,6 +690,7 @@ class DB:
                 shaking_strength=t.shaking_strength,
                 protein_concentration=t.protein_concentration,
                 comment=t.comment,
+                crystal_settlement_volume=t.crystal_settlement_volume,
             )
         )
 
@@ -706,6 +710,7 @@ class DB:
                 shaking_strength=t.shaking_strength,
                 protein_concentration=t.protein_concentration,
                 comment=t.comment,
+                crystal_settlement_volume=t.crystal_settlement_volume,
             )
             .where(self.tables.sample.c.id == t.id)
         )

@@ -52,6 +52,7 @@ def _empty_sample():
         shaking_time=None,
         shaking_strength=None,
         comment="",
+        crystal_settlement_volume=None,
     )
 
 
@@ -106,6 +107,20 @@ class Samples(QWidget):
         right_root_layout.addStretch()
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
+        self._crystal_settlement_volume_edit = NumericInputWidget(
+            None,
+            NumericRange(
+                0.0, minimum_inclusive=True, maximum=100.0, maximum_inclusive=True
+            ),
+            placeholder="Value in %",
+        )
+        self._crystal_settlement_volume_edit.value_change.connect(
+            self._crystal_settlement_volume_change
+        )
+        right_form_layout.addRow(
+            "Crystal Settlement volume",
+            self._crystal_settlement_volume_edit,
+        )
         self._shaking_strength_edit = NumericInputWidget(
             None,
             NumericRange(
@@ -259,6 +274,9 @@ class Samples(QWidget):
         self._average_crystal_size_edit.set_value(
             self._current_sample.average_crystal_size
         )
+        self._crystal_settlement_volume_edit.set_value(
+            self._current_sample.crystal_settlement_volume
+        )
         self._crystallization_temperature_edit.set_value(
             self._current_sample.crystallization_temperature
         )
@@ -319,6 +337,7 @@ class Samples(QWidget):
         self._crystallization_temperature_edit.set_value(None)
         self._crystal_shape_edit.set_value(None)
         self._incubation_time_edit.set_value(None)
+        self._crystal_settlement_volume_edit.set_value(None)
         self._crystal_buffer_edit.setText("")
         self._current_sample = _empty_sample()
         self._protein_concentration_edit.set_value(None)
@@ -360,6 +379,13 @@ class Samples(QWidget):
             )
         self._reset_button()
 
+    def _crystal_settlement_volume_change(self, value: NumericInputValue) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(
+                self._current_sample, crystal_settlement_volume=value
+            )
+        self._reset_button()
+
     def _shaking_strength_change(self, value: NumericInputValue) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(self._current_sample, shaking_strength=value)
@@ -381,6 +407,7 @@ class Samples(QWidget):
             and self._shaking_time_edit.valid_value()
             and self._shaking_strength_edit.valid_value()
             and self._protein_concentration_edit.valid_value()
+            and self._crystal_settlement_volume_edit.valid_value()
         )
 
     def _reset_button(self) -> None:
@@ -442,6 +469,13 @@ class Samples(QWidget):
                     else "",
                     sample.shaking_strength
                     if sample.shaking_strength is not None
+                    else "",
+                    str(sample.protein_concentration)
+                    if sample.protein_concentration is not None
+                    else "",
+                    sample.comment,
+                    str(sample.crystal_settlement_volume)
+                    if sample.crystal_settlement_volume
                     else "",
                 )
             ):
