@@ -1,4 +1,5 @@
 import datetime
+import getpass
 import logging
 from dataclasses import replace
 from typing import List, Optional, Union
@@ -53,6 +54,10 @@ def _empty_sample():
         shaking_strength=None,
         comment="",
         crystal_settlement_volume=None,
+        seed_stock_used="",
+        plate_origin="",
+        creator=getpass.getuser(),
+        crystallization_method="",
     )
 
 
@@ -192,6 +197,32 @@ class Samples(QWidget):
             self._comment_edit,
         )
         self._comment_edit.textEdited.connect(self._comment_edit_change)
+        self._creator_edit = QLineEdit()
+        right_form_layout.addRow(
+            "Creator",
+            self._creator_edit,
+        )
+        self._creator_edit.textEdited.connect(self._creator_edit_change)
+        self._crystallization_method_edit = QLineEdit()
+        right_form_layout.addRow(
+            "Crystallization Method",
+            self._crystallization_method_edit,
+        )
+        self._crystallization_method_edit.textEdited.connect(
+            self._crystallization_method_edit_change
+        )
+        self._plate_origin_edit = QLineEdit()
+        right_form_layout.addRow(
+            "Plate Origin",
+            self._plate_origin_edit,
+        )
+        self._plate_origin_edit.textEdited.connect(self._plate_origin_edit_change)
+        self._seed_stock_used_edit = QLineEdit()
+        right_form_layout.addRow(
+            "Seed Stock Used",
+            self._seed_stock_used_edit,
+        )
+        self._seed_stock_used_edit.textEdited.connect(self._seed_stock_used_edit_change)
         self._crystal_shape_edit = ValidatedLineEdit(
             None,
             lambda float_list: ", ".join(str(s) for s in float_list),  # type: ignore
@@ -271,6 +302,12 @@ class Samples(QWidget):
         self._current_sample = self._samples[index.row()]
         self._right_headline.setText(f"Edit sample “{self._current_sample.id}”")
         self._comment_edit.setText(self._current_sample.comment)
+        self._seed_stock_used_edit.setText(self._current_sample.seed_stock_used)
+        self._plate_origin_edit.setText(self._current_sample.plate_origin)
+        self._creator_edit.setText(self._current_sample.creator)
+        self._crystallization_method_edit.setText(
+            self._current_sample.crystallization_method
+        )
         self._average_crystal_size_edit.set_value(
             self._current_sample.average_crystal_size
         )
@@ -332,6 +369,10 @@ class Samples(QWidget):
     def _reset_input_fields(self):
         self._average_crystal_size_edit.set_value(None)
         self._comment_edit.setText("")
+        self._creator.setText("")
+        self._seed_stock_used_edit.setText("")
+        self._plate_origin_edit.setText("")
+        self._crystallization_method_edit.setText("")
         self._shaking_strength_edit.set_value(None)
         self._shaking_time_edit.set_value(None)
         self._crystallization_temperature_edit.set_value(None)
@@ -344,6 +385,30 @@ class Samples(QWidget):
 
     def _comment_edit_change(self, new_comment: str) -> None:
         self._current_sample = replace(self._current_sample, comment=new_comment)
+        self._reset_button()
+
+    def _creator_edit_change(self, new_creator: str) -> None:
+        self._current_sample = replace(self._current_sample, creator=new_creator)
+        self._reset_button()
+
+    def _crystallization_method_edit_change(
+        self, new_crystallization_method: str
+    ) -> None:
+        self._current_sample = replace(
+            self._current_sample, crystallization_method=new_crystallization_method
+        )
+        self._reset_button()
+
+    def _plate_origin_edit_change(self, new_plate_origin: str) -> None:
+        self._current_sample = replace(
+            self._current_sample, plate_origin=new_plate_origin
+        )
+        self._reset_button()
+
+    def _seed_stock_used_edit_change(self, new_seed_stock_used: str) -> None:
+        self._current_sample = replace(
+            self._current_sample, seed_stock_used=new_seed_stock_used
+        )
         self._reset_button()
 
     def _shaking_time_change(self, value: Union[str, datetime.timedelta]) -> None:
@@ -438,6 +503,13 @@ class Samples(QWidget):
             "Crystal Shape",
             "Target",
             "Shaking Time",
+            "Shaking Strength",
+            "Protein Concentration",
+            "Crystal Settlement Volume",
+            "Seed Stock Used",
+            "Plate Origin",
+            "Creator",
+            "Crystallization Method",
         ]
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
@@ -477,6 +549,10 @@ class Samples(QWidget):
                     str(sample.crystal_settlement_volume)
                     if sample.crystal_settlement_volume
                     else "",
+                    sample.seed_stock_used,
+                    sample.plate_origin,
+                    sample.creator,
+                    sample.crystallization_method,
                 )
             ):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))

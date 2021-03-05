@@ -76,6 +76,10 @@ class DBSample:
     protein_concentration: Optional[float]
     comment: str
     crystal_settlement_volume: Optional[float]
+    seed_stock_used: str
+    plate_origin: str
+    creator: str
+    crystallization_method: str
 
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
@@ -653,6 +657,10 @@ class DB:
                 protein_concentration=row["protein_concentration"],
                 comment=row["comment"],
                 crystal_settlement_volume=row["crystal_settlement_volume"],
+                seed_stock_used=row["seed_stock_used"],
+                plate_origin=row["plate_origin"],
+                creator=row["creator"],
+                crystallization_method=row["crystallization_method"],
             )
             for row in conn.execute(
                 sa.select(
@@ -670,6 +678,10 @@ class DB:
                         tc.protein_concentration,
                         tc.comment,
                         tc.crystal_settlement_volume,
+                        tc.seed_stock_used,
+                        tc.plate_origin,
+                        tc.creator,
+                        tc.crystallization_method,
                     ]
                 ).order_by(tc.id)
             ).fetchall()
@@ -691,6 +703,10 @@ class DB:
                 protein_concentration=t.protein_concentration,
                 comment=t.comment,
                 crystal_settlement_volume=t.crystal_settlement_volume,
+                seed_stock_used=t.seed_stock_used,
+                plate_origin=t.plate_origin,
+                creator=t.creator,
+                crystallization_method=t.crystallization_method,
             )
         )
 
@@ -711,6 +727,10 @@ class DB:
                 protein_concentration=t.protein_concentration,
                 comment=t.comment,
                 crystal_settlement_volume=t.crystal_settlement_volume,
+                seed_stock_used=t.seed_stock_used,
+                plate_origin=t.plate_origin,
+                creator=t.creator,
+                crystallization_method=t.crystallization_method,
             )
             .where(self.tables.sample.c.id == t.id)
         )

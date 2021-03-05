@@ -58,6 +58,10 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("shaking_strength", sa.Float, nullable=True),
         sa.Column("comment", sa.String(length=255), nullable=False, default=""),
         sa.Column("crystal_settlement_volume", sa.Float, nullable=True),
+        sa.Column("seed_stock_used", sa.String, nullable=False, default=""),
+        sa.Column("plate_origin", sa.String, nullable=False, default=""),
+        sa.Column("creator", sa.String, nullable=False, default=""),
+        sa.Column("crystallization_method", sa.String, nullable=False, default=""),
     )
 
 
