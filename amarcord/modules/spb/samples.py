@@ -2,12 +2,14 @@ import datetime
 import getpass
 import logging
 from dataclasses import replace
+from pathlib import Path
 from typing import List, Optional, Union, cast
 
 from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent
 from PyQt5.QtWidgets import (
     QAbstractItemView,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -29,11 +31,14 @@ from amarcord.modules.spb.db_tables import DBTables
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
+from amarcord.qt.image_viewer import display_image_viewer
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
 from amarcord.qt.pubchem import validate_pubchem_compound
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import (
+    Partial,
     parse_date_time,
+    parse_existing_filename,
     parse_float_list,
     parse_list,
     parse_string_list,
@@ -68,6 +73,7 @@ def _empty_sample():
         crystallization_method="",
         filters=None,
         compounds=None,
+        micrograph=None,
     )
 
 
@@ -102,6 +108,13 @@ class Samples(QWidget):
         super().__init__(parent)
 
         self._db = DB(context.db, tables)
+        if "filesystem" not in context.config:
+            raise Exception('Cannot find "filesystem" in configuration')
+        if "base_path" not in context.config["filesystem"]:
+            raise Exception('Cannot find "filesystem.base_path" in configuration')
+        if not isinstance(context.config["filesystem"]["base_path"], str):
+            raise Exception('"filesystem.base_path" in configuration is not a string')
+        self._proposal_file_path = Path(context.config["filesystem"]["base_path"])
         root_layout = QHBoxLayout()
         self.setLayout(root_layout)
 
@@ -286,6 +299,30 @@ class Samples(QWidget):
         self._crystal_buffer_edit.textEdited.connect(self._crystal_buffer_change)
         right_form_layout.addRow("Crystal Buffer", self._crystal_buffer_edit)
         self._incubation_time_edit.value_change.connect(self._incubation_time_change)
+
+        micrograph_layout = QHBoxLayout()
+        micrograph_layout.setContentsMargins(0, 0, 0, 0)
+        self._micrograph_edit = ValidatedLineEdit(
+            None,
+            lambda p: p,  # type: ignore
+            parse_existing_filename,
+            "Absolute path to file",
+        )
+        self._micrograph_edit.value_change.connect(self._micrograph_change)
+        micrograph_layout.addWidget(self._micrograph_edit)
+        choose_micrograph_button = QPushButton(
+            self.style().standardIcon(QStyle.SP_DialogOpenButton), "Browse..."
+        )
+        self._display_micrograph_button = QPushButton(
+            self.style().standardIcon(QStyle.SP_FileDialogContentsView), "Show"
+        )
+        self._display_micrograph_button.setEnabled(False)
+        self._display_micrograph_button.clicked.connect(self._display_micrograph)
+        choose_micrograph_button.clicked.connect(self._choose_micrograph)
+        micrograph_layout.addWidget(self._display_micrograph_button)
+        micrograph_layout.addWidget(choose_micrograph_button)
+        right_form_layout.addRow("Micrograph", micrograph_layout)
+
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
@@ -297,6 +334,23 @@ class Samples(QWidget):
 
         self._samples: List[DBSample] = []
         self._fill_table()
+
+    def _display_micrograph(self) -> None:
+        assert self._current_sample.micrograph is not None
+        display_image_viewer(Path(self._current_sample.micrograph), parent=self)
+
+    def _choose_micrograph(self) -> None:
+        result, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose an image file",
+            str(self._proposal_file_path),
+        )
+        if not result:
+            return
+
+        self._micrograph_edit.setText(result)
+        self._current_sample = replace(self._current_sample, micrograph=result)
+        self._display_micrograph_button.setEnabled(True)
 
     def _delete_sample(self) -> None:
         row_idx = self._sample_table.currentRow()
@@ -367,6 +421,7 @@ class Samples(QWidget):
             if self._current_sample.shaking_time is not None
             else None
         )
+        self._micrograph_edit.set_value(self._current_sample.micrograph)
         self._shaking_strength_edit.set_value(self._current_sample.shaking_strength)
         # noinspection PyTypeChecker
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
@@ -418,7 +473,7 @@ class Samples(QWidget):
     def _reset_input_fields(self):
         self._average_crystal_size_edit.set_value(None)
         self._comment_edit.setText("")
-        self._creator.setText("")
+        self._creator_edit.setText("")
         self._seed_stock_used_edit.setText("")
         self._plate_origin_edit.setText("")
         self._crystallization_method_edit.setText("")
@@ -428,6 +483,7 @@ class Samples(QWidget):
         self._crystal_shape_edit.set_value(None)
         self._filters_edit.set_value(None)
         self._compounds_edit.set_value(None)
+        self._micrograph_edit.set_value(None)
         self._incubation_time_edit.set_value(None)
         self._crystal_settlement_volume_edit.set_value(None)
         self._crystal_buffer_edit.setText("")
@@ -467,22 +523,31 @@ class Samples(QWidget):
         self._reset_button()
 
     def _shaking_time_change(self, value: Union[str, datetime.timedelta]) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, shaking_time=value)
         self._reset_button()
 
     def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, crystal_shape=value)
         self._reset_button()
 
     def _filters_change(self, value: Union[str, List[str]]) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, filters=value)
         self._reset_button()
 
+    def _micrograph_change(self, value: str) -> None:
+        if not isinstance(value, Partial):
+            self._current_sample = replace(self._current_sample, micrograph=value)
+        print(f"new micrograph: {self._current_sample.micrograph is not None}")
+        self._display_micrograph_button.setEnabled(
+            self._current_sample.micrograph is not None
+        )
+        self._reset_button()
+
     def _compounds_change(self, value: Union[str, List[int]]) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, compounds=value)
         self._reset_button()
 
@@ -491,38 +556,38 @@ class Samples(QWidget):
         self._reset_button()
 
     def _incubation_time_change(self, value: Union[str, datetime.datetime]) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, incubation_time=value)
         self._reset_button()
 
     def _crystallization_temperature_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(
                 self._current_sample, crystallization_temperature=value
             )
         self._reset_button()
 
     def _protein_concentration_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(
                 self._current_sample, protein_concentration=value
             )
         self._reset_button()
 
     def _crystal_settlement_volume_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(
                 self._current_sample, crystal_settlement_volume=value
             )
         self._reset_button()
 
     def _shaking_strength_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, shaking_strength=value)
         self._reset_button()
 
     def _average_crystal_size_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, str):
+        if not isinstance(value, Partial):
             self._current_sample = replace(
                 self._current_sample, average_crystal_size=value
             )

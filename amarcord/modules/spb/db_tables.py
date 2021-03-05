@@ -1,8 +1,7 @@
 import datetime
-from random import randint, random, randrange, seed
-from typing import Dict, List, Optional
-
 import logging
+from random import randint, random, randrange, seed
+from typing import Dict, Optional
 
 import sqlalchemy as sa
 from sqlalchemy import func
@@ -64,6 +63,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("crystallization_method", sa.String, nullable=False, default=""),
         sa.Column("filters", sa.JSON, nullable=True),
         sa.Column("compounds", sa.JSON, nullable=True),
+        sa.Column("micrograph", sa.Text, nullable=True),
     )
 
 
@@ -179,6 +179,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         first_target_id = conn.execute(
             tables.target.insert().values(name="Main Protease", short_name="MPro")
         ).inserted_primary_key[0]
+        # pylint: disable=unused-variable
         second_target_id = conn.execute(
             tables.target.insert().values(
                 name="Protein Like Protease", short_name="PlPro"

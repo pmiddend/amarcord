@@ -1,14 +1,16 @@
 import logging
 from typing import Callable, Optional, Tuple, Union
 
-from PyQt5.QtCore import QObject, QTimer, QVariant, pyqtSignal
+from PyQt5.QtCore import QObject, QVariant, pyqtSignal
 from PyQt5.QtGui import QValidator
 from PyQt5.QtWidgets import QLineEdit, QWidget
+
+from amarcord.qt.validators import Partial
 
 logger = logging.getLogger(__name__)
 
 
-ValidatedInputValue = Union[str, None, QVariant]
+ValidatedInputValue = Union[Partial, None, QVariant]
 
 
 class _Validator(QValidator):
@@ -24,8 +26,8 @@ class _Validator(QValidator):
 
         result = self._f(input_)
 
-        if isinstance(result, str):
-            return QValidator.Intermediate, input_, pos
+        if isinstance(result, Partial):
+            return QValidator.Intermediate, result.returned_input, pos
 
         if result is None:
             return QValidator.Intermediate, input_, pos
@@ -50,8 +52,8 @@ class ValidatedLineEdit(QLineEdit):
         self._to_string = to_string
         self._from_string = from_string
 
-        if isinstance(value, str):
-            self.setText(value)
+        if isinstance(value, Partial):
+            self.setText(value.returned_input)
         elif value is None:
             self.setText("")
         else:
@@ -66,7 +68,7 @@ class ValidatedLineEdit(QLineEdit):
     def _text_changed(self, new_text: str) -> None:
         if self.validator().validate(new_text, 0)[0] == QValidator.Intermediate:
             self.setStyleSheet("background-color: #ffb8b8")
-            self.value_change.emit(new_text)
+            self.value_change.emit(Partial(new_text))
         else:
             self.setStyleSheet("")
             if self.text():
@@ -78,8 +80,8 @@ class ValidatedLineEdit(QLineEdit):
         return self.validator().validate(self.text(), 0)[0] == QValidator.Acceptable
 
     def set_value(self, value: Optional[QVariant]) -> None:
-        if isinstance(value, str):
-            self.setText(value)
+        if isinstance(value, Partial):
+            self.setText(value.returned_input)
         elif value is None:
             self.setText("")
         else:
@@ -91,6 +93,6 @@ class ValidatedLineEdit(QLineEdit):
         if not self.text():
             return None
         result = self._from_string(self.text())
-        if isinstance(result, str):
+        if isinstance(result, Partial):
             return None
         return result

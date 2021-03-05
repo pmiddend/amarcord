@@ -1,15 +1,24 @@
 import re
 import datetime
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, List, Optional, TypeVar, Union, cast
 
 from amarcord.util import str_to_float
 
 
-def parse_date_time(input_: str, dtformat: str) -> Union[str, None, datetime.datetime]:
+@dataclass(frozen=True)
+class Partial:
+    returned_input: str
+
+
+def parse_date_time(
+    input_: str, dtformat: str
+) -> Union[Partial, None, datetime.datetime]:
     try:
         return datetime.datetime.strptime(input_, dtformat)
     except:
-        return input_
+        return Partial(input_)
 
 
 T = TypeVar("T")
@@ -19,14 +28,14 @@ def parse_list(
     input_: str,
     elements: Optional[int],
     f: Callable[[str], Union[str, None, T]],
-) -> Union[str, None, List[T]]:
+) -> Union[Partial, None, List[T]]:
     parts: List[str] = re.split(", *", input_)
 
     if parts and parts[-1] == "":
-        return input_
+        return Partial(input_)
 
     if elements is not None and len(parts) < elements:
-        return input_
+        return Partial(input_)
 
     if elements is not None and len(parts) > elements:
         return None
@@ -38,19 +47,19 @@ def parse_list(
             return None
         if not isinstance(part_result, str):
             result.append(part_result)
-    return result if result else input_
+    return result if result else Partial(input_)
 
 
 def parse_string_list(
     input_: str, elements: Optional[int]
-) -> Union[str, None, List[str]]:
+) -> Union[Partial, None, List[str]]:
     parts: List[str] = re.split(", *", input_)
 
     if parts and parts[-1] == "":
-        return input_
+        return Partial(input_)
 
     if elements is not None and len(parts) < elements:
-        return input_
+        return Partial(input_)
 
     if elements is not None and len(parts) > elements:
         return None
@@ -58,17 +67,23 @@ def parse_string_list(
     return parts
 
 
-def parse_float_list(input_: str, elements: int) -> Union[str, None, List[float]]:
+def parse_float_list(input_: str, elements: int) -> Union[Partial, None, List[float]]:
     parts = re.split(", *", input_)
 
     if parts and parts[-1] == "":
-        return input_
+        return Partial(input_)
 
     if len(parts) < elements:
-        return input_
+        return Partial(input_)
 
     if len(parts) > elements:
         return None
 
     floats = [str_to_float(f) for f in parts]
     return cast(List[float], floats) if all(f is not None for f in floats) else None
+
+
+def parse_existing_filename(input_: str) -> Union[Partial, None, str]:
+    if Path(input_).exists():
+        return input_
+    return Partial(input_)
