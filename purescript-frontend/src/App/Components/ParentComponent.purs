@@ -8,7 +8,6 @@ import Control.Semigroupoid ((<<<))
 import Data.Maybe (Maybe(..))
 import Data.Ord (class Ord)
 import Data.Symbol (SProxy(..))
-import Data.Tuple (Tuple(..))
 import Data.Unit (Unit)
 import Halogen as H
 import Halogen.HTML as HH
@@ -19,12 +18,12 @@ import Network.RemoteData (RemoteData(..))
 type ParentError
   = String
 
-type ParentState ci a
-  = { remoteData :: RemoteData String a
-    , childInput :: ci
+type ParentState input tofetch
+  = { remoteData :: RemoteData String tofetch
+    , childInput :: input
     }
 
-data ParentAction a
+data ParentAction tofetch
   = Initialize
   | ChildFailed ParentError
 
@@ -46,19 +45,32 @@ parentRender childComponent state =
       Failure e -> HH.div [ HP.classes [] ] [ HH.p_ [ HH.text "Error loading table:" ], HH.pre_ [ HH.text e ], HH.p_ [ HH.button [ classList [ "btn", "btn-primary" ], HE.onClick \_ -> Just Initialize ] [ HH.text "Retry" ] ] ]
       Success state' -> HH.slot (SProxy :: SProxy "child") state' childComponent ({ remoteData: state', input: state.childInput }) (Just <<< ChildFailed)
 
-parentHandleAction :: forall ci a slots output. AppMonad (RemoteData String a) -> ParentAction a -> H.HalogenM (ParentState ci a) (ParentAction a) slots output AppMonad Unit
+type Fetcher input tofetch
+  = input -> AppMonad (RemoteData String tofetch)
+
+parentHandleAction ::
+  forall input tofetch slots output.
+  Fetcher input tofetch ->
+  ParentAction tofetch ->
+  H.HalogenM (ParentState input tofetch) (ParentAction tofetch) slots output AppMonad Unit
 parentHandleAction fetchState a = case a of
   Initialize -> do
     H.modify_ \state -> state { remoteData = Loading }
-    result <- H.lift fetchState
+    childInput <- H.gets _.childInput
+    result <- H.lift (fetchState childInput)
     H.modify_ \state -> state { remoteData = result }
   ChildFailed e -> do
     H.modify_ \state -> state { remoteData = Failure e }
 
-parentComponent :: forall i q o cq cs. Ord cs => AppMonad (RemoteData String cs) -> H.Component HH.HTML cq (ChildInput i cs) ParentError AppMonad -> H.Component HH.HTML q i o AppMonad
+parentComponent ::
+  forall input query output cq tofetch.
+  Ord tofetch =>
+  Fetcher input tofetch ->
+  H.Component HH.HTML cq (ChildInput input tofetch) ParentError AppMonad ->
+  H.Component HH.HTML query input output AppMonad
 parentComponent fetchState childComponent =
   H.mkComponent
-    { initialState: \ci -> { remoteData: NotAsked, childInput: ci }
+    { initialState: \input -> { remoteData: NotAsked, childInput: input }
     , render: parentRender childComponent
     , eval:
         H.mkEval

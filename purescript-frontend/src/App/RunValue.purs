@@ -7,6 +7,7 @@ import App.RunScalar (RunScalar(..))
 import Data.Argonaut (class DecodeJson, JsonDecodeError(..), decodeJson, isArray, isNumber, isString)
 import Data.Either (Either(..))
 import Data.Int (fromNumber)
+import Data.Lens.Prism (Prism', prism')
 import Data.Maybe (Maybe(..), maybe)
 
 data RunValue
@@ -14,6 +15,7 @@ data RunValue
   | Scalar RunScalar
 
 derive instance eqRunValue :: Eq RunValue
+
 
 runValueScalar :: RunValue -> Maybe RunScalar
 runValueScalar (Scalar r) = Just r
@@ -24,6 +26,8 @@ runValueComments :: RunValue -> Maybe (Array Comment)
 runValueComments (Comments a) = Just a
 runValueComments _ = Nothing
 
+_Comments :: Prism' RunValue (Array Comment)
+_Comments = prism' Comments runValueComments
 
 instance showRunValue :: Show RunValue where
   show (Scalar x) = show x

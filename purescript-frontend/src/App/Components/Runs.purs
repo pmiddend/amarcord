@@ -61,8 +61,8 @@ childComponent =
 combineEithers :: forall a b c. Either a b -> Either a c -> Either a (Tuple b c)
 combineEithers x' y' = Tuple <$> x' <*> y'
 
-fetchInitialData :: AppMonad (RemoteData String (Tuple RunsResponse RunPropertiesResponse))
-fetchInitialData = fromEither <$> (combineEithers <$> retrieveRuns <*> retrieveRunProperties)
+fetchInitialData :: RunsRouteInput -> AppMonad (RemoteData String (Tuple RunsResponse RunPropertiesResponse))
+fetchInitialData _ = fromEither <$> (combineEithers <$> retrieveRuns <*> retrieveRunProperties)
 
 resort :: RunsRouteInput -> Array Run -> Array Run
 resort by = sortBy (comparing (by.sortOrder) (runScalarProperty by.sort))

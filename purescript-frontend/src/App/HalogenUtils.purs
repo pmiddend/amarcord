@@ -19,6 +19,7 @@ classList ::
     t144
 classList = HP.classes <<< map HH.ClassName
 
+singleClass s = classList [ s ]
 
 scope :: forall r i. ScopeValue -> HH.IProp ( scope :: ScopeValue | r ) i
 scope = HH.prop (HH.PropName "scope")
@@ -29,7 +30,7 @@ dismiss = HP.attr (HH.AttrName "data-dismiss")
 makeAlert :: forall w i. String -> String -> HH.HTML w i
 makeAlert alertType content =
   HH.div
-    [ HP.classes [ HH.ClassName ("alert " <> alertType) ], HPA.role "alert" ]
+    [ HP.classes [ HH.ClassName ("alert " <> alertType ) ], HPA.role "alert" ]
     [ HH.text content ]
 
 makeRequestResult :: forall w i. (RemoteData String String) -> HH.HTML w i
