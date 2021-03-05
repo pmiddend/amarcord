@@ -61,8 +61,8 @@ class NumericInputWidget(QLineEdit):
             self.setText("")
         else:
             self.setText(str(value))
-
-        self._text_changed(self.text())
+        #
+        # self._text_changed(self.text())
 
     def value(self) -> Optional[float]:
         return float(self.text()) if self.text() else None

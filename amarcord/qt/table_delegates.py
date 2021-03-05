@@ -242,7 +242,7 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
         _option: QtWidgets.QStyleOptionViewItem,
         _index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
-        return NumericInputWidget(None, self._range, parent)
+        return NumericInputWidget(None, self._range, placeholder=None, parent=parent)
 
     # pylint: disable=no-self-use
     def setEditorData(

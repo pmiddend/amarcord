@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Optional
 
 from PyQt5.QtCore import QVariant, pyqtSignal
@@ -51,7 +50,7 @@ def parse_range(s: str) -> NumericRange:
             else None
         )
         # noinspection PyUnresolvedReferences
-        return NumericRange(float(left_value), left_inclusive, float(right_value), right_inclusive)  # type: ignore
+        return NumericRange(float(left_value) if left_value is not None else None, left_inclusive, float(right_value) if right_value is not None else None, right_inclusive)  # type: ignore
     except le.UnexpectedEOF:
         # pylint: disable=raise-missing-from
         raise UnexpectedEOF()

@@ -93,11 +93,11 @@ class Targets(QWidget):
         root_widget.addWidget(right_widget)
         self._uniprot_edit = DebouncedLineEdit()
         self._short_name_edit = QLineEdit()
-        self._short_name_edit.textChanged.connect(self._short_name_changed)
-        right_form_layout.addRow("Short Name", self._short_name_edit)
+        self._short_name_edit.textEdited.connect(self._short_name_changed)
+        right_form_layout.addRow("Short Name*", self._short_name_edit)
         self._name_edit = QLineEdit()
-        self._name_edit.textChanged.connect(self._name_changed)
-        right_form_layout.addRow("Name", self._name_edit)
+        self._name_edit.textEdited.connect(self._name_changed)
+        right_form_layout.addRow("Name*", self._name_edit)
         self._molecular_weight_edit = NumericInputWidget(
             None,
             NumericRange(
@@ -117,6 +117,7 @@ class Targets(QWidget):
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
         self._submit_widget.setLayout(self._submit_layout)
+        self._edit_button: Optional[QPushButton] = None
         self._add_button = self._create_add_button()
         self._add_button.setEnabled(False)
         self._submit_layout.addWidget(self._add_button)
@@ -148,21 +149,21 @@ class Targets(QWidget):
                     self._reset_input_fields()
                     self._right_headline.setText(NEW_TARGET_HEADLINE)
 
-    def _create_add_button(self):
+    def _create_add_button(self) -> QPushButton:
         b = QPushButton(
             self.style().standardIcon(QStyle.SP_DialogOkButton), "Add target"
         )
         b.clicked.connect(self._add_target)
         return b
 
-    def _create_edit_button(self):
+    def _create_edit_button(self) -> QPushButton:
         b = QPushButton(
             self.style().standardIcon(QStyle.SP_BrowserReload), "Edit target"
         )
         b.clicked.connect(self._edit_target)
         return b
 
-    def _create_cancel_button(self):
+    def _create_cancel_button(self) -> QPushButton:
         b = QPushButton(
             self.style().standardIcon(QStyle.SP_DialogCancelButton), "Cancel"
         )
@@ -178,8 +179,10 @@ class Targets(QWidget):
         self._uniprot_edit.setText(self._current_target.uniprot_id)
         self._molecular_weight = self._current_target.molecular_weight
         self._clear_submit()
-        self._submit_layout.addWidget(self._create_edit_button())
+        self._edit_button = self._create_edit_button()
+        self._submit_layout.addWidget(self._edit_button)
         self._submit_layout.addWidget(self._create_cancel_button())
+        self._reset_button()
 
     def _clear_submit(self):
         while True:
@@ -189,10 +192,15 @@ class Targets(QWidget):
             if result is None:
                 break
 
+        self._add_button = None
+        self._edit_button = None
+
     def _cancel_edit(self) -> None:
         self._clear_submit()
-        self._submit_layout.addWidget(self._create_add_button())
+        self._add_button = self._create_add_button()
+        self._submit_layout.addWidget(self._add_button)
         self._reset_input_fields()
+        self._reset_button()
         self._right_headline.setText(NEW_TARGET_HEADLINE)
 
     def _uniprot_change(self, new_uniprot: str) -> None:
@@ -229,17 +237,24 @@ class Targets(QWidget):
             self._current_target = replace(self._current_target, molecular_weight=value)
         self._reset_button()
 
-    def _button_enabled(self) -> bool:
+    def _submit_button_enabled(self) -> bool:
         return (
             bool(self._current_target.short_name)
             and bool(self._current_target.name)
-            and not isinstance(self._molecular_weight, str)
-            and self._current_target.short_name
-            not in [t.short_name for t in self._targets]
+            and self._molecular_weight_edit.valid_value()
+            and (
+                self._current_target.id is not None
+                or self._current_target.short_name
+                not in [t.short_name for t in self._targets]
+            )
         )
 
     def _reset_button(self) -> None:
-        self._add_button.setEnabled(self._button_enabled())
+        if self._add_button is not None:
+            self._add_button.setEnabled(self._submit_button_enabled())
+        else:
+            assert self._edit_button is not None
+            self._edit_button.setEnabled(self._submit_button_enabled())
 
     def _short_name_changed(self, new_name: str) -> None:
         self._current_target = replace(self._current_target, short_name=new_name)
@@ -265,7 +280,12 @@ class Targets(QWidget):
 
         for row, t in enumerate(self._targets):
             for col, s in enumerate(
-                (t.short_name, t.name, str(t.molecular_weight), t.uniprot_id)
+                (
+                    t.short_name,
+                    t.name,
+                    str(t.molecular_weight) if t.molecular_weight is not None else None,
+                    t.uniprot_id,
+                )
             ):
                 self._target_table.setItem(row, col, QTableWidgetItem(s))
 

@@ -5,8 +5,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import List, Optional, Union, cast
 
-from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
-from PyQt5.QtGui import QContextMenuEvent
+from PyQt5.QtCore import QModelIndex, QUrl, Qt, pyqtSignal
+from PyQt5.QtGui import QContextMenuEvent, QDesktopServices
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -74,10 +74,11 @@ def _empty_sample():
         filters=None,
         compounds=None,
         micrograph=None,
+        protocol=None,
     )
 
 
-def _validate_pubchem(s: str) -> Union[int, str, None]:
+def _validate_pubchem(s: str) -> Union[int, Partial, None]:
     si = str_to_int(s)
     if si is not None and validate_pubchem_compound(si):
         return si
@@ -323,6 +324,29 @@ class Samples(QWidget):
         micrograph_layout.addWidget(choose_micrograph_button)
         right_form_layout.addRow("Micrograph", micrograph_layout)
 
+        protocol_layout = QHBoxLayout()
+        protocol_layout.setContentsMargins(0, 0, 0, 0)
+        self._protocol_edit = ValidatedLineEdit(
+            None,
+            lambda p: p,  # type: ignore
+            parse_existing_filename,
+            "Absolute path to file",
+        )
+        self._protocol_edit.value_change.connect(self._protocol_change)
+        protocol_layout.addWidget(self._protocol_edit)
+        choose_protocol_button = QPushButton(
+            self.style().standardIcon(QStyle.SP_DialogOpenButton), "Browse..."
+        )
+        self._open_protocol_button = QPushButton(
+            self.style().standardIcon(QStyle.SP_FileDialogContentsView), "Open"
+        )
+        self._open_protocol_button.setEnabled(False)
+        self._open_protocol_button.clicked.connect(self._open_protocol)
+        choose_protocol_button.clicked.connect(self._choose_protocol)
+        protocol_layout.addWidget(self._open_protocol_button)
+        protocol_layout.addWidget(choose_protocol_button)
+        right_form_layout.addRow("Protocol", protocol_layout)
+
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
@@ -338,6 +362,23 @@ class Samples(QWidget):
     def _display_micrograph(self) -> None:
         assert self._current_sample.micrograph is not None
         display_image_viewer(Path(self._current_sample.micrograph), parent=self)
+
+    def _open_protocol(self) -> None:
+        assert self._current_sample.protocol is not None
+        QDesktopServices.openUrl(QUrl(f"file://{self._current_sample.protocol}"))
+
+    def _choose_protocol(self) -> None:
+        result, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose a protocol file",
+            str(self._proposal_file_path),
+        )
+        if not result:
+            return
+
+        self._protocol_edit.setText(result)
+        self._current_sample = replace(self._current_sample, protocol=result)
+        self._open_protocol_button.setEnabled(True)
 
     def _choose_micrograph(self) -> None:
         result, _ = QFileDialog.getOpenFileName(
@@ -422,6 +463,7 @@ class Samples(QWidget):
             else None
         )
         self._micrograph_edit.set_value(self._current_sample.micrograph)
+        self._protocol_edit.set_value(self._current_sample.protocol)
         self._shaking_strength_edit.set_value(self._current_sample.shaking_strength)
         # noinspection PyTypeChecker
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
@@ -484,6 +526,7 @@ class Samples(QWidget):
         self._filters_edit.set_value(None)
         self._compounds_edit.set_value(None)
         self._micrograph_edit.set_value(None)
+        self._protocol_edit.set_value(None)
         self._incubation_time_edit.set_value(None)
         self._crystal_settlement_volume_edit.set_value(None)
         self._crystal_buffer_edit.setText("")
@@ -540,10 +583,15 @@ class Samples(QWidget):
     def _micrograph_change(self, value: str) -> None:
         if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, micrograph=value)
-        print(f"new micrograph: {self._current_sample.micrograph is not None}")
         self._display_micrograph_button.setEnabled(
             self._current_sample.micrograph is not None
         )
+        self._reset_button()
+
+    def _protocol_change(self, value: str) -> None:
+        if not isinstance(value, Partial):
+            self._current_sample = replace(self._current_sample, protocol=value)
+        self._open_protocol_button.setEnabled(self._current_sample.protocol is not None)
         self._reset_button()
 
     def _compounds_change(self, value: Union[str, List[int]]) -> None:

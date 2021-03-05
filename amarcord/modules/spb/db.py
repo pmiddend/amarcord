@@ -83,6 +83,7 @@ class DBSample:
     filters: Optional[List[str]]
     compounds: Optional[List[int]]
     micrograph: Optional[str]
+    protocol: Optional[str]
 
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
@@ -667,6 +668,7 @@ class DB:
                 filters=row["filters"],
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
+                protocol=row["protocol"],
             )
             for row in conn.execute(
                 sa.select(
@@ -691,6 +693,7 @@ class DB:
                         tc.filters,
                         tc.compounds,
                         tc.micrograph,
+                        tc.protocol,
                     ]
                 ).order_by(tc.id)
             ).fetchall()
@@ -719,6 +722,7 @@ class DB:
                 filters=t.filters,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
+                protocol=t.protocol,
             )
         )
 
@@ -746,6 +750,7 @@ class DB:
                 filters=t.filters,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
+                protocol=t.protocol,
             )
             .where(self.tables.sample.c.id == t.id)
         )
