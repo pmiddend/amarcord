@@ -81,6 +81,7 @@ class DBSample:
     creator: str
     crystallization_method: str
     filters: Optional[List[str]]
+    compounds: Optional[List[int]]
 
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
@@ -663,6 +664,7 @@ class DB:
                 creator=row["creator"],
                 crystallization_method=row["crystallization_method"],
                 filters=row["filters"],
+                compounds=row["compounds"],
             )
             for row in conn.execute(
                 sa.select(
@@ -685,6 +687,7 @@ class DB:
                         tc.creator,
                         tc.crystallization_method,
                         tc.filters,
+                        tc.compounds,
                     ]
                 ).order_by(tc.id)
             ).fetchall()
@@ -711,6 +714,7 @@ class DB:
                 creator=t.creator,
                 crystallization_method=t.crystallization_method,
                 filters=t.filters,
+                compounds=t.compounds,
             )
         )
 
@@ -736,6 +740,7 @@ class DB:
                 creator=t.creator,
                 crystallization_method=t.crystallization_method,
                 filters=t.filters,
+                compounds=t.compounds,
             )
             .where(self.tables.sample.c.id == t.id)
         )

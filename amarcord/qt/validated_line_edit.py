@@ -1,7 +1,7 @@
 import logging
 from typing import Callable, Optional, Tuple, Union
 
-from PyQt5.QtCore import QObject, QVariant, pyqtSignal
+from PyQt5.QtCore import QObject, QTimer, QVariant, pyqtSignal
 from PyQt5.QtGui import QValidator
 from PyQt5.QtWidgets import QLineEdit, QWidget
 
@@ -58,6 +58,7 @@ class ValidatedLineEdit(QLineEdit):
             self.setText(self._to_string(value))
 
         self.textEdited.connect(self._text_changed)
+
         self.setValidator(_Validator(from_string))
         if placeholder is not None:
             self.setPlaceholderText(placeholder)

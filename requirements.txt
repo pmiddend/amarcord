@@ -56,6 +56,7 @@ Pillow==8.1.0
 Pint==0.16.1
 pluggy==0.13.1
 psutil==5.8.0
+PubChemPy==1.0.4
 py==1.10.0
 pycparser==2.20
 PyInstaller==3.4

@@ -30,8 +30,15 @@ from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
+from amarcord.qt.pubchem import validate_pubchem_compound
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
-from amarcord.qt.validators import parse_date_time, parse_float_list, parse_string_list
+from amarcord.qt.validators import (
+    parse_date_time,
+    parse_float_list,
+    parse_list,
+    parse_string_list,
+)
+from amarcord.util import str_to_int
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -60,7 +67,15 @@ def _empty_sample():
         creator=getpass.getuser(),
         crystallization_method="",
         filters=None,
+        compounds=None,
     )
+
+
+def _validate_pubchem(s: str) -> Union[int, str, None]:
+    si = str_to_int(s)
+    if si is not None and validate_pubchem_compound(si):
+        return si
+    return None
 
 
 class _SampleTable(QTableWidget):
@@ -251,6 +266,15 @@ class Samples(QWidget):
         self._filters_edit.value_change.connect(self._filters_change)
         right_form_layout.addRow("Filters", self._filters_edit)
 
+        self._compounds_edit = ValidatedLineEdit(
+            None,
+            lambda str_list: ", ".join(str(s) for s in str_list),  # type: ignore
+            lambda str_list_str: parse_list(str_list_str, None, _validate_pubchem),  # type: ignore
+            "list of pubchem CIDs, separated by commas",
+        )
+        self._compounds_edit.value_change.connect(self._compounds_change)
+        right_form_layout.addRow("Compounds", self._compounds_edit)
+
         self._incubation_time_edit = ValidatedLineEdit(
             None,
             lambda pydatetime: pydatetime.strftime(DATE_TIME_FORMAT),  # type: ignore
@@ -348,6 +372,8 @@ class Samples(QWidget):
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
         # noinspection PyTypeChecker
         self._filters_edit.set_value(self._current_sample.filters)  # type: ignore
+        # noinspection PyTypeChecker
+        self._compounds_edit.set_value(self._current_sample.compounds)  # type: ignore
         self._incubation_time_edit.setText(
             self._current_sample.incubation_time.strftime(DATE_TIME_FORMAT)
             if self._current_sample.incubation_time is not None
@@ -401,6 +427,7 @@ class Samples(QWidget):
         self._crystallization_temperature_edit.set_value(None)
         self._crystal_shape_edit.set_value(None)
         self._filters_edit.set_value(None)
+        self._compounds_edit.set_value(None)
         self._incubation_time_edit.set_value(None)
         self._crystal_settlement_volume_edit.set_value(None)
         self._crystal_buffer_edit.setText("")
@@ -452,6 +479,11 @@ class Samples(QWidget):
     def _filters_change(self, value: Union[str, List[str]]) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(self._current_sample, filters=value)
+        self._reset_button()
+
+    def _compounds_change(self, value: Union[str, List[int]]) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(self._current_sample, compounds=value)
         self._reset_button()
 
     def _crystal_buffer_change(self, value: str) -> None:
@@ -507,6 +539,7 @@ class Samples(QWidget):
             and self._protein_concentration_edit.valid_value()
             and self._crystal_settlement_volume_edit.valid_value()
             and self._filters_edit.valid_value()
+            and self._compounds_edit.valid_value()
         )
 
     def _reset_button(self) -> None:
@@ -548,6 +581,7 @@ class Samples(QWidget):
             "Creator",
             "Crystallization Method",
             "Filters",
+            "Compounds",
         ]
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
@@ -592,6 +626,7 @@ class Samples(QWidget):
                     sample.creator,
                     sample.crystallization_method,
                     ", ".join(sample.filters) if sample.filters is not None else "",
+                    ", ".join(sample.compounds) if sample.compounds is not None else "",
                 )
             ):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))
