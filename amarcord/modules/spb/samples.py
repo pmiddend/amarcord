@@ -2,7 +2,7 @@ import datetime
 import getpass
 import logging
 from dataclasses import replace
-from typing import List, Optional, Union
+from typing import List, Optional, Union, cast
 
 from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent
@@ -27,6 +27,7 @@ from amarcord.modules.context import Context
 from amarcord.modules.spb.db import DB, DBSample
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.numeric_range import NumericRange
+from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
@@ -113,6 +114,14 @@ class Samples(QWidget):
         right_root_layout.addStretch()
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
+
+        self._target_id_edit = ComboBox[int](items=[], selected=None)
+        right_form_layout.addRow(
+            "Target",
+            self._target_id_edit,
+        )
+        self._target_id_edit.item_selected.connect(self._target_id_change)
+
         self._crystal_settlement_volume_edit = NumericInputWidget(
             None,
             NumericRange(
@@ -315,6 +324,7 @@ class Samples(QWidget):
         self._comment_edit.setText(self._current_sample.comment)
         self._seed_stock_used_edit.setText(self._current_sample.seed_stock_used)
         self._plate_origin_edit.setText(self._current_sample.plate_origin)
+        self._target_id_edit.set_current_value(self._current_sample.target_id)
         self._creator_edit.setText(self._current_sample.creator)
         self._crystallization_method_edit.setText(
             self._current_sample.crystallization_method
@@ -396,6 +406,10 @@ class Samples(QWidget):
         self._crystal_buffer_edit.setText("")
         self._current_sample = _empty_sample()
         self._protein_concentration_edit.set_value(None)
+
+    def _target_id_change(self, new_id: int) -> None:
+        self._current_sample = replace(self._current_sample, target_id=new_id)
+        self._reset_button()
 
     def _comment_edit_change(self, new_comment: str) -> None:
         self._current_sample = replace(self._current_sample, comment=new_comment)
@@ -511,6 +525,9 @@ class Samples(QWidget):
             self._samples = self._db.retrieve_samples(conn)
             self._targets = self._db.retrieve_targets(conn)
 
+        self._target_id_edit.reset_items(
+            [(s.short_name, cast(int, s.id)) for s in self._targets]
+        )
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._sample_table.clear()
         headers = [
@@ -530,6 +547,7 @@ class Samples(QWidget):
             "Plate Origin",
             "Creator",
             "Crystallization Method",
+            "Filters",
         ]
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
@@ -573,6 +591,7 @@ class Samples(QWidget):
                     sample.plate_origin,
                     sample.creator,
                     sample.crystallization_method,
+                    ", ".join(sample.filters) if sample.filters is not None else "",
                 )
             ):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))

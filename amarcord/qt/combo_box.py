@@ -15,13 +15,17 @@ class ComboBox(QComboBox, Generic[T]):
     item_selected = pyqtSignal(QVariant)
 
     def __init__(
-        self, items: List[Tuple[str, T]], selected: T, parent: Optional[QWidget] = None
+        self,
+        items: List[Tuple[str, T]],
+        selected: Optional[T],
+        parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
         self.items = items
         self.addItems([i[0] for i in self.items])
-        self.setCurrentIndex(cast(int, self._index_for_value(selected)))
+        if selected is not None:
+            self.setCurrentIndex(cast(int, self._index_for_value(selected)))
         self.currentIndexChanged.connect(self._index_changed)
 
     def reset_items(self, new_items: List[Tuple[str, T]]):

@@ -178,6 +178,11 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         first_target_id = conn.execute(
             tables.target.insert().values(name="Main Protease", short_name="MPro")
         ).inserted_primary_key[0]
+        second_target_id = conn.execute(
+            tables.target.insert().values(
+                name="Protein Like Protease", short_name="PlPro"
+            )
+        ).inserted_primary_key[0]
 
         # Create samples
         first_sample_result = conn.execute(
