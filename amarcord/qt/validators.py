@@ -1,6 +1,6 @@
 import re
 import datetime
-from typing import List, Union, cast
+from typing import List, Optional, Union, cast
 
 from amarcord.util import str_to_float
 
@@ -10,6 +10,23 @@ def parse_date_time(input_: str, dtformat: str) -> Union[str, None, datetime.dat
         return datetime.datetime.strptime(input_, dtformat)
     except:
         return input_
+
+
+def parse_string_list(
+    input_: str, elements: Optional[int]
+) -> Union[str, None, List[str]]:
+    parts: List[str] = re.split(", *", input_)
+
+    if parts and parts[-1] == "":
+        return input_
+
+    if elements is not None and len(parts) < elements:
+        return input_
+
+    if elements is not None and len(parts) > elements:
+        return None
+
+    return parts
 
 
 def parse_float_list(input_: str, elements: int) -> Union[str, None, List[float]]:

@@ -30,7 +30,7 @@ from amarcord.numeric_range import NumericRange
 from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
-from amarcord.qt.validators import parse_date_time, parse_float_list
+from amarcord.qt.validators import parse_date_time, parse_float_list, parse_string_list
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -58,6 +58,7 @@ def _empty_sample():
         plate_origin="",
         creator=getpass.getuser(),
         crystallization_method="",
+        filters=None,
     )
 
 
@@ -197,7 +198,7 @@ class Samples(QWidget):
             self._comment_edit,
         )
         self._comment_edit.textEdited.connect(self._comment_edit_change)
-        self._creator_edit = QLineEdit()
+        self._creator_edit = QLineEdit(getpass.getuser())
         right_form_layout.addRow(
             "Creator",
             self._creator_edit,
@@ -231,6 +232,16 @@ class Samples(QWidget):
         )
         self._crystal_shape_edit.value_change.connect(self._crystal_shape_change)
         right_form_layout.addRow("Crystal shape", self._crystal_shape_edit)
+
+        self._filters_edit = ValidatedLineEdit(
+            None,
+            lambda str_list: ", ".join(str(s) for s in str_list),  # type: ignore
+            lambda str_list_str: parse_string_list(str_list_str, None),  # type: ignore
+            "list of filters, separated by commas",
+        )
+        self._filters_edit.value_change.connect(self._filters_change)
+        right_form_layout.addRow("Filters", self._filters_edit)
+
         self._incubation_time_edit = ValidatedLineEdit(
             None,
             lambda pydatetime: pydatetime.strftime(DATE_TIME_FORMAT),  # type: ignore
@@ -325,6 +336,8 @@ class Samples(QWidget):
         self._shaking_strength_edit.set_value(self._current_sample.shaking_strength)
         # noinspection PyTypeChecker
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
+        # noinspection PyTypeChecker
+        self._filters_edit.set_value(self._current_sample.filters)  # type: ignore
         self._incubation_time_edit.setText(
             self._current_sample.incubation_time.strftime(DATE_TIME_FORMAT)
             if self._current_sample.incubation_time is not None
@@ -377,6 +390,7 @@ class Samples(QWidget):
         self._shaking_time_edit.set_value(None)
         self._crystallization_temperature_edit.set_value(None)
         self._crystal_shape_edit.set_value(None)
+        self._filters_edit.set_value(None)
         self._incubation_time_edit.set_value(None)
         self._crystal_settlement_volume_edit.set_value(None)
         self._crystal_buffer_edit.setText("")
@@ -419,6 +433,11 @@ class Samples(QWidget):
     def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(self._current_sample, crystal_shape=value)
+        self._reset_button()
+
+    def _filters_change(self, value: Union[str, List[str]]) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(self._current_sample, filters=value)
         self._reset_button()
 
     def _crystal_buffer_change(self, value: str) -> None:
@@ -473,6 +492,7 @@ class Samples(QWidget):
             and self._shaking_strength_edit.valid_value()
             and self._protein_concentration_edit.valid_value()
             and self._crystal_settlement_volume_edit.valid_value()
+            and self._filters_edit.valid_value()
         )
 
     def _reset_button(self) -> None:

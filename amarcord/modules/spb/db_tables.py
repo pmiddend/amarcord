@@ -62,6 +62,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("plate_origin", sa.String, nullable=False, default=""),
         sa.Column("creator", sa.String, nullable=False, default=""),
         sa.Column("crystallization_method", sa.String, nullable=False, default=""),
+        sa.Column("filters", sa.JSON, nullable=True),
     )
 
 
