@@ -80,7 +80,7 @@ class DBSample:
     plate_origin: str
     creator: str
     crystallization_method: str
-    filters: List[str]
+    filters: Optional[List[str]]
 
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
