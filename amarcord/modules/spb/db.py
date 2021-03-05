@@ -73,6 +73,7 @@ class DBSample:
     crystallization_temperature: Optional[float]
     shaking_time: Optional[datetime.timedelta]
     shaking_strength: Optional[float]
+    protein_concentration: Optional[float]
     comment: str
 
 
@@ -648,6 +649,7 @@ class DB:
                 if row["shaking_time_seconds"] is not None
                 else None,
                 shaking_strength=row["shaking_strength"],
+                protein_concentration=row["protein_concentration"],
                 comment=row["comment"],
             )
             for row in conn.execute(
@@ -663,6 +665,7 @@ class DB:
                         tc.crystallization_temperature,
                         tc.shaking_time_seconds,
                         tc.shaking_strength,
+                        tc.protein_concentration,
                         tc.comment,
                     ]
                 ).order_by(tc.id)
@@ -682,6 +685,7 @@ class DB:
                 if t.shaking_time is not None
                 else None,
                 shaking_strength=t.shaking_strength,
+                protein_concentration=t.protein_concentration,
                 comment=t.comment,
             )
         )
@@ -700,6 +704,7 @@ class DB:
                 if t.shaking_time is not None
                 else None,
                 shaking_strength=t.shaking_strength,
+                protein_concentration=t.protein_concentration,
                 comment=t.comment,
             )
             .where(self.tables.sample.c.id == t.id)

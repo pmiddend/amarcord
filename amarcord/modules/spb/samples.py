@@ -48,6 +48,7 @@ def _empty_sample():
         incubation_time=None,
         crystal_buffer=None,
         crystallization_temperature=None,
+        protein_concentration=None,
         shaking_time=None,
         shaking_strength=None,
         comment="",
@@ -140,6 +141,20 @@ class Samples(QWidget):
         right_form_layout.addRow(
             "Crystallization Temperature",
             self._crystallization_temperature_edit,
+        )
+        self._protein_concentration_edit = NumericInputWidget(
+            None,
+            NumericRange(
+                0.0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
+            ),
+            placeholder="Value in mg/mL",
+        )
+        self._protein_concentration_edit.value_change.connect(
+            self._protein_concentration_change
+        )
+        right_form_layout.addRow(
+            "Protein concentration",
+            self._protein_concentration_edit,
         )
         self._shaking_time_edit = ValidatedLineEdit(
             None,
@@ -306,6 +321,7 @@ class Samples(QWidget):
         self._incubation_time_edit.set_value(None)
         self._crystal_buffer_edit.setText("")
         self._current_sample = _empty_sample()
+        self._protein_concentration_edit.set_value(None)
 
     def _comment_edit_change(self, new_comment: str) -> None:
         self._current_sample = replace(self._current_sample, comment=new_comment)
@@ -337,6 +353,13 @@ class Samples(QWidget):
             )
         self._reset_button()
 
+    def _protein_concentration_change(self, value: NumericInputValue) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(
+                self._current_sample, protein_concentration=value
+            )
+        self._reset_button()
+
     def _shaking_strength_change(self, value: NumericInputValue) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(self._current_sample, shaking_strength=value)
@@ -357,6 +380,7 @@ class Samples(QWidget):
             and self._crystallization_temperature_edit.valid_value()
             and self._shaking_time_edit.valid_value()
             and self._shaking_strength_edit.valid_value()
+            and self._protein_concentration_edit.valid_value()
         )
 
     def _reset_button(self) -> None:
