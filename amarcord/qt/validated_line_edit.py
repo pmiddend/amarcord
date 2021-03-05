@@ -76,7 +76,7 @@ class ValidatedLineEdit(QLineEdit):
     def valid_value(self) -> bool:
         return self.validator().validate(self.text(), 0)[0] == QValidator.Acceptable
 
-    def set_value(self, value: QVariant) -> None:
+    def set_value(self, value: Optional[QVariant]) -> None:
         if isinstance(value, str):
             self.setText(value)
         elif value is None:

@@ -55,6 +55,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("crystal_buffer", sa.String(length=255), nullable=True),
         sa.Column("shaking_time_seconds", sa.Integer, nullable=True),
         sa.Column("shaking_strength", sa.Float, nullable=True),
+        sa.Column("comment", sa.String(length=255), nullable=False, default=""),
     )
 
 

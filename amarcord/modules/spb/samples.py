@@ -50,6 +50,7 @@ def _empty_sample():
         crystallization_temperature=None,
         shaking_time=None,
         shaking_strength=None,
+        comment="",
     )
 
 
@@ -155,6 +156,12 @@ class Samples(QWidget):
             "Shaking time",
             self._shaking_time_edit,
         )
+        self._comment_edit = QLineEdit()
+        right_form_layout.addRow(
+            "Comment",
+            self._comment_edit,
+        )
+        self._comment_edit.textEdited.connect(self._comment_edit_change)
         self._crystal_shape_edit = ValidatedLineEdit(
             None,
             lambda float_list: ", ".join(str(s) for s in float_list),  # type: ignore
@@ -233,6 +240,7 @@ class Samples(QWidget):
     def _slot_row_selected(self, index: QModelIndex) -> None:
         self._current_sample = self._samples[index.row()]
         self._right_headline.setText(f"Edit sample “{self._current_sample.id}”")
+        self._comment_edit.setText(self._current_sample.comment)
         self._average_crystal_size_edit.set_value(
             self._current_sample.average_crystal_size
         )
@@ -290,7 +298,18 @@ class Samples(QWidget):
 
     def _reset_input_fields(self):
         self._average_crystal_size_edit.set_value(None)
+        self._comment_edit.setText("")
+        self._shaking_strength_edit.set_value(None)
+        self._shaking_time_edit.set_value(None)
+        self._crystallization_temperature_edit.set_value(None)
+        self._crystal_shape_edit.set_value(None)
+        self._incubation_time_edit.set_value(None)
+        self._crystal_buffer_edit.setText("")
         self._current_sample = _empty_sample()
+
+    def _comment_edit_change(self, new_comment: str) -> None:
+        self._current_sample = replace(self._current_sample, comment=new_comment)
+        self._reset_button()
 
     def _shaking_time_change(self, value: Union[str, datetime.timedelta]) -> None:
         if not isinstance(value, str):
