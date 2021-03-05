@@ -54,6 +54,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("crystallization_temperature", sa.Float, nullable=True),
         sa.Column("crystal_buffer", sa.String(length=255), nullable=True),
         sa.Column("shaking_time_seconds", sa.Integer, nullable=True),
+        sa.Column("shaking_strength", sa.Float, nullable=True),
     )
 
 
@@ -281,32 +282,3 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         #         )
         #     )
     logger.info("Done")
-
-
-def run_property_db_columns(
-    tables: DBTables, with_blobs: bool = True
-) -> List[sa.Column]:
-    return [
-        x
-        for x in tables.run.c.values()
-        if with_blobs or not isinstance(x.type, sa.BLOB)
-    ]
-
-
-def run_property_atomic_db_columns(tables: DBTables) -> List[sa.Column]:
-    return [
-        tables.run.c.id,
-        tables.run.c.status,
-        tables.run.c.sample_id,
-        tables.run.c.started,
-        tables.run.c.repetition_rate_mhz,
-        tables.run.c.pulse_energy_mj,
-        tables.run.c.hit_rate,
-        tables.run.c.indexing_rate,
-        tables.run.c.xray_energy_kev,
-        tables.run.c.injector_position_z_mm,
-        tables.run.c.detector_distance_mm,
-        tables.run.c.injector_flow_rate,
-        tables.run.c.trains,
-        tables.run.c.sample_delivery_rate,
-    ]

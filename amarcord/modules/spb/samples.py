@@ -49,6 +49,7 @@ def _empty_sample():
         crystal_buffer=None,
         crystallization_temperature=None,
         shaking_time=None,
+        shaking_strength=None,
     )
 
 
@@ -103,6 +104,14 @@ class Samples(QWidget):
         right_root_layout.addStretch()
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
+        self._shaking_strength_edit = NumericInputWidget(
+            None,
+            NumericRange(
+                0.0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
+            ),
+            placeholder="Value in RPM",
+        )
+        self._shaking_strength_edit.value_change.connect(self._shaking_strength_change)
         self._average_crystal_size_edit = NumericInputWidget(
             None,
             NumericRange(
@@ -138,6 +147,10 @@ class Samples(QWidget):
             "example: 1 day, 5 hours, 30 minutes",
         )
         self._shaking_time_edit.value_change.connect(self._shaking_time_change)
+        right_form_layout.addRow(
+            "Shaking Strength",
+            self._shaking_strength_edit,
+        )
         right_form_layout.addRow(
             "Shaking time",
             self._shaking_time_edit,
@@ -231,6 +244,7 @@ class Samples(QWidget):
             if self._current_sample.shaking_time is not None
             else None
         )
+        self._shaking_strength_edit.set_value(self._current_sample.shaking_strength)
         # noinspection PyTypeChecker
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
         self._incubation_time_edit.setText(
@@ -304,6 +318,11 @@ class Samples(QWidget):
             )
         self._reset_button()
 
+    def _shaking_strength_change(self, value: NumericInputValue) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(self._current_sample, shaking_strength=value)
+        self._reset_button()
+
     def _average_crystal_size_change(self, value: NumericInputValue) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(
@@ -318,6 +337,7 @@ class Samples(QWidget):
             and self._incubation_time_edit.valid_value()
             and self._crystallization_temperature_edit.valid_value()
             and self._shaking_time_edit.valid_value()
+            and self._shaking_strength_edit.valid_value()
         )
 
     def _reset_button(self) -> None:
@@ -376,6 +396,9 @@ class Samples(QWidget):
                     ],
                     print_natural_delta(sample.shaking_time)
                     if sample.shaking_time is not None
+                    else "",
+                    sample.shaking_strength
+                    if sample.shaking_strength is not None
                     else "",
                 )
             ):
