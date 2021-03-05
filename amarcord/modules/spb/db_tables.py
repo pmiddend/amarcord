@@ -53,6 +53,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("incubation_time", sa.DateTime, nullable=True),
         sa.Column("crystallization_temperature", sa.Float, nullable=True),
         sa.Column("crystal_buffer", sa.String(length=255), nullable=True),
+        sa.Column("shaking_time_seconds", sa.Integer, nullable=True),
     )
 
 

@@ -26,9 +26,10 @@ from amarcord.modules.context import Context
 from amarcord.modules.spb.db import DB, DBSample
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.numeric_range import NumericRange
-from amarcord.qt.validators import parse_date_time, parse_float_list
+from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
+from amarcord.qt.validators import parse_date_time, parse_float_list
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -47,6 +48,7 @@ def _empty_sample():
         incubation_time=None,
         crystal_buffer=None,
         crystallization_temperature=None,
+        shaking_time=None,
     )
 
 
@@ -128,6 +130,17 @@ class Samples(QWidget):
         right_form_layout.addRow(
             "Crystallization Temperature",
             self._crystallization_temperature_edit,
+        )
+        self._shaking_time_edit = ValidatedLineEdit(
+            None,
+            print_natural_delta,
+            parse_natural_delta,
+            "example: 1 day, 5 hours, 30 minutes",
+        )
+        self._shaking_time_edit.value_change.connect(self._shaking_time_change)
+        right_form_layout.addRow(
+            "Shaking time",
+            self._shaking_time_edit,
         )
         self._crystal_shape_edit = ValidatedLineEdit(
             None,
@@ -213,6 +226,11 @@ class Samples(QWidget):
         self._crystallization_temperature_edit.set_value(
             self._current_sample.crystallization_temperature
         )
+        self._shaking_time_edit.set_value(
+            self._current_sample.shaking_time
+            if self._current_sample.shaking_time is not None
+            else None
+        )
         # noinspection PyTypeChecker
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
         self._incubation_time_edit.setText(
@@ -260,6 +278,11 @@ class Samples(QWidget):
         self._average_crystal_size_edit.set_value(None)
         self._current_sample = _empty_sample()
 
+    def _shaking_time_change(self, value: Union[str, datetime.timedelta]) -> None:
+        if not isinstance(value, str):
+            self._current_sample = replace(self._current_sample, shaking_time=value)
+        self._reset_button()
+
     def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
         if not isinstance(value, str):
             self._current_sample = replace(self._current_sample, crystal_shape=value)
@@ -294,6 +317,7 @@ class Samples(QWidget):
             and self._crystal_shape_edit.valid_value()
             and self._incubation_time_edit.valid_value()
             and self._crystallization_temperature_edit.valid_value()
+            and self._shaking_time_edit.valid_value()
         )
 
     def _reset_button(self) -> None:
@@ -323,6 +347,7 @@ class Samples(QWidget):
             "Avg Crystal Size",
             "Crystal Shape",
             "Target",
+            "Shaking Time",
         ]
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
@@ -349,6 +374,9 @@ class Samples(QWidget):
                     [t.short_name for t in self._targets if sample.target_id == t.id][
                         0
                     ],
+                    print_natural_delta(sample.shaking_time)
+                    if sample.shaking_time is not None
+                    else "",
                 )
             ):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))

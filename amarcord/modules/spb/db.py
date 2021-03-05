@@ -71,6 +71,7 @@ class DBSample:
     incubation_time: Optional[datetime.datetime]
     crystal_buffer: Optional[str]
     crystallization_temperature: Optional[float]
+    shaking_time: Optional[datetime.timedelta]
 
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
@@ -641,6 +642,9 @@ class DB:
                 incubation_time=row["incubation_time"],
                 crystal_buffer=row["crystal_buffer"],
                 crystallization_temperature=row["crystallization_temperature"],
+                shaking_time=datetime.timedelta(seconds=row["shaking_time_seconds"])
+                if row["shaking_time_seconds"] is not None
+                else None,
             )
             for row in conn.execute(
                 sa.select(
@@ -653,6 +657,7 @@ class DB:
                         tc.incubation_time,
                         tc.crystal_buffer,
                         tc.crystallization_temperature,
+                        tc.shaking_time_seconds,
                     ]
                 ).order_by(tc.id)
             ).fetchall()
@@ -667,6 +672,9 @@ class DB:
                 incubation_time=t.incubation_time,
                 crystal_buffer=t.crystal_buffer,
                 crystallization_temperature=t.crystallization_temperature,
+                shaking_time_seconds=int(t.shaking_time.total_seconds())
+                if t.shaking_time is not None
+                else None,
             )
         )
 
@@ -680,6 +688,9 @@ class DB:
                 incubation_time=t.incubation_time,
                 crystal_buffer=t.crystal_buffer,
                 crystallization_temperature=t.crystallization_temperature,
+                shaking_time_seconds=int(t.shaking_time.total_seconds())
+                if t.shaking_time is not None
+                else None,
             )
             .where(self.tables.sample.c.id == t.id)
         )

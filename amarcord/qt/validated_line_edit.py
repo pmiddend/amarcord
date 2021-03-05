@@ -28,7 +28,8 @@ class _Validator(QValidator):
             return QValidator.Intermediate, input_, pos
 
         if result is None:
-            return QValidator.Invalid, input_, pos
+            return QValidator.Intermediate, input_, pos
+            # return QValidator.Invalid, input_, pos
 
         return QValidator.Acceptable, input_, pos
 
