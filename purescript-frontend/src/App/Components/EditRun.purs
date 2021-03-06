@@ -1,33 +1,22 @@
 module App.Components.EditRun where
 
 import Prelude hiding (comparing)
-import App.API (RunPropertiesResponse, RunResponse, RunsResponse, addComment, retrieveRun, retrieveRunProperties, retrieveRuns)
+
+import App.API (RunResponse, addComment, retrieveRun)
 import App.AppMonad (AppMonad)
-import App.Autocomplete as Autocomplete
+import App.Bootstrap (container, plainH1_, plainH2_, plainH3_, plainTd_, plainTh_, table)
 import App.Comment (Comment)
 import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
-import App.HalogenUtils (classList, makeRequestResult, scope, plainTd, plainTh, singleClass, faIcon)
-import App.Route (Route(..), RunsRouteInput, createLink, routeCodec)
-import App.Run (Run, runComments, runId, runLookup, runScalarProperty, runValues)
-import App.RunProperty (RunProperty, rpDescription, rpIsSortable, rpName)
-import App.RunScalar (RunScalar(..))
-import App.RunValue (RunValue(..), _Comments, runValueComments)
-import App.SortOrder (SortOrder(..), comparing, invertOrder)
+import App.HalogenUtils (classList, faIcon, makeRequestResult, plainTd, plainTh, singleClass)
+import App.Run (Run, runComments)
 import App.UnfinishedComment (UnfinishedComment, _author, _text, emptyUnfinishedComment)
-import DOM.HTML.Indexed.ScopeValue (ScopeValue(ScopeCol))
-import Data.Array (head, mapMaybe, sortBy, (:))
+import Data.Array ((:))
 import Data.Either (Either(..))
-import Data.Lens (Iso', Traversal, Traversal', set, toArrayOf, toArrayOfOn, traversed, (.=), (^.))
-import Data.Lens.Fold ((^..))
-import Data.Lens.Index (ix)
-import Data.Lens.Iso.Newtype (_Newtype)
-import Data.Lens.Prism (Prism')
+import Data.Lens (set, toArrayOf, (.=))
 import Data.Lens.Record (prop)
-import Data.Map (Map)
-import Data.Maybe (Maybe(..), maybe)
-import Data.Number.Format (precision, toStringWith)
+import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
-import Halogen (lift, liftAff)
+import Halogen (lift)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -54,6 +43,7 @@ _commentRequest = prop (SProxy :: SProxy "commentRequest")
 data Action
   = ModifyState (State -> State)
   | AddComment
+  | ConfirmDeleteComment Int
 
 initialState :: ChildInput Int RunResponse -> State
 initialState { input: runId, remoteData: runResponse } =
@@ -85,6 +75,7 @@ fetchRunData rid = fromEither <$> (retrieveRun rid)
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
   ModifyState f -> H.modify_ f
+  ConfirmDeleteComment i -> pure unit
   AddComment -> do
     rid <- H.gets _.runId
     newComment <- H.gets _.newComment
@@ -99,34 +90,27 @@ handleAction = case _ of
           Success newRunData -> H.modify_ (set _run newRunData.run >>> set _manualProperties newRunData.manual_properties)
           _ -> pure unit
 
-commentsTable :: forall w i. Array Comment -> HH.HTML w i
+commentsTable :: forall w. Array Comment -> HH.HTML w Action
 commentsTable comments =
   let
-    makeDeleteButton :: HH.HTML w i
-    makeDeleteButton =
+    makeDeleteButton :: Int -> HH.HTML w Action
+    makeDeleteButton commentId =
       HH.button
-        [ classList [ "btn", "btn-link", "btn-sm", "p-0" ] ]
+        [ classList [ "btn", "btn-link", "btn-sm", "p-0" ], HE.onClick \_ -> Just (ConfirmDeleteComment commentId) ]
         [ faIcon "trash" ]
 
     makeRow comment =
       HH.tr_
-        $ (HH.td_ [ makeDeleteButton ])
-        : (plainTd <$> [ comment.created, comment.author, comment.text ])
+        $ (HH.td_ [ makeDeleteButton (comment.id) ])
+        : (plainTd_ <$> [ comment.created, comment.author, comment.text ])
   in
-    HH.table
-      [ classList [ "table" ] ]
-      [ HH.thead_
-          [ HH.tr_ (plainTh <$> [ "Actions", "Created", "Author", "Text" ])
-          ]
-      , HH.tbody_ (makeRow <$> comments)
-      ]
+   table [] (plainTh_ <$> [ "Actions", "Created", "Author", "Text" ]) (makeRow <$> comments)
 
 commentsSection state =
-  [ HH.h2_ [ HH.text "Comments" ]
-  ]
+  [ plainH2_ "Comments" ]
     <> [ makeRequestResult state.commentRequest ]
     <> [ commentsTable (toArrayOf runComments state.run)
-      , HH.h3_ [ HH.text "Add comment" ]
+      , plainH3_ "Add comment"
       , HH.form_
           [ HH.div [ singleClass "row" ]
               [ HH.div [ singleClass "col" ]
@@ -159,7 +143,4 @@ render ::
   forall slots.
   State ->
   H.ComponentHTML Action slots AppMonad
-render state =
-  HH.div [ singleClass "container" ]
-    $ [ HH.h1_ [ HH.text ("Run " <> show state.runId) ] ]
-    <> commentsSection state
+render state = container $ plainH1_ ("Run " <> show state.runId) : commentsSection state

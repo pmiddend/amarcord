@@ -1,12 +1,14 @@
 module App.Components.Runs where
 
 import Prelude hiding (comparing)
+
 import App.API (RunPropertiesResponse, RunsResponse, retrieveRunProperties, retrieveRuns)
 import App.AppMonad (AppMonad)
 import App.Autocomplete as Autocomplete
+import App.Bootstrap (TableFlag(..), fluidDiv, plainH1, plainTh_, table)
 import App.Comment (Comment)
 import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
-import App.HalogenUtils (scope, faIcon)
+import App.HalogenUtils (classList, faIcon, scope)
 import App.Route (Route(..), RunsRouteInput, createLink)
 import App.Run (Run, runId, runLookup, runScalarProperty)
 import App.RunProperty (RunProperty, rpDescription, rpIsSortable, rpName)
@@ -118,13 +120,10 @@ render state =
 
     makeRow run = HH.tr_ (HH.td_ [ HH.a [ HP.href (createLink (EditRun (runId run))) ] [ faIcon "edit" ] ] : ((\rp -> makeProperty rp (runLookup run (rpName rp))) <$> state.selectedRunProperties))
   in
-    HH.div [ HP.classes [ HH.ClassName "container-fluid" ] ]
-      [ HH.h1_ [ HH.text "Runs" ]
-      , HH.table
-          [ HP.classes [ HH.ClassName "table" ] ]
-          [ HH.thead_
-              [ HH.tr_ (HH.th_ [ HH.text "Actions" ] : (makeHeader <$> (state.runProperties)))
-              ]
-          , HH.tbody_ (makeRow <$> state.runs)
-          ]
+   fluidContainer
+      [ plainH1_ "Runs"
+      , table
+        [TableStriped]
+        (plainTh_ "Actions" : (makeHeader <$> (state.runProperties)))
+        (makeRow <$> state.runs)
       ]

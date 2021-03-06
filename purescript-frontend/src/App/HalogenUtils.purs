@@ -3,6 +3,7 @@ module App.HalogenUtils where
 import Prelude
 
 import DOM.HTML.Indexed.ScopeValue (ScopeValue)
+import Halogen.HTML (IProp)
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Properties.ARIA as HPA
@@ -19,10 +20,19 @@ classList ::
     t144
 classList = HP.classes <<< map HH.ClassName
 
+singleClass :: forall t53 t54.         
+  String                
+  -> IProp              
+       ( class :: String
+       | t53            
+       )                
+       t54              
 singleClass s = classList [ s ]
 
+plainTh :: forall w i. String -> HH.HTML w i
 plainTh x = HH.th_ [ HH.text x ]
 
+plainTd :: forall w i. String -> HH.HTML w i
 plainTd x = HH.td_ [ HH.text x ]
 
 scope :: forall r i. ScopeValue -> HH.IProp ( scope :: ScopeValue | r ) i

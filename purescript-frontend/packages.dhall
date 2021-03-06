@@ -117,24 +117,25 @@ let additions =
 -------------------------------
 -}
 
-let upstream = https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20201021/packages.dhall sha256:55ebdbda1bd6ede4d5307fbc1ef19988c80271b4225d833c8d6fb9b6fb1aa6d8
+-- let upstream = https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20201021/packages.dhall sha256:55ebdbda1bd6ede4d5307fbc1ef19988c80271b4225d833c8d6fb9b6fb1aa6d8
+let upstream = https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20210226/packages.dhall sha256:7e973070e323137f27e12af93bc2c2f600d53ce4ae73bb51f34eb7d7ce0a43ea
 let overrides = {=}
-let additions = {
-  unordered-collection =
-    { dependencies =
-      [ "enums"
-      , "functions"
-      , "integers"
-      , "lists"
-      , "prelude"
-      , "record"
-      , "tuples"
-      , "typelevel-prelude"
-      ]
-    , repo =
-        "https://github.com/fehrenbach/purescript-unordered-collections.git"
-    , version = "19f9c2312f39b04528ab79713767835cd3b7a2f0"
-    }
-}
+let additions = {=}
+  -- unordered-collection =
+  --   { dependencies =
+  --     [ "enums"
+  --     , "functions"
+  --     , "integers"
+  --     , "lists"
+  --     , "prelude"
+  --     , "record"
+  --     , "tuples"
+  --     , "typelevel-prelude"
+  --     ]
+  --   , repo =
+  --       "https://github.com/fehrenbach/purescript-unordered-collections.git"
+  --   , version = "19f9c2312f39b04528ab79713767835cd3b7a2f0"
+  --   }
+  -- }
 
 in  upstream // overrides // additions
