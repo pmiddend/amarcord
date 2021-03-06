@@ -21,6 +21,10 @@ classList = HP.classes <<< map HH.ClassName
 
 singleClass s = classList [ s ]
 
+plainTh x = HH.th_ [ HH.text x ]
+
+plainTd x = HH.td_ [ HH.text x ]
+
 scope :: forall r i. ScopeValue -> HH.IProp ( scope :: ScopeValue | r ) i
 scope = HH.prop (HH.PropName "scope")
 

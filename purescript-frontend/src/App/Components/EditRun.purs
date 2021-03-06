@@ -6,7 +6,7 @@ import App.AppMonad (AppMonad)
 import App.Autocomplete as Autocomplete
 import App.Comment (Comment)
 import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
-import App.HalogenUtils (classList, makeRequestResult, scope, singleClass)
+import App.HalogenUtils (classList, makeRequestResult, scope, plainTd, plainTh, singleClass, faIcon)
 import App.Route (Route(..), RunsRouteInput, createLink, routeCodec)
 import App.Run (Run, runComments, runId, runLookup, runScalarProperty, runValues)
 import App.RunProperty (RunProperty, rpDescription, rpIsSortable, rpName)
@@ -102,12 +102,21 @@ handleAction = case _ of
 commentsTable :: forall w i. Array Comment -> HH.HTML w i
 commentsTable comments =
   let
-    makeRow comment = HH.tr_ [ HH.td_ [ HH.text comment.created ], HH.td_ [ HH.text comment.author ], HH.td_ [ HH.text comment.text ] ]
+    makeDeleteButton :: HH.HTML w i
+    makeDeleteButton =
+      HH.button
+        [ classList [ "btn", "btn-link", "btn-sm", "p-0" ] ]
+        [ faIcon "trash" ]
+
+    makeRow comment =
+      HH.tr_
+        $ (HH.td_ [ makeDeleteButton ])
+        : (plainTd <$> [ comment.created, comment.author, comment.text ])
   in
     HH.table
       [ classList [ "table" ] ]
       [ HH.thead_
-          [ HH.tr_ [ HH.th_ [ HH.text "Created" ], HH.th_ [ HH.text "Author" ], HH.th_ [ HH.text "Text" ] ]
+          [ HH.tr_ (plainTh <$> [ "Actions", "Created", "Author", "Text" ])
           ]
       , HH.tbody_ (makeRow <$> comments)
       ]

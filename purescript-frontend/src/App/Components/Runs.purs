@@ -112,7 +112,7 @@ render state =
     makeProperty :: forall w. RunProperty -> Maybe RunValue -> HH.HTML w Action
     makeProperty rp value = case value of
       Nothing -> HH.td_ []
-      Just (Comments cs) -> HH.td_ [ HH.ol_ (makeComment <$> cs) ]
+      Just (Comments cs) -> HH.td_ [ HH.ul_ (makeComment <$> cs) ]
       Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
       _ -> HH.td_ [ HH.text (maybe "" show value) ]
 
