@@ -1,21 +1,22 @@
 module App.Components.EditRun where
 
 import Prelude hiding (comparing)
-
-import App.API (RunResponse, addComment, retrieveRun)
+import App.API (RunResponse, addComment, deleteComment, retrieveRun)
 import App.AppMonad (AppMonad)
 import App.Bootstrap (container, plainH1_, plainH2_, plainH3_, plainTd_, plainTh_, table)
 import App.Comment (Comment)
+import App.Components.Modal (ModalOutput(..), modal)
 import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
 import App.HalogenUtils (classList, faIcon, makeRequestResult, plainTd, plainTh, singleClass)
 import App.Run (Run, runComments)
 import App.UnfinishedComment (UnfinishedComment, _author, _text, emptyUnfinishedComment)
 import Data.Array ((:))
 import Data.Either (Either(..))
-import Data.Lens (set, toArrayOf, (.=))
+import Data.Lens (set, toArrayOf, use, (.=))
 import Data.Lens.Record (prop)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), isJust)
 import Data.Symbol (SProxy(..))
+import Data.Traversable (for, for_)
 import Halogen (lift)
 import Halogen as H
 import Halogen.HTML as HH
@@ -30,11 +31,16 @@ type State
     , manualProperties :: Array String
     , newComment :: UnfinishedComment
     , commentRequest :: RemoteData String String
+    , deleteCommentId :: Maybe Int
     }
+
+_deleteCommentId = prop (SProxy :: SProxy "deleteCommentId")
 
 _newComment = prop (SProxy :: SProxy "newComment")
 
 _run = prop (SProxy :: SProxy "run")
+
+_runId = prop (SProxy :: SProxy "runId")
 
 _manualProperties = prop (SProxy :: SProxy "manualProperties")
 
@@ -44,6 +50,7 @@ data Action
   = ModifyState (State -> State)
   | AddComment
   | ConfirmDeleteComment Int
+  | CommentModal ModalOutput
 
 initialState :: ChildInput Int RunResponse -> State
 initialState { input: runId, remoteData: runResponse } =
@@ -52,6 +59,7 @@ initialState { input: runId, remoteData: runResponse } =
   , manualProperties: runResponse.manual_properties
   , newComment: emptyUnfinishedComment
   , commentRequest: NotAsked
+  , deleteCommentId: Nothing
   }
 
 component :: forall output query. H.Component HH.HTML query Int output AppMonad
@@ -72,31 +80,53 @@ childComponent =
 fetchRunData :: Int -> AppMonad (RemoteData String RunResponse)
 fetchRunData rid = fromEither <$> (retrieveRun rid)
 
+resetRunData :: forall slots. H.HalogenM State Action slots ParentError AppMonad Unit
+resetRunData = do
+  rid <- use _runId
+  newRunData' <- lift $ (fetchRunData rid)
+  case newRunData' of
+    Success newRunData -> H.modify_ (set _run newRunData.run >>> set _manualProperties newRunData.manual_properties)
+    _ -> pure unit
+
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
   ModifyState f -> H.modify_ f
-  ConfirmDeleteComment i -> pure unit
+  ConfirmDeleteComment i -> _deleteCommentId .= Just i
+  CommentModal Hidden -> _deleteCommentId .= Nothing
+  CommentModal Confirmed -> do
+    cid' <- use _deleteCommentId
+    _deleteCommentId .= Nothing
+    for_ cid' \cid -> do
+      _commentRequest .= Loading
+      rid <- use _runId
+      commentResponse <- deleteComment rid cid
+      case commentResponse of
+        Left e -> _commentRequest .= Failure e
+        Right _ -> do
+          H.modify_ (set _commentRequest (Success "Comment removed!"))
+          resetRunData
   AddComment -> do
     rid <- H.gets _.runId
     newComment <- H.gets _.newComment
     _commentRequest .= Loading
-    commentResponse <- lift $ addComment rid newComment
+    commentResponse <- addComment rid newComment
     case commentResponse of
       Left e -> _commentRequest .= Failure e
       Right _ -> do
-        H.modify_ (set _commentRequest (Success "Comment successfully added!") >>> set _newComment emptyUnfinishedComment)
-        newRunData' <- lift $ fetchRunData rid
-        case newRunData' of
-          Success newRunData -> H.modify_ (set _run newRunData.run >>> set _manualProperties newRunData.manual_properties)
-          _ -> pure unit
+        H.modify_ (set _commentRequest (Success "Comment added!") >>> set _newComment emptyUnfinishedComment)
+        resetRunData
 
-commentsTable :: forall w. Array Comment -> HH.HTML w Action
-commentsTable comments =
+commentsTable :: forall w. RemoteData String String -> Array Comment -> HH.HTML w Action
+commentsTable commentRequest comments =
   let
     makeDeleteButton :: Int -> HH.HTML w Action
     makeDeleteButton commentId =
       HH.button
-        [ classList [ "btn", "btn-link", "btn-sm", "p-0" ], HE.onClick \_ -> Just (ConfirmDeleteComment commentId) ]
+        [ HP.disabled (isLoading commentRequest)
+        , classList
+            [ "btn", "btn-link", "btn-sm", "p-0" ]
+        , HE.onClick \_ -> Just (ConfirmDeleteComment commentId)
+        ]
         [ faIcon "trash" ]
 
     makeRow comment =
@@ -104,12 +134,12 @@ commentsTable comments =
         $ (HH.td_ [ makeDeleteButton (comment.id) ])
         : (plainTd_ <$> [ comment.created, comment.author, comment.text ])
   in
-   table [] (plainTh_ <$> [ "Actions", "Created", "Author", "Text" ]) (makeRow <$> comments)
+    table [] (plainTh_ <$> [ "Actions", "Created", "Author", "Text" ]) (makeRow <$> comments)
 
 commentsSection state =
   [ plainH2_ "Comments" ]
     <> [ makeRequestResult state.commentRequest ]
-    <> [ commentsTable (toArrayOf runComments state.run)
+    <> [ commentsTable state.commentRequest (toArrayOf runComments state.run)
       , plainH3_ "Add comment"
       , HH.form_
           [ HH.div [ singleClass "row" ]
@@ -139,8 +169,26 @@ textInput placeholder value modifier =
     , HE.onValueInput (set modifier >>> ModifyState >>> Just)
     ]
 
+type Slots q
+  = ( deleteModal :: H.Slot q ModalOutput Int )
+
 render ::
-  forall slots.
+  forall q.
   State ->
-  H.ComponentHTML Action slots AppMonad
-render state = container $ plainH1_ ("Run " <> show state.runId) : commentsSection state
+  H.ComponentHTML Action (Slots q) AppMonad
+render state =
+  let
+    deleteModal =
+      HH.slot
+        (SProxy :: SProxy "deleteModal")
+        0
+        modal
+        { modalId: "delete-modal"
+        , confirmText: "Delete?"
+        , title: "Really delete?"
+        , open: isJust (state.deleteCommentId)
+        , renderBody: \_ -> HH.div_ [ HH.text "oh shit!" ]
+        }
+        (Just <<< CommentModal)
+  in
+    container $ deleteModal : plainH1_ ("Run " <> show state.runId) : commentsSection state

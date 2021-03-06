@@ -122,13 +122,21 @@ def retrieve_run(run_id: int) -> JSONDict:
 @app.route("/run/<int:run_id>/comment", methods=["POST"])
 def add_comment(
     run_id: int,
-) -> None:
+) -> JSONDict:
     global db
     with db.connect() as conn:
         assert isinstance(request.json, dict)
         assert "author" in request.json
         assert "text" in request.json
         db.add_comment(conn, run_id, request.json["author"], request.json["text"])
+        return {}
+
+
+@app.route("/run/<int:run_id>/comment/<int:comment_id>", methods=["DELETE"])
+def delete_comment(run_id: int, comment_id: int) -> JSONDict:
+    global db
+    with db.connect() as conn:
+        db.delete_comment(conn, run_id, comment_id)
         return {}
 
 

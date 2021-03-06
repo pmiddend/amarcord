@@ -8,15 +8,17 @@ import Affjax.RequestBody (RequestBody(..))
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
+import App.Env (Env)
 import App.Run (Run)
 import App.RunProperty (RunProperty)
 import App.UnfinishedComment (UnfinishedComment)
-import Control.Monad.Reader (asks)
+import Control.Monad.Reader (class MonadAsk, asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError, encodeJson)
 import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
+import Effect.Aff.Class (class MonadAff)
 import Halogen (liftAff)
 
 type RunsResponse
@@ -24,7 +26,7 @@ type RunsResponse
     }
 
 
-handleResponse :: forall a. DecodeJson a => Either Error (Response Json) -> AppMonad (Either String a)
+handleResponse :: forall a m. Monad m => DecodeJson a => Either Error (Response Json) -> m (Either String a)
 handleResponse response = do
   case response of
     Left httpError -> pure (Left (printError httpError))
@@ -77,11 +79,20 @@ retrieveRun runId = do
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
-addComment :: Int -> UnfinishedComment -> AppMonad (Either String {})
+addComment :: forall m. MonadAsk Env m => MonadAff m => Int -> UnfinishedComment -> m (Either String {})
 addComment runId comment = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
     url = (baseUrl' <> "/run/" <> show runId <> "/comment")
   response <- liftAff $ AX.post ResponseFormat.json url (Just (Json (encodeJson comment)))
+  handleResponse response
+
+deleteComment :: forall m. MonadAsk Env m => MonadAff m => Int -> Int -> m (Either String {})
+deleteComment rid cid = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/run/" <> show rid <> "/comment/" <> show cid)
+  response <- liftAff $ AX.delete ResponseFormat.json url
   handleResponse response
