@@ -1,25 +1,30 @@
 module App.Components.Runs where
 
 import Prelude hiding (comparing)
-
 import App.API (RunPropertiesResponse, RunsResponse, retrieveRunProperties, retrieveRuns)
 import App.AppMonad (AppMonad)
 import App.Autocomplete as Autocomplete
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, plainTh_, table)
 import App.Comment (Comment)
 import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
-import App.HalogenUtils (faIcon, scope)
+import App.HalogenUtils (classList, faIcon, scope, singleClass)
 import App.Route (Route(..), RunsRouteInput, createLink)
 import App.Run (Run, runId, runLookup, runScalarProperty)
-import App.RunProperty (RunProperty, rpDescription, rpIsSortable, rpName)
+import App.RunProperty (RunProperty, _description, _name, rpDescription, rpIsSortable, rpName)
 import App.RunScalar (RunScalar(..))
 import App.RunValue (RunValue(..))
 import App.SortOrder (SortOrder(..), comparing, invertOrder)
 import DOM.HTML.Indexed.ScopeValue (ScopeValue(ScopeCol))
-import Data.Array (sortBy, (:))
+import Data.Array (filter, sortBy, (:))
 import Data.Either (Either)
+import Data.Foldable (foldMap)
+import Data.Lens (over, set, view, (^.))
+import Data.Lens.At (at)
+import Data.Lens.Record (prop)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Number.Format (precision, toStringWith)
+import Data.Set (Set, delete, insert, member, singleton)
+import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
 import Halogen as H
 import Halogen.HTML as HH
@@ -30,17 +35,20 @@ import Network.RemoteData (RemoteData, fromEither)
 type State
   = { runs :: Array Run
     , runProperties :: Array RunProperty
-    , selectedRunProperties :: Array RunProperty
+    , selectedRunProperties :: Set String
     , runSorting :: RunsRouteInput
     }
 
+_selectedRunProperties = prop (SProxy :: SProxy "selectedRunProperties")
+
 data Action
   = Resort RunsRouteInput
+  | ToggleProperty String
 
 initialState :: ChildInput RunsRouteInput (Tuple RunsResponse RunPropertiesResponse) -> State
 initialState { input: runSorting, remoteData: Tuple runsResponse runPropertiesResponse } =
   { runProperties: runPropertiesResponse.metadata
-  , selectedRunProperties: runPropertiesResponse.metadata
+  , selectedRunProperties: (foldMap (view _name >>> singleton) runPropertiesResponse.metadata)
   , runSorting
   , runs: resort runSorting runsResponse.runs
   }
@@ -69,8 +77,14 @@ fetchInitialData _ = fromEither <$> (combineEithers <$> retrieveRuns <*> retriev
 resort :: RunsRouteInput -> Array Run -> Array Run
 resort by = sortBy (comparing (by.sortOrder) (runScalarProperty by.sort))
 
+toggleSetElement :: forall a. Ord a => a -> Set a -> Set a
+toggleSetElement v x
+  | member v x = delete v x
+  | otherwise = insert v x
+
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
+  ToggleProperty p -> H.modify_ (over _selectedRunProperties (toggleSetElement p))
   Resort by ->
     H.modify_ \state ->
       state
@@ -87,6 +101,35 @@ resortParams :: String -> RunsRouteInput -> RunsRouteInput
 resortParams x { sort, sortOrder }
   | x == sort = { sort, sortOrder: invertOrder sortOrder }
   | otherwise = { sort: x, sortOrder: Ascending }
+
+selectedColumnChooser :: forall w. State -> HH.HTML w Action
+selectedColumnChooser state =
+  let
+    makeRow :: RunProperty -> HH.HTML w Action
+    makeRow property =
+      HH.button
+        [ HP.type_ HP.ButtonButton
+        , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if member (property ^. _name) state.selectedRunProperties then [ "active" ] else []))
+        , HE.onClick \_ -> Just (ToggleProperty (property ^. _name))
+        ]
+        [ HH.text (property ^. _description) ]
+  in
+    HH.div_
+      [ HH.p_
+          [ HH.button
+              [ classList [ "btn", "btn-secondary" ]
+              , HP.type_ HP.ButtonButton
+              , HP.attr (HH.AttrName "data-toggle") "collapse"
+              , HP.attr (HH.AttrName "data-target") "#columnChooser"
+              ]
+              [ HH.text "Choose columns" ]
+          ]
+      , HH.div [ singleClass "collapse", HP.id_ "columnChooser" ]
+          [ HH.div [ singleClass "list-group " ]
+              ( makeRow <$> state.runProperties
+              )
+          ]
+      ]
 
 render :: State -> H.ComponentHTML Action ( refinementComplete :: forall query. H.Slot query Autocomplete.Output Int ) AppMonad
 render state =
@@ -118,12 +161,15 @@ render state =
       Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
       _ -> HH.td_ [ HH.text (maybe "" show value) ]
 
-    makeRow run = HH.tr_ (HH.td_ [ HH.a [ HP.href (createLink (EditRun (runId run))) ] [ faIcon "edit" ] ] : ((\rp -> makeProperty rp (runLookup run (rpName rp))) <$> state.selectedRunProperties))
+    wholeSelectedProps = filter (\x -> member (x ^. _name) state.selectedRunProperties) state.runProperties
+
+    makeRow run = HH.tr_ (HH.td_ [ HH.a [ HP.href (createLink (EditRun (runId run))) ] [ faIcon "edit" ] ] : ((\rp -> makeProperty rp (runLookup run (rpName rp))) <$> wholeSelectedProps))
   in
-   fluidContainer
+    fluidContainer
       [ plainH1_ "Runs"
+      , selectedColumnChooser state
       , table
-        [TableStriped]
-        (plainTh_ "Actions" : (makeHeader <$> (state.runProperties)))
-        (makeRow <$> state.runs)
+          [ TableStriped ]
+          (plainTh_ "Actions" : (makeHeader <$> wholeSelectedProps))
+          (makeRow <$> state.runs)
       ]

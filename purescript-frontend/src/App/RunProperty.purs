@@ -4,7 +4,12 @@ import Prelude
 
 import App.JSONSchemaType (JSONSchemaType(..))
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?))
+import Data.Lens (Lens')
+import Data.Lens.Iso.Newtype (_Newtype)
+import Data.Lens.Record (prop)
 import Data.Maybe (Maybe(..))
+import Data.Symbol (SProxy(..))
+import Data.Newtype (class Newtype)
 
 newtype RunProperty
   = RunProperty
@@ -14,8 +19,17 @@ newtype RunProperty
   , type_schema :: Maybe JSONSchemaType
   }
 
+derive instance newtypeRunProperty :: Newtype RunProperty _
+
 rpDescription :: RunProperty -> String
 rpDescription (RunProperty p) = p.description
+
+_description :: Lens' RunProperty String
+_description = _Newtype <<< prop (SProxy :: SProxy "description")
+
+_name :: Lens' RunProperty String
+_name = _Newtype <<< prop (SProxy :: SProxy "name")
+
 
 rpName :: RunProperty -> String
 rpName (RunProperty p) = p.name
