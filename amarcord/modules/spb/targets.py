@@ -142,12 +142,26 @@ class Targets(QWidget):
 
         if result == QMessageBox.Yes:
             with self._db.connect() as conn:
-                self._db.delete_target(conn, target.id)
-                self._log_widget.setText(f"“{target.short_name}” deleted!")
-                self._fill_table()
-                if self._current_target.id == target.id:
-                    self._reset_input_fields()
-                    self._right_headline.setText(NEW_TARGET_HEADLINE)
+                with conn.begin():
+                    samples_used = [
+                        str(s.id)
+                        for s in self._db.retrieve_samples(conn)
+                        if s.target_id == target.id
+                    ]
+                    if samples_used:
+                        QMessageBox.critical(
+                            self,
+                            "Cannot delete",
+                            "The target is used by the following samples:\n\n"
+                            + "\n".join(samples_used),
+                        )
+                        return
+                    self._db.delete_target(conn, target.id)
+                    self._log_widget.setText(f"“{target.short_name}” deleted!")
+                    self._fill_table()
+                    if self._current_target.id == target.id:
+                        self._reset_input_fields()
+                        self._right_headline.setText(NEW_TARGET_HEADLINE)
 
     def _create_add_button(self) -> QPushButton:
         b = QPushButton(
