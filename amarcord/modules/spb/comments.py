@@ -8,7 +8,7 @@ from typing import Callable, Dict, Final, List, Optional
 import humanize
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-from amarcord.modules.spb.db import DBRunComment
+from amarcord.db.db import DBRunComment
 from amarcord.qt.signal_blocker import SignalBlocker
 
 logger = logging.getLogger(__name__)

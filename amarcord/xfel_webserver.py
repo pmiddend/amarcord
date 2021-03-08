@@ -11,16 +11,16 @@ from werkzeug.exceptions import HTTPException
 from amarcord.config import load_config
 from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.modules.json import JSONDict, JSONValue
-from amarcord.modules.spb.db import (
+from amarcord.db.db import (
     DB,
-    DBAttributo,
     DBRunComment,
     PropertyValue,
 )
-from amarcord.modules.properties import property_type_to_schema
-from amarcord.modules.spb.db_tables import create_sample_data, create_tables
-from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.attributo_id import AttributoId
+from amarcord.db.attributi import DBAttributo, property_type_to_schema
+from amarcord.db.tables import create_tables
+from amarcord.db.sample_data import create_sample_data
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.attributo_id import AttributoId
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -104,9 +104,7 @@ def retrieve_run_properties() -> JSONDict:
     global db
     with db.connect() as conn:
         return {
-            "metadata": [
-                _convert_metadata(v) for v in db.run_property_metadata(conn).values()
-            ]
+            "metadata": [_convert_metadata(v) for v in db.run_attributi(conn).values()]
         }
 
 
@@ -115,8 +113,8 @@ def retrieve_run(run_id: int) -> JSONDict:
     global db
     with db.connect() as conn:
         run = db.retrieve_run(conn, run_id)
-        run_props = _convert_run(run.properties)
-        return {"run": run_props, "manual_properties": list(run.manual_properties)}
+        run_props = _convert_run(run.attributi)
+        return {"run": run_props, "manual_properties": list(run.manual_attributi)}
 
 
 @app.route("/run/<int:run_id>/comment", methods=["POST"])

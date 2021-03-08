@@ -4,14 +4,15 @@ import sys
 from amarcord.config import load_config
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode, DBContext
-from amarcord.modules.spb.db_tables import create_sample_data, create_tables
+from amarcord.db.tables import create_tables
+from amarcord.db.sample_data import create_sample_data
 from amarcord.modules.spb.factories import (
     proposal_chooser,
     retrieve_proposal_ids,
     run_details,
     run_table,
 )
-from amarcord.modules.spb.proposal_id import ProposalId
+from amarcord.db.proposal_id import ProposalId
 from amarcord.modules.spb.samples import Samples
 from amarcord.modules.spb.targets import Targets
 from amarcord.modules.uicontext import UIContext
@@ -45,6 +46,7 @@ if __name__ == "__main__":
                 sys.exit(0)
     else:
         proposal_id = ProposalId(proposal_id)
+    context.ui.set_application_suffix(f"proposal {proposal_id}")
 
     targets_index = context.ui.register_tab(
         "Targets",
@@ -58,26 +60,25 @@ if __name__ == "__main__":
         context.ui.icon("SP_DialogResetButton"),
     )
 
-    context.ui.set_application_suffix(f"proposal {proposal_id}")
-    run_table_tab = run_table(context, tables, proposal_id)
-    context.ui.register_tab(
-        "Runs",
-        run_table_tab,
-        context.ui.icon("SP_ComputerIcon"),
-    )
-    run_details_tab = run_details(context, tables, proposal_id)
-    # run_details_tab.run_changed.connect(run_table_tab.run_changed)
-    run_details_index = context.ui.register_tab(
-        "Run details",
-        run_details_tab,
-        context.ui.icon("SP_FileDialogContentsView"),
-    )
-
-    def change_run(
-        run_id: int,
-    ) -> None:
-        run_details_tab.select_run(run_id)
-        context.ui.select_tab(run_details_index)
-
-    run_table_tab.run_selected.connect(change_run)
+    # run_table_tab = run_table(context, tables, proposal_id)
+    # context.ui.register_tab(
+    #     "Runs",
+    #     run_table_tab,
+    #     context.ui.icon("SP_ComputerIcon"),
+    # )
+    # run_details_tab = run_details(context, tables, proposal_id)
+    # # run_details_tab.run_changed.connect(run_table_tab.run_changed)
+    # run_details_index = context.ui.register_tab(
+    #     "Run details",
+    #     run_details_tab,
+    #     context.ui.icon("SP_FileDialogContentsView"),
+    # )
+    #
+    # def change_run(
+    #     run_id: int,
+    # ) -> None:
+    #     run_details_tab.select_run(run_id)
+    #     context.ui.select_tab(run_details_index)
+    #
+    # run_table_tab.run_selected.connect(change_run)
     context.ui.exec_()

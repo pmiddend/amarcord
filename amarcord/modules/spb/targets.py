@@ -22,8 +22,8 @@ from PyQt5.QtWidgets import (
 )
 
 from amarcord.modules.context import Context
-from amarcord.modules.spb.db import DB, DBTarget
-from amarcord.modules.spb.db_tables import DBTables
+from amarcord.db.db import DB, DBTarget
+from amarcord.db.tables import DBTables
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget

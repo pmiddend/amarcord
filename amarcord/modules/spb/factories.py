@@ -4,8 +4,8 @@ from PyQt5 import QtWidgets
 import sqlalchemy as sa
 from amarcord.modules.spb.run_table import RunTable
 from amarcord.modules.spb.run_details import RunDetails
-from amarcord.modules.spb.db_tables import DBTables
-from amarcord.modules.spb.proposal_id import ProposalId
+from amarcord.db.tables import DBTables
+from amarcord.db.proposal_id import ProposalId
 from amarcord.modules.context import Context
 
 

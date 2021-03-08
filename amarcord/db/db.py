@@ -10,16 +10,17 @@ import sqlalchemy as sa
 from sqlalchemy import and_
 
 from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.spb.constants import MANUAL_SOURCE_NAME
-from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.attributo_id import (
+from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.attributo_id import (
     AttributoId,
 )
-from amarcord.modules.spb.db_tables import (
-    AssociatedTable,
+from amarcord.db.tables import (
     DBTables,
 )
-from amarcord.modules.properties import (
+from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.attributi import (
+    DBAttributo,
     PropertyComments,
     RichAttributoType,
     schema_to_property_type,
@@ -56,7 +57,7 @@ Source = str
 
 
 @dataclass(frozen=True)
-class PropertyValueWithSource:
+class AttributoValueWithSource:
     value: Any
     source: Source
 
@@ -69,7 +70,7 @@ class DBSample:
     average_crystal_size: Optional[float]
     crystal_shape: Optional[Tuple[float, float, float]]
     incubation_time: Optional[datetime.datetime]
-    crystal_buffer: Optional[str]
+    # crystal_buffer: Optional[str]
     crystallization_temperature: Optional[float]
     shaking_time: Optional[datetime.timedelta]
     shaking_strength: Optional[float]
@@ -84,23 +85,13 @@ class DBSample:
     compounds: Optional[List[int]]
     micrograph: Optional[str]
     protocol: Optional[str]
-    attributi: Dict[AttributoId, PropertyValueWithSource]
+    attributi: Dict[AttributoId, AttributoValueWithSource]
 
 
 @dataclass(frozen=True)
-class DBRun:
-    properties: Dict[AttributoId, PropertyValue]
-    karabo: Optional[Karabo]
-    manual_properties: Set[AttributoId]
-
-
-@dataclass(frozen=True)
-class DBAttributo:
-    name: AttributoId
-    description: str
-    suffix: Optional[str]
-    associated_table: AssociatedTable
-    rich_property_type: RichAttributoType
+class DBOggetto:
+    attributi: Dict[AttributoId, PropertyValue]
+    manual_attributi: Set[AttributoId]
 
 
 Connection = Any
@@ -108,8 +99,8 @@ Connection = Any
 
 def _decode_attributi_to_values(
     attributi: Mapping[str, Any]
-) -> Dict[AttributoId, PropertyValueWithSource]:
-    result: Dict[AttributoId, PropertyValueWithSource] = {}
+) -> Dict[AttributoId, AttributoValueWithSource]:
+    result: Dict[AttributoId, AttributoValueWithSource] = {}
     for source in attributi.keys() - {MANUAL_SOURCE_NAME}:
         values: Dict[str, Any] = attributi[source]
         assert isinstance(
@@ -122,14 +113,14 @@ def _decode_attributi_to_values(
                     "source values overlap for %s, overriding (introduce priorities!)",
                     run_property_str,
                 )
-            result[run_property] = PropertyValueWithSource(value=value, source=source)
+            result[run_property] = AttributoValueWithSource(value=value, source=source)
     if MANUAL_SOURCE_NAME in attributi:
         manual_values: Dict[str, Any] = attributi[MANUAL_SOURCE_NAME]
         assert isinstance(
             manual_values, dict
         ), "attributi source data isn't a dict for manual source"
         for run_property_str, value in manual_values.items():
-            result[AttributoId(run_property_str)] = PropertyValueWithSource(
+            result[AttributoId(run_property_str)] = AttributoValueWithSource(
                 value, source=MANUAL_SOURCE_NAME
             )
     return result
@@ -260,7 +251,7 @@ class DB:
             .values(modified=datetime.datetime.utcnow())
         )
 
-    def retrieve_run(self, conn: Connection, run_id: int) -> DBRun:
+    def retrieve_run(self, conn: Connection, run_id: int) -> DBOggetto:
         run = self.tables.run
         run_c = run.c
         comment = self.tables.run_comment
@@ -287,8 +278,8 @@ class DB:
         run_meta = run_rows[0]
         attributi = run_meta["attributi"]
         attributi_decoded = _decode_attributi_to_values(attributi)
-        return DBRun(
-            properties=dict_union(
+        return DBOggetto(
+            attributi=dict_union(
                 [
                     {
                         self.tables.property_run_id: run_meta["id"],
@@ -312,13 +303,12 @@ class DB:
                     {k: v.value for k, v in attributi_decoded.items()},
                 ],
             ),
-            manual_properties={self.tables.property_sample}
+            manual_attributi={self.tables.property_sample}
             | {
                 k
                 for k, v in attributi_decoded.items()
                 if v.source == MANUAL_SOURCE_NAME
             },
-            karabo=None,
         )
 
     def add_comment(self, conn: Connection, run_id: int, author: str, text: str) -> int:
@@ -386,9 +376,9 @@ class DB:
 
     def retrieve_attributi(
         self, conn: Connection, table: AssociatedTable
-    ) -> List[DBAttributo]:
-        return [
-            DBAttributo(
+    ) -> Dict[AttributoId, DBAttributo]:
+        return {
+            AttributoId(row[0]): DBAttributo(
                 name=AttributoId(row[0]),
                 description=row[1],
                 suffix=row[2],
@@ -407,9 +397,9 @@ class DB:
                     ]
                 ).where(self.tables.attributo.c.associated_table == table)
             ).fetchall()
-        ]
+        }
 
-    def run_property_metadata(self, conn: Connection) -> Dict[AttributoId, DBAttributo]:
+    def run_attributi(self, conn: Connection) -> Dict[AttributoId, DBAttributo]:
         attributi = self.retrieve_attributi(conn, AssociatedTable.RUN)
         return dict_union(
             [
@@ -423,16 +413,7 @@ class DB:
                     )
                     for k, v in self.tables.property_types.items()
                 },
-                {
-                    c.name: DBAttributo(
-                        name=AttributoId(str(c.name)),
-                        description=c.description,
-                        rich_property_type=c.rich_property_type,
-                        associated_table=AssociatedTable.RUN,
-                        suffix=c.suffix,
-                    )
-                    for c in attributi
-                },
+                attributi,
                 {
                     self.tables.property_comments: DBAttributo(
                         name=AttributoId("comments"),
@@ -445,10 +426,16 @@ class DB:
             ]
         )
 
-    def update_run_property(
-        self, conn: Connection, run_id: int, runprop: AttributoId, value: Any
+    def update_sample_attributo(
+        self, conn: Connection, sample_id: int, attributo: AttributoId, value: Any
     ) -> None:
-        if runprop == self.tables.property_sample:
+        self._update_attributi(conn, sample_id, self.tables.sample, attributo, value)
+
+    def update_run_property(
+        self, conn: Connection, run_id: int, attributo: AttributoId, value: Any
+    ) -> None:
+        # FIXME: do we still need this?
+        if attributo == self.tables.property_sample:
             assert isinstance(value, int), "sample ID should be an integer"
 
             conn.execute(
@@ -463,26 +450,36 @@ class DB:
         ), f"attributi can only have str, int and float values currently, got {type(value)}"
 
         with conn.begin():
-            current_json = conn.execute(
-                sa.select([self.tables.run.c.attributi]).where(
-                    self.tables.run.c.id == run_id
-                )
-            ).first()[0]
-            assert isinstance(
-                current_json, dict
-            ), f"attributi should be dictionary, got {type(current_json)}"
-            if MANUAL_SOURCE_NAME not in current_json:
-                current_json[MANUAL_SOURCE_NAME] = {}
-            manual = current_json[MANUAL_SOURCE_NAME]
-            assert isinstance(
-                manual, dict
-            ), f"manual input should be dictionary, not {type(manual)}"
-            manual[str(runprop)] = value
-            conn.execute(
-                sa.update(self.tables.run)
-                .where(self.tables.run.c.id == run_id)
-                .values(attributi=current_json, modified=datetime.datetime.utcnow())
-            )
+            self._update_attributi(conn, run_id, self.tables.run, attributo, value)
+
+    def _update_attributi(
+        self,
+        conn: Connection,
+        entity_id: int,
+        entity_table: sa.Table,
+        runprop: AttributoId,
+        value: Any,
+    ):
+        current_json = conn.execute(
+            sa.select([entity_table.c.attributi]).where(entity_table.c.id == entity_id)
+        ).first()[0]
+        assert current_json is None or isinstance(
+            current_json, dict
+        ), f"attributi should be None or dictionary, got {type(current_json)}"
+        if current_json is None:
+            current_json = {}
+        if MANUAL_SOURCE_NAME not in current_json:
+            current_json[MANUAL_SOURCE_NAME] = {}
+        manual = current_json[MANUAL_SOURCE_NAME]
+        assert isinstance(
+            manual, dict
+        ), f"manual input should be dictionary, not {type(manual)}"
+        manual[str(runprop)] = value
+        conn.execute(
+            sa.update(entity_table)
+            .where(entity_table.c.id == entity_id)
+            .values(attributi=current_json, modified=datetime.datetime.utcnow())
+        )
 
     def connect(self) -> Connection:
         return self.dbcontext.connect()
@@ -568,7 +565,7 @@ class DB:
                 average_crystal_size=row["average_crystal_size"],
                 crystal_shape=row["crystal_shape"],
                 incubation_time=row["incubation_time"],
-                crystal_buffer=row["crystal_buffer"],
+                # crystal_buffer=row["crystal_buffer"],
                 crystallization_temperature=row["crystallization_temperature"],
                 shaking_time=datetime.timedelta(seconds=row["shaking_time_seconds"])
                 if row["shaking_time_seconds"] is not None
@@ -598,7 +595,7 @@ class DB:
                         tc.target_id,
                         tc.crystal_shape,
                         tc.incubation_time,
-                        tc.crystal_buffer,
+                        # tc.crystal_buffer,
                         tc.crystallization_temperature,
                         tc.shaking_time_seconds,
                         tc.shaking_strength,
@@ -626,7 +623,7 @@ class DB:
                 average_crystal_size=t.average_crystal_size,
                 crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
-                crystal_buffer=t.crystal_buffer,
+                # crystal_buffer=t.crystal_buffer,
                 crystallization_temperature=t.crystallization_temperature,
                 shaking_time_seconds=int(t.shaking_time.total_seconds())
                 if t.shaking_time is not None
@@ -654,7 +651,7 @@ class DB:
                 average_crystal_size=t.average_crystal_size,
                 crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
-                crystal_buffer=t.crystal_buffer,
+                # crystal_buffer=t.crystal_buffer,
                 crystallization_temperature=t.crystallization_temperature,
                 shaking_time_seconds=int(t.shaking_time.total_seconds())
                 if t.shaking_time is not None

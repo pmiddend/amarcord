@@ -6,16 +6,20 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QCheckBox, QPushButton
 
+from amarcord.db.attributi import (
+    PropertyDouble,
+    PropertyInt,
+    pretty_print_attributo,
+)
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.db import DB, DBRunComment
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.column_chooser import display_column_chooser
-from amarcord.modules.spb.db import DB, DBRunComment
-from amarcord.modules.spb.db_tables import DBTables
 from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.plot_dialog import PlotDialog
-from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.attributo_id import AttributoId
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
-from amarcord.modules.properties import PropertyDouble, PropertyInt
 from amarcord.qt.table import GeneralTableWidget
 from amarcord.query_parser import UnexpectedEOF, parse_query
 
@@ -25,14 +29,6 @@ logger = logging.getLogger(__name__)
 
 
 Row = Dict[AttributoId, Any]
-
-
-def _convert_comment_column(comments: List[DBRunComment], role: int) -> Any:
-    if role == QtCore.Qt.DisplayRole:
-        return "\n".join(f"{c.author}: {c.text}" for c in comments)
-    if role == QtCore.Qt.EditRole:
-        return comments
-    return QtCore.QVariant()
 
 
 class RunTable(QtWidgets.QWidget):
@@ -61,14 +57,14 @@ class RunTable(QtWidgets.QWidget):
 
         self._context = context
         with self._db.connect() as conn:
-            self._run_property_names = self._db.run_property_metadata(conn)
+            self._attributi_metadata = self._db.run_attributi(conn)
             self._table_view = GeneralTableWidget[AttributoId](
-                enum_type_retriever=lambda: list(self._run_property_names.keys()),
+                enum_type_retriever=lambda: list(self._attributi_metadata.keys()),
                 column_header_retriever=lambda: {
                     k: v.description if v.description else v.name
-                    for k, v in self._run_property_names.items()
+                    for k, v in self._attributi_metadata.items()
                 },
-                column_visibility=list(self._run_property_names.keys()),
+                column_visibility=list(self._attributi_metadata.keys()),
                 column_converter=self._convert_column,
                 primary_key_getter=lambda row: row[self._db.tables.property_run_id],
                 parent=self,
@@ -98,7 +94,7 @@ class RunTable(QtWidgets.QWidget):
         inner_filter_widget.setLayout(inner_filter_layout)
         self._filter_widget = InfixCompletingLineEdit(parent=self)
         self._filter_widget.textChanged.connect(self._slot_filter_changed)
-        completer = QtWidgets.QCompleter(list(self._run_property_names.keys()), self)
+        completer = QtWidgets.QCompleter(list(self._attributi_metadata.keys()), self)
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
         self._filter_widget.setCompleter(completer)
         inner_filter_layout.addWidget(self._filter_widget)
@@ -137,21 +133,19 @@ class RunTable(QtWidgets.QWidget):
 
     def _slot_refresh(self) -> None:
         with self._db.connect() as conn:
-            self._run_property_names = self._db.run_property_metadata(conn)
+            self._attributi_metadata = self._db.run_attributi(conn)
             self._table_view.refresh()
 
-    def _convert_column(self, run_property: AttributoId, role: int, value: Any) -> str:
-        if run_property == self._db.tables.property_comments:
-            assert isinstance(value, list), "Comment column isn't a list"
-            return _convert_comment_column(value, role)
-        if isinstance(value, list):
-            return ", ".join(value)
-        if isinstance(value, float):
-            return f"{value:.2f}"
-        return str(value) if value is not None else ""
+    def _convert_column(self, run_property: AttributoId, _role: int, value: Any) -> str:
+        return pretty_print_attributo(
+            self._attributi_metadata.get(run_property, None)
+            if self._attributi_metadata is not None
+            else None,
+            value,
+        )
 
     def _header_menu_callback(self, pos: QtCore.QPoint, column: AttributoId) -> None:
-        property_metadata = self._run_property_names.get(column, None)
+        property_metadata = self._attributi_metadata.get(column, None)
         if property_metadata is None or property_metadata.rich_property_type is None:
             return
         if not isinstance(
@@ -159,7 +153,7 @@ class RunTable(QtWidgets.QWidget):
         ):
             return
         started_property = AttributoId("started")
-        if started_property not in self._run_property_names:
+        if started_property not in self._attributi_metadata:
             return
         menu = QtWidgets.QMenu(self)
         plotAction = menu.addAction(
@@ -185,7 +179,7 @@ class RunTable(QtWidgets.QWidget):
 
     def _slot_switch_columns(self) -> None:
         new_columns = display_column_chooser(
-            self, self._table_view.column_visibility, self._run_property_names
+            self, self._table_view.column_visibility, self._attributi_metadata
         )
         self._table_view.set_column_visibility(new_columns)
 
@@ -198,7 +192,7 @@ class RunTable(QtWidgets.QWidget):
 
     def _slot_filter_changed(self, f: str) -> None:
         try:
-            query = parse_query(f, set(self._run_property_names.keys()))
+            query = parse_query(f, set(self._attributi_metadata.keys()))
             self._table_view.set_filter_query(query)
         except UnexpectedEOF:
             self._query_error.setText("")

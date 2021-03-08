@@ -1,25 +1,19 @@
 import logging
-from dataclasses import replace
-from typing import Any, Final, Optional, cast
+from typing import Any, Final, Optional, Tuple, cast
 
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
+from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.db import Connection, DB, DBOggetto, DBRunComment, Karabo
+from amarcord.db.attributi import DBAttributo
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
-from amarcord.modules.spb.db import (
-    Connection,
-    DBAttributo,
-    DB,
-    DBRun,
-    DBRunComment,
-    Karabo,
-)
-from amarcord.modules.spb.db_tables import AssociatedTable, DBTables
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
-from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_details_inner import RunDetailsInner
-from amarcord.modules.spb.attributo_id import AttributoId
 
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
@@ -92,14 +86,15 @@ class RunDetails(QWidget):
                     tables=self._db.tables,
                     run_ids=new_run_ids,
                     sample_ids=self._db.retrieve_sample_ids(conn),
-                    run=self._retrieve_run_with_karabo(conn, max(new_run_ids), None),
-                    runs_metadata=self._db.run_property_metadata(conn),
+                    run=self._db.retrieve_run(conn, max(new_run_ids)),
+                    karabo=self._db.retrieve_karabo(conn, max(new_run_ids)),
+                    runs_metadata=self._db.run_attributi(conn),
                 )
                 self._inner.current_run_changed.connect(self._slot_current_run_changed)
                 self._inner.comment_add.connect(self._slot_add_comment)
                 self._inner.comment_delete.connect(self._slot_delete_comment)
                 self._inner.comment_changed.connect(self._slot_change_comment)
-                self._inner.property_change.connect(self._slot_property_change)
+                self._inner.property_change.connect(self._slot_attributo_change)
                 self._inner.refresh.connect(self._slot_refresh)
                 self._inner.new_attributo.connect(self._slot_new_attributo)
                 self._inner.manual_new_run.connect(self._slot_manual_new_run)
@@ -107,7 +102,7 @@ class RunDetails(QWidget):
 
     def _slot_refresh(self) -> None:
         with self._db.connect() as conn:
-            self._slot_refresh_run(conn, self.selected_run())
+            self._slot_refresh_run(conn)
 
     def _slot_delete_comment(self, comment_id: int) -> None:
         with self._db.connect() as conn:
@@ -116,13 +111,13 @@ class RunDetails(QWidget):
                 self.selected_run_id(),
                 comment_id,
             )
-            self._slot_refresh_run(conn, self.selected_run())
+            self._slot_refresh_run(conn)
             self.run_changed.emit()
 
     def _slot_change_comment(self, comment: DBRunComment) -> None:
         with self._db.connect() as conn:
             self._db.change_comment(conn, comment)
-            self._slot_refresh_run(conn, self.selected_run())
+            self._slot_refresh_run(conn)
             self.run_changed.emit()
 
     def _slot_add_comment(self, comment: DBRunComment) -> None:
@@ -133,10 +128,10 @@ class RunDetails(QWidget):
                 comment.author,
                 comment.text,
             )
-            self._slot_refresh_run(conn, self.selected_run())
+            self._slot_refresh_run(conn)
             self.run_changed.emit()
 
-    def _slot_property_change(self, prop: AttributoId, new_value: Any) -> None:
+    def _slot_attributo_change(self, prop: AttributoId, new_value: Any) -> None:
         with self._db.connect() as conn:
             selected_run = self.selected_run_id()
             self._db.update_run_property(
@@ -145,7 +140,7 @@ class RunDetails(QWidget):
                 prop,
                 new_value,
             )
-            self._slot_refresh_run(conn, self.selected_run())
+            self._slot_refresh_run(conn)
             self.run_changed.emit()
 
     def _slot_new_attributo(self, new_column: DBAttributo) -> None:
@@ -159,7 +154,7 @@ class RunDetails(QWidget):
                 associated_table=AssociatedTable.RUN,
             )
             cast(RunDetailsInner, self._inner).runs_metadata_changed(
-                self._db.run_property_metadata(conn)
+                self._db.run_attributi(conn)
             )
             self.run_changed.emit()
 
@@ -167,47 +162,46 @@ class RunDetails(QWidget):
         with self._db.connect() as conn:
             self._slot_refresh_run(
                 conn,
-                old_run=self.selected_run(),
                 new_run_id=new_run_id,
             )
 
     def _retrieve_run_with_karabo(
         self, conn: Connection, run_id: int, old_karabo: Optional[Karabo]
-    ) -> DBRun:
-        return replace(
-            self._db.retrieve_run(conn, run_id),
-            karabo=self._db.retrieve_karabo(conn, run_id)
-            if old_karabo is None
-            else old_karabo,
+    ) -> Tuple[DBOggetto, Optional[Karabo]]:
+        return self._db.retrieve_run(conn, run_id), (
+            self._db.retrieve_karabo(conn, run_id) if old_karabo is None else old_karabo
         )
 
     def _slot_refresh_run(
         self,
         conn: Connection,
-        old_run: Optional[DBRun] = None,
         new_run_id: Optional[int] = None,
-    ) -> DBRun:
+    ) -> None:
         selected_run_id = self.selected_run_id()
-        old_karabo = old_run.karabo if old_run is not None else None
+        selected_karabo = self.selected_karabo()
         new_run_id = cast(
             int, new_run_id if new_run_id is not None else selected_run_id
         )
-        new_run = self._retrieve_run_with_karabo(conn, new_run_id, old_karabo)
-
         cast(RunDetailsInner, self._inner).run_changed(
-            new_run,
+            self._db.retrieve_run(conn, new_run_id),
+            selected_karabo
+            if selected_karabo is not None
+            else self._db.retrieve_karabo(conn, new_run_id),
             self._db.retrieve_run_ids(conn, self._proposal_id),
             self._db.retrieve_sample_ids(conn),
-            self._db.run_property_metadata(conn),
+            self._db.run_attributi(conn),
         )
 
-        return new_run
-
-    def selected_run(self) -> DBRun:
+    def selected_run(self) -> DBOggetto:
         return cast(RunDetailsInner, self._inner).run
 
+    def selected_karabo(self) -> Optional[Karabo]:
+        return cast(RunDetailsInner, self._inner).karabo
+
     def selected_run_id(self) -> int:
-        return self.selected_run().properties[self._db.tables.property_run_id]
+        result = self.selected_run().attributi[self._db.tables.property_run_id]
+        assert isinstance(result, int)
+        return result
 
     def _slot_manual_new_run(self) -> None:
         with self._db.connect() as conn:
@@ -226,5 +220,5 @@ class RunDetails(QWidget):
                 if self._inner is None:
                     self._refresh_run_ids()
                 else:
-                    self._slot_refresh_run(conn, self.selected_run(), new_run.id)
+                    self._slot_refresh_run(conn, new_run.id)
                 self.run_changed.emit()

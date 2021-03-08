@@ -7,15 +7,14 @@ from PyQt5 import QtWidgets
 from PyQt5.QtGui import QBrush
 from PyQt5.QtWidgets import QHBoxLayout
 
-from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
-from amarcord.modules.spb.db import (
-    DBAttributo,
-    DBRun,
+from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
+from amarcord.db.db import (
+    DBOggetto,
 )
-from amarcord.modules.spb.attributo_id import AttributoId
-from amarcord.modules.spb.db_tables import DBTables
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.tables import DBTables
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
-from amarcord.modules.properties import delegate_for_property_type
+from amarcord.db.attributi import DBAttributo, delegate_for_property_type
 
 logger = logging.getLogger(__name__)
 
@@ -49,44 +48,44 @@ class MetadataTable(QtWidgets.QWidget):
         self._table.verticalHeader().hide()
         self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
-        self._run: Optional[DBRun] = None
-        self._metadata: Dict[AttributoId, DBAttributo] = {}
+        self._oggetto: Optional[DBOggetto] = None
+        self.metadata: Dict[AttributoId, DBAttributo] = {}
 
     def _property_changed(self, prop: AttributoId, new_value: Any) -> None:
         self._property_change(prop, new_value)
 
-    def _run_property_to_string(self, metadata: DBAttributo, value: Any) -> str:
+    def _attributo_to_string(self, metadata: DBAttributo, value: Any) -> str:
         suffix: str = getattr(metadata.rich_property_type, "suffix", None)
         value_str = ", ".join(value) if isinstance(value, list) else str(value)
         return value_str if suffix is None else f"{value_str} {suffix}"
 
     def data_changed(
         self,
-        run: DBRun,
+        new_oggetto: DBOggetto,
         metadata: Dict[AttributoId, DBAttributo],
         tables: DBTables,
         sample_ids: List[int],
     ) -> None:
 
-        run_properties_changed = (
-            self._run is None or run.properties != self._run.properties
+        attributi_changed = (
+            self._oggetto is None or new_oggetto.attributi != self._oggetto.attributi
         )
 
-        self._run = run
+        self._oggetto = new_oggetto
 
-        metadata_changed = self._metadata != metadata
+        metadata_changed = self.metadata != metadata
 
-        self._metadata = metadata
+        self.metadata = metadata
 
-        if not run_properties_changed and not metadata_changed:
+        if not attributi_changed and not metadata_changed:
             return
 
-        run_properties: List[Tuple[AttributoId, DBAttributo]] = [
+        attributi: List[Tuple[AttributoId, DBAttributo]] = [
             (k, v)
             for k, v in metadata.items()
             if k not in (tables.property_comments, tables.property_karabo)
         ]
-        run_properties.sort(key=lambda x: x[1].name)
+        attributi.sort(key=lambda x: x[1].name)
 
         self._table.set_data(
             Data(
@@ -94,25 +93,25 @@ class MetadataTable(QtWidgets.QWidget):
                     Row(
                         display_roles=[
                             md.description if md.description else md.name,
-                            self._run_property_to_string(
-                                metadata[property], run.properties[property]
+                            self._attributo_to_string(
+                                metadata[attributo], new_oggetto.attributi[attributo]
                             )
-                            if property in run.properties
+                            if attributo in new_oggetto.attributi
                             else "None",
                         ],
-                        edit_roles=[None, run.properties.get(property, None)],
+                        edit_roles=[None, new_oggetto.attributi.get(attributo, None)],
                         background_roles={
-                            0: QBrush(COLOR_MANUAL_RUN_PROPERTY),
-                            1: QBrush(COLOR_MANUAL_RUN_PROPERTY),
+                            0: QBrush(COLOR_MANUAL_ATTRIBUTO),
+                            1: QBrush(COLOR_MANUAL_ATTRIBUTO),
                         }
-                        if property in run.manual_properties
+                        if attributo in new_oggetto.manual_attributi
                         else {},
                         change_callbacks=[
                             None,
-                            partial(self._property_changed, property),
+                            partial(self._property_changed, attributo),
                         ],
                     )
-                    for property, md in run_properties
+                    for attributo, md in attributi
                 ],
                 columns=self._columns,
                 row_delegates={
@@ -120,7 +119,7 @@ class MetadataTable(QtWidgets.QWidget):
                         md.rich_property_type,
                         sample_ids,
                     )
-                    for (idx, (property, md)) in enumerate(run_properties)
+                    for (idx, (property, md)) in enumerate(attributi)
                     if md.rich_property_type is not None
                 },
                 column_delegates={},

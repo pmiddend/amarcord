@@ -13,15 +13,15 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from amarcord.modules.spb.db import DBAttributo
-from amarcord.modules.spb.db_tables import AssociatedTable
-from amarcord.modules.spb.attributo_id import AttributoId
+from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.attributo_id import AttributoId
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.numeric_range_format_widget import (
     NumericRange,
     NumericRangeFormatWidget,
 )
-from amarcord.modules.properties import (
+from amarcord.db.attributi import (
+    DBAttributo,
     PropertyDouble,
     PropertyString,
     PropertyTags,

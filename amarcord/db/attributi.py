@@ -4,6 +4,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from PyQt5 import QtCore, QtWidgets
 
+from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.attributo_id import AttributoId
+
 from amarcord.json_schema import (
     JSONSchemaArray,
     JSONSchemaInteger,
@@ -177,3 +180,27 @@ def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
     if isinstance(rp, PropertyTags):
         return {"type": "array", "items": {"type": "string"}}
     raise Exception(f"invalid property type {type(rp)}")
+
+
+@dataclass(frozen=True)
+class DBAttributo:
+    name: AttributoId
+    description: str
+    suffix: Optional[str]
+    associated_table: AssociatedTable
+    rich_property_type: RichAttributoType
+
+
+def pretty_print_attributo(
+    attributo_metadata: Optional[DBAttributo], value: Any
+) -> str:
+    if attributo_metadata is not None and isinstance(
+        attributo_metadata.rich_property_type, PropertyComments
+    ):
+        assert isinstance(value, list), "Comment column isn't a list"
+        return "\n".join(f"{c.author}: {c.text}" for c in value)
+    if isinstance(value, list):
+        return ", ".join(value)
+    if isinstance(value, float):
+        return f"{value:.2f}"
+    return str(value) if value is not None else ""

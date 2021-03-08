@@ -11,9 +11,9 @@ from zmq.asyncio import Context
 
 from amarcord.config import load_config
 from amarcord.modules.dbcontext import CreationMode, DBContext
-from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.db import DB
-from amarcord.modules.spb.db_tables import DBTables, create_tables
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.db import DB
+from amarcord.db.tables import DBTables, create_tables
 from amarcord.python_schema import validate_dict
 from amarcord.sources.karabo import XFELKaraboBridgeConfig
 from amarcord.sources.mc import XFELMetadataCatalogue, XFELMetadataConnectionConfig

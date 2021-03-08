@@ -2,8 +2,8 @@ from typing import Dict, List, Mapping, Optional
 
 from PyQt5 import QtCore, QtWidgets
 
-from amarcord.modules.spb.db import DBAttributo
-from amarcord.modules.spb.attributo_id import AttributoId
+from amarcord.db.attributi import DBAttributo
+from amarcord.db.attributo_id import AttributoId
 
 
 def display_column_chooser(

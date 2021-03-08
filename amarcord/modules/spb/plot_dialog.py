@@ -19,9 +19,9 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.pyplot import Figure
 
-from amarcord.modules.spb.db import DB
-from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.attributo_id import AttributoId
+from amarcord.db.db import DB
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.attributo_id import AttributoId
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.query_parser import Query, filter_by_query, parse_query
 
@@ -55,7 +55,7 @@ class PlotDialog(QDialog):
 
         with self._db.connect() as conn:
             self._runs = self._db.retrieve_runs(conn, proposal_id, None)
-            self._property_metadata = self._db.run_property_metadata(conn)
+            self._property_metadata = self._db.run_attributi(conn)
 
         dialog_layout = QVBoxLayout()
         self.setLayout(dialog_layout)

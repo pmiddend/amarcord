@@ -3,7 +3,7 @@ import getpass
 import logging
 from dataclasses import replace
 from pathlib import Path
-from typing import List, Optional, Union, cast
+from typing import Any, List, Optional, Union, cast
 
 from PyQt5.QtCore import QModelIndex, QUrl, Qt, pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent, QDesktopServices
@@ -25,9 +25,14 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.attributi import pretty_print_attributo
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.db import AttributoValueWithSource, Connection, DB, DBOggetto, DBSample
+from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
-from amarcord.modules.spb.db import DB, DBSample
-from amarcord.modules.spb.db_tables import DBTables
+from amarcord.modules.spb.run_details_metadata import MetadataTable
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
@@ -60,7 +65,6 @@ def _empty_sample():
         average_crystal_size=None,
         crystal_shape=None,
         incubation_time=None,
-        crystal_buffer=None,
         crystallization_temperature=None,
         protein_concentration=None,
         shaking_time=None,
@@ -110,6 +114,7 @@ class Samples(QWidget):
         super().__init__(parent)
 
         self._db = DB(context.db, tables)
+
         if "filesystem" not in context.config:
             raise Exception('Cannot find "filesystem" in configuration')
         if "base_path" not in context.config["filesystem"]:
@@ -218,8 +223,8 @@ class Samples(QWidget):
         )
         self._shaking_time_edit = ValidatedLineEdit(
             None,
-            print_natural_delta,
-            parse_natural_delta,
+            print_natural_delta,  # type: ignore
+            parse_natural_delta,  # type: ignore
             "example: 1 day, 5 hours, 30 minutes",
         )
         self._shaking_time_edit.value_change.connect(self._shaking_time_change)
@@ -297,9 +302,6 @@ class Samples(QWidget):
             "2020-02-24 15:34",
         )
         right_form_layout.addRow("Incubation time", self._incubation_time_edit)
-        self._crystal_buffer_edit = QLineEdit()
-        self._crystal_buffer_edit.textEdited.connect(self._crystal_buffer_change)
-        right_form_layout.addRow("Crystal Buffer", self._crystal_buffer_edit)
         self._incubation_time_edit.value_change.connect(self._incubation_time_change)
 
         micrograph_layout = QHBoxLayout()
@@ -307,7 +309,7 @@ class Samples(QWidget):
         self._micrograph_edit = ValidatedLineEdit(
             None,
             lambda p: p,  # type: ignore
-            parse_existing_filename,
+            parse_existing_filename,  # type: ignore
             "Absolute path to file",
         )
         self._micrograph_edit.value_change.connect(self._micrograph_change)
@@ -330,7 +332,7 @@ class Samples(QWidget):
         self._protocol_edit = ValidatedLineEdit(
             None,
             lambda p: p,  # type: ignore
-            parse_existing_filename,
+            parse_existing_filename,  # type: ignore
             "Absolute path to file",
         )
         self._protocol_edit.value_change.connect(self._protocol_change)
@@ -348,6 +350,19 @@ class Samples(QWidget):
         protocol_layout.addWidget(choose_protocol_button)
         right_form_layout.addRow("Protocol", protocol_layout)
 
+        with self._db.connect() as conn:
+            self._metadata_table = MetadataTable(self._attributo_change)
+            self._metadata_table.data_changed(
+                DBOggetto(
+                    {k: v.value() for k, v in self._current_sample.attributi.items()},
+                    manual_attributi=set(),
+                ),
+                self._db.retrieve_attributi(conn, AssociatedTable.SAMPLE),
+                self._db.tables,
+                [],
+            )
+            right_form_layout.addWidget(self._metadata_table)
+
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
@@ -358,6 +373,29 @@ class Samples(QWidget):
         right_form_layout.addWidget(self._submit_widget)
 
         self._samples: List[DBSample] = []
+        self._fill_table()
+
+    def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
+        with self._db.connect() as conn:
+            self._current_sample.attributi[attributo] = AttributoValueWithSource(
+                value, MANUAL_SOURCE_NAME
+            )
+            if self._current_sample.id is not None:
+                self._db.update_sample_attributo(
+                    conn, self._current_sample.id, attributo, value
+                )
+            self._slot_refresh(conn)
+
+    def _slot_refresh(self, conn: Connection) -> None:
+        self._metadata_table.data_changed(
+            DBOggetto(
+                {k: v.value for k, v in self._current_sample.attributi.items()},
+                manual_attributi=set(),
+            ),
+            self._db.retrieve_attributi(conn, AssociatedTable.SAMPLE),
+            self._db.tables,
+            [],
+        )
         self._fill_table()
 
     def _display_micrograph(self) -> None:
@@ -459,12 +497,12 @@ class Samples(QWidget):
             self._current_sample.crystallization_temperature
         )
         self._shaking_time_edit.set_value(
-            self._current_sample.shaking_time
+            self._current_sample.shaking_time  # type: ignore
             if self._current_sample.shaking_time is not None
             else None
         )
-        self._micrograph_edit.set_value(self._current_sample.micrograph)
-        self._protocol_edit.set_value(self._current_sample.protocol)
+        self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
+        self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
         self._shaking_strength_edit.set_value(self._current_sample.shaking_strength)
         # noinspection PyTypeChecker
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
@@ -477,14 +515,19 @@ class Samples(QWidget):
             if self._current_sample.incubation_time is not None
             else ""
         )
-        self._crystal_buffer_edit.setText(
-            self._current_sample.crystal_buffer
-            if self._current_sample.crystal_buffer
-            else ""
-        )
         self._clear_submit()
         self._submit_layout.addWidget(self._create_edit_button())
         self._submit_layout.addWidget(self._create_cancel_button())
+
+        self._metadata_table.data_changed(
+            DBOggetto(
+                {k: v.value for k, v in self._current_sample.attributi.items()},
+                manual_attributi=set(),
+            ),
+            self._metadata_table.metadata,
+            self._db.tables,
+            [],
+        )
 
     def _clear_submit(self):
         while True:
@@ -530,7 +573,6 @@ class Samples(QWidget):
         self._protocol_edit.set_value(None)
         self._incubation_time_edit.set_value(None)
         self._crystal_settlement_volume_edit.set_value(None)
-        self._crystal_buffer_edit.setText("")
         self._current_sample = _empty_sample()
         self._protein_concentration_edit.set_value(None)
 
@@ -600,10 +642,6 @@ class Samples(QWidget):
             self._current_sample = replace(self._current_sample, compounds=value)
         self._reset_button()
 
-    def _crystal_buffer_change(self, value: str) -> None:
-        self._current_sample = replace(self._current_sample, crystal_buffer=value)
-        self._reset_button()
-
     def _incubation_time_change(self, value: Union[str, datetime.datetime]) -> None:
         if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, incubation_time=value)
@@ -667,21 +705,27 @@ class Samples(QWidget):
         self._current_sample = replace(self._current_sample, name=new_name)
         self._reset_button()
 
-    def _fill_table(self) -> None:
-        with self._db.connect() as conn:
+    def _fill_table(self, conn: Optional[Connection] = None) -> None:
+        if conn is not None:
             self._samples = self._db.retrieve_samples(conn)
             self._targets = self._db.retrieve_targets(conn)
+        else:
+            with self._db.connect() as conn_:
+                self._samples = self._db.retrieve_samples(conn_)
+                self._targets = self._db.retrieve_targets(conn_)
 
         self._target_id_edit.reset_items(
             [(s.short_name, cast(int, s.id)) for s in self._targets]
         )
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._sample_table.clear()
+        attributi_headers = [
+            k.description for k in self._metadata_table.metadata.values()
+        ]
         headers = [
             "ID",
             "Created",
             "Incubation Time",
-            "Crystal Buffer",
             "Crystallization Temperature",
             "Avg Crystal Size",
             "Crystal Shape",
@@ -696,7 +740,7 @@ class Samples(QWidget):
             "Crystallization Method",
             "Filters",
             "Compounds",
-        ]
+        ] + attributi_headers
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
         self._sample_table.setRowCount(len(self._samples))
@@ -704,45 +748,55 @@ class Samples(QWidget):
         self._sample_table.verticalHeader().hide()
 
         for row, sample in enumerate(self._samples):
-            for col, column_value in enumerate(
-                (
-                    str(sample.id),
-                    str(sample.created),
-                    sample.incubation_time.strftime(DATE_TIME_FORMAT)
-                    if sample.incubation_time is not None
-                    else "",
-                    sample.crystal_buffer if sample.crystal_buffer is not None else "",
-                    str(sample.crystallization_temperature)
-                    if sample.crystallization_temperature is not None
-                    else "",
-                    str(sample.average_crystal_size),
-                    ", ".join(str(s) for s in sample.crystal_shape)
-                    if sample.crystal_shape is not None
-                    else "",
-                    [t.short_name for t in self._targets if sample.target_id == t.id][
-                        0
-                    ],
-                    print_natural_delta(sample.shaking_time)
-                    if sample.shaking_time is not None
-                    else "",
-                    sample.shaking_strength
-                    if sample.shaking_strength is not None
-                    else "",
-                    str(sample.protein_concentration)
-                    if sample.protein_concentration is not None
-                    else "",
-                    sample.comment,
-                    str(sample.crystal_settlement_volume)
-                    if sample.crystal_settlement_volume
-                    else "",
-                    sample.seed_stock_used,
-                    sample.plate_origin,
-                    sample.creator,
-                    sample.crystallization_method,
-                    ", ".join(sample.filters) if sample.filters is not None else "",
-                    ", ".join(sample.compounds) if sample.compounds is not None else "",
+            built_in_columns = (
+                str(sample.id),
+                str(sample.created),
+                sample.incubation_time.strftime(DATE_TIME_FORMAT)
+                if sample.incubation_time is not None
+                else "",
+                str(sample.crystallization_temperature)
+                if sample.crystallization_temperature is not None
+                else "",
+                str(sample.average_crystal_size),
+                ", ".join(str(s) for s in sample.crystal_shape)
+                if sample.crystal_shape is not None
+                else "",
+                [t.short_name for t in self._targets if sample.target_id == t.id][0],
+                print_natural_delta(sample.shaking_time)
+                if sample.shaking_time is not None
+                else "",
+                sample.shaking_strength if sample.shaking_strength is not None else "",
+                str(sample.protein_concentration)
+                if sample.protein_concentration is not None
+                else "",
+                sample.comment,
+                str(sample.crystal_settlement_volume)
+                if sample.crystal_settlement_volume
+                else "",
+                sample.seed_stock_used,
+                sample.plate_origin,
+                sample.creator,
+                sample.crystallization_method,
+                ", ".join(sample.filters) if sample.filters is not None else "",
+                ", ".join(sample.compounds if sample is not None else []) if sample.compounds is not None else "",  # type: ignore
+            )
+            for col, column_value in enumerate(built_in_columns):
+                self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore
+            i = len(built_in_columns) - 1
+            for attributo_id in self._metadata_table.metadata:
+                attributo_value = sample.attributi.get(attributo_id, None)
+                self._sample_table.setItem(
+                    row,
+                    i,
+                    QTableWidgetItem(
+                        pretty_print_attributo(
+                            self._metadata_table.metadata.get(attributo_id, None),
+                            attributo_value.value
+                            if attributo_value is not None
+                            else None,
+                        )
+                    ),
                 )
-            ):
-                self._sample_table.setItem(row, col, QTableWidgetItem(column_value))
+                i += 1
 
         self._sample_table.resizeColumnsToContents()
