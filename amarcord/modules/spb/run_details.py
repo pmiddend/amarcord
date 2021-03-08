@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 from amarcord.modules.context import Context
 from amarcord.modules.spb.db import (
     Connection,
-    DBCustomProperty,
+    DBAttributo,
     DB,
     DBRun,
     DBRunComment,
@@ -19,7 +19,7 @@ from amarcord.modules.spb.db_tables import AssociatedTable, DBTables
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_details_inner import RunDetailsInner
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.attributo_id import AttributoId
 
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
@@ -101,7 +101,7 @@ class RunDetails(QWidget):
                 self._inner.comment_changed.connect(self._slot_change_comment)
                 self._inner.property_change.connect(self._slot_property_change)
                 self._inner.refresh.connect(self._slot_refresh)
-                self._inner.new_custom_column.connect(self._slot_new_custom_column)
+                self._inner.new_attributo.connect(self._slot_new_attributo)
                 self._inner.manual_new_run.connect(self._slot_manual_new_run)
                 self._root_layout.addWidget(self._inner)
 
@@ -136,7 +136,7 @@ class RunDetails(QWidget):
             self._slot_refresh_run(conn, self.selected_run())
             self.run_changed.emit()
 
-    def _slot_property_change(self, prop: RunProperty, new_value: Any) -> None:
+    def _slot_property_change(self, prop: AttributoId, new_value: Any) -> None:
         with self._db.connect() as conn:
             selected_run = self.selected_run_id()
             self._db.update_run_property(
@@ -148,9 +148,9 @@ class RunDetails(QWidget):
             self._slot_refresh_run(conn, self.selected_run())
             self.run_changed.emit()
 
-    def _slot_new_custom_column(self, new_column: DBCustomProperty) -> None:
+    def _slot_new_attributo(self, new_column: DBAttributo) -> None:
         with self._db.connect() as conn:
-            self._db.add_custom_property(
+            self._db.add_attributo(
                 conn,
                 name=new_column.name,
                 description=new_column.description,

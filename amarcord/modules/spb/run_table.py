@@ -13,7 +13,7 @@ from amarcord.modules.spb.db_tables import DBTables
 from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.plot_dialog import PlotDialog
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.attributo_id import AttributoId
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.modules.properties import PropertyDouble, PropertyInt
 from amarcord.qt.table import GeneralTableWidget
@@ -24,7 +24,7 @@ AUTO_REFRESH_TIMER_MSEC: Final = 5000
 logger = logging.getLogger(__name__)
 
 
-Row = Dict[RunProperty, Any]
+Row = Dict[AttributoId, Any]
 
 
 def _convert_comment_column(comments: List[DBRunComment], role: int) -> Any:
@@ -62,7 +62,7 @@ class RunTable(QtWidgets.QWidget):
         self._context = context
         with self._db.connect() as conn:
             self._run_property_names = self._db.run_property_metadata(conn)
-            self._table_view = GeneralTableWidget[RunProperty](
+            self._table_view = GeneralTableWidget[AttributoId](
                 enum_type_retriever=lambda: list(self._run_property_names.keys()),
                 column_header_retriever=lambda: {
                     k: v.description if v.description else v.name
@@ -140,7 +140,7 @@ class RunTable(QtWidgets.QWidget):
             self._run_property_names = self._db.run_property_metadata(conn)
             self._table_view.refresh()
 
-    def _convert_column(self, run_property: RunProperty, role: int, value: Any) -> str:
+    def _convert_column(self, run_property: AttributoId, role: int, value: Any) -> str:
         if run_property == self._db.tables.property_comments:
             assert isinstance(value, list), "Comment column isn't a list"
             return _convert_comment_column(value, role)
@@ -150,7 +150,7 @@ class RunTable(QtWidgets.QWidget):
             return f"{value:.2f}"
         return str(value) if value is not None else ""
 
-    def _header_menu_callback(self, pos: QtCore.QPoint, column: RunProperty) -> None:
+    def _header_menu_callback(self, pos: QtCore.QPoint, column: AttributoId) -> None:
         property_metadata = self._run_property_names.get(column, None)
         if property_metadata is None or property_metadata.rich_property_type is None:
             return
@@ -158,7 +158,7 @@ class RunTable(QtWidgets.QWidget):
             property_metadata.rich_property_type, (PropertyInt, PropertyDouble)
         ):
             return
-        started_property = RunProperty("started")
+        started_property = AttributoId("started")
         if started_property not in self._run_property_names:
             return
         menu = QtWidgets.QMenu(self)
@@ -177,7 +177,7 @@ class RunTable(QtWidgets.QWidget):
             )
             plot_dialog.show()
 
-    def _slot_row_selected(self, row: Dict[RunProperty, Any]) -> None:
+    def _slot_row_selected(self, row: Dict[AttributoId, Any]) -> None:
         self.run_selected.emit(row[self._db.tables.property_run_id])
 
     def run_changed(self) -> None:

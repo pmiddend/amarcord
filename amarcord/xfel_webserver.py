@@ -13,14 +13,14 @@ from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.modules.json import JSONDict, JSONValue
 from amarcord.modules.spb.db import (
     DB,
-    DBCustomProperty,
+    DBAttributo,
     DBRunComment,
-    RunPropertyValue,
+    PropertyValue,
 )
 from amarcord.modules.properties import property_type_to_schema
 from amarcord.modules.spb.db_tables import create_sample_data, create_tables
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.attributo_id import AttributoId
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -46,7 +46,7 @@ db = DB(
 )
 
 
-def _convert_run(r: Dict[RunProperty, RunPropertyValue]) -> JSONDict:
+def _convert_run(r: Dict[AttributoId, PropertyValue]) -> JSONDict:
     def _convert_to_json(value: Any) -> JSONValue:
         if value is None or isinstance(value, (str, int, float, bool)):
             return value
@@ -88,7 +88,7 @@ def retrieve_runs(proposal_id: int) -> JSONDict:
         }
 
 
-def _convert_metadata(v: DBCustomProperty) -> JSONDict:
+def _convert_metadata(v: DBAttributo) -> JSONDict:
     return {
         "name": v.name,
         "description": v.description,

@@ -21,7 +21,7 @@ from matplotlib.pyplot import Figure
 
 from amarcord.modules.spb.db import DB
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.attributo_id import AttributoId
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.query_parser import Query, filter_by_query, parse_query
 
@@ -43,7 +43,7 @@ class PlotDialog(QDialog):
         db: DB,
         proposal_id: ProposalId,
         filter_query: str,
-        property_: RunProperty,
+        property_: AttributoId,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -95,7 +95,7 @@ class PlotDialog(QDialog):
             self._df = pd.DataFrame(
                 [r[self._property] for r in filtered_runs],
                 index=[
-                    datetime.datetime.fromisoformat(r[RunProperty("started")])
+                    datetime.datetime.fromisoformat(r[AttributoId("started")])
                     for r in filtered_runs
                 ],
                 columns=[self._property_metadata[property_].description],
@@ -139,7 +139,7 @@ class PlotDialog(QDialog):
             self._df = pd.DataFrame(
                 [r[self._property] for r in filtered_runs],
                 index=[
-                    datetime.datetime.fromisoformat(r[RunProperty("started")])
+                    datetime.datetime.fromisoformat(r[AttributoId("started")])
                     for r in filtered_runs
                 ],
                 columns=[self._property_metadata[self._property].description],

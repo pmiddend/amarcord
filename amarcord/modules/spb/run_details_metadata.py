@@ -9,10 +9,10 @@ from PyQt5.QtWidgets import QHBoxLayout
 
 from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
 from amarcord.modules.spb.db import (
-    DBCustomProperty,
+    DBAttributo,
     DBRun,
 )
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.attributo_id import AttributoId
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
 from amarcord.modules.properties import delegate_for_property_type
@@ -26,7 +26,7 @@ class _MetadataColumn(Enum):
 
 
 class MetadataTable(QtWidgets.QWidget):
-    def __init__(self, property_change: Callable[[RunProperty, Any], None]) -> None:
+    def __init__(self, property_change: Callable[[AttributoId, Any], None]) -> None:
         super().__init__(None)
 
         self._property_change = property_change
@@ -50,12 +50,12 @@ class MetadataTable(QtWidgets.QWidget):
         self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
         self._run: Optional[DBRun] = None
-        self._metadata: Dict[RunProperty, DBCustomProperty] = {}
+        self._metadata: Dict[AttributoId, DBAttributo] = {}
 
-    def _property_changed(self, prop: RunProperty, new_value: Any) -> None:
+    def _property_changed(self, prop: AttributoId, new_value: Any) -> None:
         self._property_change(prop, new_value)
 
-    def _run_property_to_string(self, metadata: DBCustomProperty, value: Any) -> str:
+    def _run_property_to_string(self, metadata: DBAttributo, value: Any) -> str:
         suffix: str = getattr(metadata.rich_property_type, "suffix", None)
         value_str = ", ".join(value) if isinstance(value, list) else str(value)
         return value_str if suffix is None else f"{value_str} {suffix}"
@@ -63,7 +63,7 @@ class MetadataTable(QtWidgets.QWidget):
     def data_changed(
         self,
         run: DBRun,
-        metadata: Dict[RunProperty, DBCustomProperty],
+        metadata: Dict[AttributoId, DBAttributo],
         tables: DBTables,
         sample_ids: List[int],
     ) -> None:
@@ -81,7 +81,7 @@ class MetadataTable(QtWidgets.QWidget):
         if not run_properties_changed and not metadata_changed:
             return
 
-        run_properties: List[Tuple[RunProperty, DBCustomProperty]] = [
+        run_properties: List[Tuple[AttributoId, DBAttributo]] = [
             (k, v)
             for k, v in metadata.items()
             if k not in (tables.property_comments, tables.property_karabo)

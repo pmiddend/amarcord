@@ -8,12 +8,12 @@ from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
 from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
 from amarcord.modules.spb.comments import Comments
 from amarcord.modules.spb.db import (
-    DBCustomProperty,
+    DBAttributo,
     DBRun,
     DBRunComment,
 )
 from amarcord.modules.spb.db_tables import DBTables
-from amarcord.modules.spb.new_custom_column_dialog import new_custom_column_dialog
+from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
 from amarcord.modules.spb.run_details_metadata import MetadataTable
 from amarcord.modules.spb.run_details_tree import (
     RunDetailsTree,
@@ -21,7 +21,7 @@ from amarcord.modules.spb.run_details_tree import (
     _filter_dict,
     _preprocess_dict,
 )
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.attributo_id import AttributoId
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
@@ -46,7 +46,7 @@ class RunDetailsInner(QtWidgets.QWidget):
     comment_add = pyqtSignal(DBRunComment)
     comment_changed = pyqtSignal(DBRunComment)
     property_change = pyqtSignal(str, QVariant)
-    new_custom_column = pyqtSignal(DBCustomProperty)
+    new_attributo = pyqtSignal(DBAttributo)
     manual_new_run = pyqtSignal()
 
     def __init__(
@@ -55,7 +55,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         run_ids: List[int],
         sample_ids: List[int],
         run: DBRun,
-        runs_metadata: Dict[RunProperty, DBCustomProperty],
+        runs_metadata: Dict[AttributoId, DBAttributo],
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -129,13 +129,13 @@ class RunDetailsInner(QtWidgets.QWidget):
         table_legend_layout.addWidget(RectangleWidget(COLOR_MANUAL_RUN_PROPERTY))
         table_legend_layout.addWidget(QtWidgets.QLabel("<i>manually edited</i>"))
         table_legend_layout.addStretch()
-        custom_column_button = QtWidgets.QPushButton(
+        attributo_button = QtWidgets.QPushButton(
             self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
-            "New custom column",
+            "New attributo",
         )
-        custom_column_button.clicked.connect(self._slot_new_custom_column)
+        attributo_button.clicked.connect(self._slot_new_attributo)
         additional_data_layout.addLayout(table_legend_layout)
-        additional_data_layout.addWidget(custom_column_button)
+        additional_data_layout.addWidget(attributo_button)
         additional_data_column.setLayout(additional_data_layout)
 
         self._root_layout = QtWidgets.QVBoxLayout()
@@ -195,7 +195,7 @@ class RunDetailsInner(QtWidgets.QWidget):
             self._refresh_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def runs_metadata_changed(
-        self, new_runs_metadata: Dict[RunProperty, DBCustomProperty]
+        self, new_runs_metadata: Dict[AttributoId, DBAttributo]
     ) -> None:
         self.runs_metadata = new_runs_metadata
         self._metadata_table.data_changed(
@@ -207,7 +207,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         new_run: DBRun,
         new_run_ids: List[int],
         new_sample_ids: List[int],
-        new_metadata: Dict[RunProperty, DBCustomProperty],
+        new_metadata: Dict[AttributoId, DBAttributo],
     ) -> None:
         self.run = new_run
         self.runs_metadata = new_metadata
@@ -267,10 +267,10 @@ class RunDetailsInner(QtWidgets.QWidget):
                     p.setExpanded(True)
                     p = p.parent()
 
-    def _slot_new_custom_column(self) -> None:
-        new_column = new_custom_column_dialog(self.runs_metadata.keys(), self)
+    def _slot_new_attributo(self) -> None:
+        new_column = new_attributo_dialog(self.runs_metadata.keys(), self)
 
         if new_column is None:
             return
 
-        self.new_custom_column.emit(new_column)
+        self.new_attributo.emit(new_column)

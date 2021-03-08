@@ -8,11 +8,11 @@ import sqlalchemy as sa
 from sqlalchemy import func
 
 from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.attributo_id import AttributoId
 from amarcord.modules.properties import (
     PropertyInt,
     PropertySample,
-    RichPropertyType,
+    RichAttributoType,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,9 +23,9 @@ class AssociatedTable(Enum):
     SAMPLE = "sample"
 
 
-def _table_custom_property(metadata: sa.MetaData) -> sa.Table:
+def _table_attributo(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
-        "CustomProperty",
+        "Attributo",
         metadata,
         sa.Column("name", sa.String(length=255), primary_key=True),
         sa.Column("description", sa.String(length=255)),
@@ -72,7 +72,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("compounds", sa.JSON, nullable=True),
         sa.Column("micrograph", sa.Text, nullable=True),
         sa.Column("protocol", sa.Text, nullable=True),
-        sa.Column("custom", sa.JSON, nullable=True),
+        sa.Column("attributi", sa.JSON, nullable=True),
     )
 
 
@@ -111,7 +111,7 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         ),
         sa.Column("sample_id", sa.Integer, nullable=True),
         sa.Column("karabo", sa.BLOB, nullable=True),
-        sa.Column("custom", sa.JSON, nullable=False),
+        sa.Column("attributi", sa.JSON, nullable=False),
     )
 
 
@@ -122,7 +122,7 @@ class DBTables:
         proposal: sa.Table,
         run: sa.Table,
         run_comment: sa.Table,
-        custom_property: sa.Table,
+        attributo: sa.Table,
         target: sa.Table,
     ) -> None:
         self.sample = sample
@@ -130,20 +130,20 @@ class DBTables:
         self.run = run
         self.run_comment = run_comment
         self.target = target
-        self.custom_property = custom_property
-        self.property_comments = RunProperty("comments")
-        self.property_karabo = RunProperty(self.run.c.karabo.name)
-        self.property_custom = RunProperty(self.run.c.custom.name)
-        self.property_run_id = RunProperty(self.run.c.id.name)
-        self.property_modified = RunProperty(self.run.c.modified.name)
-        self.property_sample = RunProperty(self.run.c.sample_id.name)
-        self.property_proposal_id = RunProperty(self.run.c.proposal_id.name)
-        self.property_types: Dict[RunProperty, RichPropertyType] = {
+        self.attributo = attributo
+        self.property_comments = AttributoId("comments")
+        self.property_karabo = AttributoId(self.run.c.karabo.name)
+        self.property_attributi = AttributoId(self.run.c.attributi.name)
+        self.property_run_id = AttributoId(self.run.c.id.name)
+        self.property_modified = AttributoId(self.run.c.modified.name)
+        self.property_sample = AttributoId(self.run.c.sample_id.name)
+        self.property_proposal_id = AttributoId(self.run.c.proposal_id.name)
+        self.property_types: Dict[AttributoId, RichAttributoType] = {
             self.property_run_id: PropertyInt(),
             self.property_proposal_id: PropertyInt(),
             self.property_sample: PropertySample(),
         }
-        self.property_descriptions: Dict[RunProperty, str] = {
+        self.property_descriptions: Dict[AttributoId, str] = {
             self.property_run_id: "Run",
             self.property_proposal_id: "Proposal",
             self.property_sample: "Sample",
@@ -156,7 +156,7 @@ def create_tables(context: DBContext) -> DBTables:
         proposal=_table_proposal(context.metadata),
         run=_table_run(context.metadata),
         run_comment=_table_run_comment(context.metadata),
-        custom_property=_table_custom_property(context.metadata),
+        attributo=_table_attributo(context.metadata),
         target=_table_target(context.metadata),
     )
 
@@ -212,7 +212,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
 
         # Create run properties
         conn.execute(
-            tables.custom_property.insert().values(
+            tables.attributo.insert().values(
                 [
                     {
                         "name": "repetition_rate",
@@ -288,7 +288,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                     modified=datetime.datetime.utcnow(),
                     sample_id=first_sample_id,
                     karabo=karabo_data,
-                    custom={
+                    attributi={
                         "karabo": {
                             "started": (
                                 base_date + datetime.timedelta(0, randint(10, 200))

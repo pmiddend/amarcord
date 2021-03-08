@@ -2,15 +2,15 @@ from typing import Dict, List, Mapping, Optional
 
 from PyQt5 import QtCore, QtWidgets
 
-from amarcord.modules.spb.db import DBCustomProperty
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.db import DBAttributo
+from amarcord.modules.spb.attributo_id import AttributoId
 
 
 def display_column_chooser(
     parent: Optional[QtWidgets.QWidget],
-    selected_columns: List[RunProperty],
-    available_properties: Mapping[RunProperty, DBCustomProperty],
-) -> List[RunProperty]:
+    selected_columns: List[AttributoId],
+    available_properties: Mapping[AttributoId, DBAttributo],
+) -> List[AttributoId]:
     dialog = QtWidgets.QDialog(parent)
     dialog_layout = QtWidgets.QVBoxLayout()
     dialog.setLayout(dialog_layout)
@@ -20,7 +20,7 @@ def display_column_chooser(
     root_widget.setLayout(root_layout)
     column_list = QtWidgets.QListWidget()
     column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-    name_to_idx: Dict[RunProperty, int] = {}
+    name_to_idx: Dict[AttributoId, int] = {}
     for idx, (prop, md) in enumerate(available_properties.items()):
         new_item = QtWidgets.QListWidgetItem(
             md.description if md.description else md.name
@@ -54,5 +54,5 @@ def display_column_chooser(
     if dialog.exec() == QtWidgets.QDialog.Rejected:
         return selected_columns
     return [
-        RunProperty(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()
+        AttributoId(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()
     ]

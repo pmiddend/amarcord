@@ -75,6 +75,7 @@ def _empty_sample():
         compounds=None,
         micrograph=None,
         protocol=None,
+        attributi={},
     )
 
 

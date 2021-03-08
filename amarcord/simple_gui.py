@@ -50,4 +50,4 @@ root_layout.addStretch()
 root.show()
 app.exec_()
 
-# print(new_custom_column_dialog([RunProperty("foo")], None))
+# print(new_attributo_dialog([RunProperty("foo")], None))

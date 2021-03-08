@@ -67,7 +67,7 @@ class PropertyChoice:
     values: List[Tuple[str, Any]]
 
 
-RichPropertyType = Union[
+RichAttributoType = Union[
     PropertyInt,
     PropertyChoice,
     PropertyDouble,
@@ -80,7 +80,7 @@ RichPropertyType = Union[
 
 
 def delegate_for_property_type(
-    proptype: RichPropertyType,
+    proptype: RichAttributoType,
     sample_ids: List[int],
     parent: Optional[QtCore.QObject] = None,
 ) -> QtWidgets.QAbstractItemDelegate:
@@ -105,7 +105,7 @@ def delegate_for_property_type(
 
 def schema_to_property_type(
     json_schema: JSONDict, suffix: Optional[str]
-) -> RichPropertyType:
+) -> RichAttributoType:
     parsed_schema = parse_schema_type(json_schema)
     if isinstance(parsed_schema, JSONSchemaNumber):
         return PropertyDouble(
@@ -145,7 +145,7 @@ def schema_to_property_type(
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
 
-def property_type_to_schema(rp: RichPropertyType) -> JSONDict:
+def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
     if isinstance(rp, PropertyInt):
         result_int: Dict[str, Any] = {"type": "number"}
         if rp.range is not None:

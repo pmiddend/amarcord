@@ -12,8 +12,8 @@ from sqlalchemy import and_
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.constants import MANUAL_SOURCE_NAME
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.run_property import (
-    RunProperty,
+from amarcord.modules.spb.attributo_id import (
+    AttributoId,
 )
 from amarcord.modules.spb.db_tables import (
     AssociatedTable,
@@ -21,7 +21,7 @@ from amarcord.modules.spb.db_tables import (
 )
 from amarcord.modules.properties import (
     PropertyComments,
-    RichPropertyType,
+    RichAttributoType,
     schema_to_property_type,
     property_type_to_schema,
 )
@@ -48,6 +48,19 @@ class DBTarget:
     uniprot_id: str
 
 
+Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
+
+PropertyValue = Union[List[DBRunComment], str, int, float, List[str]]
+
+Source = str
+
+
+@dataclass(frozen=True)
+class PropertyValueWithSource:
+    value: Any
+    source: Source
+
+
 @dataclass(frozen=True)
 class DBSample:
     id: Optional[int]
@@ -71,64 +84,52 @@ class DBSample:
     compounds: Optional[List[int]]
     micrograph: Optional[str]
     protocol: Optional[str]
-
-
-Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
-
-RunPropertyValue = Union[List[DBRunComment], str, int, float, List[str]]
+    attributi: Dict[AttributoId, PropertyValueWithSource]
 
 
 @dataclass(frozen=True)
 class DBRun:
-    properties: Dict[RunProperty, RunPropertyValue]
+    properties: Dict[AttributoId, PropertyValue]
     karabo: Optional[Karabo]
-    manual_properties: Set[RunProperty]
+    manual_properties: Set[AttributoId]
 
 
 @dataclass(frozen=True)
-class DBCustomProperty:
-    name: RunProperty
+class DBAttributo:
+    name: AttributoId
     description: str
     suffix: Optional[str]
     associated_table: AssociatedTable
-    rich_property_type: RichPropertyType
+    rich_property_type: RichAttributoType
 
 
 Connection = Any
 
-Source = str
 
-
-@dataclass(frozen=True)
-class PropertyValueWithSource:
-    value: Any
-    source: Source
-
-
-def _decode_custom_to_values(
-    custom: Mapping[str, Any]
-) -> Dict[RunProperty, PropertyValueWithSource]:
-    result: Dict[RunProperty, PropertyValueWithSource] = {}
-    for source in custom.keys() - {MANUAL_SOURCE_NAME}:
-        values: Dict[str, Any] = custom[source]
+def _decode_attributi_to_values(
+    attributi: Mapping[str, Any]
+) -> Dict[AttributoId, PropertyValueWithSource]:
+    result: Dict[AttributoId, PropertyValueWithSource] = {}
+    for source in attributi.keys() - {MANUAL_SOURCE_NAME}:
+        values: Dict[str, Any] = attributi[source]
         assert isinstance(
             values, dict
-        ), f'custom source data isn\'t a dict for source "{source}"'
+        ), f'attributi source data isn\'t a dict for source "{source}"'
         for run_property_str, value in values.items():
-            run_property = RunProperty(run_property_str)
+            run_property = AttributoId(run_property_str)
             if run_property in result:
                 logger.warning(
                     "source values overlap for %s, overriding (introduce priorities!)",
                     run_property_str,
                 )
             result[run_property] = PropertyValueWithSource(value=value, source=source)
-    if MANUAL_SOURCE_NAME in custom:
-        manual_values: Dict[str, Any] = custom[MANUAL_SOURCE_NAME]
+    if MANUAL_SOURCE_NAME in attributi:
+        manual_values: Dict[str, Any] = attributi[MANUAL_SOURCE_NAME]
         assert isinstance(
             manual_values, dict
-        ), "custom source data isn't a dict for manual source"
+        ), "attributi source data isn't a dict for manual source"
         for run_property_str, value in manual_values.items():
-            result[RunProperty(run_property_str)] = PropertyValueWithSource(
+            result[AttributoId(run_property_str)] = PropertyValueWithSource(
                 value, source=MANUAL_SOURCE_NAME
             )
     return result
@@ -144,7 +145,7 @@ class DB:
         conn: Connection,
         proposal_id: ProposalId,
         since: Optional[datetime.datetime],
-    ) -> List[Dict[RunProperty, RunPropertyValue]]:
+    ) -> List[Dict[AttributoId, PropertyValue]]:
         logger.info("retrieving runs since %s", since)
 
         run = self.tables.run
@@ -163,14 +164,14 @@ class DB:
                     run.c.id,
                     run.c.sample_id,
                     run.c.proposal_id,
-                    run.c.custom,
+                    run.c.attributi,
                 ]
             )
             .select_from(run.outerjoin(comment))
             .where(where_condition)
             .order_by(run.c.id, comment.c.id)
         )
-        result: List[Dict[RunProperty, RunPropertyValue]] = []
+        result: List[Dict[AttributoId, PropertyValue]] = []
         before = time()
         select_results = conn.execute(select_stmt).fetchall()
         after = time()
@@ -192,9 +193,11 @@ class DB:
                 for row in rows
                 if row[0] is not None
             )[0:5]
-            custom = run_meta["custom"]
-            assert isinstance(custom, dict), f"custom column has type {type(custom)}"
-            run_dict: Dict[RunProperty, RunPropertyValue] = {}
+            attributi = run_meta["attributi"]
+            assert isinstance(
+                attributi, dict
+            ), f"attributi column has type {type(attributi)}"
+            run_dict: Dict[AttributoId, PropertyValue] = {}
             run_dict.update(
                 {
                     self.tables.property_comments: comments,
@@ -216,8 +219,8 @@ class DB:
                         },
                         {
                             k: v.value
-                            for k, v in _decode_custom_to_values(
-                                run_meta["custom"]
+                            for k, v in _decode_attributi_to_values(
+                                run_meta["attributi"]
                             ).items()
                         },
                     ]
@@ -272,7 +275,7 @@ class DB:
                     run.c.sample_id,
                     run.c.proposal_id,
                     run.c.modified,
-                    run.c.custom,
+                    run.c.attributi,
                 ]
             )
             .select_from(run.outerjoin(comment))
@@ -282,8 +285,8 @@ class DB:
         if not run_rows:
             raise Exception(f"couldn't find any runs with id {run_id}")
         run_meta = run_rows[0]
-        custom = run_meta["custom"]
-        custom_decoded = _decode_custom_to_values(custom)
+        attributi = run_meta["attributi"]
+        attributi_decoded = _decode_attributi_to_values(attributi)
         return DBRun(
             properties=dict_union(
                 [
@@ -306,11 +309,15 @@ class DB:
                             if row["comment_id"] is not None
                         ),
                     },
-                    {k: v.value for k, v in custom_decoded.items()},
+                    {k: v.value for k, v in attributi_decoded.items()},
                 ],
             ),
             manual_properties={self.tables.property_sample}
-            | {k for k, v in custom_decoded.items() if v.source == MANUAL_SOURCE_NAME},
+            | {
+                k
+                for k, v in attributi_decoded.items()
+                if v.source == MANUAL_SOURCE_NAME
+            },
             karabo=None,
         )
 
@@ -361,7 +368,7 @@ class DB:
                     proposal_id=proposal_id,
                     id=run_id,
                     sample_id=sample_id,
-                    custom={},
+                    attributi={},
                     modified=datetime.datetime.utcnow(),
                 )
             )
@@ -377,12 +384,12 @@ class DB:
             .values(karabo=karabo, modified=datetime.datetime.utcnow())
         )
 
-    def custom_properties(
+    def retrieve_attributi(
         self, conn: Connection, table: AssociatedTable
-    ) -> List[DBCustomProperty]:
+    ) -> List[DBAttributo]:
         return [
-            DBCustomProperty(
-                name=RunProperty(row[0]),
+            DBAttributo(
+                name=AttributoId(row[0]),
                 description=row[1],
                 suffix=row[2],
                 rich_property_type=schema_to_property_type(
@@ -393,24 +400,22 @@ class DB:
             for row in conn.execute(
                 sa.select(
                     [
-                        self.tables.custom_property.c.name,
-                        self.tables.custom_property.c.description,
-                        self.tables.custom_property.c.suffix,
-                        self.tables.custom_property.c.json_schema,
+                        self.tables.attributo.c.name,
+                        self.tables.attributo.c.description,
+                        self.tables.attributo.c.suffix,
+                        self.tables.attributo.c.json_schema,
                     ]
-                ).where(self.tables.custom_property.c.associated_table == table)
+                ).where(self.tables.attributo.c.associated_table == table)
             ).fetchall()
         ]
 
-    def run_property_metadata(
-        self, conn: Connection
-    ) -> Dict[RunProperty, DBCustomProperty]:
-        custom_props = self.custom_properties(conn, AssociatedTable.RUN)
+    def run_property_metadata(self, conn: Connection) -> Dict[AttributoId, DBAttributo]:
+        attributi = self.retrieve_attributi(conn, AssociatedTable.RUN)
         return dict_union(
             [
                 {
-                    k: DBCustomProperty(
-                        name=RunProperty(str(k)),
+                    k: DBAttributo(
+                        name=AttributoId(str(k)),
                         description=self.tables.property_descriptions.get(k, str(k)),
                         rich_property_type=v,
                         associated_table=AssociatedTable.RUN,
@@ -419,18 +424,18 @@ class DB:
                     for k, v in self.tables.property_types.items()
                 },
                 {
-                    c.name: DBCustomProperty(
-                        name=RunProperty(str(c.name)),
+                    c.name: DBAttributo(
+                        name=AttributoId(str(c.name)),
                         description=c.description,
                         rich_property_type=c.rich_property_type,
                         associated_table=AssociatedTable.RUN,
                         suffix=c.suffix,
                     )
-                    for c in custom_props
+                    for c in attributi
                 },
                 {
-                    self.tables.property_comments: DBCustomProperty(
-                        name=RunProperty("comments"),
+                    self.tables.property_comments: DBAttributo(
+                        name=AttributoId("comments"),
                         description="Comments",
                         rich_property_type=PropertyComments(),
                         associated_table=AssociatedTable.RUN,
@@ -441,7 +446,7 @@ class DB:
         )
 
     def update_run_property(
-        self, conn: Connection, run_id: int, runprop: RunProperty, value: Any
+        self, conn: Connection, run_id: int, runprop: AttributoId, value: Any
     ) -> None:
         if runprop == self.tables.property_sample:
             assert isinstance(value, int), "sample ID should be an integer"
@@ -455,17 +460,17 @@ class DB:
 
         assert isinstance(
             value, (str, int, float, list)
-        ), f"custom properties can only have str, int and float values currently, got {type(value)}"
+        ), f"attributi can only have str, int and float values currently, got {type(value)}"
 
         with conn.begin():
             current_json = conn.execute(
-                sa.select([self.tables.run.c.custom]).where(
+                sa.select([self.tables.run.c.attributi]).where(
                     self.tables.run.c.id == run_id
                 )
             ).first()[0]
             assert isinstance(
                 current_json, dict
-            ), f"custom column should be dictionary, got {type(current_json)}"
+            ), f"attributi should be dictionary, got {type(current_json)}"
             if MANUAL_SOURCE_NAME not in current_json:
                 current_json[MANUAL_SOURCE_NAME] = {}
             manual = current_json[MANUAL_SOURCE_NAME]
@@ -476,7 +481,7 @@ class DB:
             conn.execute(
                 sa.update(self.tables.run)
                 .where(self.tables.run.c.id == run_id)
-                .values(custom=current_json, modified=datetime.datetime.utcnow())
+                .values(attributi=current_json, modified=datetime.datetime.utcnow())
             )
 
     def connect(self) -> Connection:
@@ -490,17 +495,17 @@ class DB:
             pickle.loads(result[0][0]) if result and result[0][0] is not None else None
         )
 
-    def add_custom_property(
+    def add_attributo(
         self,
         conn: Connection,
         name: str,
         description: str,
         associated_table: AssociatedTable,
         suffix: Optional[str],
-        prop_type: RichPropertyType,
+        prop_type: RichAttributoType,
     ) -> None:
         conn.execute(
-            self.tables.custom_property.insert().values(
+            self.tables.attributo.insert().values(
                 name=name,
                 description=description,
                 suffix=suffix,
@@ -580,6 +585,9 @@ class DB:
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
                 protocol=row["protocol"],
+                attributi=_decode_attributi_to_values(row["attributi"])
+                if row["attributi"] is not None
+                else {},
             )
             for row in conn.execute(
                 sa.select(
@@ -605,6 +613,7 @@ class DB:
                         tc.compounds,
                         tc.micrograph,
                         tc.protocol,
+                        tc.attributi,
                     ]
                 ).order_by(tc.id)
             ).fetchall()

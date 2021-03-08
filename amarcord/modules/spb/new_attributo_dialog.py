@@ -13,9 +13,9 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from amarcord.modules.spb.db import DBCustomProperty
+from amarcord.modules.spb.db import DBAttributo
 from amarcord.modules.spb.db_tables import AssociatedTable
-from amarcord.modules.spb.run_property import RunProperty
+from amarcord.modules.spb.attributo_id import AttributoId
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.numeric_range_format_widget import (
     NumericRange,
@@ -25,21 +25,21 @@ from amarcord.modules.properties import (
     PropertyDouble,
     PropertyString,
     PropertyTags,
-    RichPropertyType,
+    RichAttributoType,
 )
 from amarcord.qt.qtreact import Context, DialogResult
 
 logger = logging.getLogger(__name__)
 
 
-class _CustomRunPropertyType(Enum):
+class _AttributoType(Enum):
     NUMBER = "number"
     STRING = "string"
     STRING_LIST = "list of strings"
 
 
-def _custom_type_to_rich(p: _CustomRunPropertyType) -> RichPropertyType:
-    return PropertyDouble() if p == _CustomRunPropertyType.NUMBER else PropertyString()
+def _attributo_type_to_rich(p: _AttributoType) -> RichAttributoType:
+    return PropertyDouble() if p == _AttributoType.NUMBER else PropertyString()
 
 
 @dataclass(frozen=True)
@@ -47,14 +47,14 @@ class ProgramState:
     name: str
     description: str
     suffix: str
-    type_: _CustomRunPropertyType
+    type_: _AttributoType
     numeric_range: Optional[NumericRange]
-    existing_properties: Set[RunProperty]
+    existing_properties: Set[AttributoId]
 
 
 @dataclass(frozen=True)
 class TypeChange:
-    new_type: _CustomRunPropertyType
+    new_type: _AttributoType
 
 
 @dataclass(frozen=True)
@@ -112,12 +112,12 @@ def _state_to_gui(
     form.addRow("Suffix", suffix_input)
 
     type_combo = ComboBox(
-        items=[(f.value, f) for f in _CustomRunPropertyType],
+        items=[(f.value, f) for f in _AttributoType],
         selected=s.type_,
     )
     form.addRow("Type", type_combo)
 
-    if s.type_ == _CustomRunPropertyType.NUMBER:
+    if s.type_ == _AttributoType.NUMBER:
         numeric_range_input = NumericRangeFormatWidget(numeric_range=s.numeric_range)
         numeric_range_input.range_changed.connect(context.emitter(NumericRangeChange))
         form.addRow("Value range", numeric_range_input)
@@ -131,7 +131,7 @@ def _state_to_gui(
     button_box.rejected.connect(context.dialog_reject)
 
     button_box.button(QDialogButtonBox.Ok).setEnabled(
-        bool(s.name) and RunProperty(s.name) not in s.existing_properties
+        bool(s.name) and AttributoId(s.name) not in s.existing_properties
     )
 
     dialog_layout.addWidget(button_box)
@@ -154,17 +154,17 @@ def _state_reducer(state: ProgramState, event: ProgramEvent) -> ProgramState:
     return state
 
 
-def new_custom_column_dialog(
-    existing_properties: Iterable[RunProperty],
+def new_attributo_dialog(
+    existing_properties: Iterable[AttributoId],
     parent: Optional[QWidget] = None,
-) -> Optional[DBCustomProperty]:
+) -> Optional[DBAttributo]:
     dialog_context = Context(
         parent,
         ProgramState(
             name="",
             description="",
             suffix="",
-            type_=_CustomRunPropertyType.NUMBER,
+            type_=_AttributoType.NUMBER,
             numeric_range=None,
             existing_properties=set(existing_properties),
         ),
@@ -177,18 +177,18 @@ def new_custom_column_dialog(
     if result == DialogResult.REJECTED:
         return None
 
-    rich_prop: RichPropertyType
-    if final_state.type_ == _CustomRunPropertyType.NUMBER:
+    rich_prop: RichAttributoType
+    if final_state.type_ == _AttributoType.NUMBER:
         rich_prop = PropertyDouble(final_state.numeric_range, final_state.suffix)
-    elif final_state.type_ == _CustomRunPropertyType.STRING:
+    elif final_state.type_ == _AttributoType.STRING:
         rich_prop = PropertyString()
-    elif final_state.type_ == _CustomRunPropertyType.STRING_LIST:
+    elif final_state.type_ == _AttributoType.STRING_LIST:
         rich_prop = PropertyTags()
     else:
         raise Exception(f"Invalid property type {final_state.type_}")
 
-    return DBCustomProperty(
-        name=RunProperty(final_state.name),
+    return DBAttributo(
+        name=AttributoId(final_state.name),
         description=final_state.description,
         suffix=final_state.suffix,
         rich_property_type=rich_prop,
