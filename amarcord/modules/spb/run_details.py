@@ -9,13 +9,13 @@ from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 from amarcord.modules.context import Context
 from amarcord.modules.spb.db import (
     Connection,
-    CustomRunProperty,
+    DBCustomProperty,
     DB,
     DBRun,
     DBRunComment,
     Karabo,
 )
-from amarcord.modules.spb.db_tables import DBTables
+from amarcord.modules.spb.db_tables import AssociatedTable, DBTables
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_details_inner import RunDetailsInner
@@ -148,14 +148,15 @@ class RunDetails(QWidget):
             self._slot_refresh_run(conn, self.selected_run())
             self.run_changed.emit()
 
-    def _slot_new_custom_column(self, new_column: CustomRunProperty) -> None:
+    def _slot_new_custom_column(self, new_column: DBCustomProperty) -> None:
         with self._db.connect() as conn:
-            self._db.add_custom_run_property(
+            self._db.add_custom_property(
                 conn,
                 name=new_column.name,
                 description=new_column.description,
                 suffix=None,
                 prop_type=new_column.rich_property_type,
+                associated_table=AssociatedTable.RUN,
             )
             cast(RunDetailsInner, self._inner).runs_metadata_changed(
                 self._db.run_property_metadata(conn)

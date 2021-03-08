@@ -13,11 +13,11 @@ from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.modules.json import JSONDict, JSONValue
 from amarcord.modules.spb.db import (
     DB,
+    DBCustomProperty,
     DBRunComment,
-    DBRunPropertyMetadata,
     RunPropertyValue,
-    property_type_to_schema,
 )
+from amarcord.modules.properties import property_type_to_schema
 from amarcord.modules.spb.db_tables import create_sample_data, create_tables
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_property import RunProperty
@@ -88,13 +88,13 @@ def retrieve_runs(proposal_id: int) -> JSONDict:
         }
 
 
-def _convert_metadata(v: DBRunPropertyMetadata) -> JSONDict:
+def _convert_metadata(v: DBCustomProperty) -> JSONDict:
     return {
         "name": v.name,
         "description": v.description,
         "suffix": v.suffix,
-        "type_schema": property_type_to_schema(v.rich_prop_type)
-        if v.rich_prop_type is not None
+        "type_schema": property_type_to_schema(v.rich_property_type)
+        if v.rich_property_type is not None
         else None,
     }
 

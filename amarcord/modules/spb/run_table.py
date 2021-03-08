@@ -15,7 +15,7 @@ from amarcord.modules.spb.plot_dialog import PlotDialog
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_property import RunProperty
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
-from amarcord.qt.properties import PropertyDouble, PropertyInt
+from amarcord.modules.properties import PropertyDouble, PropertyInt
 from amarcord.qt.table import GeneralTableWidget
 from amarcord.query_parser import UnexpectedEOF, parse_query
 
@@ -152,10 +152,10 @@ class RunTable(QtWidgets.QWidget):
 
     def _header_menu_callback(self, pos: QtCore.QPoint, column: RunProperty) -> None:
         property_metadata = self._run_property_names.get(column, None)
-        if property_metadata is None or property_metadata.rich_prop_type is None:
+        if property_metadata is None or property_metadata.rich_property_type is None:
             return
         if not isinstance(
-            property_metadata.rich_prop_type, (PropertyInt, PropertyDouble)
+            property_metadata.rich_property_type, (PropertyInt, PropertyDouble)
         ):
             return
         started_property = RunProperty("started")

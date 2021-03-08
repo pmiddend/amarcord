@@ -1,10 +1,10 @@
 import logging
 import sys
-import os
 
 from amarcord.config import load_config
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode, DBContext
+from amarcord.modules.spb.db_tables import create_sample_data, create_tables
 from amarcord.modules.spb.factories import (
     proposal_chooser,
     retrieve_proposal_ids,
@@ -12,7 +12,6 @@ from amarcord.modules.spb.factories import (
     run_table,
 )
 from amarcord.modules.spb.proposal_id import ProposalId
-from amarcord.modules.spb.db_tables import create_sample_data, create_tables
 from amarcord.modules.spb.samples import Samples
 from amarcord.modules.spb.targets import Targets
 from amarcord.modules.uicontext import UIContext
@@ -31,8 +30,7 @@ if __name__ == "__main__":
 
     dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
-    if "AMARCORD_CREATE_SAMPLE_DATA" in os.environ:
-        create_sample_data(dbcontext, tables)
+    create_sample_data(dbcontext, tables)
 
     proposal_ids = retrieve_proposal_ids(context, tables)
 

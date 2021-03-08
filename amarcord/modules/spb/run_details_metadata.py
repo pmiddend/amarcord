@@ -1,5 +1,4 @@
 import logging
-from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -10,13 +9,13 @@ from PyQt5.QtWidgets import QHBoxLayout
 
 from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
 from amarcord.modules.spb.db import (
+    DBCustomProperty,
     DBRun,
-    DBRunPropertyMetadata,
 )
 from amarcord.modules.spb.run_property import RunProperty
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
-from amarcord.qt.properties import RichPropertyType, delegate_for_property_type
+from amarcord.modules.properties import delegate_for_property_type
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +23,6 @@ logger = logging.getLogger(__name__)
 class _MetadataColumn(Enum):
     NAME = 0
     VALUE = 1
-
-
-@dataclass(frozen=True)
-class AugmentedRunProperty:
-    prop: RunProperty
-    name: str
-    rich_prop_type: RichPropertyType
 
 
 class MetadataTable(QtWidgets.QWidget):
@@ -58,22 +50,20 @@ class MetadataTable(QtWidgets.QWidget):
         self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
         self._run: Optional[DBRun] = None
-        self._metadata: Dict[RunProperty, DBRunPropertyMetadata] = {}
+        self._metadata: Dict[RunProperty, DBCustomProperty] = {}
 
     def _property_changed(self, prop: RunProperty, new_value: Any) -> None:
         self._property_change(prop, new_value)
 
-    def _run_property_to_string(
-        self, metadata: DBRunPropertyMetadata, value: Any
-    ) -> str:
-        suffix: str = getattr(metadata.rich_prop_type, "suffix", None)
+    def _run_property_to_string(self, metadata: DBCustomProperty, value: Any) -> str:
+        suffix: str = getattr(metadata.rich_property_type, "suffix", None)
         value_str = ", ".join(value) if isinstance(value, list) else str(value)
         return value_str if suffix is None else f"{value_str} {suffix}"
 
     def data_changed(
         self,
         run: DBRun,
-        metadata: Dict[RunProperty, DBRunPropertyMetadata],
+        metadata: Dict[RunProperty, DBCustomProperty],
         tables: DBTables,
         sample_ids: List[int],
     ) -> None:
@@ -91,7 +81,7 @@ class MetadataTable(QtWidgets.QWidget):
         if not run_properties_changed and not metadata_changed:
             return
 
-        run_properties: List[Tuple[RunProperty, DBRunPropertyMetadata]] = [
+        run_properties: List[Tuple[RunProperty, DBCustomProperty]] = [
             (k, v)
             for k, v in metadata.items()
             if k not in (tables.property_comments, tables.property_karabo)
@@ -127,11 +117,11 @@ class MetadataTable(QtWidgets.QWidget):
                 columns=self._columns,
                 row_delegates={
                     idx: delegate_for_property_type(
-                        md.rich_prop_type,
+                        md.rich_property_type,
                         sample_ids,
                     )
                     for (idx, (property, md)) in enumerate(run_properties)
-                    if md.rich_prop_type is not None
+                    if md.rich_property_type is not None
                 },
                 column_delegates={},
             )

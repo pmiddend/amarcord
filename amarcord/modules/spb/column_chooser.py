@@ -2,14 +2,14 @@ from typing import Dict, List, Mapping, Optional
 
 from PyQt5 import QtCore, QtWidgets
 
-from amarcord.modules.spb.db import DBRunPropertyMetadata
+from amarcord.modules.spb.db import DBCustomProperty
 from amarcord.modules.spb.run_property import RunProperty
 
 
 def display_column_chooser(
     parent: Optional[QtWidgets.QWidget],
     selected_columns: List[RunProperty],
-    available_properties: Mapping[RunProperty, DBRunPropertyMetadata],
+    available_properties: Mapping[RunProperty, DBCustomProperty],
 ) -> List[RunProperty]:
     dialog = QtWidgets.QDialog(parent)
     dialog_layout = QtWidgets.QVBoxLayout()

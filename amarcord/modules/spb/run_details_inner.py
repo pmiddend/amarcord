@@ -8,10 +8,9 @@ from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
 from amarcord.modules.spb.colors import COLOR_MANUAL_RUN_PROPERTY
 from amarcord.modules.spb.comments import Comments
 from amarcord.modules.spb.db import (
-    CustomRunProperty,
+    DBCustomProperty,
     DBRun,
     DBRunComment,
-    DBRunPropertyMetadata,
 )
 from amarcord.modules.spb.db_tables import DBTables
 from amarcord.modules.spb.new_custom_column_dialog import new_custom_column_dialog
@@ -47,7 +46,7 @@ class RunDetailsInner(QtWidgets.QWidget):
     comment_add = pyqtSignal(DBRunComment)
     comment_changed = pyqtSignal(DBRunComment)
     property_change = pyqtSignal(str, QVariant)
-    new_custom_column = pyqtSignal(CustomRunProperty)
+    new_custom_column = pyqtSignal(DBCustomProperty)
     manual_new_run = pyqtSignal()
 
     def __init__(
@@ -56,7 +55,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         run_ids: List[int],
         sample_ids: List[int],
         run: DBRun,
-        runs_metadata: Dict[RunProperty, DBRunPropertyMetadata],
+        runs_metadata: Dict[RunProperty, DBCustomProperty],
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -196,7 +195,7 @@ class RunDetailsInner(QtWidgets.QWidget):
             self._refresh_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def runs_metadata_changed(
-        self, new_runs_metadata: Dict[RunProperty, DBRunPropertyMetadata]
+        self, new_runs_metadata: Dict[RunProperty, DBCustomProperty]
     ) -> None:
         self.runs_metadata = new_runs_metadata
         self._metadata_table.data_changed(
@@ -208,7 +207,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         new_run: DBRun,
         new_run_ids: List[int],
         new_sample_ids: List[int],
-        new_metadata: Dict[RunProperty, DBRunPropertyMetadata],
+        new_metadata: Dict[RunProperty, DBCustomProperty],
     ) -> None:
         self.run = new_run
         self.runs_metadata = new_metadata

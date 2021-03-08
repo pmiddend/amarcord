@@ -13,14 +13,15 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from amarcord.modules.spb.db import CustomRunProperty
+from amarcord.modules.spb.db import DBCustomProperty
+from amarcord.modules.spb.db_tables import AssociatedTable
 from amarcord.modules.spb.run_property import RunProperty
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.numeric_range_format_widget import (
     NumericRange,
     NumericRangeFormatWidget,
 )
-from amarcord.qt.properties import (
+from amarcord.modules.properties import (
     PropertyDouble,
     PropertyString,
     PropertyTags,
@@ -156,7 +157,7 @@ def _state_reducer(state: ProgramState, event: ProgramEvent) -> ProgramState:
 def new_custom_column_dialog(
     existing_properties: Iterable[RunProperty],
     parent: Optional[QWidget] = None,
-) -> Optional[CustomRunProperty]:
+) -> Optional[DBCustomProperty]:
     dialog_context = Context(
         parent,
         ProgramState(
@@ -186,9 +187,10 @@ def new_custom_column_dialog(
     else:
         raise Exception(f"Invalid property type {final_state.type_}")
 
-    return CustomRunProperty(
+    return DBCustomProperty(
         name=RunProperty(final_state.name),
         description=final_state.description,
         suffix=final_state.suffix,
         rich_property_type=rich_prop,
+        associated_table=AssociatedTable.RUN,
     )

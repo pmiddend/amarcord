@@ -1,5 +1,6 @@
 import datetime
 import logging
+from enum import Enum
 from random import randint, random, randrange, seed
 from typing import Dict, Optional
 
@@ -8,7 +9,7 @@ from sqlalchemy import func
 
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.run_property import RunProperty
-from amarcord.qt.properties import (
+from amarcord.modules.properties import (
     PropertyInt,
     PropertySample,
     RichPropertyType,
@@ -17,13 +18,19 @@ from amarcord.qt.properties import (
 logger = logging.getLogger(__name__)
 
 
-def _table_custom_run_property(metadata: sa.MetaData) -> sa.Table:
+class AssociatedTable(Enum):
+    RUN = "run"
+    SAMPLE = "sample"
+
+
+def _table_custom_property(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
-        "CustomRunProperty",
+        "CustomProperty",
         metadata,
         sa.Column("name", sa.String(length=255), primary_key=True),
         sa.Column("description", sa.String(length=255)),
         sa.Column("suffix", sa.String(length=255)),
+        sa.Column("associated_table", sa.Enum(AssociatedTable), nullable=False),
         sa.Column("json_schema", sa.JSON, nullable=False),
     )
 
@@ -65,6 +72,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("compounds", sa.JSON, nullable=True),
         sa.Column("micrograph", sa.Text, nullable=True),
         sa.Column("protocol", sa.Text, nullable=True),
+        sa.Column("custom", sa.JSON, nullable=True),
     )
 
 
@@ -114,7 +122,7 @@ class DBTables:
         proposal: sa.Table,
         run: sa.Table,
         run_comment: sa.Table,
-        custom_run_property: sa.Table,
+        custom_property: sa.Table,
         target: sa.Table,
     ) -> None:
         self.sample = sample
@@ -122,7 +130,7 @@ class DBTables:
         self.run = run
         self.run_comment = run_comment
         self.target = target
-        self.custom_run_property = custom_run_property
+        self.custom_property = custom_property
         self.property_comments = RunProperty("comments")
         self.property_karabo = RunProperty(self.run.c.karabo.name)
         self.property_custom = RunProperty(self.run.c.custom.name)
@@ -148,7 +156,7 @@ def create_tables(context: DBContext) -> DBTables:
         proposal=_table_proposal(context.metadata),
         run=_table_run(context.metadata),
         run_comment=_table_run_comment(context.metadata),
-        custom_run_property=_table_custom_run_property(context.metadata),
+        custom_property=_table_custom_property(context.metadata),
         target=_table_target(context.metadata),
     )
 
@@ -204,13 +212,14 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
 
         # Create run properties
         conn.execute(
-            tables.custom_run_property.insert().values(
+            tables.custom_property.insert().values(
                 [
                     {
                         "name": "repetition_rate",
                         "description": "Repetition Rate",
                         "suffix": "MHz",
                         "json_schema": {"type": "number"},
+                        "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "status",
@@ -220,6 +229,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                             "type": "string",
                             "enum": ["running", "finished"],
                         },
+                        "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "hit_rate",
@@ -230,18 +240,21 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                             "minimum": 0,
                             "maximum": 100,
                         },
+                        "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "trains",
                         "description": "Train count",
                         "suffix": None,
                         "json_schema": {"type": "integer"},
+                        "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "injector_position_z",
                         "description": "Injector Position Z",
                         "suffix": "mm",
                         "json_schema": {"type": "number"},
+                        "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "tags",
@@ -251,12 +264,14 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                             "type": "array",
                             "items": {"type": "string", "minLength": 1},
                         },
+                        "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "started",
                         "description": "Started",
                         "suffix": None,
                         "json_schema": {"type": "string", "format": "date-time"},
+                        "associated_table": AssociatedTable.RUN,
                     },
                 ]
             )

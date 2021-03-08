@@ -9,34 +9,21 @@ from typing import Any, Dict, List, Mapping, Optional, Set, Tuple, Union
 import sqlalchemy as sa
 from sqlalchemy import and_
 
-from amarcord.json_schema import (
-    JSONSchemaArray,
-    JSONSchemaInteger,
-    JSONSchemaNumber,
-    JSONSchemaString,
-    JSONSchemaStringFormat,
-    parse_schema_type,
-)
 from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.json import JSONDict
 from amarcord.modules.spb.constants import MANUAL_SOURCE_NAME
 from amarcord.modules.spb.proposal_id import ProposalId
 from amarcord.modules.spb.run_property import (
     RunProperty,
 )
 from amarcord.modules.spb.db_tables import (
+    AssociatedTable,
     DBTables,
 )
-from amarcord.numeric_range import NumericRange
-from amarcord.qt.properties import (
-    PropertyChoice,
-    PropertyDateTime,
-    PropertyDouble,
-    PropertyInt,
-    PropertySample,
-    PropertyString,
-    PropertyTags,
+from amarcord.modules.properties import (
+    PropertyComments,
     RichPropertyType,
+    schema_to_property_type,
+    property_type_to_schema,
 )
 from amarcord.util import dict_union, remove_duplicates_stable
 
@@ -99,91 +86,15 @@ class DBRun:
 
 
 @dataclass(frozen=True)
-class CustomRunProperty:
+class DBCustomProperty:
     name: RunProperty
     description: str
     suffix: Optional[str]
+    associated_table: AssociatedTable
     rich_property_type: RichPropertyType
 
 
 Connection = Any
-
-
-def _schema_to_property_type(
-    json_schema: JSONDict, suffix: Optional[str]
-) -> RichPropertyType:
-    parsed_schema = parse_schema_type(json_schema)
-    if isinstance(parsed_schema, JSONSchemaNumber):
-        return PropertyDouble(
-            range=None
-            if parsed_schema.minimum is None
-            and parsed_schema.maximum is None
-            and parsed_schema.exclusiveMaximum is None
-            and parsed_schema.exclusiveMinimum is None
-            else NumericRange(
-                parsed_schema.minimum
-                if parsed_schema.minimum is not None
-                else parsed_schema.exclusiveMinimum,
-                parsed_schema.exclusiveMinimum is not None,
-                parsed_schema.maximum
-                if parsed_schema.maximum is not None
-                else parsed_schema.exclusiveMaximum,
-                parsed_schema.exclusiveMaximum is not None,
-            ),
-            suffix=suffix,
-        )
-    if isinstance(parsed_schema, JSONSchemaInteger):
-        return PropertyInt(range=None)
-    if isinstance(parsed_schema, JSONSchemaArray):
-        assert isinstance(
-            parsed_schema.value_type, JSONSchemaString
-        ), "arrays of non-strings aren't supported yet"
-        assert (
-            parsed_schema.value_type.enum_ is None
-        ), "arrays of enum strings aren't supported yet"
-        return PropertyTags()
-    if isinstance(parsed_schema, JSONSchemaString):
-        if parsed_schema.enum_ is not None:
-            return PropertyChoice([(s, s) for s in parsed_schema.enum_])
-        if parsed_schema.format_ == JSONSchemaStringFormat.DATE_TIME:
-            return PropertyDateTime()
-        return PropertyString()
-    raise Exception(f'invalid schema type "{type(parsed_schema)}"')
-
-
-def property_type_to_schema(rp: RichPropertyType) -> JSONDict:
-    if isinstance(rp, PropertyInt):
-        result_int: Dict[str, Any] = {"type": "number"}
-        if rp.range is not None:
-            result_int["minimum"] = rp.range[0]
-            result_int["maximum"] = rp.range[1]
-        return result_int
-    if isinstance(rp, PropertyDouble):
-        result_double: Dict[str, Any] = {"type": "number"}
-        if rp.range is not None:
-            if rp.range.minimum is not None:
-                if rp.range.minimum_inclusive:
-                    result_double["minimum"] = rp.range.minimum
-                else:
-                    result_double["exclusiveMinimum"] = rp.range.minimum
-            if rp.range.maximum is not None:
-                if rp.range.maximum_inclusive:
-                    result_double["maximum"] = rp.range.maximum
-                else:
-                    result_double["exclusiveMaximum"] = rp.range.maximum
-        return result_double
-    if isinstance(rp, PropertyString):
-        return {"type": "string"}
-    if isinstance(rp, PropertySample):
-        return {"type": "integer"}
-    if isinstance(rp, PropertyChoice):
-        return {"type": "string", "enum": [v[1] for v in rp.values]}
-    if isinstance(rp, PropertyDateTime):
-        return {"type": "string", "format": "date-time"}
-    if isinstance(rp, PropertyTags):
-        return {"type": "array", "items": {"type": "string"}}
-    raise Exception(f"invalid property type {type(rp)}")
-
 
 Source = str
 
@@ -221,14 +132,6 @@ def _decode_custom_to_values(
                 value, source=MANUAL_SOURCE_NAME
             )
     return result
-
-
-@dataclass(frozen=True)
-class DBRunPropertyMetadata:
-    name: str
-    description: str
-    suffix: Optional[str]
-    rich_prop_type: Optional[RichPropertyType]
 
 
 class DB:
@@ -474,57 +377,63 @@ class DB:
             .values(karabo=karabo, modified=datetime.datetime.utcnow())
         )
 
-    def custom_run_properties(self, conn: Connection) -> List[CustomRunProperty]:
+    def custom_properties(
+        self, conn: Connection, table: AssociatedTable
+    ) -> List[DBCustomProperty]:
         return [
-            CustomRunProperty(
+            DBCustomProperty(
                 name=RunProperty(row[0]),
                 description=row[1],
                 suffix=row[2],
-                rich_property_type=_schema_to_property_type(
+                rich_property_type=schema_to_property_type(
                     json_schema=row[3], suffix=row[2]
                 ),
+                associated_table=table,
             )
             for row in conn.execute(
                 sa.select(
                     [
-                        self.tables.custom_run_property.c.name,
-                        self.tables.custom_run_property.c.description,
-                        self.tables.custom_run_property.c.suffix,
-                        self.tables.custom_run_property.c.json_schema,
+                        self.tables.custom_property.c.name,
+                        self.tables.custom_property.c.description,
+                        self.tables.custom_property.c.suffix,
+                        self.tables.custom_property.c.json_schema,
                     ]
-                )
+                ).where(self.tables.custom_property.c.associated_table == table)
             ).fetchall()
         ]
 
     def run_property_metadata(
         self, conn: Connection
-    ) -> Dict[RunProperty, DBRunPropertyMetadata]:
-        custom_props = self.custom_run_properties(conn)
+    ) -> Dict[RunProperty, DBCustomProperty]:
+        custom_props = self.custom_properties(conn, AssociatedTable.RUN)
         return dict_union(
             [
                 {
-                    k: DBRunPropertyMetadata(
-                        name=str(k),
+                    k: DBCustomProperty(
+                        name=RunProperty(str(k)),
                         description=self.tables.property_descriptions.get(k, str(k)),
-                        rich_prop_type=v,
+                        rich_property_type=v,
+                        associated_table=AssociatedTable.RUN,
                         suffix=None,
                     )
                     for k, v in self.tables.property_types.items()
                 },
                 {
-                    c.name: DBRunPropertyMetadata(
-                        name=str(c.name),
+                    c.name: DBCustomProperty(
+                        name=RunProperty(str(c.name)),
                         description=c.description,
-                        rich_prop_type=c.rich_property_type,
+                        rich_property_type=c.rich_property_type,
+                        associated_table=AssociatedTable.RUN,
                         suffix=c.suffix,
                     )
                     for c in custom_props
                 },
                 {
-                    self.tables.property_comments: DBRunPropertyMetadata(
-                        name="comments",
+                    self.tables.property_comments: DBCustomProperty(
+                        name=RunProperty("comments"),
                         description="Comments",
-                        rich_prop_type=None,
+                        rich_property_type=PropertyComments(),
+                        associated_table=AssociatedTable.RUN,
                         suffix=None,
                     )
                 },
@@ -581,19 +490,21 @@ class DB:
             pickle.loads(result[0][0]) if result and result[0][0] is not None else None
         )
 
-    def add_custom_run_property(
+    def add_custom_property(
         self,
         conn: Connection,
         name: str,
         description: str,
+        associated_table: AssociatedTable,
         suffix: Optional[str],
         prop_type: RichPropertyType,
     ) -> None:
         conn.execute(
-            self.tables.custom_run_property.insert().values(
+            self.tables.custom_property.insert().values(
                 name=name,
                 description=description,
                 suffix=suffix,
+                associated_table=associated_table,
                 json_schema=property_type_to_schema(prop_type),
             )
         )
