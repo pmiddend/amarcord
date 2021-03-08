@@ -3,10 +3,7 @@ from typing import List
 from typing import Any
 from enum import Enum
 from enum import auto
-from sqlalchemy import (
-    create_engine,
-    MetaData,
-)
+from sqlalchemy import create_engine, MetaData, event
 
 
 class CreationMode(Enum):
@@ -16,7 +13,16 @@ class CreationMode(Enum):
 
 class DBContext:
     def __init__(self, connection_url: str) -> None:
-        self.engine = create_engine(connection_url, echo=False)
+        self.engine = create_engine(connection_url, echo=True)
+
+        # sqlite doesn't care about foreign keys unless you do this dance, see
+        # https://stackoverflow.com/questions/2614984/sqlite-sqlalchemy-how-to-enforce-foreign-keys
+        def _fk_pragma_on_connect(dbapi_con, _con_record):
+            dbapi_con.execute("pragma foreign_keys=ON")
+
+        if "sqlite" in connection_url:
+            event.listen(self.engine, "connect", _fk_pragma_on_connect)
+
         self.metadata = MetaData()
         self._after_db_created: List[Callable[[], None]] = []
         self._db_created = False
