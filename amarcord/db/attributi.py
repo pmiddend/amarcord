@@ -1,7 +1,7 @@
 import datetime
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union, cast
 
 from PyQt5 import QtCore, QtWidgets
 
@@ -27,6 +27,7 @@ from amarcord.qt.table_delegates import (
     IntItemDelegate,
     TagsItemDelegate,
 )
+from amarcord.query_parser import Row
 
 logger = logging.getLogger(__name__)
 
@@ -312,34 +313,14 @@ class AttributiMap:
     def to_json(self) -> JSONDict:
         return self._attributi
 
-
-#
-#
-# def select_attributo(
-#     attributi: AttributiMap, attributo_id: AttributoId
-# ) -> Optional[AttributoValueWithSource]:
-#     manual_attributi = attributi.get(MANUAL_SOURCE_NAME, None)
-#
-#     if manual_attributi is not None:
-#         manual_attributo = manual_attributi.get(attributo_id, None)
-#         if manual_attributo:
-#             return AttributoValueWithSource(manual_attributo, MANUAL_SOURCE_NAME)
-#
-#     for source, values in attributi.items():
-#         assert isinstance(values, dict)
-#         attributo = values.get(attributo_id, None)
-#         if attributo is not None:
-#             return AttributoValueWithSource(attributo, source)
-#
-#     return None
-#
-#
-# def set_manual_attributo(
-#     attributi: AttributiMap, attributo: AttributoId, value: AttributoValue
-# ) -> None:
-#     manual_attributi = attributi.get(MANUAL_SOURCE_NAME, None)
-#
-#     if manual_attributi:
-#         manual_attributi[attributo] = value
-#     else:
-#         attributo[MANUAL_SOURCE_NAME] = {attributo: value}
+    def to_query_row(self, attributi_metadata: Iterable[DBAttributo]) -> Row:
+        result: Row = {}
+        for metadata in attributi_metadata:
+            v = self.select_value(metadata.name)
+            if isinstance(v, list) and v and isinstance(v[0], DBRunComment):
+                result[metadata.name] = "".join(
+                    cast(DBRunComment, c).text + cast(DBRunComment, c).author for c in v
+                )
+            else:
+                result[metadata.name] = self.select_value(metadata.name)  # type: ignore
+        return result

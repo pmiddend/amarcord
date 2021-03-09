@@ -19,7 +19,7 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
     def setCompleter(self, completer: Optional[QtWidgets.QCompleter]) -> None:
         if self._completer is not None:
             # mypy complains about too many arguments to "disconnect"
-            self._completer.disconnect(self)  # type: ignore
+            self._completer.disconnect()  # type: ignore
 
         self._completer = completer
 

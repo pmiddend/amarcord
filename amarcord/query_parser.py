@@ -11,7 +11,7 @@ class SemanticError(Exception):
     pass
 
 
-Field = Union[int, str, float, List[str]]
+Field = Union[int, str, float, List[str], None]
 Row = Dict[str, Field]
 Query = Callable[[Row], bool]
 

@@ -123,7 +123,7 @@ class DB:
         proposal_id: ProposalId,
         since: Optional[datetime.datetime],
     ) -> List[AttributiMap]:
-        logger.info("retrieving runs since %s", since)
+        # logger.info("retrieving runs since %s", since)
 
         run = self.tables.run
         comment = self.tables.run_comment
@@ -153,7 +153,7 @@ class DB:
         before = time()
         select_results = conn.execute(select_stmt).fetchall()
         after = time()
-        logger.info("Retrieved runs in %ss", after - before)
+        # logger.info("Retrieved runs in %ss", after - before)
         for _run_id, run_rows in groupby(
             select_results,
             lambda x: x["id"],

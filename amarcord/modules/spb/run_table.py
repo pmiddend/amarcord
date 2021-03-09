@@ -1,5 +1,6 @@
 import logging
 from functools import partial
+import datetime
 from typing import Final, List
 
 from PyQt5 import QtCore, QtWidgets
@@ -22,7 +23,7 @@ from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.plot_dialog import PlotDialog
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
-from amarcord.query_parser import UnexpectedEOF, parse_query
+from amarcord.query_parser import Query, UnexpectedEOF, parse_query
 
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
@@ -59,9 +60,11 @@ class RunTable(QWidget):
             self._visible_columns: List[AttributoId] = list(
                 self._attributi_metadata.keys()
             )
+            self._last_refresh = datetime.datetime.utcnow()
             self._runs: List[AttributiMap] = self._db.retrieve_runs(
                 conn, self._proposal_id, None
             )
+            self._filter_query: Query = lambda row: True
             self._table_view = DeclarativeTable(
                 self._create_declarative_data(),
                 parent=None,
@@ -138,6 +141,7 @@ class RunTable(QWidget):
                     ),
                 )
                 for c in self._runs
+                if self._run_not_filtered(c)
             ],
             columns=[
                 Column(
@@ -153,6 +157,9 @@ class RunTable(QWidget):
             column_delegates={},
         )
 
+    def _run_not_filtered(self, run: AttributiMap) -> bool:
+        return self._filter_query(run.to_query_row(self._attributi_metadata.values()))
+
     def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
         if self._update_timer.isActive():
             self._update_timer.stop()
@@ -162,7 +169,37 @@ class RunTable(QWidget):
     def _slot_refresh(self) -> None:
         with self._db.connect() as conn:
             self._attributi_metadata = self._db.run_attributi(conn)
-            self._runs = self._db.retrieve_runs(conn, self._proposal_id, None)
+            completer = QtWidgets.QCompleter(
+                list(self._attributi_metadata.keys()), self
+            )
+            completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
+            self._filter_widget.setCompleter(completer)
+            run_updates = self._db.retrieve_runs(
+                conn, self._proposal_id, self._last_refresh
+            )
+            for idx in range(len(self._runs)):
+                for update_idx, update in enumerate(run_updates):
+                    if self._runs[idx].select_int_unsafe(
+                        self._db.tables.property_run_id
+                    ) == update.select_int_unsafe(self._db.tables.property_run_id):
+                        logger.info(
+                            "Updating run %s",
+                            self._runs[idx].select_int_unsafe(
+                                self._db.tables.property_run_id
+                            ),
+                        )
+                        self._runs[idx] = update
+                        run_updates.pop(update_idx)
+                        break
+                    if not run_updates:
+                        break
+            for new_run in run_updates:
+                logger.info(
+                    "Appending new run %s",
+                    new_run.select_int_unsafe(self._db.tables.property_run_id),
+                )
+                self._runs.append(new_run)
+            self._last_refresh = datetime.datetime.utcnow()
             self._table_view.set_data(self._create_declarative_data())
 
     def _header_menu_callback(self, column: AttributoId, pos: QPoint) -> None:
@@ -207,8 +244,8 @@ class RunTable(QWidget):
 
     def _slot_filter_changed(self, f: str) -> None:
         try:
-            query = parse_query(f, set(self._attributi_metadata.keys()))
-            self._table_view.set_filter_query(query)
+            self._filter_query = parse_query(f, set(self._attributi_metadata.keys()))
+            self._slot_refresh()
         except UnexpectedEOF:
             self._query_error.setText("")
         except Exception as e:

@@ -35,9 +35,10 @@ class _MetadataColumn(Enum):
 
 
 def _attributo_value_to_string(metadata: DBAttributo, value: Any) -> str:
-    suffix: str = getattr(metadata.rich_property_type, "suffix", None)
-    value_str = ", ".join(value) if isinstance(value, list) else str(value)
-    return value_str if suffix is None else f"{value_str} {suffix}"
+    return ", ".join(value) if isinstance(value, list) else str(value)
+    # suffix: str = getattr(metadata.rich_property_type, "suffix", None)
+    # value_str = ", ".join(value) if isinstance(value, list) else str(value)
+    # return value_str if suffix is None else f"{value_str} {suffix}"
 
 
 def _attributo_type_to_string(attributo: DBAttributo) -> str:
@@ -47,6 +48,12 @@ def _attributo_type_to_string(attributo: DBAttributo) -> str:
     if isinstance(pt, PropertyChoice):
         return "choice"
     if isinstance(pt, PropertyDouble):
+        if attributo.suffix:
+            return (
+                f"{attributo.suffix} (range {pt.range})"
+                if pt.range is not None
+                else attributo.suffix
+            )
         return f"number in {pt.range}" if pt is not None else "number"
     if isinstance(pt, PropertyTags):
         return "tags"
@@ -88,14 +95,6 @@ class AttributiTable(QtWidgets.QWidget):
 
     def _property_changed(self, prop: AttributoId, new_value: Any) -> None:
         self._property_change(prop, new_value)
-
-    def _display_role_for_attributo(self, attributo_id: AttributoId) -> str:
-        selected = self._select_attributo(attributo_id)
-        return (
-            self._attributo_to_string(self.metadata[attributo_id], selected.value)
-            if selected is not None
-            else ""
-        )
 
     def _build_row(self, attributo: DBAttributo) -> Row:
         selected = (
