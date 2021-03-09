@@ -313,14 +313,14 @@ class AttributiMap:
     def to_json(self) -> JSONDict:
         return self._attributi
 
-    def to_query_row(self, attributi_metadata: Iterable[DBAttributo]) -> Row:
+    def to_query_row(self, attributi_metadata: Iterable[AttributoId]) -> Row:
         result: Row = {}
         for metadata in attributi_metadata:
-            v = self.select_value(metadata.name)
+            v = self.select_value(metadata)
             if isinstance(v, list) and v and isinstance(v[0], DBRunComment):
-                result[metadata.name] = "".join(
+                result[metadata] = "".join(
                     cast(DBRunComment, c).text + cast(DBRunComment, c).author for c in v
                 )
             else:
-                result[metadata.name] = self.select_value(metadata.name)  # type: ignore
+                result[metadata] = self.select_value(metadata)  # type: ignore
         return result

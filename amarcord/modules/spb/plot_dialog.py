@@ -89,12 +89,17 @@ class PlotDialog(QDialog):
             filtered_runs = [
                 r
                 for r in self._runs
-                if property_ in r and filter_by_query(self._query, r)
+                if r.select(property_) is not None
+                and filter_by_query(
+                    self._query, r.to_query_row(self._property_metadata.keys())
+                )
             ]
             self._df = pd.DataFrame(
-                [r[self._property] for r in filtered_runs],
+                [r.select_value(self._property) for r in filtered_runs],
                 index=[
-                    datetime.datetime.fromisoformat(r[AttributoId("started")])
+                    datetime.datetime.fromisoformat(
+                        r.select_value(AttributoId("started"))
+                    )
                     for r in filtered_runs
                 ],
                 columns=[self._property_metadata[property_].description],
@@ -133,12 +138,17 @@ class PlotDialog(QDialog):
             filtered_runs = [
                 r
                 for r in self._runs
-                if self._property in r and filter_by_query(self._query, r)
+                if r.select(self._property)
+                and filter_by_query(
+                    self._query, r.to_query_row(self._property_metadata.keys())
+                )
             ]
             self._df = pd.DataFrame(
-                [r[self._property] for r in filtered_runs],
+                [r.select_value(self._property) for r in filtered_runs],
                 index=[
-                    datetime.datetime.fromisoformat(r[AttributoId("started")])
+                    datetime.datetime.fromisoformat(
+                        r.select_value(AttributoId("started"))
+                    )
                     for r in filtered_runs
                 ],
                 columns=[self._property_metadata[self._property].description],

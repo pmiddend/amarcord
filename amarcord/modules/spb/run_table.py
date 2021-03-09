@@ -158,7 +158,7 @@ class RunTable(QWidget):
         )
 
     def _run_not_filtered(self, run: AttributiMap) -> bool:
-        return self._filter_query(run.to_query_row(self._attributi_metadata.values()))
+        return self._filter_query(run.to_query_row(self._attributi_metadata.keys()))
 
     def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
         if self._update_timer.isActive():
