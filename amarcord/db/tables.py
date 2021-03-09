@@ -65,7 +65,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("micrograph", sa.Text, nullable=True),
         sa.Column("protocol", sa.Text, nullable=True),
         sa.Column("modified", sa.DateTime, nullable=False),
-        sa.Column("attributi", sa.JSON, nullable=True),
+        sa.Column("attributi", sa.JSON, nullable=False),
     )
 
 

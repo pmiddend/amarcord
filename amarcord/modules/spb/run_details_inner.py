@@ -9,13 +9,12 @@ from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
 from amarcord.modules.spb.comments import Comments
 from amarcord.db.db import (
     DBOggetto,
-    DBRunComment,
     Karabo,
 )
-from amarcord.db.attributi import DBAttributo
+from amarcord.db.attributi import DBAttributo, DBRunComment
 from amarcord.db.tables import DBTables
 from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
-from amarcord.modules.spb.run_details_metadata import MetadataTable
+from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.modules.spb.run_details_tree import (
     RunDetailsTree,
     _dict_to_items,
@@ -120,11 +119,11 @@ class RunDetailsInner(QtWidgets.QWidget):
 
         additional_data_column = QtWidgets.QGroupBox("Metadata")
 
-        self._metadata_table = MetadataTable(
+        self._attributi_table = AttributiTable(
             lambda prop, value: self.property_change.emit(prop, value)
         )
         additional_data_layout = QtWidgets.QVBoxLayout()
-        additional_data_layout.addWidget(self._metadata_table)
+        additional_data_layout.addWidget(self._attributi_table)
         table_legend_layout = QtWidgets.QHBoxLayout()
         table_legend_layout.addStretch()
         table_legend_layout.addWidget(RectangleWidget(COLOR_MANUAL_ATTRIBUTO))
@@ -199,8 +198,8 @@ class RunDetailsInner(QtWidgets.QWidget):
         self, new_runs_metadata: Dict[AttributoId, DBAttributo]
     ) -> None:
         self.runs_metadata = new_runs_metadata
-        self._metadata_table.data_changed(
-            self.run, self.runs_metadata, self.tables, self.sample_ids
+        self._attributi_table.data_changed(
+            self.run, self.runs_metadata, self.sample_ids
         )
 
     def run_changed(
@@ -239,10 +238,9 @@ class RunDetailsInner(QtWidgets.QWidget):
         self._details_tree.resizeColumnToContents(0)
         self._details_tree.resizeColumnToContents(1)
 
-        self._metadata_table.data_changed(
+        self._attributi_table.data_changed(
             self.run,
             self.runs_metadata,
-            self.tables,
             self.sample_ids,
         )
 

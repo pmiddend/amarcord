@@ -7,8 +7,8 @@ from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.db import Connection, DB, DBOggetto, DBRunComment, Karabo
-from amarcord.db.attributi import DBAttributo
+from amarcord.db.db import Connection, DB, DBOggetto, Karabo
+from amarcord.db.attributi import DBAttributo, DBRunComment
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context

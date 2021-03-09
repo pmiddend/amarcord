@@ -7,12 +7,13 @@ from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QCheckBox, QPushButton
 
 from amarcord.db.attributi import (
+    DBRunComment,
     PropertyDouble,
     PropertyInt,
     pretty_print_attributo,
 )
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.db import DB, DBRunComment
+from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context

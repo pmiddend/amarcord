@@ -27,14 +27,16 @@ from PyQt5.QtWidgets import (
 )
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import pretty_print_attributo
+from amarcord.db.attributi import (
+    AttributiMap,
+    pretty_print_attributo,
+)
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.constants import MANUAL_SOURCE_NAME
-from amarcord.db.db import AttributoValueWithSource, Connection, DB, DBOggetto, DBSample
+from amarcord.db.db import Connection, DB, DBSample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
+from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
-from amarcord.modules.spb.run_details_metadata import MetadataTable
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
@@ -81,7 +83,7 @@ def _empty_sample():
         compounds=None,
         micrograph=None,
         protocol=None,
-        attributi={},
+        attributi=AttributiMap({}),
     )
 
 
@@ -355,15 +357,11 @@ class Samples(QWidget):
         with self._db.connect() as conn:
             metadata_wrapper = QGroupBox()
             metadata_wrapper_layout = QHBoxLayout(metadata_wrapper)
-            self._metadata_table = MetadataTable(self._attributo_change)
-            metadata_wrapper_layout.addWidget(self._metadata_table)
-            self._metadata_table.data_changed(
-                DBOggetto(
-                    {k: v.value() for k, v in self._current_sample.attributi.items()},
-                    manual_attributi=set(),
-                ),
+            self._attributi_table = AttributiTable(self._attributo_change)
+            metadata_wrapper_layout.addWidget(self._attributi_table)
+            self._attributi_table.data_changed(
+                self._current_sample.attributi,
                 self._db.retrieve_attributi(conn, AssociatedTable.SAMPLE),
-                self._db.tables,
                 [],
             )
             attributo_button = QPushButton(
@@ -389,7 +387,7 @@ class Samples(QWidget):
         self._fill_table()
 
     def _slot_new_attributo(self) -> None:
-        new_column = new_attributo_dialog(self._metadata_table.metadata.keys(), self)
+        new_column = new_attributo_dialog(self._attributi_table.metadata.keys(), self)
 
         if new_column is None:
             return
@@ -407,10 +405,8 @@ class Samples(QWidget):
 
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         with self._db.connect() as conn:
-            self._current_sample.attributi[attributo] = AttributoValueWithSource(
-                value, MANUAL_SOURCE_NAME
-            )
-            self._attributo_manual_changes[attributo] = value
+            logger.info("Setting attributo %s to %s", attributo, value)
+            self._current_sample.attributi.set_manual(attributo, value)
             # We could immediately change the attribute, but we have this "Save changes" button
             # if self._current_sample.id is not None:
             #     self._db.update_sample_attributo(
@@ -419,14 +415,10 @@ class Samples(QWidget):
             self._slot_refresh(conn)
 
     def _slot_refresh(self, conn: Connection) -> None:
-        self._metadata_table.data_changed(
-            DBOggetto(
-                {k: v.value for k, v in self._current_sample.attributi.items()},
-                manual_attributi=set(),
-            ),
+        self._attributi_table.data_changed(
+            self._current_sample.attributi,
             self._db.retrieve_attributi(conn, AssociatedTable.SAMPLE),
-            self._db.tables,
-            [],
+            sample_ids=[],
         )
         self._fill_table()
 
@@ -552,14 +544,10 @@ class Samples(QWidget):
         self._submit_layout.addWidget(self._create_edit_button())
         self._submit_layout.addWidget(self._create_cancel_button())
 
-        self._metadata_table.data_changed(
-            DBOggetto(
-                {k: v.value for k, v in self._current_sample.attributi.items()},
-                manual_attributi=set(),
-            ),
-            self._metadata_table.metadata,
-            self._db.tables,
-            [],
+        self._attributi_table.data_changed(
+            self._current_sample.attributi,
+            self._attributi_table.metadata,
+            sample_ids=[],
         )
 
     def _clear_submit(self):
@@ -754,7 +742,7 @@ class Samples(QWidget):
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._sample_table.clear()
         attributi_headers = [
-            k.description for k in self._metadata_table.metadata.values()
+            k.description for k in self._attributi_table.metadata.values()
         ]
         headers = [
             "ID",
@@ -817,14 +805,14 @@ class Samples(QWidget):
             for col, column_value in enumerate(built_in_columns):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore
             i = len(built_in_columns) - 1
-            for attributo_id in self._metadata_table.metadata:
-                attributo_value = sample.attributi.get(attributo_id, None)
+            for attributo_id in self._attributi_table.metadata:
+                attributo_value = sample.attributi.select(attributo_id)
                 self._sample_table.setItem(
                     row,
                     i,
                     QTableWidgetItem(
                         pretty_print_attributo(
-                            self._metadata_table.metadata.get(attributo_id, None),
+                            self._attributi_table.metadata.get(attributo_id, None),
                             attributo_value.value
                             if attributo_value is not None
                             else None,

@@ -73,6 +73,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 target_id=first_target_id,
                 average_crystal_size=2.0,
                 modified=datetime.datetime.utcnow(),
+                attributi={},
             )
         )
         first_sample_id = first_sample_result.inserted_primary_key[0]

@@ -13,10 +13,13 @@ from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.modules.json import JSONDict, JSONValue
 from amarcord.db.db import (
     DB,
-    DBRunComment,
-    PropertyValue,
 )
-from amarcord.db.attributi import DBAttributo, property_type_to_schema
+from amarcord.db.attributi import (
+    AttributoValue,
+    DBAttributo,
+    DBRunComment,
+    property_type_to_schema,
+)
 from amarcord.db.tables import create_tables
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.proposal_id import ProposalId
@@ -46,7 +49,7 @@ db = DB(
 )
 
 
-def _convert_run(r: Dict[AttributoId, PropertyValue]) -> JSONDict:
+def _convert_run(r: Dict[AttributoId, AttributoValue]) -> JSONDict:
     def _convert_to_json(value: Any) -> JSONValue:
         if value is None or isinstance(value, (str, int, float, bool)):
             return value

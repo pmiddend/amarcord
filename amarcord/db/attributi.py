@@ -1,11 +1,13 @@
+import datetime
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from PyQt5 import QtCore, QtWidgets
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.constants import MANUAL_SOURCE_NAME
 
 from amarcord.json_schema import (
     JSONSchemaArray,
@@ -204,3 +206,92 @@ def pretty_print_attributo(
     if isinstance(value, float):
         return f"{value:.2f}"
     return str(value) if value is not None else ""
+
+
+@dataclass(frozen=True)
+class DBRunComment:
+    id: Optional[int]
+    run_id: int
+    author: str
+    text: str
+    created: datetime.datetime
+
+
+AttributoValue = Union[List[DBRunComment], str, int, float, List[str]]
+Source = str
+
+
+@dataclass(frozen=True)
+class AttributoValueWithSource:
+    value: AttributoValue
+    source: Source
+
+
+AttributiMapImpl = Dict[Source, Dict[AttributoId, AttributoValue]]
+
+
+class AttributiMap:
+    def __init__(self, db_column: Mapping[str, Any]) -> None:
+        self._attributi: AttributiMapImpl = {}
+        for k, v in db_column.items():
+            assert isinstance(v, dict)
+            self._attributi[AttributoId(k)] = v
+
+    def select(self, attributo_id: AttributoId) -> Optional[AttributoValueWithSource]:
+        manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
+
+        if manual_attributi is not None:
+            manual_attributo = manual_attributi.get(attributo_id, None)
+            if manual_attributo:
+                return AttributoValueWithSource(manual_attributo, MANUAL_SOURCE_NAME)
+
+        for source, values in self._attributi.items():
+            assert isinstance(values, dict)
+            attributo = values.get(attributo_id, None)
+            if attributo is not None:
+                return AttributoValueWithSource(attributo, source)
+
+        return None
+
+    def set_manual(self, attributo: AttributoId, value: AttributoValue) -> None:
+        manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
+
+        if manual_attributi:
+            manual_attributi[attributo] = value
+        else:
+            self._attributi[MANUAL_SOURCE_NAME] = {attributo: value}
+
+    def to_json(self) -> JSONDict:
+        return self._attributi
+
+
+#
+#
+# def select_attributo(
+#     attributi: AttributiMap, attributo_id: AttributoId
+# ) -> Optional[AttributoValueWithSource]:
+#     manual_attributi = attributi.get(MANUAL_SOURCE_NAME, None)
+#
+#     if manual_attributi is not None:
+#         manual_attributo = manual_attributi.get(attributo_id, None)
+#         if manual_attributo:
+#             return AttributoValueWithSource(manual_attributo, MANUAL_SOURCE_NAME)
+#
+#     for source, values in attributi.items():
+#         assert isinstance(values, dict)
+#         attributo = values.get(attributo_id, None)
+#         if attributo is not None:
+#             return AttributoValueWithSource(attributo, source)
+#
+#     return None
+#
+#
+# def set_manual_attributo(
+#     attributi: AttributiMap, attributo: AttributoId, value: AttributoValue
+# ) -> None:
+#     manual_attributi = attributi.get(MANUAL_SOURCE_NAME, None)
+#
+#     if manual_attributi:
+#         manual_attributi[attributo] = value
+#     else:
+#         attributo[MANUAL_SOURCE_NAME] = {attributo: value}

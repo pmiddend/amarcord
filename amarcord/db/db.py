@@ -4,7 +4,7 @@ import pickle
 from dataclasses import dataclass
 from itertools import groupby
 from time import time
-from typing import Any, Dict, List, Mapping, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 import sqlalchemy as sa
 from sqlalchemy import and_
@@ -20,25 +20,19 @@ from amarcord.db.tables import (
 )
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
+    AttributiMap,
+    AttributoValue,
     DBAttributo,
+    DBRunComment,
     PropertyComments,
     RichAttributoType,
+    Source,
     schema_to_property_type,
     property_type_to_schema,
 )
-from amarcord.modules.json import JSONDict
 from amarcord.util import dict_union, remove_duplicates_stable
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class DBRunComment:
-    id: Optional[int]
-    run_id: int
-    author: str
-    text: str
-    created: datetime.datetime
 
 
 @dataclass(frozen=True)
@@ -52,16 +46,6 @@ class DBTarget:
 
 Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
 
-PropertyValue = Union[List[DBRunComment], str, int, float, List[str]]
-
-Source = str
-
-
-@dataclass(frozen=True)
-class AttributoValueWithSource:
-    value: Any
-    source: Source
-
 
 @dataclass(frozen=True)
 class DBSample:
@@ -71,7 +55,6 @@ class DBSample:
     average_crystal_size: Optional[float]
     crystal_shape: Optional[Tuple[float, float, float]]
     incubation_time: Optional[datetime.datetime]
-    # crystal_buffer: Optional[str]
     crystallization_temperature: Optional[float]
     shaking_time: Optional[datetime.timedelta]
     shaking_strength: Optional[float]
@@ -86,12 +69,12 @@ class DBSample:
     compounds: Optional[List[int]]
     micrograph: Optional[str]
     protocol: Optional[str]
-    attributi: Dict[AttributoId, AttributoValueWithSource]
+    attributi: AttributiMap
 
 
 @dataclass(frozen=True)
 class DBOggetto:
-    attributi: Dict[AttributoId, PropertyValue]
+    attributi: Dict[AttributoId, AttributoValue]
     manual_attributi: Set[AttributoId]
 
 
@@ -100,30 +83,11 @@ Connection = Any
 
 def _decode_attributi_to_values(
     attributi: Mapping[str, Any]
-) -> Dict[AttributoId, AttributoValueWithSource]:
-    result: Dict[AttributoId, AttributoValueWithSource] = {}
-    for source in attributi.keys() - {MANUAL_SOURCE_NAME}:
-        values: Dict[str, Any] = attributi[source]
-        assert isinstance(
-            values, dict
-        ), f'attributi source data isn\'t a dict for source "{source}"'
-        for run_property_str, value in values.items():
-            run_property = AttributoId(run_property_str)
-            if run_property in result:
-                logger.warning(
-                    "source values overlap for %s, overriding (introduce priorities!)",
-                    run_property_str,
-                )
-            result[run_property] = AttributoValueWithSource(value=value, source=source)
-    if MANUAL_SOURCE_NAME in attributi:
-        manual_values: Dict[str, Any] = attributi[MANUAL_SOURCE_NAME]
-        assert isinstance(
-            manual_values, dict
-        ), "attributi source data isn't a dict for manual source"
-        for run_property_str, value in manual_values.items():
-            result[AttributoId(run_property_str)] = AttributoValueWithSource(
-                value, source=MANUAL_SOURCE_NAME
-            )
+) -> Dict[Source, Dict[AttributoId, AttributoValue]]:
+    result: Dict[Source, Dict[AttributoId, AttributoValue]] = {}
+    for k, v in attributi.items():
+        assert isinstance(v, dict)
+        result[AttributoId(k)] = v
     return result
 
 
@@ -137,7 +101,7 @@ class DB:
         conn: Connection,
         proposal_id: ProposalId,
         since: Optional[datetime.datetime],
-    ) -> List[Dict[AttributoId, PropertyValue]]:
+    ) -> List[Dict[AttributoId, AttributoValue]]:
         logger.info("retrieving runs since %s", since)
 
         run = self.tables.run
@@ -163,7 +127,7 @@ class DB:
             .where(where_condition)
             .order_by(run.c.id, comment.c.id)
         )
-        result: List[Dict[AttributoId, PropertyValue]] = []
+        result: List[Dict[AttributoId, AttributoValue]] = []
         before = time()
         select_results = conn.execute(select_stmt).fetchall()
         after = time()
@@ -189,7 +153,7 @@ class DB:
             assert isinstance(
                 attributi, dict
             ), f"attributi column has type {type(attributi)}"
-            run_dict: Dict[AttributoId, PropertyValue] = {}
+            run_dict: Dict[AttributoId, AttributoValue] = {}
             run_dict.update(
                 {
                     self.tables.property_comments: comments,
@@ -583,7 +547,7 @@ class DB:
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
                 protocol=row["protocol"],
-                attributi=_decode_attributi_to_values(row["attributi"])
+                attributi=AttributiMap(row["attributi"])
                 if row["attributi"] is not None
                 else {},
             )
@@ -641,7 +605,7 @@ class DB:
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
-                attributi=t.attributi,
+                attributi=t.attributi.to_json() if t.attributi is not None else None,
                 modified=datetime.datetime.utcnow(),
             )
         )
@@ -671,7 +635,7 @@ class DB:
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
-                attributi=t.attributi,
+                attributi=t.attributi.to_json() if t.attributi is not None else None,
             )
             .where(self.tables.sample.c.id == t.id)
         )
