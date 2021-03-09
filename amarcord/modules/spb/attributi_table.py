@@ -47,7 +47,7 @@ def _attributo_type_to_string(attributo: DBAttributo) -> str:
     if isinstance(pt, PropertyChoice):
         return "choice"
     if isinstance(pt, PropertyDouble):
-        return "number in {pt.range}" if pt is not None else "number"
+        return f"number in {pt.range}" if pt is not None else "number"
     if isinstance(pt, PropertyTags):
         return "tags"
     if isinstance(pt, PropertySample):
@@ -82,9 +82,6 @@ class AttributiTable(QtWidgets.QWidget):
             ),
             parent=self,
         )
-        self._table.setAlternatingRowColors(True)
-        self._table.verticalHeader().hide()
-        self._table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._table)
         self._attributi: Optional[AttributiMap] = None
         self.metadata: Dict[AttributoId, DBAttributo] = {}
@@ -164,6 +161,7 @@ class AttributiTable(QtWidgets.QWidget):
                     )
                     for (idx, md) in enumerate(display_attributi)
                     if md.rich_property_type is not None
+                    and not isinstance(md.rich_property_type, PropertyComments)
                 },
                 column_delegates={},
             )

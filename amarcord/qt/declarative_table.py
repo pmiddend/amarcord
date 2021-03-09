@@ -6,6 +6,7 @@ from PyQt5.QtCore import (
     QAbstractTableModel,
     QModelIndex,
     QObject,
+    QPoint,
     QVariant,
     Qt,
     pyqtSignal,
@@ -21,6 +22,9 @@ from PyQt5.QtWidgets import (
 
 logger = logging.getLogger(__name__)
 
+ContextMenuCallback = Callable[[QPoint], None]
+DoubleClickCallback = Callable[[], None]
+
 
 @dataclass(frozen=True, eq=True)
 class Row:
@@ -30,12 +34,14 @@ class Row:
     change_callbacks: List[Optional[Callable[[Any], None]]] = field(
         hash=False, default_factory=lambda: [], compare=False
     )
+    double_click_callback: Optional[DoubleClickCallback] = None
 
 
 @dataclass(frozen=True, eq=True)
 class Column:
     header_label: str
     editable: bool
+    header_callback: Optional[ContextMenuCallback] = None
 
 
 @dataclass(frozen=True, eq=True)
@@ -61,6 +67,12 @@ class DeclarativeTableModel(QAbstractTableModel):
 
     def columnCount(self, _parent: QModelIndex = QModelIndex()) -> int:
         return len(self._data.columns)
+
+    def context_menu_callback(self, column: int) -> Optional[ContextMenuCallback]:
+        return self._data.columns[column].header_callback
+
+    def double_click_callback(self, row: int) -> Optional[DoubleClickCallback]:
+        return self._data.rows[row].double_click_callback
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
         flags = super().flags(index)
@@ -109,14 +121,29 @@ class DeclarativeTableModel(QAbstractTableModel):
         return False
 
 
+HeaderMenuCallback = Callable[[], None]
+
+
 class DeclarativeTable(QTableView):
-    def __init__(self, data: Data, parent: Optional[QWidget] = None) -> None:
+    def __init__(
+        self,
+        data: Data,
+        parent: Optional[QWidget] = None,
+    ) -> None:
         super().__init__(parent)
+
+        self.horizontalHeader().setContextMenuPolicy(Qt.CustomContextMenu)
+        self.horizontalHeader().customContextMenuRequested.connect(self._context_menu)
 
         self._data = data
         self._prior_delegates: List[QAbstractItemDelegate] = []
         model = DeclarativeTableModel(data)
         self.setModel(model)
+        self.verticalHeader().hide()
+        self.setAlternatingRowColors(True)
+        self.horizontalHeader().setStretchLastSection(True)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.doubleClicked.connect(self._double_click)
         model.cell_changed.connect(self._cell_changed)
 
         for row_idx, delegate in data.row_delegates.items():
@@ -126,6 +153,16 @@ class DeclarativeTable(QTableView):
             self.setItemDelegateForColumn(row_idx, delegate)
 
         self.setEditTriggers(QAbstractItemView.DoubleClicked)
+
+    def _double_click(self, index: QModelIndex) -> None:
+        callback = self.model().double_click_callback(index.row())
+        if callback is not None:
+            callback()
+
+    def _context_menu(self, pos: QPoint) -> None:
+        callback = self.model().context_menu_callback(self.indexAt(pos).column())
+        if callback is not None:
+            callback(self.mapToGlobal(pos))
 
     def _cell_changed(self, index: QModelIndex, new_value: Any, _role: int) -> None:
         cb = self._data.rows[index.row()].change_callbacks[index.column()]
@@ -159,6 +196,8 @@ class DeclarativeTable(QTableView):
 
         for row_idx, delegate in data.column_delegates.items():
             self.setItemDelegateForColumn(row_idx, delegate)
+
+        self.resizeColumnsToContents()
 
     # Keep these commented out. Maybe we want to really delete the delegates when
     # we're done with them, instead of keeping them around like idiots.

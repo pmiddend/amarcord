@@ -141,6 +141,7 @@ class DB:
                     run.c.id,
                     run.c.sample_id,
                     run.c.proposal_id,
+                    run.c.modified,
                     run.c.attributi,
                 ]
             )

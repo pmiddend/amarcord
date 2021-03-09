@@ -1,12 +1,13 @@
-import datetime
 import logging
-from typing import Any, Dict, Final, List, Optional
+from functools import partial
+from typing import Final, List
 
 from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QCheckBox, QPushButton
+from PyQt5.QtCore import QPoint, QTimer, pyqtSignal
+from PyQt5.QtWidgets import QCheckBox, QPushButton, QWidget
 
 from amarcord.db.attributi import (
+    AttributiMap,
     PropertyDouble,
     PropertyInt,
     pretty_print_attributo,
@@ -19,8 +20,8 @@ from amarcord.modules.context import Context
 from amarcord.modules.spb.column_chooser import display_column_chooser
 from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.plot_dialog import PlotDialog
+from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
-from amarcord.qt.table import GeneralTableWidget
 from amarcord.query_parser import UnexpectedEOF, parse_query
 
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
@@ -28,11 +29,8 @@ AUTO_REFRESH_TIMER_MSEC: Final = 5000
 logger = logging.getLogger(__name__)
 
 
-Row = Dict[AttributoId, Any]
-
-
-class RunTable(QtWidgets.QWidget):
-    run_selected = QtCore.pyqtSignal(int)
+class RunTable(QWidget):
+    run_selected = pyqtSignal(int)
 
     def __init__(
         self, context: Context, tables: DBTables, proposal_id: ProposalId
@@ -58,19 +56,16 @@ class RunTable(QtWidgets.QWidget):
         self._context = context
         with self._db.connect() as conn:
             self._attributi_metadata = self._db.run_attributi(conn)
-            self._table_view = GeneralTableWidget[AttributoId](
-                enum_type_retriever=lambda: list(self._attributi_metadata.keys()),
-                column_header_retriever=lambda: {
-                    k: v.description if v.description else v.name
-                    for k, v in self._attributi_metadata.items()
-                },
-                column_visibility=list(self._attributi_metadata.keys()),
-                column_converter=self._convert_column,
-                primary_key_getter=lambda row: row[self._db.tables.property_run_id],
-                parent=self,
+            self._visible_columns: List[AttributoId] = list(
+                self._attributi_metadata.keys()
             )
-            self._table_view.set_menu_callback(self._header_menu_callback)
-            self._table_view.row_double_click.connect(self._slot_row_selected)
+            self._runs: List[AttributiMap] = self._db.retrieve_runs(
+                conn, self._proposal_id, None
+            )
+            self._table_view = DeclarativeTable(
+                self._create_declarative_data(),
+                parent=None,
+            )
 
         log_output = QtWidgets.QPlainTextEdit()
         log_output.setReadOnly(True)
@@ -125,6 +120,39 @@ class RunTable(QtWidgets.QWidget):
         self._update_timer.timeout.connect(self._slot_refresh)
         self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
+    def _create_declarative_data(self):
+        return Data(
+            rows=[
+                Row(
+                    display_roles=[
+                        pretty_print_attributo(
+                            self._attributi_metadata.get(r, None), c.select_value(r)
+                        )
+                        for r in self._visible_columns
+                    ],
+                    edit_roles=[],
+                    background_roles={},
+                    change_callbacks=[],
+                    double_click_callback=lambda: self.run_selected.emit(
+                        c.select_int_unsafe(self._db.tables.property_run_id)
+                    ),
+                )
+                for c in self._runs
+            ],
+            columns=[
+                Column(
+                    header_label=self._attributi_metadata[c].description
+                    if self._attributi_metadata[c].description
+                    else self._attributi_metadata[c].name,
+                    editable=False,
+                    header_callback=partial(self._header_menu_callback, c),
+                )
+                for c in self._visible_columns
+            ],
+            row_delegates={},
+            column_delegates={},
+        )
+
     def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
         if self._update_timer.isActive():
             self._update_timer.stop()
@@ -134,17 +162,10 @@ class RunTable(QtWidgets.QWidget):
     def _slot_refresh(self) -> None:
         with self._db.connect() as conn:
             self._attributi_metadata = self._db.run_attributi(conn)
-            self._table_view.refresh()
+            self._runs = self._db.retrieve_runs(conn, self._proposal_id, None)
+            self._table_view.set_data(self._create_declarative_data())
 
-    def _convert_column(self, run_property: AttributoId, _role: int, value: Any) -> str:
-        return pretty_print_attributo(
-            self._attributi_metadata.get(run_property, None)
-            if self._attributi_metadata is not None
-            else None,
-            value,
-        )
-
-    def _header_menu_callback(self, pos: QtCore.QPoint, column: AttributoId) -> None:
+    def _header_menu_callback(self, column: AttributoId, pos: QPoint) -> None:
         property_metadata = self._attributi_metadata.get(column, None)
         if property_metadata is None or property_metadata.rich_property_type is None:
             return
@@ -171,24 +192,18 @@ class RunTable(QtWidgets.QWidget):
             )
             plot_dialog.show()
 
-    def _slot_row_selected(self, row: Dict[AttributoId, Any]) -> None:
-        self.run_selected.emit(row[self._db.tables.property_run_id])
-
     def run_changed(self) -> None:
         self._slot_refresh()
 
     def _slot_switch_columns(self) -> None:
         new_columns = display_column_chooser(
-            self, self._table_view.column_visibility, self._attributi_metadata
+            self, self._visible_columns, self._attributi_metadata
         )
-        self._table_view.set_column_visibility(new_columns)
-
-    def _retrieve_runs(self, since: Optional[datetime.datetime]) -> List[Row]:
-        with self._db.connect() as conn:
-            return self._db.retrieve_runs(conn, self._proposal_id, since)
+        self._visible_columns = new_columns
+        self._slot_refresh()
 
     def _late_init(self) -> None:
-        self._table_view.set_data_retriever(self._retrieve_runs)
+        self._slot_refresh()
 
     def _slot_filter_changed(self, f: str) -> None:
         try:

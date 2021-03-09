@@ -200,7 +200,7 @@ def pretty_print_attributo(
     if attributo_metadata is not None and isinstance(
         attributo_metadata.rich_property_type, PropertyComments
     ):
-        assert isinstance(value, list), "Comment column isn't a list"
+        assert isinstance(value, list), f"Comment column isn't a list but {type(value)}"
         return "\n".join(f"{c.author}: {c.text}" for c in value)
     if isinstance(value, list):
         return ", ".join(value)
@@ -270,6 +270,10 @@ class AttributiMap:
                 f'Tried to retrieve attributo "{attributo_id}", but didn\'t find it! Complete JSON value is: {self.to_json()}'
             )
         return selected
+
+    def select_value(self, attributo_id: AttributoId) -> Optional[AttributoValue]:
+        v = self.select(attributo_id)
+        return v.value if v is not None else None
 
     def select(self, attributo_id: AttributoId) -> Optional[AttributoValueWithSource]:
         manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
