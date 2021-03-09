@@ -3,7 +3,7 @@ import getpass
 import logging
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 from PyQt5.QtCore import QModelIndex, QUrl, Qt, pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent, QDesktopServices
@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -32,6 +33,7 @@ from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import AttributoValueWithSource, Connection, DB, DBOggetto, DBSample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
+from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
 from amarcord.modules.spb.run_details_metadata import MetadataTable
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
@@ -351,7 +353,10 @@ class Samples(QWidget):
         right_form_layout.addRow("Protocol", protocol_layout)
 
         with self._db.connect() as conn:
+            metadata_wrapper = QGroupBox()
+            metadata_wrapper_layout = QHBoxLayout(metadata_wrapper)
             self._metadata_table = MetadataTable(self._attributo_change)
+            metadata_wrapper_layout.addWidget(self._metadata_table)
             self._metadata_table.data_changed(
                 DBOggetto(
                     {k: v.value() for k, v in self._current_sample.attributi.items()},
@@ -361,7 +366,13 @@ class Samples(QWidget):
                 self._db.tables,
                 [],
             )
-            right_form_layout.addWidget(self._metadata_table)
+            attributo_button = QPushButton(
+                self.style().standardIcon(QStyle.SP_FileDialogNewFolder),
+                "New attributo",
+            )
+            attributo_button.clicked.connect(self._slot_new_attributo)
+            metadata_wrapper_layout.addWidget(attributo_button)
+            right_form_layout.addWidget(metadata_wrapper)
 
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
@@ -370,20 +381,41 @@ class Samples(QWidget):
         self._add_button = self._create_add_button()
         self._add_button.setEnabled(True)
         self._submit_layout.addWidget(self._add_button)
+
+        self._attributo_manual_changes: Dict[AttributoId, Any] = {}
         right_form_layout.addWidget(self._submit_widget)
 
         self._samples: List[DBSample] = []
         self._fill_table()
+
+    def _slot_new_attributo(self) -> None:
+        new_column = new_attributo_dialog(self._metadata_table.metadata.keys(), self)
+
+        if new_column is None:
+            return
+
+        with self._db.connect() as conn:
+            self._db.add_attributo(
+                conn,
+                name=new_column.name,
+                description=new_column.description,
+                suffix=None,
+                prop_type=new_column.rich_property_type,
+                associated_table=AssociatedTable.RUN,
+            )
+            self._slot_refresh(conn)
 
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         with self._db.connect() as conn:
             self._current_sample.attributi[attributo] = AttributoValueWithSource(
                 value, MANUAL_SOURCE_NAME
             )
-            if self._current_sample.id is not None:
-                self._db.update_sample_attributo(
-                    conn, self._current_sample.id, attributo, value
-                )
+            self._attributo_manual_changes[attributo] = value
+            # We could immediately change the attribute, but we have this "Save changes" button
+            # if self._current_sample.id is not None:
+            #     self._db.update_sample_attributo(
+            #         conn, self._current_sample.id, attributo, value
+            #     )
             self._slot_refresh(conn)
 
     def _slot_refresh(self, conn: Connection) -> None:
@@ -477,6 +509,7 @@ class Samples(QWidget):
         return b
 
     def _slot_row_selected(self, index: QModelIndex) -> None:
+        self._attributo_manual_changes.clear()
         self._current_sample = self._samples[index.row()]
         self._right_headline.setText(f"Edit sample “{self._current_sample.id}”")
         self._comment_edit.setText(self._current_sample.comment)
@@ -538,6 +571,7 @@ class Samples(QWidget):
                 break
 
     def _cancel_edit(self) -> None:
+        self._attributo_manual_changes.clear()
         self._clear_submit()
         self._submit_layout.addWidget(self._create_add_button())
         self._reset_input_fields()

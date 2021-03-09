@@ -16,8 +16,7 @@ def new_run_dialog(
     sample_ids: List[int],
 ) -> Optional[NewRunData]:
     dialog = QtWidgets.QDialog(parent)
-    dialog_layout = QtWidgets.QVBoxLayout()
-    dialog.setLayout(dialog_layout)
+    dialog_layout = QtWidgets.QVBoxLayout(dialog)
 
     buttonBox = QtWidgets.QDialogButtonBox(  # type: ignore
         QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel

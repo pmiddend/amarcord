@@ -88,8 +88,7 @@ def _state_to_gui(
     s: ProgramState,
 ) -> QWidget:
     root = QWidget(parent)
-    dialog_layout = QVBoxLayout()
-    root.setLayout(dialog_layout)
+    dialog_layout = QVBoxLayout(root)
 
     form = QFormLayout()
     dialog_layout.addLayout(form)

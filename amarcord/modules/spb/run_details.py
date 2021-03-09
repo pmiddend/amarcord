@@ -39,8 +39,7 @@ class RunDetails(QWidget):
         self._context = context
         self._db = DB(context.db, tables)
 
-        self._root_layout = QtWidgets.QVBoxLayout()
-        self.setLayout(self._root_layout)
+        self._root_layout = QtWidgets.QVBoxLayout(self)
         self._inner: Optional[RunDetailsInner] = None
         self._empty_gui_present = False
 
@@ -134,7 +133,7 @@ class RunDetails(QWidget):
     def _slot_attributo_change(self, prop: AttributoId, new_value: Any) -> None:
         with self._db.connect() as conn:
             selected_run = self.selected_run_id()
-            self._db.update_run_property(
+            self._db.update_run_attributo(
                 conn,
                 selected_run,
                 prop,

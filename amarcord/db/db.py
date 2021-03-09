@@ -26,6 +26,7 @@ from amarcord.db.attributi import (
     schema_to_property_type,
     property_type_to_schema,
 )
+from amarcord.modules.json import JSONDict
 from amarcord.util import dict_union, remove_duplicates_stable
 
 logger = logging.getLogger(__name__)
@@ -431,7 +432,7 @@ class DB:
     ) -> None:
         self._update_attributi(conn, sample_id, self.tables.sample, attributo, value)
 
-    def update_run_property(
+    def update_run_attributo(
         self, conn: Connection, run_id: int, attributo: AttributoId, value: Any
     ) -> None:
         # FIXME: do we still need this?
@@ -640,6 +641,8 @@ class DB:
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
+                attributi=t.attributi,
+                modified=datetime.datetime.utcnow(),
             )
         )
 
@@ -668,6 +671,7 @@ class DB:
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
+                attributi=t.attributi,
             )
             .where(self.tables.sample.c.id == t.id)
         )

@@ -63,8 +63,7 @@ class Comments(QtWidgets.QWidget):
         self._comment_changed = comment_changed
         self._comment_added = comment_added
 
-        layout = QtWidgets.QVBoxLayout()
-        self.setLayout(layout)
+        layout = QtWidgets.QVBoxLayout(self)
 
         self._comment_table = _CommentTable()
         self._comment_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)

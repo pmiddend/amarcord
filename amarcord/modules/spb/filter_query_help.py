@@ -3,8 +3,7 @@ from PyQt5 import QtWidgets
 
 def filter_query_help(parent: QtWidgets.QWidget) -> None:
     dialog = QtWidgets.QDialog(parent)
-    dialog_layout = QtWidgets.QVBoxLayout()
-    dialog.setLayout(dialog_layout)
+    dialog_layout = QtWidgets.QVBoxLayout(dialog)
 
     help_text = QtWidgets.QTextEdit()
     help_text.setReadOnly(True)

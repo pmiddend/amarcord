@@ -70,8 +70,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         self.sample_ids = sample_ids
 
         top_row = QtWidgets.QWidget()
-        top_layout = QtWidgets.QHBoxLayout()
-        top_row.setLayout(top_layout)
+        top_layout = QtWidgets.QHBoxLayout(top_row)
 
         selected_run_id = max(r for r in self.run_ids)
         self._run_selector = ComboBox[int](
@@ -113,8 +112,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         top_layout.addWidget(manual_creation)
 
         comment_column = QtWidgets.QGroupBox("Comments")
-        comment_column_layout = QtWidgets.QVBoxLayout()
-        comment_column.setLayout(comment_column_layout)
+        comment_column_layout = QtWidgets.QVBoxLayout(comment_column)
         self._comments = Comments(
             self.comment_delete.emit, self.comment_changed.emit, self.comment_add.emit
         )

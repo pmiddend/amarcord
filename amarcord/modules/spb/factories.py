@@ -31,14 +31,11 @@ def retrieve_proposal_ids(context: Context, table_data: DBTables) -> Set[Proposa
 
 def proposal_chooser(proposal_ids: Set[ProposalId]) -> Optional[ProposalId]:
     dialog = QtWidgets.QDialog()
-    dialog_layout = QtWidgets.QVBoxLayout()
-    dialog.setLayout(dialog_layout)
+    dialog_layout = QtWidgets.QVBoxLayout(dialog)
 
     group_box = QtWidgets.QGroupBox("Choose proposal:", dialog)
     dialog_layout.addWidget(group_box)
-    root_layout = QtWidgets.QVBoxLayout()
-
-    group_box.setLayout(root_layout)
+    root_layout = QtWidgets.QVBoxLayout(group_box)
 
     proposal_combo = QtWidgets.QComboBox()
     proposal_combo.addItems([str(s) for s in proposal_ids])

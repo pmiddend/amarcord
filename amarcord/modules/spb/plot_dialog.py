@@ -57,8 +57,7 @@ class PlotDialog(QDialog):
             self._runs = self._db.retrieve_runs(conn, proposal_id, None)
             self._property_metadata = self._db.run_attributi(conn)
 
-        dialog_layout = QVBoxLayout()
-        self.setLayout(dialog_layout)
+        dialog_layout = QVBoxLayout(self)
 
         self._sc = _MplCanvas(width=5, height=4, dpi=100)
         self._last_update = datetime.datetime.utcnow()

@@ -12,12 +12,10 @@ def display_column_chooser(
     available_properties: Mapping[AttributoId, DBAttributo],
 ) -> List[AttributoId]:
     dialog = QtWidgets.QDialog(parent)
-    dialog_layout = QtWidgets.QVBoxLayout()
-    dialog.setLayout(dialog_layout)
+    dialog_layout = QtWidgets.QVBoxLayout(dialog)
     root_widget = QtWidgets.QGroupBox("Choose which columns to display:")
     dialog_layout.addWidget(root_widget)
-    root_layout = QtWidgets.QVBoxLayout()
-    root_widget.setLayout(root_layout)
+    root_layout = QtWidgets.QVBoxLayout(root_widget)
     column_list = QtWidgets.QListWidget()
     column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
     name_to_idx: Dict[AttributoId, int] = {}
