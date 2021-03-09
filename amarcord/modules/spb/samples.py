@@ -361,7 +361,7 @@ class Samples(QWidget):
             metadata_wrapper_layout.addWidget(self._attributi_table)
             self._attributi_table.data_changed(
                 self._current_sample.attributi,
-                self._db.retrieve_attributi(conn, AssociatedTable.SAMPLE),
+                self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
                 [],
             )
             attributo_button = QPushButton(
@@ -417,7 +417,7 @@ class Samples(QWidget):
     def _slot_refresh(self, conn: Connection) -> None:
         self._attributi_table.data_changed(
             self._current_sample.attributi,
-            self._db.retrieve_attributi(conn, AssociatedTable.SAMPLE),
+            self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
             sample_ids=[],
         )
         self._fill_table()

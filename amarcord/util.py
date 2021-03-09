@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Sequence
+from typing import Callable, Dict, Optional, Sequence
 from typing import List
 from typing import Iterable
 from typing import TypeVar
@@ -63,3 +63,23 @@ def str_to_float(s: str) -> Optional[float]:
         return float(s)
     except:
         return None
+
+
+W = TypeVar("W")
+X = TypeVar("X")
+
+
+def retupled_keys(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> List[X]:
+    return [
+        f(table, attributo_id)
+        for table, attributi in d.items()
+        for attributo_id, values in attributi.items()
+    ]
+
+
+def retuple_dict(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> Dict[X, W]:
+    return {
+        f(table, attributo_id): values
+        for table, attributi in d.items()
+        for attributo_id, values in attributi.items()
+    }

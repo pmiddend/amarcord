@@ -1,15 +1,13 @@
-from typing import Final, Optional
 import datetime
 import logging
+from typing import Final, List, Optional
+
 import pandas as pd
 from PyQt5.QtCore import QTimer
-
 from PyQt5.QtWidgets import (
-    QCompleter,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
-    QLabel,
     QVBoxLayout,
     QWidget,
 )
@@ -19,11 +17,11 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.pyplot import Figure
 
-from amarcord.db.db import DB
-from amarcord.db.proposal_id import ProposalId
+from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.qt.infix_completer import InfixCompletingLineEdit
-from amarcord.query_parser import Query, filter_by_query, parse_query
+from amarcord.db.db import Connection, DB
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.tabled_attributo import TabledAttributo
 
 TIMER_INTERVAL_MSEC: Final = 1000
 
@@ -43,19 +41,19 @@ class PlotDialog(QDialog):
         db: DB,
         proposal_id: ProposalId,
         filter_query: str,
-        property_: AttributoId,
+        attributo: TabledAttributo,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
         self._db = db
         self._filter_query = filter_query
-        self._property = property_
+        self._attributo = attributo
         self._proposal_id = proposal_id
 
         with self._db.connect() as conn:
-            self._runs = self._db.retrieve_runs(conn, proposal_id, None)
-            self._property_metadata = self._db.run_attributi(conn)
+            self._rows = self._db.retrieve_overview(conn, proposal_id, None)
+            self._property_metadata = self._retrieve_attributi_metadata(conn)
 
         dialog_layout = QVBoxLayout(self)
 
@@ -66,97 +64,100 @@ class PlotDialog(QDialog):
 
         dialog_layout.addWidget(self._sc)
         filter_line = QHBoxLayout()
-        dialog_layout.addLayout(filter_line)
         dialog_layout.addWidget(toolbar)
-        self._filter_widget = InfixCompletingLineEdit(
-            content=self._filter_query, parent=self
-        )
-        self._filter_widget.textChanged.connect(self._slot_filter_changed)
-        self._completer = QCompleter(
-            list(str(s) for s in self._property_metadata.keys()), self
-        )
-        self._completer.setCompletionMode(QCompleter.InlineCompletion)
-        self._filter_widget.setCompleter(self._completer)
-        filter_line.addWidget(QLabel("Query:"))
-        filter_line.addWidget(self._filter_widget)
+        # dialog_layout.addLayout(filter_line)
+        # self._filter_widget = InfixCompletingLineEdit(
+        #     content=self._filter_query, parent=self
+        # )
+        # self._filter_widget.textChanged.connect(self._slot_filter_changed)
+        # self._completer = QCompleter(self._filter_query_completions(), self)
+        # self._completer.setCompletionMode(QCompleter.InlineCompletion)
+        # self._filter_widget.setCompleter(self._completer)
+        # filter_line.addWidget(QLabel("Query:"))
+        # filter_line.addWidget(self._filter_widget)
         button_box = QDialogButtonBox(QDialogButtonBox.Close)
         button_box.rejected.connect(self.reject)
         dialog_layout.addWidget(button_box)
 
-        self._query: Optional[Query] = None
-        self._update_query()
-        if self._query is not None:
-            filtered_runs = [
-                r
-                for r in self._runs
-                if r.select(property_) is not None
-                and filter_by_query(
-                    self._query, r.to_query_row(self._property_metadata.keys())
-                )
-            ]
-            self._df = pd.DataFrame(
-                [r.select_value(self._property) for r in filtered_runs],
-                index=[
-                    datetime.datetime.fromisoformat(
-                        r.select_value(AttributoId("started"))
-                    )
-                    for r in filtered_runs
-                ],
-                columns=[self._property_metadata[property_].description],
-            )
+        # self._query: Optional[Query] = None
+        # self._update_query()
+        # if self._query is not None:
+        #     filtered_runs = [
+        #         r
+        #         for r in self._rows
+        #         if r.select(attributo) is not None
+        #         and filter_by_query(
+        #             self._query, r.to_query_row(self._property_metadata.keys())
+        #         )
+        #     ]
+        self._df = self._create_data_frame()
 
-            self._sc.axes.clear()
-            # noinspection PyArgumentList
-            self._df.plot(ax=self._sc.axes)  # type: ignore
+        self._sc.axes.clear()
+        # noinspection PyArgumentList
+        self._df.plot(ax=self._sc.axes)  # type: ignore
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._slot_refresh)
         self._timer.start(TIMER_INTERVAL_MSEC)
 
-    def _update_query(self):
-        try:
-            self._query: Optional[Query] = parse_query(
-                self._filter_widget.text(),
-                set(str(s) for s in self._property_metadata.keys()),
-            )
-        except:
-            self._query = None
+    def _create_data_frame(self):
+        return pd.DataFrame(
+            [
+                r[self._attributo.table].select_value(self._attributo.attributo.name)
+                for r in self._rows
+            ],
+            index=[
+                datetime.datetime.fromisoformat(
+                    r[AssociatedTable.RUN].select_value(AttributoId("started"))
+                )
+                for r in self._rows
+            ],
+            columns=[self._attributo.attributo.pretty_id()],
+        )
+
+    def _retrieve_attributi_metadata(self, conn: Connection) -> List[TabledAttributo]:
+        return [
+            TabledAttributo(k, attributo)
+            for k, attributi in self._db.retrieve_attributi(conn).items()
+            for attributo in attributi.values()
+        ]
+
+    # def _update_query(self):
+    #     try:
+    #         self._query: Optional[Query] = parse_query(
+    #             self._filter_widget.text(),
+    #             set(str(s) for s in self._property_metadata.keys()),
+    #         )
+    #     except:
+    #         self._query = None
 
     def _slot_filter_changed(self, new_text: str) -> None:
         self._filter_query = new_text
         self._slot_refresh()
 
     def _slot_refresh(self) -> None:
-        self._update_query()
-
-        if self._query is None:
-            return
-
+        # self._update_query()
+        #
+        # if self._query is None:
+        #     return
+        #
         with self._db.connect() as conn:
-            self._runs = self._db.retrieve_runs(conn, self._proposal_id, None)
+            self._rows = self._db.retrieve_overview(conn, self._proposal_id, None)
+            self._property_metadata = self._retrieve_attributi_metadata(conn)
             self._last_update = datetime.datetime.utcnow()
-            filtered_runs = [
-                r
-                for r in self._runs
-                if r.select(self._property)
-                and filter_by_query(
-                    self._query, r.to_query_row(self._property_metadata.keys())
-                )
-            ]
-            self._df = pd.DataFrame(
-                [r.select_value(self._property) for r in filtered_runs],
-                index=[
-                    datetime.datetime.fromisoformat(
-                        r.select_value(AttributoId("started"))
-                    )
-                    for r in filtered_runs
-                ],
-                columns=[self._property_metadata[self._property].description],
-            )
+            # filtered_runs = [
+            #     r
+            #     for r in self._rows
+            #     if r.select(self._attributo)
+            #     and filter_by_query(
+            #         self._query, r.to_query_row(self._property_metadata.keys())
+            #     )
+            # ]
+            self._df = self._create_data_frame()
 
             self._sc.axes.clear()
 
-            if filtered_runs:
-                # noinspection PyArgumentList
-                self._df.plot(ax=self._sc.axes)  # type: ignore
-                self._sc.draw()
+            # if filtered_runs:
+            # noinspection PyArgumentList
+            self._df.plot(ax=self._sc.axes)  # type: ignore
+            self._sc.draw()

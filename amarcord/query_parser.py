@@ -111,7 +111,9 @@ def and_then(first_function: Query, outerop: Tree, anothercondition: Query) -> Q
 
 class FieldNameError(Exception):
     def __init__(self, field: str, _field_names: Set[str]) -> None:
-        super().__init__(f'Invalid field "{field}"')
+        super().__init__(
+            f'Invalid field "{field}"; available fields: ' + (", ".join(_field_names))
+        )
 
 
 class UnexpectedEOF(Exception):
@@ -163,7 +165,7 @@ LE: "<="
 GE: ">="
 NE: "!="
 
-FIELD : /[a-zA-Z_][a-zA-Z0-9_]*/
+FIELD : /[a-zA-Z_][a-zA-Z0-9_.]*/
 COMPARISON : /[a-zA-Z0-9_.-]+/
 MYWORD : /[a-zA-Z]+/
 %ignore " "

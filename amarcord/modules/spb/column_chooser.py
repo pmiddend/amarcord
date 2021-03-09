@@ -1,40 +1,48 @@
-from typing import Dict, List, Mapping, Optional
+from typing import Dict, List, Optional
 
 from PyQt5 import QtCore, QtWidgets
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-from amarcord.db.attributi import DBAttributo
-from amarcord.db.attributo_id import AttributoId
+from amarcord.db.tabled_attributo import TabledAttributo
 
 
 def display_column_chooser(
-    parent: Optional[QtWidgets.QWidget],
-    selected_columns: List[AttributoId],
-    available_properties: Mapping[AttributoId, DBAttributo],
-) -> List[AttributoId]:
-    dialog = QtWidgets.QDialog(parent)
-    dialog_layout = QtWidgets.QVBoxLayout(dialog)
-    root_widget = QtWidgets.QGroupBox("Choose which columns to display:")
+    parent: Optional[QWidget],
+    selected_columns: List[TabledAttributo],
+    available_properties: List[TabledAttributo],
+) -> List[TabledAttributo]:
+    dialog = QDialog(parent)
+    dialog_layout = QVBoxLayout(dialog)
+    root_widget = QGroupBox("Choose which columns to display:")
     dialog_layout.addWidget(root_widget)
-    root_layout = QtWidgets.QVBoxLayout(root_widget)
-    column_list = QtWidgets.QListWidget()
-    column_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-    name_to_idx: Dict[AttributoId, int] = {}
-    for idx, (prop, md) in enumerate(available_properties.items()):
-        new_item = QtWidgets.QListWidgetItem(
-            md.description if md.description else md.name
-        )
-        new_item.setData(QtCore.Qt.UserRole, str(prop))
+    root_layout = QVBoxLayout(root_widget)
+    column_list = QListWidget()
+    column_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+    name_to_idx: Dict[str, int] = {}
+    for idx, md in enumerate(available_properties):
+        new_item = QListWidgetItem(md.pretty_id())
+        new_item.setData(Qt.UserRole, md.technical_id())
         column_list.addItem(new_item)
-        name_to_idx[prop] = idx
+        name_to_idx[md.technical_id()] = idx
     for col in selected_columns:
         # -1 here because auto lets the enum start at 1 (which is fine actually)
         column_list.selectionModel().select(
-            column_list.model().index(name_to_idx[col], 0),
+            column_list.model().index(name_to_idx[col.technical_id()], 0),
             QtCore.QItemSelectionModel.Select,
         )
     root_layout.addWidget(column_list)
-    buttonBox = QtWidgets.QDialogButtonBox(  # type: ignore
-        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+    buttonBox = QDialogButtonBox(  # type: ignore
+        QDialogButtonBox.Ok | QDialogButtonBox.Cancel
     )
     buttonBox.accepted.connect(dialog.accept)
     buttonBox.rejected.connect(dialog.reject)
@@ -52,5 +60,6 @@ def display_column_chooser(
     if dialog.exec() == QtWidgets.QDialog.Rejected:
         return selected_columns
     return [
-        AttributoId(k.data(QtCore.Qt.UserRole)) for k in column_list.selectedItems()
+        available_properties[name_to_idx[k.data(Qt.UserRole)]]
+        for k in column_list.selectedItems()
     ]

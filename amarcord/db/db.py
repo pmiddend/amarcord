@@ -4,7 +4,7 @@ import pickle
 from dataclasses import dataclass
 from itertools import groupby
 from time import time
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple, cast
 
 import sqlalchemy as sa
 from sqlalchemy import and_
@@ -112,10 +112,45 @@ def _update_attributi(
     )
 
 
+# @dataclass(frozen=True)
+# class OverviewAttributi:
+#     run_attributi: AttributiMap
+#     sample_attributi: AttributiMap
+
+OverviewAttributi = Dict[AssociatedTable, AttributiMap]
+
+
+@dataclass(frozen=True)
+class TableWithAttributi:
+    table: AssociatedTable
+    attributi: Dict[AttributoId, DBAttributo]
+
+
 class DB:
     def __init__(self, dbcontext: DBContext, tables: DBTables) -> None:
         self.dbcontext = dbcontext
         self.tables = tables
+
+    def retrieve_overview(
+        self,
+        conn: Connection,
+        proposal_id: ProposalId,
+        since: Optional[datetime.datetime],
+    ) -> List[OverviewAttributi]:
+        samples: Dict[int, AttributiMap] = {
+            cast(int, k.id): k.attributi for k in self.retrieve_samples(conn)
+        }
+        runs: List[AttributiMap] = self.retrieve_runs(conn, proposal_id, None)
+
+        result: List[OverviewAttributi] = []
+        for r in runs:
+            sample_id = r.select_int(self.tables.property_sample)
+            sample = samples.get(sample_id, None) if sample_id is not None else None
+            assert (
+                sample is not None
+            ), f"run {r.select_int_unsafe(self.tables.property_run_id)} has invalid sample {sample_id}"
+            result.append({AssociatedTable.SAMPLE: sample, AssociatedTable.RUN: r})
+        return result
 
     def retrieve_runs(
         self,
@@ -329,32 +364,48 @@ class DB:
         )
 
     def retrieve_attributi(
-        self, conn: Connection, table: AssociatedTable
-    ) -> Dict[AttributoId, DBAttributo]:
+        self, conn: Connection, filter_table: Optional[AssociatedTable] = None
+    ) -> Dict[AssociatedTable, Dict[AttributoId, DBAttributo]]:
+        select_stmt = sa.select(
+            [
+                self.tables.attributo.c.name,
+                self.tables.attributo.c.description,
+                self.tables.attributo.c.suffix,
+                self.tables.attributo.c.json_schema,
+                self.tables.attributo.c.associated_table,
+            ]
+        )
+        if filter_table is not None:
+            select_stmt = select_stmt.order_by(
+                self.tables.attributo.c.associated_table
+            ).where(self.tables.attributo.c.associated_table == filter_table)
+
         return {
-            AttributoId(row[0]): DBAttributo(
-                name=AttributoId(row[0]),
-                description=row[1],
-                suffix=row[2],
-                rich_property_type=schema_to_property_type(
-                    json_schema=row[3], suffix=row[2]
-                ),
-                associated_table=table,
+            table: {
+                AttributoId(row[0]): DBAttributo(
+                    name=AttributoId(row[0]),
+                    description=row[1],
+                    suffix=row[2],
+                    rich_property_type=schema_to_property_type(
+                        json_schema=row[3], suffix=row[2]
+                    ),
+                    associated_table=table,
+                )
+                for row in rows
+            }
+            for table, rows in groupby(
+                conn.execute(select_stmt).fetchall(),
+                lambda x: x[4],
             )
-            for row in conn.execute(
-                sa.select(
-                    [
-                        self.tables.attributo.c.name,
-                        self.tables.attributo.c.description,
-                        self.tables.attributo.c.suffix,
-                        self.tables.attributo.c.json_schema,
-                    ]
-                ).where(self.tables.attributo.c.associated_table == table)
-            ).fetchall()
         }
 
+    def retrieve_table_attributi(
+        self, conn: Connection, table: AssociatedTable
+    ) -> Dict[AttributoId, DBAttributo]:
+        return self.retrieve_attributi(conn, table)[table]
+
     def run_attributi(self, conn: Connection) -> Dict[AttributoId, DBAttributo]:
-        attributi = self.retrieve_attributi(conn, AssociatedTable.RUN)
+        attributi = self.retrieve_table_attributi(conn, AssociatedTable.RUN)
         return dict_union(
             [
                 {

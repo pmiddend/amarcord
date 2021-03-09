@@ -194,6 +194,9 @@ class DBAttributo:
     associated_table: AssociatedTable
     rich_property_type: RichAttributoType
 
+    def pretty_id(self) -> str:
+        return self.description if self.description else self.name
+
 
 def pretty_print_attributo(
     attributo_metadata: Optional[DBAttributo], value: Any
@@ -286,6 +289,13 @@ class AttributiMap:
         v = self.select(attributo_id)
         return v.value if v is not None else None
 
+    def select_int(self, attributo_id: AttributoId) -> Optional[int]:
+        v = self.select_value(attributo_id)
+        assert v is None or isinstance(
+            v, int
+        ), f"attributo {attributo_id} has type {type(v)} instead of int"
+        return v if v is not None else None
+
     def select(self, attributo_id: AttributoId) -> Optional[AttributoValueWithSource]:
         manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
 
@@ -323,14 +333,14 @@ class AttributiMap:
     def to_json(self) -> JSONDict:
         return self._attributi
 
-    def to_query_row(self, attributi_metadata: Iterable[AttributoId]) -> Row:
+    def to_query_row(self, attributi_ids: Iterable[AttributoId], prefix: str) -> Row:
         result: Row = {}
-        for metadata in attributi_metadata:
-            v = self.select_value(metadata)
+        for attributo_id in attributi_ids:
+            v = self.select_value(attributo_id)
             if isinstance(v, list) and v and isinstance(v[0], DBRunComment):
-                result[metadata] = "".join(
+                result[prefix + attributo_id] = "".join(
                     cast(DBRunComment, c).text + cast(DBRunComment, c).author for c in v
                 )
             else:
-                result[metadata] = self.select_value(metadata)  # type: ignore
+                result[prefix + attributo_id] = self.select_value(attributo_id)  # type: ignore
         return result

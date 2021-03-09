@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     run_table_tab = run_table(context, tables, proposal_id)
     context.ui.register_tab(
-        "Runs",
+        "Experiment Overview",
         run_table_tab,
         context.ui.icon("SP_ComputerIcon"),
     )
