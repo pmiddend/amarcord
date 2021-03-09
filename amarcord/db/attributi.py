@@ -210,6 +210,16 @@ def pretty_print_attributo(
     return str(value) if value is not None else ""
 
 
+def sortable_attributo(attributo_metadata: Optional[DBAttributo], value: Any) -> Any:
+    if attributo_metadata is not None and isinstance(
+        attributo_metadata.rich_property_type, PropertyComments
+    ):
+        return len(value)
+    if isinstance(value, list):
+        return len(value)
+    return value if value is not None else ""
+
+
 @dataclass(frozen=True)
 class DBRunComment:
     id: Optional[int]

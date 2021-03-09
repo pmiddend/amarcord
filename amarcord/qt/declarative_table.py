@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Callable, Dict, List, Optional
 import logging
 
@@ -61,6 +62,8 @@ class DeclarativeTableModel(QAbstractTableModel):
         super().__init__(parent)
 
         self._data = data
+        self._sort_order: Qt.SortOrder = Qt.AscendingOrder
+        self._sort_column: int = -1
 
     def rowCount(self, _parent: QModelIndex = QModelIndex()) -> int:
         return len(self._data.rows)
@@ -109,6 +112,7 @@ class DeclarativeTableModel(QAbstractTableModel):
         # noinspection PyUnresolvedReferences
         self.modelAboutToBeReset.emit()  # type: ignore
         self._data = data
+        self._sort()
         # noinspection PyUnresolvedReferences
         self.modelReset.emit()  # type: ignore
 
@@ -120,8 +124,26 @@ class DeclarativeTableModel(QAbstractTableModel):
         # self._data.rows[index.row()].change_callbacks[index.column()](value)
         return False
 
+    def sort(self, column: int, order: Qt.SortOrder = Qt.AscendingOrder) -> None:
+        self._sort_order = order
+        self._sort_column = column
+        self.layoutAboutToBeChanged.emit()  # type: ignore
+        self._sort()
+        self.layoutChanged.emit()  # type: ignore
+
+    def _sort(self):
+        if self._sort_column >= 0:
+            self._data.rows.sort(
+                key=partial(_sort_row, self._sort_column),
+                reverse=(self._sort_order == Qt.AscendingOrder),
+            )
+
 
 HeaderMenuCallback = Callable[[], None]
+
+
+def _sort_row(column: int, row: Row) -> Any:
+    return row.edit_roles[column]
 
 
 class DeclarativeTable(QTableView):
@@ -198,6 +220,10 @@ class DeclarativeTable(QTableView):
             self.setItemDelegateForColumn(row_idx, delegate)
 
         self.resizeColumnsToContents()
+
+    # def sortByColumn(self, column: int, order: Qt.SortOrder) -> None:
+    #     logger.info("sortByColumn called")
+    #     self.model().mysort(column, order)
 
     # Keep these commented out. Maybe we want to really delete the delegates when
     # we're done with them, instead of keeping them around like idiots.

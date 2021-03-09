@@ -12,6 +12,7 @@ from amarcord.db.attributi import (
     PropertyDouble,
     PropertyInt,
     pretty_print_attributo,
+    sortable_attributo,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import DB
@@ -69,6 +70,7 @@ class RunTable(QWidget):
                 self._create_declarative_data(),
                 parent=None,
             )
+            self._table_view.setSortingEnabled(True)
 
         log_output = QtWidgets.QPlainTextEdit()
         log_output.setReadOnly(True)
@@ -133,7 +135,12 @@ class RunTable(QWidget):
                         )
                         for r in self._visible_columns
                     ],
-                    edit_roles=[],
+                    edit_roles=[
+                        sortable_attributo(
+                            self._attributi_metadata.get(r, None), c.select_value(r)
+                        )
+                        for r in self._visible_columns
+                    ],
                     background_roles={},
                     change_callbacks=[],
                     double_click_callback=lambda: self.run_selected.emit(
@@ -177,6 +184,9 @@ class RunTable(QWidget):
             run_updates = self._db.retrieve_runs(
                 conn, self._proposal_id, self._last_refresh
             )
+            self._last_refresh = datetime.datetime.utcnow()
+            if not run_updates:
+                return
             for idx in range(len(self._runs)):
                 for update_idx, update in enumerate(run_updates):
                     if self._runs[idx].select_int_unsafe(
@@ -199,7 +209,6 @@ class RunTable(QWidget):
                     new_run.select_int_unsafe(self._db.tables.property_run_id),
                 )
                 self._runs.append(new_run)
-            self._last_refresh = datetime.datetime.utcnow()
             self._table_view.set_data(self._create_declarative_data())
 
     def _header_menu_callback(self, column: AttributoId, pos: QPoint) -> None:
