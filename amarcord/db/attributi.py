@@ -8,6 +8,7 @@ from PyQt5 import QtCore, QtWidgets
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.karabo import Karabo
 
 from amarcord.json_schema import (
     JSONSchemaArray,
@@ -237,6 +238,39 @@ class AttributiMap:
             assert isinstance(v, dict)
             self._attributi[AttributoId(k)] = v
 
+    def select_int_unsafe(self, attributo_id: AttributoId) -> int:
+        selected = self.select_unsafe(attributo_id)
+        if not isinstance(selected.value, int):
+            raise Exception(
+                f"Attributo {attributo_id} is not an integer but {type(selected.value)}"
+            )
+        return selected.value
+
+    def select_comments_unsafe(self, attributo_id: AttributoId) -> List[DBRunComment]:
+        selected = self.select_unsafe(attributo_id)
+        if (
+            not isinstance(selected.value, list)
+            or selected.value
+            and not isinstance(selected.value[0], DBRunComment)
+        ):
+            raise Exception(
+                f"Attributo {attributo_id} are not comments but {type(selected.value)}"
+            )
+        return selected.value  # type: ignore
+
+    def select_karabo(self, attributo_id: AttributoId) -> Optional[Karabo]:
+        selected = self.select_unsafe(attributo_id)
+        # noinspection PyTypeChecker
+        return selected.value if selected is not None else None  # type: ignore
+
+    def select_unsafe(self, attributo_id: AttributoId) -> AttributoValueWithSource:
+        selected = self.select(attributo_id)
+        if selected is None:
+            raise Exception(
+                f'Tried to retrieve attributo "{attributo_id}", but didn\'t find it! Complete JSON value is: {self.to_json()}'
+            )
+        return selected
+
     def select(self, attributo_id: AttributoId) -> Optional[AttributoValueWithSource]:
         manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
 
@@ -253,13 +287,23 @@ class AttributiMap:
 
         return None
 
-    def set_manual(self, attributo: AttributoId, value: AttributoValue) -> None:
-        manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
+    def append_to_source(
+        self, source: Source, new_attributi: Dict[AttributoId, AttributoValue]
+    ) -> None:
+        source_value = self._attributi.get(source, None)
 
-        if manual_attributi:
-            manual_attributi[attributo] = value
+        if source_value is None:
+            self._attributi[source] = new_attributi
         else:
-            self._attributi[MANUAL_SOURCE_NAME] = {attributo: value}
+            source_value.update(new_attributi)
+
+    def append_single_to_source(
+        self, source: Source, attributo: AttributoId, value: AttributoValue
+    ) -> None:
+        self.append_to_source(source, {attributo: value})
+
+    def set_single_manual(self, attributo: AttributoId, value: AttributoValue) -> None:
+        self.append_single_to_source(MANUAL_SOURCE_NAME, attributo, value)
 
     def to_json(self) -> JSONDict:
         return self._attributi

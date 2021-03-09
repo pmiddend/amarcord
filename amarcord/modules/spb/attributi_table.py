@@ -11,6 +11,14 @@ from PyQt5.QtWidgets import QHBoxLayout
 from amarcord.db.attributi import (
     AttributiMap,
     DBAttributo,
+    PropertyChoice,
+    PropertyComments,
+    PropertyDateTime,
+    PropertyDouble,
+    PropertyInt,
+    PropertySample,
+    PropertyString,
+    PropertyTags,
     delegate_for_property_type,
 )
 from amarcord.db.attributo_id import AttributoId
@@ -26,10 +34,31 @@ class _MetadataColumn(Enum):
     VALUE = 1
 
 
-def _attributo_to_string(metadata: DBAttributo, value: Any) -> str:
+def _attributo_value_to_string(metadata: DBAttributo, value: Any) -> str:
     suffix: str = getattr(metadata.rich_property_type, "suffix", None)
     value_str = ", ".join(value) if isinstance(value, list) else str(value)
     return value_str if suffix is None else f"{value_str} {suffix}"
+
+
+def _attributo_type_to_string(attributo: DBAttributo) -> str:
+    pt = attributo.rich_property_type
+    if isinstance(pt, PropertyInt):
+        return "integer"
+    if isinstance(pt, PropertyChoice):
+        return "choice"
+    if isinstance(pt, PropertyDouble):
+        return "number in {pt.range}" if pt is not None else "number"
+    if isinstance(pt, PropertyTags):
+        return "tags"
+    if isinstance(pt, PropertySample):
+        return "Sample ID"
+    if isinstance(pt, PropertyString):
+        return "text"
+    if isinstance(pt, PropertyComments):
+        return "comments"
+    if isinstance(pt, PropertyDateTime):
+        return "date and time"
+    raise Exception(f"invalid property type {type(pt)}")
 
 
 class AttributiTable(QtWidgets.QWidget):
@@ -40,6 +69,7 @@ class AttributiTable(QtWidgets.QWidget):
         self._columns = [
             Column(header_label="Name", editable=False),
             Column(header_label="Value", editable=True),
+            Column(header_label="Type", editable=False),
         ]
         layout = QHBoxLayout()
         self.setLayout(layout)
@@ -79,20 +109,25 @@ class AttributiTable(QtWidgets.QWidget):
         return Row(
             display_roles=[
                 attributo.description if attributo.description else attributo.name,
-                _attributo_to_string(self.metadata[attributo.name], selected.value)
+                _attributo_value_to_string(
+                    self.metadata[attributo.name], selected.value
+                )
                 if selected is not None
                 else "",
+                _attributo_type_to_string(self.metadata[attributo.name]),
             ],
-            edit_roles=[None, selected.value if selected is not None else None],
+            edit_roles=[None, selected.value if selected is not None else None, None],
             background_roles={
                 0: QBrush(COLOR_MANUAL_ATTRIBUTO),
                 1: QBrush(COLOR_MANUAL_ATTRIBUTO),
+                2: QBrush(COLOR_MANUAL_ATTRIBUTO),
             }
             if selected is not None and selected.source == MANUAL_SOURCE_NAME
             else {},
             change_callbacks=[
                 None,
                 partial(self._property_changed, attributo.name),
+                None,
             ],
         )
 

@@ -406,7 +406,7 @@ class Samples(QWidget):
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         with self._db.connect() as conn:
             logger.info("Setting attributo %s to %s", attributo, value)
-            self._current_sample.attributi.set_manual(attributo, value)
+            self._current_sample.attributi.set_single_manual(attributo, value)
             # We could immediately change the attribute, but we have this "Save changes" button
             # if self._current_sample.id is not None:
             #     self._db.update_sample_attributo(

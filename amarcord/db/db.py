@@ -4,20 +4,11 @@ import pickle
 from dataclasses import dataclass
 from itertools import groupby
 from time import time
-from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import sqlalchemy as sa
 from sqlalchemy import and_
 
-from amarcord.modules.dbcontext import DBContext
-from amarcord.db.constants import MANUAL_SOURCE_NAME
-from amarcord.db.proposal_id import ProposalId
-from amarcord.db.attributo_id import (
-    AttributoId,
-)
-from amarcord.db.tables import (
-    DBTables,
-)
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     AttributiMap,
@@ -27,9 +18,19 @@ from amarcord.db.attributi import (
     PropertyComments,
     RichAttributoType,
     Source,
-    schema_to_property_type,
     property_type_to_schema,
+    schema_to_property_type,
 )
+from amarcord.db.attributo_id import (
+    AttributoId,
+)
+from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
+from amarcord.db.karabo import Karabo
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.tables import (
+    DBTables,
+)
+from amarcord.modules.dbcontext import DBContext
 from amarcord.util import dict_union, remove_duplicates_stable
 
 logger = logging.getLogger(__name__)
@@ -42,9 +43,6 @@ class DBTarget:
     short_name: str
     molecular_weight: Optional[float]
     uniprot_id: str
-
-
-Karabo = Tuple[Dict[str, Any], Dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -72,12 +70,6 @@ class DBSample:
     attributi: AttributiMap
 
 
-@dataclass(frozen=True)
-class DBOggetto:
-    attributi: Dict[AttributoId, AttributoValue]
-    manual_attributi: Set[AttributoId]
-
-
 Connection = Any
 
 
@@ -91,6 +83,35 @@ def _decode_attributi_to_values(
     return result
 
 
+def _update_attributi(
+    conn: Connection,
+    entity_id: int,
+    entity_table: sa.Table,
+    runprop: AttributoId,
+    value: Any,
+):
+    current_json = conn.execute(
+        sa.select([entity_table.c.attributi]).where(entity_table.c.id == entity_id)
+    ).first()[0]
+    assert current_json is None or isinstance(
+        current_json, dict
+    ), f"attributi should be None or dictionary, got {type(current_json)}"
+    if current_json is None:
+        current_json = {}
+    if MANUAL_SOURCE_NAME not in current_json:
+        current_json[MANUAL_SOURCE_NAME] = {}
+    manual = current_json[MANUAL_SOURCE_NAME]
+    assert isinstance(
+        manual, dict
+    ), f"manual input should be dictionary, not {type(manual)}"
+    manual[str(runprop)] = value
+    conn.execute(
+        sa.update(entity_table)
+        .where(entity_table.c.id == entity_id)
+        .values(attributi=current_json, modified=datetime.datetime.utcnow())
+    )
+
+
 class DB:
     def __init__(self, dbcontext: DBContext, tables: DBTables) -> None:
         self.dbcontext = dbcontext
@@ -101,7 +122,7 @@ class DB:
         conn: Connection,
         proposal_id: ProposalId,
         since: Optional[datetime.datetime],
-    ) -> List[Dict[AttributoId, AttributoValue]]:
+    ) -> List[AttributiMap]:
         logger.info("retrieving runs since %s", since)
 
         run = self.tables.run
@@ -127,7 +148,7 @@ class DB:
             .where(where_condition)
             .order_by(run.c.id, comment.c.id)
         )
-        result: List[Dict[AttributoId, AttributoValue]] = []
+        result: List[AttributiMap] = []
         before = time()
         select_results = conn.execute(select_stmt).fetchall()
         after = time()
@@ -149,39 +170,18 @@ class DB:
                 for row in rows
                 if row[0] is not None
             )[0:5]
-            attributi = run_meta["attributi"]
-            assert isinstance(
-                attributi, dict
-            ), f"attributi column has type {type(attributi)}"
-            run_dict: Dict[AttributoId, AttributoValue] = {}
-            run_dict.update(
+            attributi = AttributiMap(run_meta["attributi"])
+            attributi.append_to_source(
+                DB_SOURCE_NAME,
                 {
-                    self.tables.property_comments: comments,
                     self.tables.property_run_id: run_meta["id"],
                     self.tables.property_sample: run_meta["sample_id"],
                     self.tables.property_proposal_id: run_meta["proposal_id"],
-                }
+                    self.tables.property_modified: run_meta["modified"],
+                    self.tables.property_comments: comments,
+                },
             )
-            result.append(
-                dict_union(
-                    [
-                        {
-                            self.tables.property_comments: comments,
-                        },
-                        {
-                            self.tables.property_run_id: run_meta["id"],
-                            self.tables.property_sample: run_meta["sample_id"],
-                            self.tables.property_proposal_id: run_meta["proposal_id"],
-                        },
-                        {
-                            k: v.value
-                            for k, v in _decode_attributi_to_values(
-                                run_meta["attributi"]
-                            ).items()
-                        },
-                    ]
-                )
-            )
+            result.append(attributi)
         return result
 
     def retrieve_run_ids(self, conn: Connection, proposal_id: ProposalId) -> List[int]:
@@ -216,7 +216,7 @@ class DB:
             .values(modified=datetime.datetime.utcnow())
         )
 
-    def retrieve_run(self, conn: Connection, run_id: int) -> DBOggetto:
+    def retrieve_run(self, conn: Connection, run_id: int) -> AttributiMap:
         run = self.tables.run
         run_c = run.c
         comment = self.tables.run_comment
@@ -241,40 +241,28 @@ class DB:
         if not run_rows:
             raise Exception(f"couldn't find any runs with id {run_id}")
         run_meta = run_rows[0]
-        attributi = run_meta["attributi"]
-        attributi_decoded = _decode_attributi_to_values(attributi)
-        return DBOggetto(
-            attributi=dict_union(
-                [
-                    {
-                        self.tables.property_run_id: run_meta["id"],
-                        self.tables.property_sample: run_meta["sample_id"],
-                        self.tables.property_proposal_id: run_meta["proposal_id"],
-                        self.tables.property_modified: run_meta["modified"],
-                    },
-                    {
-                        self.tables.property_comments: remove_duplicates_stable(
-                            DBRunComment(
-                                row["comment_id"],
-                                run_meta["id"],
-                                row["author"],
-                                row["comment_text"],
-                                row["created"],
-                            )
-                            for row in run_rows
-                            if row["comment_id"] is not None
-                        ),
-                    },
-                    {k: v.value for k, v in attributi_decoded.items()},
-                ],
-            ),
-            manual_attributi={self.tables.property_sample}
-            | {
-                k
-                for k, v in attributi_decoded.items()
-                if v.source == MANUAL_SOURCE_NAME
+        result = AttributiMap(run_meta["attributi"])
+        result.append_to_source(
+            DB_SOURCE_NAME,
+            {
+                self.tables.property_run_id: run_meta["id"],
+                self.tables.property_sample: run_meta["sample_id"],
+                self.tables.property_proposal_id: run_meta["proposal_id"],
+                self.tables.property_modified: run_meta["modified"],
+                self.tables.property_comments: remove_duplicates_stable(
+                    DBRunComment(
+                        row["comment_id"],
+                        run_meta["id"],
+                        row["author"],
+                        row["comment_text"],
+                        row["created"],
+                    )
+                    for row in run_rows
+                    if row["comment_id"] is not None
+                ),
             },
         )
+        return result
 
     def add_comment(self, conn: Connection, run_id: int, author: str, text: str) -> int:
         conn.execute(
@@ -394,7 +382,7 @@ class DB:
     def update_sample_attributo(
         self, conn: Connection, sample_id: int, attributo: AttributoId, value: Any
     ) -> None:
-        self._update_attributi(conn, sample_id, self.tables.sample, attributo, value)
+        _update_attributi(conn, sample_id, self.tables.sample, attributo, value)
 
     def update_run_attributo(
         self, conn: Connection, run_id: int, attributo: AttributoId, value: Any
@@ -415,36 +403,7 @@ class DB:
         ), f"attributi can only have str, int and float values currently, got {type(value)}"
 
         with conn.begin():
-            self._update_attributi(conn, run_id, self.tables.run, attributo, value)
-
-    def _update_attributi(
-        self,
-        conn: Connection,
-        entity_id: int,
-        entity_table: sa.Table,
-        runprop: AttributoId,
-        value: Any,
-    ):
-        current_json = conn.execute(
-            sa.select([entity_table.c.attributi]).where(entity_table.c.id == entity_id)
-        ).first()[0]
-        assert current_json is None or isinstance(
-            current_json, dict
-        ), f"attributi should be None or dictionary, got {type(current_json)}"
-        if current_json is None:
-            current_json = {}
-        if MANUAL_SOURCE_NAME not in current_json:
-            current_json[MANUAL_SOURCE_NAME] = {}
-        manual = current_json[MANUAL_SOURCE_NAME]
-        assert isinstance(
-            manual, dict
-        ), f"manual input should be dictionary, not {type(manual)}"
-        manual[str(runprop)] = value
-        conn.execute(
-            sa.update(entity_table)
-            .where(entity_table.c.id == entity_id)
-            .values(attributi=current_json, modified=datetime.datetime.utcnow())
-        )
+            _update_attributi(conn, run_id, self.tables.run, attributo, value)
 
     def connect(self) -> Connection:
         return self.dbcontext.connect()
@@ -547,9 +506,7 @@ class DB:
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
                 protocol=row["protocol"],
-                attributi=AttributiMap(row["attributi"])
-                if row["attributi"] is not None
-                else {},
+                attributi=AttributiMap(row["attributi"]),
             )
             for row in conn.execute(
                 sa.select(

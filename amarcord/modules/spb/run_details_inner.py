@@ -7,11 +7,8 @@ from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
 
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
 from amarcord.modules.spb.comments import Comments
-from amarcord.db.db import (
-    DBOggetto,
-    Karabo,
-)
-from amarcord.db.attributi import DBAttributo, DBRunComment
+from amarcord.db.karabo import Karabo
+from amarcord.db.attributi import AttributiMap, DBAttributo, DBRunComment
 from amarcord.db.tables import DBTables
 from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
 from amarcord.modules.spb.attributi_table import AttributiTable
@@ -54,7 +51,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         tables: DBTables,
         run_ids: List[int],
         sample_ids: List[int],
-        run: DBOggetto,
+        run: AttributiMap,
         karabo: Optional[Karabo],
         runs_metadata: Dict[AttributoId, DBAttributo],
         parent: Optional[QWidget] = None,
@@ -179,7 +176,10 @@ class RunDetailsInner(QtWidgets.QWidget):
 
     def _toggle_auto_switch_to_latest(self, new_state: bool) -> None:
         max_run_id = max(self.run_ids)
-        if new_state and self.run.attributi[self.tables.property_run_id] != max_run_id:
+        if (
+            new_state
+            and self.run.select_int_unsafe(self.tables.property_run_id) != max_run_id
+        ):
             self.current_run_changed.emit(max_run_id)
 
     def _slot_switch_to_latest(self) -> None:
@@ -204,7 +204,7 @@ class RunDetailsInner(QtWidgets.QWidget):
 
     def run_changed(
         self,
-        new_run: DBOggetto,
+        new_run: AttributiMap,
         new_karabo: Optional[Karabo],
         new_run_ids: List[int],
         new_sample_ids: List[int],
@@ -222,16 +222,16 @@ class RunDetailsInner(QtWidgets.QWidget):
             self._run_selector.reset_items([(str(s), s) for s in new_run_ids])
 
             max_run_id = max(self.run_ids)
-            if self.run.attributi[self.tables.property_run_id] != max_run_id:
+            if self.run.select_int_unsafe(self.tables.property_run_id) != max_run_id:
                 self.current_run_changed.emit(max_run_id)
 
         self._run_selector.set_current_value(
-            new_run.attributi[self.tables.property_run_id]
+            new_run.select_int_unsafe(self.tables.property_run_id)
         )
 
         self._comments.set_comments(
-            self.run.attributi[self.tables.property_run_id],
-            self.run.attributi[self.tables.property_comments],
+            self.run.select_int_unsafe(self.tables.property_run_id),
+            self.run.select_comments_unsafe(self.tables.property_comments),
         )
 
         self._slot_tree_filter_changed(self._tree_filter_line.text())
@@ -245,17 +245,17 @@ class RunDetailsInner(QtWidgets.QWidget):
         )
 
         self._switch_to_latest_button.setEnabled(
-            self.run.attributi[self.tables.property_run_id] != max(self.run_ids)
+            self.run.select_int_unsafe(self.tables.property_run_id) != max(self.run_ids)
         )
 
     def _slot_tree_filter_changed(self, new_filter: str) -> None:
         self._details_tree.clear()
-        if self.run.karabo is None:
+        if self.karabo is None:
             return
         self._details_tree.insertTopLevelItems(
             0,
             _dict_to_items(
-                _filter_dict(_preprocess_dict(self.run.karabo[0]), new_filter),
+                _filter_dict(_preprocess_dict(self.karabo[0]), new_filter),
                 parent=None,
             ),
         )

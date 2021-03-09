@@ -7,8 +7,9 @@ from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.db import Connection, DB, DBOggetto, Karabo
-from amarcord.db.attributi import DBAttributo, DBRunComment
+from amarcord.db.db import Connection, DB
+from amarcord.db.karabo import Karabo
+from amarcord.db.attributi import AttributiMap, DBAttributo, DBRunComment
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
@@ -166,7 +167,7 @@ class RunDetails(QWidget):
 
     def _retrieve_run_with_karabo(
         self, conn: Connection, run_id: int, old_karabo: Optional[Karabo]
-    ) -> Tuple[DBOggetto, Optional[Karabo]]:
+    ) -> Tuple[AttributiMap, Optional[Karabo]]:
         return self._db.retrieve_run(conn, run_id), (
             self._db.retrieve_karabo(conn, run_id) if old_karabo is None else old_karabo
         )
@@ -191,14 +192,14 @@ class RunDetails(QWidget):
             self._db.run_attributi(conn),
         )
 
-    def selected_run(self) -> DBOggetto:
+    def selected_run(self) -> AttributiMap:
         return cast(RunDetailsInner, self._inner).run
 
     def selected_karabo(self) -> Optional[Karabo]:
         return cast(RunDetailsInner, self._inner).karabo
 
     def selected_run_id(self) -> int:
-        result = self.selected_run().attributi[self._db.tables.property_run_id]
+        result = self.selected_run().select_int_unsafe(self._db.tables.property_run_id)
         assert isinstance(result, int)
         return result
 

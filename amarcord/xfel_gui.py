@@ -60,25 +60,25 @@ if __name__ == "__main__":
         context.ui.icon("SP_DialogResetButton"),
     )
 
-    # run_table_tab = run_table(context, tables, proposal_id)
-    # context.ui.register_tab(
-    #     "Runs",
-    #     run_table_tab,
-    #     context.ui.icon("SP_ComputerIcon"),
-    # )
-    # run_details_tab = run_details(context, tables, proposal_id)
-    # # run_details_tab.run_changed.connect(run_table_tab.run_changed)
-    # run_details_index = context.ui.register_tab(
-    #     "Run details",
-    #     run_details_tab,
-    #     context.ui.icon("SP_FileDialogContentsView"),
-    # )
-    #
-    # def change_run(
-    #     run_id: int,
-    # ) -> None:
-    #     run_details_tab.select_run(run_id)
-    #     context.ui.select_tab(run_details_index)
-    #
-    # run_table_tab.run_selected.connect(change_run)
+    run_table_tab = run_table(context, tables, proposal_id)
+    context.ui.register_tab(
+        "Runs",
+        run_table_tab,
+        context.ui.icon("SP_ComputerIcon"),
+    )
+    run_details_tab = run_details(context, tables, proposal_id)
+    # run_details_tab.run_changed.connect(run_table_tab.run_changed)
+    run_details_index = context.ui.register_tab(
+        "Run details",
+        run_details_tab,
+        context.ui.icon("SP_FileDialogContentsView"),
+    )
+
+    def change_run(
+        run_id: int,
+    ) -> None:
+        run_details_tab.select_run(run_id)
+        context.ui.select_tab(run_details_index)
+
+    run_table_tab.run_selected.connect(change_run)
     context.ui.exec_()

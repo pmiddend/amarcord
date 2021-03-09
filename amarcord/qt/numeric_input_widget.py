@@ -26,7 +26,6 @@ class NumericInputWidget(QLineEdit):
     ) -> None:
         super().__init__(parent)
         self._numeric_range = numeric_range
-        logger.info("got a numeric range: %s", self._numeric_range)
 
         if isinstance(value, str):
             self.setText(value)

@@ -7,7 +7,6 @@ from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QCheckBox, QPushButton
 
 from amarcord.db.attributi import (
-    DBRunComment,
     PropertyDouble,
     PropertyInt,
     pretty_print_attributo,
