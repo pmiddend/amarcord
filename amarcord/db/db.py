@@ -531,8 +531,37 @@ class DB:
             sa.delete(self.tables.target).where(self.tables.target.c.id == tid)
         )
 
-    def retrieve_samples(self, conn: Connection) -> List[DBSample]:
+    def retrieve_samples(
+        self, conn: Connection, since: Optional[datetime.datetime] = None
+    ) -> List[DBSample]:
         tc = self.tables.sample.c
+        select_stmt = sa.select(
+            [
+                tc.id,
+                tc.created,
+                tc.average_crystal_size,
+                tc.target_id,
+                tc.crystal_shape,
+                tc.incubation_time,
+                tc.crystallization_temperature,
+                tc.shaking_time_seconds,
+                tc.shaking_strength,
+                tc.protein_concentration,
+                tc.comment,
+                tc.crystal_settlement_volume,
+                tc.seed_stock_used,
+                tc.plate_origin,
+                tc.creator,
+                tc.crystallization_method,
+                tc.filters,
+                tc.compounds,
+                tc.micrograph,
+                tc.protocol,
+                tc.attributi,
+            ]
+        ).order_by(tc.id)
+        if since is not None:
+            select_stmt = select_stmt.where(tc.modified >= since)
         return [
             DBSample(
                 id=row["id"],
@@ -541,7 +570,6 @@ class DB:
                 average_crystal_size=row["average_crystal_size"],
                 crystal_shape=row["crystal_shape"],
                 incubation_time=row["incubation_time"],
-                # crystal_buffer=row["crystal_buffer"],
                 crystallization_temperature=row["crystallization_temperature"],
                 shaking_time=datetime.timedelta(seconds=row["shaking_time_seconds"])
                 if row["shaking_time_seconds"] is not None
@@ -560,34 +588,7 @@ class DB:
                 protocol=row["protocol"],
                 attributi=AttributiMap(row["attributi"]),
             )
-            for row in conn.execute(
-                sa.select(
-                    [
-                        tc.id,
-                        tc.created,
-                        tc.average_crystal_size,
-                        tc.target_id,
-                        tc.crystal_shape,
-                        tc.incubation_time,
-                        # tc.crystal_buffer,
-                        tc.crystallization_temperature,
-                        tc.shaking_time_seconds,
-                        tc.shaking_strength,
-                        tc.protein_concentration,
-                        tc.comment,
-                        tc.crystal_settlement_volume,
-                        tc.seed_stock_used,
-                        tc.plate_origin,
-                        tc.creator,
-                        tc.crystallization_method,
-                        tc.filters,
-                        tc.compounds,
-                        tc.micrograph,
-                        tc.protocol,
-                        tc.attributi,
-                    ]
-                ).order_by(tc.id)
-            ).fetchall()
+            for row in conn.execute(select_stmt).fetchall()
         ]
 
     def add_sample(self, conn: Connection, t: DBSample) -> None:
