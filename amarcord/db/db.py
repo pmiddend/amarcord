@@ -339,6 +339,7 @@ class DB:
         proposal_id: ProposalId,
         run_id: int,
         sample_id: Optional[int],
+        attributi: AttributiMap,
     ) -> bool:
         with conn.begin():
             run_exists = conn.execute(
@@ -352,7 +353,7 @@ class DB:
                     proposal_id=proposal_id,
                     id=run_id,
                     sample_id=sample_id,
-                    attributi={},
+                    attributi=attributi.to_json(),
                     modified=datetime.datetime.utcnow(),
                 )
             )

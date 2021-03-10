@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection, DB
 from amarcord.db.karabo import Karabo
 from amarcord.db.attributi import AttributiMap, DBAttributo, DBRunComment
@@ -212,9 +213,13 @@ class RunDetails(QWidget):
                 ),
                 sample_ids=self._db.retrieve_sample_ids(conn),
             )
+            attributi = AttributiMap({})
+            attributi.append_single_to_source(
+                MANUAL_SOURCE_NAME, AttributoId("status"), "running"
+            )
             if new_run is not None:
                 if not self._db.add_run(
-                    conn, self._proposal_id, new_run.id, new_run.sample_id
+                    conn, self._proposal_id, new_run.id, new_run.sample_id, attributi
                 ):
                     raise Exception("couldn't create run for some reason")
                 if self._inner is None:
