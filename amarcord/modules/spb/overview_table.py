@@ -163,11 +163,7 @@ class OverviewTable(QWidget):
                     ],
                     background_roles={},
                     change_callbacks=[],
-                    double_click_callback=lambda: self.run_selected.emit(
-                        c[AssociatedTable.RUN].select_int_unsafe(
-                            self._db.tables.attributo_run_id
-                        )
-                    ),
+                    double_click_callback=partial(self._double_click, c),
                 )
                 for c in self._rows
                 if self._row_not_filtered(c)
@@ -184,6 +180,11 @@ class OverviewTable(QWidget):
             ],
             row_delegates={},
             column_delegates={},
+        )
+
+    def _double_click(self, c: OverviewAttributi) -> None:
+        self.run_selected.emit(
+            c[AssociatedTable.RUN].select_int_unsafe(self._db.tables.attributo_run_id)
         )
 
     def _row_not_filtered(self, row: OverviewAttributi) -> bool:
@@ -223,7 +224,7 @@ class OverviewTable(QWidget):
                     key=self._sort_key,
                     reverse=(self._sort_data[1] == Qt.AscendingOrder),
                 )
-            self._table_view.set_data(self._create_declarative_data())
+                self._table_view.set_data(self._create_declarative_data())
 
     def _sort_key(self, k: OverviewAttributi) -> Any:
         sort_column = self._sort_data[0]
