@@ -15,7 +15,6 @@ from amarcord.db.attributi import (
     AttributoValue,
     DBAttributo,
     DBRunComment,
-    PropertyComments,
     RichAttributoType,
     Source,
     property_type_to_schema,
@@ -31,7 +30,7 @@ from amarcord.db.tables import (
     DBTables,
 )
 from amarcord.modules.dbcontext import DBContext
-from amarcord.util import dict_union, remove_duplicates_stable
+from amarcord.util import remove_duplicates_stable
 
 logger = logging.getLogger(__name__)
 
@@ -112,11 +111,6 @@ def _update_attributi(
     )
 
 
-# @dataclass(frozen=True)
-# class OverviewAttributi:
-#     run_attributi: AttributiMap
-#     sample_attributi: AttributiMap
-
 OverviewAttributi = Dict[AssociatedTable, AttributiMap]
 
 
@@ -155,11 +149,11 @@ class DB:
 
         result: List[OverviewAttributi] = []
         for r in runs:
-            sample_id = r.select_int(self.tables.property_sample)
+            sample_id = r.select_int(self.tables.attributo_run_sample_id)
             sample = samples.get(sample_id, None) if sample_id is not None else None
             assert (
                 sample is not None
-            ), f"run {r.select_int_unsafe(self.tables.property_run_id)} has invalid sample {sample_id}"
+            ), f"run {r.select_int_unsafe(self.tables.attributo_run_id)} has invalid sample {sample_id}"
             result.append({AssociatedTable.SAMPLE: sample, AssociatedTable.RUN: r})
         return result
 
@@ -169,8 +163,6 @@ class DB:
         proposal_id: ProposalId,
         since: Optional[datetime.datetime],
     ) -> List[AttributiMap]:
-        # logger.info("retrieving runs since %s", since)
-
         run = self.tables.run
         comment = self.tables.run_comment
 
@@ -221,11 +213,11 @@ class DB:
             attributi.append_to_source(
                 DB_SOURCE_NAME,
                 {
-                    self.tables.property_run_id: run_meta["id"],
-                    self.tables.property_sample: run_meta["sample_id"],
-                    self.tables.property_proposal_id: run_meta["proposal_id"],
-                    self.tables.property_modified: run_meta["modified"],
-                    self.tables.property_comments: comments,
+                    self.tables.attributo_run_id: run_meta["id"],
+                    self.tables.attributo_run_sample_id: run_meta["sample_id"],
+                    self.tables.attributo_run_proposal_id: run_meta["proposal_id"],
+                    self.tables.attributo_run_modified: run_meta["modified"],
+                    self.tables.attributo_run_comments: comments,
                 },
             )
             result.append(attributi)
@@ -292,11 +284,11 @@ class DB:
         result.append_to_source(
             DB_SOURCE_NAME,
             {
-                self.tables.property_run_id: run_meta["id"],
-                self.tables.property_sample: run_meta["sample_id"],
-                self.tables.property_proposal_id: run_meta["proposal_id"],
-                self.tables.property_modified: run_meta["modified"],
-                self.tables.property_comments: remove_duplicates_stable(
+                self.tables.attributo_run_id: run_meta["id"],
+                self.tables.attributo_run_sample_id: run_meta["sample_id"],
+                self.tables.attributo_run_proposal_id: run_meta["proposal_id"],
+                self.tables.attributo_run_modified: run_meta["modified"],
+                self.tables.attributo_run_comments: remove_duplicates_stable(
                     DBRunComment(
                         row["comment_id"],
                         run_meta["id"],
@@ -391,7 +383,7 @@ class DB:
                 self.tables.attributo.c.associated_table
             ).where(self.tables.attributo.c.associated_table == filter_table)
 
-        return {
+        result = {
             table: {
                 AttributoId(row[0]): DBAttributo(
                     name=AttributoId(row[0]),
@@ -409,6 +401,12 @@ class DB:
                 lambda x: x[4],
             )
         }
+        for table, attributi in self.tables.additional_attributi.items():
+            if table not in result:
+                result[table] = attributi
+            else:
+                result[table].update(attributi)
+        return result
 
     def retrieve_table_attributi(
         self, conn: Connection, table: AssociatedTable
@@ -416,31 +414,7 @@ class DB:
         return self.retrieve_attributi(conn, table)[table]
 
     def run_attributi(self, conn: Connection) -> Dict[AttributoId, DBAttributo]:
-        attributi = self.retrieve_table_attributi(conn, AssociatedTable.RUN)
-        return dict_union(
-            [
-                {
-                    k: DBAttributo(
-                        name=AttributoId(str(k)),
-                        description=self.tables.property_descriptions.get(k, str(k)),
-                        rich_property_type=v,
-                        associated_table=AssociatedTable.RUN,
-                        suffix=None,
-                    )
-                    for k, v in self.tables.property_types.items()
-                },
-                attributi,
-                {
-                    self.tables.property_comments: DBAttributo(
-                        name=AttributoId("comments"),
-                        description="Comments",
-                        rich_property_type=PropertyComments(),
-                        associated_table=AssociatedTable.RUN,
-                        suffix=None,
-                    )
-                },
-            ]
-        )
+        return self.retrieve_table_attributi(conn, AssociatedTable.RUN)
 
     def update_sample_attributo(
         self, conn: Connection, sample_id: int, attributo: AttributoId, value: Any
@@ -450,8 +424,7 @@ class DB:
     def update_run_attributo(
         self, conn: Connection, run_id: int, attributo: AttributoId, value: Any
     ) -> None:
-        # FIXME: do we still need this?
-        if attributo == self.tables.property_sample:
+        if attributo == self.tables.attributo_run_sample_id:
             assert isinstance(value, int), "sample ID should be an integer"
 
             conn.execute(

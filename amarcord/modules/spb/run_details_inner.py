@@ -178,7 +178,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         max_run_id = max(self.run_ids)
         if (
             new_state
-            and self.run.select_int_unsafe(self.tables.property_run_id) != max_run_id
+            and self.run.select_int_unsafe(self.tables.attributo_run_id) != max_run_id
         ):
             self.current_run_changed.emit(max_run_id)
 
@@ -222,16 +222,16 @@ class RunDetailsInner(QtWidgets.QWidget):
             self._run_selector.reset_items([(str(s), s) for s in new_run_ids])
 
             max_run_id = max(self.run_ids)
-            if self.run.select_int_unsafe(self.tables.property_run_id) != max_run_id:
+            if self.run.select_int_unsafe(self.tables.attributo_run_id) != max_run_id:
                 self.current_run_changed.emit(max_run_id)
 
         self._run_selector.set_current_value(
-            new_run.select_int_unsafe(self.tables.property_run_id)
+            new_run.select_int_unsafe(self.tables.attributo_run_id)
         )
 
         self._comments.set_comments(
-            self.run.select_int_unsafe(self.tables.property_run_id),
-            self.run.select_comments_unsafe(self.tables.property_comments),
+            self.run.select_int_unsafe(self.tables.attributo_run_id),
+            self.run.select_comments_unsafe(self.tables.attributo_run_comments),
         )
 
         self._slot_tree_filter_changed(self._tree_filter_line.text())
@@ -245,7 +245,8 @@ class RunDetailsInner(QtWidgets.QWidget):
         )
 
         self._switch_to_latest_button.setEnabled(
-            self.run.select_int_unsafe(self.tables.property_run_id) != max(self.run_ids)
+            self.run.select_int_unsafe(self.tables.attributo_run_id)
+            != max(self.run_ids)
         )
 
     def _slot_tree_filter_changed(self, new_filter: str) -> None:

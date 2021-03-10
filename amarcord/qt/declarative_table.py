@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 ContextMenuCallback = Callable[[QPoint], None]
 DoubleClickCallback = Callable[[], None]
+SortClickCallback = Callable[[Qt.SortOrder], None]
 
 
 @dataclass(frozen=True, eq=True)
@@ -42,6 +43,8 @@ class Row:
 class Column:
     header_label: str
     editable: bool
+    sorted_by: Optional[Qt.SortOrder] = None
+    sort_click_callback: Optional[SortClickCallback] = None
     header_callback: Optional[ContextMenuCallback] = None
 
 
@@ -62,8 +65,6 @@ class DeclarativeTableModel(QAbstractTableModel):
         super().__init__(parent)
 
         self._data = data
-        self._sort_order: Qt.SortOrder = Qt.AscendingOrder
-        self._sort_column: int = -1
 
     def rowCount(self, _parent: QModelIndex = QModelIndex()) -> int:
         return len(self._data.rows)
@@ -112,7 +113,6 @@ class DeclarativeTableModel(QAbstractTableModel):
         # noinspection PyUnresolvedReferences
         self.modelAboutToBeReset.emit()  # type: ignore
         self._data = data
-        self._sort()
         # noinspection PyUnresolvedReferences
         self.modelReset.emit()  # type: ignore
 
@@ -125,18 +125,11 @@ class DeclarativeTableModel(QAbstractTableModel):
         return False
 
     def sort(self, column: int, order: Qt.SortOrder = Qt.AscendingOrder) -> None:
-        self._sort_order = order
-        self._sort_column = column
-        self.layoutAboutToBeChanged.emit()  # type: ignore
-        self._sort()
-        self.layoutChanged.emit()  # type: ignore
-
-    def _sort(self):
-        if self._sort_column >= 0:
-            self._data.rows.sort(
-                key=partial(_sort_row, self._sort_column),
-                reverse=(self._sort_order == Qt.AscendingOrder),
-            )
+        sort_click_cb = (
+            self._data.columns[column].sort_click_callback if column >= 0 else None
+        )
+        if sort_click_cb is not None:
+            sort_click_cb(order)
 
 
 HeaderMenuCallback = Callable[[], None]
@@ -211,6 +204,18 @@ class DeclarativeTable(QTableView):
             self.setItemDelegateForColumn(row_idx, QStyledItemDelegate())  # type: ignore
 
         self.model().set_data(data)
+        sort_column = next(
+            iter(
+                (idx, c.sorted_by)
+                for idx, c in enumerate(data.columns)
+                if c.sorted_by is not None
+            ),
+            None,
+        )
+        if sort_column is None:
+            self.horizontalHeader().setSortIndicatorShown(False)
+        else:
+            self.horizontalHeader().setSortIndicator(sort_column[0], sort_column[1])
         self._data = data
 
         for row_idx, delegate in data.row_delegates.items():
@@ -220,10 +225,6 @@ class DeclarativeTable(QTableView):
             self.setItemDelegateForColumn(row_idx, delegate)
 
         self.resizeColumnsToContents()
-
-    # def sortByColumn(self, column: int, order: Qt.SortOrder) -> None:
-    #     logger.info("sortByColumn called")
-    #     self.model().mysort(column, order)
 
     # Keep these commented out. Maybe we want to really delete the delegates when
     # we're done with them, instead of keeping them around like idiots.

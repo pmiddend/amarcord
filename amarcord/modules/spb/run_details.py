@@ -199,7 +199,7 @@ class RunDetails(QWidget):
         return cast(RunDetailsInner, self._inner).karabo
 
     def selected_run_id(self) -> int:
-        result = self.selected_run().select_int_unsafe(self._db.tables.property_run_id)
+        result = self.selected_run().select_int_unsafe(self._db.tables.attributo_run_id)
         assert isinstance(result, int)
         return result
 

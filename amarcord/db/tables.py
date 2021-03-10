@@ -5,13 +5,15 @@ import sqlalchemy as sa
 from sqlalchemy import ForeignKey, func
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.modules.dbcontext import DBContext
-from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributi import (
+    DBAttributo,
+    PropertyComments,
+    PropertyDateTime,
     PropertyInt,
     PropertySample,
-    RichAttributoType,
 )
+from amarcord.db.attributo_id import AttributoId
+from amarcord.modules.dbcontext import DBContext
 
 logger = logging.getLogger(__name__)
 
@@ -124,23 +126,55 @@ class DBTables:
         self.run_comment = run_comment
         self.target = target
         self.attributo = attributo
-        self.property_comments = AttributoId("comments")
+        self.attributo_run_id = AttributoId("id")
+        self.attributo_run_comments = AttributoId("comments")
+        self.attributo_run_modified = AttributoId("modified")
+        self.attributo_run_sample_id = AttributoId("sample_id")
+        self.attributo_run_proposal_id = AttributoId("proposal_id")
+        self.attributo_run_id = AttributoId("id")
+        self.additional_attributi: Dict[
+            AssociatedTable, Dict[AttributoId, DBAttributo]
+        ] = {
+            AssociatedTable.RUN: {
+                self.attributo_run_id: DBAttributo(
+                    name=self.attributo_run_id,
+                    description="Run ID",
+                    suffix=None,
+                    associated_table=AssociatedTable.RUN,
+                    rich_property_type=PropertyInt(),
+                ),
+                self.attributo_run_comments: DBAttributo(
+                    name=self.attributo_run_comments,
+                    description="Comments",
+                    suffix=None,
+                    associated_table=AssociatedTable.RUN,
+                    rich_property_type=PropertyComments(),
+                ),
+                self.attributo_run_modified: DBAttributo(
+                    name=self.attributo_run_modified,
+                    description="Modified",
+                    suffix=None,
+                    associated_table=AssociatedTable.RUN,
+                    rich_property_type=PropertyDateTime(),
+                ),
+                self.attributo_run_sample_id: DBAttributo(
+                    name=self.attributo_run_sample_id,
+                    description="Sample ID",
+                    suffix=None,
+                    associated_table=AssociatedTable.RUN,
+                    rich_property_type=PropertySample(),
+                ),
+                self.attributo_run_proposal_id: DBAttributo(
+                    name=self.attributo_run_proposal_id,
+                    description="Proposal",
+                    suffix=None,
+                    associated_table=AssociatedTable.RUN,
+                    rich_property_type=PropertyInt(),
+                ),
+            }
+        }
         self.property_karabo = AttributoId(self.run.c.karabo.name)
         self.property_attributi = AttributoId(self.run.c.attributi.name)
-        self.property_run_id = AttributoId(self.run.c.id.name)
-        self.property_modified = AttributoId(self.run.c.modified.name)
-        self.property_sample = AttributoId(self.run.c.sample_id.name)
-        self.property_proposal_id = AttributoId(self.run.c.proposal_id.name)
-        self.property_types: Dict[AttributoId, RichAttributoType] = {
-            self.property_run_id: PropertyInt(),
-            self.property_proposal_id: PropertyInt(),
-            self.property_sample: PropertySample(),
-        }
-        self.property_descriptions: Dict[AttributoId, str] = {
-            self.property_run_id: "Run",
-            self.property_proposal_id: "Proposal",
-            self.property_sample: "Sample",
-        }
 
 
 def create_tables(context: DBContext) -> DBTables:

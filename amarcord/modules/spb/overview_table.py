@@ -1,10 +1,10 @@
 import datetime
 import logging
 from functools import partial
-from typing import Final, Iterable, List
+from typing import Any, Final, Iterable, List, Tuple
 
 from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QPoint, QTimer, pyqtSignal
+from PyQt5.QtCore import QPoint, QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import QCheckBox, QPushButton, QWidget
 
 from amarcord.db.associated_table import AssociatedTable
@@ -67,6 +67,15 @@ class OverviewTable(QWidget):
                 conn, self._proposal_id
             )
             self._filter_query: Query = lambda row: True
+            self._sort_data: Tuple[TabledAttributo, Qt.SortOrder] = (
+                TabledAttributo(
+                    AssociatedTable.RUN,
+                    self._db.tables.additional_attributi[AssociatedTable.RUN][
+                        self._db.tables.attributo_run_id
+                    ],
+                ),
+                Qt.AscendingOrder,
+            )
             self._table_view = DeclarativeTable(
                 self._create_declarative_data(),
                 parent=None,
@@ -156,7 +165,7 @@ class OverviewTable(QWidget):
                     change_callbacks=[],
                     double_click_callback=lambda: self.run_selected.emit(
                         c[AssociatedTable.RUN].select_int_unsafe(
-                            self._db.tables.property_run_id
+                            self._db.tables.attributo_run_id
                         )
                     ),
                 )
@@ -168,6 +177,8 @@ class OverviewTable(QWidget):
                     header_label=c.pretty_id(),
                     editable=False,
                     header_callback=partial(self._header_menu_callback, c),
+                    sort_click_callback=partial(self._sort_clicked, c),
+                    sorted_by=self._sort_data[1] if self._sort_data[0] == c else None,
                 )
                 for c in self._visible_columns
             ],
@@ -208,7 +219,26 @@ class OverviewTable(QWidget):
             if update_time > self._last_refresh:
                 self._last_refresh = update_time
                 self._rows = self._db.retrieve_overview(conn, self._proposal_id)
+                self._rows.sort(
+                    key=self._sort_key,
+                    reverse=(self._sort_data[1] == Qt.AscendingOrder),
+                )
             self._table_view.set_data(self._create_declarative_data())
+
+    def _sort_key(self, k: OverviewAttributi) -> Any:
+        sort_column = self._sort_data[0]
+        table_data = k[sort_column.table]
+        if table_data is None:
+            return None
+        v = table_data.select_value(sort_column.attributo.name)
+        return sortable_attributo(sort_column.attributo, v)
+
+    def _sort_clicked(self, column: TabledAttributo, order: Qt.SortOrder) -> None:
+        self._sort_data = (column, order)
+        self._rows.sort(
+            key=self._sort_key, reverse=(self._sort_data[1] == Qt.AscendingOrder)
+        )
+        self._table_view.set_data(self._create_declarative_data())
 
     def _header_menu_callback(self, column: TabledAttributo, pos: QPoint) -> None:
         if column.attributo.rich_property_type is None:
