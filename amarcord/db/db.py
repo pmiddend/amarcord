@@ -122,6 +122,10 @@ class TableWithAttributi:
     attributi: Dict[AttributoId, DBAttributo]
 
 
+class RunNotFound(Exception):
+    pass
+
+
 class DB:
     def __init__(self, dbcontext: DBContext, tables: DBTables) -> None:
         self.dbcontext = dbcontext
@@ -138,6 +142,11 @@ class DB:
                 ).select_from(self.tables.run.outerjoin(self.tables.sample))
             ).fetchone()
         )
+
+    def run_count(self, conn: Connection) -> int:
+        return conn.execute(
+            sa.select([sa.func.count()]).select_from(self.tables.run)
+        ).fetchone()[0]
 
     def retrieve_overview(
         self,
@@ -280,7 +289,7 @@ class DB:
         )
         run_rows = conn.execute(select_statement).fetchall()
         if not run_rows:
-            raise Exception(f"couldn't find any runs with id {run_id}")
+            raise RunNotFound()
         run_meta = run_rows[0]
         result = AttributiMap(run_meta["attributi"])
         result.append_to_source(
@@ -641,6 +650,9 @@ class DB:
         conn.execute(
             sa.delete(self.tables.sample).where(self.tables.sample.c.id == tid)
         )
+
+    def delete_run(self, conn: Connection, rid: int) -> None:
+        conn.execute(sa.delete(self.tables.run).where(self.tables.run.c.id == rid))
 
 
 def overview_row_to_query_row(

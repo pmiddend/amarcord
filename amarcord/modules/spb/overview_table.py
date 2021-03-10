@@ -5,7 +5,7 @@ from typing import Any, Final, Iterable, List, Tuple
 
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QPoint, QTimer, Qt, pyqtSignal
-from PyQt5.QtWidgets import QCheckBox, QPushButton, QWidget
+from PyQt5.QtWidgets import QCheckBox, QMenu, QMessageBox, QPushButton, QStyle, QWidget
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
@@ -62,6 +62,7 @@ class OverviewTable(QWidget):
             ] = self._retrieve_attributi_metadata(conn)
             self._visible_columns = self._attributi_metadata.copy()
             self._last_refresh = datetime.datetime.utcnow()
+            self._last_run_count = self._db.run_count(conn)
             self._rows: List[OverviewAttributi] = self._db.retrieve_overview(
                 conn, self._proposal_id
             )
@@ -163,6 +164,7 @@ class OverviewTable(QWidget):
                     background_roles={},
                     change_callbacks=[],
                     double_click_callback=partial(self._double_click, c),
+                    right_click_menu=partial(self._right_click, c),
                 )
                 for c in self._rows
                 if self._row_not_filtered(c)
@@ -180,6 +182,33 @@ class OverviewTable(QWidget):
             row_delegates={},
             column_delegates={},
         )
+
+    def _right_click(self, c: OverviewAttributi, p: QPoint) -> None:
+        menu = QMenu(self)
+        deleteAction = menu.addAction(
+            self.style().standardIcon(QStyle.SP_DialogCancelButton),
+            "Delete run",
+        )
+        run_id = c[AssociatedTable.RUN].select_int_unsafe(
+            self._db.tables.attributo_run_id
+        )
+        action = menu.exec_(p)
+        if action == deleteAction:
+            result = QMessageBox(  # type: ignore
+                QMessageBox.Critical,
+                f"Delete run “{run_id}”",
+                f"Are you sure you want to delete run “{run_id}”?",
+                QMessageBox.Yes | QMessageBox.Cancel,
+                self,
+            ).exec()
+
+            if result == QMessageBox.Yes:
+                with self._db.connect() as conn:
+                    self._db.delete_run(
+                        conn,
+                        run_id,
+                    )
+                    self._slot_refresh()
 
     def _double_click(self, c: OverviewAttributi) -> None:
         self.run_selected.emit(
@@ -204,15 +233,20 @@ class OverviewTable(QWidget):
             completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
             self._filter_widget.setCompleter(completer)
             latest_update_time = self._db.overview_update_time(conn)
-            update_table = latest_update_time > self._last_refresh or force
-            if latest_update_time > self._last_refresh:
+            latest_run_count = self._db.run_count(conn)
+            needs_update = (
+                latest_update_time > self._last_refresh
+                or latest_run_count != self._last_run_count
+            )
+            if needs_update:
                 self._rows = self._db.retrieve_overview(conn, self._proposal_id)
                 self._last_refresh = latest_update_time
+                self._last_run_count = latest_run_count
                 self._rows.sort(
                     key=self._sort_key,
                     reverse=(self._sort_data[1] == Qt.AscendingOrder),
                 )
-            if update_table:
+            if needs_update or force:
                 self._table_view.set_data(self._create_declarative_data())
 
     def _sort_key(self, k: OverviewAttributi) -> Any:

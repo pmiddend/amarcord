@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
-from amarcord.db.db import Connection, DB
+from amarcord.db.db import Connection, DB, RunNotFound
 from amarcord.db.karabo import Karabo
 from amarcord.db.attributi import AttributiMap, DBAttributo, DBRunComment
 from amarcord.db.proposal_id import ProposalId
@@ -58,6 +58,7 @@ class RunDetails(QWidget):
         with self._db.connect() as conn:
             new_run_ids = self._db.retrieve_run_ids(conn, self._proposal_id)
             if not new_run_ids and not self._empty_gui_present:
+                self._remove_root_items()
                 self._empty_gui_present = True
                 self._root_layout.addStretch()
                 self._root_layout.addWidget(
@@ -77,12 +78,8 @@ class RunDetails(QWidget):
                 self._root_layout.addStretch()
             elif new_run_ids:
                 if self._empty_gui_present:
-                    while True:
-                        removed_item = self._root_layout.takeAt(0)
-                        if removed_item is None:
-                            break
-                        if removed_item.widget() is not None:
-                            removed_item.widget().deleteLater()
+                    self._remove_root_items()
+                    self._empty_gui_present = False
                 self._inner = RunDetailsInner(
                     tables=self._db.tables,
                     run_ids=new_run_ids,
@@ -100,6 +97,14 @@ class RunDetails(QWidget):
                 self._inner.new_attributo.connect(self._slot_new_attributo)
                 self._inner.manual_new_run.connect(self._slot_manual_new_run)
                 self._root_layout.addWidget(self._inner)
+
+    def _remove_root_items(self):
+        while True:
+            removed_item = self._root_layout.takeAt(0)
+            if removed_item is None:
+                break
+            if removed_item.widget() is not None:
+                removed_item.widget().deleteLater()
 
     def _slot_refresh(self) -> None:
         with self._db.connect() as conn:
@@ -183,15 +188,23 @@ class RunDetails(QWidget):
         new_run_id = cast(
             int, new_run_id if new_run_id is not None else selected_run_id
         )
-        cast(RunDetailsInner, self._inner).run_changed(
-            self._db.retrieve_run(conn, new_run_id),
-            selected_karabo
-            if selected_karabo is not None
-            else self._db.retrieve_karabo(conn, new_run_id),
-            self._db.retrieve_run_ids(conn, self._proposal_id),
-            self._db.retrieve_sample_ids(conn),
-            self._db.run_attributi(conn),
-        )
+        ids = self._db.retrieve_run_ids(conn, self._proposal_id)
+        try:
+            r = self._db.retrieve_run(conn, new_run_id)
+            cast(RunDetailsInner, self._inner).run_changed(
+                r,
+                selected_karabo
+                if selected_karabo is not None
+                else self._db.retrieve_karabo(conn, new_run_id),
+                ids,
+                self._db.retrieve_sample_ids(conn),
+                self._db.run_attributi(conn),
+            )
+        except RunNotFound:
+            if ids:
+                self._slot_refresh_run(conn, ids[0])
+            else:
+                self._refresh_run_ids()
 
     def selected_run(self) -> AttributiMap:
         return cast(RunDetailsInner, self._inner).run

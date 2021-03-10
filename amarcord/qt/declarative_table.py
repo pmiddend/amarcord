@@ -11,7 +11,7 @@ from PyQt5.QtCore import (
     Qt,
     pyqtSignal,
 )
-from PyQt5.QtGui import QBrush
+from PyQt5.QtGui import QBrush, QContextMenuEvent
 from PyQt5.QtWidgets import (
     QAbstractItemDelegate,
     QAbstractItemView,
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 ContextMenuCallback = Callable[[QPoint], None]
 DoubleClickCallback = Callable[[], None]
 SortClickCallback = Callable[[Qt.SortOrder], None]
+RightClickMenuCallback = Callable[[QPoint], None]
 
 
 @dataclass(frozen=True, eq=True)
@@ -36,6 +37,7 @@ class Row:
         hash=False, default_factory=lambda: [], compare=False
     )
     double_click_callback: Optional[DoubleClickCallback] = None
+    right_click_menu: Optional[RightClickMenuCallback] = None
 
 
 @dataclass(frozen=True, eq=True)
@@ -182,6 +184,13 @@ class DeclarativeTable(QTableView):
         cb = self._data.rows[index.row()].change_callbacks[index.column()]
         if cb is not None:
             cb(new_value)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        current_row = self.currentIndex().row()
+
+        right_click_menu = self._data.rows[current_row].right_click_menu
+        if right_click_menu is not None:
+            right_click_menu(self.mapToGlobal(event.pos()))
 
     def set_data(self, data: Data) -> None:
         # When this is called, we might be in the middle of an edit
