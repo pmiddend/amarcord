@@ -125,11 +125,11 @@ def schema_to_property_type(
                 parsed_schema.minimum
                 if parsed_schema.minimum is not None
                 else parsed_schema.exclusiveMinimum,
-                parsed_schema.exclusiveMinimum is not None,
+                parsed_schema.exclusiveMinimum is None,
                 parsed_schema.maximum
                 if parsed_schema.maximum is not None
                 else parsed_schema.exclusiveMaximum,
-                parsed_schema.exclusiveMaximum is not None,
+                parsed_schema.exclusiveMaximum is None,
             ),
             suffix=suffix,
         )

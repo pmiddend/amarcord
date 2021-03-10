@@ -1,15 +1,10 @@
-import datetime
-import getpass
 import logging
-from dataclasses import replace
+from enum import Enum
 from functools import partial
-from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, Dict, Optional, cast
 
-from PyQt5.QtCore import QModelIndex, QPoint, QUrl, Qt
-from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtCore import QPoint, Qt
 from PyQt5.QtWidgets import (
-    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -25,19 +20,21 @@ from PyQt5.QtWidgets import (
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
-    AttributiMap,
+    PropertyDouble,
     PropertyInt,
+    RichAttributoType,
     attributo_type_to_string,
 )
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.db import Connection, DB, DBSample
+from amarcord.db.db import Connection, DB
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
+from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
-from amarcord.qt.image_viewer import display_image_viewer
+from amarcord.qt.numeric_range_format_widget import NumericRangeFormatWidget
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -46,30 +43,38 @@ NEW_SAMPLE_HEADLINE = "New attributo"
 logger = logging.getLogger(__name__)
 
 
-def _empty_sample():
-    return DBSample(
-        id=None,
-        created=datetime.datetime.utcnow(),
-        target_id=-1,
-        average_crystal_size=None,
-        crystal_shape=None,
-        incubation_time=None,
-        crystallization_temperature=None,
-        protein_concentration=None,
-        shaking_time=None,
-        shaking_strength=None,
-        comment="",
-        crystal_settlement_volume=None,
-        seed_stock_used="",
-        plate_origin="",
-        creator=getpass.getuser(),
-        crystallization_method="",
-        filters=None,
-        compounds=None,
-        micrograph=None,
-        protocol=None,
-        attributi=AttributiMap({}),
-    )
+class TypePreset(Enum):
+    INT = "integer"
+    CHOICE = "choice"
+    DOUBLE = "number"
+    TAGS = "list of tags"
+    STRING = "string"
+    DATE_TIME = "date and time"
+
+
+def _fill_preset(w: QWidget, p: TypePreset, metadata: Dict[str, Any]) -> None:
+    while w.layout().count():
+        removed_item = w.layout().takeAt(0)
+        if removed_item is None:
+            break
+        if removed_item.widget() is not None:
+            removed_item.widget().deleteLater()
+
+    metadata.clear()
+
+    form_layout = w.layout()
+    if not isinstance(form_layout, QFormLayout):
+        raise Exception("Type widget should have a form layout")
+    if p == TypePreset.DOUBLE:
+
+        metadata["range"] = None
+
+        def set_range(new_range: NumericRange) -> None:
+            metadata["range"] = new_range
+
+        numeric_range_input = NumericRangeFormatWidget(numeric_range=None)
+        numeric_range_input.range_changed.connect(set_range)
+        form_layout.addRow("Value range", numeric_range_input)
 
 
 class AttributiCrud(QWidget):
@@ -99,7 +104,6 @@ class AttributiCrud(QWidget):
 
         root_widget.addWidget(self._attributi_table)
 
-        self._current_sample = _empty_sample()
         right_widget = QWidget()
         right_root_layout = QVBoxLayout()
         right_widget.setLayout(right_root_layout)
@@ -149,6 +153,26 @@ class AttributiCrud(QWidget):
         )
         self._attributi_table_combo.item_selected.connect(self._attributo_table_change)
 
+        # Type begin
+        self._type_selection = ComboBox(
+            [(s.value, s) for s in TypePreset], TypePreset.INT
+        )
+        self._type_selection.item_selected.connect(self._refill_type_preset)
+        self._type_widget = QWidget()
+        QFormLayout(self._type_widget)
+        self._type_specific_metadata: Dict[str, Any] = {}
+        right_form_layout.addRow(
+            "Type",
+            self._type_selection,
+        )
+        right_form_layout.addWidget(self._type_widget)
+        _fill_preset(
+            self._type_widget,
+            cast(TypePreset, self._type_selection.current_value()),
+            self._type_specific_metadata,
+        )
+        # Type end
+
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
@@ -158,6 +182,13 @@ class AttributiCrud(QWidget):
         self._submit_layout.addWidget(self._add_button)
 
         right_form_layout.addWidget(self._submit_widget)
+
+    def _refill_type_preset(self, new_value: TypePreset) -> None:
+        _fill_preset(
+            self._type_widget,
+            new_value,
+            self._type_specific_metadata,
+        )
 
     def _create_table_data(self) -> Data:
         return Data(
@@ -264,130 +295,12 @@ class AttributiCrud(QWidget):
             )
             self._slot_refresh(conn)
 
-    def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
-        with self._db.connect() as conn:
-            logger.info("Setting attributo %s to %s", attributo, value)
-            self._current_sample.attributi.set_single_manual(attributo, value)
-            # We could immediately change the attribute, but we have this "Save changes" button
-            # if self._current_sample.id is not None:
-            #     self._db.update_sample_attributo(
-            #         conn, self._current_sample.id, attributo, value
-            #     )
-            self._slot_refresh(conn)
-
-    def _display_micrograph(self) -> None:
-        assert self._current_sample.micrograph is not None
-        display_image_viewer(Path(self._current_sample.micrograph), parent=self)
-
-    def _open_protocol(self) -> None:
-        assert self._current_sample.protocol is not None
-        QDesktopServices.openUrl(QUrl(f"file://{self._current_sample.protocol}"))
-
-    def _choose_protocol(self) -> None:
-        result, _ = QFileDialog.getOpenFileName(
-            self,
-            "Choose a protocol file",
-            str(self._proposal_file_path),
-        )
-        if not result:
-            return
-
-        self._protocol_edit.setText(result)
-        self._current_sample = replace(self._current_sample, protocol=result)
-        self._open_protocol_button.setEnabled(True)
-
-    def _choose_micrograph(self) -> None:
-        result, _ = QFileDialog.getOpenFileName(
-            self,
-            "Choose an image file",
-            str(self._proposal_file_path),
-        )
-        if not result:
-            return
-
-        self._micrograph_edit.setText(result)
-        self._current_sample = replace(self._current_sample, micrograph=result)
-        self._display_micrograph_button.setEnabled(True)
-
-    def _delete_sample(self) -> None:
-        row_idx = self._sample_table.currentRow()
-        sample = self._samples[row_idx]
-
-        assert sample.id is not None
-
-        result = QMessageBox(  # type: ignore
-            QMessageBox.Critical,
-            f"Delete “{sample.id}”",
-            f"Are you sure you want to delete sample “{sample.id}”?",
-            QMessageBox.Yes | QMessageBox.Cancel,
-            self,
-        ).exec()
-
-        if result == QMessageBox.Yes:
-            with self._db.connect() as conn:
-                self._db.delete_sample(conn, sample.id)
-                self._log_widget.setText(f"Sample “{sample.id}” deleted!")
-                self._fill_table()
-                if self._current_sample.id == sample.id:
-                    self._reset_input_fields()
-                    self._right_headline.setText(NEW_SAMPLE_HEADLINE)
-
     def _create_add_button(self):
         b = QPushButton(
             self.style().standardIcon(QStyle.SP_DialogOkButton), "Add sample"
         )
         b.clicked.connect(self._add_attributo)
         return b
-
-    def _slot_row_selected(self, index: QModelIndex) -> None:
-        self._attributo_manual_changes.clear()
-        self._current_sample = self._samples[index.row()]
-        self._right_headline.setText(f"Edit sample “{self._current_sample.id}”")
-        self._comment_edit.setText(self._current_sample.comment)
-        self._seed_stock_used_edit.setText(self._current_sample.seed_stock_used)
-        self._plate_origin_edit.setText(self._current_sample.plate_origin)
-        self._target_id_edit.set_current_value(self._current_sample.target_id)
-        self._creator_edit.setText(self._current_sample.creator)
-        self._crystallization_method_edit.setText(
-            self._current_sample.crystallization_method
-        )
-        self._average_crystal_size_edit.set_value(
-            self._current_sample.average_crystal_size
-        )
-        self._crystal_settlement_volume_edit.set_value(
-            self._current_sample.crystal_settlement_volume
-        )
-        self._crystallization_temperature_edit.set_value(
-            self._current_sample.crystallization_temperature
-        )
-        self._shaking_time_edit.set_value(
-            self._current_sample.shaking_time  # type: ignore
-            if self._current_sample.shaking_time is not None
-            else None
-        )
-        self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
-        self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
-        self._shaking_strength_edit.set_value(self._current_sample.shaking_strength)
-        # noinspection PyTypeChecker
-        self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
-        # noinspection PyTypeChecker
-        self._filters_edit.set_value(self._current_sample.filters)  # type: ignore
-        # noinspection PyTypeChecker
-        self._compounds_edit.set_value(self._current_sample.compounds)  # type: ignore
-        self._incubation_time_edit.setText(
-            self._current_sample.incubation_time.strftime(DATE_TIME_FORMAT)
-            if self._current_sample.incubation_time is not None
-            else ""
-        )
-        self._clear_submit()
-        self._submit_layout.addWidget(self._create_edit_button())
-        self._submit_layout.addWidget(self._create_cancel_button())
-
-        self._attributi_table.data_changed(
-            self._current_sample.attributi,
-            self._attributi_table.metadata,
-            sample_ids=[],
-        )
 
     def _clear_submit(self):
         while True:
@@ -404,6 +317,17 @@ class AttributiCrud(QWidget):
         self._reset_input_fields()
         self._right_headline.setText(NEW_SAMPLE_HEADLINE)
 
+    def _generate_rich_type(self) -> RichAttributoType:
+        value = self._type_selection.current_value()
+        if value == TypePreset.INT:
+            return PropertyInt()
+        if value == TypePreset.DOUBLE:
+            return PropertyDouble(
+                range=self._type_specific_metadata.get("range", None),
+                suffix=self._attributo_suffix_edit.text(),
+            )
+        raise Exception(f"unsupported type {value}")
+
     def _add_attributo(self) -> None:
         with self._db.connect() as conn:
             self._db.add_attributo(
@@ -412,7 +336,7 @@ class AttributiCrud(QWidget):
                 self._attributo_description_edit.text(),
                 cast(AssociatedTable, self._attributi_table_combo.current_value()),
                 self._attributo_suffix_edit.text(),
-                PropertyInt(),
+                self._generate_rich_type(),
             )
             self._reset_input_fields()
             self._slot_refresh(conn)
@@ -422,4 +346,6 @@ class AttributiCrud(QWidget):
         self._attributo_id_edit.setText("")
         self._attributo_description_edit.setText("")
         self._attributo_suffix_edit.setText("")
+        self._type_selection.set_current_value(TypePreset.INT)
+        self._refill_type_preset(TypePreset.INT)
         self._update_add_button()
