@@ -133,7 +133,12 @@ class OverviewTable(QWidget):
 
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._slot_refresh)
-        # self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+
+    def hideEvent(self, e) -> None:
+        self._update_timer.stop()
+
+    def showEvent(self, e) -> None:
+        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _retrieve_attributi_metadata(self, conn: Connection) -> List[TabledAttributo]:
         return [

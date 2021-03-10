@@ -172,9 +172,14 @@ class RunDetailsInner(QtWidgets.QWidget):
 
         self.run_changed(self.run, self.karabo, run_ids, sample_ids, runs_metadata)
 
-        self._refresh_timer = QTimer(self)
-        self._refresh_timer.timeout.connect(self._timed_refresh)
-        self._refresh_timer.start(AUTO_REFRESH_TIMER_MSEC)
+        self._update_timer = QTimer(self)
+        self._update_timer.timeout.connect(self._timed_refresh)
+
+    def hideEvent(self, e) -> None:
+        self._update_timer.stop()
+
+    def showEvent(self, e) -> None:
+        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _toggle_auto_switch_to_latest(self, new_state: bool) -> None:
         max_run_id = max(self.run_ids)
@@ -191,10 +196,10 @@ class RunDetailsInner(QtWidgets.QWidget):
         self.refresh.emit()
 
     def _slot_toggle_auto_refresh(self) -> None:
-        if self._refresh_timer.isActive():
-            self._refresh_timer.stop()
+        if self._update_timer.isActive():
+            self._update_timer.stop()
         else:
-            self._refresh_timer.start(AUTO_REFRESH_TIMER_MSEC)
+            self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def runs_metadata_changed(
         self, new_runs_metadata: Dict[AttributoId, DBAttributo]

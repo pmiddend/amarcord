@@ -1,9 +1,9 @@
 import logging
 from enum import Enum
 from functools import partial
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Final, Optional, cast
 
-from PyQt5.QtCore import QPoint, Qt
+from PyQt5.QtCore import QPoint, QTimer, Qt
 from PyQt5.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
@@ -37,7 +37,8 @@ from amarcord.qt.numeric_range_format_widget import NumericRangeFormatWidget
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
-NEW_SAMPLE_HEADLINE = "New attributo"
+NEW_SAMPLE_HEADLINE: Final = "New attributo"
+AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +181,15 @@ class AttributiCrud(QWidget):
 
         right_form_layout.addWidget(self._submit_widget)
 
+        self._update_timer = QTimer(self)
+        self._update_timer.timeout.connect(self._slot_refresh_with_conn)
+
+    def hideEvent(self, e) -> None:
+        self._update_timer.stop()
+
+    def showEvent(self, e) -> None:
+        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+
     def regenerate_for_table(self, t: AssociatedTable) -> None:
         self._reset_input_fields()
         self._attributi_table_combo.set_current_value(t)
@@ -241,6 +251,10 @@ class AttributiCrud(QWidget):
                     )
                     self._slot_refresh(conn)
 
+    def _slot_refresh_with_conn(self) -> None:
+        with self._db.connect() as conn:
+            self._slot_refresh(conn)
+
     def _slot_refresh(self, conn: Connection) -> None:
         self._attributi = [
             TabledAttributo(k, attributo)
@@ -278,23 +292,6 @@ class AttributiCrud(QWidget):
 
     def _attributo_table_change(self, _new_table: AssociatedTable) -> None:
         self._update_add_button()
-
-    def _slot_new_attributo(self) -> None:
-        new_column = new_attributo_dialog(self._attributi_table.metadata.keys(), self)
-
-        if new_column is None:
-            return
-
-        with self._db.connect() as conn:
-            self._db.add_attributo(
-                conn,
-                name=new_column.name,
-                description=new_column.description,
-                suffix=None,
-                prop_type=new_column.rich_property_type,
-                associated_table=AssociatedTable.RUN,
-            )
-            self._slot_refresh(conn)
 
     def _create_add_button(self):
         b = QPushButton(
