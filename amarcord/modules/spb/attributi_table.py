@@ -69,8 +69,10 @@ def _attributo_type_to_string(attributo: DBAttributo) -> str:
     raise Exception(f"invalid property type {type(pt)}")
 
 
-def _is_editable(attributo_type: RichAttributoType) -> bool:
-    return not isinstance(attributo_type, PropertyComments)
+def _is_editable(attributo_type: Optional[RichAttributoType]) -> bool:
+    return attributo_type is not None and not isinstance(
+        attributo_type, PropertyComments
+    )
 
 
 class AttributiTable(QtWidgets.QWidget):
@@ -151,16 +153,13 @@ class AttributiTable(QtWidgets.QWidget):
             return
 
         display_attributi: List[DBAttributo] = sorted(
-            metadata.values(), key=lambda x: x.name
+            [k for k in metadata.values() if _is_editable(k.rich_property_type)],
+            key=lambda x: x.name,
         )
 
         self._table.set_data(
             Data(
-                rows=[
-                    self._build_row(attributo)
-                    for attributo in display_attributi
-                    if _is_editable(attributo.rich_property_type)
-                ],
+                rows=[self._build_row(attributo) for attributo in display_attributi],
                 columns=self._columns,
                 row_delegates={
                     idx: delegate_for_property_type(
@@ -168,8 +167,6 @@ class AttributiTable(QtWidgets.QWidget):
                         sample_ids,
                     )
                     for (idx, md) in enumerate(display_attributi)
-                    if md.rich_property_type is not None
-                    and not isinstance(md.rich_property_type, PropertyComments)
                 },
                 column_delegates={},
             )
