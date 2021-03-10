@@ -11,15 +11,9 @@ from PyQt5.QtWidgets import QHBoxLayout
 from amarcord.db.attributi import (
     AttributiMap,
     DBAttributo,
-    PropertyChoice,
     PropertyComments,
-    PropertyDateTime,
-    PropertyDouble,
-    PropertyInt,
-    PropertySample,
-    PropertyString,
-    PropertyTags,
     RichAttributoType,
+    attributo_type_to_string,
     delegate_for_property_type,
 )
 from amarcord.db.attributo_id import AttributoId
@@ -40,33 +34,6 @@ def _attributo_value_to_string(metadata: DBAttributo, value: Any) -> str:
     # suffix: str = getattr(metadata.rich_property_type, "suffix", None)
     # value_str = ", ".join(value) if isinstance(value, list) else str(value)
     # return value_str if suffix is None else f"{value_str} {suffix}"
-
-
-def _attributo_type_to_string(attributo: DBAttributo) -> str:
-    pt = attributo.rich_property_type
-    if isinstance(pt, PropertyInt):
-        return "integer"
-    if isinstance(pt, PropertyChoice):
-        return "choice"
-    if isinstance(pt, PropertyDouble):
-        if attributo.suffix:
-            return (
-                f"{attributo.suffix} (range {pt.range})"
-                if pt.range is not None
-                else attributo.suffix
-            )
-        return f"number in {pt.range}" if pt is not None else "number"
-    if isinstance(pt, PropertyTags):
-        return "tags"
-    if isinstance(pt, PropertySample):
-        return "Sample ID"
-    if isinstance(pt, PropertyString):
-        return "text"
-    if isinstance(pt, PropertyComments):
-        return "comments"
-    if isinstance(pt, PropertyDateTime):
-        return "date and time"
-    raise Exception(f"invalid property type {type(pt)}")
 
 
 def _is_editable(attributo_type: Optional[RichAttributoType]) -> bool:
@@ -117,7 +84,7 @@ class AttributiTable(QtWidgets.QWidget):
                 )
                 if selected is not None
                 else "",
-                _attributo_type_to_string(self.metadata[attributo.name]),
+                attributo_type_to_string(self.metadata[attributo.name]),
             ],
             edit_roles=[None, selected.value if selected is not None else None, None],
             background_roles={

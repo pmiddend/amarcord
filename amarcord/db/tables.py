@@ -25,7 +25,12 @@ def _table_attributo(metadata: sa.MetaData) -> sa.Table:
         sa.Column("name", sa.String(length=255), primary_key=True),
         sa.Column("description", sa.String(length=255)),
         sa.Column("suffix", sa.String(length=255)),
-        sa.Column("associated_table", sa.Enum(AssociatedTable), nullable=False),
+        sa.Column(
+            "associated_table",
+            sa.Enum(AssociatedTable),
+            nullable=False,
+            primary_key=True,
+        ),
         sa.Column("json_schema", sa.JSON, nullable=False),
     )
 

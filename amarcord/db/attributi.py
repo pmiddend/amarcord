@@ -281,7 +281,7 @@ class AttributiMap:
         selected = self.select(attributo_id)
         if selected is None:
             raise Exception(
-                f'Tried to retrieve attributo "{attributo_id}", but didn\'t find it! Complete JSON value is: {self.to_json()}'
+                f'Tried to retrieve "{attributo_id}", but didn\'t find it! JSON value is: {self.to_json()}'
             )
         return selected
 
@@ -331,7 +331,27 @@ class AttributiMap:
         self.append_single_to_source(MANUAL_SOURCE_NAME, attributo, value)
 
     def to_json(self) -> JSONDict:
-        return self._attributi
+        result: JSONDict = {}
+        for source, attributi_for_source in self._attributi.items():
+            source_dict: JSONDict = {}
+            result[source] = source_dict
+            for attributo_id, attributo in attributi_for_source.items():
+                if (
+                    attributo is None
+                    or isinstance(attributo, (int, str, bool, float))
+                    or (isinstance(attributo, list) and not attributo)
+                ):
+                    source_dict[attributo_id] = attributo
+                elif isinstance(attributo, list):
+                    first_element = attributo[0]
+                    if isinstance(first_element, (int, float, str)):
+                        source_dict[attributo_id] = attributo
+                    elif not isinstance(first_element, DBRunComment):
+                        raise Exception(
+                            f"Attributo value was not comment, but {type(first_element)}"
+                        )
+
+        return result
 
     def to_query_row(self, attributi_ids: Iterable[AttributoId], prefix: str) -> Row:
         result: Row = {}
@@ -344,3 +364,37 @@ class AttributiMap:
             else:
                 result[prefix + attributo_id] = self.select_value(attributo_id)  # type: ignore
         return result
+
+    def remove_attributo(self, attributo_id: AttributoId) -> bool:
+        existed = False
+        for v in self._attributi.values():
+            if v.pop(attributo_id, None) is not None:
+                existed = True
+        return existed
+
+
+def attributo_type_to_string(attributo: DBAttributo) -> str:
+    pt = attributo.rich_property_type
+    if isinstance(pt, PropertyInt):
+        return "integer"
+    if isinstance(pt, PropertyChoice):
+        return "choice"
+    if isinstance(pt, PropertyDouble):
+        if attributo.suffix:
+            return (
+                f"{attributo.suffix} (range {pt.range})"
+                if pt.range is not None
+                else attributo.suffix
+            )
+        return f"number in {pt.range}" if pt is not None else "number"
+    if isinstance(pt, PropertyTags):
+        return "tags"
+    if isinstance(pt, PropertySample):
+        return "Sample ID"
+    if isinstance(pt, PropertyString):
+        return "text"
+    if isinstance(pt, PropertyComments):
+        return "comments"
+    if isinstance(pt, PropertyDateTime):
+        return "date and time"
+    raise Exception(f"invalid property type {type(pt)}")

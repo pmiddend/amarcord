@@ -6,6 +6,7 @@ from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.db.tables import create_tables
 from amarcord.db.sample_data import create_sample_data
+from amarcord.modules.spb.attributi_crud import AttributiCrud
 from amarcord.modules.spb.factories import (
     proposal_chooser,
     retrieve_proposal_ids,
@@ -81,4 +82,10 @@ if __name__ == "__main__":
         context.ui.select_tab(run_details_index)
 
     run_table_tab.run_selected.connect(change_run)
+
+    context.ui.register_tab(
+        "Attributi",
+        AttributiCrud(context, tables),
+        context.ui.icon("SP_DirIcon"),
+    )
     context.ui.exec_()

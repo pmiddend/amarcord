@@ -32,7 +32,7 @@ RightClickMenuCallback = Callable[[QPoint], None]
 class Row:
     display_roles: List[str]
     edit_roles: List[Optional[Any]]
-    background_roles: Dict[int, QBrush] = field(default_factory={})  # type: ignore
+    background_roles: Dict[int, QBrush] = field(default_factory=lambda: {})  # type: ignore
     change_callbacks: List[Optional[Callable[[Any], None]]] = field(
         hash=False, default_factory=lambda: [], compare=False
     )

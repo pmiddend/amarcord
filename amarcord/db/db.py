@@ -171,13 +171,15 @@ class DB:
     def retrieve_runs(
         self,
         conn: Connection,
-        proposal_id: ProposalId,
+        proposal_id: Optional[ProposalId],
         since: Optional[datetime.datetime],
     ) -> List[AttributiMap]:
         run = self.tables.run
         comment = self.tables.run_comment
 
-        where_condition = run.c.proposal_id == proposal_id
+        where_condition = (
+            run.c.proposal_id == proposal_id if proposal_id is not None else True
+        )
         if since:
             where_condition = and_(where_condition, run.c.modified >= since)
         select_stmt = (
@@ -433,6 +435,24 @@ class DB:
     ) -> None:
         _update_attributi(conn, sample_id, self.tables.sample, attributo, value)
 
+    def update_run_attributi(
+        self, conn: Connection, run_id: int, attributi: AttributiMap
+    ) -> None:
+        conn.execute(
+            sa.update(self.tables.run)
+            .where(self.tables.run.c.id == run_id)
+            .values(attributi=attributi.to_json(), modified=datetime.datetime.utcnow())
+        )
+
+    def update_sample_attributi(
+        self, conn: Connection, sample_id: int, attributi: AttributiMap
+    ) -> None:
+        conn.execute(
+            sa.update(self.tables.sample)
+            .where(self.tables.sample.c.id == sample_id)
+            .values(attributi=attributi.to_json(), modified=datetime.datetime.utcnow())
+        )
+
     def update_run_attributo(
         self, conn: Connection, run_id: int, attributo: AttributoId, value: Any
     ) -> None:
@@ -653,6 +673,42 @@ class DB:
 
     def delete_run(self, conn: Connection, rid: int) -> None:
         conn.execute(sa.delete(self.tables.run).where(self.tables.run.c.id == rid))
+
+    def delete_attributo(
+        self, conn: Connection, table: AssociatedTable, name: AttributoId
+    ) -> None:
+        with conn.begin():
+            conn.execute(
+                sa.delete(self.tables.attributo).where(
+                    and_(
+                        self.tables.attributo.c.name == str(name),
+                        self.tables.attributo.c.associated_table == table,
+                    )
+                )
+            )
+            if table == AssociatedTable.RUN:
+                for run in self.retrieve_runs(conn, proposal_id=None, since=None):
+                    existed = run.remove_attributo(name)
+                    if existed:
+                        self.update_run_attributi(
+                            conn,
+                            run.select_int_unsafe(self.tables.attributo_run_id),
+                            run,
+                        )
+            elif table == AssociatedTable.SAMPLE:
+                for sample in self.retrieve_samples(conn, since=None):
+                    existed = sample.attributi.remove_attributo(name)
+                    if existed:
+                        self.update_sample_attributi(
+                            conn,
+                            # sample.attributi.select_int_unsafe(AttributoId("id")),
+                            sample.id,
+                            sample.attributi,
+                        )
+            else:
+                raise Exception(
+                    f"cannot delete attributo {name} of table {table} because that code doesn't exist yet"
+                )
 
 
 def overview_row_to_query_row(
