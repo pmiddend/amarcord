@@ -19,6 +19,7 @@ from amarcord.db.attributi import (
     PropertySample,
     PropertyString,
     PropertyTags,
+    RichAttributoType,
     delegate_for_property_type,
 )
 from amarcord.db.attributo_id import AttributoId
@@ -66,6 +67,10 @@ def _attributo_type_to_string(attributo: DBAttributo) -> str:
     if isinstance(pt, PropertyDateTime):
         return "date and time"
     raise Exception(f"invalid property type {type(pt)}")
+
+
+def _is_editable(attributo_type: RichAttributoType) -> bool:
+    return not isinstance(attributo_type, PropertyComments)
 
 
 class AttributiTable(QtWidgets.QWidget):
@@ -151,7 +156,11 @@ class AttributiTable(QtWidgets.QWidget):
 
         self._table.set_data(
             Data(
-                rows=[self._build_row(attributo) for attributo in display_attributi],
+                rows=[
+                    self._build_row(attributo)
+                    for attributo in display_attributi
+                    if _is_editable(attributo.rich_property_type)
+                ],
                 columns=self._columns,
                 row_delegates={
                     idx: delegate_for_property_type(
