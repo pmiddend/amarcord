@@ -2,7 +2,7 @@ from typing import Set
 from typing import Optional
 from PyQt5 import QtWidgets
 import sqlalchemy as sa
-from amarcord.modules.spb.run_table import RunTable
+from amarcord.modules.spb.overview_table import OverviewTable
 from amarcord.modules.spb.run_details import RunDetails
 from amarcord.db.tables import DBTables
 from amarcord.db.proposal_id import ProposalId
@@ -12,7 +12,7 @@ from amarcord.modules.context import Context
 def run_table(
     context: Context, table_data: DBTables, prop_id: ProposalId
 ) -> QtWidgets.QWidget:
-    return RunTable(context, table_data, prop_id)
+    return OverviewTable(context, table_data, prop_id)
 
 
 def run_details(

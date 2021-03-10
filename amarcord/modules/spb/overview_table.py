@@ -32,7 +32,7 @@ AUTO_REFRESH_TIMER_MSEC: Final = 5000
 logger = logging.getLogger(__name__)
 
 
-class RunTable(QWidget):
+class OverviewTable(QWidget):
     run_selected = pyqtSignal(int)
 
     def __init__(
@@ -161,7 +161,7 @@ class RunTable(QWidget):
                     ),
                 )
                 for c in self._rows
-                if self._run_not_filtered(c)
+                if self._row_not_filtered(c)
             ],
             columns=[
                 Column(
@@ -175,7 +175,7 @@ class RunTable(QWidget):
             column_delegates={},
         )
 
-    def _run_not_filtered(self, row: OverviewAttributi) -> bool:
+    def _row_not_filtered(self, row: OverviewAttributi) -> bool:
         return self._filter_query(
             dict_union(
                 [
