@@ -26,11 +26,13 @@ from amarcord.db.attributo_id import (
 from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
+from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import (
     DBTables,
 )
 from amarcord.modules.dbcontext import DBContext
-from amarcord.util import remove_duplicates_stable
+from amarcord.query_parser import Row as QueryRow
+from amarcord.util import dict_union, remove_duplicates_stable
 
 logger = logging.getLogger(__name__)
 
@@ -638,3 +640,17 @@ class DB:
         conn.execute(
             sa.delete(self.tables.sample).where(self.tables.sample.c.id == tid)
         )
+
+
+def overview_row_to_query_row(
+    row: OverviewAttributi, metadata: List[TabledAttributo]
+) -> QueryRow:
+    return dict_union(
+        [
+            table_attributi.to_query_row(
+                [md.attributo.name for md in metadata if md.table == table],
+                prefix=f"{table.value}.",
+            )
+            for table, table_attributi in row.items()
+        ]
+    )

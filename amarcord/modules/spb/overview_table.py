@@ -14,7 +14,7 @@ from amarcord.db.attributi import (
     pretty_print_attributo,
     sortable_attributo,
 )
-from amarcord.db.db import Connection, DB, OverviewAttributi
+from amarcord.db.db import Connection, DB, OverviewAttributi, overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
@@ -25,7 +25,6 @@ from amarcord.modules.spb.plot_dialog import PlotDialog
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.query_parser import Query, UnexpectedEOF, parse_query
-from amarcord.util import dict_union
 
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
@@ -189,19 +188,7 @@ class OverviewTable(QWidget):
 
     def _row_not_filtered(self, row: OverviewAttributi) -> bool:
         return self._filter_query(
-            dict_union(
-                [
-                    table_attributi.to_query_row(
-                        [
-                            md.attributo.name
-                            for md in self._attributi_metadata
-                            if md.table == table
-                        ],
-                        prefix=f"{table.value}.",
-                    )
-                    for table, table_attributi in row.items()
-                ]
-            )
+            overview_row_to_query_row(row, self._attributi_metadata)
         )
 
     def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
@@ -210,20 +197,22 @@ class OverviewTable(QWidget):
         else:
             self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
-    def _slot_refresh(self) -> None:
+    def _slot_refresh(self, force: bool = False) -> None:
         with self._db.connect() as conn:
             self._attributi_metadata = self._retrieve_attributi_metadata(conn)
             completer = QtWidgets.QCompleter(self._filter_query_completions(), self)
             completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
             self._filter_widget.setCompleter(completer)
-            update_time = self._db.overview_update_time(conn)
-            if update_time > self._last_refresh:
-                self._last_refresh = update_time
+            latest_update_time = self._db.overview_update_time(conn)
+            update_table = latest_update_time > self._last_refresh or force
+            if latest_update_time > self._last_refresh:
                 self._rows = self._db.retrieve_overview(conn, self._proposal_id)
+                self._last_refresh = latest_update_time
                 self._rows.sort(
                     key=self._sort_key,
                     reverse=(self._sort_data[1] == Qt.AscendingOrder),
                 )
+            if update_table:
                 self._table_view.set_data(self._create_declarative_data())
 
     def _sort_key(self, k: OverviewAttributi) -> Any:
@@ -260,7 +249,7 @@ class OverviewTable(QWidget):
             dialog.setLayout(dialog_layout)
 
             plot_dialog = PlotDialog(
-                self._db, self._proposal_id, self._filter_widget.text(), column, self
+                self._db, self._proposal_id, self._filter_query, column, self
             )
             plot_dialog.show()
 
@@ -282,7 +271,8 @@ class OverviewTable(QWidget):
             self._filter_query = parse_query(
                 f, set(k.technical_id() for k in self._attributi_metadata)
             )
-            self._slot_refresh()
+            logger.info("Filter query changed successfully, refreshing")
+            self._slot_refresh(force=True)
         except UnexpectedEOF:
             self._query_error.setText("")
         except Exception as e:

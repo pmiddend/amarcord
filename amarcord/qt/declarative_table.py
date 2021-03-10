@@ -1,7 +1,6 @@
-from dataclasses import dataclass, field
-from functools import partial
-from typing import Any, Callable, Dict, List, Optional
 import logging
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional
 
 from PyQt5.QtCore import (
     QAbstractTableModel,

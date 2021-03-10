@@ -19,9 +19,10 @@ from matplotlib.pyplot import Figure
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.db import Connection, DB
+from amarcord.db.db import Connection, DB, overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
+from amarcord.query_parser import Query
 
 TIMER_INTERVAL_MSEC: Final = 1000
 
@@ -40,7 +41,7 @@ class PlotDialog(QDialog):
         self,
         db: DB,
         proposal_id: ProposalId,
-        filter_query: str,
+        filter_query: Query,
         attributo: TabledAttributo,
         parent: Optional[QWidget] = None,
     ) -> None:
@@ -101,16 +102,23 @@ class PlotDialog(QDialog):
         self._timer.start(TIMER_INTERVAL_MSEC)
 
     def _create_data_frame(self):
+        filtered_rows = [
+            r
+            for r in self._rows
+            if self._filter_query(
+                overview_row_to_query_row(r, self._attributi_metadata)
+            )
+        ]
         return pd.DataFrame(
             [
                 r[self._attributo.table].select_value(self._attributo.attributo.name)
-                for r in self._rows
+                for r in filtered_rows
             ],
             index=[
                 datetime.datetime.fromisoformat(
                     r[AssociatedTable.RUN].select_value(AttributoId("started"))
                 )
-                for r in self._rows
+                for r in filtered_rows
             ],
             columns=[self._attributo.attributo.pretty_id()],
         )
@@ -147,19 +155,19 @@ class PlotDialog(QDialog):
                 self._last_update = datetime.datetime.utcnow()
                 self._rows = self._db.retrieve_overview(conn, self._proposal_id)
                 self._attributi_metadata = self._retrieve_attributi_metadata(conn)
-            # filtered_runs = [
-            #     r
-            #     for r in self._rows
-            #     if r.select(self._attributo)
-            #     and filter_by_query(
-            #         self._query, r.to_query_row(self._property_metadata.keys())
-            #     )
-            # ]
-            self._df = self._create_data_frame()
+                # filtered_runs = [
+                #     r
+                #     for r in self._rows
+                #     if r.select(self._attributo)
+                #     and filter_by_query(
+                #         self._query, r.to_query_row(self._property_metadata.keys())
+                #     )
+                # ]
+                self._df = self._create_data_frame()
 
-            self._sc.axes.clear()
+                self._sc.axes.clear()
 
-            # if filtered_runs:
-            # noinspection PyArgumentList
-            self._df.plot(ax=self._sc.axes)  # type: ignore
-            self._sc.draw()
+                # if filtered_runs:
+                # noinspection PyArgumentList
+                self._df.plot(ax=self._sc.axes)  # type: ignore
+                self._sc.draw()
