@@ -49,17 +49,9 @@ class DBTarget:
 @dataclass(frozen=True)
 class DBSample:
     target_id: int
-    average_crystal_size: Optional[float]
     crystal_shape: Optional[Tuple[float, float, float]]
     incubation_time: Optional[datetime.datetime]
-    crystallization_temperature: Optional[float]
     shaking_time: Optional[datetime.timedelta]
-    shaking_strength: Optional[float]
-    protein_concentration: Optional[float]
-    comment: str
-    crystal_settlement_volume: Optional[float]
-    seed_stock_used: str
-    plate_origin: str
     creator: str
     crystallization_method: str
     filters: Optional[List[str]]
@@ -547,19 +539,10 @@ class DB:
         select_stmt = sa.select(
             [
                 tc.id,
-                tc.created,
-                tc.average_crystal_size,
                 tc.target_id,
                 tc.crystal_shape,
                 tc.incubation_time,
-                tc.crystallization_temperature,
                 tc.shaking_time_seconds,
-                tc.shaking_strength,
-                tc.protein_concentration,
-                tc.comment,
-                tc.crystal_settlement_volume,
-                tc.seed_stock_used,
-                tc.plate_origin,
                 tc.creator,
                 tc.crystallization_method,
                 tc.filters,
@@ -578,24 +561,15 @@ class DB:
                 DB_SOURCE_NAME,
                 {
                     AttributoId("id"): row["id"],
-                    AttributoId("created"): row["created"],
                 },
             )
             return DBSample(
                 target_id=row["target_id"],
-                average_crystal_size=row["average_crystal_size"],
                 crystal_shape=row["crystal_shape"],
                 incubation_time=row["incubation_time"],
-                crystallization_temperature=row["crystallization_temperature"],
                 shaking_time=datetime.timedelta(seconds=row["shaking_time_seconds"])
                 if row["shaking_time_seconds"] is not None
                 else None,
-                shaking_strength=row["shaking_strength"],
-                protein_concentration=row["protein_concentration"],
-                comment=row["comment"],
-                crystal_settlement_volume=row["crystal_settlement_volume"],
-                seed_stock_used=row["seed_stock_used"],
-                plate_origin=row["plate_origin"],
                 creator=row["creator"],
                 crystallization_method=row["crystallization_method"],
                 filters=row["filters"],
@@ -611,20 +585,12 @@ class DB:
         conn.execute(
             sa.insert(self.tables.sample).values(
                 target_id=t.target_id,
-                average_crystal_size=t.average_crystal_size,
                 crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
                 # crystal_buffer=t.crystal_buffer,
-                crystallization_temperature=t.crystallization_temperature,
                 shaking_time_seconds=int(t.shaking_time.total_seconds())
                 if t.shaking_time is not None
                 else None,
-                shaking_strength=t.shaking_strength,
-                protein_concentration=t.protein_concentration,
-                comment=t.comment,
-                crystal_settlement_volume=t.crystal_settlement_volume,
-                seed_stock_used=t.seed_stock_used,
-                plate_origin=t.plate_origin,
                 creator=t.creator,
                 crystallization_method=t.crystallization_method,
                 filters=t.filters,
@@ -641,20 +607,11 @@ class DB:
             sa.update(self.tables.sample)
             .values(
                 target_id=t.target_id,
-                average_crystal_size=t.average_crystal_size,
                 crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
-                # crystal_buffer=t.crystal_buffer,
-                crystallization_temperature=t.crystallization_temperature,
                 shaking_time_seconds=int(t.shaking_time.total_seconds())
                 if t.shaking_time is not None
                 else None,
-                shaking_strength=t.shaking_strength,
-                protein_concentration=t.protein_concentration,
-                comment=t.comment,
-                crystal_settlement_volume=t.crystal_settlement_volume,
-                seed_stock_used=t.seed_stock_used,
-                plate_origin=t.plate_origin,
                 creator=t.creator,
                 crystallization_method=t.crystallization_method,
                 filters=t.filters,

@@ -64,17 +64,9 @@ logger = logging.getLogger(__name__)
 def _empty_sample():
     return DBSample(
         target_id=-1,
-        average_crystal_size=None,
         crystal_shape=None,
         incubation_time=None,
-        crystallization_temperature=None,
-        protein_concentration=None,
         shaking_time=None,
-        shaking_strength=None,
-        comment="",
-        crystal_settlement_volume=None,
-        seed_stock_used="",
-        plate_origin="",
         creator=getpass.getuser(),
         crystallization_method="",
         filters=None,
@@ -168,70 +160,6 @@ class Samples(QWidget):
         )
         self._target_id_edit.item_selected.connect(self._target_id_change)
 
-        self._crystal_settlement_volume_edit = NumericInputWidget(
-            None,
-            NumericRange(
-                0.0, minimum_inclusive=True, maximum=100.0, maximum_inclusive=True
-            ),
-            placeholder="Value in %",
-        )
-        self._crystal_settlement_volume_edit.value_change.connect(
-            self._crystal_settlement_volume_change
-        )
-        right_form_layout.addRow(
-            "Crystal Settlement volume",
-            self._crystal_settlement_volume_edit,
-        )
-        self._shaking_strength_edit = NumericInputWidget(
-            None,
-            NumericRange(
-                0.0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
-            ),
-            placeholder="Value in RPM",
-        )
-        self._shaking_strength_edit.value_change.connect(self._shaking_strength_change)
-        self._average_crystal_size_edit = NumericInputWidget(
-            None,
-            NumericRange(
-                0.0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
-            ),
-            placeholder="Value in μm",
-        )
-        self._average_crystal_size_edit.value_change.connect(
-            self._average_crystal_size_change
-        )
-        right_form_layout.addRow(
-            "Average crystal size",
-            self._average_crystal_size_edit,
-        )
-        self._crystallization_temperature_edit = NumericInputWidget(
-            None,
-            NumericRange(
-                None, minimum_inclusive=True, maximum=None, maximum_inclusive=False
-            ),
-            placeholder="Value in °C",
-        )
-        self._crystallization_temperature_edit.value_change.connect(
-            self._crystallization_temperature_change
-        )
-        right_form_layout.addRow(
-            "Crystallization Temperature",
-            self._crystallization_temperature_edit,
-        )
-        self._protein_concentration_edit = NumericInputWidget(
-            None,
-            NumericRange(
-                0.0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
-            ),
-            placeholder="Value in mg/mL",
-        )
-        self._protein_concentration_edit.value_change.connect(
-            self._protein_concentration_change
-        )
-        right_form_layout.addRow(
-            "Protein concentration",
-            self._protein_concentration_edit,
-        )
         self._shaking_time_edit = ValidatedLineEdit(
             None,
             print_natural_delta,  # type: ignore
@@ -240,19 +168,9 @@ class Samples(QWidget):
         )
         self._shaking_time_edit.value_change.connect(self._shaking_time_change)
         right_form_layout.addRow(
-            "Shaking Strength",
-            self._shaking_strength_edit,
-        )
-        right_form_layout.addRow(
             "Shaking time",
             self._shaking_time_edit,
         )
-        self._comment_edit = QLineEdit()
-        right_form_layout.addRow(
-            "Comment",
-            self._comment_edit,
-        )
-        self._comment_edit.textEdited.connect(self._comment_edit_change)
         self._creator_edit = QLineEdit(getpass.getuser())
         right_form_layout.addRow(
             "Creator",
@@ -267,18 +185,6 @@ class Samples(QWidget):
         self._crystallization_method_edit.textEdited.connect(
             self._crystallization_method_edit_change
         )
-        self._plate_origin_edit = QLineEdit()
-        right_form_layout.addRow(
-            "Plate Origin",
-            self._plate_origin_edit,
-        )
-        self._plate_origin_edit.textEdited.connect(self._plate_origin_edit_change)
-        self._seed_stock_used_edit = QLineEdit()
-        right_form_layout.addRow(
-            "Seed Stock Used",
-            self._seed_stock_used_edit,
-        )
-        self._seed_stock_used_edit.textEdited.connect(self._seed_stock_used_edit_change)
         self._crystal_shape_edit = ValidatedLineEdit(
             None,
             lambda float_list: ", ".join(str(s) for s in float_list),  # type: ignore
@@ -497,22 +403,10 @@ class Samples(QWidget):
         self._current_sample = self._samples[index.row()]
         sample_id = self._current_sample.attributi.select_int_unsafe(AttributoId("id"))
         self._right_headline.setText(f"Edit sample “{sample_id}”")
-        self._comment_edit.setText(self._current_sample.comment)
-        self._seed_stock_used_edit.setText(self._current_sample.seed_stock_used)
-        self._plate_origin_edit.setText(self._current_sample.plate_origin)
         self._target_id_edit.set_current_value(self._current_sample.target_id)
         self._creator_edit.setText(self._current_sample.creator)
         self._crystallization_method_edit.setText(
             self._current_sample.crystallization_method
-        )
-        self._average_crystal_size_edit.set_value(
-            self._current_sample.average_crystal_size
-        )
-        self._crystal_settlement_volume_edit.set_value(
-            self._current_sample.crystal_settlement_volume
-        )
-        self._crystallization_temperature_edit.set_value(
-            self._current_sample.crystallization_temperature
         )
         self._shaking_time_edit.set_value(
             self._current_sample.shaking_time  # type: ignore
@@ -521,7 +415,6 @@ class Samples(QWidget):
         )
         self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
         self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
-        self._shaking_strength_edit.set_value(self._current_sample.shaking_strength)
         # noinspection PyTypeChecker
         self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
         # noinspection PyTypeChecker
@@ -572,31 +465,19 @@ class Samples(QWidget):
             self._fill_table()
 
     def _reset_input_fields(self):
-        self._average_crystal_size_edit.set_value(None)
-        self._comment_edit.setText("")
         self._creator_edit.setText("")
-        self._seed_stock_used_edit.setText("")
-        self._plate_origin_edit.setText("")
         self._crystallization_method_edit.setText("")
-        self._shaking_strength_edit.set_value(None)
         self._shaking_time_edit.set_value(None)
-        self._crystallization_temperature_edit.set_value(None)
         self._crystal_shape_edit.set_value(None)
         self._filters_edit.set_value(None)
         self._compounds_edit.set_value(None)
         self._micrograph_edit.set_value(None)
         self._protocol_edit.set_value(None)
         self._incubation_time_edit.set_value(None)
-        self._crystal_settlement_volume_edit.set_value(None)
         self._current_sample = _empty_sample()
-        self._protein_concentration_edit.set_value(None)
 
     def _target_id_change(self, new_id: int) -> None:
         self._current_sample = replace(self._current_sample, target_id=new_id)
-        self._reset_button()
-
-    def _comment_edit_change(self, new_comment: str) -> None:
-        self._current_sample = replace(self._current_sample, comment=new_comment)
         self._reset_button()
 
     def _creator_edit_change(self, new_creator: str) -> None:
@@ -608,18 +489,6 @@ class Samples(QWidget):
     ) -> None:
         self._current_sample = replace(
             self._current_sample, crystallization_method=new_crystallization_method
-        )
-        self._reset_button()
-
-    def _plate_origin_edit_change(self, new_plate_origin: str) -> None:
-        self._current_sample = replace(
-            self._current_sample, plate_origin=new_plate_origin
-        )
-        self._reset_button()
-
-    def _seed_stock_used_edit_change(self, new_seed_stock_used: str) -> None:
-        self._current_sample = replace(
-            self._current_sample, seed_stock_used=new_seed_stock_used
         )
         self._reset_button()
 
@@ -662,49 +531,11 @@ class Samples(QWidget):
             self._current_sample = replace(self._current_sample, incubation_time=value)
         self._reset_button()
 
-    def _crystallization_temperature_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(
-                self._current_sample, crystallization_temperature=value
-            )
-        self._reset_button()
-
-    def _protein_concentration_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(
-                self._current_sample, protein_concentration=value
-            )
-        self._reset_button()
-
-    def _crystal_settlement_volume_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(
-                self._current_sample, crystal_settlement_volume=value
-            )
-        self._reset_button()
-
-    def _shaking_strength_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, shaking_strength=value)
-        self._reset_button()
-
-    def _average_crystal_size_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(
-                self._current_sample, average_crystal_size=value
-            )
-        self._reset_button()
-
     def _button_enabled(self) -> bool:
         return (
-            self._average_crystal_size_edit.valid_value()
-            and self._crystal_shape_edit.valid_value()
+            self._crystal_shape_edit.valid_value()
             and self._incubation_time_edit.valid_value()
-            and self._crystallization_temperature_edit.valid_value()
             and self._shaking_time_edit.valid_value()
-            and self._shaking_strength_edit.valid_value()
-            and self._protein_concentration_edit.valid_value()
-            and self._crystal_settlement_volume_edit.valid_value()
             and self._filters_edit.valid_value()
             and self._compounds_edit.valid_value()
         )
@@ -739,16 +570,10 @@ class Samples(QWidget):
         ]
         headers = [
             "Incubation Time",
-            "Crystallization Temperature",
-            "Avg Crystal Size",
             "Crystal Shape",
             "Target",
             "Shaking Time",
-            "Shaking Strength",
-            "Protein Concentration",
-            "Crystal Settlement Volume",
             "Seed Stock Used",
-            "Plate Origin",
             "Creator",
             "Crystallization Method",
             "Filters",
@@ -765,10 +590,6 @@ class Samples(QWidget):
                 sample.incubation_time.strftime(DATE_TIME_FORMAT)
                 if sample.incubation_time is not None
                 else "",
-                str(sample.crystallization_temperature)
-                if sample.crystallization_temperature is not None
-                else "",
-                str(sample.average_crystal_size),
                 ", ".join(str(s) for s in sample.crystal_shape)
                 if sample.crystal_shape is not None
                 else "",
@@ -776,16 +597,6 @@ class Samples(QWidget):
                 print_natural_delta(sample.shaking_time)
                 if sample.shaking_time is not None
                 else "",
-                sample.shaking_strength if sample.shaking_strength is not None else "",
-                str(sample.protein_concentration)
-                if sample.protein_concentration is not None
-                else "",
-                sample.comment,
-                str(sample.crystal_settlement_volume)
-                if sample.crystal_settlement_volume
-                else "",
-                sample.seed_stock_used,
-                sample.plate_origin,
                 sample.creator,
                 sample.crystallization_method,
                 ", ".join(sample.filters) if sample.filters is not None else "",

@@ -52,6 +52,80 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "json_schema": {"type": "string"},
                         "associated_table": AssociatedTable.SAMPLE,
                     },
+                    {
+                        "name": "avg_crystal_size",
+                        "description": "Average Crystal Size",
+                        "json_schema": {
+                            "type": "number",
+                            "minimum": 0,
+                            "suffix": "μm",
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "crystallization_temperature",
+                        "description": "Crystallization Temperature",
+                        "json_schema": {
+                            "type": "number",
+                            "suffix": "°C",
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "shaking_strength",
+                        "description": "Shaking Strength",
+                        "json_schema": {
+                            "type": "number",
+                            "suffix": "RPM",
+                            "minimum": 0,
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "protein_concentration",
+                        "description": "Protein Concentration",
+                        "json_schema": {
+                            "type": "number",
+                            "suffix": "mg/mL",
+                            "minimum": 0,
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "comment",
+                        "description": "Comment",
+                        "json_schema": {
+                            "type": "string",
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "crystal_settlement_volume",
+                        "description": "Crystal Settlement Volume",
+                        "json_schema": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100,
+                            "suffix": "%",
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "seed_stock_used",
+                        "description": "Seed Stock Used",
+                        "json_schema": {
+                            "type": "string",
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "plate_origin",
+                        "description": "Plate Origin",
+                        "json_schema": {
+                            "type": "string",
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
                 ]
             )
         )
@@ -60,7 +134,6 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         first_sample_result = conn.execute(
             tables.sample.insert().values(
                 target_id=first_target_id,
-                average_crystal_size=1.0,
                 crystal_shape=[3.0, 4.0, 5.0],
                 modified=datetime.datetime.utcnow(),
                 attributi={
@@ -74,7 +147,6 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         conn.execute(
             tables.sample.insert().values(
                 target_id=first_target_id,
-                average_crystal_size=2.0,
                 modified=datetime.datetime.utcnow(),
                 attributi={
                     DB_SOURCE_NAME: {
