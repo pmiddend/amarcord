@@ -140,6 +140,20 @@ class DBTables:
         self.additional_attributi: Dict[
             AssociatedTable, Dict[AttributoId, DBAttributo]
         ] = {
+            AssociatedTable.SAMPLE: {
+                AttributoId("id"): DBAttributo(
+                    name=AttributoId("id"),
+                    description="Sample ID",
+                    associated_table=AssociatedTable.SAMPLE,
+                    rich_property_type=PropertyInt(),
+                ),
+                AttributoId("created"): DBAttributo(
+                    name=AttributoId("created"),
+                    description="Created",
+                    associated_table=AssociatedTable.SAMPLE,
+                    rich_property_type=PropertyDateTime(),
+                ),
+            },
             AssociatedTable.RUN: {
                 self.attributo_run_id: DBAttributo(
                     name=self.attributo_run_id,
@@ -171,7 +185,7 @@ class DBTables:
                     associated_table=AssociatedTable.RUN,
                     rich_property_type=PropertyInt(),
                 ),
-            }
+            },
         }
         self.property_karabo = AttributoId(self.run.c.karabo.name)
         self.property_attributi = AttributoId(self.run.c.attributi.name)

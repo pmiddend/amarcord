@@ -48,8 +48,6 @@ class DBTarget:
 
 @dataclass(frozen=True)
 class DBSample:
-    id: Optional[int]
-    created: datetime.datetime
     target_id: int
     average_crystal_size: Optional[float]
     crystal_shape: Optional[Tuple[float, float, float]]
@@ -154,7 +152,8 @@ class DB:
         proposal_id: ProposalId,
     ) -> List[OverviewAttributi]:
         samples: Dict[int, AttributiMap] = {
-            cast(int, k.id): k.attributi for k in self.retrieve_samples(conn)
+            cast(int, k.attributi.select_int_unsafe(AttributoId("id"))): k.attributi
+            for k in self.retrieve_samples(conn)
         }
         runs: List[AttributiMap] = self.retrieve_runs(conn, proposal_id, None)
 
@@ -572,10 +571,17 @@ class DB:
         ).order_by(tc.id)
         if since is not None:
             select_stmt = select_stmt.where(tc.modified >= since)
-        return [
-            DBSample(
-                id=row["id"],
-                created=row["created"],
+
+        def prepare_sample(row: Any) -> DBSample:
+            sample_attributi = AttributiMap(row["attributi"])
+            sample_attributi.append_to_source(
+                DB_SOURCE_NAME,
+                {
+                    AttributoId("id"): row["id"],
+                    AttributoId("created"): row["created"],
+                },
+            )
+            return DBSample(
                 target_id=row["target_id"],
                 average_crystal_size=row["average_crystal_size"],
                 crystal_shape=row["crystal_shape"],
@@ -596,10 +602,10 @@ class DB:
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
                 protocol=row["protocol"],
-                attributi=AttributiMap(row["attributi"]),
+                attributi=sample_attributi,
             )
-            for row in conn.execute(select_stmt).fetchall()
-        ]
+
+        return [prepare_sample(row) for row in conn.execute(select_stmt).fetchall()]
 
     def add_sample(self, conn: Connection, t: DBSample) -> None:
         conn.execute(
@@ -657,7 +663,10 @@ class DB:
                 protocol=t.protocol,
                 attributi=t.attributi.to_json() if t.attributi is not None else None,
             )
-            .where(self.tables.sample.c.id == t.id)
+            .where(
+                self.tables.sample.c.id
+                == t.attributi.select_int_unsafe(AttributoId("id"))
+            )
         )
 
     def delete_sample(self, conn: Connection, tid: int) -> None:
@@ -695,7 +704,7 @@ class DB:
                     if existed:
                         self.update_sample_attributi(
                             conn,
-                            sample.id,
+                            sample.attributi.select_int_unsafe(AttributoId("id")),
                             sample.attributi,
                         )
             else:

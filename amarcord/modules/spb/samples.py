@@ -32,6 +32,7 @@ from amarcord.db.attributi import (
     pretty_print_attributo,
 )
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.db import Connection, DB, DBSample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
@@ -62,8 +63,6 @@ logger = logging.getLogger(__name__)
 
 def _empty_sample():
     return DBSample(
-        id=None,
-        created=datetime.datetime.utcnow(),
         target_id=-1,
         average_crystal_size=None,
         crystal_shape=None,
@@ -82,7 +81,14 @@ def _empty_sample():
         compounds=None,
         micrograph=None,
         protocol=None,
-        attributi=AttributiMap({}),
+        attributi=AttributiMap(
+            {
+                DB_SOURCE_NAME: {
+                    AttributoId("id"): None,
+                    AttributoId("created"): datetime.datetime.utcnow(),
+                }
+            }
+        ),
     )
 
 
@@ -443,23 +449,25 @@ class Samples(QWidget):
     def _delete_sample(self) -> None:
         row_idx = self._sample_table.currentRow()
         sample = self._samples[row_idx]
-
-        assert sample.id is not None
+        sample_id = sample.attributi.select_int_unsafe(AttributoId("id"))
 
         result = QMessageBox(  # type: ignore
             QMessageBox.Critical,
-            f"Delete “{sample.id}”",
-            f"Are you sure you want to delete sample “{sample.id}”?",
+            f"Delete “{sample_id}”",
+            f"Are you sure you want to delete sample “{sample_id}”?",
             QMessageBox.Yes | QMessageBox.Cancel,
             self,
         ).exec()
 
         if result == QMessageBox.Yes:
             with self._db.connect() as conn:
-                self._db.delete_sample(conn, sample.id)
-                self._log_widget.setText(f"Sample “{sample.id}” deleted!")
+                self._db.delete_sample(conn, sample_id)
+                self._log_widget.setText(f"Sample “{sample_id}” deleted!")
                 self._fill_table()
-                if self._current_sample.id == sample.id:
+                if (
+                    self._current_sample.attributi.select_int_unsafe(AttributoId("id"))
+                    == sample_id
+                ):
                     self._reset_input_fields()
                     self._right_headline.setText(NEW_SAMPLE_HEADLINE)
 
@@ -487,7 +495,8 @@ class Samples(QWidget):
     def _slot_row_selected(self, index: QModelIndex) -> None:
         self._attributo_manual_changes.clear()
         self._current_sample = self._samples[index.row()]
-        self._right_headline.setText(f"Edit sample “{self._current_sample.id}”")
+        sample_id = self._current_sample.attributi.select_int_unsafe(AttributoId("id"))
+        self._right_headline.setText(f"Edit sample “{sample_id}”")
         self._comment_edit.setText(self._current_sample.comment)
         self._seed_stock_used_edit.setText(self._current_sample.seed_stock_used)
         self._plate_origin_edit.setText(self._current_sample.plate_origin)
@@ -729,8 +738,6 @@ class Samples(QWidget):
             k.description for k in self._attributi_table.metadata.values()
         ]
         headers = [
-            "ID",
-            "Created",
             "Incubation Time",
             "Crystallization Temperature",
             "Avg Crystal Size",
@@ -755,8 +762,6 @@ class Samples(QWidget):
 
         for row, sample in enumerate(self._samples):
             built_in_columns = (
-                str(sample.id),
-                str(sample.created),
                 sample.incubation_time.strftime(DATE_TIME_FORMAT)
                 if sample.incubation_time is not None
                 else "",

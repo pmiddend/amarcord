@@ -2,7 +2,7 @@ import datetime
 from random import randint, random, randrange, seed
 from typing import Optional
 
-from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
 from amarcord.db.tables import DBTables, logger
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.modules.dbcontext import DBContext
@@ -64,7 +64,10 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 crystal_shape=[3.0, 4.0, 5.0],
                 modified=datetime.datetime.utcnow(),
                 attributi={
-                    MANUAL_SOURCE_NAME: {"crystal_buffer": "foo crystal buffer bar"}
+                    MANUAL_SOURCE_NAME: {
+                        "crystal_buffer": "foo crystal buffer bar",
+                        "created": "2020-02-20T15:54:32Z",
+                    }
                 },
             )
         )
@@ -73,7 +76,11 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 target_id=first_target_id,
                 average_crystal_size=2.0,
                 modified=datetime.datetime.utcnow(),
-                attributi={},
+                attributi={
+                    DB_SOURCE_NAME: {
+                        "created": "2020-02-20T15:54:32Z",
+                    }
+                },
             )
         )
         first_sample_id = first_sample_result.inserted_primary_key[0]
