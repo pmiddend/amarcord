@@ -2,7 +2,7 @@ import logging
 from typing import Dict
 
 import sqlalchemy as sa
-from sqlalchemy import func
+from sqlalchemy import ForeignKey, func
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.modules.dbcontext import DBContext
@@ -102,7 +102,7 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
             sa.ForeignKey("Proposal.id"),
             nullable=False,
         ),
-        sa.Column("sample_id", sa.Integer, nullable=True),
+        sa.Column("sample_id", sa.Integer, ForeignKey("Sample.id"), nullable=True),
         sa.Column("karabo", sa.BLOB, nullable=True),
         sa.Column("attributi", sa.JSON, nullable=False),
     )

@@ -64,7 +64,7 @@ class OverviewTable(QWidget):
             self._visible_columns = self._attributi_metadata.copy()
             self._last_refresh = datetime.datetime.utcnow()
             self._rows: List[OverviewAttributi] = self._db.retrieve_overview(
-                conn, self._proposal_id, None
+                conn, self._proposal_id
             )
             self._filter_query: Query = lambda row: True
             self._table_view = DeclarativeTable(
@@ -204,35 +204,10 @@ class OverviewTable(QWidget):
             completer = QtWidgets.QCompleter(self._filter_query_completions(), self)
             completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
             self._filter_widget.setCompleter(completer)
-            self._rows = self._db.retrieve_overview(conn, self._proposal_id, None)
-            # run_updates = self._db.retrieve_runs(
-            #     conn, self._proposal_id, self._last_refresh
-            # )
-            self._last_refresh = datetime.datetime.utcnow()
-            # if not run_updates:
-            #     return
-            # for idx in range(len(self._rows)):
-            #     for update_idx, update in enumerate(run_updates):
-            #         if self._rows[idx].select_int_unsafe(
-            #             self._db.tables.property_run_id
-            #         ) == update.select_int_unsafe(self._db.tables.property_run_id):
-            #             logger.info(
-            #                 "Updating run %s",
-            #                 self._rows[idx].select_int_unsafe(
-            #                     self._db.tables.property_run_id
-            #                 ),
-            #             )
-            #             self._rows[idx] = update
-            #             run_updates.pop(update_idx)
-            #             break
-            #         if not run_updates:
-            #             break
-            # for new_run in run_updates:
-            #     logger.info(
-            #         "Appending new run %s",
-            #         new_run.select_int_unsafe(self._db.tables.property_run_id),
-            #     )
-            #     self._rows.append(new_run)
+            update_time = self._db.overview_update_time(conn)
+            if update_time > self._last_refresh:
+                self._last_refresh = update_time
+                self._rows = self._db.retrieve_overview(conn, self._proposal_id)
             self._table_view.set_data(self._create_declarative_data())
 
     def _header_menu_callback(self, column: TabledAttributo, pos: QPoint) -> None:

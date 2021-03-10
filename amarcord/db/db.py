@@ -131,11 +131,22 @@ class DB:
         self.dbcontext = dbcontext
         self.tables = tables
 
+    def overview_update_time(self, conn: Connection) -> datetime.datetime:
+        return max(
+            conn.execute(
+                sa.select(
+                    [
+                        sa.func.max(self.tables.run.c.modified),
+                        sa.func.max(self.tables.sample.c.modified),
+                    ]
+                ).select_from(self.tables.run.outerjoin(self.tables.sample))
+            ).fetchone()
+        )
+
     def retrieve_overview(
         self,
         conn: Connection,
         proposal_id: ProposalId,
-        since: Optional[datetime.datetime],
     ) -> List[OverviewAttributi]:
         samples: Dict[int, AttributiMap] = {
             cast(int, k.id): k.attributi for k in self.retrieve_samples(conn)

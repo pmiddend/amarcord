@@ -52,13 +52,13 @@ class PlotDialog(QDialog):
         self._proposal_id = proposal_id
 
         with self._db.connect() as conn:
-            self._rows = self._db.retrieve_overview(conn, proposal_id, None)
-            self._property_metadata = self._retrieve_attributi_metadata(conn)
+            self._last_update = datetime.datetime.utcnow()
+            self._rows = self._db.retrieve_overview(conn, proposal_id)
+            self._attributi_metadata = self._retrieve_attributi_metadata(conn)
 
         dialog_layout = QVBoxLayout(self)
 
         self._sc = _MplCanvas(width=5, height=4, dpi=100)
-        self._last_update = datetime.datetime.utcnow()
 
         toolbar = NavigationToolbar(self._sc, self)
 
@@ -142,9 +142,11 @@ class PlotDialog(QDialog):
         #     return
         #
         with self._db.connect() as conn:
-            self._rows = self._db.retrieve_overview(conn, self._proposal_id, None)
-            self._property_metadata = self._retrieve_attributi_metadata(conn)
-            self._last_update = datetime.datetime.utcnow()
+            update_time = self._db.overview_update_time(conn)
+            if update_time > self._last_update:
+                self._last_update = datetime.datetime.utcnow()
+                self._rows = self._db.retrieve_overview(conn, self._proposal_id)
+                self._attributi_metadata = self._retrieve_attributi_metadata(conn)
             # filtered_runs = [
             #     r
             #     for r in self._rows
