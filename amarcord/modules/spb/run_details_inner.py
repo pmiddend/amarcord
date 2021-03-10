@@ -119,6 +119,9 @@ class RunDetailsInner(QtWidgets.QWidget):
         self._attributi_table = AttributiTable(
             lambda prop, value: self.property_change.emit(prop, value)
         )
+        self._attributi_table.data_changed(
+            self.run, self.runs_metadata, self.sample_ids
+        )
         additional_data_layout = QtWidgets.QVBoxLayout()
         additional_data_layout.addWidget(self._attributi_table)
         table_legend_layout = QtWidgets.QHBoxLayout()
@@ -210,12 +213,18 @@ class RunDetailsInner(QtWidgets.QWidget):
         new_sample_ids: List[int],
         new_metadata: Dict[AttributoId, DBAttributo],
     ) -> None:
+        old_run_modified = self.run.select_unsafe(AttributoId("modified"))
+        run_was_modified = old_run_modified != new_run.select_unsafe(
+            AttributoId("modified")
+        )
         self.run = new_run
+        metadata_was_modified = self.runs_metadata != new_metadata
         self.karabo = new_karabo
         self.runs_metadata = new_metadata
 
         old_run_ids = self.run_ids
         self.run_ids = new_run_ids
+        sample_ids_was_modified = new_sample_ids != self.sample_ids
         self.sample_ids = new_sample_ids
 
         if old_run_ids != new_run_ids:
@@ -238,11 +247,12 @@ class RunDetailsInner(QtWidgets.QWidget):
         self._details_tree.resizeColumnToContents(0)
         self._details_tree.resizeColumnToContents(1)
 
-        self._attributi_table.data_changed(
-            self.run,
-            self.runs_metadata,
-            self.sample_ids,
-        )
+        if run_was_modified or metadata_was_modified or sample_ids_was_modified:
+            self._attributi_table.data_changed(
+                self.run,
+                self.runs_metadata,
+                self.sample_ids,
+            )
 
         self._switch_to_latest_button.setEnabled(
             self.run.select_int_unsafe(self.tables.attributo_run_id)
