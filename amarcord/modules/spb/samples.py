@@ -36,7 +36,6 @@ from amarcord.db.db import Connection, DB, DBSample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.attributi_table import AttributiTable
-from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
@@ -109,6 +108,8 @@ class _SampleTable(QTableWidget):
 
 
 class Samples(QWidget):
+    new_attributo = pyqtSignal()
+
     def __init__(
         self,
         context: Context,
@@ -368,7 +369,7 @@ class Samples(QWidget):
                 self.style().standardIcon(QStyle.SP_FileDialogNewFolder),
                 "New attributo",
             )
-            attributo_button.clicked.connect(self._slot_new_attributo)
+            attributo_button.clicked.connect(self.new_attributo.emit)
             metadata_wrapper_layout.addWidget(attributo_button)
             right_form_layout.addWidget(metadata_wrapper)
 
@@ -385,23 +386,6 @@ class Samples(QWidget):
 
         self._samples: List[DBSample] = []
         self._fill_table()
-
-    def _slot_new_attributo(self) -> None:
-        new_column = new_attributo_dialog(self._attributi_table.metadata.keys(), self)
-
-        if new_column is None:
-            return
-
-        with self._db.connect() as conn:
-            self._db.add_attributo(
-                conn,
-                name=new_column.name,
-                description=new_column.description,
-                suffix=None,
-                prop_type=new_column.rich_property_type,
-                associated_table=AssociatedTable.RUN,
-            )
-            self._slot_refresh(conn)
 
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         with self._db.connect() as conn:

@@ -1,7 +1,9 @@
 import logging
 import sys
+from functools import partial
 
 from amarcord.config import load_config
+from amarcord.db.associated_table import AssociatedTable
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.db.tables import create_tables
@@ -55,9 +57,10 @@ if __name__ == "__main__":
         context.ui.icon("SP_MediaStop"),
     )
 
+    samples_tab = Samples(context, tables)
     samples_index = context.ui.register_tab(
         "Samples",
-        Samples(context, tables),
+        samples_tab,
         context.ui.icon("SP_DialogResetButton"),
     )
 
@@ -83,9 +86,22 @@ if __name__ == "__main__":
 
     run_table_tab.run_selected.connect(change_run)
 
-    context.ui.register_tab(
+    attributi_crud_tab = AttributiCrud(context, tables)
+    attributi_crud_index = context.ui.register_tab(
         "Attributi",
-        AttributiCrud(context, tables),
+        attributi_crud_tab,
         context.ui.icon("SP_DirIcon"),
     )
+
+    def open_new_attributo(table: AssociatedTable):
+        attributi_crud_tab.regenerate_for_table(table)
+        context.ui.select_tab(attributi_crud_index)
+
+    run_details_tab.new_attributo.connect(
+        partial(open_new_attributo, AssociatedTable.RUN)
+    )
+    samples_tab.new_attributo.connect(
+        partial(open_new_attributo, AssociatedTable.SAMPLE)
+    )
+
     context.ui.exec_()

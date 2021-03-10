@@ -30,7 +30,6 @@ from amarcord.db.db import Connection, DB
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
-from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
@@ -181,6 +180,10 @@ class AttributiCrud(QWidget):
 
         right_form_layout.addWidget(self._submit_widget)
 
+    def regenerate_for_table(self, t: AssociatedTable) -> None:
+        self._reset_input_fields()
+        self._attributi_table_combo.set_current_value(t)
+
     def _refill_type_preset(self, new_value: TypePreset) -> None:
         _fill_preset(
             self._type_widget,
@@ -307,13 +310,6 @@ class AttributiCrud(QWidget):
                 result.widget().hide()
             if result is None:
                 break
-
-    def _cancel_edit(self) -> None:
-        self._attributo_manual_changes.clear()
-        self._clear_submit()
-        self._submit_layout.addWidget(self._create_add_button())
-        self._reset_input_fields()
-        self._right_headline.setText(NEW_SAMPLE_HEADLINE)
 
     def _generate_rich_type(self) -> RichAttributoType:
         value = self._type_selection.current_value()

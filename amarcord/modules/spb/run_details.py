@@ -31,6 +31,7 @@ def _refresh_button(style: QStyle) -> QPushButton:
 
 class RunDetails(QWidget):
     run_changed = pyqtSignal()
+    new_attributo = pyqtSignal()
 
     def __init__(
         self, context: Context, tables: DBTables, proposal_id: ProposalId
@@ -94,7 +95,7 @@ class RunDetails(QWidget):
                 self._inner.comment_changed.connect(self._slot_change_comment)
                 self._inner.property_change.connect(self._slot_attributo_change)
                 self._inner.refresh.connect(self._slot_refresh)
-                self._inner.new_attributo.connect(self._slot_new_attributo)
+                self._inner.new_attributo.connect(self.new_attributo.emit)
                 self._inner.manual_new_run.connect(self._slot_manual_new_run)
                 self._root_layout.addWidget(self._inner)
 

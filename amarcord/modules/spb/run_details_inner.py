@@ -10,7 +10,6 @@ from amarcord.modules.spb.comments import Comments
 from amarcord.db.karabo import Karabo
 from amarcord.db.attributi import AttributiMap, DBAttributo, DBRunComment
 from amarcord.db.tables import DBTables
-from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.modules.spb.run_details_tree import (
     RunDetailsTree,
@@ -43,7 +42,7 @@ class RunDetailsInner(QtWidgets.QWidget):
     comment_add = pyqtSignal(DBRunComment)
     comment_changed = pyqtSignal(DBRunComment)
     property_change = pyqtSignal(str, QVariant)
-    new_attributo = pyqtSignal(DBAttributo)
+    new_attributo = pyqtSignal()
     manual_new_run = pyqtSignal()
 
     def __init__(
@@ -133,7 +132,7 @@ class RunDetailsInner(QtWidgets.QWidget):
             self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogNewFolder),
             "New attributo",
         )
-        attributo_button.clicked.connect(self._slot_new_attributo)
+        attributo_button.clicked.connect(self.new_attributo.emit)
         additional_data_layout.addLayout(table_legend_layout)
         additional_data_layout.addWidget(attributo_button)
         additional_data_column.setLayout(additional_data_layout)
@@ -278,11 +277,3 @@ class RunDetailsInner(QtWidgets.QWidget):
                 while p is not None:
                     p.setExpanded(True)
                     p = p.parent()
-
-    def _slot_new_attributo(self) -> None:
-        new_column = new_attributo_dialog(self.runs_metadata.keys(), self)
-
-        if new_column is None:
-            return
-
-        self.new_attributo.emit(new_column)
