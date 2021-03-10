@@ -45,11 +45,9 @@ logger = logging.getLogger(__name__)
 
 class TypePreset(Enum):
     INT = "integer"
-    CHOICE = "choice"
     DOUBLE = "number"
     TAGS = "list of tags"
     STRING = "string"
-    DATE_TIME = "date and time"
 
 
 def _fill_preset(w: QWidget, p: TypePreset, metadata: Dict[str, Any]) -> None:
