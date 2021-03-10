@@ -66,13 +66,21 @@ def _fill_preset(w: QWidget, p: TypePreset, metadata: Dict[str, Any]) -> None:
     if p == TypePreset.DOUBLE:
 
         metadata["range"] = None
+        metadata["suffix"] = None
 
         def set_range(new_range: NumericRange) -> None:
             metadata["range"] = new_range
 
+        def set_suffix(s: str) -> None:
+            metadata["suffix"] = s
+
         numeric_range_input = NumericRangeFormatWidget(numeric_range=None)
         numeric_range_input.range_changed.connect(set_range)
         form_layout.addRow("Value range", numeric_range_input)
+
+        attributo_suffix_edit = QLineEdit()
+        form_layout.addRow("Suffix", attributo_suffix_edit)
+        attributo_suffix_edit.textEdited.connect(set_suffix)
 
 
 class AttributiCrud(QWidget):
@@ -134,13 +142,6 @@ class AttributiCrud(QWidget):
         self._attributo_description_edit.textEdited.connect(
             self._attributi_description_change
         )
-
-        self._attributo_suffix_edit = QLineEdit()
-        right_form_layout.addRow(
-            "Suffix",
-            self._attributo_suffix_edit,
-        )
-        self._attributo_suffix_edit.textEdited.connect(self._attributo_suffix_change)
 
         self._attributi_table_combo = ComboBox(
             [(t.pretty_id(), t) for t in AssociatedTable], AssociatedTable.RUN
@@ -284,9 +285,6 @@ class AttributiCrud(QWidget):
     def _attributo_id_change(self, _new_text: str) -> None:
         self._update_add_button()
 
-    def _attributo_suffix_change(self, _new_text: str) -> None:
-        self._update_add_button()
-
     def _attributi_description_change(self, _new_text: str) -> None:
         self._update_add_button()
 
@@ -315,7 +313,7 @@ class AttributiCrud(QWidget):
         if value == TypePreset.DOUBLE:
             return PropertyDouble(
                 range=self._type_specific_metadata.get("range", None),
-                suffix=self._attributo_suffix_edit.text(),
+                suffix=self._type_specific_metadata.get("suffix", None),
             )
         raise Exception(f"unsupported type {value}")
 
@@ -326,7 +324,6 @@ class AttributiCrud(QWidget):
                 self._attributo_id_edit.text(),
                 self._attributo_description_edit.text(),
                 cast(AssociatedTable, self._attributi_table_combo.current_value()),
-                self._attributo_suffix_edit.text(),
                 self._generate_rich_type(),
             )
             self._reset_input_fields()
@@ -336,7 +333,6 @@ class AttributiCrud(QWidget):
     def _reset_input_fields(self) -> None:
         self._attributo_id_edit.setText("")
         self._attributo_description_edit.setText("")
-        self._attributo_suffix_edit.setText("")
         self._type_selection.set_current_value(TypePreset.INT)
         self._refill_type_preset(TypePreset.INT)
         self._update_add_button()

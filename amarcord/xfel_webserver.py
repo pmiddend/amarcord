@@ -95,7 +95,6 @@ def _convert_metadata(v: DBAttributo) -> JSONDict:
     return {
         "name": v.name,
         "description": v.description,
-        "suffix": v.suffix,
         "type_schema": property_type_to_schema(v.rich_property_type)
         if v.rich_property_type is not None
         else None,

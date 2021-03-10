@@ -18,7 +18,7 @@ from amarcord.json_schema import (
     JSONSchemaStringFormat,
     parse_schema_type,
 )
-from amarcord.modules.json import JSONDict
+from amarcord.modules.json import JSONDict, JSONValue
 from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.table_delegates import (
     ComboItemDelegate,
@@ -110,9 +110,7 @@ def delegate_for_property_type(
     raise Exception(f"invalid property type {proptype}")
 
 
-def schema_to_property_type(
-    json_schema: JSONDict, suffix: Optional[str]
-) -> RichAttributoType:
+def schema_to_property_type(json_schema: JSONDict) -> RichAttributoType:
     parsed_schema = parse_schema_type(json_schema)
     if isinstance(parsed_schema, JSONSchemaNumber):
         return PropertyDouble(
@@ -131,7 +129,7 @@ def schema_to_property_type(
                 else parsed_schema.exclusiveMaximum,
                 parsed_schema.exclusiveMaximum is None,
             ),
-            suffix=suffix,
+            suffix=parsed_schema.suffix,
         )
     if isinstance(parsed_schema, JSONSchemaInteger):
         return PropertyInt(range=None)
@@ -154,13 +152,13 @@ def schema_to_property_type(
 
 def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
     if isinstance(rp, PropertyInt):
-        result_int: Dict[str, Any] = {"type": "number"}
+        result_int: Dict[str, JSONValue] = {"type": "number"}
         if rp.range is not None:
             result_int["minimum"] = rp.range[0]
             result_int["maximum"] = rp.range[1]
         return result_int
     if isinstance(rp, PropertyDouble):
-        result_double: Dict[str, Any] = {"type": "number"}
+        result_double: Dict[str, JSONValue] = {"type": "number"}
         if rp.range is not None:
             if rp.range.minimum is not None:
                 if rp.range.minimum_inclusive:
@@ -172,6 +170,9 @@ def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
                     result_double["maximum"] = rp.range.maximum
                 else:
                     result_double["exclusiveMaximum"] = rp.range.maximum
+        if rp.suffix is not None:
+            assert isinstance(rp.suffix, str)
+            result_double["suffix"] = rp.suffix
         return result_double
     if isinstance(rp, PropertyString):
         return {"type": "string"}
@@ -190,7 +191,6 @@ def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
 class DBAttributo:
     name: AttributoId
     description: str
-    suffix: Optional[str]
     associated_table: AssociatedTable
     rich_property_type: RichAttributoType
 
@@ -380,11 +380,9 @@ def attributo_type_to_string(attributo: DBAttributo) -> str:
     if isinstance(pt, PropertyChoice):
         return "choice"
     if isinstance(pt, PropertyDouble):
-        if attributo.suffix:
+        if pt.suffix:
             return (
-                f"{attributo.suffix} (range {pt.range})"
-                if pt.range is not None
-                else attributo.suffix
+                f"{pt.suffix} (range {pt.range})" if pt.range is not None else pt.suffix
             )
         return f"number in {pt.range}" if pt is not None else "number"
     if isinstance(pt, PropertyTags):

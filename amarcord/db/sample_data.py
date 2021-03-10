@@ -85,14 +85,12 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                     {
                         "name": "repetition_rate",
                         "description": "Repetition Rate",
-                        "suffix": "MHz",
-                        "json_schema": {"type": "number"},
+                        "json_schema": {"type": "number", "suffix": "MHz"},
                         "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "status",
                         "description": "Status",
-                        "suffix": None,
                         "json_schema": {
                             "type": "string",
                             "enum": ["running", "finished"],
@@ -102,32 +100,29 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                     {
                         "name": "hit_rate",
                         "description": "Hit Rate",
-                        "suffix": "%",
                         "json_schema": {
                             "type": "number",
                             "minimum": 0,
                             "maximum": 100,
+                            "suffix": "%",
                         },
                         "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "trains",
                         "description": "Train count",
-                        "suffix": None,
                         "json_schema": {"type": "integer"},
                         "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "injector_position_z",
                         "description": "Injector Position Z",
-                        "suffix": "mm",
-                        "json_schema": {"type": "number"},
+                        "json_schema": {"type": "number", "suffix": "mm"},
                         "associated_table": AssociatedTable.RUN,
                     },
                     {
                         "name": "tags",
                         "description": "Tags",
-                        "suffix": None,
                         "json_schema": {
                             "type": "array",
                             "items": {"type": "string", "minLength": 1},
@@ -137,7 +132,6 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                     {
                         "name": "started",
                         "description": "Started",
-                        "suffix": None,
                         "json_schema": {"type": "string", "format": "date-time"},
                         "associated_table": AssociatedTable.RUN,
                     },

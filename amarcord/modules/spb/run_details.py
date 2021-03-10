@@ -150,21 +150,6 @@ class RunDetails(QWidget):
             self._slot_refresh_run(conn)
             self.run_changed.emit()
 
-    def _slot_new_attributo(self, new_column: DBAttributo) -> None:
-        with self._db.connect() as conn:
-            self._db.add_attributo(
-                conn,
-                name=new_column.name,
-                description=new_column.description,
-                suffix=None,
-                prop_type=new_column.rich_property_type,
-                associated_table=AssociatedTable.RUN,
-            )
-            cast(RunDetailsInner, self._inner).runs_metadata_changed(
-                self._db.run_attributi(conn)
-            )
-            self.run_changed.emit()
-
     def _slot_current_run_changed(self, new_run_id: int) -> None:
         with self._db.connect() as conn:
             self._slot_refresh_run(

@@ -387,7 +387,6 @@ class DB:
             [
                 self.tables.attributo.c.name,
                 self.tables.attributo.c.description,
-                self.tables.attributo.c.suffix,
                 self.tables.attributo.c.json_schema,
                 self.tables.attributo.c.associated_table,
             ]
@@ -402,17 +401,14 @@ class DB:
                 AttributoId(row[0]): DBAttributo(
                     name=AttributoId(row[0]),
                     description=row[1],
-                    suffix=row[2],
-                    rich_property_type=schema_to_property_type(
-                        json_schema=row[3], suffix=row[2]
-                    ),
+                    rich_property_type=schema_to_property_type(json_schema=row[2]),
                     associated_table=table,
                 )
                 for row in rows
             }
             for table, rows in groupby(
                 conn.execute(select_stmt).fetchall(),
-                lambda x: x[4],
+                lambda x: x[3],
             )
         }
         for table, attributi in self.tables.additional_attributi.items():
@@ -490,14 +486,12 @@ class DB:
         name: str,
         description: str,
         associated_table: AssociatedTable,
-        suffix: Optional[str],
         prop_type: RichAttributoType,
     ) -> None:
         conn.execute(
             self.tables.attributo.insert().values(
                 name=name,
                 description=description,
-                suffix=suffix,
                 associated_table=associated_table,
                 json_schema=property_type_to_schema(prop_type),
             )
@@ -701,7 +695,6 @@ class DB:
                     if existed:
                         self.update_sample_attributi(
                             conn,
-                            # sample.attributi.select_int_unsafe(AttributoId("id")),
                             sample.id,
                             sample.attributi,
                         )

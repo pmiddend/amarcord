@@ -17,6 +17,7 @@ class JSONSchemaNumber:
     maximum: Optional[float]
     exclusiveMinimum: Optional[float]
     exclusiveMaximum: Optional[float]
+    suffix: Optional[str]
 
 
 class JSONSchemaStringFormat(Enum):
@@ -57,6 +58,7 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
             maximum=s.get("maximum", None),
             exclusiveMinimum=s.get("exclusiveMinimum", None),
             exclusiveMaximum=s.get("exclusiveMaximum", None),
+            suffix=s.get("suffix", None),
         )
 
     if type_ == "string":
