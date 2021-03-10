@@ -4,12 +4,11 @@ import logging
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Optional, cast
 
 from PyQt5.QtCore import QModelIndex, QPoint, QUrl, Qt
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
-    QAbstractItemView,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -20,7 +19,6 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QSplitter,
     QStyle,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -28,8 +26,8 @@ from PyQt5.QtWidgets import (
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     AttributiMap,
+    PropertyInt,
     attributo_type_to_string,
-    pretty_print_attributo,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import Connection, DB, DBSample
@@ -37,13 +35,9 @@ from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.new_attributo_dialog import new_attributo_dialog
-from amarcord.qt.datetime import print_natural_delta
+from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
 from amarcord.qt.image_viewer import display_image_viewer
-from amarcord.qt.numeric_input_widget import NumericInputValue
-from amarcord.qt.validators import (
-    Partial,
-)
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -123,31 +117,46 @@ class AttributiCrud(QWidget):
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
 
-        self._attributi_id_edit = QLineEdit()
+        self._attributo_id_edit = QLineEdit()
         right_form_layout.addRow(
             "ID",
-            self._attributi_id_edit,
+            self._attributo_id_edit,
         )
-        self._attributi_id_edit.textEdited.connect(self._attributi_id_change)
+        self._attributo_id_edit.textEdited.connect(self._attributo_id_change)
 
-        self._attributi_description_edit = QLineEdit()
+        self._attributo_description_edit = QLineEdit()
         right_form_layout.addRow(
             "Description",
-            self._attributi_description_edit,
+            self._attributo_description_edit,
         )
-        self._attributi_description_edit.textEdited.connect(
+        self._attributo_description_edit.textEdited.connect(
             self._attributi_description_change
         )
+
+        self._attributo_suffix_edit = QLineEdit()
+        right_form_layout.addRow(
+            "Suffix",
+            self._attributo_suffix_edit,
+        )
+        self._attributo_suffix_edit.textEdited.connect(self._attributo_suffix_change)
+
+        self._attributi_table_combo = ComboBox(
+            [(t.pretty_id(), t) for t in AssociatedTable], AssociatedTable.RUN
+        )
+        right_form_layout.addRow(
+            "Table",
+            self._attributi_table_combo,
+        )
+        self._attributi_table_combo.item_selected.connect(self._attributo_table_change)
 
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
         self._submit_widget.setLayout(self._submit_layout)
         self._add_button = self._create_add_button()
-        self._add_button.setEnabled(True)
+        self._add_button.setEnabled(False)
         self._submit_layout.addWidget(self._add_button)
 
-        self._attributo_manual_changes: Dict[AttributoId, Any] = {}
         right_form_layout.addWidget(self._submit_widget)
 
     def _create_table_data(self) -> Data:
@@ -208,11 +217,35 @@ class AttributiCrud(QWidget):
         ]
         self._attributi_table.set_data(self._create_table_data())
 
-    def _attributi_id_change(self, new_text: str) -> None:
-        pass
+    def _attributo_id_taken(
+        self, table: AssociatedTable, attributo_id: AttributoId
+    ) -> bool:
+        return any(
+            t
+            for t in self._attributi
+            if t.table == table and t.attributo.name == attributo_id
+        )
 
-    def _attributi_description_change(self, new_text: str) -> None:
-        pass
+    def _update_add_button(self) -> None:
+        self._add_button.setEnabled(
+            bool(self._attributo_id_edit.text())
+            and not self._attributo_id_taken(
+                cast(AssociatedTable, self._attributi_table_combo.current_value()),
+                AttributoId(self._attributo_id_edit.text()),
+            )
+        )
+
+    def _attributo_id_change(self, _new_text: str) -> None:
+        self._update_add_button()
+
+    def _attributo_suffix_change(self, _new_text: str) -> None:
+        self._update_add_button()
+
+    def _attributi_description_change(self, _new_text: str) -> None:
+        self._update_add_button()
+
+    def _attributo_table_change(self, _new_table: AssociatedTable) -> None:
+        self._update_add_button()
 
     def _slot_new_attributo(self) -> None:
         new_column = new_attributo_dialog(self._attributi_table.metadata.keys(), self)
@@ -303,21 +336,7 @@ class AttributiCrud(QWidget):
         b = QPushButton(
             self.style().standardIcon(QStyle.SP_DialogOkButton), "Add sample"
         )
-        b.clicked.connect(self._add_sample)
-        return b
-
-    def _create_edit_button(self):
-        b = QPushButton(
-            self.style().standardIcon(QStyle.SP_BrowserReload), "Edit sample"
-        )
-        b.clicked.connect(self._edit_sample)
-        return b
-
-    def _create_cancel_button(self):
-        b = QPushButton(
-            self.style().standardIcon(QStyle.SP_DialogCancelButton), "Cancel"
-        )
-        b.clicked.connect(self._cancel_edit)
+        b.clicked.connect(self._add_attributo)
         return b
 
     def _slot_row_selected(self, index: QModelIndex) -> None:
@@ -385,260 +404,22 @@ class AttributiCrud(QWidget):
         self._reset_input_fields()
         self._right_headline.setText(NEW_SAMPLE_HEADLINE)
 
-    def _add_sample(self) -> None:
+    def _add_attributo(self) -> None:
         with self._db.connect() as conn:
-            self._db.add_sample(conn, self._current_sample)
+            self._db.add_attributo(
+                conn,
+                self._attributo_id_edit.text(),
+                self._attributo_description_edit.text(),
+                cast(AssociatedTable, self._attributi_table_combo.current_value()),
+                self._attributo_suffix_edit.text(),
+                PropertyInt(),
+            )
             self._reset_input_fields()
-            self._log_widget.setText("Sample successfully added!")
-            self._fill_table()
+            self._slot_refresh(conn)
+            self._log_widget.setText("Attributo added!")
 
-    def _edit_sample(self) -> None:
-        with self._db.connect() as conn:
-            self._db.edit_sample(conn, self._current_sample)
-            self._log_widget.setText("Sample successfully edited!")
-            self._fill_table()
-
-    def _reset_input_fields(self):
-        self._average_crystal_size_edit.set_value(None)
-        self._comment_edit.setText("")
-        self._creator_edit.setText("")
-        self._seed_stock_used_edit.setText("")
-        self._plate_origin_edit.setText("")
-        self._crystallization_method_edit.setText("")
-        self._shaking_strength_edit.set_value(None)
-        self._shaking_time_edit.set_value(None)
-        self._crystallization_temperature_edit.set_value(None)
-        self._crystal_shape_edit.set_value(None)
-        self._filters_edit.set_value(None)
-        self._compounds_edit.set_value(None)
-        self._micrograph_edit.set_value(None)
-        self._protocol_edit.set_value(None)
-        self._incubation_time_edit.set_value(None)
-        self._crystal_settlement_volume_edit.set_value(None)
-        self._current_sample = _empty_sample()
-        self._protein_concentration_edit.set_value(None)
-
-    def _target_id_change(self, new_id: int) -> None:
-        self._current_sample = replace(self._current_sample, target_id=new_id)
-        self._reset_button()
-
-    def _comment_edit_change(self, new_comment: str) -> None:
-        self._current_sample = replace(self._current_sample, comment=new_comment)
-        self._reset_button()
-
-    def _creator_edit_change(self, new_creator: str) -> None:
-        self._current_sample = replace(self._current_sample, creator=new_creator)
-        self._reset_button()
-
-    def _crystallization_method_edit_change(
-        self, new_crystallization_method: str
-    ) -> None:
-        self._current_sample = replace(
-            self._current_sample, crystallization_method=new_crystallization_method
-        )
-        self._reset_button()
-
-    def _plate_origin_edit_change(self, new_plate_origin: str) -> None:
-        self._current_sample = replace(
-            self._current_sample, plate_origin=new_plate_origin
-        )
-        self._reset_button()
-
-    def _seed_stock_used_edit_change(self, new_seed_stock_used: str) -> None:
-        self._current_sample = replace(
-            self._current_sample, seed_stock_used=new_seed_stock_used
-        )
-        self._reset_button()
-
-    def _shaking_time_change(self, value: Union[str, datetime.timedelta]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, shaking_time=value)
-        self._reset_button()
-
-    def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, crystal_shape=value)
-        self._reset_button()
-
-    def _filters_change(self, value: Union[str, List[str]]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, filters=value)
-        self._reset_button()
-
-    def _micrograph_change(self, value: str) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, micrograph=value)
-        self._display_micrograph_button.setEnabled(
-            self._current_sample.micrograph is not None
-        )
-        self._reset_button()
-
-    def _protocol_change(self, value: str) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, protocol=value)
-        self._open_protocol_button.setEnabled(self._current_sample.protocol is not None)
-        self._reset_button()
-
-    def _compounds_change(self, value: Union[str, List[int]]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, compounds=value)
-        self._reset_button()
-
-    def _incubation_time_change(self, value: Union[str, datetime.datetime]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, incubation_time=value)
-        self._reset_button()
-
-    def _crystallization_temperature_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(
-                self._current_sample, crystallization_temperature=value
-            )
-        self._reset_button()
-
-    def _protein_concentration_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(
-                self._current_sample, protein_concentration=value
-            )
-        self._reset_button()
-
-    def _crystal_settlement_volume_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(
-                self._current_sample, crystal_settlement_volume=value
-            )
-        self._reset_button()
-
-    def _shaking_strength_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, shaking_strength=value)
-        self._reset_button()
-
-    def _average_crystal_size_change(self, value: NumericInputValue) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(
-                self._current_sample, average_crystal_size=value
-            )
-        self._reset_button()
-
-    def _button_enabled(self) -> bool:
-        return (
-            self._average_crystal_size_edit.valid_value()
-            and self._crystal_shape_edit.valid_value()
-            and self._incubation_time_edit.valid_value()
-            and self._crystallization_temperature_edit.valid_value()
-            and self._shaking_time_edit.valid_value()
-            and self._shaking_strength_edit.valid_value()
-            and self._protein_concentration_edit.valid_value()
-            and self._crystal_settlement_volume_edit.valid_value()
-            and self._filters_edit.valid_value()
-            and self._compounds_edit.valid_value()
-        )
-
-    def _reset_button(self) -> None:
-        self._add_button.setEnabled(self._button_enabled())
-
-    def _short_name_changed(self, new_name: str) -> None:
-        self._current_sample = replace(self._current_sample, short_name=new_name)
-        self._reset_button()
-
-    def _name_changed(self, new_name: str) -> None:
-        self._current_sample = replace(self._current_sample, name=new_name)
-        self._reset_button()
-
-    def _fill_table(self, conn: Optional[Connection] = None) -> None:
-        if conn is not None:
-            self._samples = self._db.retrieve_samples(conn)
-            self._targets = self._db.retrieve_targets(conn)
-        else:
-            with self._db.connect() as conn_:
-                self._samples = self._db.retrieve_samples(conn_)
-                self._targets = self._db.retrieve_targets(conn_)
-
-        self._target_id_edit.reset_items(
-            [(s.short_name, cast(int, s.id)) for s in self._targets]
-        )
-        self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._sample_table.clear()
-        attributi_headers = [
-            k.description for k in self._attributi_table.metadata.values()
-        ]
-        headers = [
-            "ID",
-            "Created",
-            "Incubation Time",
-            "Crystallization Temperature",
-            "Avg Crystal Size",
-            "Crystal Shape",
-            "Target",
-            "Shaking Time",
-            "Shaking Strength",
-            "Protein Concentration",
-            "Crystal Settlement Volume",
-            "Seed Stock Used",
-            "Plate Origin",
-            "Creator",
-            "Crystallization Method",
-            "Filters",
-            "Compounds",
-        ] + attributi_headers
-        self._sample_table.setColumnCount(len(headers))
-        self._sample_table.setHorizontalHeaderLabels(headers)
-        self._sample_table.setRowCount(len(self._samples))
-        self._sample_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._sample_table.verticalHeader().hide()
-
-        for row, sample in enumerate(self._samples):
-            built_in_columns = (
-                str(sample.id),
-                str(sample.created),
-                sample.incubation_time.strftime(DATE_TIME_FORMAT)
-                if sample.incubation_time is not None
-                else "",
-                str(sample.crystallization_temperature)
-                if sample.crystallization_temperature is not None
-                else "",
-                str(sample.average_crystal_size),
-                ", ".join(str(s) for s in sample.crystal_shape)
-                if sample.crystal_shape is not None
-                else "",
-                [t.short_name for t in self._targets if sample.target_id == t.id][0],
-                print_natural_delta(sample.shaking_time)
-                if sample.shaking_time is not None
-                else "",
-                sample.shaking_strength if sample.shaking_strength is not None else "",
-                str(sample.protein_concentration)
-                if sample.protein_concentration is not None
-                else "",
-                sample.comment,
-                str(sample.crystal_settlement_volume)
-                if sample.crystal_settlement_volume
-                else "",
-                sample.seed_stock_used,
-                sample.plate_origin,
-                sample.creator,
-                sample.crystallization_method,
-                ", ".join(sample.filters) if sample.filters is not None else "",
-                ", ".join(sample.compounds if sample is not None else []) if sample.compounds is not None else "",  # type: ignore
-            )
-            for col, column_value in enumerate(built_in_columns):
-                self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore
-            i = len(built_in_columns) - 1
-            for attributo_id in self._attributi_table.metadata:
-                attributo_value = sample.attributi.select(attributo_id)
-                self._sample_table.setItem(
-                    row,
-                    i,
-                    QTableWidgetItem(
-                        pretty_print_attributo(
-                            self._attributi_table.metadata.get(attributo_id, None),
-                            attributo_value.value
-                            if attributo_value is not None
-                            else None,
-                        )
-                    ),
-                )
-                i += 1
-
-        self._sample_table.resizeColumnsToContents()
+    def _reset_input_fields(self) -> None:
+        self._attributo_id_edit.setText("")
+        self._attributo_description_edit.setText("")
+        self._attributo_suffix_edit.setText("")
+        self._update_add_button()
