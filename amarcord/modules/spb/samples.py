@@ -28,20 +28,18 @@ from PyQt5.QtWidgets import (
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
-    AttributiMap,
     pretty_print_attributo,
 )
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.constants import DB_SOURCE_NAME
+from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection, DB, DBSample
+from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.attributi_table import AttributiTable
-from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
 from amarcord.qt.image_viewer import display_image_viewer
-from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
 from amarcord.qt.pubchem import validate_pubchem_compound
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import (
@@ -63,6 +61,7 @@ logger = logging.getLogger(__name__)
 
 def _empty_sample():
     return DBSample(
+        id=None,
         target_id=-1,
         crystal_shape=None,
         incubation_time=None,
@@ -73,11 +72,10 @@ def _empty_sample():
         compounds=None,
         micrograph=None,
         protocol=None,
-        attributi=AttributiMap(
+        attributi=RawAttributiMap(
             {
-                DB_SOURCE_NAME: {
-                    AttributoId("id"): None,
-                    AttributoId("created"): datetime.datetime.utcnow(),
+                MANUAL_SOURCE_NAME: {
+                    AttributoId("created"): datetime.datetime.utcnow().isoformat(),
                 }
             }
         ),
@@ -153,7 +151,7 @@ class Samples(QWidget):
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
 
-        self._target_id_edit = ComboBox[int](items=[], selected=None)
+        self._target_id_edit = ComboBox[int](items=[(str(-1), -1)], selected=-1)
         right_form_layout.addRow(
             "Target",
             self._target_id_edit,
@@ -401,7 +399,7 @@ class Samples(QWidget):
     def _slot_row_selected(self, index: QModelIndex) -> None:
         self._attributo_manual_changes.clear()
         self._current_sample = self._samples[index.row()]
-        sample_id = self._current_sample.attributi.select_int_unsafe(AttributoId("id"))
+        sample_id = self._current_sample.id
         self._right_headline.setText(f"Edit sample “{sample_id}”")
         self._target_id_edit.set_current_value(self._current_sample.target_id)
         self._creator_edit.setText(self._current_sample.creator)
@@ -452,6 +450,7 @@ class Samples(QWidget):
         self._right_headline.setText(NEW_SAMPLE_HEADLINE)
 
     def _add_sample(self) -> None:
+        assert self._current_sample.target_id > 0
         with self._db.connect() as conn:
             self._db.add_sample(conn, self._current_sample)
             self._reset_input_fields()
@@ -563,17 +562,19 @@ class Samples(QWidget):
         self._target_id_edit.reset_items(
             [(s.short_name, cast(int, s.id)) for s in self._targets]
         )
+        if self._target_id_edit.current_value() is None and self._targets:
+            self._target_id_edit.set_current_value(cast(int, self._targets[0].id))
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._sample_table.clear()
         attributi_headers = [
             k.description for k in self._attributi_table.metadata.values()
         ]
         headers = [
+            "ID",
             "Incubation Time",
             "Crystal Shape",
             "Target",
             "Shaking Time",
-            "Seed Stock Used",
             "Creator",
             "Crystallization Method",
             "Filters",
@@ -587,6 +588,7 @@ class Samples(QWidget):
 
         for row, sample in enumerate(self._samples):
             built_in_columns = (
+                str(sample.id),
                 sample.incubation_time.strftime(DATE_TIME_FORMAT)
                 if sample.incubation_time is not None
                 else "",
@@ -604,7 +606,7 @@ class Samples(QWidget):
             )
             for col, column_value in enumerate(built_in_columns):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore
-            i = len(built_in_columns) - 1
+            i = len(built_in_columns)
             for attributo_id in self._attributi_table.metadata:
                 attributo_value = sample.attributi.select(attributo_id)
                 self._sample_table.setItem(

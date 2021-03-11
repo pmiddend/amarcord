@@ -9,11 +9,10 @@ from PyQt5.QtWidgets import QCheckBox, QMenu, QMessageBox, QPushButton, QStyle, 
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
-    PropertyDouble,
-    PropertyInt,
     pretty_print_attributo,
     sortable_attributo,
 )
+from amarcord.db.rich_attributo_type import PropertyDouble, PropertyInt
 from amarcord.db.db import Connection, DB, OverviewAttributi, overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
@@ -64,7 +63,7 @@ class OverviewTable(QWidget):
             self._last_refresh = datetime.datetime.utcnow()
             self._last_run_count = self._db.run_count(conn)
             self._rows: List[OverviewAttributi] = self._db.retrieve_overview(
-                conn, self._proposal_id
+                conn, self._proposal_id, self._db.retrieve_attributi(conn)
             )
             self._filter_query: Query = lambda row: True
             self._sort_data: Tuple[TabledAttributo, Qt.SortOrder] = (
@@ -244,7 +243,9 @@ class OverviewTable(QWidget):
                 or latest_run_count != self._last_run_count
             )
             if needs_update:
-                self._rows = self._db.retrieve_overview(conn, self._proposal_id)
+                self._rows = self._db.retrieve_overview(
+                    conn, self._proposal_id, self._db.retrieve_attributi(conn)
+                )
                 self._last_refresh = latest_update_time
                 self._last_run_count = latest_run_count
                 self._rows.sort(
@@ -300,7 +301,7 @@ class OverviewTable(QWidget):
             self, self._visible_columns, self._attributi_metadata
         )
         self._visible_columns = new_columns
-        self._slot_refresh()
+        self._slot_refresh(force=True)
 
     def _late_init(self) -> None:
         self._slot_refresh()

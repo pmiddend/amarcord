@@ -5,8 +5,8 @@ import sqlalchemy as sa
 from sqlalchemy import ForeignKey, func
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import (
-    DBAttributo,
+from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.rich_attributo_type import (
     PropertyComments,
     PropertyDateTime,
     PropertyInt,

@@ -1,0 +1,103 @@
+from dataclasses import dataclass
+from typing import Dict, ItemsView, Optional
+
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.modules.json import JSONDict, JSONValue
+
+Source = str
+
+
+@dataclass(frozen=True)
+class RawAttributoValueWithSource:
+    value: JSONValue
+    source: Source
+
+
+class RawAttributiMap:
+    def __init__(self, db_column: JSONDict) -> None:
+        self._sources: Dict[Source, JSONDict] = {}
+        for k, v in db_column.items():
+            assert isinstance(v, dict)
+            self._sources[k] = v
+
+    def items(self) -> ItemsView[Source, JSONDict]:
+        return self._sources.items()
+
+    def select_int_unsafe(self, attributo_id: AttributoId) -> int:
+        selected = self.select_unsafe(attributo_id)
+        if not isinstance(selected.value, int):
+            raise Exception(
+                f"Attributo {attributo_id} is not an integer but {type(selected.value)}"
+            )
+        return selected.value
+
+    def select_unsafe(self, attributo_id: AttributoId) -> RawAttributoValueWithSource:
+        selected = self.select(attributo_id)
+        if selected is None:
+            raise Exception(
+                f'Tried to retrieve "{attributo_id}", but didn\'t find it! JSON value is: {self.to_json()}'
+            )
+        return selected
+
+    def select_value(self, attributo_id: AttributoId) -> Optional[JSONValue]:
+        v = self.select(attributo_id)
+        return v.value if v is not None else None
+
+    def select_int(self, attributo_id: AttributoId) -> Optional[int]:
+        v = self.select_value(attributo_id)
+        assert v is None or isinstance(
+            v, int
+        ), f"attributo {attributo_id} has type {type(v)} instead of int"
+        return v if v is not None else None
+
+    def select(
+        self, attributo_id: AttributoId
+    ) -> Optional[RawAttributoValueWithSource]:
+        manual_attributi = self._sources.get(MANUAL_SOURCE_NAME, None)
+
+        assert manual_attributi is None or isinstance(manual_attributi, dict)
+
+        if manual_attributi is not None:
+            manual_attributo = manual_attributi.get(attributo_id, None)
+            if manual_attributo:
+                return RawAttributoValueWithSource(manual_attributo, MANUAL_SOURCE_NAME)
+
+        for source, values in self._sources.items():
+            assert isinstance(values, dict)
+            attributo = values.get(attributo_id, None)
+            if attributo is not None:
+                return RawAttributoValueWithSource(attributo, source)
+
+        return None
+
+    def append_to_source(
+        self, source: Source, new_attributi: Dict[AttributoId, JSONValue]
+    ) -> None:
+        source_value = self._sources.get(source, None)
+
+        assert source_value is None or isinstance(source_value, dict)
+
+        if source_value is None:
+            self._sources[source] = new_attributi  # type: ignore
+        else:
+            source_value.update(new_attributi)  # type: ignore
+
+    def append_single_to_source(
+        self, source: Source, attributo: AttributoId, value: JSONValue
+    ) -> None:
+        self.append_to_source(source, {attributo: value})
+
+    def set_single_manual(self, attributo: AttributoId, value: JSONValue) -> None:
+        self.append_single_to_source(MANUAL_SOURCE_NAME, attributo, value)
+
+    def to_json(self) -> JSONDict:
+        return self._sources  # type: ignore
+
+    def remove_attributo(self, attributo_id: AttributoId) -> bool:
+        existed = False
+        for v in self._sources.values():
+            assert v is None or isinstance(v, dict)
+            if v is not None and v.pop(attributo_id, None) is not None:
+                existed = True
+        return existed

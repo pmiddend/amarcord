@@ -5,19 +5,21 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QTimer, QVariant, pyqtSignal
 from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
 
-from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
-from amarcord.modules.spb.comments import Comments
+from amarcord.db.attributi import DBRunComment
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.db import DBRun
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
-from amarcord.db.attributi import AttributiMap, DBAttributo, DBRunComment
 from amarcord.db.tables import DBTables
 from amarcord.modules.spb.attributi_table import AttributiTable
+from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
+from amarcord.modules.spb.comments import Comments
 from amarcord.modules.spb.run_details_tree import (
     RunDetailsTree,
     _dict_to_items,
     _filter_dict,
     _preprocess_dict,
 )
-from amarcord.db.attributo_id import AttributoId
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
@@ -41,7 +43,7 @@ class RunDetailsInner(QtWidgets.QWidget):
     comment_delete = pyqtSignal(int)
     comment_add = pyqtSignal(DBRunComment)
     comment_changed = pyqtSignal(DBRunComment)
-    property_change = pyqtSignal(str, QVariant)
+    attributo_change = pyqtSignal(str, QVariant)
     new_attributo = pyqtSignal()
     manual_new_run = pyqtSignal()
 
@@ -50,7 +52,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         tables: DBTables,
         run_ids: List[int],
         sample_ids: List[int],
-        run: AttributiMap,
+        run: DBRun,
         karabo: Optional[Karabo],
         runs_metadata: Dict[AttributoId, DBAttributo],
         parent: Optional[QWidget] = None,
@@ -116,10 +118,10 @@ class RunDetailsInner(QtWidgets.QWidget):
         additional_data_column = QtWidgets.QGroupBox("Metadata")
 
         self._attributi_table = AttributiTable(
-            lambda prop, value: self.property_change.emit(prop, value)
+            lambda prop, value: self.attributo_change.emit(prop, value)
         )
         self._attributi_table.data_changed(
-            self.run, self.runs_metadata, self.sample_ids
+            self.run.attributi, self.runs_metadata, self.sample_ids
         )
         additional_data_layout = QtWidgets.QVBoxLayout()
         additional_data_layout.addWidget(self._attributi_table)
@@ -183,10 +185,7 @@ class RunDetailsInner(QtWidgets.QWidget):
 
     def _toggle_auto_switch_to_latest(self, new_state: bool) -> None:
         max_run_id = max(self.run_ids)
-        if (
-            new_state
-            and self.run.select_int_unsafe(self.tables.attributo_run_id) != max_run_id
-        ):
+        if new_state and self.run.id != max_run_id:
             self.current_run_changed.emit(max_run_id)
 
     def _slot_switch_to_latest(self) -> None:
@@ -206,21 +205,19 @@ class RunDetailsInner(QtWidgets.QWidget):
     ) -> None:
         self.runs_metadata = new_runs_metadata
         self._attributi_table.data_changed(
-            self.run, self.runs_metadata, self.sample_ids
+            self.run.attributi, self.runs_metadata, self.sample_ids
         )
 
     def run_changed(
         self,
-        new_run: AttributiMap,
+        new_run: DBRun,
         new_karabo: Optional[Karabo],
         new_run_ids: List[int],
         new_sample_ids: List[int],
         new_metadata: Dict[AttributoId, DBAttributo],
     ) -> None:
-        old_run_modified = self.run.select_unsafe(AttributoId("modified"))
-        run_was_modified = old_run_modified != new_run.select_unsafe(
-            AttributoId("modified")
-        )
+        old_run_modified = self.run.modified
+        run_was_modified = old_run_modified != new_run.modified
         self.run = new_run
         metadata_was_modified = self.runs_metadata != new_metadata
         self.karabo = new_karabo
@@ -235,17 +232,12 @@ class RunDetailsInner(QtWidgets.QWidget):
             self._run_selector.reset_items([(str(s), s) for s in new_run_ids])
 
             max_run_id = max(self.run_ids)
-            if self.run.select_int_unsafe(self.tables.attributo_run_id) != max_run_id:
+            if self.run.id != max_run_id:
                 self.current_run_changed.emit(max_run_id)
 
-        self._run_selector.set_current_value(
-            new_run.select_int_unsafe(self.tables.attributo_run_id)
-        )
+        self._run_selector.set_current_value(new_run.id)
 
-        self._comments.set_comments(
-            self.run.select_int_unsafe(self.tables.attributo_run_id),
-            self.run.select_comments_unsafe(self.tables.attributo_run_comments),
-        )
+        self._comments.set_comments(self.run.id, self.run.comments)
 
         self._slot_tree_filter_changed(self._tree_filter_line.text())
         self._details_tree.resizeColumnToContents(0)
@@ -253,15 +245,12 @@ class RunDetailsInner(QtWidgets.QWidget):
 
         if run_was_modified or metadata_was_modified or sample_ids_was_modified:
             self._attributi_table.data_changed(
-                self.run,
+                self.run.attributi,
                 self.runs_metadata,
                 self.sample_ids,
             )
 
-        self._switch_to_latest_button.setEnabled(
-            self.run.select_int_unsafe(self.tables.attributo_run_id)
-            != max(self.run_ids)
-        )
+        self._switch_to_latest_button.setEnabled(self.run.id != max(self.run_ids))
 
     def _slot_tree_filter_changed(self, new_filter: str) -> None:
         self._details_tree.clear()

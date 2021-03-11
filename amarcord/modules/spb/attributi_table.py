@@ -10,12 +10,12 @@ from PyQt5.QtWidgets import QHBoxLayout
 
 from amarcord.db.attributi import (
     AttributiMap,
-    DBAttributo,
-    PropertyComments,
-    RichAttributoType,
     attributo_type_to_string,
     delegate_for_property_type,
 )
+from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.rich_attributo_type import PropertyComments, RichAttributoType
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
@@ -43,10 +43,10 @@ def _is_editable(attributo_type: Optional[RichAttributoType]) -> bool:
 
 
 class AttributiTable(QtWidgets.QWidget):
-    def __init__(self, property_change: Callable[[AttributoId, Any], None]) -> None:
+    def __init__(self, attributo_change: Callable[[AttributoId, Any], None]) -> None:
         super().__init__(None)
 
-        self._property_change = property_change
+        self._attributo_change = attributo_change
         self._columns = [
             Column(header_label="Name", editable=False),
             Column(header_label="Value", editable=True),
@@ -64,11 +64,12 @@ class AttributiTable(QtWidgets.QWidget):
             parent=self,
         )
         layout.addWidget(self._table)
+        self._raw_attributi: Optional[RawAttributiMap] = None
         self._attributi: Optional[AttributiMap] = None
         self.metadata: Dict[AttributoId, DBAttributo] = {}
 
-    def _property_changed(self, prop: AttributoId, new_value: Any) -> None:
-        self._property_change(prop, new_value)
+    def _attributo_changed(self, prop: AttributoId, new_value: Any) -> None:
+        self._attributo_change(prop, new_value)
 
     def _build_row(self, attributo: DBAttributo) -> Row:
         selected = (
@@ -96,28 +97,29 @@ class AttributiTable(QtWidgets.QWidget):
             else {},
             change_callbacks=[
                 None,
-                partial(self._property_changed, attributo.name),
+                partial(self._attributo_changed, attributo.name),
                 None,
             ],
         )
 
     def data_changed(
         self,
-        new_attributi: AttributiMap,
+        new_attributi: RawAttributiMap,
         metadata: Dict[AttributoId, DBAttributo],
         sample_ids: List[int],
     ) -> None:
-
-        attributi_changed = self._attributi is None or new_attributi != self._attributi
-
-        self._attributi = deepcopy(new_attributi)
-
         metadata_changed = self.metadata != metadata
 
         self.metadata = deepcopy(metadata)
 
+        attributi_changed = (
+            self._raw_attributi is None or new_attributi != self._raw_attributi
+        )
+
         if not attributi_changed and not metadata_changed:
             return
+
+        self._attributi = AttributiMap(metadata, new_attributi)
 
         display_attributi: List[DBAttributo] = sorted(
             [k for k in metadata.values() if _is_editable(k.rich_property_type)],

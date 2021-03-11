@@ -139,7 +139,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 attributi={
                     MANUAL_SOURCE_NAME: {
                         "crystal_buffer": "foo crystal buffer bar",
-                        "created": "2020-02-20T15:54:32Z",
+                        "created": datetime.datetime.utcnow().isoformat(),
                     }
                 },
             )
@@ -149,9 +149,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 target_id=first_target_id,
                 modified=datetime.datetime.utcnow(),
                 attributi={
-                    DB_SOURCE_NAME: {
-                        "created": "2020-02-20T15:54:32Z",
-                    }
+                    DB_SOURCE_NAME: {"created": datetime.datetime.utcnow().isoformat()}
                 },
             )
         )

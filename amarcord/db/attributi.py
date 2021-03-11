@@ -1,15 +1,28 @@
 import datetime
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union, cast
+from typing import Any, Dict, Iterable, List, Optional, Union, cast
 
 from PyQt5 import QtCore, QtWidgets
+from isodate import parse_duration
 
-from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
-
+from amarcord.db.raw_attributi_map import RawAttributiMap, Source
+from amarcord.db.rich_attributo_type import (
+    PropertyChoice,
+    PropertyComments,
+    PropertyDateTime,
+    PropertyDouble,
+    PropertyDuration,
+    PropertyInt,
+    PropertySample,
+    PropertyString,
+    PropertyTags,
+    RichAttributoType,
+)
 from amarcord.json_schema import (
     JSONSchemaArray,
     JSONSchemaInteger,
@@ -24,66 +37,13 @@ from amarcord.qt.table_delegates import (
     ComboItemDelegate,
     DateTimeItemDelegate,
     DoubleItemDelegate,
+    DurationItemDelegate,
     IntItemDelegate,
     TagsItemDelegate,
 )
 from amarcord.query_parser import Row
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class PropertyInt:
-    nonNegative: bool = False
-    range: Optional[Tuple[int, int]] = None
-
-
-@dataclass(frozen=True)
-class PropertyString:
-    pass
-
-
-@dataclass(frozen=True)
-class PropertyComments:
-    pass
-
-
-@dataclass(frozen=True)
-class PropertyDouble:
-    range: Optional[NumericRange] = None
-    suffix: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class PropertyTags:
-    pass
-
-
-@dataclass(frozen=True)
-class PropertySample:
-    pass
-
-
-@dataclass(frozen=True)
-class PropertyDateTime:
-    pass
-
-
-@dataclass(frozen=True)
-class PropertyChoice:
-    values: List[Tuple[str, Any]]
-
-
-RichAttributoType = Union[
-    PropertyInt,
-    PropertyChoice,
-    PropertyDouble,
-    PropertyTags,
-    PropertySample,
-    PropertyString,
-    PropertyComments,
-    PropertyDateTime,
-]
 
 
 def delegate_for_property_type(
@@ -95,6 +55,8 @@ def delegate_for_property_type(
         return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
     if isinstance(proptype, PropertyDouble):
         return DoubleItemDelegate(proptype.range, proptype.suffix, parent)
+    if isinstance(proptype, PropertyDuration):
+        return DurationItemDelegate(parent)
     if isinstance(proptype, PropertyString):
         return QtWidgets.QStyledItemDelegate(parent=parent)
     if isinstance(proptype, PropertyChoice):
@@ -146,6 +108,8 @@ def schema_to_property_type(json_schema: JSONDict) -> RichAttributoType:
             return PropertyChoice([(s, s) for s in parsed_schema.enum_])
         if parsed_schema.format_ == JSONSchemaStringFormat.DATE_TIME:
             return PropertyDateTime()
+        if parsed_schema.format_ == JSONSchemaStringFormat.DURATION:
+            return PropertyDuration()
         return PropertyString()
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
@@ -182,20 +146,11 @@ def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
         return {"type": "string", "enum": [v[1] for v in rp.values]}
     if isinstance(rp, PropertyDateTime):
         return {"type": "string", "format": "date-time"}
+    if isinstance(rp, PropertyDuration):
+        return {"type": "string", "format": "duration"}
     if isinstance(rp, PropertyTags):
         return {"type": "array", "items": {"type": "string"}}
     raise Exception(f"invalid property type {type(rp)}")
-
-
-@dataclass(frozen=True)
-class DBAttributo:
-    name: AttributoId
-    description: str
-    associated_table: AssociatedTable
-    rich_property_type: RichAttributoType
-
-    def pretty_id(self) -> str:
-        return self.description if self.description else self.name
 
 
 def pretty_print_attributo(
@@ -232,8 +187,16 @@ class DBRunComment:
     created: datetime.datetime
 
 
-AttributoValue = Union[List[DBRunComment], str, int, float, List[str]]
-Source = str
+AttributoValue = Union[
+    List[DBRunComment],
+    str,
+    int,
+    float,
+    datetime.datetime,
+    datetime.timedelta,
+    List[str],
+    None,
+]
 
 
 @dataclass(frozen=True)
@@ -245,12 +208,80 @@ class AttributoValueWithSource:
 AttributiMapImpl = Dict[Source, Dict[AttributoId, AttributoValue]]
 
 
+def _convert_attributo(
+    i: AttributoId, v: JSONValue, types: Dict[AttributoId, DBAttributo]
+) -> AttributoValue:
+    attributo_type = types.get(i, None)
+    if attributo_type is None:
+        raise Exception(
+            f'cannot convert attributo "{i}", don\'t have a type! value is {v}'
+        )
+
+    if v is None:
+        return None
+    if isinstance(attributo_type.rich_property_type, PropertyInt):
+        assert isinstance(
+            v, int
+        ), f'expected type int for attributo "{i}", got {type(v)}'
+        return v
+    if isinstance(attributo_type.rich_property_type, PropertyString):
+        assert isinstance(
+            v, str
+        ), f'expected type string for attributo "{i}", got {type(v)}'
+        return v
+    if isinstance(attributo_type.rich_property_type, PropertyDouble):
+        assert isinstance(
+            v, (float, int)
+        ), f'expected type float for attributo "{i}", got {type(v)}'
+        # TODO: check if it's the correct double here (range!)
+        return float(v)
+    if isinstance(attributo_type.rich_property_type, PropertyComments):
+        raise Exception(f"cannot deserialize comments from JSON for attributo {i}")
+    if isinstance(attributo_type.rich_property_type, PropertyDateTime):
+        assert isinstance(
+            v, str
+        ), f'expected type string for datetime attributo "{i}", got {type(v)}'
+        return datetime.datetime.fromisoformat(v)
+    if isinstance(attributo_type.rich_property_type, PropertyDuration):
+        assert isinstance(
+            v, str
+        ), f'expected type string for duration attributo "{i}", got {type(v)}'
+        return parse_duration(v)
+    if isinstance(attributo_type.rich_property_type, PropertyTags):
+        assert isinstance(
+            v, list
+        ), f'expected type list for duration attributo "{i}", got {type(v)}'
+        if not v:
+            return cast(List[str], [])
+        first = v[0]
+        assert isinstance(
+            first, str
+        ), f'expected type list of strings for duration attributo "{i}", got {type(first)}'
+        return v
+    if isinstance(attributo_type.rich_property_type, PropertyChoice):
+        assert isinstance(
+            v, str
+        ), f'expected type str for choice attributo "{i}", got {type(v)}'
+        # TODO: check if it's the correct choice here
+        return v
+    raise Exception(
+        f"invalid property type for attributo {i}: {attributo_type.rich_property_type}"
+    )
+
+
 class AttributiMap:
-    def __init__(self, db_column: Mapping[str, Any]) -> None:
+    def __init__(
+        self,
+        types: Dict[AttributoId, DBAttributo],
+        raw_attributi: Optional[RawAttributiMap] = None,
+    ) -> None:
         self._attributi: AttributiMapImpl = {}
-        for k, v in db_column.items():
-            assert isinstance(v, dict)
-            self._attributi[AttributoId(k)] = v
+        if raw_attributi is not None:
+            for source, source_attributi in raw_attributi.items():
+                self._attributi[source] = {
+                    AttributoId(k): _convert_attributo(AttributoId(k), v, types)
+                    for k, v in source_attributi.items()
+                }
 
     def select_int_unsafe(self, attributo_id: AttributoId) -> int:
         selected = self.select_unsafe(attributo_id)
@@ -280,14 +311,21 @@ class AttributiMap:
     def select_unsafe(self, attributo_id: AttributoId) -> AttributoValueWithSource:
         selected = self.select(attributo_id)
         if selected is None:
-            raise Exception(
-                f'Tried to retrieve "{attributo_id}", but didn\'t find it! JSON value is: {self.to_json()}'
-            )
+            raise Exception(f'Tried to retrieve "{attributo_id}", but didn\'t find it!')
         return selected
 
     def select_value(self, attributo_id: AttributoId) -> Optional[AttributoValue]:
         v = self.select(attributo_id)
         return v.value if v is not None else None
+
+    def select_datetime(self, attributo_id: AttributoId) -> Optional[datetime.datetime]:
+        v = self.select(attributo_id)
+        if v is None:
+            return None
+        assert isinstance(
+            v.value, datetime.datetime
+        ), f'expected datetime for attributo "{attributo_id}", got {type(v)}'
+        return v.value
 
     def select_int(self, attributo_id: AttributoId) -> Optional[int]:
         v = self.select_value(attributo_id)
@@ -315,6 +353,7 @@ class AttributiMap:
     def append_to_source(
         self, source: Source, new_attributi: Dict[AttributoId, AttributoValue]
     ) -> None:
+        # TODO: check proper types here
         source_value = self._attributi.get(source, None)
 
         if source_value is None:
@@ -328,30 +367,31 @@ class AttributiMap:
         self.append_to_source(source, {attributo: value})
 
     def set_single_manual(self, attributo: AttributoId, value: AttributoValue) -> None:
+        # TODO: check proper types here
         self.append_single_to_source(MANUAL_SOURCE_NAME, attributo, value)
 
-    def to_json(self) -> JSONDict:
-        result: JSONDict = {}
-        for source, attributi_for_source in self._attributi.items():
-            source_dict: JSONDict = {}
-            result[source] = source_dict
-            for attributo_id, attributo in attributi_for_source.items():
-                if (
-                    attributo is None
-                    or isinstance(attributo, (int, str, bool, float))
-                    or (isinstance(attributo, list) and not attributo)
-                ):
-                    source_dict[attributo_id] = attributo
-                elif isinstance(attributo, list):
-                    first_element = attributo[0]
-                    if isinstance(first_element, (int, float, str)):
-                        source_dict[attributo_id] = attributo
-                    elif not isinstance(first_element, DBRunComment):
-                        raise Exception(
-                            f"Attributo value was not comment, but {type(first_element)}"
-                        )
-
-        return result
+    # def to_json(self) -> JSONDict:
+    #     result: JSONDict = {}
+    #     for source, attributi_for_source in self._attributi.items():
+    #         source_dict: JSONDict = {}
+    #         result[source] = source_dict
+    #         for attributo_id, attributo in attributi_for_source.items():
+    #             if (
+    #                 attributo is None
+    #                 or isinstance(attributo, (int, str, bool, float))
+    #                 or (isinstance(attributo, list) and not attributo)
+    #             ):
+    #                 source_dict[attributo_id] = attributo
+    #             elif isinstance(attributo, list):
+    #                 first_element = attributo[0]
+    #                 if isinstance(first_element, (int, float, str)):
+    #                     source_dict[attributo_id] = attributo
+    #                 elif not isinstance(first_element, DBRunComment):
+    #                     raise Exception(
+    #                         f"Attributo value was not comment, but {type(first_element)}"
+    #                     )
+    #
+    #     return result
 
     def to_query_row(self, attributi_ids: Iterable[AttributoId], prefix: str) -> Row:
         result: Row = {}

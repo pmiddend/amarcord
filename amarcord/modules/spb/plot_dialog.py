@@ -54,8 +54,10 @@ class PlotDialog(QDialog):
 
         with self._db.connect() as conn:
             self._last_update = datetime.datetime.utcnow()
-            self._rows = self._db.retrieve_overview(conn, proposal_id)
             self._attributi_metadata = self._retrieve_attributi_metadata(conn)
+            self._rows = self._db.retrieve_overview(
+                conn, proposal_id, self._db.retrieve_attributi(conn)
+            )
 
         dialog_layout = QVBoxLayout(self)
 
@@ -115,9 +117,7 @@ class PlotDialog(QDialog):
                 for r in filtered_rows
             ],
             index=[
-                datetime.datetime.fromisoformat(
-                    r[AssociatedTable.RUN].select_value(AttributoId("started"))
-                )
+                r[AssociatedTable.RUN].select_datetime(AttributoId("started"))
                 for r in filtered_rows
             ],
             columns=[self._attributo.attributo.pretty_id()],
@@ -153,7 +153,9 @@ class PlotDialog(QDialog):
             update_time = self._db.overview_update_time(conn)
             if update_time > self._last_update:
                 self._last_update = datetime.datetime.utcnow()
-                self._rows = self._db.retrieve_overview(conn, self._proposal_id)
+                self._rows = self._db.retrieve_overview(
+                    conn, self._proposal_id, self._db.retrieve_attributi(conn)
+                )
                 self._attributi_metadata = self._retrieve_attributi_metadata(conn)
                 # filtered_runs = [
                 #     r

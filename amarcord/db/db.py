@@ -4,7 +4,7 @@ import pickle
 from dataclasses import dataclass
 from itertools import groupby
 from time import time
-from typing import Any, Dict, List, Mapping, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import sqlalchemy as sa
 from sqlalchemy import and_
@@ -12,11 +12,7 @@ from sqlalchemy import and_
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     AttributiMap,
-    AttributoValue,
-    DBAttributo,
     DBRunComment,
-    RichAttributoType,
-    Source,
     property_type_to_schema,
     schema_to_property_type,
 )
@@ -24,8 +20,11 @@ from amarcord.db.attributo_id import (
     AttributoId,
 )
 from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
+from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.rich_attributo_type import RichAttributoType
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import (
     DBTables,
@@ -48,6 +47,7 @@ class DBTarget:
 
 @dataclass(frozen=True)
 class DBSample:
+    id: Optional[int]
     target_id: int
     crystal_shape: Optional[Tuple[float, float, float]]
     incubation_time: Optional[datetime.datetime]
@@ -58,20 +58,20 @@ class DBSample:
     compounds: Optional[List[int]]
     micrograph: Optional[str]
     protocol: Optional[str]
-    attributi: AttributiMap
+    attributi: RawAttributiMap
+
+
+@dataclass(frozen=True)
+class DBRun:
+    attributi: RawAttributiMap
+    id: int
+    sample_id: Optional[int]
+    proposal_id: int
+    modified: datetime.datetime
+    comments: List[DBRunComment]
 
 
 Connection = Any
-
-
-def _decode_attributi_to_values(
-    attributi: Mapping[str, Any]
-) -> Dict[Source, Dict[AttributoId, AttributoValue]]:
-    result: Dict[Source, Dict[AttributoId, AttributoValue]] = {}
-    for k, v in attributi.items():
-        assert isinstance(v, dict)
-        result[AttributoId(k)] = v
-    return result
 
 
 def _update_attributi(
@@ -116,6 +116,29 @@ class RunNotFound(Exception):
     pass
 
 
+def _run_to_attributi(r: DBRun, types: Dict[AttributoId, DBAttributo]) -> AttributiMap:
+    result = AttributiMap(types, r.attributi)
+    result.append_to_source(
+        DB_SOURCE_NAME,
+        {
+            AttributoId("id"): r.id,
+            AttributoId("sample_id"): r.sample_id,
+            AttributoId("modified"): r.modified,
+            AttributoId("comments"): r.comments,
+            AttributoId("proposal_id"): r.proposal_id,
+        },
+    )
+    return result
+
+
+def _sample_to_attributi(
+    s: DBSample, types: Dict[AttributoId, DBAttributo]
+) -> AttributiMap:
+    result = AttributiMap(types, s.attributi)
+    result.append_to_source(DB_SOURCE_NAME, {AttributoId("id"): s.id})
+    return result
+
+
 class DB:
     def __init__(self, dbcontext: DBContext, tables: DBTables) -> None:
         self.dbcontext = dbcontext
@@ -142,21 +165,27 @@ class DB:
         self,
         conn: Connection,
         proposal_id: ProposalId,
+        types: Dict[AssociatedTable, Dict[AttributoId, DBAttributo]],
     ) -> List[OverviewAttributi]:
+        sample_types = types[AssociatedTable.SAMPLE]
         samples: Dict[int, AttributiMap] = {
-            cast(int, k.attributi.select_int_unsafe(AttributoId("id"))): k.attributi
+            cast(int, k.id): _sample_to_attributi(k, sample_types)
             for k in self.retrieve_samples(conn)
         }
-        runs: List[AttributiMap] = self.retrieve_runs(conn, proposal_id, None)
+        runs: List[DBRun] = self.retrieve_runs(conn, proposal_id, None)
 
+        run_types = types[AssociatedTable.RUN]
         result: List[OverviewAttributi] = []
         for r in runs:
-            sample_id = r.select_int(self.tables.attributo_run_sample_id)
+            sample_id = r.sample_id
             sample = samples.get(sample_id, None) if sample_id is not None else None
-            assert (
-                sample is not None
-            ), f"run {r.select_int_unsafe(self.tables.attributo_run_id)} has invalid sample {sample_id}"
-            result.append({AssociatedTable.SAMPLE: sample, AssociatedTable.RUN: r})
+            assert sample is not None, f"run {r.id} has invalid sample {sample_id}"
+            result.append(
+                {
+                    AssociatedTable.SAMPLE: sample,
+                    AssociatedTable.RUN: _run_to_attributi(r, run_types),
+                }
+            )
         return result
 
     def retrieve_runs(
@@ -164,7 +193,7 @@ class DB:
         conn: Connection,
         proposal_id: Optional[ProposalId],
         since: Optional[datetime.datetime],
-    ) -> List[AttributiMap]:
+    ) -> List[DBRun]:
         run = self.tables.run
         comment = self.tables.run_comment
 
@@ -191,7 +220,7 @@ class DB:
             .where(where_condition)
             .order_by(run.c.id, comment.c.id)
         )
-        result: List[AttributiMap] = []
+        result: List[DBRun] = []
         before = time()
         select_results = conn.execute(select_stmt).fetchall()
         after = time()
@@ -213,18 +242,16 @@ class DB:
                 for row in rows
                 if row[0] is not None
             )[0:5]
-            attributi = AttributiMap(run_meta["attributi"])
-            attributi.append_to_source(
-                DB_SOURCE_NAME,
-                {
-                    self.tables.attributo_run_id: run_meta["id"],
-                    self.tables.attributo_run_sample_id: run_meta["sample_id"],
-                    self.tables.attributo_run_proposal_id: run_meta["proposal_id"],
-                    self.tables.attributo_run_modified: run_meta["modified"],
-                    self.tables.attributo_run_comments: comments,
-                },
+            result.append(
+                DBRun(
+                    RawAttributiMap(run_meta["attributi"]),
+                    run_meta["id"],
+                    run_meta["sample_id"],
+                    run_meta["proposal_id"],
+                    run_meta["modified"],
+                    comments,
+                )
             )
-            result.append(attributi)
         return result
 
     def retrieve_run_ids(self, conn: Connection, proposal_id: ProposalId) -> List[int]:
@@ -259,7 +286,7 @@ class DB:
             .values(modified=datetime.datetime.utcnow())
         )
 
-    def retrieve_run(self, conn: Connection, run_id: int) -> AttributiMap:
+    def retrieve_run(self, conn: Connection, run_id: int) -> DBRun:
         run = self.tables.run
         run_c = run.c
         comment = self.tables.run_comment
@@ -284,28 +311,24 @@ class DB:
         if not run_rows:
             raise RunNotFound()
         run_meta = run_rows[0]
-        result = AttributiMap(run_meta["attributi"])
-        result.append_to_source(
-            DB_SOURCE_NAME,
-            {
-                self.tables.attributo_run_id: run_meta["id"],
-                self.tables.attributo_run_sample_id: run_meta["sample_id"],
-                self.tables.attributo_run_proposal_id: run_meta["proposal_id"],
-                self.tables.attributo_run_modified: run_meta["modified"],
-                self.tables.attributo_run_comments: remove_duplicates_stable(
-                    DBRunComment(
-                        row["comment_id"],
-                        run_meta["id"],
-                        row["author"],
-                        row["comment_text"],
-                        row["created"],
-                    )
-                    for row in run_rows
-                    if row["comment_id"] is not None
-                ),
-            },
+        return DBRun(
+            run_meta["attributi"],
+            run_meta["id"],
+            run_meta["sample_id"],
+            run_meta["proposal_id"],
+            run_meta["modified"],
+            remove_duplicates_stable(
+                DBRunComment(
+                    row["comment_id"],
+                    run_meta["id"],
+                    row["author"],
+                    row["comment_text"],
+                    row["created"],
+                )
+                for row in run_rows
+                if row["comment_id"] is not None
+            ),
         )
-        return result
 
     def add_comment(self, conn: Connection, run_id: int, author: str, text: str) -> int:
         conn.execute(
@@ -341,7 +364,7 @@ class DB:
         proposal_id: ProposalId,
         run_id: int,
         sample_id: Optional[int],
-        attributi: AttributiMap,
+        attributi: RawAttributiMap,
     ) -> bool:
         with conn.begin():
             run_exists = conn.execute(
@@ -423,7 +446,7 @@ class DB:
         _update_attributi(conn, sample_id, self.tables.sample, attributo, value)
 
     def update_run_attributi(
-        self, conn: Connection, run_id: int, attributi: AttributiMap
+        self, conn: Connection, run_id: int, attributi: RawAttributiMap
     ) -> None:
         conn.execute(
             sa.update(self.tables.run)
@@ -432,7 +455,7 @@ class DB:
         )
 
     def update_sample_attributi(
-        self, conn: Connection, sample_id: int, attributi: AttributiMap
+        self, conn: Connection, sample_id: int, attributi: RawAttributiMap
     ) -> None:
         conn.execute(
             sa.update(self.tables.sample)
@@ -458,6 +481,7 @@ class DB:
         ), f"attributi can only have str, int and float values currently, got {type(value)}"
 
         with conn.begin():
+            # TODO: This has to be fixed
             _update_attributi(conn, run_id, self.tables.run, attributo, value)
 
     def connect(self) -> Connection:
@@ -556,14 +580,8 @@ class DB:
             select_stmt = select_stmt.where(tc.modified >= since)
 
         def prepare_sample(row: Any) -> DBSample:
-            sample_attributi = AttributiMap(row["attributi"])
-            sample_attributi.append_to_source(
-                DB_SOURCE_NAME,
-                {
-                    AttributoId("id"): row["id"],
-                },
-            )
             return DBSample(
+                id=row["id"],
                 target_id=row["target_id"],
                 crystal_shape=row["crystal_shape"],
                 incubation_time=row["incubation_time"],
@@ -576,7 +594,7 @@ class DB:
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
                 protocol=row["protocol"],
-                attributi=sample_attributi,
+                attributi=RawAttributiMap(row["attributi"]),
             )
 
         return [prepare_sample(row) for row in conn.execute(select_stmt).fetchall()]
@@ -603,6 +621,7 @@ class DB:
         )
 
     def edit_sample(self, conn: Connection, t: DBSample) -> None:
+        assert t.id is not None
         conn.execute(
             sa.update(self.tables.sample)
             .values(
@@ -620,10 +639,7 @@ class DB:
                 protocol=t.protocol,
                 attributi=t.attributi.to_json() if t.attributi is not None else None,
             )
-            .where(
-                self.tables.sample.c.id
-                == t.attributi.select_int_unsafe(AttributoId("id"))
-            )
+            .where(self.tables.sample.c.id == t.id)
         )
 
     def delete_sample(self, conn: Connection, tid: int) -> None:
@@ -648,12 +664,14 @@ class DB:
             )
             if table == AssociatedTable.RUN:
                 for run in self.retrieve_runs(conn, proposal_id=None, since=None):
-                    existed = run.remove_attributo(name)
+                    existed = run.attributi.remove_attributo(name)
                     if existed:
                         self.update_run_attributi(
                             conn,
-                            run.select_int_unsafe(self.tables.attributo_run_id),
-                            run,
+                            run.attributi.select_int_unsafe(
+                                self.tables.attributo_run_id
+                            ),
+                            run.attributi,
                         )
             elif table == AssociatedTable.SAMPLE:
                 for sample in self.retrieve_samples(conn, since=None):
@@ -661,7 +679,7 @@ class DB:
                     if existed:
                         self.update_sample_attributi(
                             conn,
-                            sample.attributi.select_int_unsafe(AttributoId("id")),
+                            cast(int, sample.id),
                             sample.attributi,
                         )
             else:

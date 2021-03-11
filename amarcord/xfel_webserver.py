@@ -16,10 +16,10 @@ from amarcord.db.db import (
 )
 from amarcord.db.attributi import (
     AttributoValue,
-    DBAttributo,
     DBRunComment,
     property_type_to_schema,
 )
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.tables import create_tables
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.proposal_id import ProposalId

@@ -22,6 +22,7 @@ class JSONSchemaNumber:
 
 class JSONSchemaStringFormat(Enum):
     DATE_TIME = "date-time"
+    DURATION = "duration"
 
 
 @dataclass(frozen=True)

@@ -1,16 +1,20 @@
 import logging
+import datetime
 from typing import List, Optional, Tuple, TypeVar, cast
 
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtWidgets import QDateTimeEdit
 
 from amarcord.qt.datetime import (
+    parse_natural_delta,
+    print_natural_delta,
     qt_from_isoformat,
     qt_to_isoformat,
 )
 from amarcord.qt.numeric_input_widget import NumericInputWidget
 from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.tags import Tags
+from amarcord.qt.validated_line_edit import ValidatedLineEdit
 
 T = TypeVar("T")
 
@@ -135,7 +139,7 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
         data = index.model().data(index, QtCore.Qt.EditRole)
         if data is None:
             return
-        assert isinstance(data, str)
+        assert isinstance(data, str), f"expected a string, got {type(data)}"
         cast(QtWidgets.QDateTimeEdit, editor).setDateTime(qt_from_isoformat(data))
 
     # pylint: disable=no-self-use
@@ -264,6 +268,61 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
         index: QtCore.QModelIndex,
     ) -> None:
         assert isinstance(editor, NumericInputWidget)
+        value = editor.value()
+        if value is not None:
+            model.setData(index, value, QtCore.Qt.EditRole)
+
+    # pylint: disable=no-self-use
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
+class DurationItemDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(
+        self,
+        parent: Optional[QtCore.QObject],
+    ) -> None:
+        super().__init__(parent)
+
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        _option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        return ValidatedLineEdit(
+            None,
+            print_natural_delta,  # type: ignore
+            parse_natural_delta,  # type: ignore
+            "example: 1 day, 5 hours, 30 minutes",
+        )
+
+    # pylint: disable=no-self-use
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        assert isinstance(editor, ValidatedLineEdit)
+        data = index.model().data(index, QtCore.Qt.EditRole)
+        if data is None:
+            return
+        if not isinstance(data, datetime.timedelta):
+            raise ValueError(f"expected timedelta, got {type(data)}")
+        # noinspection PyTypeChecker
+        cast(ValidatedLineEdit, editor).set_value(data)  # type: ignore
+
+    # pylint: disable=no-self-use
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        assert isinstance(editor, ValidatedLineEdit)
         value = editor.value()
         if value is not None:
             model.setData(index, value, QtCore.Qt.EditRole)

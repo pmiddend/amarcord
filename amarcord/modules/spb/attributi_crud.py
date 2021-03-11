@@ -20,10 +20,12 @@ from PyQt5.QtWidgets import (
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
+    attributo_type_to_string,
+)
+from amarcord.db.rich_attributo_type import (
     PropertyDouble,
     PropertyInt,
     RichAttributoType,
-    attributo_type_to_string,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import Connection, DB

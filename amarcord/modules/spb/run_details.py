@@ -1,17 +1,17 @@
 import logging
-from typing import Any, Final, Optional, Tuple, cast
+from typing import Any, Final, Optional, cast
 
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
-from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.attributi import DBRunComment
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
-from amarcord.db.db import Connection, DB, RunNotFound
+from amarcord.db.db import Connection, DB, DBRun, RunNotFound
 from amarcord.db.karabo import Karabo
-from amarcord.db.attributi import AttributiMap, DBAttributo, DBRunComment
 from amarcord.db.proposal_id import ProposalId
+from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
@@ -93,7 +93,7 @@ class RunDetails(QWidget):
                 self._inner.comment_add.connect(self._slot_add_comment)
                 self._inner.comment_delete.connect(self._slot_delete_comment)
                 self._inner.comment_changed.connect(self._slot_change_comment)
-                self._inner.property_change.connect(self._slot_attributo_change)
+                self._inner.attributo_change.connect(self._slot_attributo_change)
                 self._inner.refresh.connect(self._slot_refresh)
                 self._inner.new_attributo.connect(self.new_attributo.emit)
                 self._inner.manual_new_run.connect(self._slot_manual_new_run)
@@ -157,13 +157,6 @@ class RunDetails(QWidget):
                 new_run_id=new_run_id,
             )
 
-    def _retrieve_run_with_karabo(
-        self, conn: Connection, run_id: int, old_karabo: Optional[Karabo]
-    ) -> Tuple[AttributiMap, Optional[Karabo]]:
-        return self._db.retrieve_run(conn, run_id), (
-            self._db.retrieve_karabo(conn, run_id) if old_karabo is None else old_karabo
-        )
-
     def _slot_refresh_run(
         self,
         conn: Connection,
@@ -192,14 +185,14 @@ class RunDetails(QWidget):
             else:
                 self._refresh_run_ids()
 
-    def selected_run(self) -> AttributiMap:
+    def selected_run(self) -> DBRun:
         return cast(RunDetailsInner, self._inner).run
 
     def selected_karabo(self) -> Optional[Karabo]:
         return cast(RunDetailsInner, self._inner).karabo
 
     def selected_run_id(self) -> int:
-        result = self.selected_run().select_int_unsafe(self._db.tables.attributo_run_id)
+        result = self.selected_run().id
         assert isinstance(result, int)
         return result
 
@@ -212,7 +205,7 @@ class RunDetails(QWidget):
                 ),
                 sample_ids=self._db.retrieve_sample_ids(conn),
             )
-            attributi = AttributiMap({})
+            attributi = RawAttributiMap({})
             attributi.append_single_to_source(
                 MANUAL_SOURCE_NAME, AttributoId("status"), "running"
             )

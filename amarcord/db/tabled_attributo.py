@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import DBAttributo
+from amarcord.db.dbattributo import DBAttributo
 
 
 @dataclass(frozen=True)

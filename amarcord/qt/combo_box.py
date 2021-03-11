@@ -17,15 +17,14 @@ class ComboBox(QComboBox, Generic[T]):
     def __init__(
         self,
         items: List[Tuple[str, T]],
-        selected: Optional[T],
+        selected: T,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
         self.items = items
         self.addItems([i[0] for i in self.items])
-        if selected is not None:
-            self.setCurrentIndex(cast(int, self._index_for_value(selected)))
+        self.setCurrentIndex(cast(int, self._index_for_value(selected)))
         self.currentIndexChanged.connect(self._index_changed)
 
     def reset_items(self, new_items: List[Tuple[str, T]]):
@@ -34,9 +33,11 @@ class ComboBox(QComboBox, Generic[T]):
         with SignalBlocker(self):
             self.clear()
             self.addItems([i[0] for i in self.items])
-            if last_value is not None:
-                new_index = self._index_for_value(last_value)
-                self.setCurrentIndex(0 if new_index is None else new_index)
+        new_index = self._index_for_value(last_value)
+        if new_index is None and self.currentIndex() == 0:
+            self.item_selected.emit(QVariant(self.items[0][1]))
+        else:
+            self.setCurrentIndex(0 if new_index is None else new_index)
 
     def _index_for_value(self, value: T) -> Optional[int]:
         try:
@@ -50,11 +51,9 @@ class ComboBox(QComboBox, Generic[T]):
         if new_index != self.currentIndex():
             self.setCurrentIndex(new_index)
 
-    def current_value(self) -> Optional[T]:
+    def current_value(self) -> T:
         index = self.currentIndex()
-        if index != -1 and index < len(self.items):
-            return self.items[index][1]
-        return None
+        return self.items[index][1]
 
     def _index_changed(self, idx: int) -> None:
         self.item_selected.emit(QVariant(self.items[idx][1]))
