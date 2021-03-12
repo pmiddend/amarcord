@@ -53,6 +53,12 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "associated_table": AssociatedTable.SAMPLE,
                     },
                     {
+                        "name": "shaking_time",
+                        "description": "Shaking Time",
+                        "json_schema": {"type": "string", "format": "duration"},
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
                         "name": "avg_crystal_size",
                         "description": "Average Crystal Size",
                         "json_schema": {
@@ -139,6 +145,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 attributi={
                     MANUAL_SOURCE_NAME: {
                         "crystal_buffer": "foo crystal buffer bar",
+                        "shaking_time": "P2D",
                         "created": datetime.datetime.utcnow().isoformat(),
                     }
                 },

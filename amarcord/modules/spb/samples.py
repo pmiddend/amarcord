@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
+    AttributiMap,
     pretty_print_attributo,
 )
 from amarcord.db.attributo_id import AttributoId
@@ -65,7 +66,6 @@ def _empty_sample():
         target_id=-1,
         crystal_shape=None,
         incubation_time=None,
-        shaking_time=None,
         creator=getpass.getuser(),
         crystallization_method="",
         filters=None,
@@ -158,17 +158,6 @@ class Samples(QWidget):
         )
         self._target_id_edit.item_selected.connect(self._target_id_change)
 
-        self._shaking_time_edit = ValidatedLineEdit(
-            None,
-            print_natural_delta,  # type: ignore
-            parse_natural_delta,  # type: ignore
-            "example: 1 day, 5 hours, 30 minutes",
-        )
-        self._shaking_time_edit.value_change.connect(self._shaking_time_change)
-        right_form_layout.addRow(
-            "Shaking time",
-            self._shaking_time_edit,
-        )
         self._creator_edit = QLineEdit(getpass.getuser())
         right_form_layout.addRow(
             "Creator",
@@ -406,11 +395,6 @@ class Samples(QWidget):
         self._crystallization_method_edit.setText(
             self._current_sample.crystallization_method
         )
-        self._shaking_time_edit.set_value(
-            self._current_sample.shaking_time  # type: ignore
-            if self._current_sample.shaking_time is not None
-            else None
-        )
         self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
         self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
         # noinspection PyTypeChecker
@@ -466,7 +450,6 @@ class Samples(QWidget):
     def _reset_input_fields(self):
         self._creator_edit.setText("")
         self._crystallization_method_edit.setText("")
-        self._shaking_time_edit.set_value(None)
         self._crystal_shape_edit.set_value(None)
         self._filters_edit.set_value(None)
         self._compounds_edit.set_value(None)
@@ -489,11 +472,6 @@ class Samples(QWidget):
         self._current_sample = replace(
             self._current_sample, crystallization_method=new_crystallization_method
         )
-        self._reset_button()
-
-    def _shaking_time_change(self, value: Union[str, datetime.timedelta]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, shaking_time=value)
         self._reset_button()
 
     def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
@@ -534,7 +512,6 @@ class Samples(QWidget):
         return (
             self._crystal_shape_edit.valid_value()
             and self._incubation_time_edit.valid_value()
-            and self._shaking_time_edit.valid_value()
             and self._filters_edit.valid_value()
             and self._compounds_edit.valid_value()
         )
@@ -574,7 +551,6 @@ class Samples(QWidget):
             "Incubation Time",
             "Crystal Shape",
             "Target",
-            "Shaking Time",
             "Creator",
             "Crystallization Method",
             "Filters",
@@ -596,9 +572,6 @@ class Samples(QWidget):
                 if sample.crystal_shape is not None
                 else "",
                 [t.short_name for t in self._targets if sample.target_id == t.id][0],
-                print_natural_delta(sample.shaking_time)
-                if sample.shaking_time is not None
-                else "",
                 sample.creator,
                 sample.crystallization_method,
                 ", ".join(sample.filters) if sample.filters is not None else "",
@@ -607,8 +580,9 @@ class Samples(QWidget):
             for col, column_value in enumerate(built_in_columns):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore
             i = len(built_in_columns)
+            attributi = AttributiMap(self._attributi_table.metadata, sample.attributi)
             for attributo_id in self._attributi_table.metadata:
-                attributo_value = sample.attributi.select(attributo_id)
+                attributo_value = attributi.select(attributo_id)
                 self._sample_table.setItem(
                     row,
                     i,

@@ -72,6 +72,8 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
             enum_=enum_,
             format_=JSONSchemaStringFormat.DATE_TIME
             if format_ == "date-time"
+            else JSONSchemaStringFormat.DURATION
+            if format_ == "duration"
             else None,
         )
 

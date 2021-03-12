@@ -55,7 +55,6 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("target_id", sa.Integer, sa.ForeignKey("Target.id"), nullable=False),
         sa.Column("crystal_shape", sa.JSON, nullable=True),
         sa.Column("incubation_time", sa.DateTime, nullable=True),
-        sa.Column("shaking_time_seconds", sa.Integer, nullable=True),
         sa.Column("creator", sa.String, nullable=False, default=""),
         sa.Column("crystallization_method", sa.String, nullable=False, default=""),
         sa.Column("filters", sa.JSON, nullable=True),

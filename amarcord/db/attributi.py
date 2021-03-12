@@ -32,6 +32,7 @@ from amarcord.json_schema import (
     parse_schema_type,
 )
 from amarcord.modules.json import JSONDict, JSONValue
+from amarcord.qt.datetime import print_natural_delta
 from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.table_delegates import (
     ComboItemDelegate,
@@ -44,6 +45,33 @@ from amarcord.qt.table_delegates import (
 from amarcord.query_parser import Row
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class DBRunComment:
+    id: Optional[int]
+    run_id: int
+    author: str
+    text: str
+    created: datetime.datetime
+
+
+AttributoValue = Union[
+    List[DBRunComment],
+    str,
+    int,
+    float,
+    datetime.datetime,
+    datetime.timedelta,
+    List[str],
+    None,
+]
+
+
+@dataclass(frozen=True)
+class AttributoValueWithSource:
+    value: AttributoValue
+    source: Source
 
 
 def delegate_for_property_type(
@@ -154,13 +182,26 @@ def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
 
 
 def pretty_print_attributo(
-    attributo_metadata: Optional[DBAttributo], value: Any
+    attributo_metadata: Optional[DBAttributo], value: AttributoValue
 ) -> str:
-    if attributo_metadata is not None and isinstance(
-        attributo_metadata.rich_property_type, PropertyComments
-    ):
-        assert isinstance(value, list), f"Comment column isn't a list but {type(value)}"
-        return "\n".join(f"{c.author}: {c.text}" for c in value)
+    if value is None:
+        return ""
+    rpt = (
+        attributo_metadata.rich_property_type
+        if attributo_metadata is not None
+        else None
+    )
+    if rpt is not None:
+        if isinstance(rpt, PropertyDuration):
+            assert isinstance(
+                value, datetime.timedelta
+            ), f'expected timedelta for "{attributo_metadata.name}", got {type(value)}'
+            return print_natural_delta(value)
+        if isinstance(rpt, PropertyComments):
+            assert isinstance(
+                value, list
+            ), f"Comment column isn't a list but {type(value)}"
+            return "\n".join(f"{c.author}: {c.text}" for c in value)
     if isinstance(value, list):
         return ", ".join(value)
     if isinstance(value, float):
@@ -176,33 +217,6 @@ def sortable_attributo(attributo_metadata: Optional[DBAttributo], value: Any) ->
     if isinstance(value, list):
         return len(value)
     return value if value is not None else ""
-
-
-@dataclass(frozen=True)
-class DBRunComment:
-    id: Optional[int]
-    run_id: int
-    author: str
-    text: str
-    created: datetime.datetime
-
-
-AttributoValue = Union[
-    List[DBRunComment],
-    str,
-    int,
-    float,
-    datetime.datetime,
-    datetime.timedelta,
-    List[str],
-    None,
-]
-
-
-@dataclass(frozen=True)
-class AttributoValueWithSource:
-    value: AttributoValue
-    source: Source
 
 
 AttributiMapImpl = Dict[Source, Dict[AttributoId, AttributoValue]]
@@ -435,4 +449,6 @@ def attributo_type_to_string(attributo: DBAttributo) -> str:
         return "comments"
     if isinstance(pt, PropertyDateTime):
         return "date and time"
+    if isinstance(pt, PropertyDuration):
+        return "duration"
     raise Exception(f"invalid property type {type(pt)}")

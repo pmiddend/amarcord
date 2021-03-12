@@ -51,7 +51,6 @@ class DBSample:
     target_id: int
     crystal_shape: Optional[Tuple[float, float, float]]
     incubation_time: Optional[datetime.datetime]
-    shaking_time: Optional[datetime.timedelta]
     creator: str
     crystallization_method: str
     filters: Optional[List[str]]
@@ -566,7 +565,6 @@ class DB:
                 tc.target_id,
                 tc.crystal_shape,
                 tc.incubation_time,
-                tc.shaking_time_seconds,
                 tc.creator,
                 tc.crystallization_method,
                 tc.filters,
@@ -585,9 +583,6 @@ class DB:
                 target_id=row["target_id"],
                 crystal_shape=row["crystal_shape"],
                 incubation_time=row["incubation_time"],
-                shaking_time=datetime.timedelta(seconds=row["shaking_time_seconds"])
-                if row["shaking_time_seconds"] is not None
-                else None,
                 creator=row["creator"],
                 crystallization_method=row["crystallization_method"],
                 filters=row["filters"],
@@ -605,10 +600,6 @@ class DB:
                 target_id=t.target_id,
                 crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
-                # crystal_buffer=t.crystal_buffer,
-                shaking_time_seconds=int(t.shaking_time.total_seconds())
-                if t.shaking_time is not None
-                else None,
                 creator=t.creator,
                 crystallization_method=t.crystallization_method,
                 filters=t.filters,
@@ -628,9 +619,6 @@ class DB:
                 target_id=t.target_id,
                 crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
-                shaking_time_seconds=int(t.shaking_time.total_seconds())
-                if t.shaking_time is not None
-                else None,
                 creator=t.creator,
                 crystallization_method=t.crystallization_method,
                 filters=t.filters,
