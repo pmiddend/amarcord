@@ -103,7 +103,7 @@ class Targets(QWidget):
             NumericRange(
                 0.0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
             ),
-            placeholder="Value in g/mol kDa",
+            placeholder="Value in g/mol",
         )
         self._molecular_weight_edit.value_change.connect(self._molecular_weight_change)
         self._molecular_weight: NumericInputValue = None
