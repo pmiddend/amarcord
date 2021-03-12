@@ -5,7 +5,7 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QTimer, QVariant, pyqtSignal
 from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
 
-from amarcord.db.attributi import DBRunComment
+from amarcord.db.comment import DBComment
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import DBRun
 from amarcord.db.dbattributo import DBAttributo
@@ -41,8 +41,8 @@ class RunDetailsInner(QtWidgets.QWidget):
     current_run_changed = pyqtSignal(int)
     refresh = pyqtSignal()
     comment_delete = pyqtSignal(int)
-    comment_add = pyqtSignal(DBRunComment)
-    comment_changed = pyqtSignal(DBRunComment)
+    comment_add = pyqtSignal(DBComment)
+    comment_changed = pyqtSignal(DBComment)
     attributo_change = pyqtSignal(str, QVariant)
     new_attributo = pyqtSignal()
     manual_new_run = pyqtSignal()
@@ -118,10 +118,10 @@ class RunDetailsInner(QtWidgets.QWidget):
         additional_data_column = QtWidgets.QGroupBox("Metadata")
 
         self._attributi_table = AttributiTable(
-            lambda prop, value: self.attributo_change.emit(prop, value)
-        )
-        self._attributi_table.data_changed(
-            self.run.attributi, self.runs_metadata, self.sample_ids
+            self.run.attributi,
+            self.runs_metadata,
+            self.sample_ids,
+            lambda prop, value: self.attributo_change.emit(prop, value),
         )
         additional_data_layout = QtWidgets.QVBoxLayout()
         additional_data_layout.addWidget(self._attributi_table)

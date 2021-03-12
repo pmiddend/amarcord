@@ -28,9 +28,9 @@ from PyQt5.QtWidgets import (
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
-    AttributiMap,
     pretty_print_attributo,
 )
+from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection, DB, DBSample
@@ -39,7 +39,6 @@ from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.qt.combo_box import ComboBox
-from amarcord.qt.datetime import parse_natural_delta, print_natural_delta
 from amarcord.qt.image_viewer import display_image_viewer
 from amarcord.qt.pubchem import validate_pubchem_compound
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
@@ -257,13 +256,13 @@ class Samples(QWidget):
         with self._db.connect() as conn:
             metadata_wrapper = QGroupBox()
             metadata_wrapper_layout = QHBoxLayout(metadata_wrapper)
-            self._attributi_table = AttributiTable(self._attributo_change)
-            metadata_wrapper_layout.addWidget(self._attributi_table)
-            self._attributi_table.data_changed(
+            self._attributi_table = AttributiTable(
                 self._current_sample.attributi,
                 self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
                 [],
+                self._attributo_change,
             )
+            metadata_wrapper_layout.addWidget(self._attributi_table)
             attributo_button = QPushButton(
                 self.style().standardIcon(QStyle.SP_FileDialogNewFolder),
                 "New attributo",
@@ -284,26 +283,27 @@ class Samples(QWidget):
         right_form_layout.addWidget(self._submit_widget)
 
         self._samples: List[DBSample] = []
-        self._fill_table()
+        self._reload_and_fill_samples()
 
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         with self._db.connect() as conn:
             logger.info("Setting attributo %s to %s", attributo, value)
-            self._current_sample.attributi.set_single_manual(attributo, value)
+            self._attributi_table.set_single_manual(attributo, value)
             # We could immediately change the attribute, but we have this "Save changes" button
             # if self._current_sample.id is not None:
             #     self._db.update_sample_attributo(
             #         conn, self._current_sample.id, attributo, value
             #     )
-            self._slot_refresh(conn)
 
     def _slot_refresh(self, conn: Connection) -> None:
+        self._reload_and_fill_samples()
+        # FIXME: What if the current sample was deleted?
+        # FIXME: Reload attributes other than attributi
         self._attributi_table.data_changed(
-            self._current_sample.attributi,
+            [x for x in self._samples if x.id == self._current_sample.id][0].attributi,
             self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
             sample_ids=[],
         )
-        self._fill_table()
 
     def _display_micrograph(self) -> None:
         assert self._current_sample.micrograph is not None
@@ -356,7 +356,7 @@ class Samples(QWidget):
             with self._db.connect() as conn:
                 self._db.delete_sample(conn, sample_id)
                 self._log_widget.setText(f"Sample “{sample_id}” deleted!")
-                self._fill_table()
+                self._reload_and_fill_samples()
                 if (
                     self._current_sample.attributi.select_int_unsafe(AttributoId("id"))
                     == sample_id
@@ -436,16 +436,22 @@ class Samples(QWidget):
     def _add_sample(self) -> None:
         assert self._current_sample.target_id > 0
         with self._db.connect() as conn:
-            self._db.add_sample(conn, self._current_sample)
+            self._db.add_sample(
+                conn,
+                replace(
+                    self._current_sample,
+                    attributi=self._attributi_table.attributi.to_raw(),
+                ),
+            )
             self._reset_input_fields()
             self._log_widget.setText("Sample successfully added!")
-            self._fill_table()
+            self._reload_and_fill_samples()
 
     def _edit_sample(self) -> None:
         with self._db.connect() as conn:
             self._db.edit_sample(conn, self._current_sample)
             self._log_widget.setText("Sample successfully edited!")
-            self._fill_table()
+            self._reload_and_fill_samples()
 
     def _reset_input_fields(self):
         self._creator_edit.setText("")
@@ -457,6 +463,9 @@ class Samples(QWidget):
         self._protocol_edit.set_value(None)
         self._incubation_time_edit.set_value(None)
         self._current_sample = _empty_sample()
+        self._attributi_table.data_changed(
+            self._current_sample.attributi, self._attributi_table.metadata, []
+        )
 
     def _target_id_change(self, new_id: int) -> None:
         self._current_sample = replace(self._current_sample, target_id=new_id)
@@ -527,7 +536,7 @@ class Samples(QWidget):
         self._current_sample = replace(self._current_sample, name=new_name)
         self._reset_button()
 
-    def _fill_table(self, conn: Optional[Connection] = None) -> None:
+    def _reload_and_fill_samples(self, conn: Optional[Connection] = None) -> None:
         if conn is not None:
             self._samples = self._db.retrieve_samples(conn)
             self._targets = self._db.retrieve_targets(conn)

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, ItemsView, Optional
+from typing import Any, Dict, ItemsView, Optional
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
@@ -20,6 +20,14 @@ class RawAttributiMap:
         for k, v in db_column.items():
             assert isinstance(v, dict)
             self._sources[k] = v
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, self.__class__):
+            return self._sources == other._sources
+        return False
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
 
     def items(self) -> ItemsView[Source, JSONDict]:
         return self._sources.items()

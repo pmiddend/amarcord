@@ -15,10 +15,10 @@ from amarcord.db.db import (
     DB,
 )
 from amarcord.db.attributi import (
-    AttributoValue,
-    DBRunComment,
     property_type_to_schema,
 )
+from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.tables import create_tables
 from amarcord.db.sample_data import create_sample_data
@@ -57,7 +57,7 @@ def _convert_run(r: Dict[AttributoId, AttributoValue]) -> JSONDict:
             return value.isoformat()
         if isinstance(value, list):
             return [_convert_to_json(av) for av in value]
-        if isinstance(value, DBRunComment):
+        if isinstance(value, DBComment):
             return {
                 "id": value.id,
                 "text": value.text,

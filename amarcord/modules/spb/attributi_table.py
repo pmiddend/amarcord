@@ -9,10 +9,12 @@ from PyQt5.QtGui import QBrush
 from PyQt5.QtWidgets import QHBoxLayout
 
 from amarcord.db.attributi import (
-    AttributiMap,
     attributo_type_to_string,
     delegate_for_property_type,
+    pretty_print_attributo,
 )
+from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.rich_attributo_type import PropertyComments, RichAttributoType
@@ -29,13 +31,6 @@ class _MetadataColumn(Enum):
     VALUE = 1
 
 
-def _attributo_value_to_string(metadata: DBAttributo, value: Any) -> str:
-    return ", ".join(value) if isinstance(value, list) else str(value)
-    # suffix: str = getattr(metadata.rich_property_type, "suffix", None)
-    # value_str = ", ".join(value) if isinstance(value, list) else str(value)
-    # return value_str if suffix is None else f"{value_str} {suffix}"
-
-
 def _is_editable(attributo_type: Optional[RichAttributoType]) -> bool:
     return attributo_type is not None and not isinstance(
         attributo_type, PropertyComments
@@ -43,7 +38,13 @@ def _is_editable(attributo_type: Optional[RichAttributoType]) -> bool:
 
 
 class AttributiTable(QtWidgets.QWidget):
-    def __init__(self, attributo_change: Callable[[AttributoId, Any], None]) -> None:
+    def __init__(
+        self,
+        raw_attributi: RawAttributiMap,
+        metadata: Dict[AttributoId, DBAttributo],
+        sample_ids: List[int],
+        attributo_change: Callable[[AttributoId, Any], None],
+    ) -> None:
         super().__init__(None)
 
         self._attributo_change = attributo_change
@@ -64,25 +65,25 @@ class AttributiTable(QtWidgets.QWidget):
             parent=self,
         )
         layout.addWidget(self._table)
-        self._raw_attributi: Optional[RawAttributiMap] = None
-        self._attributi: Optional[AttributiMap] = None
-        self.metadata: Dict[AttributoId, DBAttributo] = {}
+        self._sample_ids = sample_ids
+        self.metadata = metadata
+        self.attributi = AttributiMap(metadata, raw_attributi)
+
+        self._update_table()
 
     def _attributo_changed(self, prop: AttributoId, new_value: Any) -> None:
         self._attributo_change(prop, new_value)
 
     def _build_row(self, attributo: DBAttributo) -> Row:
         selected = (
-            self._attributi.select(attributo.name)
-            if self._attributi is not None
+            self.attributi.select(attributo.name)
+            if self.attributi is not None
             else None
         )
         return Row(
             display_roles=[
                 attributo.description if attributo.description else attributo.name,
-                _attributo_value_to_string(
-                    self.metadata[attributo.name], selected.value
-                )
+                pretty_print_attributo(self.metadata[attributo.name], selected.value)
                 if selected is not None
                 else "",
                 attributo_type_to_string(self.metadata[attributo.name]),
@@ -102,27 +103,9 @@ class AttributiTable(QtWidgets.QWidget):
             ],
         )
 
-    def data_changed(
-        self,
-        new_attributi: RawAttributiMap,
-        metadata: Dict[AttributoId, DBAttributo],
-        sample_ids: List[int],
-    ) -> None:
-        metadata_changed = self.metadata != metadata
-
-        self.metadata = deepcopy(metadata)
-
-        attributi_changed = (
-            self._raw_attributi is None or new_attributi != self._raw_attributi
-        )
-
-        if not attributi_changed and not metadata_changed:
-            return
-
-        self._attributi = AttributiMap(metadata, new_attributi)
-
+    def _update_table(self) -> None:
         display_attributi: List[DBAttributo] = sorted(
-            [k for k in metadata.values() if _is_editable(k.rich_property_type)],
+            [k for k in self.metadata.values() if _is_editable(k.rich_property_type)],
             key=lambda x: x.name,
         )
 
@@ -133,10 +116,32 @@ class AttributiTable(QtWidgets.QWidget):
                 row_delegates={
                     idx: delegate_for_property_type(
                         md.rich_property_type,
-                        sample_ids,
+                        self._sample_ids,
                     )
                     for (idx, md) in enumerate(display_attributi)
                 },
                 column_delegates={},
             )
         )
+
+    def data_changed(
+        self,
+        new_attributi: RawAttributiMap,
+        metadata: Dict[AttributoId, DBAttributo],
+        sample_ids: List[int],
+    ) -> None:
+        metadata_changed = self.metadata != metadata
+
+        attributi_changed = new_attributi != self.attributi.to_raw()
+
+        if not attributi_changed and not metadata_changed:
+            return
+
+        self.metadata = deepcopy(metadata)
+        self.attributi = AttributiMap(metadata, new_attributi)
+        self._sample_ids = sample_ids
+        self._update_table()
+
+    def set_single_manual(self, attributo: AttributoId, value: AttributoValue) -> None:
+        self.attributi.set_single_manual(attributo, value)
+        self._update_table()

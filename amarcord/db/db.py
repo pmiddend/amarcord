@@ -11,11 +11,11 @@ from sqlalchemy import and_
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
-    AttributiMap,
-    DBRunComment,
     property_type_to_schema,
     schema_to_property_type,
 )
+from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.comment import DBComment
 from amarcord.db.attributo_id import (
     AttributoId,
 )
@@ -67,7 +67,7 @@ class DBRun:
     sample_id: Optional[int]
     proposal_id: int
     modified: datetime.datetime
-    comments: List[DBRunComment]
+    comments: List[DBComment]
 
 
 Connection = Any
@@ -231,7 +231,7 @@ class DB:
             rows = list(run_rows)
             run_meta = rows[0]
             comments = remove_duplicates_stable(
-                DBRunComment(
+                DBComment(
                     id=row["comment_id"],
                     run_id=run_meta["id"],
                     author=row["author"],
@@ -271,7 +271,7 @@ class DB:
             ).fetchall()
         ]
 
-    def change_comment(self, conn: Connection, c: DBRunComment) -> None:
+    def change_comment(self, conn: Connection, c: DBComment) -> None:
         assert c.id is not None
 
         conn.execute(
@@ -317,7 +317,7 @@ class DB:
             run_meta["proposal_id"],
             run_meta["modified"],
             remove_duplicates_stable(
-                DBRunComment(
+                DBComment(
                     row["comment_id"],
                     run_meta["id"],
                     row["author"],

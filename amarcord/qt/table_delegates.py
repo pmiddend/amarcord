@@ -300,6 +300,7 @@ class DurationItemDelegate(QtWidgets.QStyledItemDelegate):
             print_natural_delta,  # type: ignore
             parse_natural_delta,  # type: ignore
             "example: 1 day, 5 hours, 30 minutes",
+            parent,
         )
 
     # pylint: disable=no-self-use

@@ -5,7 +5,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
-from amarcord.db.attributi import DBRunComment
+from amarcord.db.comment import DBComment
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection, DB, DBRun, RunNotFound
@@ -121,13 +121,13 @@ class RunDetails(QWidget):
             self._slot_refresh_run(conn)
             self.run_changed.emit()
 
-    def _slot_change_comment(self, comment: DBRunComment) -> None:
+    def _slot_change_comment(self, comment: DBComment) -> None:
         with self._db.connect() as conn:
             self._db.change_comment(conn, comment)
             self._slot_refresh_run(conn)
             self.run_changed.emit()
 
-    def _slot_add_comment(self, comment: DBRunComment) -> None:
+    def _slot_add_comment(self, comment: DBComment) -> None:
         with self._db.connect() as conn:
             self._db.add_comment(
                 conn,
