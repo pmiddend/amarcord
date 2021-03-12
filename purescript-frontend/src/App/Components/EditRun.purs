@@ -1,14 +1,14 @@
 module App.Components.EditRun where
 
 import Prelude hiding (comparing)
-import App.API (RunResponse, addComment, deleteComment, retrieveRun)
+import App.API (addComment, deleteComment, retrieveRun)
 import App.AppMonad (AppMonad)
 import App.Bootstrap (container, plainH1_, plainH2_, plainH3_, plainTd_, plainTh_, table)
 import App.Comment (Comment)
 import App.Components.Modal (ModalOutput(..), modal)
 import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
 import App.HalogenUtils (classList, faIcon, makeRequestResult, plainTd, plainTh, singleClass)
-import App.Run (Run, runComments)
+import App.Run (Run)
 import App.UnfinishedComment (UnfinishedComment, _author, _text, emptyUnfinishedComment)
 import Data.Array ((:))
 import Data.Either (Either(..))
@@ -28,7 +28,6 @@ import Network.RemoteData (RemoteData(..), fromEither, isLoading)
 type State
   = { runId :: Int
     , run :: Run
-    , manualProperties :: Array String
     , newComment :: UnfinishedComment
     , commentRequest :: RemoteData String String
     , deleteCommentId :: Maybe Int
@@ -52,11 +51,10 @@ data Action
   | ConfirmDeleteComment Int
   | CommentModal ModalOutput
 
-initialState :: ChildInput Int RunResponse -> State
-initialState { input: runId, remoteData: runResponse } =
+initialState :: ChildInput Int Run -> State
+initialState { input: runId, remoteData: run } =
   { runId: runId
-  , run: runResponse.run
-  , manualProperties: runResponse.manual_properties
+  , run: run
   , newComment: emptyUnfinishedComment
   , commentRequest: NotAsked
   , deleteCommentId: Nothing
@@ -65,7 +63,7 @@ initialState { input: runId, remoteData: runResponse } =
 component :: forall output query. H.Component HH.HTML query Int output AppMonad
 component = parentComponent fetchRunData childComponent
 
-childComponent :: forall q. H.Component HH.HTML q (ChildInput Int RunResponse) ParentError AppMonad
+childComponent :: forall q. H.Component HH.HTML q (ChildInput Int Run) ParentError AppMonad
 childComponent =
   H.mkComponent
     { initialState
@@ -77,7 +75,7 @@ childComponent =
             }
     }
 
-fetchRunData :: Int -> AppMonad (RemoteData String RunResponse)
+fetchRunData :: Int -> AppMonad (RemoteData String Run)
 fetchRunData rid = fromEither <$> (retrieveRun rid)
 
 resetRunData :: forall slots. H.HalogenM State Action slots ParentError AppMonad Unit
@@ -85,7 +83,7 @@ resetRunData = do
   rid <- use _runId
   newRunData' <- lift $ (fetchRunData rid)
   case newRunData' of
-    Success newRunData -> H.modify_ (set _run newRunData.run >>> set _manualProperties newRunData.manual_properties)
+    Success newRunData -> H.modify_ (set _run newRunData)
     _ -> pure unit
 
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
@@ -139,7 +137,7 @@ commentsTable commentRequest comments =
 commentsSection state =
   [ plainH2_ "Comments" ]
     <> [ makeRequestResult state.commentRequest ]
-    <> [ commentsTable state.commentRequest (toArrayOf runComments state.run)
+    <> [ commentsTable state.commentRequest state.run.comments
       , plainH3_ "Add comment"
       , HH.form_
           [ HH.div [ singleClass "row" ]

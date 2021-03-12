@@ -15,6 +15,7 @@ data RunValue
   | Scalar RunScalar
 
 derive instance eqRunValue :: Eq RunValue
+derive instance ordRunValue :: Ord RunValue
 
 
 runValueScalar :: RunValue -> Maybe RunScalar

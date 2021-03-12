@@ -19,6 +19,7 @@ import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect.Aff.Class (class MonadAff)
+import Foreign.Object (Object)
 import Halogen (liftAff)
 
 type RunsResponse
@@ -52,12 +53,19 @@ retrieveRuns = do
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
-type RunPropertiesResponse
-  = { metadata :: Array RunProperty
+type Comment = {
+    id :: Int
+  , text :: String
+  , author :: String
+  , created :: String
+  }
+
+type RunAttributiResponse
+  = { attributi :: Object (Object RunProperty)
     }
 
-retrieveRunProperties :: AppMonad (Either String RunPropertiesResponse)
-retrieveRunProperties = do
+retrieveRunAttributi :: AppMonad (Either String RunAttributiResponse)
+retrieveRunAttributi = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
@@ -65,12 +73,7 @@ retrieveRunProperties = do
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
-type RunResponse
-  = { run :: Run
-    , manual_properties :: Array String
-    }
-
-retrieveRun :: Int -> AppMonad (Either String RunResponse)
+retrieveRun :: Int -> AppMonad (Either String Run)
 retrieveRun runId = do
   baseUrl' <- asks (_.baseUrl)
   let

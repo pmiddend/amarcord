@@ -14,43 +14,47 @@ import Data.List (toUnfoldable)
 import Data.Map (Map, insert, lookup, values)
 import Data.Maybe (Maybe, fromMaybe)
 import Data.Newtype (class Newtype)
-import Foreign.Object (foldM)
+import Foreign.Object (Object, foldM)
 
+type Run
+  = { id :: Int
+    , sample_id :: Maybe Int
+    , modified :: String
+    , comments :: Array Comment
+    , attributi :: Object (Object RunValue)
+    }
 
-newtype Run
-  = Run (Map String RunValue)
+-- derive instance newtypeRun :: Newtype Run _
 
-derive instance newtypeRun :: Newtype Run _
+-- runLookup :: Run -> String -> Maybe RunValue
+-- runLookup (Run r) s = lookup s r
 
-runLookup :: Run -> String -> Maybe RunValue
-runLookup (Run r) s = lookup s r
+-- runValues :: Run -> Array RunValue
+-- runValues (Run r) = toUnfoldable (values r)
 
-runValues :: Run -> Array RunValue
-runValues (Run r) = toUnfoldable (values r)
+-- runComments :: Traversal' Run Comment
+-- runComments = _Newtype <<< ix "comments" <<< _Comments <<< traversed
 
-runComments :: Traversal' Run Comment
-runComments = _Newtype <<< ix "comments" <<< _Comments <<< traversed
+-- instance showRun :: Show Run where
+--   show (Run r) = show r
 
-instance showRun :: Show Run where
-  show (Run r) = show r
+-- runId :: Run -> Int
+-- runId (Run r) = fromMaybe 0 (lookup "id" r >>= runValueScalar >>= runScalarInt)
 
-runId :: Run -> Int
-runId (Run r) = fromMaybe 0 (lookup "id" r >>= runValueScalar >>= runScalarInt)
+-- runScalarProperty :: String -> Run -> RunScalar
+-- runScalarProperty prop run = fromMaybe (RunScalarNumber 0.0) (runLookup run prop >>= runValueScalar)
 
-runScalarProperty :: String -> Run -> RunScalar
-runScalarProperty prop run = fromMaybe (RunScalarNumber 0.0) (runLookup run prop >>= runValueScalar)
+-- instance eqRun :: Eq Run where
+--   eq (Run a) (Run b) = a == b
 
-instance eqRun :: Eq Run where
-  eq (Run a) (Run b) = a == b
+-- instance ordRun :: Ord Run where
+--   compare = comparing runId
 
-instance ordRun :: Ord Run where
-  compare = comparing runId
-
-instance decodeRun :: DecodeJson Run where
-  decodeJson json = do
-    obj <- decodeJson json
-    let
-      folder :: Map String RunValue -> String -> Json -> Either JsonDecodeError (Map String RunValue)
-      folder previousMap newKey newValue = (\decodedValue -> insert newKey decodedValue previousMap) <$> (decodeJson newValue)
-    result <- foldM folder mempty obj
-    pure (Run result)
+-- instance decodeRun :: DecodeJson Run where
+--   decodeJson json = do
+--     obj <- decodeJson json
+--     let
+--       folder :: Map String RunValue -> String -> Json -> Either JsonDecodeError (Map String RunValue)
+--       folder previousMap newKey newValue = (\decodedValue -> insert newKey decodedValue previousMap) <$> (decodeJson newValue)
+--     result <- foldM folder mempty obj
+--     pure (Run result)

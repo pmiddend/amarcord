@@ -2,28 +2,27 @@ import datetime
 import json
 import logging
 import os
-from typing import Any, Dict
 
 from flask import Flask, request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
 from amarcord.config import load_config
-from amarcord.modules.dbcontext import CreationMode, DBContext
-from amarcord.modules.json import JSONDict, JSONValue
-from amarcord.db.db import (
-    DB,
-)
+from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     property_type_to_schema,
 )
-from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
+from amarcord.db.db import (
+    DB,
+    DBRun,
+)
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.tables import create_tables
-from amarcord.db.sample_data import create_sample_data
 from amarcord.db.proposal_id import ProposalId
-from amarcord.db.attributo_id import AttributoId
+from amarcord.db.sample_data import create_sample_data
+from amarcord.db.tables import create_tables
+from amarcord.modules.dbcontext import CreationMode, DBContext
+from amarcord.modules.json import JSONDict
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -49,27 +48,22 @@ db = DB(
 )
 
 
-def _convert_run(r: Dict[AttributoId, AttributoValue]) -> JSONDict:
-    def _convert_to_json(value: Any) -> JSONValue:
-        if value is None or isinstance(value, (str, int, float, bool)):
-            return value
-        if isinstance(value, datetime.datetime):
-            return value.isoformat()
-        if isinstance(value, list):
-            return [_convert_to_json(av) for av in value]
-        if isinstance(value, DBComment):
-            return {
-                "id": value.id,
-                "text": value.text,
-                "author": value.author,
-                "created": value.created.isoformat(),
-            }
-        raise Exception(f"invalid property type in run: {type(value)}")
+def _convert_run(r: DBRun) -> JSONDict:
+    def convert_comment(value: DBComment) -> JSONDict:
+        return {
+            "id": value.id,
+            "text": value.text,
+            "author": value.author,
+            "created": value.created.isoformat(),
+        }
 
-    result: JSONDict = {}
-    for k, v in r.items():
-        result[k] = _convert_to_json(v)
-    return result
+    return {
+        "id": r.id,
+        "sample_id": r.sample_id,
+        "modified": r.modified.isoformat(),
+        "comments": [convert_comment(c) for c in r.comments],
+        "attributi": r.attributi.to_json(),
+    }
 
 
 @app.route("/<int:proposal_id>/runs")
@@ -106,7 +100,10 @@ def retrieve_run_properties() -> JSONDict:
     global db
     with db.connect() as conn:
         return {
-            "metadata": [_convert_metadata(v) for v in db.run_attributi(conn).values()]
+            "attributi": [
+                _convert_metadata(v)
+                for v in db.retrieve_table_attributi(conn, AssociatedTable.RUN).values()
+            ]
         }
 
 
@@ -114,9 +111,7 @@ def retrieve_run_properties() -> JSONDict:
 def retrieve_run(run_id: int) -> JSONDict:
     global db
     with db.connect() as conn:
-        run = db.retrieve_run(conn, run_id)
-        run_props = _convert_run(run.attributi)
-        return {"run": run_props, "manual_properties": list(run.manual_attributi)}
+        return _convert_run(db.retrieve_run(conn, run_id))
 
 
 @app.route("/run/<int:run_id>/comment", methods=["POST"])
