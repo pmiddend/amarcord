@@ -6,10 +6,12 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtWidgets import QDateTimeEdit
 
 from amarcord.qt.datetime import (
+    from_qt_datetime,
     parse_natural_delta,
     print_natural_delta,
     qt_from_isoformat,
     qt_to_isoformat,
+    to_qt_datetime,
 )
 from amarcord.qt.numeric_input_widget import NumericInputWidget
 from amarcord.qt.numeric_range_format_widget import NumericRange
@@ -139,8 +141,10 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
         data = index.model().data(index, QtCore.Qt.EditRole)
         if data is None:
             return
-        assert isinstance(data, str), f"expected a string, got {type(data)}"
-        cast(QtWidgets.QDateTimeEdit, editor).setDateTime(qt_from_isoformat(data))
+        assert isinstance(
+            data, datetime.datetime
+        ), f"expected datetime, got {type(data)}"
+        cast(QtWidgets.QDateTimeEdit, editor).setDateTime(to_qt_datetime(data))
 
     # pylint: disable=no-self-use
     def setModelData(
@@ -152,7 +156,7 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
         assert isinstance(editor, QtWidgets.QDateTimeEdit)
         model.setData(
             index,
-            qt_to_isoformat(cast(QDateTimeEdit, editor).dateTime()),
+            from_qt_datetime(cast(QDateTimeEdit, editor).dateTime()),
             QtCore.Qt.EditRole,
         )
 
