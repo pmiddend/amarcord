@@ -3,9 +3,9 @@ import getpass
 import logging
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, Final, List, Optional, Union, cast
 
-from PyQt5.QtCore import QModelIndex, QUrl, Qt, pyqtSignal
+from PyQt5.QtCore import QModelIndex, QTimer, QUrl, Qt, pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent, QDesktopServices
 from PyQt5.QtWidgets import (
     QAbstractItemView,
@@ -55,6 +55,7 @@ from amarcord.util import str_to_int
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
 NEW_SAMPLE_HEADLINE = "New sample"
+AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +287,9 @@ class Samples(QWidget):
         with self._db.connect() as conn:
             self._reload_and_fill_samples(conn)
 
+        self._update_timer = QTimer(self)
+        self._update_timer.timeout.connect(self._slot_refresh_with_conn)
+
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         with self._db.connect() as conn:
             logger.info("Setting attributo %s to %s", attributo, value)
@@ -296,15 +300,26 @@ class Samples(QWidget):
             #         conn, self._current_sample.id, attributo, value
             #     )
 
+    def _slot_refresh_with_conn(self) -> None:
+        with self._db.connect() as conn:
+            self._slot_refresh(conn)
+
     def _slot_refresh(self, conn: Connection) -> None:
-        self._reload_and_fill_samples(conn)
         # FIXME: What if the current sample was deleted?
         # FIXME: Reload attributes other than attributi
         self._attributi_table.data_changed(
-            [x for x in self._samples if x.id == self._current_sample.id][0].attributi,
+            self._current_sample.attributi,
             self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
             sample_ids=[],
         )
+
+        self._reload_and_fill_samples(conn)
+
+    def hideEvent(self, e) -> None:
+        self._update_timer.stop()
+
+    def showEvent(self, e) -> None:
+        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _display_micrograph(self) -> None:
         assert self._current_sample.micrograph is not None
@@ -558,7 +573,7 @@ class Samples(QWidget):
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._sample_table.clear()
         attributi_headers = [
-            k.description for k in self._attributi_table.metadata.values()
+            k.pretty_id() for k in self._attributi_table.metadata.values()
         ]
         headers = [
             "ID",
