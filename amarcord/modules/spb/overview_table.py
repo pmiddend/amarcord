@@ -12,7 +12,11 @@ from amarcord.db.attributi import (
     pretty_print_attributo,
     sortable_attributo,
 )
-from amarcord.db.rich_attributo_type import PropertyDouble, PropertyInt
+from amarcord.db.rich_attributo_type import (
+    PropertyDouble,
+    PropertyDuration,
+    PropertyInt,
+)
 from amarcord.db.db import Connection, DB, OverviewAttributi, overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
@@ -274,7 +278,8 @@ class OverviewTable(QWidget):
         if column.attributo.rich_property_type is None:
             return
         if not isinstance(
-            column.attributo.rich_property_type, (PropertyInt, PropertyDouble)
+            column.attributo.rich_property_type,
+            (PropertyInt, PropertyDouble, PropertyDuration),
         ):
             return
         menu = QtWidgets.QMenu(self)

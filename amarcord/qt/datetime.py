@@ -32,11 +32,13 @@ natural_delta_parser = Lark(
     r"""
 start: atom ("," atom)*
 atom: NUMBER delta_keyword
-delta_keyword: DAYS | HOURS | MINUTES
+delta_keyword: DAYS | HOURS | MINUTES | MILLISECONDS | SECONDS
 
 DAYS : /days?/
 HOURS : /hours?/
 MINUTES : /minutes?/
+MILLISECONDS : /milliseconds?/
+SECONDS : /seconds?/
 
 %import common.NUMBER    -> NUMBER
 %ignore " "
@@ -57,6 +59,8 @@ def parse_natural_delta(s: str) -> Union[None, str, datetime.timedelta]:
         days: Optional[int] = None
         hours: Optional[int] = None
         minutes: Optional[int] = None
+        seconds: Optional[int] = None
+        milliseconds: Optional[int] = None
         for atom_pair in atoms:
             assert isinstance(atom_pair, Tree)
             atom_value = atom_pair.children[0]
@@ -77,12 +81,22 @@ def parse_natural_delta(s: str) -> Union[None, str, datetime.timedelta]:
                 if minutes is not None:
                     return None
                 minutes = int(atom_value.value)
+            elif keyword.children[0].type == "SECONDS":
+                if seconds is not None:
+                    return None
+                seconds = int(atom_value.value)
+            elif keyword.children[0].type == "MILLISECONDS":
+                if milliseconds is not None:
+                    return None
+                milliseconds = int(atom_value.value)
             else:
                 return None
         return datetime.timedelta(
             days=days if days is not None else 0,
             hours=hours if hours is not None else 0,
             minutes=minutes if minutes is not None else 0,
+            seconds=seconds if seconds is not None else 0,
+            milliseconds=milliseconds if milliseconds is not None else 0,
         )
     except le.UnexpectedEOF:
         return s
@@ -96,6 +110,8 @@ def print_natural_delta(td: datetime.timedelta) -> str:
 
     hours = td.seconds // (60 * 60)
     minutes = (td.seconds % (60 * 60)) // 60
+    seconds = td.seconds % 60
+    milliseconds = td.microseconds // 1000
     parts: List[str] = []
     if td.days > 0:
         parts.append(maybe_pluralize(td.days, "day"))
@@ -103,4 +119,8 @@ def print_natural_delta(td: datetime.timedelta) -> str:
         parts.append(maybe_pluralize(hours, "hour"))
     if minutes > 0:
         parts.append(maybe_pluralize(minutes, "minute"))
+    if seconds > 0:
+        parts.append(maybe_pluralize(seconds, "second"))
+    if milliseconds > 0:
+        parts.append(maybe_pluralize(milliseconds, "millisecond"))
     return ", ".join(parts)
