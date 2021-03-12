@@ -83,7 +83,6 @@ class OverviewTable(QWidget):
                 self._create_declarative_data(),
                 parent=None,
             )
-            self._table_view.setSortingEnabled(True)
 
         log_output = QtWidgets.QPlainTextEdit()
         log_output.setReadOnly(True)
@@ -183,7 +182,10 @@ class OverviewTable(QWidget):
                     editable=False,
                     header_callback=partial(self._header_menu_callback, c),
                     sort_click_callback=partial(self._sort_clicked, c),
-                    sorted_by=self._sort_data[1] if self._sort_data[0] == c else None,
+                    sorted_by=self._sort_data[1]
+                    if self._sort_data[0].table == c.table
+                    and self._sort_data[0].attributo.name == c.attributo.name == c
+                    else None,
                 )
                 for c in self._visible_columns
             ],
