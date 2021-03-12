@@ -18,6 +18,7 @@ from amarcord.db.rich_attributo_type import (
     PropertyDouble,
     PropertyDuration,
     PropertyInt,
+    PropertySample,
     PropertyString,
     PropertyTags,
 )
@@ -38,7 +39,7 @@ def _convert_attributo(
 
     if v is None:
         return None
-    if isinstance(attributo_type.rich_property_type, PropertyInt):
+    if isinstance(attributo_type.rich_property_type, (PropertyInt, PropertySample)):
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'

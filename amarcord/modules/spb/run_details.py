@@ -1,17 +1,20 @@
 import logging
-from typing import Any, Final, Optional, cast
+from typing import Any, Dict, Final, Optional, cast
 
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
 
+from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.comment import DBComment
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection, DB, DBRun, RunNotFound
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.rich_attributo_type import PropertySample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
@@ -37,6 +40,13 @@ class RunDetails(QWidget):
         self, context: Context, tables: DBTables, proposal_id: ProposalId
     ) -> None:
         super().__init__()
+
+        self._filter_fields = {
+            tables.attributo_run_comments,
+            tables.attributo_run_modified,
+            tables.attributo_run_proposal_id,
+            tables.attributo_run_id,
+        }
 
         self._proposal_id = proposal_id
         self._context = context
@@ -87,7 +97,7 @@ class RunDetails(QWidget):
                     sample_ids=self._db.retrieve_sample_ids(conn),
                     run=self._db.retrieve_run(conn, max(new_run_ids)),
                     karabo=self._db.retrieve_karabo(conn, max(new_run_ids)),
-                    runs_metadata=self._db.run_attributi(conn),
+                    runs_metadata=self._build_runs_metadata(conn),
                 )
                 self._inner.current_run_changed.connect(self._slot_current_run_changed)
                 self._inner.comment_add.connect(self._slot_add_comment)
@@ -98,6 +108,19 @@ class RunDetails(QWidget):
                 self._inner.new_attributo.connect(self.new_attributo.emit)
                 self._inner.manual_new_run.connect(self._slot_manual_new_run)
                 self._root_layout.addWidget(self._inner)
+
+    def _build_runs_metadata(self, conn: Connection) -> Dict[AttributoId, DBAttributo]:
+        md = self._db.run_attributi(conn)
+        result: Dict[AttributoId, DBAttributo] = {
+            k: v for k, v in md.items() if k not in self._filter_fields
+        }
+        result[self._db.tables.attributo_run_sample_id] = DBAttributo(
+            self._db.tables.attributo_run_sample_id,
+            "Sample ID",
+            AssociatedTable.RUN,
+            PropertySample(),
+        )
+        return result
 
     def _remove_root_items(self):
         while True:
@@ -177,7 +200,7 @@ class RunDetails(QWidget):
                 else self._db.retrieve_karabo(conn, new_run_id),
                 ids,
                 self._db.retrieve_sample_ids(conn),
-                self._db.run_attributi(conn),
+                self._build_runs_metadata(conn),
             )
         except RunNotFound:
             if ids:

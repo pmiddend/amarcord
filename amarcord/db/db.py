@@ -311,7 +311,7 @@ class DB:
             raise RunNotFound()
         run_meta = run_rows[0]
         return DBRun(
-            run_meta["attributi"],
+            RawAttributiMap(run_meta["attributi"]),
             run_meta["id"],
             run_meta["sample_id"],
             run_meta["proposal_id"],
@@ -626,6 +626,7 @@ class DB:
                 micrograph=t.micrograph,
                 protocol=t.protocol,
                 attributi=t.attributi.to_json() if t.attributi is not None else None,
+                modified=datetime.datetime.utcnow(),
             )
             .where(self.tables.sample.c.id == t.id)
         )

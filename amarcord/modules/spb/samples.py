@@ -449,7 +449,13 @@ class Samples(QWidget):
 
     def _edit_sample(self) -> None:
         with self._db.connect() as conn:
-            self._db.edit_sample(conn, self._current_sample)
+            self._db.edit_sample(
+                conn,
+                replace(
+                    self._current_sample,
+                    attributi=self._attributi_table.attributi.to_raw(),
+                ),
+            )
             self._log_widget.setText("Sample successfully edited!")
             self._reload_and_fill_samples()
 

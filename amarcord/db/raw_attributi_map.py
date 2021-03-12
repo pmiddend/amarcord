@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Dict, ItemsView, Optional
 
@@ -28,6 +29,9 @@ class RawAttributiMap:
 
     def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
+
+    def copy(self) -> "RawAttributiMap":
+        return RawAttributiMap(deepcopy(self._sources))  # type: ignore
 
     def items(self) -> ItemsView[Source, JSONDict]:
         return self._sources.items()

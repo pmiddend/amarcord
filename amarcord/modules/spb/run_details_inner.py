@@ -5,11 +5,13 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QTimer, QVariant, pyqtSignal
 from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
 
-from amarcord.db.comment import DBComment
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.comment import DBComment
+from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import DBRun
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
+from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.tables import DBTables
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
@@ -118,7 +120,7 @@ class RunDetailsInner(QtWidgets.QWidget):
         additional_data_column = QtWidgets.QGroupBox("Metadata")
 
         self._attributi_table = AttributiTable(
-            self.run.attributi,
+            self._augmented_attributi(),
             self.runs_metadata,
             self.sample_ids,
             lambda prop, value: self.attributo_change.emit(prop, value),
@@ -177,6 +179,13 @@ class RunDetailsInner(QtWidgets.QWidget):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._timed_refresh)
 
+    def _augmented_attributi(self) -> RawAttributiMap:
+        copied = self.run.attributi.copy()
+        copied.set_single_manual(
+            self.tables.attributo_run_sample_id, self.run.sample_id
+        )
+        return copied
+
     def hideEvent(self, e) -> None:
         self._update_timer.stop()
 
@@ -205,7 +214,9 @@ class RunDetailsInner(QtWidgets.QWidget):
     ) -> None:
         self.runs_metadata = new_runs_metadata
         self._attributi_table.data_changed(
-            self.run.attributi, self.runs_metadata, self.sample_ids
+            self._augmented_attributi(),
+            self.runs_metadata,
+            self.sample_ids,
         )
 
     def run_changed(
@@ -245,7 +256,7 @@ class RunDetailsInner(QtWidgets.QWidget):
 
         if run_was_modified or metadata_was_modified or sample_ids_was_modified:
             self._attributi_table.data_changed(
-                self.run.attributi,
+                self._augmented_attributi(),
                 self.runs_metadata,
                 self.sample_ids,
             )
