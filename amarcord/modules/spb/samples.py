@@ -270,6 +270,7 @@ class Samples(QWidget):
             attributo_button.clicked.connect(self.new_attributo.emit)
             metadata_wrapper_layout.addWidget(attributo_button)
             right_form_layout.addWidget(metadata_wrapper)
+            self._samples: List[DBSample] = []
 
         self._submit_widget = QWidget()
         self._submit_layout = QHBoxLayout()
@@ -282,8 +283,8 @@ class Samples(QWidget):
         self._attributo_manual_changes: Dict[AttributoId, Any] = {}
         right_form_layout.addWidget(self._submit_widget)
 
-        self._samples: List[DBSample] = []
-        self._reload_and_fill_samples()
+        with self._db.connect() as conn:
+            self._reload_and_fill_samples(conn)
 
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         with self._db.connect() as conn:
@@ -296,7 +297,7 @@ class Samples(QWidget):
             #     )
 
     def _slot_refresh(self, conn: Connection) -> None:
-        self._reload_and_fill_samples()
+        self._reload_and_fill_samples(conn)
         # FIXME: What if the current sample was deleted?
         # FIXME: Reload attributes other than attributi
         self._attributi_table.data_changed(
@@ -356,7 +357,7 @@ class Samples(QWidget):
             with self._db.connect() as conn:
                 self._db.delete_sample(conn, sample_id)
                 self._log_widget.setText(f"Sample “{sample_id}” deleted!")
-                self._reload_and_fill_samples()
+                self._reload_and_fill_samples(conn)
                 if (
                     self._current_sample.attributi.select_int_unsafe(AttributoId("id"))
                     == sample_id
@@ -445,7 +446,7 @@ class Samples(QWidget):
             )
             self._reset_input_fields()
             self._log_widget.setText("Sample successfully added!")
-            self._reload_and_fill_samples()
+            self._reload_and_fill_samples(conn)
 
     def _edit_sample(self) -> None:
         with self._db.connect() as conn:
@@ -457,7 +458,7 @@ class Samples(QWidget):
                 ),
             )
             self._log_widget.setText("Sample successfully edited!")
-            self._reload_and_fill_samples()
+            self._reload_and_fill_samples(conn)
 
     def _reset_input_fields(self):
         self._creator_edit.setText("")
@@ -542,20 +543,18 @@ class Samples(QWidget):
         self._current_sample = replace(self._current_sample, name=new_name)
         self._reset_button()
 
-    def _reload_and_fill_samples(self, conn: Optional[Connection] = None) -> None:
-        if conn is not None:
-            self._samples = self._db.retrieve_samples(conn)
-            self._targets = self._db.retrieve_targets(conn)
-        else:
-            with self._db.connect() as conn_:
-                self._samples = self._db.retrieve_samples(conn_)
-                self._targets = self._db.retrieve_targets(conn_)
+    def _reload_and_fill_samples(self, conn: Connection) -> None:
+        self._samples = self._db.retrieve_samples(conn)
+        self._targets = self._db.retrieve_targets(conn)
 
         self._target_id_edit.reset_items(
             [(s.short_name, cast(int, s.id)) for s in self._targets]
         )
         if self._target_id_edit.current_value() is None and self._targets:
             self._target_id_edit.set_current_value(cast(int, self._targets[0].id))
+        self._fill_table()
+
+    def _fill_table(self):
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._sample_table.clear()
         attributi_headers = [
@@ -576,7 +575,6 @@ class Samples(QWidget):
         self._sample_table.setRowCount(len(self._samples))
         self._sample_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._sample_table.verticalHeader().hide()
-
         for row, sample in enumerate(self._samples):
             built_in_columns = (
                 str(sample.id),
@@ -590,7 +588,10 @@ class Samples(QWidget):
                 sample.creator,
                 sample.crystallization_method,
                 ", ".join(sample.filters) if sample.filters is not None else "",
-                ", ".join(sample.compounds if sample is not None else []) if sample.compounds is not None else "",  # type: ignore
+                ", ".join(sample.compounds if sample is not None else [])
+                if sample.compounds is not None
+                else "",
+                # type: ignore
             )
             for col, column_value in enumerate(built_in_columns):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore
@@ -611,5 +612,4 @@ class Samples(QWidget):
                     ),
                 )
                 i += 1
-
         self._sample_table.resizeColumnsToContents()

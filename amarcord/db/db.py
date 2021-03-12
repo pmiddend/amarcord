@@ -403,11 +403,12 @@ class DB:
                 self.tables.attributo.c.json_schema,
                 self.tables.attributo.c.associated_table,
             ]
-        )
+        ).order_by(self.tables.attributo.c.associated_table)
+
         if filter_table is not None:
-            select_stmt = select_stmt.order_by(
-                self.tables.attributo.c.associated_table
-            ).where(self.tables.attributo.c.associated_table == filter_table)
+            select_stmt = select_stmt.where(
+                self.tables.attributo.c.associated_table == filter_table
+            )
 
         result = {
             table: {

@@ -111,7 +111,7 @@ def schema_to_property_type(json_schema: JSONDict) -> RichAttributoType:
 
 def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
     if isinstance(rp, PropertyInt):
-        result_int: Dict[str, JSONValue] = {"type": "number"}
+        result_int: Dict[str, JSONValue] = {"type": "integer"}
         if rp.range is not None:
             result_int["minimum"] = rp.range[0]
             result_int["maximum"] = rp.range[1]
