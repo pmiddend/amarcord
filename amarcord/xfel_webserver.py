@@ -19,6 +19,7 @@ from amarcord.db.db import (
 )
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.proposal_id import ProposalId
+from amarcord.db.rich_attributo_type import PropertyComments
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode, DBContext

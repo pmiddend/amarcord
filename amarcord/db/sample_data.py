@@ -169,7 +169,11 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                     {
                         "name": "repetition_rate",
                         "description": "Repetition Rate",
-                        "json_schema": {"type": "number", "suffix": "MHz"},
+                        "json_schema": {
+                            "type": "number",
+                            "suffix": "MHz",
+                            "minimumExclusive": 0,
+                        },
                         "associated_table": AssociatedTable.RUN,
                     },
                     {

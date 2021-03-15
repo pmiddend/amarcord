@@ -145,6 +145,19 @@ def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
         return {"type": "string", "format": "duration"}
     if isinstance(rp, PropertyTags):
         return {"type": "array", "items": {"type": "string"}}
+    if isinstance(rp, PropertyComments):
+        return {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "text": {"type": "string"},
+                    "created": {"type": "string", "format": "date-time"},
+                    "author": {"type": "string"},
+                },
+            },
+        }
     raise Exception(f"invalid property type {type(rp)}")
 
 

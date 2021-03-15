@@ -6,23 +6,34 @@ import App.Comment (Comment)
 import App.RunScalar (RunScalar(..), runScalarInt)
 import App.RunValue (RunValue, _Comments, runValueScalar)
 import Data.Argonaut (class DecodeJson, Json, JsonDecodeError, decodeJson)
+import Data.Array (mapMaybe)
 import Data.Either (Either)
 import Data.Lens (Traversal', traversed)
 import Data.Lens.Index (ix)
 import Data.Lens.Iso.Newtype (_Newtype)
-import Data.List (toUnfoldable)
-import Data.Map (Map, insert, lookup, values)
 import Data.Maybe (Maybe, fromMaybe)
 import Data.Newtype (class Newtype)
-import Foreign.Object (Object, foldM)
+import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
+import Foreign.Object (Object, foldM, foldMap, lookup, toUnfoldable)
+
+type RunAttributi = Object (Object RunValue)
 
 type Run
   = { id :: Int
     , sample_id :: Maybe Int
     , modified :: String
     , comments :: Array Comment
-    , attributi :: Object (Object RunValue)
+    , attributi :: RunAttributi
     }
+
+_attributi :: Lens' Run 
+
+type Source = String
+
+locateAttributo :: String -> RunAttributi -> Array (Tuple Source RunValue)
+locateAttributo attributoName = mapMaybe (traverse (lookup attributoName)) <<<  toUnfoldable
+
 
 -- derive instance newtypeRun :: Newtype Run _
 

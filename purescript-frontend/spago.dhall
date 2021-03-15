@@ -5,6 +5,7 @@
   , "argonaut"
   , "console"
   , "effect"
+  , "formatters"
   , "halogen"
   , "halogen-css"
   , "numbers"

@@ -1,12 +1,15 @@
 module App.Logging where
 
 import Prelude
-
+import Data.Formatter.DateTime (FormatterCommand(..), format)
+import Data.List (List(..), (:))
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Console as Console
 import Effect.Now (nowDateTime)
 
-data LogLevel = Info | Error
+data LogLevel
+  = Info
+  | Error
 
 instance showLogLevel :: Show LogLevel where
   show Info = "INFO"
@@ -15,5 +18,6 @@ instance showLogLevel :: Show LogLevel where
 logRaw :: forall m. MonadEffect m => LogLevel -> String -> m Unit
 logRaw level m = do
   dt <- liftEffect nowDateTime
-  liftEffect $ Console.log $ "[" <> show level <> "] " <> (show dt) <> ": " <> m
-
+  let
+    dtFormatted = format (Hours24 : Placeholder ":" : MinutesTwoDigits : Placeholder ":" : SecondsTwoDigits : Placeholder ":" : Milliseconds : Nil) dt
+  liftEffect $ Console.log $ "[" <> show level <> "] " <> dtFormatted <> ": " <> m

@@ -10,7 +10,7 @@ import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
 import App.Env (Env)
 import App.Run (Run)
-import App.RunProperty (RunProperty)
+import App.Attributo (Attributo)
 import App.UnfinishedComment (UnfinishedComment)
 import Control.Monad.Reader (class MonadAsk, asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError, encodeJson)
@@ -60,11 +60,11 @@ type Comment = {
   , created :: String
   }
 
-type RunAttributiResponse
-  = { attributi :: Object (Object RunProperty)
+type AttributiResponse
+  = { attributi :: Array Attributo
     }
 
-retrieveRunAttributi :: AppMonad (Either String RunAttributiResponse)
+retrieveRunAttributi :: AppMonad (Either String AttributiResponse)
 retrieveRunAttributi = do
   baseUrl' <- asks (_.baseUrl)
   let

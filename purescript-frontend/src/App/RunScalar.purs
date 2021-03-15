@@ -10,12 +10,7 @@ data RunScalar
   | RunScalarString String
 
 derive instance eqRunScalar :: Eq RunScalar
-
-instance ordRunScalar :: Ord RunScalar where
-  compare (RunScalarNumber a) (RunScalarNumber b) = compare a b
-  compare (RunScalarInt a) (RunScalarInt b) = compare a b
-  compare (RunScalarString a) (RunScalarString b) = compare a b
-  compare _ _ = EQ
+derive instance ordRunScalar :: Ord RunScalar
 
 runScalarNumber :: RunScalar -> Maybe Number
 runScalarNumber (RunScalarNumber r) = Just r

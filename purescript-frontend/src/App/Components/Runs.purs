@@ -69,11 +69,8 @@ component = H.mkComponent { initialState: \_ -> 0, render: \_ -> HH.text "todo",
 --             }
 --     }
 
--- combineEithers :: forall a b c. Either a b -> Either a c -> Either a (Tuple b c)
--- combineEithers x' y' = Tuple <$> x' <*> y'
-
 -- fetchInitialData :: RunsRouteInput -> AppMonad (RemoteData String (Tuple RunsResponse RunPropertiesResponse))
--- fetchInitialData _ = fromEither <$> (combineEithers <$> retrieveRuns <*> retrieveRunProperties)
+-- fetchInitialData _ = fromEither <$> (fanout <$> retrieveRuns <*> retrieveRunProperties)
 
 -- resort :: RunsRouteInput -> Array Run -> Array Run
 -- resort by = sortBy (comparing (by.sortOrder) (runScalarProperty by.sort))
