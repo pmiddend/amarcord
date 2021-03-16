@@ -21,6 +21,11 @@ class PropertyString:
 
 
 @dataclass(frozen=True)
+class PropertyUserName:
+    pass
+
+
+@dataclass(frozen=True)
 class PropertyComments:
     pass
 
@@ -61,4 +66,5 @@ RichAttributoType = Union[
     PropertyComments,
     PropertyDateTime,
     PropertyDuration,
+    PropertyUserName,
 ]

@@ -25,6 +25,9 @@ from amarcord.db.attributi import (
 from amarcord.db.rich_attributo_type import (
     PropertyDouble,
     PropertyInt,
+    PropertyString,
+    PropertyTags,
+    PropertyUserName,
     RichAttributoType,
 )
 from amarcord.db.attributo_id import AttributoId
@@ -50,6 +53,7 @@ class TypePreset(Enum):
     DOUBLE = "number"
     TAGS = "list of tags"
     STRING = "string"
+    USER_NAME = "user name"
 
 
 def _fill_preset(w: QWidget, p: TypePreset, metadata: Dict[str, Any]) -> None:
@@ -317,6 +321,12 @@ class AttributiCrud(QWidget):
                 range=self._type_specific_metadata.get("range", None),
                 suffix=self._type_specific_metadata.get("suffix", None),
             )
+        if value == TypePreset.STRING:
+            return PropertyString()
+        if value == TypePreset.USER_NAME:
+            return PropertyUserName()
+        if value == TypePreset.TAGS:
+            return PropertyTags()
         raise Exception(f"unsupported type {value}")
 
     def _add_attributo(self) -> None:

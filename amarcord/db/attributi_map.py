@@ -21,6 +21,7 @@ from amarcord.db.rich_attributo_type import (
     PropertySample,
     PropertyString,
     PropertyTags,
+    PropertyUserName,
 )
 from amarcord.modules.json import JSONDict, JSONValue
 from amarcord.query_parser import Row
@@ -28,7 +29,7 @@ from amarcord.query_parser import Row
 AttributiMapImpl = Dict[Source, Dict[AttributoId, AttributoValue]]
 
 
-def _convert_attributo(
+def _convert_single_attributo_value_from_json(
     i: AttributoId, v: JSONValue, types: Dict[AttributoId, DBAttributo]
 ) -> AttributoValue:
     attributo_type = types.get(i, None)
@@ -84,8 +85,13 @@ def _convert_attributo(
         ), f'expected type str for choice attributo "{i}", got {type(v)}'
         # TODO: check if it's the correct choice here
         return v
+    if isinstance(attributo_type.rich_property_type, PropertyUserName):
+        assert isinstance(
+            v, str
+        ), f'expected type str for user name attributo "{i}", got {type(v)}'
+        return v
     raise Exception(
-        f"invalid property type for attributo {i}: {attributo_type.rich_property_type}"
+        f'invalid property type for attributo "{i}": {attributo_type.rich_property_type}'
     )
 
 
@@ -99,7 +105,9 @@ class AttributiMap:
         if raw_attributi is not None:
             for source, source_attributi in raw_attributi.items():
                 self._attributi[source] = {
-                    AttributoId(k): _convert_attributo(AttributoId(k), v, types)
+                    AttributoId(k): _convert_single_attributo_value_from_json(
+                        AttributoId(k), v, types
+                    )
                     for k, v in source_attributi.items()
                 }
 

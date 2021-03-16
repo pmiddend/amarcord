@@ -76,6 +76,7 @@ def _empty_sample():
             {
                 MANUAL_SOURCE_NAME: {
                     AttributoId("created"): datetime.datetime.utcnow().isoformat(),
+                    AttributoId("creator"): getpass.getuser(),
                 }
             }
         ),
@@ -158,12 +159,6 @@ class Samples(QWidget):
         )
         self._target_id_edit.item_selected.connect(self._target_id_change)
 
-        self._creator_edit = QLineEdit(getpass.getuser())
-        right_form_layout.addRow(
-            "Creator",
-            self._creator_edit,
-        )
-        self._creator_edit.textEdited.connect(self._creator_edit_change)
         self._crystallization_method_edit = QLineEdit()
         right_form_layout.addRow(
             "Crystallization Method",
@@ -407,7 +402,6 @@ class Samples(QWidget):
         sample_id = self._current_sample.id
         self._right_headline.setText(f"Edit sample “{sample_id}”")
         self._target_id_edit.set_current_value(self._current_sample.target_id)
-        self._creator_edit.setText(self._current_sample.creator)
         self._crystallization_method_edit.setText(
             self._current_sample.crystallization_method
         )
@@ -476,7 +470,6 @@ class Samples(QWidget):
             self._reload_and_fill_samples(conn)
 
     def _reset_input_fields(self):
-        self._creator_edit.setText("")
         self._crystallization_method_edit.setText("")
         self._crystal_shape_edit.set_value(None)
         self._filters_edit.set_value(None)
@@ -491,10 +484,6 @@ class Samples(QWidget):
 
     def _target_id_change(self, new_id: int) -> None:
         self._current_sample = replace(self._current_sample, target_id=new_id)
-        self._reset_button()
-
-    def _creator_edit_change(self, new_creator: str) -> None:
-        self._current_sample = replace(self._current_sample, creator=new_creator)
         self._reset_button()
 
     def _crystallization_method_edit_change(
@@ -580,7 +569,6 @@ class Samples(QWidget):
             "Incubation Time",
             "Crystal Shape",
             "Target",
-            "Creator",
             "Crystallization Method",
             "Filters",
             "Compounds",
@@ -600,7 +588,6 @@ class Samples(QWidget):
                 if sample.crystal_shape is not None
                 else "",
                 [t.short_name for t in self._targets if sample.target_id == t.id][0],
-                sample.creator,
                 sample.crystallization_method,
                 ", ".join(sample.filters) if sample.filters is not None else "",
                 ", ".join(sample.compounds if sample is not None else [])

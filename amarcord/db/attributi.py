@@ -16,6 +16,7 @@ from amarcord.db.rich_attributo_type import (
     PropertySample,
     PropertyString,
     PropertyTags,
+    PropertyUserName,
     RichAttributoType,
 )
 from amarcord.json_schema import (
@@ -53,6 +54,8 @@ def delegate_for_property_type(
     if isinstance(proptype, PropertyDuration):
         return DurationItemDelegate(parent)
     if isinstance(proptype, PropertyString):
+        return QtWidgets.QStyledItemDelegate(parent=parent)
+    if isinstance(proptype, PropertyUserName):
         return QtWidgets.QStyledItemDelegate(parent=parent)
     if isinstance(proptype, PropertyChoice):
         return ComboItemDelegate(values=proptype.values, parent=parent)
@@ -105,6 +108,8 @@ def schema_to_property_type(json_schema: JSONDict) -> RichAttributoType:
             return PropertyDateTime()
         if parsed_schema.format_ == JSONSchemaStringFormat.DURATION:
             return PropertyDuration()
+        if parsed_schema.format_ == JSONSchemaStringFormat.USER_NAME:
+            return PropertyUserName()
         return PropertyString()
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
@@ -135,6 +140,8 @@ def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
         return result_double
     if isinstance(rp, PropertyString):
         return {"type": "string"}
+    if isinstance(rp, PropertyUserName):
+        return {"type": "string", "format": "user-name"}
     if isinstance(rp, PropertySample):
         return {"type": "integer"}
     if isinstance(rp, PropertyChoice):
@@ -224,4 +231,6 @@ def attributo_type_to_string(attributo: DBAttributo) -> str:
         return "date and time"
     if isinstance(pt, PropertyDuration):
         return "duration"
+    if isinstance(pt, PropertyUserName):
+        return "user name"
     raise Exception(f"invalid property type {type(pt)}")
