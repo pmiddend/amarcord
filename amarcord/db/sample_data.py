@@ -139,6 +139,12 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "associated_table": AssociatedTable.SAMPLE,
                     },
                     {
+                        "name": "crystallization_method",
+                        "description": "Crystallization Method",
+                        "json_schema": {"type": "string"},
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
                         "name": "crystal_shape",
                         "description": "Crystal Shape",
                         "json_schema": {

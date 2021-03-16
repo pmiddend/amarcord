@@ -51,7 +51,6 @@ class DBSample:
     target_id: int
     incubation_time: Optional[datetime.datetime]
     creator: str
-    crystallization_method: str
     compounds: Optional[List[int]]
     micrograph: Optional[str]
     protocol: Optional[str]
@@ -564,7 +563,6 @@ class DB:
                 tc.target_id,
                 tc.incubation_time,
                 tc.creator,
-                tc.crystallization_method,
                 tc.compounds,
                 tc.micrograph,
                 tc.protocol,
@@ -580,7 +578,6 @@ class DB:
                 target_id=row["target_id"],
                 incubation_time=row["incubation_time"],
                 creator=row["creator"],
-                crystallization_method=row["crystallization_method"],
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
                 protocol=row["protocol"],
@@ -595,7 +592,6 @@ class DB:
                 target_id=t.target_id,
                 incubation_time=t.incubation_time,
                 creator=t.creator,
-                crystallization_method=t.crystallization_method,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
@@ -612,7 +608,6 @@ class DB:
                 target_id=t.target_id,
                 incubation_time=t.incubation_time,
                 creator=t.creator,
-                crystallization_method=t.crystallization_method,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
