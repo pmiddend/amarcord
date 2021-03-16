@@ -5,18 +5,18 @@ from typing import List, Optional, Tuple, TypeVar, cast
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtWidgets import QDateTimeEdit
 
-from amarcord.db.rich_attributo_type import (
-    PropertyChoice,
-    PropertyDateTime,
-    PropertyDouble,
-    PropertyDuration,
-    PropertyInt,
-    PropertyList,
-    PropertySample,
-    PropertyString,
-    PropertyTags,
-    PropertyUserName,
-    RichAttributoType,
+from amarcord.db.attributo_type import (
+    AttributoTypeChoice,
+    AttributoTypeDateTime,
+    AttributoTypeDouble,
+    AttributoTypeDuration,
+    AttributoTypeInt,
+    AttributoTypeList,
+    AttributoTypeSample,
+    AttributoTypeString,
+    AttributoTypeTags,
+    AttributoTypeUserName,
+    AttributoType,
 )
 from amarcord.qt.datetime import (
     from_qt_datetime,
@@ -250,7 +250,7 @@ class ListItemDelegate(QtWidgets.QStyledItemDelegate):
         self,
         min_length: Optional[int],
         max_length: Optional[int],
-        subtype: RichAttributoType,
+        subtype: AttributoType,
         parent: Optional[QtCore.QObject],
     ) -> None:
         super().__init__(parent)
@@ -264,7 +264,7 @@ class ListItemDelegate(QtWidgets.QStyledItemDelegate):
         _option: QtWidgets.QStyleOptionViewItem,
         _index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
-        if isinstance(self._subtype, PropertyString):
+        if isinstance(self._subtype, AttributoTypeString):
             return ValidatedLineEdit(
                 None,
                 lambda str_list: ", ".join(str(s) for s in str_list),  # type: ignore
@@ -272,7 +272,7 @@ class ListItemDelegate(QtWidgets.QStyledItemDelegate):
                 "list of strings, separated by commas",
                 parent,
             )
-        if isinstance(self._subtype, PropertyDouble):
+        if isinstance(self._subtype, AttributoTypeDouble):
             infix = (
                 f"list of numbers"
                 if self._min_length is None and self._max_length is None
@@ -437,33 +437,33 @@ class DurationItemDelegate(QtWidgets.QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
-def delegate_for_property_type(
-    proptype: RichAttributoType,
+def delegate_for_attributo_type(
+    proptype: AttributoType,
     sample_ids: List[int],
     parent: Optional[QtCore.QObject] = None,
 ) -> QtWidgets.QAbstractItemDelegate:
-    if isinstance(proptype, PropertyInt):
+    if isinstance(proptype, AttributoTypeInt):
         return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
-    if isinstance(proptype, PropertyDouble):
+    if isinstance(proptype, AttributoTypeDouble):
         return DoubleItemDelegate(proptype.range, proptype.suffix, parent)
-    if isinstance(proptype, PropertyList):
+    if isinstance(proptype, AttributoTypeList):
         return ListItemDelegate(
-            proptype.min_length, proptype.max_length, proptype.sub_property, parent
+            proptype.min_length, proptype.max_length, proptype.sub_type, parent
         )
-    if isinstance(proptype, PropertyDuration):
+    if isinstance(proptype, AttributoTypeDuration):
         return DurationItemDelegate(parent)
-    if isinstance(proptype, PropertyString):
+    if isinstance(proptype, AttributoTypeString):
         return QtWidgets.QStyledItemDelegate(parent=parent)
-    if isinstance(proptype, PropertyUserName):
+    if isinstance(proptype, AttributoTypeUserName):
         return QtWidgets.QStyledItemDelegate(parent=parent)
-    if isinstance(proptype, PropertyChoice):
+    if isinstance(proptype, AttributoTypeChoice):
         return ComboItemDelegate(values=proptype.values, parent=parent)
-    if isinstance(proptype, PropertySample):
+    if isinstance(proptype, AttributoTypeSample):
         return ComboItemDelegate(
             values=[(str(v), v) for v in sample_ids], parent=parent
         )
-    if isinstance(proptype, PropertyTags):
+    if isinstance(proptype, AttributoTypeTags):
         return TagsItemDelegate(available_tags=[], parent=parent)
-    if isinstance(proptype, PropertyDateTime):
+    if isinstance(proptype, AttributoTypeDateTime):
         return DateTimeItemDelegate(parent=parent)
     raise Exception(f"invalid property type {proptype}")

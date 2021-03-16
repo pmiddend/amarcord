@@ -4,27 +4,27 @@ import pickle
 from dataclasses import dataclass
 from itertools import groupby
 from time import time
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, cast
 
 import sqlalchemy as sa
 from sqlalchemy import and_
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
-    property_type_to_schema,
-    schema_json_to_property_type,
+    attributo_type_to_schema,
+    schema_json_to_attributo_type,
 )
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import (
     AttributoId,
 )
+from amarcord.db.attributo_type import AttributoType
 from amarcord.db.comment import DBComment
 from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.rich_attributo_type import RichAttributoType
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import (
     DBTables,
@@ -410,7 +410,7 @@ class DB:
                 AttributoId(row[0]): DBAttributo(
                     name=AttributoId(row[0]),
                     description=row[1],
-                    rich_property_type=schema_json_to_property_type(json_schema=row[2]),
+                    attributo_type=schema_json_to_attributo_type(json_schema=row[2]),
                     associated_table=table,
                 )
                 for row in rows
@@ -496,14 +496,14 @@ class DB:
         name: str,
         description: str,
         associated_table: AssociatedTable,
-        prop_type: RichAttributoType,
+        prop_type: AttributoType,
     ) -> None:
         conn.execute(
             self.tables.attributo.insert().values(
                 name=name,
                 description=description,
                 associated_table=associated_table,
-                json_schema=property_type_to_schema(prop_type),
+                json_schema=attributo_type_to_schema(prop_type),
             )
         )
 
@@ -584,7 +584,6 @@ class DB:
         conn.execute(
             sa.insert(self.tables.sample).values(
                 target_id=t.target_id,
-                creator=t.creator,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
@@ -599,7 +598,6 @@ class DB:
             sa.update(self.tables.sample)
             .values(
                 target_id=t.target_id,
-                creator=t.creator,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,

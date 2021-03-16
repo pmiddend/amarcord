@@ -12,12 +12,12 @@ from amarcord.db.attributi import (
     attributo_type_to_string,
     pretty_print_attributo,
 )
-from amarcord.db.table_delegates import delegate_for_property_type
+from amarcord.db.table_delegates import delegate_for_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.rich_attributo_type import PropertyComments, RichAttributoType
+from amarcord.db.attributo_type import AttributoTypeComments, AttributoType
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
@@ -31,9 +31,9 @@ class _MetadataColumn(Enum):
     VALUE = 1
 
 
-def _is_editable(attributo_type: Optional[RichAttributoType]) -> bool:
+def _is_editable(attributo_type: Optional[AttributoType]) -> bool:
     return attributo_type is not None and not isinstance(
-        attributo_type, PropertyComments
+        attributo_type, AttributoTypeComments
     )
 
 
@@ -86,9 +86,7 @@ class AttributiTable(QtWidgets.QWidget):
                 pretty_print_attributo(self.metadata[attributo.name], selected.value)
                 if selected is not None
                 else "",
-                attributo_type_to_string(
-                    self.metadata[attributo.name].rich_property_type
-                ),
+                attributo_type_to_string(self.metadata[attributo.name].attributo_type),
             ],
             edit_roles=[None, selected.value if selected is not None else None, None],
             background_roles={
@@ -107,7 +105,7 @@ class AttributiTable(QtWidgets.QWidget):
 
     def _update_table(self) -> None:
         display_attributi: List[DBAttributo] = sorted(
-            [k for k in self.metadata.values() if _is_editable(k.rich_property_type)],
+            [k for k in self.metadata.values() if _is_editable(k.attributo_type)],
             key=lambda x: x.name,
         )
 
@@ -116,8 +114,8 @@ class AttributiTable(QtWidgets.QWidget):
                 rows=[self._build_row(attributo) for attributo in display_attributi],
                 columns=self._columns,
                 row_delegates={
-                    idx: delegate_for_property_type(
-                        md.rich_property_type,
+                    idx: delegate_for_attributo_type(
+                        md.attributo_type,
                         self._sample_ids,
                     )
                     for (idx, md) in enumerate(display_attributi)

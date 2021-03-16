@@ -22,13 +22,13 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     attributo_type_to_string,
 )
-from amarcord.db.rich_attributo_type import (
-    PropertyDouble,
-    PropertyInt,
-    PropertyString,
-    PropertyTags,
-    PropertyUserName,
-    RichAttributoType,
+from amarcord.db.attributo_type import (
+    AttributoTypeDouble,
+    AttributoTypeInt,
+    AttributoTypeString,
+    AttributoTypeTags,
+    AttributoTypeUserName,
+    AttributoType,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import Connection, DB
@@ -215,7 +215,7 @@ class AttributiCrud(QWidget):
                     display_roles=[
                         a.attributo.name,
                         a.attributo.description,
-                        attributo_type_to_string(a.attributo.rich_property_type),
+                        attributo_type_to_string(a.attributo.attributo_type),
                         a.table.pretty_id(),
                     ],
                     edit_roles=[None, None, None, None],
@@ -312,21 +312,21 @@ class AttributiCrud(QWidget):
             if result is None:
                 break
 
-    def _generate_rich_type(self) -> RichAttributoType:
+    def _generate_rich_type(self) -> AttributoType:
         value = self._type_selection.current_value()
         if value == TypePreset.INT:
-            return PropertyInt()
+            return AttributoTypeInt()
         if value == TypePreset.DOUBLE:
-            return PropertyDouble(
+            return AttributoTypeDouble(
                 range=self._type_specific_metadata.get("range", None),
                 suffix=self._type_specific_metadata.get("suffix", None),
             )
         if value == TypePreset.STRING:
-            return PropertyString()
+            return AttributoTypeString()
         if value == TypePreset.USER_NAME:
-            return PropertyUserName()
+            return AttributoTypeUserName()
         if value == TypePreset.TAGS:
-            return PropertyTags()
+            return AttributoTypeTags()
         raise Exception(f"unsupported type {value}")
 
     def _add_attributo(self) -> None:

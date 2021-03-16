@@ -14,7 +14,7 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.rich_attributo_type import PropertySample
+from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
@@ -118,7 +118,7 @@ class RunDetails(QWidget):
             self._db.tables.attributo_run_sample_id,
             "Sample ID",
             AssociatedTable.RUN,
-            PropertySample(),
+            AttributoTypeSample(),
         )
         return result
 

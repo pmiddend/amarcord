@@ -10,7 +10,7 @@ from werkzeug.exceptions import HTTPException
 from amarcord.config import load_config
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
-    property_type_to_schema,
+    attributo_type_to_schema,
 )
 from amarcord.db.comment import DBComment
 from amarcord.db.db import (
@@ -19,7 +19,7 @@ from amarcord.db.db import (
 )
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.proposal_id import ProposalId
-from amarcord.db.rich_attributo_type import PropertyComments
+from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode, DBContext
@@ -90,8 +90,8 @@ def _convert_metadata(v: DBAttributo) -> JSONDict:
     return {
         "name": v.name,
         "description": v.description,
-        "type_schema": property_type_to_schema(v.rich_property_type)
-        if v.rich_property_type is not None
+        "type_schema": attributo_type_to_schema(v.attributo_type)
+        if v.attributo_type is not None
         else None,
     }
 

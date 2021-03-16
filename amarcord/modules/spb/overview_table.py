@@ -12,10 +12,10 @@ from amarcord.db.attributi import (
     pretty_print_attributo,
     sortable_attributo,
 )
-from amarcord.db.rich_attributo_type import (
-    PropertyDouble,
-    PropertyDuration,
-    PropertyInt,
+from amarcord.db.attributo_type import (
+    AttributoTypeDouble,
+    AttributoTypeDuration,
+    AttributoTypeInt,
 )
 from amarcord.db.db import Connection, DB, OverviewAttributi, overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
@@ -277,11 +277,11 @@ class OverviewTable(QWidget):
         self._table_view.set_data(self._create_declarative_data())
 
     def _header_menu_callback(self, column: TabledAttributo, pos: QPoint) -> None:
-        if column.attributo.rich_property_type is None:
+        if column.attributo.attributo_type is None:
             return
         if not isinstance(
-            column.attributo.rich_property_type,
-            (PropertyInt, PropertyDouble, PropertyDuration),
+            column.attributo.attributo_type,
+            (AttributoTypeInt, AttributoTypeDouble, AttributoTypeDuration),
         ):
             return
         menu = QtWidgets.QMenu(self)

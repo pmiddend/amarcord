@@ -5,74 +5,74 @@ from amarcord.numeric_range import NumericRange
 
 
 @dataclass(frozen=True)
-class PropertyInt:
+class AttributoTypeInt:
     nonNegative: bool = False
     range: Optional[Tuple[int, int]] = None
 
 
 @dataclass(frozen=True)
-class PropertyDuration:
+class AttributoTypeDuration:
     pass
 
 
 @dataclass(frozen=True)
-class PropertyList:
-    sub_property: "RichAttributoType"
+class AttributoTypeList:
+    sub_type: "AttributoType"
     min_length: Optional[int]
     max_length: Optional[int]
 
 
 @dataclass(frozen=True)
-class PropertyString:
+class AttributoTypeString:
     pass
 
 
 @dataclass(frozen=True)
-class PropertyUserName:
+class AttributoTypeUserName:
     pass
 
 
 @dataclass(frozen=True)
-class PropertyComments:
+class AttributoTypeComments:
     pass
 
 
 @dataclass(frozen=True)
-class PropertyDouble:
+class AttributoTypeDouble:
     range: Optional[NumericRange] = None
     suffix: Optional[str] = None
 
 
 @dataclass(frozen=True)
-class PropertyTags:
+class AttributoTypeTags:
     pass
 
 
 @dataclass(frozen=True)
-class PropertySample:
+class AttributoTypeSample:
     pass
 
 
 @dataclass(frozen=True)
-class PropertyDateTime:
+class AttributoTypeDateTime:
     pass
 
 
 @dataclass(frozen=True)
-class PropertyChoice:
+class AttributoTypeChoice:
     values: List[Tuple[str, Any]]
 
 
-RichAttributoType = Union[
-    PropertyInt,
-    PropertyChoice,
-    PropertyDouble,
-    PropertyTags,
-    PropertySample,
-    PropertyString,
-    PropertyComments,
-    PropertyDateTime,
-    PropertyDuration,
-    PropertyUserName,
-    PropertyList,
+AttributoType = Union[
+    AttributoTypeInt,
+    AttributoTypeChoice,
+    AttributoTypeDouble,
+    AttributoTypeTags,
+    AttributoTypeSample,
+    AttributoTypeString,
+    AttributoTypeComments,
+    AttributoTypeDateTime,
+    AttributoTypeDuration,
+    AttributoTypeUserName,
+    AttributoTypeList,
 ]

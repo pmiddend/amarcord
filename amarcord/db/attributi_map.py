@@ -11,18 +11,18 @@ from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.raw_attributi_map import RawAttributiMap, Source
-from amarcord.db.rich_attributo_type import (
-    PropertyChoice,
-    PropertyComments,
-    PropertyDateTime,
-    PropertyDouble,
-    PropertyDuration,
-    PropertyInt,
-    PropertyList,
-    PropertySample,
-    PropertyString,
-    PropertyTags,
-    PropertyUserName,
+from amarcord.db.attributo_type import (
+    AttributoTypeChoice,
+    AttributoTypeComments,
+    AttributoTypeDateTime,
+    AttributoTypeDouble,
+    AttributoTypeDuration,
+    AttributoTypeInt,
+    AttributoTypeList,
+    AttributoTypeSample,
+    AttributoTypeString,
+    AttributoTypeTags,
+    AttributoTypeUserName,
 )
 from amarcord.modules.json import JSONDict, JSONValue
 from amarcord.query_parser import Row
@@ -41,35 +41,37 @@ def _convert_single_attributo_value_from_json(
 
     if v is None:
         return None
-    if isinstance(attributo_type.rich_property_type, (PropertyInt, PropertySample)):
+    if isinstance(
+        attributo_type.attributo_type, (AttributoTypeInt, AttributoTypeSample)
+    ):
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
         return v
-    if isinstance(attributo_type.rich_property_type, PropertyString):
+    if isinstance(attributo_type.attributo_type, AttributoTypeString):
         assert isinstance(
             v, str
         ), f'expected type string for attributo "{i}", got {type(v)}'
         return v
-    if isinstance(attributo_type.rich_property_type, PropertyDouble):
+    if isinstance(attributo_type.attributo_type, AttributoTypeDouble):
         assert isinstance(
             v, (float, int)
         ), f'expected type float for attributo "{i}", got {type(v)}'
         # TODO: check if it's the correct double here (range!)
         return float(v)
-    if isinstance(attributo_type.rich_property_type, PropertyComments):
+    if isinstance(attributo_type.attributo_type, AttributoTypeComments):
         raise Exception(f"cannot deserialize comments from JSON for attributo {i}")
-    if isinstance(attributo_type.rich_property_type, PropertyDateTime):
+    if isinstance(attributo_type.attributo_type, AttributoTypeDateTime):
         assert isinstance(
             v, str
         ), f'expected type string for datetime attributo "{i}", got {type(v)}'
         return datetime.datetime.fromisoformat(v)
-    if isinstance(attributo_type.rich_property_type, PropertyDuration):
+    if isinstance(attributo_type.attributo_type, AttributoTypeDuration):
         assert isinstance(
             v, str
         ), f'expected type string for duration attributo "{i}", got {type(v)}'
         return parse_duration(v)
-    if isinstance(attributo_type.rich_property_type, PropertyTags):
+    if isinstance(attributo_type.attributo_type, AttributoTypeTags):
         assert isinstance(
             v, list
         ), f'expected type list for duration attributo "{i}", got {type(v)}'
@@ -80,18 +82,18 @@ def _convert_single_attributo_value_from_json(
             first, str
         ), f'expected type list of strings for duration attributo "{i}", got {type(first)}'
         return v
-    if isinstance(attributo_type.rich_property_type, PropertyChoice):
+    if isinstance(attributo_type.attributo_type, AttributoTypeChoice):
         assert isinstance(
             v, str
         ), f'expected type str for choice attributo "{i}", got {type(v)}'
         # TODO: check if it's the correct choice here
         return v
-    if isinstance(attributo_type.rich_property_type, PropertyUserName):
+    if isinstance(attributo_type.attributo_type, AttributoTypeUserName):
         assert isinstance(
             v, str
         ), f'expected type str for user name attributo "{i}", got {type(v)}'
         return v
-    if isinstance(attributo_type.rich_property_type, PropertyList):
+    if isinstance(attributo_type.attributo_type, AttributoTypeList):
         assert isinstance(
             v, list
         ), f'expected type list for list attributo "{i}", got {type(v)}'
@@ -100,7 +102,7 @@ def _convert_single_attributo_value_from_json(
         ), f"got a non-empty list of {type(v[0])}, we only support float, int for now"
         return v
     raise Exception(
-        f'invalid property type for attributo "{i}": {attributo_type.rich_property_type}'
+        f'invalid property type for attributo "{i}": {attributo_type.attributo_type}'
     )
 
 

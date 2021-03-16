@@ -6,11 +6,11 @@ from sqlalchemy import ForeignKey, func
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.rich_attributo_type import (
-    PropertyComments,
-    PropertyDateTime,
-    PropertyInt,
-    PropertySample,
+from amarcord.db.attributo_type import (
+    AttributoTypeComments,
+    AttributoTypeDateTime,
+    AttributoTypeInt,
+    AttributoTypeSample,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.modules.dbcontext import DBContext
@@ -130,13 +130,13 @@ class DBTables:
                     name=AttributoId("id"),
                     description="Sample ID",
                     associated_table=AssociatedTable.SAMPLE,
-                    rich_property_type=PropertyInt(),
+                    attributo_type=AttributoTypeInt(),
                 ),
                 AttributoId("created"): DBAttributo(
                     name=AttributoId("created"),
                     description="Created",
                     associated_table=AssociatedTable.SAMPLE,
-                    rich_property_type=PropertyDateTime(),
+                    attributo_type=AttributoTypeDateTime(),
                 ),
             },
             AssociatedTable.RUN: {
@@ -144,36 +144,36 @@ class DBTables:
                     name=self.attributo_run_id,
                     description="Run ID",
                     associated_table=AssociatedTable.RUN,
-                    rich_property_type=PropertyInt(),
+                    attributo_type=AttributoTypeInt(),
                 ),
                 self.attributo_run_comments: DBAttributo(
                     name=self.attributo_run_comments,
                     description="Comments",
                     associated_table=AssociatedTable.RUN,
-                    rich_property_type=PropertyComments(),
+                    attributo_type=AttributoTypeComments(),
                 ),
                 self.attributo_run_modified: DBAttributo(
                     name=self.attributo_run_modified,
                     description="Modified",
                     associated_table=AssociatedTable.RUN,
-                    rich_property_type=PropertyDateTime(),
+                    attributo_type=AttributoTypeDateTime(),
                 ),
                 self.attributo_run_sample_id: DBAttributo(
                     name=self.attributo_run_sample_id,
                     description="Sample ID",
                     associated_table=AssociatedTable.RUN,
-                    rich_property_type=PropertySample(),
+                    attributo_type=AttributoTypeSample(),
                 ),
                 self.attributo_run_proposal_id: DBAttributo(
                     name=self.attributo_run_proposal_id,
                     description="Proposal",
                     associated_table=AssociatedTable.RUN,
-                    rich_property_type=PropertyInt(),
+                    attributo_type=AttributoTypeInt(),
                 ),
             },
         }
-        self.property_karabo = AttributoId(self.run.c.karabo.name)
-        self.property_attributi = AttributoId(self.run.c.attributi.name)
+        self.attributo_karabo = AttributoId(self.run.c.karabo.name)
+        self.attributo_attributi = AttributoId(self.run.c.attributi.name)
 
 
 def create_tables(context: DBContext) -> DBTables:
