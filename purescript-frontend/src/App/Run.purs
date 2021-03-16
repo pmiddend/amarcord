@@ -8,11 +8,13 @@ import App.RunValue (RunValue, _Comments, runValueScalar)
 import Data.Argonaut (class DecodeJson, Json, JsonDecodeError, decodeJson)
 import Data.Array (mapMaybe)
 import Data.Either (Either)
-import Data.Lens (Traversal', traversed)
+import Data.Lens (Traversal', Lens', traversed)
 import Data.Lens.Index (ix)
 import Data.Lens.Iso.Newtype (_Newtype)
+import Data.Lens.Record (prop)
 import Data.Maybe (Maybe, fromMaybe)
 import Data.Newtype (class Newtype)
+import Data.Symbol (SProxy(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object, foldM, foldMap, lookup, toUnfoldable)
@@ -27,7 +29,8 @@ type Run
     , attributi :: RunAttributi
     }
 
-_attributi :: Lens' Run 
+_attributi :: Lens' Run RunAttributi
+_attributi = prop (SProxy :: SProxy "attributi")
 
 type Source = String
 

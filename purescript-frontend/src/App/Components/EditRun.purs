@@ -13,7 +13,7 @@ import App.HalogenUtils (classList, faIcon, makeRequestResult, singleClass)
 import App.JSONSchemaType (JSONSchemaType(..))
 import App.Logging (LogLevel(..))
 import App.NumericRange (NumericRange, prettyPrintRange)
-import App.Run (Run, Source, locateAttributo)
+import App.Run (Run, Source, _attributi, locateAttributo)
 import App.RunScalar (RunScalar(..))
 import App.RunValue (RunValue(..))
 import App.UnfinishedComment (UnfinishedComment, _author, _text, emptyUnfinishedComment)
@@ -22,6 +22,7 @@ import Data.Array ((:))
 import Data.Either (Either(..))
 import Data.Lens (Lens', set, use, (%=), (.=), (<>=), (^.))
 import Data.Lens.At (at)
+import Data.Lens.Index (ix)
 import Data.Lens.Record (prop)
 import Data.List (toUnfoldable)
 import Data.Map (Map, fromFoldable, values)
@@ -49,11 +50,7 @@ type State
     , newComment :: UnfinishedComment
     , commentRequest :: RemoteData String String
     , deleteCommentId :: Maybe Int
-    , invalidFields :: Set String
     }
-
-_invalidFields :: Lens' State (Set String)
-_invalidFields = prop (SProxy :: SProxy "invalidFields")
 
 _deleteCommentId :: Lens' State (Maybe Int)
 _deleteCommentId = prop (SProxy :: SProxy "deleteCommentId")
@@ -94,7 +91,6 @@ initialState { input: runId, remoteData: (Tuple run runAttributiResponse) } =
   , newComment: emptyUnfinishedComment
   , commentRequest: NotAsked
   , deleteCommentId: Nothing
-  , invalidFields: mempty
   }
 
 component :: forall output query. H.Component HH.HTML query Int output AppMonad
@@ -166,10 +162,11 @@ handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentErro
 handleAction = case _ of
   CommentSubAction ca -> handleCommentAction ca
   ModifyState f -> H.modify_ f
-  AttributoNumberChange attributoName newValue -> withAttributo attributoName $ \attributo ->
-      if validateNumeric newValue attributo
-      then _invalidFields %= delete attributoName
-      else _invalidFields <>= singleton attributoName
+  AttributoNumberChange attributoName newValue -> (_run <<< _attributi <<< ix "manual" <<< ix attributoName) .= Scalar (RunScalarNumber newValue)
+    -- withAttributo attributoName $ \attributo ->
+    --   if validateNumeric newValue attributo
+    --   then _invalidFields %= delete attributoName
+    --   else _invalidFields <>= singleton attributoName
 
 commentsTable :: forall w. RemoteData String String -> Array Comment -> HH.HTML w Action
 commentsTable commentRequest comments =
@@ -228,13 +225,13 @@ formatRange Nothing = []
 
 formatRange (Just r) = [ HH.small [ classList [ "ml-3", "form-text", "text-muted" ] ] [ HH.text ("value ∈ " <> prettyPrintRange r) ] ]
 
-attributoToInput :: forall w. Set String -> Tuple Attributo (Maybe (Tuple Source RunValue)) -> Array (HH.HTML w Action)
-attributoToInput invalidFields (Tuple rp v) =
+attributoToInput :: forall w. Tuple Attributo (Maybe (Tuple Source RunValue)) -> Array (HH.HTML w Action)
+attributoToInput (Tuple rp v) =
   let
     sourceToClass = case v of
       Just (Tuple "manual" _) -> [ "manual-edit" ]
       _ -> []
-    invalidToClass = if member (rpName rp) invalidFields then ["is-invalid"] else ["is-valid"]
+    invalidToClass = if validateNumeric v rp then ["is-invalid"] else ["is-valid"]
   in
     case rpType rp of
       Just (JSONNumber { suffix: Just suffix, range }) ->
@@ -263,7 +260,7 @@ attributiSection state =
     makeFormElement (Tuple rp v) =
       HH.div [ classList [ "form-group", "form-row" ] ]
         [ HH.label [ HP.for (rp ^. _name), classList [ "col-sm-2", "col-form-label" ] ] [ HH.text (rp ^. _description) ]
-        , HH.div [ classList [ "input-group", "col-sm-10" ] ] (attributoToInput state.invalidFields (Tuple rp v))
+        , HH.div [ classList [ "input-group", "col-sm-10" ] ] (attributoToInput (Tuple rp v))
         ]
 
     formElements = makeFormElement <$> (attributiWithValues state)
