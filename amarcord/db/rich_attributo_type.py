@@ -16,6 +16,13 @@ class PropertyDuration:
 
 
 @dataclass(frozen=True)
+class PropertyList:
+    sub_property: "RichAttributoType"
+    min_length: Optional[int]
+    max_length: Optional[int]
+
+
+@dataclass(frozen=True)
 class PropertyString:
     pass
 
@@ -67,4 +74,5 @@ RichAttributoType = Union[
     PropertyDateTime,
     PropertyDuration,
     PropertyUserName,
+    PropertyList,
 ]

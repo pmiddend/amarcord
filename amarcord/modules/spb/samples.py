@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QStyle,
     QTableWidget,
@@ -64,7 +65,6 @@ def _empty_sample():
     return DBSample(
         id=None,
         target_id=-1,
-        crystal_shape=None,
         incubation_time=None,
         creator=getpass.getuser(),
         crystallization_method="",
@@ -148,7 +148,6 @@ class Samples(QWidget):
         self._log_widget.setStyleSheet("QLabel { font: italic; color: green; }")
         self._log_widget.setAlignment(Qt.AlignHCenter)
         right_root_layout.addWidget(self._log_widget)
-        right_root_layout.addStretch()
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
 
@@ -167,15 +166,6 @@ class Samples(QWidget):
         self._crystallization_method_edit.textEdited.connect(
             self._crystallization_method_edit_change
         )
-        self._crystal_shape_edit = ValidatedLineEdit(
-            None,
-            lambda float_list: ", ".join(str(s) for s in float_list),  # type: ignore
-            lambda float_list_str: parse_float_list(float_list_str, 3),  # type: ignore
-            "a, b, c separated by commas",
-        )
-        self._crystal_shape_edit.value_change.connect(self._crystal_shape_change)
-        right_form_layout.addRow("Crystal shape", self._crystal_shape_edit)
-
         self._filters_edit = ValidatedLineEdit(
             None,
             lambda str_list: ", ".join(str(s) for s in str_list),  # type: ignore
@@ -250,7 +240,7 @@ class Samples(QWidget):
         right_form_layout.addRow("Protocol", protocol_layout)
 
         with self._db.connect() as conn:
-            metadata_wrapper = QGroupBox()
+            metadata_wrapper = QWidget()
             metadata_wrapper_layout = QVBoxLayout(metadata_wrapper)
             self._attributi_table = AttributiTable(
                 self._current_sample.attributi,
@@ -301,9 +291,9 @@ class Samples(QWidget):
 
     def _slot_refresh(self, conn: Connection) -> None:
         # FIXME: What if the current sample was deleted?
-        # FIXME: Reload attributes other than attributi
+        # FIXME: We could reload the sample data here, but that'd impede editing a bit if we don't do it smart
         self._attributi_table.data_changed(
-            self._current_sample.attributi,
+            self._attributi_table.attributi.to_raw(),
             self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
             sample_ids=[],
         )
@@ -379,14 +369,14 @@ class Samples(QWidget):
         b = QPushButton(
             self.style().standardIcon(QStyle.SP_DialogOkButton), "Add sample"
         )
-        b.clicked.connect(self._add_sample)
+        b.clicked.connect(self._slot_add_sample)
         return b
 
     def _create_edit_button(self):
         b = QPushButton(
             self.style().standardIcon(QStyle.SP_BrowserReload), "Edit sample"
         )
-        b.clicked.connect(self._edit_sample)
+        b.clicked.connect(self._slot_edit_sample)
         return b
 
     def _create_cancel_button(self):
@@ -407,8 +397,6 @@ class Samples(QWidget):
         )
         self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
         self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
-        # noinspection PyTypeChecker
-        self._crystal_shape_edit.set_value(self._current_sample.crystal_shape)  # type: ignore
         # noinspection PyTypeChecker
         self._filters_edit.set_value(self._current_sample.filters)  # type: ignore
         # noinspection PyTypeChecker
@@ -443,7 +431,7 @@ class Samples(QWidget):
         self._reset_input_fields()
         self._right_headline.setText(NEW_SAMPLE_HEADLINE)
 
-    def _add_sample(self) -> None:
+    def _slot_add_sample(self) -> None:
         assert self._current_sample.target_id > 0
         with self._db.connect() as conn:
             self._db.add_sample(
@@ -457,7 +445,7 @@ class Samples(QWidget):
             self._log_widget.setText("Sample successfully added!")
             self._reload_and_fill_samples(conn)
 
-    def _edit_sample(self) -> None:
+    def _slot_edit_sample(self) -> None:
         with self._db.connect() as conn:
             self._db.edit_sample(
                 conn,
@@ -471,7 +459,6 @@ class Samples(QWidget):
 
     def _reset_input_fields(self):
         self._crystallization_method_edit.setText("")
-        self._crystal_shape_edit.set_value(None)
         self._filters_edit.set_value(None)
         self._compounds_edit.set_value(None)
         self._micrograph_edit.set_value(None)
@@ -492,11 +479,6 @@ class Samples(QWidget):
         self._current_sample = replace(
             self._current_sample, crystallization_method=new_crystallization_method
         )
-        self._reset_button()
-
-    def _crystal_shape_change(self, value: Union[str, List[float]]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, crystal_shape=value)
         self._reset_button()
 
     def _filters_change(self, value: Union[str, List[str]]) -> None:
@@ -530,8 +512,7 @@ class Samples(QWidget):
 
     def _button_enabled(self) -> bool:
         return (
-            self._crystal_shape_edit.valid_value()
-            and self._incubation_time_edit.valid_value()
+            self._incubation_time_edit.valid_value()
             and self._filters_edit.valid_value()
             and self._compounds_edit.valid_value()
         )
@@ -583,9 +564,6 @@ class Samples(QWidget):
                 str(sample.id),
                 sample.incubation_time.strftime(DATE_TIME_FORMAT)
                 if sample.incubation_time is not None
-                else "",
-                ", ".join(str(s) for s in sample.crystal_shape)
-                if sample.crystal_shape is not None
                 else "",
                 [t.short_name for t in self._targets if sample.target_id == t.id][0],
                 sample.crystallization_method,

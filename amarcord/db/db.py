@@ -12,13 +12,13 @@ from sqlalchemy import and_
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     property_type_to_schema,
-    schema_to_property_type,
+    schema_json_to_property_type,
 )
 from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.comment import DBComment
 from amarcord.db.attributo_id import (
     AttributoId,
 )
+from amarcord.db.comment import DBComment
 from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
@@ -49,7 +49,6 @@ class DBTarget:
 class DBSample:
     id: Optional[int]
     target_id: int
-    crystal_shape: Optional[Tuple[float, float, float]]
     incubation_time: Optional[datetime.datetime]
     creator: str
     crystallization_method: str
@@ -415,7 +414,7 @@ class DB:
                 AttributoId(row[0]): DBAttributo(
                     name=AttributoId(row[0]),
                     description=row[1],
-                    rich_property_type=schema_to_property_type(json_schema=row[2]),
+                    rich_property_type=schema_json_to_property_type(json_schema=row[2]),
                     associated_table=table,
                 )
                 for row in rows
@@ -564,7 +563,6 @@ class DB:
             [
                 tc.id,
                 tc.target_id,
-                tc.crystal_shape,
                 tc.incubation_time,
                 tc.creator,
                 tc.crystallization_method,
@@ -582,7 +580,6 @@ class DB:
             return DBSample(
                 id=row["id"],
                 target_id=row["target_id"],
-                crystal_shape=row["crystal_shape"],
                 incubation_time=row["incubation_time"],
                 creator=row["creator"],
                 crystallization_method=row["crystallization_method"],
@@ -599,7 +596,6 @@ class DB:
         conn.execute(
             sa.insert(self.tables.sample).values(
                 target_id=t.target_id,
-                crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
                 creator=t.creator,
                 crystallization_method=t.crystallization_method,
@@ -618,7 +614,6 @@ class DB:
             sa.update(self.tables.sample)
             .values(
                 target_id=t.target_id,
-                crystal_shape=t.crystal_shape,
                 incubation_time=t.incubation_time,
                 creator=t.creator,
                 crystallization_method=t.crystallization_method,

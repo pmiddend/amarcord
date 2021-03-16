@@ -10,9 +10,9 @@ from PyQt5.QtWidgets import QHBoxLayout
 
 from amarcord.db.attributi import (
     attributo_type_to_string,
-    delegate_for_property_type,
     pretty_print_attributo,
 )
+from amarcord.db.table_delegates import delegate_for_property_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
@@ -86,7 +86,9 @@ class AttributiTable(QtWidgets.QWidget):
                 pretty_print_attributo(self.metadata[attributo.name], selected.value)
                 if selected is not None
                 else "",
-                attributo_type_to_string(self.metadata[attributo.name]),
+                attributo_type_to_string(
+                    self.metadata[attributo.name].rich_property_type
+                ),
             ],
             edit_roles=[None, selected.value if selected is not None else None, None],
             background_roles={

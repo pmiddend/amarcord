@@ -215,7 +215,7 @@ class AttributiCrud(QWidget):
                     display_roles=[
                         a.attributo.name,
                         a.attributo.description,
-                        attributo_type_to_string(a.attributo),
+                        attributo_type_to_string(a.attributo.rich_property_type),
                         a.table.pretty_id(),
                     ],
                     edit_roles=[None, None, None, None],

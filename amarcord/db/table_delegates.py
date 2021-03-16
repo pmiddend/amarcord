@@ -3,20 +3,33 @@ import datetime
 from typing import List, Optional, Tuple, TypeVar, cast
 
 from PyQt5 import QtCore, QtWidgets
+from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QDateTimeEdit
 
+from amarcord.db.rich_attributo_type import (
+    PropertyChoice,
+    PropertyDateTime,
+    PropertyDouble,
+    PropertyDuration,
+    PropertyInt,
+    PropertyList,
+    PropertySample,
+    PropertyString,
+    PropertyTags,
+    PropertyUserName,
+    RichAttributoType,
+)
 from amarcord.qt.datetime import (
     from_qt_datetime,
     parse_natural_delta,
     print_natural_delta,
-    qt_from_isoformat,
-    qt_to_isoformat,
     to_qt_datetime,
 )
 from amarcord.qt.numeric_input_widget import NumericInputWidget
 from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.tags import Tags
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
+from amarcord.qt.validators import parse_float_list, parse_string_list
 
 T = TypeVar("T")
 
@@ -233,6 +246,89 @@ class IntItemDelegate(QtWidgets.QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
+class ListItemDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(
+        self,
+        min_length: Optional[int],
+        max_length: Optional[int],
+        subtype: RichAttributoType,
+        parent: Optional[QtCore.QObject],
+    ) -> None:
+        super().__init__(parent)
+        self._min_length = min_length
+        self._max_length = max_length
+        self._subtype = subtype
+
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        _option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        if isinstance(self._subtype, PropertyString):
+            return ValidatedLineEdit(
+                None,
+                lambda str_list: ", ".join(str(s) for s in str_list),  # type: ignore
+                lambda str_list_str: parse_string_list(str_list_str, None),  # type: ignore
+                "list of strings, separated by commas",
+                parent,
+            )
+        if isinstance(self._subtype, PropertyDouble):
+            infix = (
+                f"list of numbers"
+                if self._min_length is None and self._max_length is None
+                else f"list of at least {self._min_length} number(s)"
+                if self._min_length is not None and self._max_length is None
+                else f"{self._min_length} numbers"
+                if self._min_length == self._max_length
+                else f"at least {self._min_length}, at most {self._max_length} number(s)"
+            )
+            suffix = ", separated by commas"
+            return ValidatedLineEdit(
+                None,
+                lambda float_list: ", ".join(str(s) for s in float_list),  # type: ignore
+                lambda float_list_str: parse_float_list(float_list_str, min_elements=3, max_elements=3),  # type: ignore
+                infix + suffix,
+                parent,
+            )
+        raise Exception(f"no delegate for list of {type(self._subtype)} yet")
+
+    # pylint: disable=no-self-use
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        assert isinstance(editor, ValidatedLineEdit)
+        data = index.model().data(index, QtCore.Qt.EditRole)
+        if data is None:
+            return
+        if not isinstance(data, list):
+            raise ValueError(f"expected list, got {type(data)}")
+        if data and not isinstance(data[0], (str, float, int)):
+            raise ValueError(f"expected string or number, got {type(data[0])}")
+        editor.set_value(data)
+
+    # pylint: disable=no-self-use
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        assert isinstance(editor, ValidatedLineEdit)
+        value = editor.value()
+        if value is not None:
+            model.setData(index, value, QtCore.Qt.EditRole)
+
+    # pylint: disable=no-self-use
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        _index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
 class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
     def __init__(
         self,
@@ -340,3 +436,35 @@ class DurationItemDelegate(QtWidgets.QStyledItemDelegate):
         _index: QtCore.QModelIndex,
     ) -> None:
         editor.setGeometry(option.rect)
+
+
+def delegate_for_property_type(
+    proptype: RichAttributoType,
+    sample_ids: List[int],
+    parent: Optional[QtCore.QObject] = None,
+) -> QtWidgets.QAbstractItemDelegate:
+    if isinstance(proptype, PropertyInt):
+        return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
+    if isinstance(proptype, PropertyDouble):
+        return DoubleItemDelegate(proptype.range, proptype.suffix, parent)
+    if isinstance(proptype, PropertyList):
+        return ListItemDelegate(
+            proptype.min_length, proptype.max_length, proptype.sub_property, parent
+        )
+    if isinstance(proptype, PropertyDuration):
+        return DurationItemDelegate(parent)
+    if isinstance(proptype, PropertyString):
+        return QtWidgets.QStyledItemDelegate(parent=parent)
+    if isinstance(proptype, PropertyUserName):
+        return QtWidgets.QStyledItemDelegate(parent=parent)
+    if isinstance(proptype, PropertyChoice):
+        return ComboItemDelegate(values=proptype.values, parent=parent)
+    if isinstance(proptype, PropertySample):
+        return ComboItemDelegate(
+            values=[(str(v), v) for v in sample_ids], parent=parent
+        )
+    if isinstance(proptype, PropertyTags):
+        return TagsItemDelegate(available_tags=[], parent=parent)
+    if isinstance(proptype, PropertyDateTime):
+        return DateTimeItemDelegate(parent=parent)
+    raise Exception(f"invalid property type {proptype}")

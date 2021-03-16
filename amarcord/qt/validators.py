@@ -67,17 +67,19 @@ def parse_string_list(
     return parts
 
 
-def parse_float_list(input_: str, elements: int) -> Union[Partial, None, List[float]]:
+def parse_float_list(
+    input_: str, min_elements: Optional[int], max_elements: Optional[int]
+) -> Union[Partial, None, List[float]]:
     parts = re.split(", *", input_)
 
     if parts and parts[-1] == "":
         return Partial(input_)
 
-    if len(parts) < elements:
+    if min_elements is not None and len(parts) < min_elements:
         return Partial(input_)
 
-    if len(parts) > elements:
-        return None
+    if max_elements is not None and len(parts) > max_elements:
+        return Partial(input_)
 
     floats = [str_to_float(f) for f in parts]
     return cast(List[float], floats) if all(f is not None for f in floats) else None

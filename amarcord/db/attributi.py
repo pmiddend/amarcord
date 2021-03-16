@@ -1,8 +1,6 @@
 import datetime
 import logging
-from typing import Any, Dict, List, Optional
-
-from PyQt5 import QtCore, QtWidgets
+from typing import Any, Dict, Optional
 
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
@@ -13,6 +11,7 @@ from amarcord.db.rich_attributo_type import (
     PropertyDouble,
     PropertyDuration,
     PropertyInt,
+    PropertyList,
     PropertySample,
     PropertyString,
     PropertyTags,
@@ -25,53 +24,21 @@ from amarcord.json_schema import (
     JSONSchemaNumber,
     JSONSchemaString,
     JSONSchemaStringFormat,
+    JSONSchemaType,
     parse_schema_type,
 )
 from amarcord.modules.json import JSONDict, JSONValue
 from amarcord.qt.datetime import print_natural_delta
 from amarcord.qt.numeric_range_format_widget import NumericRange
-from amarcord.qt.table_delegates import (
-    ComboItemDelegate,
-    DateTimeItemDelegate,
-    DoubleItemDelegate,
-    DurationItemDelegate,
-    IntItemDelegate,
-    TagsItemDelegate,
-)
 
 logger = logging.getLogger(__name__)
 
 
-def delegate_for_property_type(
-    proptype: RichAttributoType,
-    sample_ids: List[int],
-    parent: Optional[QtCore.QObject] = None,
-) -> QtWidgets.QAbstractItemDelegate:
-    if isinstance(proptype, PropertyInt):
-        return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
-    if isinstance(proptype, PropertyDouble):
-        return DoubleItemDelegate(proptype.range, proptype.suffix, parent)
-    if isinstance(proptype, PropertyDuration):
-        return DurationItemDelegate(parent)
-    if isinstance(proptype, PropertyString):
-        return QtWidgets.QStyledItemDelegate(parent=parent)
-    if isinstance(proptype, PropertyUserName):
-        return QtWidgets.QStyledItemDelegate(parent=parent)
-    if isinstance(proptype, PropertyChoice):
-        return ComboItemDelegate(values=proptype.values, parent=parent)
-    if isinstance(proptype, PropertySample):
-        return ComboItemDelegate(
-            values=[(str(v), v) for v in sample_ids], parent=parent
-        )
-    if isinstance(proptype, PropertyTags):
-        return TagsItemDelegate(available_tags=[], parent=parent)
-    if isinstance(proptype, PropertyDateTime):
-        return DateTimeItemDelegate(parent=parent)
-    raise Exception(f"invalid property type {proptype}")
+def schema_json_to_property_type(json_schema: JSONDict) -> RichAttributoType:
+    return schema_to_property_type(parse_schema_type(json_schema))
 
 
-def schema_to_property_type(json_schema: JSONDict) -> RichAttributoType:
-    parsed_schema = parse_schema_type(json_schema)
+def schema_to_property_type(parsed_schema: JSONSchemaType) -> RichAttributoType:
     if isinstance(parsed_schema, JSONSchemaNumber):
         return PropertyDouble(
             range=None
@@ -94,6 +61,12 @@ def schema_to_property_type(json_schema: JSONDict) -> RichAttributoType:
     if isinstance(parsed_schema, JSONSchemaInteger):
         return PropertyInt(range=None)
     if isinstance(parsed_schema, JSONSchemaArray):
+        if isinstance(parsed_schema.value_type, JSONSchemaNumber):
+            return PropertyList(
+                schema_to_property_type(parsed_schema.value_type),
+                min_length=parsed_schema.min_items,
+                max_length=parsed_schema.max_items,
+            )
         assert isinstance(
             parsed_schema.value_type, JSONSchemaString
         ), "arrays of non-strings aren't supported yet"
@@ -150,6 +123,16 @@ def property_type_to_schema(rp: RichAttributoType) -> JSONDict:
         return {"type": "string", "format": "date-time"}
     if isinstance(rp, PropertyDuration):
         return {"type": "string", "format": "duration"}
+    if isinstance(rp, PropertyList):
+        base: JSONDict = {
+            "type": "array",
+            "items": property_type_to_schema(rp.sub_property),
+        }
+        if rp.min_length is not None:
+            base["minItems"] = rp.min_length
+        if rp.max_length is not None:
+            base["maxItems"] = rp.max_length
+        return base
     if isinstance(rp, PropertyTags):
         return {"type": "array", "items": {"type": "string"}}
     if isinstance(rp, PropertyComments):
@@ -191,7 +174,11 @@ def pretty_print_attributo(
             ), f"Comment column isn't a list but {type(value)}"
             return "\n".join(f"{c.author}: {c.text}" for c in value)
     if isinstance(value, list):
-        return ", ".join(value)
+        if not value:
+            return ""
+        if isinstance(value[0], float):
+            return ", ".join(f"{s:.2f}" for s in value)
+        return ", ".join(str(s) for s in value)
     if isinstance(value, float):
         return f"{value:.2f}"
     return str(value) if value is not None else ""
@@ -207,30 +194,30 @@ def sortable_attributo(attributo_metadata: Optional[DBAttributo], value: Any) ->
     return value if value is not None else ""
 
 
-def attributo_type_to_string(attributo: DBAttributo) -> str:
-    pt = attributo.rich_property_type
+def attributo_type_to_string(pt: RichAttributoType, plural: bool = False) -> str:
     if isinstance(pt, PropertyInt):
-        return "integer"
+        return "integers" if plural else "integer"
     if isinstance(pt, PropertyChoice):
-        return "choice"
+        return "choices" if plural else "choice"
     if isinstance(pt, PropertyDouble):
         if pt.suffix:
-            return (
-                f"{pt.suffix} (range {pt.range})" if pt.range is not None else pt.suffix
-            )
-        return f"number in {pt.range}" if pt is not None else "number"
+            return f"{pt.suffix} ∈ {pt.range}" if pt.range is not None else pt.suffix
+        word = "numbers" if plural else "number"
+        return f"{word} ∈ {pt.range}" if pt.range is not None else word
     if isinstance(pt, PropertyTags):
         return "tags"
     if isinstance(pt, PropertySample):
-        return "Sample ID"
+        return "Sample IDs" if plural else "Sample ID"
     if isinstance(pt, PropertyString):
-        return "text"
+        return "texts" if plural else "text"
     if isinstance(pt, PropertyComments):
         return "comments"
     if isinstance(pt, PropertyDateTime):
         return "date and time"
     if isinstance(pt, PropertyDuration):
-        return "duration"
+        return "durations" if plural else "duration"
     if isinstance(pt, PropertyUserName):
-        return "user name"
+        return "user names" if plural else "user name"
+    if isinstance(pt, PropertyList):
+        return "list of " + attributo_type_to_string(pt.sub_property, plural=True)
     raise Exception(f"invalid property type {type(pt)}")

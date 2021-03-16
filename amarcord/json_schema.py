@@ -35,6 +35,8 @@ class JSONSchemaString:
 @dataclass(frozen=True)
 class JSONSchemaArray:
     value_type: "JSONSchemaType"
+    min_items: Optional[int]
+    max_items: Optional[int]
 
 
 JSONSchemaType = Union[
@@ -84,6 +86,8 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
         items = s.get("items", None)
         assert items is not None, 'array without "items" property'
         assert isinstance(items, dict), f"array items type is {type(items)}"
-        return JSONSchemaArray(parse_schema_type(items))
+        return JSONSchemaArray(
+            parse_schema_type(items), s.get("minItems", None), s.get("maxItems", None)
+        )
 
     raise Exception(f'invalid schema type "{type_}"')

@@ -18,6 +18,7 @@ from amarcord.db.rich_attributo_type import (
     PropertyDouble,
     PropertyDuration,
     PropertyInt,
+    PropertyList,
     PropertySample,
     PropertyString,
     PropertyTags,
@@ -35,7 +36,7 @@ def _convert_single_attributo_value_from_json(
     attributo_type = types.get(i, None)
     if attributo_type is None:
         raise Exception(
-            f'cannot convert attributo "{i}", don\'t have a type! value is {v}'
+            f'cannot convert attributo "{i}" from JSON, don\'t have a type! value is "{v}"'
         )
 
     if v is None:
@@ -89,6 +90,14 @@ def _convert_single_attributo_value_from_json(
         assert isinstance(
             v, str
         ), f'expected type str for user name attributo "{i}", got {type(v)}'
+        return v
+    if isinstance(attributo_type.rich_property_type, PropertyList):
+        assert isinstance(
+            v, list
+        ), f'expected type list for list attributo "{i}", got {type(v)}'
+        assert not v or isinstance(
+            v[0], (float, str)
+        ), f"got a non-empty list of {type(v[0])}, we only support float, int for now"
         return v
     raise Exception(
         f'invalid property type for attributo "{i}": {attributo_type.rich_property_type}'
@@ -213,7 +222,7 @@ class AttributiMap:
                     if not value:
                         source_dict[attributo_id] = cast(List[str], [])
                     else:
-                        if isinstance(value[0], str):
+                        if isinstance(value[0], (str, int, float)):
                             source_dict[attributo_id] = value
             json_dict[source] = source_dict
         return RawAttributiMap(json_dict)

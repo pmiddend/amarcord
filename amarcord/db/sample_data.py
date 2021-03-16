@@ -132,6 +132,23 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         },
                         "associated_table": AssociatedTable.SAMPLE,
                     },
+                    {
+                        "name": "creator",
+                        "description": "Creator",
+                        "json_schema": {"type": "string", "format": "user-name"},
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "crystal_shape",
+                        "description": "Crystal Shape",
+                        "json_schema": {
+                            "type": "array",
+                            "items": {"type": "number", "suffix": "nm", "minimum": 0},
+                            "minItems": 3,
+                            "maxItems": 3,
+                        },
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
                 ]
             )
         )
@@ -140,7 +157,6 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         first_sample_result = conn.execute(
             tables.sample.insert().values(
                 target_id=first_target_id,
-                crystal_shape=[3.0, 4.0, 5.0],
                 modified=datetime.datetime.utcnow(),
                 attributi={
                     MANUAL_SOURCE_NAME: {
