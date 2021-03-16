@@ -33,8 +33,11 @@ if __name__ == "__main__":
     tables = create_tables(context.db)
 
     dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
-
-    create_sample_data(dbcontext, tables)
+    if (
+        isinstance(config["db"]["create_sample_data"], bool)
+        and config["db"]["create_sample_data"]
+    ):
+        create_sample_data(dbcontext, tables)
 
     proposal_ids = retrieve_proposal_ids(context, tables)
 
