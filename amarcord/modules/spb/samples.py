@@ -251,7 +251,7 @@ class Samples(QWidget):
 
         with self._db.connect() as conn:
             metadata_wrapper = QGroupBox()
-            metadata_wrapper_layout = QHBoxLayout(metadata_wrapper)
+            metadata_wrapper_layout = QVBoxLayout(metadata_wrapper)
             self._attributi_table = AttributiTable(
                 self._current_sample.attributi,
                 self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
@@ -265,7 +265,7 @@ class Samples(QWidget):
             )
             attributo_button.clicked.connect(self.new_attributo.emit)
             metadata_wrapper_layout.addWidget(attributo_button)
-            right_form_layout.addWidget(metadata_wrapper)
+            right_form_layout.addRow(metadata_wrapper)
             self._samples: List[DBSample] = []
 
         self._submit_widget = QWidget()
