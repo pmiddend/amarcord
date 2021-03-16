@@ -13,6 +13,7 @@ from amarcord.db.attributi import (
     sortable_attributo,
 )
 from amarcord.db.attributo_type import (
+    AttributoType,
     AttributoTypeDouble,
     AttributoTypeDuration,
     AttributoTypeInt,
@@ -24,7 +25,7 @@ from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.column_chooser import display_column_chooser
 from amarcord.modules.spb.filter_query_help import filter_query_help
-from amarcord.modules.spb.plot_dialog import PlotDialog
+from amarcord.modules.spb.plot_dialog import PlotDialog, _PlotType
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.query_parser import Query, UnexpectedEOF, parse_query
@@ -32,6 +33,10 @@ from amarcord.query_parser import Query, UnexpectedEOF, parse_query
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
 logger = logging.getLogger(__name__)
+
+
+def _plottable_attributo_type(t: AttributoType) -> bool:
+    return isinstance(t, (AttributoTypeDouble, AttributoTypeInt, AttributoTypeDuration))
 
 
 class OverviewTable(QWidget):
@@ -276,29 +281,58 @@ class OverviewTable(QWidget):
         )
         self._table_view.set_data(self._create_declarative_data())
 
+    def _slot_plot_against(
+        self, type_: _PlotType, x_axis: TabledAttributo, y_axis: TabledAttributo
+    ) -> None:
+        dialog = QtWidgets.QDialog(self)
+        dialog_layout = QtWidgets.QVBoxLayout()
+        dialog.setLayout(dialog_layout)
+
+        plot_dialog = PlotDialog(
+            self._db,
+            self._proposal_id,
+            self._filter_query,
+            type_=type_,
+            x_axis=x_axis,
+            y_axis=y_axis,
+            parent=self,
+        )
+        plot_dialog.show()
+
     def _header_menu_callback(self, column: TabledAttributo, pos: QPoint) -> None:
         if column.attributo.attributo_type is None:
             return
-        if not isinstance(
-            column.attributo.attributo_type,
-            (AttributoTypeInt, AttributoTypeDouble, AttributoTypeDuration),
-        ):
+        if not _plottable_attributo_type(column.attributo.attributo_type):
             return
         menu = QtWidgets.QMenu(self)
-        plotAction = menu.addAction(
-            self.style().standardIcon(QtWidgets.QStyle.SP_DesktopIcon),
-            "Plot this column",
-        )
-        action = menu.exec_(pos)
-        if action == plotAction:
-            dialog = QtWidgets.QDialog(self)
-            dialog_layout = QtWidgets.QVBoxLayout()
-            dialog.setLayout(dialog_layout)
-
-            plot_dialog = PlotDialog(
-                self._db, self._proposal_id, self._filter_query, column, self
+        line_plot_against_menu = menu.addMenu("Line plot against…")
+        scatter_plot_against_menu = menu.addMenu("Scatter plot against…")
+        for attributo in (
+            a
+            for a in self._attributi_metadata
+            if _plottable_attributo_type(a.attributo.attributo_type)
+        ):
+            new_line_action = line_plot_against_menu.addAction(attributo.pretty_id())
+            new_scatter_action = scatter_plot_against_menu.addAction(
+                attributo.pretty_id()
             )
-            plot_dialog.show()
+            if (
+                attributo.table == AssociatedTable.RUN
+                and attributo.attributo.name == self._db.tables.attributo_run_id
+            ):
+                f = new_line_action.font()
+                f.setBold(True)
+                new_line_action.setFont(f)
+                f = new_scatter_action.font()
+                f.setBold(True)
+                new_scatter_action.setFont(f)
+            new_line_action.triggered.connect(
+                partial(self._slot_plot_against, _PlotType.LINE, column, attributo)
+            )
+            new_scatter_action.triggered.connect(
+                partial(self._slot_plot_against, _PlotType.SCATTER, column, attributo)
+            )
+        action = menu.exec_(pos)
 
     def run_changed(self) -> None:
         self._slot_refresh()

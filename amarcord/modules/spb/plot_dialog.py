@@ -1,5 +1,6 @@
 import datetime
 import logging
+from enum import Enum, auto
 from typing import Final, List, Optional
 
 import pandas as pd
@@ -17,8 +18,6 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.pyplot import Figure
 
-from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import Connection, DB, overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
@@ -36,21 +35,31 @@ class _MplCanvas(FigureCanvasQTAgg):
         super().__init__(fig)
 
 
+class _PlotType(Enum):
+    LINE = auto()
+    SCATTER = auto()
+
+
 class PlotDialog(QDialog):
     def __init__(
         self,
         db: DB,
         proposal_id: ProposalId,
         filter_query: Query,
-        attributo: TabledAttributo,
+        type_: _PlotType,
+        x_axis: TabledAttributo,
+        y_axis: TabledAttributo,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
         self._db = db
         self._filter_query = filter_query
-        self._attributo = attributo
+        self._type = type_
+        self._x_axis = x_axis
+        self._y_axis = y_axis
         self._proposal_id = proposal_id
+        self.setWindowTitle(f"Plot {x_axis.pretty_id()} vs {y_axis.pretty_id()}")
 
         with self._db.connect() as conn:
             self._last_update = datetime.datetime.utcnow()
@@ -96,14 +105,27 @@ class PlotDialog(QDialog):
         self._df = self._create_data_frame()
 
         self._sc.axes.clear()
-        # noinspection PyArgumentList
-        self._df.plot(ax=self._sc.axes)  # type: ignore
+
+        self._plot()
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._slot_refresh)
         self._timer.start(TIMER_INTERVAL_MSEC)
 
-    def _create_data_frame(self):
+    def _plot(self):
+        try:
+            if self._type == _PlotType.LINE:
+                # noinspection PyArgumentList
+                self._df.plot(ax=self._sc.axes)  # type: ignore
+            else:
+                # noinspection PyArgumentList
+                self._df.plot(ax=self._sc.axes, x=0, y=1, kind="scatter")  # type: ignore
+        except TypeError:
+            # this happens if we have a column consisting only of None values, for example.
+            # We can ignore this for now, and wait for a successful refresh below.
+            pass
+
+    def _create_data_frame(self) -> pd.DataFrame:
         filtered_rows = [
             r
             for r in self._rows
@@ -111,16 +133,30 @@ class PlotDialog(QDialog):
                 overview_row_to_query_row(r, self._attributi_metadata)
             )
         ]
+        if self._type == _PlotType.LINE:
+            return pd.DataFrame(
+                [
+                    r[self._x_axis.table].select_value(self._x_axis.attributo.name)
+                    for r in filtered_rows
+                ],
+                index=[
+                    r[self._y_axis.table].select_value(self._y_axis.attributo.name)
+                    for r in filtered_rows
+                ],
+                columns=[self._x_axis.attributo.pretty_id()],
+            )
         return pd.DataFrame(
             [
-                r[self._attributo.table].select_value(self._attributo.attributo.name)
+                [
+                    r[self._x_axis.table].select_value(self._x_axis.attributo.name),
+                    r[self._y_axis.table].select_value(self._y_axis.attributo.name),
+                ]
                 for r in filtered_rows
             ],
-            index=[
-                r[AssociatedTable.RUN].select_datetime(AttributoId("started"))
-                for r in filtered_rows
+            columns=[
+                self._x_axis.attributo.pretty_id(),
+                self._y_axis.attributo.pretty_id(),
             ],
-            columns=[self._attributo.attributo.pretty_id()],
         )
 
     def _retrieve_attributi_metadata(self, conn: Connection) -> List[TabledAttributo]:
@@ -139,9 +175,9 @@ class PlotDialog(QDialog):
     #     except:
     #         self._query = None
 
-    def _slot_filter_changed(self, new_text: str) -> None:
-        self._filter_query = new_text
-        self._slot_refresh()
+    # def _slot_filter_changed(self, new_text: str) -> None:
+    #     self._filter_query = new_text
+    #     self._slot_refresh()
 
     def _slot_refresh(self) -> None:
         # self._update_query()
@@ -169,7 +205,5 @@ class PlotDialog(QDialog):
 
                 self._sc.axes.clear()
 
-                # if filtered_runs:
-                # noinspection PyArgumentList
-                self._df.plot(ax=self._sc.axes)  # type: ignore
+                self._plot()
                 self._sc.draw()
