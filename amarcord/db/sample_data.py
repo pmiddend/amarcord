@@ -145,6 +145,12 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "associated_table": AssociatedTable.SAMPLE,
                     },
                     {
+                        "name": "incubation_time",
+                        "description": "Incubation Time",
+                        "json_schema": {"type": "string", "format": "date-time"},
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
                         "name": "crystal_shape",
                         "description": "Crystal Shape",
                         "json_schema": {

@@ -11,14 +11,11 @@ from PyQt5.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
     QSplitter,
     QStyle,
     QTableWidget,
@@ -45,11 +42,8 @@ from amarcord.qt.pubchem import validate_pubchem_compound
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import (
     Partial,
-    parse_date_time,
     parse_existing_filename,
-    parse_float_list,
     parse_list,
-    parse_string_list,
 )
 from amarcord.util import str_to_int
 
@@ -65,8 +59,6 @@ def _empty_sample():
     return DBSample(
         id=None,
         target_id=-1,
-        incubation_time=None,
-        creator=getpass.getuser(),
         compounds=None,
         micrograph=None,
         protocol=None,
@@ -164,15 +156,6 @@ class Samples(QWidget):
         )
         self._compounds_edit.value_change.connect(self._compounds_change)
         right_form_layout.addRow("Compounds", self._compounds_edit)
-
-        self._incubation_time_edit = ValidatedLineEdit(
-            None,
-            lambda pydatetime: pydatetime.strftime(DATE_TIME_FORMAT),  # type: ignore
-            lambda datetimestr: parse_date_time(datetimestr, DATE_TIME_FORMAT),  # type: ignore
-            "2020-02-24 15:34",
-        )
-        right_form_layout.addRow("Incubation time", self._incubation_time_edit)
-        self._incubation_time_edit.value_change.connect(self._incubation_time_change)
 
         micrograph_layout = QHBoxLayout()
         micrograph_layout.setContentsMargins(0, 0, 0, 0)
@@ -377,11 +360,6 @@ class Samples(QWidget):
         self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
         # noinspection PyTypeChecker
         self._compounds_edit.set_value(self._current_sample.compounds)  # type: ignore
-        self._incubation_time_edit.setText(
-            self._current_sample.incubation_time.strftime(DATE_TIME_FORMAT)
-            if self._current_sample.incubation_time is not None
-            else ""
-        )
         self._clear_submit()
         self._submit_layout.addWidget(self._create_edit_button())
         self._submit_layout.addWidget(self._create_cancel_button())
@@ -437,7 +415,6 @@ class Samples(QWidget):
         self._compounds_edit.set_value(None)
         self._micrograph_edit.set_value(None)
         self._protocol_edit.set_value(None)
-        self._incubation_time_edit.set_value(None)
         self._current_sample = _empty_sample()
         self._attributi_table.data_changed(
             self._current_sample.attributi, self._attributi_table.metadata, []
@@ -466,16 +443,8 @@ class Samples(QWidget):
             self._current_sample = replace(self._current_sample, compounds=value)
         self._reset_button()
 
-    def _incubation_time_change(self, value: Union[str, datetime.datetime]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, incubation_time=value)
-        self._reset_button()
-
     def _button_enabled(self) -> bool:
-        return (
-            self._incubation_time_edit.valid_value()
-            and self._compounds_edit.valid_value()
-        )
+        return self._compounds_edit.valid_value()
 
     def _reset_button(self) -> None:
         self._add_button.setEnabled(self._button_enabled())
@@ -507,7 +476,6 @@ class Samples(QWidget):
         ]
         headers = [
             "ID",
-            "Incubation Time",
             "Target",
             "Compounds",
         ] + attributi_headers
@@ -519,9 +487,6 @@ class Samples(QWidget):
         for row, sample in enumerate(self._samples):
             built_in_columns = (
                 str(sample.id),
-                sample.incubation_time.strftime(DATE_TIME_FORMAT)
-                if sample.incubation_time is not None
-                else "",
                 [t.short_name for t in self._targets if sample.target_id == t.id][0],
                 ", ".join(sample.compounds if sample is not None else [])
                 if sample.compounds is not None

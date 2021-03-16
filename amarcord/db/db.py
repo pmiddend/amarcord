@@ -49,8 +49,6 @@ class DBTarget:
 class DBSample:
     id: Optional[int]
     target_id: int
-    incubation_time: Optional[datetime.datetime]
-    creator: str
     compounds: Optional[List[int]]
     micrograph: Optional[str]
     protocol: Optional[str]
@@ -561,8 +559,6 @@ class DB:
             [
                 tc.id,
                 tc.target_id,
-                tc.incubation_time,
-                tc.creator,
                 tc.compounds,
                 tc.micrograph,
                 tc.protocol,
@@ -576,8 +572,6 @@ class DB:
             return DBSample(
                 id=row["id"],
                 target_id=row["target_id"],
-                incubation_time=row["incubation_time"],
-                creator=row["creator"],
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
                 protocol=row["protocol"],
@@ -590,7 +584,6 @@ class DB:
         conn.execute(
             sa.insert(self.tables.sample).values(
                 target_id=t.target_id,
-                incubation_time=t.incubation_time,
                 creator=t.creator,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
@@ -606,7 +599,6 @@ class DB:
             sa.update(self.tables.sample)
             .values(
                 target_id=t.target_id,
-                incubation_time=t.incubation_time,
                 creator=t.creator,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
