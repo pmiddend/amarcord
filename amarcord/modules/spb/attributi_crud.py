@@ -295,7 +295,7 @@ class AttributiCrud(QWidget):
 
     def _create_add_button(self):
         b = QPushButton(
-            self.style().standardIcon(QStyle.SP_DialogOkButton), "Add sample"
+            self.style().standardIcon(QStyle.SP_DialogOkButton), "Add attributo"
         )
         b.clicked.connect(self._add_attributo)
         return b
