@@ -24,6 +24,7 @@ class JSONSchemaStringFormat(Enum):
     DATE_TIME = "date-time"
     DURATION = "duration"
     USER_NAME = "user-name"
+    TAG = "tag"
 
 
 @dataclass(frozen=True)

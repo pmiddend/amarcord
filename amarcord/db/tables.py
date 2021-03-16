@@ -57,7 +57,6 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         sa.Column("incubation_time", sa.DateTime, nullable=True),
         sa.Column("creator", sa.String, nullable=False, default=""),
         sa.Column("crystallization_method", sa.String, nullable=False, default=""),
-        sa.Column("filters", sa.JSON, nullable=True),
         sa.Column("compounds", sa.JSON, nullable=True),
         sa.Column("micrograph", sa.Text, nullable=True),
         sa.Column("protocol", sa.Text, nullable=True),

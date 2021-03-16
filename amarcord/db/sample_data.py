@@ -149,6 +149,12 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         },
                         "associated_table": AssociatedTable.SAMPLE,
                     },
+                    {
+                        "name": "filters",
+                        "description": "Filters",
+                        "json_schema": {"type": "array", "items": {"type": "string"}},
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
                 ]
             )
         )

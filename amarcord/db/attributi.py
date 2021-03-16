@@ -73,7 +73,13 @@ def schema_to_property_type(parsed_schema: JSONSchemaType) -> RichAttributoType:
         assert (
             parsed_schema.value_type.enum_ is None
         ), "arrays of enum strings aren't supported yet"
-        return PropertyTags()
+        if parsed_schema.value_type.format_ == JSONSchemaStringFormat.TAG:
+            return PropertyTags()
+        return PropertyList(
+            schema_to_property_type(parsed_schema.value_type),
+            min_length=parsed_schema.min_items,
+            max_length=parsed_schema.max_items,
+        )
     if isinstance(parsed_schema, JSONSchemaString):
         if parsed_schema.enum_ is not None:
             return PropertyChoice([(s, s) for s in parsed_schema.enum_])

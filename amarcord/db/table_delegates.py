@@ -1,9 +1,8 @@
-import logging
 import datetime
+import logging
 from typing import List, Optional, Tuple, TypeVar, cast
 
 from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QVariant
 from PyQt5.QtWidgets import QDateTimeEdit
 
 from amarcord.db.rich_attributo_type import (

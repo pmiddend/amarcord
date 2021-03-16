@@ -68,7 +68,6 @@ def _empty_sample():
         incubation_time=None,
         creator=getpass.getuser(),
         crystallization_method="",
-        filters=None,
         compounds=None,
         micrograph=None,
         protocol=None,
@@ -166,15 +165,6 @@ class Samples(QWidget):
         self._crystallization_method_edit.textEdited.connect(
             self._crystallization_method_edit_change
         )
-        self._filters_edit = ValidatedLineEdit(
-            None,
-            lambda str_list: ", ".join(str(s) for s in str_list),  # type: ignore
-            lambda str_list_str: parse_string_list(str_list_str, None),  # type: ignore
-            "list of filters, separated by commas",
-        )
-        self._filters_edit.value_change.connect(self._filters_change)
-        right_form_layout.addRow("Filters", self._filters_edit)
-
         self._compounds_edit = ValidatedLineEdit(
             None,
             lambda str_list: ", ".join(str(s) for s in str_list),  # type: ignore
@@ -398,8 +388,6 @@ class Samples(QWidget):
         self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
         self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
         # noinspection PyTypeChecker
-        self._filters_edit.set_value(self._current_sample.filters)  # type: ignore
-        # noinspection PyTypeChecker
         self._compounds_edit.set_value(self._current_sample.compounds)  # type: ignore
         self._incubation_time_edit.setText(
             self._current_sample.incubation_time.strftime(DATE_TIME_FORMAT)
@@ -459,7 +447,6 @@ class Samples(QWidget):
 
     def _reset_input_fields(self):
         self._crystallization_method_edit.setText("")
-        self._filters_edit.set_value(None)
         self._compounds_edit.set_value(None)
         self._micrograph_edit.set_value(None)
         self._protocol_edit.set_value(None)
@@ -479,11 +466,6 @@ class Samples(QWidget):
         self._current_sample = replace(
             self._current_sample, crystallization_method=new_crystallization_method
         )
-        self._reset_button()
-
-    def _filters_change(self, value: Union[str, List[str]]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, filters=value)
         self._reset_button()
 
     def _micrograph_change(self, value: str) -> None:
@@ -513,7 +495,6 @@ class Samples(QWidget):
     def _button_enabled(self) -> bool:
         return (
             self._incubation_time_edit.valid_value()
-            and self._filters_edit.valid_value()
             and self._compounds_edit.valid_value()
         )
 
@@ -548,10 +529,8 @@ class Samples(QWidget):
         headers = [
             "ID",
             "Incubation Time",
-            "Crystal Shape",
             "Target",
             "Crystallization Method",
-            "Filters",
             "Compounds",
         ] + attributi_headers
         self._sample_table.setColumnCount(len(headers))
@@ -567,7 +546,6 @@ class Samples(QWidget):
                 else "",
                 [t.short_name for t in self._targets if sample.target_id == t.id][0],
                 sample.crystallization_method,
-                ", ".join(sample.filters) if sample.filters is not None else "",
                 ", ".join(sample.compounds if sample is not None else [])
                 if sample.compounds is not None
                 else "",
