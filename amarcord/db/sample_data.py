@@ -10,13 +10,6 @@ from amarcord.modules.dbcontext import DBContext
 
 def create_sample_data(context: DBContext, tables: DBTables) -> None:
     logger.info("Creating sample data...")
-    karabo_data: Optional[bytes]
-    try:
-        with open("data/pickled_karabo", "rb") as f:
-            karabo_data = f.read()
-    except:
-        karabo_data = None
-
     with context.connect() as conn:
         proposal_id = 1
         # Create proposal
@@ -271,7 +264,6 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                     proposal_id=proposal_id,
                     modified=datetime.datetime.utcnow(),
                     sample_id=first_sample_id,
-                    karabo=karabo_data,
                     attributi={
                         "karabo": {
                             "started": (

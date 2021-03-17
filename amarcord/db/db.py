@@ -487,13 +487,14 @@ class DB:
     def connect(self) -> Connection:
         return self.dbcontext.connect()
 
-    def retrieve_karabo(self, conn: Connection, run_id: int) -> Optional[Karabo]:
-        result = conn.execute(
-            sa.select([self.tables.run.c.karabo]).where(self.tables.run.c.id == run_id)
-        ).fetchall()
-        return (
-            pickle.loads(result[0][0]) if result and result[0][0] is not None else None
-        )
+    def retrieve_karabo(self, _conn: Connection, _run_id: int) -> Optional[Karabo]:
+        result: Optional[bytes]
+        try:
+            with open("data/pickled_karabo", "rb") as f:
+                result = f.read()
+        except:
+            result = None
+        return pickle.loads(result) if result is not None else None
 
     def add_attributo(
         self,

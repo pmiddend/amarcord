@@ -95,7 +95,6 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
             nullable=False,
         ),
         sa.Column("sample_id", sa.Integer, ForeignKey("Sample.id"), nullable=True),
-        sa.Column("karabo", sa.BLOB, nullable=True),
         sa.Column("attributi", sa.JSON, nullable=False),
     )
 
@@ -172,7 +171,6 @@ class DBTables:
                 ),
             },
         }
-        self.attributo_karabo = AttributoId(self.run.c.karabo.name)
         self.attributo_attributi = AttributoId(self.run.c.attributi.name)
 
 
