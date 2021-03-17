@@ -40,8 +40,8 @@ def _table_target(metadata: sa.MetaData) -> sa.Table:
         "Target",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("name", sa.String, nullable=False),
-        sa.Column("short_name", sa.String, nullable=False),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("short_name", sa.String(length=255), nullable=False),
         sa.Column("molecular_weight", sa.Float, nullable=True),
         sa.Column("uniprot_id", sa.String(length=64), nullable=True),
     )
