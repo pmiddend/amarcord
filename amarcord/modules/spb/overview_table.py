@@ -39,6 +39,10 @@ def _plottable_attributo_type(t: AttributoType) -> bool:
     return isinstance(t, (AttributoTypeDouble, AttributoTypeInt, AttributoTypeDuration))
 
 
+def _attributo_sort_key(t: TabledAttributo) -> Tuple[str, bool, str]:
+    return t.table.name, t.attributo.name != "id", t.attributo.name
+
+
 class OverviewTable(QWidget):
     run_selected = pyqtSignal(int)
 
@@ -68,6 +72,7 @@ class OverviewTable(QWidget):
             self._attributi_metadata: List[
                 TabledAttributo
             ] = self._retrieve_attributi_metadata(conn)
+            self._attributi_metadata.sort(key=_attributo_sort_key)
             self._visible_columns = self._attributi_metadata.copy()
             self._last_refresh = datetime.datetime.utcnow()
             self._last_run_count = self._db.run_count(conn)
@@ -348,6 +353,7 @@ class OverviewTable(QWidget):
             self, self._visible_columns, self._attributi_metadata
         )
         self._visible_columns = new_columns
+        self._visible_columns.sort(key=_attributo_sort_key)
         self._slot_refresh(force=True)
 
     def _late_init(self) -> None:
