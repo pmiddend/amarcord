@@ -2,8 +2,12 @@ import logging
 import sys
 from functools import partial
 
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMessageBox
+
 from amarcord.config import load_config
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.constants import CONTACT_INFO
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.db.tables import create_tables
@@ -42,6 +46,19 @@ if __name__ == "__main__":
     proposal_ids = retrieve_proposal_ids(context, tables)
 
     proposal_id = config.get("proposal_id", None)
+
+    if not proposal_ids:
+        box = QMessageBox(  # type: ignore
+            QMessageBox.Critical,
+            "No proposals",
+            f"<p>There are no proposals in the database! This means it has not been initialized properly.</p><p>If you know how to do "
+            f"that, add a proposal. If you don't know what's going on, please contact:</p>{CONTACT_INFO}",
+            QMessageBox.Ok,
+            None,
+        )
+        box.setTextFormat(Qt.RichText)
+        box.exec()
+        exit(1)
 
     if proposal_id is None:
         if len(proposal_ids) == 1:
