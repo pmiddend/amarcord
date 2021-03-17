@@ -3,18 +3,33 @@ from typing import Optional
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QCompleter, QWidget
 
 from amarcord.util import word_under_cursor
 
 
 class InfixCompletingLineEdit(QtWidgets.QLineEdit):
+    text_changed_debounced = pyqtSignal(str)
+
     def __init__(
-        self, content: Optional[str] = None, parent: Optional[QtWidgets.QWidget] = None
+        self, content: Optional[str] = None, parent: Optional[QWidget] = None
     ) -> None:
         super().__init__(parent)
-        self._completer: Optional[QtWidgets.QCompleter] = None
+        self._completer: Optional[QCompleter] = None
         if content is not None:
             self.setText(content)
+        self.textChanged.connect(self._slot_text_changed)
+        self._debounce = QtCore.QTimer()
+        self._debounce.setInterval(500)
+        self._debounce.setSingleShot(True)
+        self._debounce.timeout.connect(self._debounced)
+
+    def _slot_text_changed(self) -> None:
+        self._debounce.start()
+
+    def _debounced(self) -> None:
+        self.text_changed_debounced.emit(self.text())
 
     def setCompleter(self, completer: Optional[QtWidgets.QCompleter]) -> None:
         if self._completer is not None:

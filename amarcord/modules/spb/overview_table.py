@@ -110,7 +110,7 @@ class OverviewTable(QWidget):
         inner_filter_layout.setContentsMargins(0, 0, 0, 0)
         inner_filter_widget.setLayout(inner_filter_layout)
         self._filter_widget = InfixCompletingLineEdit(parent=self)
-        self._filter_widget.textChanged.connect(self._slot_filter_changed)
+        self._filter_widget.text_changed_debounced.connect(self._slot_filter_changed)
         completer = QtWidgets.QCompleter(self._filter_query_completions(), self)
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
         self._filter_widget.setCompleter(completer)
