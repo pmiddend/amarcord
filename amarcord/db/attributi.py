@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.attributo_type import (
     AttributoTypeChoice,
@@ -174,7 +175,16 @@ def pretty_print_attributo(
             assert isinstance(
                 value, list
             ), f"Comment column isn't a list but {type(value)}"
-            return "\n".join(f"{c.author}: {c.text}" for c in value)
+            if not value:
+                return ""
+            last_comment = value[-1]
+            assert isinstance(last_comment, DBComment)
+            last_comment_text = f"{last_comment.author}: {last_comment.text}"
+            return (
+                last_comment_text
+                if len(value) == 1
+                else f"{last_comment_text} [+{len(value)} more]"
+            )
     if isinstance(value, list):
         if not value:
             return ""
