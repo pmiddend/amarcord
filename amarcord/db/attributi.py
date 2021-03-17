@@ -159,7 +159,7 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
 
 
 def pretty_print_attributo(
-    attributo_metadata: Optional[DBAttributo], value: AttributoValue
+    attributo_metadata: DBAttributo, value: AttributoValue
 ) -> str:
     if value is None:
         return ""

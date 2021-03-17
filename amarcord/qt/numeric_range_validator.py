@@ -26,5 +26,6 @@ class NumericRangeValidator(QValidator):
         except:
             return QValidator.Invalid, input_, pos
 
+    # pylint: disable=no-self-use
     def fixup(self, input_: str) -> str:
         return input_

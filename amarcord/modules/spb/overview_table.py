@@ -4,7 +4,7 @@ from functools import partial
 from typing import Any, Final, Iterable, List, Tuple
 
 from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QPoint, QTimer, Qt, pyqtSignal
+from PyQt5.QtCore import QPoint, QTimer, pyqtSignal
 from PyQt5.QtWidgets import QCheckBox, QMenu, QMessageBox, QPushButton, QStyle, QWidget
 
 from amarcord.db.associated_table import AssociatedTable
@@ -146,10 +146,10 @@ class OverviewTable(QWidget):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._slot_refresh)
 
-    def hideEvent(self, e) -> None:
+    def hideEvent(self, _e: Any) -> None:
         self._update_timer.stop()
 
-    def showEvent(self, e) -> None:
+    def showEvent(self, _e: Any) -> None:
         self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _retrieve_attributi_metadata(self, conn: Connection) -> List[TabledAttributo]:
@@ -343,7 +343,7 @@ class OverviewTable(QWidget):
             new_scatter_action.triggered.connect(
                 partial(self._slot_plot_against, _PlotType.SCATTER, column, attributo)
             )
-        action = menu.exec_(pos)
+        menu.exec_(pos)
 
     def run_changed(self) -> None:
         self._slot_refresh()

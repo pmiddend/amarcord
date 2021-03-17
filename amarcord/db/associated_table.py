@@ -6,4 +6,5 @@ class AssociatedTable(Enum):
     SAMPLE = "sample"
 
     def pretty_id(self) -> str:
+        # pylint: disable=no-member
         return self.value.capitalize()

@@ -240,14 +240,14 @@ class Samples(QWidget):
         self._update_timer.timeout.connect(self._slot_refresh_with_conn)
 
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
-        with self._db.connect() as conn:
-            logger.info("Setting attributo %s to %s", attributo, value)
-            self._attributi_table.set_single_manual(attributo, value)
-            # We could immediately change the attribute, but we have this "Save changes" button
-            # if self._current_sample.id is not None:
-            #     self._db.update_sample_attributo(
-            #         conn, self._current_sample.id, attributo, value
-            #     )
+        # We could immediately change the attribute, but we have this "Save changes" button
+        # with self._db.connect() as conn:
+        logger.info("Setting attributo %s to %s", attributo, value)
+        self._attributi_table.set_single_manual(attributo, value)
+        # if self._current_sample.id is not None:
+        #     self._db.update_sample_attributo(
+        #         conn, self._current_sample.id, attributo, value
+        #     )
 
     def _slot_refresh_with_conn(self) -> None:
         with self._db.connect() as conn:
@@ -264,10 +264,10 @@ class Samples(QWidget):
 
         self._reload_and_fill_samples(conn)
 
-    def hideEvent(self, e) -> None:
+    def hideEvent(self, _e: Any) -> None:
         self._update_timer.stop()
 
-    def showEvent(self, e) -> None:
+    def showEvent(self, _e: Any) -> None:
         self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _display_micrograph(self) -> None:

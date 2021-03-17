@@ -2,17 +2,17 @@ import logging
 from typing import Dict
 
 import sqlalchemy as sa
-from sqlalchemy import ForeignKey, func
+from sqlalchemy import ForeignKey
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
     AttributoTypeComments,
     AttributoTypeDateTime,
     AttributoTypeInt,
     AttributoTypeSample,
 )
-from amarcord.db.attributo_id import AttributoId
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.modules.dbcontext import DBContext
 
 logger = logging.getLogger(__name__)

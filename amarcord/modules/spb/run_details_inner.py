@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Final, List, Optional
+from typing import Any, Dict, Final, List, Optional
 
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QTimer, QVariant, pyqtSignal
@@ -7,7 +7,6 @@ from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.comment import DBComment
-from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import DBRun
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
@@ -123,7 +122,7 @@ class RunDetailsInner(QtWidgets.QWidget):
             self._augmented_attributi(),
             self.runs_metadata,
             self.sample_ids,
-            lambda prop, value: self.attributo_change.emit(prop, value),
+            self.attributo_change.emit,
         )
         additional_data_layout = QtWidgets.QVBoxLayout()
         additional_data_layout.addWidget(self._attributi_table)
@@ -186,10 +185,10 @@ class RunDetailsInner(QtWidgets.QWidget):
         )
         return copied
 
-    def hideEvent(self, e) -> None:
+    def hideEvent(self, _e: Any) -> None:
         self._update_timer.stop()
 
-    def showEvent(self, e) -> None:
+    def showEvent(self, _e: Any) -> None:
         self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _toggle_auto_switch_to_latest(self, new_state: bool) -> None:

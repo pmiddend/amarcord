@@ -301,6 +301,8 @@ class Targets(QWidget):
                     t.uniprot_id,
                 )
             ):
-                self._target_table.setItem(row, col, QTableWidgetItem(s))
+                self._target_table.setItem(
+                    row, col, QTableWidgetItem(s if s is not None else "")
+                )
 
         self._target_table.resizeColumnsToContents()

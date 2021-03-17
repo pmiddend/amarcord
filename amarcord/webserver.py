@@ -1,7 +1,6 @@
 import datetime
 import json
 import logging
-import os
 
 from flask import Flask, request
 from flask_cors import CORS
@@ -20,7 +19,6 @@ from amarcord.db.db import (
 )
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.proposal_id import ProposalId
-from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode, DBContext
@@ -73,6 +71,7 @@ def _convert_run(r: DBRun) -> JSONDict:
 
 @app.route("/<int:proposal_id>/runs")
 def retrieve_runs(proposal_id: int) -> JSONDict:
+    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         since = request.args.get("since", None)
@@ -102,6 +101,7 @@ def _convert_metadata(v: DBAttributo) -> JSONDict:
 
 @app.route("/run_properties")
 def retrieve_run_properties() -> JSONDict:
+    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         return {
@@ -114,6 +114,7 @@ def retrieve_run_properties() -> JSONDict:
 
 @app.route("/run/<int:run_id>")
 def retrieve_run(run_id: int) -> JSONDict:
+    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         return _convert_run(db.retrieve_run(conn, run_id))
@@ -123,6 +124,7 @@ def retrieve_run(run_id: int) -> JSONDict:
 def add_comment(
     run_id: int,
 ) -> JSONDict:
+    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         assert isinstance(request.json, dict)
@@ -137,6 +139,7 @@ def update_run_attributo(
     run_id: int,
     attributo_name: str,
 ) -> JSONDict:
+    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         assert isinstance(request.json, dict)
@@ -149,6 +152,7 @@ def update_run_attributo(
 
 @app.route("/run/<int:run_id>/comment/<int:comment_id>", methods=["DELETE"])
 def delete_comment(run_id: int, comment_id: int) -> JSONDict:
+    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         db.delete_comment(conn, run_id, comment_id)

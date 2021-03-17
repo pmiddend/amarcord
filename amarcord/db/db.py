@@ -3,7 +3,6 @@ import logging
 import pickle
 from dataclasses import dataclass
 from itertools import groupby
-from time import time
 from typing import Any, Dict, List, Optional, cast
 
 import sqlalchemy as sa
@@ -216,9 +215,9 @@ class DB:
             .order_by(run.c.id, comment.c.id)
         )
         result: List[DBRun] = []
-        before = time()
+        # before = time()
         select_results = conn.execute(select_stmt).fetchall()
-        after = time()
+        # after = time()
         # logger.info("Retrieved runs in %ss", after - before)
         for _run_id, run_rows in groupby(
             select_results,
@@ -487,6 +486,8 @@ class DB:
     def connect(self) -> Connection:
         return self.dbcontext.connect()
 
+    # pylint: disable=no-self-use
+    # noinspection PyMethodMayBeStatic
     def retrieve_karabo(self, _conn: Connection, _run_id: int) -> Optional[Karabo]:
         result: Optional[bytes]
         try:

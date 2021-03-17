@@ -51,14 +51,15 @@ if __name__ == "__main__":
         box = QMessageBox(  # type: ignore
             QMessageBox.Critical,
             "No proposals",
-            f"<p>There are no proposals in the database! This means it has not been initialized properly.</p><p>If you know how to do "
+            f"<p>There are no proposals in the database! This means it has not been initialized properly.</p><p>If "
+            f"you know how to do "
             f"that, add a proposal. If you don't know what's going on, please contact:</p>{CONTACT_INFO}",
             QMessageBox.Ok,
             None,
         )
         box.setTextFormat(Qt.RichText)
         box.exec()
-        exit(1)
+        sys.exit(1)
 
     if proposal_id is None:
         if len(proposal_ids) == 1:

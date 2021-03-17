@@ -10,6 +10,7 @@ from karabo_bridge import deserialize
 from zmq.asyncio import Context
 
 from amarcord.config import load_config
+from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.db import DB
@@ -28,7 +29,9 @@ logger = logging.getLogger(__name__)
 async def karabo_loop(queries: DB, config: XFELKaraboBridgeConfig) -> None:
     # TESTING
     with queries.dbcontext.connect() as conn:
-        queries.add_run(conn, ProposalId(1), 1, sample_id=None)
+        queries.add_run(
+            conn, ProposalId(1), 1, sample_id=None, attributi=RawAttributiMap({})
+        )
 
     ctx = Context.instance()
 

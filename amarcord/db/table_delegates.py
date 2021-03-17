@@ -274,7 +274,7 @@ class ListItemDelegate(QtWidgets.QStyledItemDelegate):
             )
         if isinstance(self._subtype, AttributoTypeDouble):
             infix = (
-                f"list of numbers"
+                "list of numbers"
                 if self._min_length is None and self._max_length is None
                 else f"list of at least {self._min_length} number(s)"
                 if self._min_length is not None and self._max_length is None
@@ -304,7 +304,9 @@ class ListItemDelegate(QtWidgets.QStyledItemDelegate):
             raise ValueError(f"expected list, got {type(data)}")
         if data and not isinstance(data[0], (str, float, int)):
             raise ValueError(f"expected string or number, got {type(data[0])}")
-        editor.set_value(data)
+        # mypy complains about unpacking QVariant. Don't care here.
+        # noinspection PyTypeChecker
+        editor.set_value(data)  # type: ignore
 
     # pylint: disable=no-self-use
     def setModelData(
@@ -382,12 +384,7 @@ class DoubleItemDelegate(QtWidgets.QStyledItemDelegate):
 
 
 class DurationItemDelegate(QtWidgets.QStyledItemDelegate):
-    def __init__(
-        self,
-        parent: Optional[QtCore.QObject],
-    ) -> None:
-        super().__init__(parent)
-
+    # pylint: disable=no-self-use
     def createEditor(
         self,
         parent: QtWidgets.QWidget,

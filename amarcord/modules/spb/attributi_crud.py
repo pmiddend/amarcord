@@ -191,10 +191,10 @@ class AttributiCrud(QWidget):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._slot_refresh_with_conn)
 
-    def hideEvent(self, e) -> None:
+    def hideEvent(self, _e: Any) -> None:
         self._update_timer.stop()
 
-    def showEvent(self, e) -> None:
+    def showEvent(self, _e: Any) -> None:
         self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def regenerate_for_table(self, t: AssociatedTable) -> None:

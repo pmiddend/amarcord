@@ -8,7 +8,6 @@ from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import (
     QDialog,
     QDialogButtonBox,
-    QHBoxLayout,
     QVBoxLayout,
     QWidget,
 )
@@ -75,7 +74,7 @@ class PlotDialog(QDialog):
         toolbar = NavigationToolbar(self._sc, self)
 
         dialog_layout.addWidget(self._sc)
-        filter_line = QHBoxLayout()
+        # filter_line = QHBoxLayout()
         dialog_layout.addWidget(toolbar)
         # dialog_layout.addLayout(filter_line)
         # self._filter_widget = InfixCompletingLineEdit(
