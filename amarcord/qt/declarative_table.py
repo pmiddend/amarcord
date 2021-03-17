@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, cast
+from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PyQt5.QtCore import (
     QAbstractTableModel,
@@ -15,19 +16,30 @@ from PyQt5.QtGui import QBrush, QContextMenuEvent
 from PyQt5.QtWidgets import (
     QAbstractItemDelegate,
     QAbstractItemView,
+    QHeaderView,
     QStyledItemDelegate,
     QTableView,
     QWidget,
 )
 
-from amarcord.qt.signal_blocker import SignalBlocker
-
 logger = logging.getLogger(__name__)
 
 ContextMenuCallback = Callable[[QPoint], None]
 DoubleClickCallback = Callable[[], None]
-SortClickCallback = Callable[[Qt.SortOrder], None]
+SortClickCallback = Callable[[], None]
 RightClickMenuCallback = Callable[[QPoint], None]
+
+
+class SortOrder(Enum):
+    ASC = auto()
+    DESC = auto()
+
+    def invert(self) -> "SortOrder":
+        return SortOrder.DESC if self == SortOrder.ASC else SortOrder.ASC
+
+    def to_qt(self) -> Qt.SortOrder:
+        # return Qt.AscendingOrder if self == SortOrder.ASC else Qt.DescendingOrder
+        return Qt.DescendingOrder if self == SortOrder.ASC else Qt.AscendingOrder
 
 
 @dataclass(frozen=True, eq=True)
@@ -46,7 +58,7 @@ class Row:
 class Column:
     header_label: str
     editable: bool
-    sorted_by: Optional[Qt.SortOrder] = None
+    sorted_by: Optional[SortOrder] = None
     sort_click_callback: Optional[SortClickCallback] = None
     header_callback: Optional[ContextMenuCallback] = None
 
@@ -134,6 +146,18 @@ def _sort_row(column: int, row: Row) -> Any:
     return row.edit_roles[column]
 
 
+# This class might not really be necessary, it was created during debugging
+# and I think it's no harm in keeping it.
+class _DeclarativeHeader(QHeaderView):
+    def __init__(self) -> None:
+        super().__init__(Qt.Horizontal, None)
+        self._sorted_by: Optional[Tuple[int, SortOrder]] = None
+
+    def set_sorted_by(self, index: int, order: SortOrder) -> None:
+        self._sorted_by = (index, order)
+        self.setSortIndicator(index, order.to_qt())
+
+
 class DeclarativeTable(QTableView):
     def __init__(
         self,
@@ -142,6 +166,7 @@ class DeclarativeTable(QTableView):
     ) -> None:
         super().__init__(parent)
 
+        self.setHorizontalHeader(_DeclarativeHeader())
         self.horizontalHeader().setContextMenuPolicy(Qt.CustomContextMenu)
         self.horizontalHeader().customContextMenuRequested.connect(self._context_menu)
 
@@ -152,9 +177,8 @@ class DeclarativeTable(QTableView):
         self.verticalHeader().hide()
         self.setAlternatingRowColors(True)
         self.horizontalHeader().setStretchLastSection(True)
-        self.horizontalHeader().sortIndicatorChanged.connect(
-            self._sort_indicator_changed
-        )
+        self.horizontalHeader().setSectionsClickable(True)
+        self.horizontalHeader().sectionClicked.connect(self._sort_indicator_changed)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.doubleClicked.connect(self._double_click)
         model.cell_changed.connect(self._cell_changed)
@@ -174,18 +198,15 @@ class DeclarativeTable(QTableView):
             None,
         )
         if sort_column is not None:
-            with SignalBlocker(self):
-                with SignalBlocker(self.horizontalHeader()):
-                    self.setSortingEnabled(True)
-                    self.sortByColumn(
-                        sort_column[0], cast(Qt.SortOrder, sort_column[1].sorted_by)
-                    )
+            self.horizontalHeader().set_sorted_by(
+                sort_column[0], sort_column[1].sorted_by
+            )
+            self.setSortingEnabled(True)
 
-    def _sort_indicator_changed(self, i: int, o: Qt.SortOrder) -> None:
-        logger.info("Sort indicator changed to %s", i)
+    def _sort_indicator_changed(self, i: int) -> None:
         scc = self._data.columns[i].sort_click_callback
         if scc is not None:
-            scc(o)
+            scc()
 
     def _double_click(self, index: QModelIndex) -> None:
         callback = self.model().double_click_callback(index.row())
@@ -229,19 +250,17 @@ class DeclarativeTable(QTableView):
             self.setItemDelegateForColumn(row_idx, QStyledItemDelegate())  # type: ignore
 
         self.model().set_data(data)
-        sort_column = next(
+        self._data = data
+        sort_column: Optional[Tuple[int, Column]] = next(
             iter(
                 c for c in enumerate(self._data.columns) if c[1].sorted_by is not None
             ),
             None,
         )
         if sort_column is not None:
-            if not self.isSortingEnabled():
-                self.setSortingEnabled(True)
-            self.sortByColumn(
-                sort_column[0], cast(Qt.SortOrder, sort_column[1].sorted_by)
+            self.horizontalHeader().set_sorted_by(
+                sort_column[0], sort_column[1].sorted_by
             )
-        self._data = data
 
         for row_idx, delegate in data.row_delegates.items():
             self.setItemDelegateForRow(row_idx, delegate)

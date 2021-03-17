@@ -26,7 +26,7 @@ from amarcord.modules.context import Context
 from amarcord.modules.spb.column_chooser import display_column_chooser
 from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.plot_dialog import PlotDialog, _PlotType
-from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
+from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row, SortOrder
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
 from amarcord.query_parser import Query, UnexpectedEOF, parse_query
 
@@ -75,14 +75,14 @@ class OverviewTable(QWidget):
                 conn, self._proposal_id, self._db.retrieve_attributi(conn)
             )
             self._filter_query: Query = lambda row: True
-            self._sort_data: Tuple[TabledAttributo, Qt.SortOrder] = (
+            self._sort_data: Tuple[TabledAttributo, SortOrder] = (
                 TabledAttributo(
                     AssociatedTable.RUN,
                     self._db.tables.additional_attributi[AssociatedTable.RUN][
                         self._db.tables.attributo_run_id
                     ],
                 ),
-                Qt.AscendingOrder,
+                SortOrder.ASC,
             )
             self._table_view = DeclarativeTable(
                 self._create_declarative_data(),
@@ -158,6 +158,19 @@ class OverviewTable(QWidget):
         return [s.technical_id() for s in self._attributi_metadata]
 
     def _create_declarative_data(self):
+        columns = [
+            Column(
+                header_label=c.pretty_id(),
+                editable=False,
+                header_callback=partial(self._header_menu_callback, c),
+                sort_click_callback=partial(self._sort_clicked, c),
+                sorted_by=self._sort_data[1]
+                if self._sort_data[0].table == c.table
+                and self._sort_data[0].attributo.name == c.attributo.name
+                else None,
+            )
+            for c in self._visible_columns
+        ]
         return Data(
             rows=[
                 Row(
@@ -181,19 +194,7 @@ class OverviewTable(QWidget):
                 for c in self._rows
                 if self._row_not_filtered(c)
             ],
-            columns=[
-                Column(
-                    header_label=c.pretty_id(),
-                    editable=False,
-                    header_callback=partial(self._header_menu_callback, c),
-                    sort_click_callback=partial(self._sort_clicked, c),
-                    sorted_by=self._sort_data[1]
-                    if self._sort_data[0].table == c.table
-                    and self._sort_data[0].attributo.name == c.attributo.name == c
-                    else None,
-                )
-                for c in self._visible_columns
-            ],
+            columns=columns,
             row_delegates={},
             column_delegates={},
         )
@@ -261,7 +262,7 @@ class OverviewTable(QWidget):
                 self._last_run_count = latest_run_count
                 self._rows.sort(
                     key=self._sort_key,
-                    reverse=(self._sort_data[1] == Qt.AscendingOrder),
+                    reverse=(self._sort_data[1] == SortOrder.DESC),
                 )
             if needs_update or force:
                 self._table_view.set_data(self._create_declarative_data())
@@ -274,10 +275,15 @@ class OverviewTable(QWidget):
         v = table_data.select_value(sort_column.attributo.name)
         return sortable_attributo(sort_column.attributo, v)
 
-    def _sort_clicked(self, column: TabledAttributo, order: Qt.SortOrder) -> None:
-        self._sort_data = (column, order)
+    def _sort_clicked(self, column: TabledAttributo) -> None:
+        self._sort_data = (
+            column,
+            self._sort_data[1].invert()
+            if self._sort_data[0] == column
+            else SortOrder.ASC,
+        )
         self._rows.sort(
-            key=self._sort_key, reverse=(self._sort_data[1] == Qt.AscendingOrder)
+            key=self._sort_key, reverse=(self._sort_data[1] == SortOrder.DESC)
         )
         self._table_view.set_data(self._create_declarative_data())
 
