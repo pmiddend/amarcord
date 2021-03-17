@@ -6,16 +6,24 @@ import Data.Argonaut (class DecodeJson, JsonDecodeError(..), decodeJson, (.:), (
 import Data.Either (Either(..))
 import Data.Maybe (Maybe)
 
-data JSONSchemaType
-  = JSONNumber
-    { suffix :: Maybe String
+type JSONNumberData
+  = { suffix :: Maybe String
     , range :: Maybe (NumericRange Number)
     }
+
+data JSONSchemaType
+  = JSONNumber JSONNumberData
   | JSONString
   | JSONArray
   | JSONInteger
 
 derive instance eqJSONSchemaType :: Eq JSONSchemaType
+
+instance showJsonSchema :: Show JSONSchemaType where
+  show JSONString = "string"
+  show JSONArray = "array"
+  show JSONInteger = "int"
+  show (JSONNumber _) = "number"
 
 instance jsonSchemaTypeDecode :: DecodeJson JSONSchemaType where
   decodeJson json = do

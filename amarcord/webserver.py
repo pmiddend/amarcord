@@ -12,6 +12,7 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     attributo_type_to_schema,
 )
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.comment import DBComment
 from amarcord.db.db import (
     DB,
@@ -40,7 +41,10 @@ tables = create_tables(dbcontext)
 
 dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
-if "AMARCORD_CREATE_SAMPLE_DATA" in os.environ:
+if (
+    isinstance(config["db"]["create_sample_data"], bool)
+    and config["db"]["create_sample_data"]
+):
     create_sample_data(dbcontext, tables)
 
 db = DB(
@@ -125,6 +129,21 @@ def add_comment(
         assert "author" in request.json
         assert "text" in request.json
         db.add_comment(conn, run_id, request.json["author"], request.json["text"])
+        return {}
+
+
+@app.route("/run/<int:run_id>/attributo/<attributo_name>", methods=["POST"])
+def update_run_attributo(
+    run_id: int,
+    attributo_name: str,
+) -> JSONDict:
+    global db
+    with db.connect() as conn:
+        assert isinstance(request.json, dict)
+        assert "value" in request.json
+        db.update_run_attributo(
+            conn, run_id, AttributoId(attributo_name), request.json["value"]
+        )
         return {}
 
 

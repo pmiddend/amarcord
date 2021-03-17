@@ -1,37 +1,37 @@
 module App.Components.EditRun where
 
 import Prelude hiding (comparing)
-
-import App.API (AttributiResponse, addComment, deleteComment, retrieveRun, retrieveRunAttributi)
+import App.API (AttributiResponse, addComment, changeRunAttributo, deleteComment, retrieveRun, retrieveRunAttributi)
 import App.AppMonad (AppMonad, log)
-import App.Attributo (Attributo, _description, _name, rpName, rpType, validateNumeric)
+import App.Attributo (Attributo, _description, _name, _typeSchema)
+import App.AttributoUtil (PairedAttributo(..), ProcessedAttributo, attributiAndErrors)
+import App.AttributoValue (AttributoValue(..))
 import App.Bootstrap (container, plainH1_, plainH2_, plainH3_, plainTd_, plainTh_, table)
 import App.Comment (Comment)
 import App.Components.Modal (ModalOutput(..), modal)
 import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
-import App.HalogenUtils (classList, faIcon, makeRequestResult, singleClass)
+import App.HalogenUtils (classList, faIcon, makeAlert, makeRequestResult, singleClass)
 import App.JSONSchemaType (JSONSchemaType(..))
 import App.Logging (LogLevel(..))
-import App.NumericRange (NumericRange, prettyPrintRange)
-import App.Run (Run, Source, _attributi, locateAttributo)
-import App.RunScalar (RunScalar(..))
-import App.RunValue (RunValue(..))
+import App.NumericRange (NumericRange, inRange, prettyPrintRange)
+import App.Run (Run, _attributi)
 import App.UnfinishedComment (UnfinishedComment, _author, _text, emptyUnfinishedComment)
-import App.Utils (fanoutApplicative, findCascade, mapTuple)
+import App.Utils (fanoutApplicative)
 import Data.Array ((:))
 import Data.Either (Either(..))
-import Data.Lens (Lens', set, use, (%=), (.=), (<>=), (^.))
+import Data.Int (fromNumber)
+import Data.Lens (Lens', non, set, use, (.=), (^.))
 import Data.Lens.At (at)
-import Data.Lens.Index (ix)
 import Data.Lens.Record (prop)
-import Data.List (toUnfoldable)
-import Data.Map (Map, fromFoldable, values)
+import Data.List (List(..), intercalate, toUnfoldable)
+import Data.Map (Map, filterKeys, fromFoldable)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.Number (fromString)
-import Data.Set (Set, delete, member, singleton)
+import Data.Set as Set
 import Data.Symbol (SProxy(..))
 import Data.Traversable (class Foldable, for_)
-import Data.Tuple (Tuple(..), fst, snd)
+import Data.Tuple (Tuple(..))
+import Foreign.Object (empty)
 import Halogen (lift)
 import Halogen as H
 import Halogen.HTML as HH
@@ -46,10 +46,11 @@ type EditRunInput
 type State
   = { runId :: Int
     , run :: Run
-    , runAttributi :: Map String Attributo
+    , availableAttributi :: Map String Attributo
     , newComment :: UnfinishedComment
     , commentRequest :: RemoteData String String
     , deleteCommentId :: Maybe Int
+    , runRequest :: RemoteData String String
     }
 
 _deleteCommentId :: Lens' State (Maybe Int)
@@ -61,8 +62,11 @@ _newComment = prop (SProxy :: SProxy "newComment")
 _run :: Lens' State Run
 _run = prop (SProxy :: SProxy "run")
 
-_runAttributi :: Lens' State (Map String Attributo)
-_runAttributi = prop (SProxy :: SProxy "runAttributi")
+_runRequest :: Lens' State (RemoteData String String)
+_runRequest = prop (SProxy :: SProxy "runRequest")
+
+_availableAttributi :: Lens' State (Map String Attributo)
+_availableAttributi = prop (SProxy :: SProxy "availableAttributi")
 
 _runId :: Lens' State Int
 _runId = prop (SProxy :: SProxy "runId")
@@ -70,27 +74,29 @@ _runId = prop (SProxy :: SProxy "runId")
 _commentRequest :: Lens' State (RemoteData String String)
 _commentRequest = prop (SProxy :: SProxy "commentRequest")
 
-data CommentAction =  AddComment
+data CommentAction
+  = AddComment
   | ConfirmDeleteComment Int
   | CommentModal ModalOutput
-
 
 data Action
   = ModifyState (State -> State)
   | CommentSubAction CommentAction
-  | AttributoNumberChange String Number
+  | AttributoValueChange String AttributoValue
+  | AttributoBlur String
 
 attributiListToMap :: forall a. Foldable a => Functor a => a Attributo -> Map String Attributo
-attributiListToMap attributi = fromFoldable ((\a -> Tuple (rpName a) a) <$> attributi)
+attributiListToMap attributi = fromFoldable ((\a -> Tuple (a ^. _name) a) <$> attributi)
 
 initialState :: ChildInput Int EditRunInput -> State
-initialState { input: runId, remoteData: (Tuple run runAttributiResponse) } =
+initialState { input: runId, remoteData: (Tuple run availableAttributiResponse) } =
   { runId: runId
   , run: run
-  , runAttributi: attributiListToMap runAttributiResponse.attributi
+  , availableAttributi: attributiListToMap availableAttributiResponse.attributi
   , newComment: emptyUnfinishedComment
   , commentRequest: NotAsked
   , deleteCommentId: Nothing
+  , runRequest: NotAsked
   }
 
 component :: forall output query. H.Component HH.HTML query Int output AppMonad
@@ -117,19 +123,21 @@ resetRunData = do
   rid <- use _runId
   newRunData' <- lift $ (fetchRunData rid)
   case newRunData' of
-    Success (Tuple newRunData newAttributi) -> H.modify_ (set _run newRunData <<< set _runAttributi (attributiListToMap newAttributi.attributi))
+    Success (Tuple newRunData newAttributi) -> H.modify_ (set _run newRunData <<< set _availableAttributi (attributiListToMap newAttributi.attributi))
     _ -> pure unit
 
 -- Retrieve attributo from state, errors if doesn't exist
 -- (Shouldn't happen, but still)
-withAttributo :: forall slots. String ->
-                 (Attributo -> H.HalogenM State Action slots ParentError AppMonad Unit) ->
-                 H.HalogenM State Action slots ParentError AppMonad Unit
-withAttributo name f =  do
-  attributo' <- use (_runAttributi <<< at name)
+withAttributo ::
+  forall slots.
+  String ->
+  (Attributo -> H.HalogenM State Action slots ParentError AppMonad Unit) ->
+  H.HalogenM State Action slots ParentError AppMonad Unit
+withAttributo name f = do
+  attributo' <- use (_availableAttributi <<< at name)
   case attributo' of
-      Nothing -> lift $ log Info ("Attributo \"" <> name <> "\" not found")
-      Just attributo -> f attributo
+    Nothing -> lift $ log Info ("Attributo \"" <> name <> "\" not found")
+    Just attributo -> f attributo
 
 handleCommentAction :: forall slots. CommentAction -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleCommentAction = case _ of
@@ -162,11 +170,17 @@ handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentErro
 handleAction = case _ of
   CommentSubAction ca -> handleCommentAction ca
   ModifyState f -> H.modify_ f
-  AttributoNumberChange attributoName newValue -> (_run <<< _attributi <<< ix "manual" <<< ix attributoName) .= Scalar (RunScalarNumber newValue)
-    -- withAttributo attributoName $ \attributo ->
-    --   if validateNumeric newValue attributo
-    --   then _invalidFields %= delete attributoName
-    --   else _invalidFields <>= singleton attributoName
+  AttributoValueChange name value -> H.modify_ (set (_run <<< _attributi <<< at "manual" <<< non empty <<< at name) (Just value))
+  AttributoBlur name -> do
+    _runRequest .= Loading
+    currentState <- H.get
+    case currentState ^. _run <<< _attributi <<< at "manual" <<< non empty <<< at name of
+      Nothing -> pure unit
+      Just attributoValue -> do
+        runResponse <- changeRunAttributo (currentState ^. _runId) name attributoValue
+        case runResponse of
+          Left e -> _runRequest .= Failure e
+          Right _ -> H.modify_ (set _commentRequest (Success "Value changed!") >>> set _newComment emptyUnfinishedComment)
 
 commentsTable :: forall w. RemoteData String String -> Array Comment -> HH.HTML w Action
 commentsTable commentRequest comments =
@@ -213,59 +227,81 @@ commentsSection state =
           ]
       ]
 
-runValueToString :: RunValue -> String
-runValueToString rv = case rv of
-  Scalar (RunScalarNumber n) -> show n
-  Scalar (RunScalarInt n) -> show n
-  Scalar (RunScalarString n) -> n
-  Comments _ -> ""
-
 formatRange :: forall a w i. Show a => Maybe (NumericRange a) -> Array (HH.HTML w i)
 formatRange Nothing = []
 
 formatRange (Just r) = [ HH.small [ classList [ "ml-3", "form-text", "text-muted" ] ] [ HH.text ("value ∈ " <> prettyPrintRange r) ] ]
 
-attributoToInput :: forall w. Tuple Attributo (Maybe (Tuple Source RunValue)) -> Array (HH.HTML w Action)
-attributoToInput (Tuple rp v) =
+attributoToInput :: forall w. ProcessedAttributo -> Array (HH.HTML w Action)
+attributoToInput { attributo, value } =
   let
-    sourceToClass = case v of
-      Just (Tuple "manual" _) -> [ "manual-edit" ]
+    sourceToClass = case value of
+      Just { source: "manual" } -> [ "manual-edit" ]
       _ -> []
-    invalidToClass = if validateNumeric v rp then ["is-invalid"] else ["is-valid"]
-  in
-    case rpType rp of
-      Just (JSONNumber { suffix: Just suffix, range }) ->
-        let
-          classes = [ "form-control" ] <> sourceToClass <> invalidToClass
-        in
-          [ HH.input [ HP.type_ InputNumber, HP.id_ (rp ^. _name), classList classes, HE.onValueInput (\newInput -> (AttributoNumberChange (rp ^. _name) <$> fromString newInput)), HP.value (fromMaybe "" ((runValueToString <<< snd) <$> v)) ]
-          , HH.div [ classList [ "input-group-append" ] ] [ HH.div [ singleClass "input-group-text" ] [ HH.text suffix ] ]
-          ]
-            <> formatRange range
-      Just (JSONNumber { suffix: Nothing, range }) -> [ HH.input [ HP.type_ InputNumber, HP.id_ (rp ^. _name), classList [ "form-control", "col-sm-10" ] ] ] <> formatRange range
-      Just JSONString -> [ HH.input [ HP.type_ InputText, HP.id_ (rp ^. _name), classList [ "form-control", "col-sm-10" ] ] ]
-      Just JSONInteger -> [ HH.input [ HP.type_ InputNumber, HP.id_ (rp ^. _name), classList [ "form-control", "col-sm-10" ] ] ]
-      _ -> [ HH.text "" ]
 
-attributiWithValues :: State -> Array (Tuple Attributo (Maybe (Tuple Source RunValue)))
-attributiWithValues state = mapTuple makeValue (toUnfoldable (values state.runAttributi))
-  where
-  makeValue :: Attributo -> Maybe (Tuple Source RunValue)
-  makeValue rp = findCascade (locateAttributo (rp ^. _name) state.run.attributi) fst [ "manual", "offline", "online" ]
+    valueMaybeInt :: Number -> String
+    valueMaybeInt n = case fromNumber n of
+      Just n' -> show n'
+      Nothing -> show n
+
+    valueToString (PairedNumber _ x) = valueMaybeInt x
+
+    valueToString (PairedString x) = x
+
+    valueToString (PairedInteger x) = show x
+
+    valueValid = case value of
+      Just { value: (PairedNumber { range: Just range } number) } -> inRange range number
+      _ -> true
+
+    invalidToClass = if valueValid then [ "is-valid" ] else [ "is-invalid" ]
+
+    numericInput classes =
+      HH.input
+        [ HP.type_ InputNumber
+        , HP.id_ (attributo ^. _name)
+        , classList classes
+        , HE.onValueInput (\newInput -> ((AttributoValueChange (attributo ^. _name) <<< NumericAttributo) <$> fromString newInput))
+        , HP.value (fromMaybe "" ((valueToString <<< _.value) <$> value))
+        , HE.onBlur (const (Just (AttributoBlur (attributo ^. _name))))
+        ]
+  in
+    case attributo ^. _typeSchema of
+      JSONNumber { suffix: Just suffix, range } ->
+        [ numericInput ([ "form-control" ] <> sourceToClass <> invalidToClass)
+        , HH.div
+            [ classList [ "input-group-append" ] ]
+            [ HH.div [ singleClass "input-group-text" ] [ HH.text suffix ] ]
+        ]
+          <> formatRange range
+      JSONNumber { suffix: Nothing, range } -> [ numericInput [ "form-control" ] ] <> formatRange range
+      JSONString -> [ HH.input [ HP.type_ InputText, HP.id_ (attributo ^. _name), classList [ "form-control" ] ] ]
+      JSONInteger -> [ HH.input [ HP.type_ InputNumber, HP.id_ (attributo ^. _name), classList [ "form-control" ] ] ]
+      _ -> [ HH.text "" ]
 
 attributiSection :: forall w. State -> Array (HH.HTML w Action)
 attributiSection state =
   let
-    makeFormElement :: Tuple Attributo (Maybe (Tuple Source RunValue)) -> HH.HTML w Action
-    makeFormElement (Tuple rp v) =
+    makeFormElement :: ProcessedAttributo -> HH.HTML w Action
+    makeFormElement pa@{ attributo, value } =
       HH.div [ classList [ "form-group", "form-row" ] ]
-        [ HH.label [ HP.for (rp ^. _name), classList [ "col-sm-2", "col-form-label" ] ] [ HH.text (rp ^. _description) ]
-        , HH.div [ classList [ "input-group", "col-sm-10" ] ] (attributoToInput (Tuple rp v))
+        [ HH.label [ HP.for (attributo ^. _name), classList [ "col-sm-2", "col-form-label" ] ] [ HH.text (attributo ^. _description) ]
+        , HH.div [ classList [ "input-group", "col-sm-10" ] ] (attributoToInput pa)
         ]
 
-    formElements = makeFormElement <$> (attributiWithValues state)
+    ignoredAttributi = Set.fromFoldable [ "comments", "id", "modified", "proposal_id" ]
+
+    filteredAttributi = filterKeys ((\a -> Set.member a ignoredAttributi) >>> not) state.availableAttributi
+
+    { errors, attributi } = attributiAndErrors filteredAttributi state.run.attributi
+
+    errorsHtml = case errors of
+      Nil -> HH.text ""
+      _ -> makeAlert "critical" ("Errors trying to process some of the attributi: " <> intercalate ", " errors)
+
+    formElements = makeFormElement <$> attributi
   in
-    plainH2_ "Attributi" : [ HH.form_ formElements ]
+    plainH2_ "Attributi" : makeRequestResult state.runRequest : errorsHtml : [ HH.form_ (toUnfoldable formElements) ]
 
 textInput placeholder value modifier =
   HH.input

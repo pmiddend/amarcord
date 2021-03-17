@@ -19,6 +19,7 @@ from amarcord.db.attributo_id import (
     AttributoId,
 )
 from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
@@ -459,7 +460,11 @@ class DB:
         )
 
     def update_run_attributo(
-        self, conn: Connection, run_id: int, attributo: AttributoId, value: Any
+        self,
+        conn: Connection,
+        run_id: int,
+        attributo: AttributoId,
+        value: AttributoValue,
     ) -> None:
         if attributo == self.tables.attributo_run_sample_id:
             assert isinstance(value, int), "sample ID should be an integer"

@@ -8,9 +8,10 @@ import Affjax.RequestBody (RequestBody(..))
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
+import App.Attributo (Attributo)
+import App.AttributoValue (AttributoValue)
 import App.Env (Env)
 import App.Run (Run)
-import App.Attributo (Attributo)
 import App.UnfinishedComment (UnfinishedComment)
 import Control.Monad.Reader (class MonadAsk, asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError, encodeJson)
@@ -19,8 +20,9 @@ import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect.Aff.Class (class MonadAff)
-import Foreign.Object (Object)
+import Foreign.Object (singleton)
 import Halogen (liftAff)
+
 
 type RunsResponse
   = { runs :: Array Run
@@ -98,4 +100,13 @@ deleteComment rid cid = do
     url :: String
     url = (baseUrl' <> "/run/" <> show rid <> "/comment/" <> show cid)
   response <- liftAff $ AX.delete ResponseFormat.json url
+  handleResponse response
+
+changeRunAttributo :: forall m. MonadAsk Env m => MonadAff m => Int -> String -> AttributoValue -> m (Either String {})
+changeRunAttributo rid name value = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/run/" <> show rid <> "/attributo/" <> name)
+  response <- liftAff $ AX.post ResponseFormat.json url (Just (Json (encodeJson (singleton "value" value))))
   handleResponse response
