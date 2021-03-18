@@ -3,7 +3,7 @@ import setuptools
 setuptools.setup(
     name="amarcord-amici",
     version="0.2pre2",
-    author="CFEL",
+    author="Philipp Middendorf <philipp.middendorf@desy.de>",
     author_email="sc@cfel.de",
     description="external interface for AMARCORD",
     packages=["amarcord.amici"],
