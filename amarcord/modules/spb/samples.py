@@ -120,7 +120,7 @@ class Samples(QWidget):
         root_widget = QSplitter(self)
         root_layout.addWidget(root_widget)
         self._sample_table = _SampleTable()
-        self._sample_table.delete_current_row.connect(self._delete_sample)
+        self._sample_table.delete_current_row.connect(self._slot_delete_sample)
         self._sample_table.doubleClicked.connect(self._slot_row_selected)
         root_widget.addWidget(self._sample_table)
 
@@ -230,6 +230,8 @@ class Samples(QWidget):
         self._add_button.setEnabled(True)
         self._submit_layout.addWidget(self._add_button)
 
+        self._samples_with_runs: Dict[int, List[int]] = {}
+
         self._attributo_manual_changes: Dict[AttributoId, Any] = {}
         right_form_layout.addWidget(self._submit_widget)
 
@@ -304,10 +306,28 @@ class Samples(QWidget):
         self._current_sample = replace(self._current_sample, micrograph=result)
         self._display_micrograph_button.setEnabled(True)
 
-    def _delete_sample(self) -> None:
+    def _slot_delete_sample(self) -> None:
         row_idx = self._sample_table.currentRow()
         sample = self._samples[row_idx]
-        sample_id = sample.attributi.select_int_unsafe(AttributoId("id"))
+        sample_id = cast(int, sample.id)
+
+        refs = self._samples_with_runs.get(sample_id, [])
+        if refs:
+            mb = QMessageBox(  # type: ignore
+                QMessageBox.Critical,
+                f"Cannot delete sample “{sample_id}”",
+                f"<p>The sample is in used by the following run(s) and cannot be deleted!</p><p>Please reset the "
+                f"samples for the "
+                f"runs and try again:</p><ul>"
+                + ("".join([f"<li>{x}</li>" for x in refs][0:19]))
+                + ("<li>...</li>" if len(refs) else "")
+                + "</ul>",
+                QMessageBox.Ok,
+                self,
+            )
+            mb.setTextFormat(Qt.RichText)
+            mb.exec()
+            return None
 
         result = QMessageBox(  # type: ignore
             QMessageBox.Critical,
@@ -322,10 +342,7 @@ class Samples(QWidget):
                 self._db.delete_sample(conn, sample_id)
                 self._log_widget.setText(f"Sample “{sample_id}” deleted!")
                 self._reload_and_fill_samples(conn)
-                if (
-                    self._current_sample.attributi.select_int_unsafe(AttributoId("id"))
-                    == sample_id
-                ):
+                if self._current_sample.id == sample_id:
                     self._reset_input_fields()
                     self._right_headline.setText(NEW_SAMPLE_HEADLINE)
 
@@ -458,6 +475,7 @@ class Samples(QWidget):
         self._reset_button()
 
     def _reload_and_fill_samples(self, conn: Connection) -> None:
+        self._samples_with_runs = self._db.retrieve_used_sample_ids(conn)
         self._samples = self._db.retrieve_samples(conn)
         self._targets = self._db.retrieve_targets(conn)
 
@@ -476,6 +494,7 @@ class Samples(QWidget):
         ]
         headers = [
             "ID",
+            "Number of runs",
             "Target",
             "Compounds",
         ] + attributi_headers
@@ -487,6 +506,7 @@ class Samples(QWidget):
         for row, sample in enumerate(self._samples):
             built_in_columns = (
                 str(sample.id),
+                str(len(self._samples_with_runs.get(sample.id, []))),
                 [t.short_name for t in self._targets if sample.target_id == t.id][0],
                 ", ".join(sample.compounds if sample is not None else [])
                 if sample.compounds is not None

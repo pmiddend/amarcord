@@ -558,6 +558,23 @@ class DB:
             sa.delete(self.tables.target).where(self.tables.target.c.id == tid)
         )
 
+    def retrieve_used_sample_ids(self, conn: Connection) -> Dict[int, List[int]]:
+        result: Dict[int, List[int]] = {}
+        db_results = conn.execute(
+            sa.select(
+                [
+                    self.tables.sample.c.id,
+                    self.tables.run.c.id,
+                ]
+            ).select_from(self.tables.sample.join(self.tables.run))
+        ).fetchall()
+        for sample_id, run_ids in groupby(
+            db_results,
+            lambda x: x[0],
+        ):
+            result[sample_id] = list(r[1] for r in run_ids)
+        return result
+
     def retrieve_samples(
         self, conn: Connection, since: Optional[datetime.datetime] = None
     ) -> List[DBSample]:
