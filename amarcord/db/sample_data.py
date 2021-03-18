@@ -1,5 +1,6 @@
 import datetime
-from random import randint, random, randrange, seed
+from random import choice, randint, random, randrange, seed
+from typing import List
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
@@ -42,6 +43,12 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "name": "crystal_buffer",
                         "description": "Crystal Buffer",
                         "json_schema": {"type": "string"},
+                        "associated_table": AssociatedTable.SAMPLE,
+                    },
+                    {
+                        "name": "micrograph_new",
+                        "description": "Micrograph",
+                        "json_schema": {"type": "string", "format": "image-path"},
                         "associated_table": AssociatedTable.SAMPLE,
                     },
                     {
@@ -164,19 +171,24 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         )
 
         # Create samples
-        first_sample_result = conn.execute(
-            tables.sample.insert().values(
-                target_id=first_target_id,
-                modified=datetime.datetime.utcnow(),
-                attributi={
-                    MANUAL_SOURCE_NAME: {
-                        "crystal_buffer": "foo crystal buffer bar",
-                        "shaking_time": "P2D",
-                        "created": datetime.datetime.utcnow().isoformat(),
-                    }
-                },
+        sample_ids: List[int] = []
+        for i in range(10):
+            sample_ids.append(
+                conn.execute(
+                    tables.sample.insert().values(
+                        target_id=first_target_id,
+                        modified=datetime.datetime.utcnow(),
+                        attributi={
+                            MANUAL_SOURCE_NAME: {
+                                "crystal_buffer": "foo crystal buffer bar",
+                                "shaking_time": "P2D",
+                                "created": datetime.datetime.utcnow().isoformat(),
+                            }
+                        },
+                    )
+                ).inserted_primary_key[0]
             )
-        )
+
         conn.execute(
             tables.sample.insert().values(
                 target_id=first_target_id,
@@ -186,7 +198,6 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 },
             )
         )
-        first_sample_id = first_sample_result.inserted_primary_key[0]
 
         # Create run properties
         conn.execute(
@@ -257,12 +268,13 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         base_date = datetime.datetime.utcnow()
         # To always get the same sample data, yet somewhat random values
         seed(1337)
-        for _ in range(20):
-            _run_id = conn.execute(
+        # for _ in range(10000):
+        for _ in range(100):
+            run_id = conn.execute(
                 tables.run.insert().values(
                     proposal_id=proposal_id,
                     modified=datetime.datetime.utcnow(),
-                    sample_id=first_sample_id,
+                    sample_id=choice(sample_ids),
                     attributi={
                         "karabo": {
                             "started": (
@@ -277,14 +289,13 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 )
             ).inserted_primary_key[0]
 
-        # Add comments as well?
-        # for _ in range(50):
-        #     conn.execute(
-        #         tables.run_comment.insert().values(
-        #             run_id=run_id,
-        #             author="testauthor",
-        #             comment_text="foooooo",
-        #             created=datetime.datetime.utcnow(),
-        #         )
-        #     )
+            for _ in range(randrange(0, 10)):
+                conn.execute(
+                    tables.run_comment.insert().values(
+                        run_id=run_id,
+                        author="testauthor",
+                        comment_text="foooooo",
+                        created=datetime.datetime.utcnow(),
+                    )
+                )
     logger.info("Done")

@@ -3,7 +3,7 @@ from enum import Enum
 from functools import partial
 from typing import Any, Dict, Final, Optional, cast
 
-from PyQt5.QtCore import QPoint, QTimer, Qt
+from PyQt5.QtCore import QPoint, QTimer, QVariant, Qt
 from PyQt5.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
@@ -17,20 +17,21 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from pint import DefinitionSyntaxError, UndefinedUnitError, UnitRegistry
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     attributo_type_to_string,
 )
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
+    AttributoType,
     AttributoTypeDouble,
     AttributoTypeInt,
     AttributoTypeString,
     AttributoTypeTags,
     AttributoTypeUserName,
-    AttributoType,
 )
-from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import Connection, DB
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
@@ -39,6 +40,8 @@ from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
 from amarcord.qt.numeric_range_format_widget import NumericRangeFormatWidget
+from amarcord.qt.validated_line_edit import ValidatedInputValue, ValidatedLineEdit
+from amarcord.qt.validators import Partial
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -51,12 +54,34 @@ logger = logging.getLogger(__name__)
 class TypePreset(Enum):
     INT = "integer"
     DOUBLE = "number"
+    PERCENT = "percent"
+    STANDARD_UNIT = "standard unit"
     TAGS = "list of tags"
     STRING = "string"
     USER_NAME = "user name"
 
 
-def _fill_preset(w: QWidget, p: TypePreset, metadata: Dict[str, Any]) -> None:
+def _unit_to_string(u: str) -> str:
+    return u
+
+
+def _string_to_unit(ureg: UnitRegistry, s: str) -> ValidatedInputValue:
+    try:
+        ureg(s)
+        return QVariant(s)
+    except UndefinedUnitError:
+        return Partial(s)
+    except DefinitionSyntaxError:
+        return Partial(s)
+
+
+def _fill_preset(
+    w: QWidget,
+    ureg: UnitRegistry,
+    p: TypePreset,
+    metadata: Dict[str, Any],
+    add_button: QPushButton,
+) -> None:
     while w.layout().count():
         removed_item = w.layout().takeAt(0)
         if removed_item is None:
@@ -87,6 +112,39 @@ def _fill_preset(w: QWidget, p: TypePreset, metadata: Dict[str, Any]) -> None:
         attributo_suffix_edit = QLineEdit()
         form_layout.addRow("Suffix", attributo_suffix_edit)
         attributo_suffix_edit.textEdited.connect(set_suffix)
+    elif p == TypePreset.STANDARD_UNIT:
+        metadata["range"] = None
+        metadata["suffix"] = None
+
+        def set_range(new_range: NumericRange) -> None:
+            metadata["range"] = new_range
+
+        def set_standard_suffix(l: QLabel, s: ValidatedInputValue) -> None:
+            metadata["suffix"] = s
+            if not isinstance(s, Partial):
+                # noinspection PyStringFormat
+                l.setText("Normalized: {:H}".format(ureg(s)))  # type: ignore
+                add_button.setEnabled(True)
+            else:
+                add_button.setEnabled(False)
+
+        numeric_range_input = NumericRangeFormatWidget(numeric_range=None)
+        numeric_range_input.range_changed.connect(set_range)
+        form_layout.addRow("Value range", numeric_range_input)
+
+        attributo_suffix_layout = QVBoxLayout()
+        attributo_suffix_edit = ValidatedLineEdit(
+            None, _unit_to_string, partial(_string_to_unit, ureg), "standard unit (ml, GJ, ...)"  # type: ignore
+        )
+        attributo_suffix_layout.addWidget(attributo_suffix_edit)
+        normalized_label = QLabel("Normalized: ")
+        normalized_label.setTextFormat(Qt.RichText)
+        normalized_label.setStyleSheet("QLabel { font: italic 10px; color: grey; }")
+        attributo_suffix_layout.addWidget(normalized_label)
+        form_layout.addRow("Suffix", attributo_suffix_layout)
+        attributo_suffix_edit.value_change.connect(
+            partial(set_standard_suffix, normalized_label)
+        )
 
 
 class AttributiCrud(QWidget):
@@ -171,10 +229,13 @@ class AttributiCrud(QWidget):
             self._type_selection,
         )
         right_form_layout.addWidget(self._type_widget)
+        self._add_button = self._create_add_button()
         _fill_preset(
             self._type_widget,
+            UnitRegistry(),
             cast(TypePreset, self._type_selection.current_value()),
             self._type_specific_metadata,
+            self._add_button,
         )
         # Type end
 
@@ -182,7 +243,6 @@ class AttributiCrud(QWidget):
         self._submit_layout = QHBoxLayout()
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
         self._submit_widget.setLayout(self._submit_layout)
-        self._add_button = self._create_add_button()
         self._add_button.setEnabled(False)
         self._submit_layout.addWidget(self._add_button)
 
@@ -204,8 +264,10 @@ class AttributiCrud(QWidget):
     def _refill_type_preset(self, new_value: TypePreset) -> None:
         _fill_preset(
             self._type_widget,
+            UnitRegistry(),
             new_value,
             self._type_specific_metadata,
+            self._add_button,
         )
 
     def _create_table_data(self) -> Data:
@@ -316,6 +378,16 @@ class AttributiCrud(QWidget):
         value = self._type_selection.current_value()
         if value == TypePreset.INT:
             return AttributoTypeInt()
+        if value == TypePreset.PERCENT:
+            return AttributoTypeDouble(
+                range=NumericRange(0, True, 100, True),
+                suffix="%",
+            )
+        if value == TypePreset.STANDARD_UNIT:
+            return AttributoTypeDouble(
+                range=self._type_specific_metadata.get("range", None),
+                suffix=self._type_specific_metadata.get("suffix", None),
+            )
         if value == TypePreset.DOUBLE:
             return AttributoTypeDouble(
                 range=self._type_specific_metadata.get("range", None),

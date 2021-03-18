@@ -23,6 +23,7 @@ from amarcord.json_schema import (
     JSONSchemaArray,
     JSONSchemaInteger,
     JSONSchemaNumber,
+    JSONSchemaNumberFormat,
     JSONSchemaString,
     JSONSchemaStringFormat,
     JSONSchemaType,
@@ -58,6 +59,7 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
                 parsed_schema.exclusiveMaximum is None,
             ),
             suffix=parsed_schema.suffix,
+            standard_unit=parsed_schema.format_ == JSONSchemaNumberFormat.STANDARD_UNIT,
         )
     if isinstance(parsed_schema, JSONSchemaInteger):
         return AttributoTypeInt(range=None)
@@ -117,6 +119,8 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
         if rp.suffix is not None:
             assert isinstance(rp.suffix, str)
             result_double["suffix"] = rp.suffix
+        if rp.standard_unit:
+            result_double["format"] = "standard-unit"
         return result_double
     if isinstance(rp, AttributoTypeString):
         return {"type": "string"}

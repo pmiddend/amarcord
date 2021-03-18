@@ -11,6 +11,10 @@ class JSONSchemaInteger:
     exclusiveMaximum: Optional[int]
 
 
+class JSONSchemaNumberFormat(Enum):
+    STANDARD_UNIT = "standard-unit"
+
+
 @dataclass(frozen=True)
 class JSONSchemaNumber:
     minimum: Optional[float]
@@ -18,6 +22,7 @@ class JSONSchemaNumber:
     exclusiveMinimum: Optional[float]
     exclusiveMaximum: Optional[float]
     suffix: Optional[str]
+    format_: Optional[JSONSchemaNumberFormat]
 
 
 class JSONSchemaStringFormat(Enum):
@@ -58,12 +63,16 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
         )
 
     if type_ == "number":
+        format_ = s.get("format", None)
         return JSONSchemaNumber(
             minimum=s.get("minimum", None),
             maximum=s.get("maximum", None),
             exclusiveMinimum=s.get("exclusiveMinimum", None),
             exclusiveMaximum=s.get("exclusiveMaximum", None),
             suffix=s.get("suffix", None),
+            format_=JSONSchemaNumberFormat.STANDARD_UNIT
+            if format_ == "standard-unit"
+            else None,
         )
 
     if type_ == "string":

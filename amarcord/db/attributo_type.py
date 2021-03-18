@@ -41,6 +41,7 @@ class AttributoTypeComments:
 class AttributoTypeDouble:
     range: Optional[NumericRange] = None
     suffix: Optional[str] = None
+    standard_unit: bool = False
 
 
 @dataclass(frozen=True)
