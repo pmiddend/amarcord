@@ -20,10 +20,9 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.qt.datetime import (
     from_qt_datetime,
-    parse_natural_delta,
-    print_natural_delta,
     to_qt_datetime,
 )
+from amarcord.util import parse_natural_delta, print_natural_delta
 from amarcord.qt.numeric_input_widget import NumericInputWidget
 from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.tags import Tags

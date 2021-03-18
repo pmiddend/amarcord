@@ -10,12 +10,14 @@ import Control.Category ((<<<))
 import Data.Array (mapMaybe)
 import Data.Either (Either(..))
 import Data.Int (toNumber)
-import Data.Lens ((^.))
+import Data.Lens (Lens', (^.))
+import Data.Lens.Record (prop)
 import Data.List (List(..), toUnfoldable)
 import Data.Map (Map, values)
 import Data.Maybe (Maybe(..))
 import Data.Monoid ((<>))
 import Data.Show (show)
+import Data.Symbol (SProxy(..))
 import Data.Traversable (foldr, traverse)
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object as FO
@@ -31,6 +33,12 @@ type SourcedValue a
   = { source :: Source
     , value :: a
     }
+
+_source :: forall a. Lens' (SourcedValue a) Source
+_source = prop (SProxy :: SProxy "source")
+
+_value :: forall a. Lens' (SourcedValue a) a
+_value = prop (SProxy :: SProxy "value")
 
 type ProcessedAttributo
   = { attributo :: Attributo, value :: Maybe (SourcedValue PairedAttributo) }

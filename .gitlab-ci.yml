@@ -1,0 +1,34 @@
+stages:
+  - test
+  - deploy
+  - integration
+
+variables:
+  AMARCORD_PYTHON_DOCKER: python:3.8
+
+# Commented out for now since these need pyqt5 and I wanted to get amici running first
+# pylint-and-mypy:
+#   image: $AMARCORD_PYTHON_DOCKER
+#   stage: test
+#   script:
+#     - pip install -e .
+#     - pip install mypy pylint sqlalchemy-stubs
+#     - mypy amarcord
+#     - pylint amarcord
+
+deploy:
+  image: $AMARCORD_PYTHON_DOCKER
+  stage: deploy
+  script:
+    - pip install -e .
+    - pip install wheel twine
+    - python setup.py sdist bdist_wheel
+    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+
+integration:
+  image: $AMARCORD_PYTHON_DOCKER
+  stage: integration
+  script:
+    - pip install -e .
+    - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/370/packages/pypi/simple amarcord-amici
+    - python integration/amici_test.py

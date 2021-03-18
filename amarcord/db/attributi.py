@@ -29,8 +29,8 @@ from amarcord.json_schema import (
     parse_schema_type,
 )
 from amarcord.modules.json import JSONDict, JSONValue
-from amarcord.qt.datetime import print_natural_delta
-from amarcord.qt.numeric_range_format_widget import NumericRange
+from amarcord.numeric_range import NumericRange
+from amarcord.util import print_natural_delta
 
 logger = logging.getLogger(__name__)
 

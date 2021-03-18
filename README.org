@@ -1,15 +1,28 @@
 * AMARCORD — XFEL edition™
-** How to use
+** How to access AMARCORD from a script
 
-To use just the Metadata Catalogue, create a config file as in =config.yml.sample=, then:
+We’ve created the =amarcord.amici= Python package containing functions to access an AMARCORD database from within your scripts. Check the package source to see the available functions.
+
+To start using =amarcord.amici=, you can use the following =pip= command:
 
 #+begin_example
-cd amarcord-xfel
-python -m venv venv
-source venv/bin/activate
-pip install -r < requirements.txt
-python amarcord/visualizer.py
+pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/370/packages/pypi/simple amarcord-amici
 #+end_example
+
+Note that this uses a generated token called =maxwell-token= to access the GitLab Python package registry. Two notes on that:
+
+- Ideally, don’t share this URL with people outside XFEL/DESY for now. We’re working on making this package public, but we’re not there yet.
+- You can only =pip install= when you have access to =gitlab.desy.de=.
+** How to start the AMARCORD GUI
+
+It /should/ ideally be simple:
+
+#+begin_example
+pip install -r < requirements.txt
+python amarcord/xfel_gui.py
+#+end_example
+
+Depending on your operating system, you might have to install Qt 5 or pyqt-5 separately. I’ll add some notes on that later.
 
 To also query Karabo, start the simulator:
 
