@@ -1,9 +1,6 @@
 import datetime
-from typing import Callable, Dict, List, Optional, Sequence, Union
-from typing import List
-from typing import Iterable
-from typing import TypeVar
 import re
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, TypeVar, Union
 
 from lark import Token, Tree, exceptions as le
 from lark.lark import Lark

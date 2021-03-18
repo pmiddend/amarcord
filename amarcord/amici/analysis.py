@@ -11,7 +11,7 @@ def ingest_cheetah() -> None:
         "sqlite:////" + str(Path(os.environ["HOME"]) / "amarcord-test.sqlite")
     )
     tables = create_tables(dbcontext)
-    db = DB(dbcontext, tables)
+    DB(dbcontext, tables)
 
     dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
