@@ -316,9 +316,9 @@ class Samples(QWidget):
             mb = QMessageBox(  # type: ignore
                 QMessageBox.Critical,
                 f"Cannot delete sample “{sample_id}”",
-                f"<p>The sample is in used by the following run(s) and cannot be deleted!</p><p>Please reset the "
-                f"samples for the "
-                f"runs and try again:</p><ul>"
+                "<p>The sample is in used by the following run(s) and cannot be deleted!</p><p>Please reset the "
+                "samples for the "
+                "runs and try again:</p><ul>"
                 + ("".join([f"<li>{x}</li>" for x in refs][0:19]))
                 + ("<li>...</li>" if len(refs) else "")
                 + "</ul>",
@@ -327,7 +327,7 @@ class Samples(QWidget):
             )
             mb.setTextFormat(Qt.RichText)
             mb.exec()
-            return None
+            return
 
         result = QMessageBox(  # type: ignore
             QMessageBox.Critical,

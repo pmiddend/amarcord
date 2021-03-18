@@ -5,16 +5,19 @@ stages:
 
 variables:
   AMARCORD_PYTHON_DOCKER: python:3.8
+  AMARCORD_PYTHON_DOCKER_DEBIAN: python:3.8-buster
 
 # Commented out for now since these need pyqt5 and I wanted to get amici running first
-# pylint-and-mypy:
-#   image: $AMARCORD_PYTHON_DOCKER
-#   stage: test
-#   script:
-#     - pip install -e .
-#     - pip install mypy pylint sqlalchemy-stubs
-#     - mypy amarcord
-#     - pylint amarcord
+pylint-and-mypy:
+  image: $AMARCORD_PYTHON_DOCKER
+  stage: test
+  script:
+    - pip install -e .
+    - pip install mypy pylint sqlalchemy-stubs
+    - pip install 'PyQt5==5.15.*' 'PyQt5-stubs==5.15.*' 'pyzmq==22.0.*' 'Flask==1.1.*' 'Flask-Cors==3.0.*' 'PyYAML==5.4.*' 'pandas==1.2.*' 'PubChemPy==1.0.*' 'humanize==3.2.*' 'metadata-client==3.0.*' 'PyYAML==5.4.*' 'karabo-bridge==0.6.*' 'numpy==1.19.*' 'matplotlib==3.3.*'
+    - mypy amarcord
+    - apt-get update -y && apt-get install -y qt5-default
+    - pylint amarcord
 
 deploy:
   image: $AMARCORD_PYTHON_DOCKER
