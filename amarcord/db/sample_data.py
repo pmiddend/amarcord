@@ -1,10 +1,9 @@
 import datetime
 from random import randint, random, randrange, seed
-from typing import Optional
 
+from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
 from amarcord.db.tables import DBTables, logger
-from amarcord.db.associated_table import AssociatedTable
 from amarcord.modules.dbcontext import DBContext
 
 
