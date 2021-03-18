@@ -92,6 +92,7 @@ class Targets(QWidget):
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
         self._uniprot_edit = DebouncedLineEdit()
+
         self._short_name_edit = QLineEdit()
         self._short_name_edit.textEdited.connect(self._short_name_changed)
         right_form_layout.addRow("Short Name*", self._short_name_edit)
