@@ -66,7 +66,7 @@ def _table_run_comment(metadata: sa.MetaData) -> sa.Table:
         "RunComment",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("run_id", sa.Integer, sa.ForeignKey("Run.id")),
+        sa.Column("run_id", sa.Integer, sa.ForeignKey("Run.id", ondelete="cascade")),
         sa.Column("author", sa.String(length=255), nullable=False),
         sa.Column("comment_text", sa.String(length=255), nullable=False),
         sa.Column("created", sa.DateTime(), nullable=False),
