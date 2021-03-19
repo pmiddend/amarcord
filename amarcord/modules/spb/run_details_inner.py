@@ -269,6 +269,8 @@ class RunDetailsInner(QWidget):
         self._switch_to_latest_button.setEnabled(self.run.id != max(self.run_ids))
 
     def _slot_tree_filter_changed(self, new_filter: str) -> None:
+        if self._details_tree.topLevelItemCount():
+            return
         self._details_tree.clear()
         if self.karabo is None:
             return
