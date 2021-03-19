@@ -1,10 +1,13 @@
 from typing import Optional
 
-from PyQt5 import QtWidgets
-from PyQt5 import QtGui
 from PyQt5 import QtCore
-from PyQt5.QtCore import QTimer, pyqtSignal
-from PyQt5.QtWidgets import QCompleter, QLineEdit, QWidget
+from PyQt5 import QtGui
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QCompleter
+from PyQt5.QtWidgets import QLineEdit
+from PyQt5.QtWidgets import QWidget
 
 from amarcord.util import word_under_cursor
 

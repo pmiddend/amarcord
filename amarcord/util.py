@@ -1,8 +1,17 @@
 import datetime
 import re
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, TypeVar, Union
+from typing import Callable
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import TypeVar
+from typing import Union
 
-from lark import Token, Tree, exceptions as le
+from lark import Token
+from lark import Tree
+from lark import exceptions as le
 from lark.lark import Lark
 
 T = TypeVar("T")

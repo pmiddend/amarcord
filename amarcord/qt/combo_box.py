@@ -1,8 +1,15 @@
-from typing import Generic, List, Optional, Tuple, TypeVar, cast
 import logging
+from typing import Generic
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TypeVar
+from typing import cast
 
-from PyQt5.QtCore import QVariant, pyqtSignal
-from PyQt5.QtWidgets import QComboBox, QWidget
+from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QComboBox
+from PyQt5.QtWidgets import QWidget
 
 from amarcord.qt.signal_blocker import SignalBlocker
 

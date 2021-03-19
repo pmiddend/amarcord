@@ -1,5 +1,6 @@
-from typing import Union
 from dataclasses import dataclass
+from typing import Union
+
 
 @dataclass(frozen=True)
 class Item:

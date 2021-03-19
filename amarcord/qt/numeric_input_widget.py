@@ -1,9 +1,12 @@
 import logging
-from typing import Optional, Union
+from typing import Optional
+from typing import Union
 
-from PyQt5.QtCore import QVariant, pyqtSignal
+from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QValidator
-from PyQt5.QtWidgets import QLineEdit, QWidget
+from PyQt5.QtWidgets import QLineEdit
+from PyQt5.QtWidgets import QWidget
 
 from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.numeric_range_validator import NumericRangeValidator

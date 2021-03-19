@@ -1,17 +1,18 @@
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+from typing import Optional
 
-from PyQt5.QtCore import QPoint, Qt
-from PyQt5.QtGui import QPainter, QPixmap
-from PyQt5.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
-    QFrame,
-    QLabel,
-    QScrollArea,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt5.QtCore import QPoint
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPainter
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QDialog
+from PyQt5.QtWidgets import QDialogButtonBox
+from PyQt5.QtWidgets import QFrame
+from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QScrollArea
+from PyQt5.QtWidgets import QVBoxLayout
+from PyQt5.QtWidgets import QWidget
 
 
 class PixmapLabel(QLabel):

@@ -1,7 +1,9 @@
-from typing import Dict, Any
-from pathlib import Path
 import os
 import sys
+from pathlib import Path
+from typing import Any
+from typing import Dict
+
 import yaml
 
 

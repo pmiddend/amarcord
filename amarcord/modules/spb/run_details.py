@@ -1,20 +1,32 @@
 import logging
-from typing import Any, Dict, Final, Optional, cast
+from typing import Any
+from typing import Dict
+from typing import Final
+from typing import Optional
+from typing import cast
 
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QWidget
+from PyQt5.QtCore import Qt
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtWidgets import QStyle
+from PyQt5.QtWidgets import QWidget
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.comment import DBComment
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.comment import DBComment
 from amarcord.db.constants import MANUAL_SOURCE_NAME
-from amarcord.db.db import Connection, DB, DBRun, RunNotFound
+from amarcord.db.db import Connection
+from amarcord.db.db import DB
+from amarcord.db.db import DBRun
+from amarcord.db.db import RunNotFound
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.new_run_dialog import new_run_dialog

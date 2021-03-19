@@ -1,25 +1,38 @@
-from typing import Final, Optional
-from typing import List
-from typing import Tuple
 from dataclasses import dataclass
+from typing import Final
+from typing import List
+from typing import Optional
+from typing import Tuple
 
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtWidgets import QStyle
-from PyQt5.QtWidgets import QStyleOptionFrame, QApplication
-from PyQt5.QtCore import QSize, QTimer
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import QLineF
 from PyQt5.QtCore import QPoint
-from PyQt5.QtCore import QPointF, QLineF, QSizeF
-from PyQt5.QtGui import QPaintEvent, QGuiApplication, QFontMetrics, QPalette
-from PyQt5.QtGui import QTextLayout, QPainter, QPainterPath, QColor, QKeySequence
-from PyQt5.QtWidgets import QCompleter
-from PyQt5.QtGui import QMouseEvent
-from PyQt5.QtGui import QFocusEvent
-from PyQt5.QtGui import QResizeEvent
-from PyQt5.QtGui import QKeyEvent
-from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtCore import QPointF
+from PyQt5.QtCore import QRect
+from PyQt5.QtCore import QRectF
+from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSizeF
+from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import Qt
-from PyQt5.QtCore import QRect, QRectF
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QFocusEvent
+from PyQt5.QtGui import QFontMetrics
+from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtGui import QKeyEvent
+from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QMouseEvent
+from PyQt5.QtGui import QPaintEvent
+from PyQt5.QtGui import QPainter
+from PyQt5.QtGui import QPainterPath
+from PyQt5.QtGui import QPalette
+from PyQt5.QtGui import QResizeEvent
+from PyQt5.QtGui import QTextLayout
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QCompleter
+from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtWidgets import QStyle
+from PyQt5.QtWidgets import QStyleOptionFrame
+from PyQt5.QtWidgets import QWidget
 
 
 def _remove(s: str, position: int, n: int) -> str:

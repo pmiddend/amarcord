@@ -1,33 +1,36 @@
 import datetime
 import logging
-from typing import List, Optional, Tuple, TypeVar, cast
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TypeVar
+from typing import cast
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore
+from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QDateTimeEdit
 
-from amarcord.db.attributo_type import (
-    AttributoTypeChoice,
-    AttributoTypeDateTime,
-    AttributoTypeDouble,
-    AttributoTypeDuration,
-    AttributoTypeInt,
-    AttributoTypeList,
-    AttributoTypeSample,
-    AttributoTypeString,
-    AttributoTypeTags,
-    AttributoTypeUserName,
-    AttributoType,
-)
-from amarcord.qt.datetime import (
-    from_qt_datetime,
-    to_qt_datetime,
-)
-from amarcord.util import parse_natural_delta, print_natural_delta
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDuration
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.attributo_type import AttributoTypeTags
+from amarcord.db.attributo_type import AttributoTypeUserName
+from amarcord.qt.datetime import from_qt_datetime
+from amarcord.qt.datetime import to_qt_datetime
 from amarcord.qt.numeric_input_widget import NumericInputWidget
 from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.tags import Tags
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
-from amarcord.qt.validators import parse_float_list, parse_string_list
+from amarcord.qt.validators import parse_float_list
+from amarcord.qt.validators import parse_string_list
+from amarcord.util import parse_natural_delta
+from amarcord.util import print_natural_delta
 
 T = TypeVar("T")
 

@@ -1,9 +1,15 @@
 import logging
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
-from PyQt5.QtCore import QObject, QVariant, pyqtSignal
+from PyQt5.QtCore import QObject
+from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QValidator
-from PyQt5.QtWidgets import QLineEdit, QWidget
+from PyQt5.QtWidgets import QLineEdit
+from PyQt5.QtWidgets import QWidget
 
 from amarcord.qt.validators import Partial
 

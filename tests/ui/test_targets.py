@@ -5,7 +5,8 @@ from PyQt5.QtWidgets import QMessageBox
 
 from amarcord.db.tables import create_tables
 from amarcord.modules.context import Context
-from amarcord.modules.dbcontext import CreationMode, DBContext
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.targets import Targets
 
 

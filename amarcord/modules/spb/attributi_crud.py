@@ -1,46 +1,56 @@
 import logging
 from enum import Enum
 from functools import partial
-from typing import Any, Dict, Final, Optional, cast
+from typing import Any
+from typing import Dict
+from typing import Final
+from typing import Optional
+from typing import cast
 
-from PyQt5.QtCore import QPoint, QTimer, QVariant, Qt
-from PyQt5.QtWidgets import (
-    QFormLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMenu,
-    QMessageBox,
-    QPushButton,
-    QSplitter,
-    QStyle,
-    QVBoxLayout,
-    QWidget,
-)
-from pint import DefinitionSyntaxError, UndefinedUnitError, UnitRegistry
+from PyQt5.QtCore import QPoint
+from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QFormLayout
+from PyQt5.QtWidgets import QHBoxLayout
+from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLineEdit
+from PyQt5.QtWidgets import QMenu
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtWidgets import QSplitter
+from PyQt5.QtWidgets import QStyle
+from PyQt5.QtWidgets import QVBoxLayout
+from PyQt5.QtWidgets import QWidget
+from pint import DefinitionSyntaxError
+from pint import UndefinedUnitError
+from pint import UnitRegistry
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     attributo_type_to_string,
 )
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoType,
-    AttributoTypeDouble,
-    AttributoTypeInt,
-    AttributoTypeString,
-    AttributoTypeTags,
-    AttributoTypeUserName,
-)
-from amarcord.db.db import Connection, DB
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.attributo_type import AttributoTypeTags
+from amarcord.db.attributo_type import AttributoTypeUserName
+from amarcord.db.db import Connection
+from amarcord.db.db import DB
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
-from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
+from amarcord.qt.declarative_table import Column
+from amarcord.qt.declarative_table import Data
+from amarcord.qt.declarative_table import DeclarativeTable
+from amarcord.qt.declarative_table import Row
 from amarcord.qt.numeric_range_format_widget import NumericRangeFormatWidget
-from amarcord.qt.validated_line_edit import ValidatedInputValue, ValidatedLineEdit
+from amarcord.qt.validated_line_edit import ValidatedInputValue
+from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import Partial
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"

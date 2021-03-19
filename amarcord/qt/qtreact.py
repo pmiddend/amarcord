@@ -1,18 +1,22 @@
 import logging
-from enum import Enum, IntEnum, auto
-from typing import Callable, Generic, Optional, Tuple, TypeVar
+from enum import Enum
+from enum import IntEnum
+from enum import auto
+from typing import Callable
+from typing import Generic
+from typing import Optional
+from typing import Tuple
+from typing import TypeVar
 
-from PyQt5.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QSpinBox,
-    QTableWidget,
-    QWidget,
-)
+from PyQt5.QtWidgets import QDialog
+from PyQt5.QtWidgets import QDialogButtonBox
+from PyQt5.QtWidgets import QHBoxLayout
+from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLineEdit
+from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtWidgets import QSpinBox
+from PyQt5.QtWidgets import QTableWidget
+from PyQt5.QtWidgets import QWidget
 
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.numeric_range_format_widget import NumericRangeFormatWidget

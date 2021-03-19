@@ -1,26 +1,30 @@
 import logging
-from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from dataclasses import field
+from enum import Enum
+from enum import auto
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
-from PyQt5.QtCore import (
-    QAbstractTableModel,
-    QModelIndex,
-    QObject,
-    QPoint,
-    QVariant,
-    Qt,
-    pyqtSignal,
-)
-from PyQt5.QtGui import QBrush, QContextMenuEvent
-from PyQt5.QtWidgets import (
-    QAbstractItemDelegate,
-    QAbstractItemView,
-    QHeaderView,
-    QStyledItemDelegate,
-    QTableView,
-    QWidget,
-)
+from PyQt5.QtCore import QAbstractTableModel
+from PyQt5.QtCore import QModelIndex
+from PyQt5.QtCore import QObject
+from PyQt5.QtCore import QPoint
+from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import Qt
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QBrush
+from PyQt5.QtGui import QContextMenuEvent
+from PyQt5.QtWidgets import QAbstractItemDelegate
+from PyQt5.QtWidgets import QAbstractItemView
+from PyQt5.QtWidgets import QHeaderView
+from PyQt5.QtWidgets import QStyledItemDelegate
+from PyQt5.QtWidgets import QTableView
+from PyQt5.QtWidgets import QWidget
 
 logger = logging.getLogger(__name__)
 

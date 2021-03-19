@@ -1,4 +1,6 @@
-from typing import Dict, List, Union
+from typing import Dict
+from typing import List
+from typing import Union
 
 # Recursive types aren't supported in mypy, see
 # https://github.com/python/mypy/issues/731

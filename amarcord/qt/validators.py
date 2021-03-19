@@ -1,8 +1,13 @@
-import re
 import datetime
+import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional, TypeVar, Union, cast
+from typing import Callable
+from typing import List
+from typing import Optional
+from typing import TypeVar
+from typing import Union
+from typing import cast
 
 from amarcord.util import str_to_float
 

@@ -1,12 +1,14 @@
-from typing import Set
 from typing import Optional
-from PyQt5 import QtWidgets
+from typing import Set
+
 import sqlalchemy as sa
+from PyQt5 import QtWidgets
+
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.tables import DBTables
+from amarcord.modules.context import Context
 from amarcord.modules.spb.overview_table import OverviewTable
 from amarcord.modules.spb.run_details import RunDetails
-from amarcord.db.tables import DBTables
-from amarcord.db.proposal_id import ProposalId
-from amarcord.modules.context import Context
 
 
 def run_table(

@@ -6,12 +6,10 @@ from sqlalchemy import ForeignKey
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoTypeComments,
-    AttributoTypeDateTime,
-    AttributoTypeInt,
-    AttributoTypeSample,
-)
+from amarcord.db.attributo_type import AttributoTypeComments
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.modules.dbcontext import DBContext
 

@@ -1,30 +1,35 @@
 import datetime
-from typing import Dict, Iterable, List, Optional, cast
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Optional
+from typing import cast
 
-from isodate import duration_isoformat, parse_duration
+from isodate import duration_isoformat
+from isodate import parse_duration
 
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeComments
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDuration
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.attributo_type import AttributoTypeTags
+from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.attributo_value_with_source import AttributoValueWithSource
 from amarcord.db.comment import DBComment
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
-from amarcord.db.raw_attributi_map import RawAttributiMap, Source
-from amarcord.db.attributo_type import (
-    AttributoTypeChoice,
-    AttributoTypeComments,
-    AttributoTypeDateTime,
-    AttributoTypeDouble,
-    AttributoTypeDuration,
-    AttributoTypeInt,
-    AttributoTypeList,
-    AttributoTypeSample,
-    AttributoTypeString,
-    AttributoTypeTags,
-    AttributoTypeUserName,
-)
-from amarcord.modules.json import JSONDict, JSONValue
+from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.raw_attributi_map import Source
+from amarcord.modules.json import JSONDict
+from amarcord.modules.json import JSONValue
 from amarcord.query_parser import Row
 
 AttributiMapImpl = Dict[Source, Dict[AttributoId, AttributoValue]]

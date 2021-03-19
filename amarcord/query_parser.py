@@ -1,6 +1,16 @@
-from typing import Dict, Any, Set, List, Callable, Tuple, Union
-from lark import Lark, Token, Transformer, Tree
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Set
+from typing import Tuple
+from typing import Union
+
 import lark.exceptions as le
+from lark import Lark
+from lark import Token
+from lark import Transformer
+from lark import Tree
 
 
 def possibly_negate(negate: bool, c: bool) -> bool:

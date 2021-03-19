@@ -1,7 +1,10 @@
 import logging
-from typing import List, Optional
+from typing import List
+from typing import Optional
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore
+from PyQt5 import QtGui
+from PyQt5 import QtWidgets
 
 from amarcord.qt.logging_handler import QtLoggingHandler
 

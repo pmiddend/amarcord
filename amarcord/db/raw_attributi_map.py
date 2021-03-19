@@ -1,10 +1,14 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Dict, ItemsView, Optional
+from typing import Any
+from typing import Dict
+from typing import ItemsView
+from typing import Optional
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
-from amarcord.modules.json import JSONDict, JSONValue
+from amarcord.modules.json import JSONDict
+from amarcord.modules.json import JSONValue
 
 Source = str
 

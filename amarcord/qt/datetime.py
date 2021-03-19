@@ -1,6 +1,7 @@
 import datetime
 
-from PyQt5.QtCore import QDateTime, Qt
+from PyQt5.QtCore import QDateTime
+from PyQt5.QtCore import Qt
 
 
 def qt_from_isoformat(s: str) -> QDateTime:

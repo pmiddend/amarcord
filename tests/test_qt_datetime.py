@@ -1,10 +1,11 @@
 import datetime
+
 from PyQt5 import QtCore
-from amarcord.qt.datetime import (
-    from_qt_datetime,
-    to_qt_datetime,
-)
-from amarcord.util import parse_natural_delta, print_natural_delta
+
+from amarcord.qt.datetime import from_qt_datetime
+from amarcord.qt.datetime import to_qt_datetime
+from amarcord.util import parse_natural_delta
+from amarcord.util import print_natural_delta
 
 
 def test_from_python() -> None:

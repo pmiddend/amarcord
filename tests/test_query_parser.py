@@ -1,10 +1,8 @@
-from amarcord.query_parser import (
-    SemanticError,
-    parse_query,
-    filter_by_query,
-    FieldNameError,
-    UnexpectedEOF,
-)
+from amarcord.query_parser import FieldNameError
+from amarcord.query_parser import SemanticError
+from amarcord.query_parser import UnexpectedEOF
+from amarcord.query_parser import filter_by_query
+from amarcord.query_parser import parse_query
 
 
 def test_single_less_than() -> None:

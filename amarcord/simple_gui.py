@@ -1,18 +1,14 @@
 from functools import partial
 
-from PyQt5.QtWidgets import (
-    QApplication,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QVBoxLayout
+from PyQt5.QtWidgets import QWidget
 
-from amarcord.qt.declarative_table import (
-    Column,
-    Data,
-    DeclarativeTable,
-    Row,
-    SortOrder,
-)
+from amarcord.qt.declarative_table import Column
+from amarcord.qt.declarative_table import Data
+from amarcord.qt.declarative_table import DeclarativeTable
+from amarcord.qt.declarative_table import Row
+from amarcord.qt.declarative_table import SortOrder
 
 app = QApplication([])
 

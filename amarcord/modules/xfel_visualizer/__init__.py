@@ -1,19 +1,21 @@
+import logging
+import time
 from typing import Callable
 from typing import List
 from typing import Union
-import time
-import logging
-from PyQt5 import QtWidgets
+
 from PyQt5 import QtCore
+from PyQt5 import QtWidgets
+
 from amarcord.modules.context import Context
-from amarcord.sources.item import Item
 from amarcord.python_schema import validate_dict
-from amarcord.sources.mc import XFELMetadataCatalogue
-from amarcord.sources.mc import XFELMetadataConnectionConfig
-from amarcord.sources.mc import logger as mc_logger
+from amarcord.sources.item import Item
 from amarcord.sources.karabo import XFELKaraboBridge
 from amarcord.sources.karabo import XFELKaraboBridgeConfig
 from amarcord.sources.karabo import logger as karabo_logger
+from amarcord.sources.mc import XFELMetadataCatalogue
+from amarcord.sources.mc import XFELMetadataConnectionConfig
+from amarcord.sources.mc import logger as mc_logger
 
 
 class QtLoggingHandler(logging.Handler):

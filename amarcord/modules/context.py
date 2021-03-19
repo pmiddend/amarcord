@@ -1,8 +1,9 @@
-from typing import Dict
-from typing import Any
 from dataclasses import dataclass
-from amarcord.modules.uicontext import UIContext
+from typing import Any
+from typing import Dict
+
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.uicontext import UIContext
 
 
 @dataclass(frozen=True)

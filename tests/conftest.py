@@ -2,7 +2,8 @@ import pytest
 
 from amarcord.db.db import DB
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode, DBContext
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
 
 
 @pytest.fixture

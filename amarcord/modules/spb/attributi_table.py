@@ -2,26 +2,32 @@ import logging
 from copy import deepcopy
 from enum import Enum
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
 
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QBrush
 from PyQt5.QtWidgets import QHBoxLayout
 
-from amarcord.db.attributi import (
-    attributo_type_to_string,
-    pretty_print_attributo,
-)
-from amarcord.db.table_delegates import delegate_for_attributo_type
+from amarcord.db.attributi import attributo_type_to_string
+from amarcord.db.attributi import pretty_print_attributo
 from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.attributo_type import AttributoTypeComments, AttributoType
-from amarcord.db.attributo_id import AttributoId
-from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.table_delegates import delegate_for_attributo_type
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
-from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row
+from amarcord.qt.declarative_table import Column
+from amarcord.qt.declarative_table import Data
+from amarcord.qt.declarative_table import DeclarativeTable
+from amarcord.qt.declarative_table import Row
 
 logger = logging.getLogger(__name__)
 

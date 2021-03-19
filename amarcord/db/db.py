@@ -3,16 +3,18 @@ import logging
 import pickle
 from dataclasses import dataclass
 from itertools import groupby
-from typing import Any, Dict, List, Optional, cast
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import cast
 
 import sqlalchemy as sa
 from sqlalchemy import and_
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import (
-    attributo_type_to_schema,
-    schema_json_to_attributo_type,
-)
+from amarcord.db.attributi import attributo_type_to_schema
+from amarcord.db.attributi import schema_json_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import (
     AttributoId,
@@ -20,7 +22,8 @@ from amarcord.db.attributo_id import (
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
-from amarcord.db.constants import DB_SOURCE_NAME, MANUAL_SOURCE_NAME
+from amarcord.db.constants import DB_SOURCE_NAME
+from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
@@ -31,7 +34,8 @@ from amarcord.db.tables import (
 )
 from amarcord.modules.dbcontext import DBContext
 from amarcord.query_parser import Row as QueryRow
-from amarcord.util import dict_union, remove_duplicates_stable
+from amarcord.util import dict_union
+from amarcord.util import remove_duplicates_stable
 
 logger = logging.getLogger(__name__)
 

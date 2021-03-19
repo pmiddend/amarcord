@@ -1,35 +1,34 @@
 import datetime
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeComments
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDuration
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.attributo_type import AttributoTypeTags
+from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.attributo_type import (
-    AttributoTypeChoice,
-    AttributoTypeComments,
-    AttributoTypeDateTime,
-    AttributoTypeDouble,
-    AttributoTypeDuration,
-    AttributoTypeInt,
-    AttributoTypeList,
-    AttributoTypeSample,
-    AttributoTypeString,
-    AttributoTypeTags,
-    AttributoTypeUserName,
-    AttributoType,
-)
-from amarcord.json_schema import (
-    JSONSchemaArray,
-    JSONSchemaInteger,
-    JSONSchemaNumber,
-    JSONSchemaNumberFormat,
-    JSONSchemaString,
-    JSONSchemaStringFormat,
-    JSONSchemaType,
-    parse_schema_type,
-)
-from amarcord.modules.json import JSONDict, JSONValue
+from amarcord.json_schema import JSONSchemaArray
+from amarcord.json_schema import JSONSchemaInteger
+from amarcord.json_schema import JSONSchemaNumber
+from amarcord.json_schema import JSONSchemaNumberFormat
+from amarcord.json_schema import JSONSchemaString
+from amarcord.json_schema import JSONSchemaStringFormat
+from amarcord.json_schema import JSONSchemaType
+from amarcord.json_schema import parse_schema_type
+from amarcord.modules.json import JSONDict
+from amarcord.modules.json import JSONValue
 from amarcord.numeric_range import NumericRange
 from amarcord.util import print_natural_delta
 

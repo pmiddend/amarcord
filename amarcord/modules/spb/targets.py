@@ -1,32 +1,36 @@
 import logging
 from dataclasses import replace
-from typing import List, Optional
+from typing import List
+from typing import Optional
 
-from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
+from PyQt5.QtCore import QModelIndex
+from PyQt5.QtCore import Qt
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent
-from PyQt5.QtWidgets import (
-    QAbstractItemView,
-    QFormLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMenu,
-    QMessageBox,
-    QPushButton,
-    QSplitter,
-    QStyle,
-    QTableWidget,
-    QTableWidgetItem,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt5.QtWidgets import QAbstractItemView
+from PyQt5.QtWidgets import QFormLayout
+from PyQt5.QtWidgets import QHBoxLayout
+from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLineEdit
+from PyQt5.QtWidgets import QMenu
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtWidgets import QSplitter
+from PyQt5.QtWidgets import QStyle
+from PyQt5.QtWidgets import QTableWidget
+from PyQt5.QtWidgets import QTableWidgetItem
+from PyQt5.QtWidgets import QVBoxLayout
+from PyQt5.QtWidgets import QWidget
 
-from amarcord.modules.context import Context
-from amarcord.db.db import Connection, DB, DBTarget
+from amarcord.db.db import Connection
+from amarcord.db.db import DB
+from amarcord.db.db import DBTarget
 from amarcord.db.tables import DBTables
+from amarcord.modules.context import Context
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
-from amarcord.qt.numeric_input_widget import NumericInputValue, NumericInputWidget
+from amarcord.qt.numeric_input_widget import NumericInputValue
+from amarcord.qt.numeric_input_widget import NumericInputWidget
 from amarcord.uniprot import validate_uniprot
 
 NEW_TARGET_HEADLINE = "New target"

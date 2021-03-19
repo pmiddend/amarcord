@@ -2,7 +2,8 @@ import datetime
 import json
 import logging
 
-from flask import Flask, request
+from flask import Flask
+from flask import request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
@@ -13,15 +14,14 @@ from amarcord.db.attributi import (
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.comment import DBComment
-from amarcord.db.db import (
-    DB,
-    DBRun,
-)
+from amarcord.db.db import DB
+from amarcord.db.db import DBRun
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode, DBContext
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.json import JSONDict
 
 logging.basicConfig(

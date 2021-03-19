@@ -1,23 +1,24 @@
 import datetime
 import logging
-from enum import Enum, auto
-from typing import Final, List, Optional
+from enum import Enum
+from enum import auto
+from typing import Final
+from typing import List
+from typing import Optional
 
 import pandas as pd
 from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
-    QVBoxLayout,
-    QWidget,
-)
-from matplotlib.backends.backend_qt5agg import (
-    FigureCanvasQTAgg,
-    NavigationToolbar2QT as NavigationToolbar,
-)
+from PyQt5.QtWidgets import QDialog
+from PyQt5.QtWidgets import QDialogButtonBox
+from PyQt5.QtWidgets import QVBoxLayout
+from PyQt5.QtWidgets import QWidget
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.pyplot import Figure
 
-from amarcord.db.db import Connection, DB, overview_row_to_query_row
+from amarcord.db.db import Connection
+from amarcord.db.db import DB
+from amarcord.db.db import overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.query_parser import Query

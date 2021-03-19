@@ -2,7 +2,10 @@ import asyncio
 import concurrent
 import logging
 import pickle
-from typing import Any, Dict, List, Union
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Union
 
 import sqlalchemy as sa
 import zmq
@@ -10,14 +13,17 @@ from karabo_bridge import deserialize
 from zmq.asyncio import Context
 
 from amarcord.config import load_config
-from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.modules.dbcontext import CreationMode, DBContext
-from amarcord.db.proposal_id import ProposalId
 from amarcord.db.db import DB
-from amarcord.db.tables import DBTables, create_tables
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.tables import DBTables
+from amarcord.db.tables import create_tables
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
 from amarcord.python_schema import validate_dict
 from amarcord.sources.karabo import XFELKaraboBridgeConfig
-from amarcord.sources.mc import XFELMetadataCatalogue, XFELMetadataConnectionConfig
+from amarcord.sources.mc import XFELMetadataCatalogue
+from amarcord.sources.mc import XFELMetadataConnectionConfig
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO

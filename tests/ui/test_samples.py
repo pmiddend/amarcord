@@ -1,11 +1,9 @@
 from typing import Any
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMessageBox
-
 from amarcord.db.tables import create_tables
 from amarcord.modules.context import Context
-from amarcord.modules.dbcontext import CreationMode, DBContext
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.samples import Samples
 
 

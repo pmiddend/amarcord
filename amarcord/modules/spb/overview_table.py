@@ -1,42 +1,53 @@
 import datetime
 import logging
 from functools import partial
-from typing import Any, Final, Iterable, List, Tuple, cast
+from typing import Any
+from typing import Final
+from typing import Iterable
+from typing import List
+from typing import Tuple
 
-from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QPoint, QStringListModel, QTimer, pyqtSignal
-from PyQt5.QtWidgets import (
-    QCheckBox,
-    QCompleter,
-    QMenu,
-    QMessageBox,
-    QPushButton,
-    QStyle,
-    QWidget,
-)
+from PyQt5 import QtCore
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import QPoint
+from PyQt5.QtCore import QStringListModel
+from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QCheckBox
+from PyQt5.QtWidgets import QMenu
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtWidgets import QStyle
+from PyQt5.QtWidgets import QWidget
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import (
-    pretty_print_attributo,
-    sortable_attributo,
-)
-from amarcord.db.attributo_type import (
-    AttributoType,
-    AttributoTypeDouble,
-    AttributoTypeDuration,
-    AttributoTypeInt,
-)
-from amarcord.db.db import Connection, DB, OverviewAttributi, overview_row_to_query_row
+from amarcord.db.attributi import pretty_print_attributo
+from amarcord.db.attributi import sortable_attributo
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDuration
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.db import Connection
+from amarcord.db.db import DB
+from amarcord.db.db import OverviewAttributi
+from amarcord.db.db import overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.column_chooser import display_column_chooser
 from amarcord.modules.spb.filter_query_help import filter_query_help
-from amarcord.modules.spb.plot_dialog import PlotDialog, _PlotType
-from amarcord.qt.declarative_table import Column, Data, DeclarativeTable, Row, SortOrder
+from amarcord.modules.spb.plot_dialog import PlotDialog
+from amarcord.modules.spb.plot_dialog import _PlotType
+from amarcord.qt.declarative_table import Column
+from amarcord.qt.declarative_table import Data
+from amarcord.qt.declarative_table import DeclarativeTable
+from amarcord.qt.declarative_table import Row
+from amarcord.qt.declarative_table import SortOrder
 from amarcord.qt.infix_completer import InfixCompletingLineEdit
-from amarcord.query_parser import Query, UnexpectedEOF, parse_query
+from amarcord.query_parser import Query
+from amarcord.query_parser import UnexpectedEOF
+from amarcord.query_parser import parse_query
 
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
 

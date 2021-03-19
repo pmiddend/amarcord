@@ -1,17 +1,22 @@
 import logging
-from typing import Any, Dict, Final, List, Optional
+from typing import Any
+from typing import Dict
+from typing import Final
+from typing import List
+from typing import Optional
 
-from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QTimer, QVariant, pyqtSignal
-from PyQt5.QtWidgets import (
-    QCheckBox,
-    QHBoxLayout,
-    QPushButton,
-    QSizePolicy,
-    QSplitter,
-    QStyle,
-    QWidget,
-)
+from PyQt5 import QtCore
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QCheckBox
+from PyQt5.QtWidgets import QHBoxLayout
+from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtWidgets import QSplitter
+from PyQt5.QtWidgets import QStyle
+from PyQt5.QtWidgets import QWidget
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.comment import DBComment
@@ -23,12 +28,10 @@ from amarcord.db.tables import DBTables
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
 from amarcord.modules.spb.comments import Comments
-from amarcord.modules.spb.run_details_tree import (
-    RunDetailsTree,
-    _dict_to_items,
-    _filter_dict,
-    _preprocess_dict,
-)
+from amarcord.modules.spb.run_details_tree import RunDetailsTree
+from amarcord.modules.spb.run_details_tree import _dict_to_items
+from amarcord.modules.spb.run_details_tree import _filter_dict
+from amarcord.modules.spb.run_details_tree import _preprocess_dict
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget

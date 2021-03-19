@@ -1,9 +1,12 @@
-from typing import Callable
-from typing import List
-from typing import Any
 from enum import Enum
 from enum import auto
-from sqlalchemy import create_engine, MetaData, event
+from typing import Any
+from typing import Callable
+from typing import List
+
+from sqlalchemy import MetaData
+from sqlalchemy import create_engine
+from sqlalchemy import event
 
 
 class CreationMode(Enum):

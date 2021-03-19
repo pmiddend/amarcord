@@ -1,8 +1,13 @@
 from typing import Optional
 
-from PyQt5.QtCore import QVariant, pyqtSignal
-from PyQt5.QtWidgets import QLabel, QLineEdit, QVBoxLayout, QWidget
-from lark import Tree, exceptions as le
+from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLineEdit
+from PyQt5.QtWidgets import QVBoxLayout
+from PyQt5.QtWidgets import QWidget
+from lark import Tree
+from lark import exceptions as le
 from lark.lark import Lark
 from lark.lexer import Token
 

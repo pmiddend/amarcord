@@ -8,18 +8,17 @@ from PyQt5.QtWidgets import QMessageBox
 from amarcord.config import load_config
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.constants import CONTACT_INFO
-from amarcord.modules.context import Context
-from amarcord.modules.dbcontext import CreationMode, DBContext
-from amarcord.db.tables import create_tables
-from amarcord.db.sample_data import create_sample_data
-from amarcord.modules.spb.attributi_crud import AttributiCrud
-from amarcord.modules.spb.factories import (
-    proposal_chooser,
-    retrieve_proposal_ids,
-    run_details,
-    run_table,
-)
 from amarcord.db.proposal_id import ProposalId
+from amarcord.db.sample_data import create_sample_data
+from amarcord.db.tables import create_tables
+from amarcord.modules.context import Context
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.spb.attributi_crud import AttributiCrud
+from amarcord.modules.spb.factories import proposal_chooser
+from amarcord.modules.spb.factories import retrieve_proposal_ids
+from amarcord.modules.spb.factories import run_details
+from amarcord.modules.spb.factories import run_table
 from amarcord.modules.spb.samples import Samples
 from amarcord.modules.spb.targets import Targets
 from amarcord.modules.uicontext import UIContext

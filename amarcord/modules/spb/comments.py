@@ -3,10 +3,16 @@ import getpass
 import logging
 from dataclasses import replace
 from enum import Enum
-from typing import Callable, Dict, Final, List, Optional
+from typing import Callable
+from typing import Dict
+from typing import Final
+from typing import List
+from typing import Optional
 
 import humanize
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore
+from PyQt5 import QtGui
+from PyQt5 import QtWidgets
 
 from amarcord.db.comment import DBComment
 from amarcord.qt.signal_blocker import SignalBlocker
