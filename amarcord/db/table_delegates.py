@@ -60,9 +60,12 @@ class ComboItemDelegate(QtWidgets.QStyledItemDelegate):
     ) -> None:
         assert isinstance(editor, QtWidgets.QComboBox)
         model_data = index.model().data(index, QtCore.Qt.EditRole)
-        cast(QtWidgets.QComboBox, editor).setCurrentIndex(
-            [v[1] for v in self._values].index(model_data)
-        )
+        try:
+            cast(QtWidgets.QComboBox, editor).setCurrentIndex(
+                [v[1] for v in self._values].index(model_data)
+            )
+        except ValueError:
+            cast(QtWidgets.QComboBox, editor).setCurrentIndex(-1)
 
     def setModelData(
         self,
