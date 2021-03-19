@@ -50,7 +50,7 @@ class AttributiTable(QtWidgets.QWidget):
         self._attributo_change = attributo_change
         self._columns = [
             Column(header_label="Name", editable=False),
-            Column(header_label="Value", editable=True),
+            Column(header_label="Value", editable=True, stretch=True),
             Column(header_label="Type", editable=False),
         ]
         layout = QHBoxLayout()

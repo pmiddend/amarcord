@@ -58,6 +58,7 @@ class Row:
 class Column:
     header_label: str
     editable: bool
+    stretch: bool = False
     sorted_by: Optional[SortOrder] = None
     sort_click_callback: Optional[SortClickCallback] = None
     header_callback: Optional[ContextMenuCallback] = None
@@ -176,7 +177,6 @@ class DeclarativeTable(QTableView):
         self.setModel(model)
         self.verticalHeader().hide()
         self.setAlternatingRowColors(True)
-        self.horizontalHeader().setStretchLastSection(True)
         self.horizontalHeader().setSectionsClickable(True)
         self.horizontalHeader().sectionClicked.connect(self._sort_indicator_changed)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -203,7 +203,15 @@ class DeclarativeTable(QTableView):
             )
             self.setSortingEnabled(True)
 
+        self._resize()
+
+    def _resize(self) -> None:
         self.resizeColumnsToContents()
+
+        for idx, c in enumerate(self._data.columns):
+            if c.stretch:
+                self.horizontalHeader().setSectionResizeMode(idx, QHeaderView.Stretch)
+                break
 
     def _sort_indicator_changed(self, i: int) -> None:
         scc = self._data.columns[i].sort_click_callback
@@ -270,7 +278,7 @@ class DeclarativeTable(QTableView):
         for row_idx, delegate in data.column_delegates.items():
             self.setItemDelegateForColumn(row_idx, delegate)
 
-        self.resizeColumnsToContents()
+        self._resize()
 
     # Keep these commented out. Maybe we want to really delete the delegates when
     # we're done with them, instead of keeping them around like idiots.
