@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import (
 )
 
 from amarcord.modules.context import Context
-from amarcord.db.db import DB, DBTarget
+from amarcord.db.db import Connection, DB, DBTarget
 from amarcord.db.tables import DBTables
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
@@ -70,7 +70,7 @@ class Targets(QWidget):
         root_widget = QSplitter(self)
         root_layout.addWidget(root_widget)
         self._target_table = _TargetTable()
-        self._target_table.delete_current_row.connect(self._delete_target)
+        self._target_table.delete_current_row.connect(self._slot_delete_target)
         self._target_table.doubleClicked.connect(self._slot_row_selected)
         root_widget.addWidget(self._target_table)
 
@@ -125,9 +125,10 @@ class Targets(QWidget):
         right_form_layout.addWidget(self._submit_widget)
 
         self._targets: List[DBTarget] = []
-        self._fill_table()
+        with self._db.connect() as conn:
+            self._fill_table(conn)
 
-    def _delete_target(self) -> None:
+    def _slot_delete_target(self) -> None:
         row_idx = self._target_table.currentRow()
         target = self._targets[row_idx]
 
@@ -157,7 +158,7 @@ class Targets(QWidget):
                         return
                     self._db.delete_target(conn, target.id)
                     self._log_widget.setText(f"“{target.short_name}” deleted!")
-                    self._fill_table()
+                    self._fill_table(conn)
                     if self._current_target.id == target.id:
                         self._reset_input_fields()
                         self._right_headline.setText(NEW_TARGET_HEADLINE)
@@ -229,13 +230,13 @@ class Targets(QWidget):
             self._db.add_target(conn, self._current_target)
             self._reset_input_fields()
             self._log_widget.setText("Target successfully added!")
-            self._fill_table()
+            self._fill_table(conn)
 
     def _edit_target(self) -> None:
         with self._db.connect() as conn:
             self._db.edit_target(conn, self._current_target)
             self._log_widget.setText("Target successfully edited!")
-            self._fill_table()
+            self._fill_table(conn)
 
     def _reset_input_fields(self):
         self._name_edit.setText("")
@@ -278,9 +279,8 @@ class Targets(QWidget):
         self._current_target = replace(self._current_target, name=new_name)
         self._reset_button()
 
-    def _fill_table(self) -> None:
-        with self._db.connect() as conn:
-            self._targets = self._db.retrieve_targets(conn)
+    def _fill_table(self, conn: Connection) -> None:
+        self._targets = self._db.retrieve_targets(conn)
 
         self._target_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._target_table.clear()

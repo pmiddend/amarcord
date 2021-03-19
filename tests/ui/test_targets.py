@@ -41,6 +41,6 @@ def test_add_then_delete_target(qtbot: Any, monkeypatch) -> None:
     widget._target_table.setCurrentCell(0, 0)
 
     monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.Yes)
-    widget._delete_target()
+    widget._slot_delete_target()
 
     assert widget._target_table.rowCount() == 0

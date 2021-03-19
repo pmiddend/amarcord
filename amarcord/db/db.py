@@ -531,15 +531,18 @@ class DB:
             ).fetchall()
         ]
 
-    def add_target(self, conn: Connection, t: DBTarget) -> None:
-        conn.execute(
+    def add_target(self, conn: Connection, t: DBTarget) -> int:
+        assert t.name
+        assert t.short_name
+        assert t.id is None
+        return conn.execute(
             sa.insert(self.tables.target).values(
                 name=t.name,
                 short_name=t.short_name,
                 molecular_weight=t.molecular_weight,
                 uniprot_id=t.uniprot_id,
             )
-        )
+        ).inserted_primary_key[0]
 
     def edit_target(self, conn: Connection, t: DBTarget) -> None:
         conn.execute(
