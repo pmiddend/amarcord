@@ -66,8 +66,10 @@ def to_python_operator(
             raise SemanticError(
                 f'row "{field.value}" has invalid type {type(row_value)}'
             )
-        if isinstance(row_value, list) and not isinstance(
-            row_value[0], (str, int, float)
+        if (
+            isinstance(row_value, list)
+            and row_value
+            and not isinstance(row_value[0], (str, int, float))
         ):
             raise SemanticError(
                 f'row "{field.value}" has invalid list type {type(row_value[0])}'
