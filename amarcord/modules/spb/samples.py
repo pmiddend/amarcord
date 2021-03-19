@@ -279,6 +279,7 @@ class Samples(QWidget):
         self._update_timer.stop()
 
     def showEvent(self, _e: Any) -> None:
+        self._slot_refresh_with_conn()
         self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _display_micrograph(self) -> None:
@@ -328,8 +329,8 @@ class Samples(QWidget):
                 "<p>The sample is in used by the following run(s) and cannot be deleted!</p><p>Please reset the "
                 "samples for the "
                 "runs and try again:</p><ul>"
-                + ("".join([f"<li>{x}</li>" for x in refs][0:19]))
-                + ("<li>...</li>" if len(refs) else "")
+                + ("".join([f"<li>Run {x}</li>" for x in refs][0:20]))
+                + ("<li>...</li>" if len(refs) > 20 else "")
                 + "</ul>",
                 QMessageBox.Ok,
                 self,

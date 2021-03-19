@@ -569,7 +569,9 @@ class DB:
                     self.tables.sample.c.id,
                     self.tables.run.c.id,
                 ]
-            ).select_from(self.tables.sample.join(self.tables.run))
+            )
+            .order_by(self.tables.sample.c.id)
+            .select_from(self.tables.sample.join(self.tables.run))
         ).fetchall()
         for sample_id, run_ids in groupby(
             db_results,
