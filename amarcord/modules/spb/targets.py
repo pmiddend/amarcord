@@ -92,6 +92,7 @@ class Targets(QWidget):
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
         self._uniprot_edit = DebouncedLineEdit()
+
         self._short_name_edit = QLineEdit()
         self._short_name_edit.textEdited.connect(self._short_name_changed)
         right_form_layout.addRow("Short Name*", self._short_name_edit)
@@ -132,13 +133,11 @@ class Targets(QWidget):
 
         assert target.id is not None
 
-        result = QMessageBox(  # type: ignore
-            QMessageBox.Critical,
+        result = QMessageBox.question(
+            self,
             f"Delete “{target.short_name}”",
             f"Are you sure you want to delete “{target.short_name}”?",
-            QMessageBox.Yes | QMessageBox.Cancel,
-            self,
-        ).exec()
+        )
 
         if result == QMessageBox.Yes:
             with self._db.connect() as conn:

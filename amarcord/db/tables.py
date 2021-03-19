@@ -52,7 +52,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         "Sample",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("target_id", sa.Integer, sa.ForeignKey("Target.id"), nullable=False),
+        sa.Column("target_id", sa.Integer, sa.ForeignKey("Target.id"), nullable=True),
         sa.Column("compounds", sa.JSON, nullable=True),
         sa.Column("micrograph", sa.Text, nullable=True),
         sa.Column("protocol", sa.Text, nullable=True),

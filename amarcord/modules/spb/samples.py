@@ -32,9 +32,11 @@ from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection, DB, DBSample
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
+from amarcord.modules.json import JSONDict
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.image_viewer import display_image_viewer
@@ -55,21 +57,23 @@ AUTO_REFRESH_TIMER_MSEC: Final = 5000
 logger = logging.getLogger(__name__)
 
 
-def _empty_sample():
+def _empty_sample(available_attributi: Dict[AttributoId, DBAttributo]) -> DBSample:
+    attributi_map: JSONDict = {}
+    if AttributoId("created") in available_attributi:
+        new_source = cast(JSONDict, attributi_map.get(MANUAL_SOURCE_NAME, {}))
+        new_source["created"] = datetime.datetime.utcnow().isoformat()
+        attributi_map[MANUAL_SOURCE_NAME] = new_source
+    if AttributoId("creator") in available_attributi:
+        new_source = cast(JSONDict, attributi_map.get(MANUAL_SOURCE_NAME, {}))
+        new_source["creator"] = getpass.getuser()
+        attributi_map[MANUAL_SOURCE_NAME] = new_source
     return DBSample(
         id=None,
-        target_id=-1,
+        target_id=None,
         compounds=None,
         micrograph=None,
         protocol=None,
-        attributi=RawAttributiMap(
-            {
-                MANUAL_SOURCE_NAME: {
-                    AttributoId("created"): datetime.datetime.utcnow().isoformat(),
-                    AttributoId("creator"): getpass.getuser(),
-                }
-            }
-        ),
+        attributi=RawAttributiMap(attributi_map),
     )
 
 
@@ -124,7 +128,6 @@ class Samples(QWidget):
         self._sample_table.doubleClicked.connect(self._slot_row_selected)
         root_widget.addWidget(self._sample_table)
 
-        self._current_sample = _empty_sample()
         right_widget = QWidget()
         right_root_layout = QVBoxLayout()
         right_widget.setLayout(right_root_layout)
@@ -141,7 +144,9 @@ class Samples(QWidget):
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
 
-        self._target_id_edit = ComboBox[int](items=[(str(-1), -1)], selected=-1)
+        self._target_id_edit = ComboBox[Optional[int]](
+            items=[("None", None)], selected=None
+        )
         right_form_layout.addRow(
             "Target",
             self._target_id_edit,
@@ -206,9 +211,13 @@ class Samples(QWidget):
         with self._db.connect() as conn:
             metadata_wrapper = QWidget()
             metadata_wrapper_layout = QVBoxLayout(metadata_wrapper)
+            available_attributi = self._db.retrieve_table_attributi(
+                conn, AssociatedTable.SAMPLE
+            )
+            self._current_sample = _empty_sample(available_attributi)
             self._attributi_table = AttributiTable(
                 self._current_sample.attributi,
-                self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
+                available_attributi,
                 [],
                 self._attributo_change,
             )
@@ -403,7 +412,6 @@ class Samples(QWidget):
         self._right_headline.setText(NEW_SAMPLE_HEADLINE)
 
     def _slot_add_sample(self) -> None:
-        assert self._current_sample.target_id > 0
         with self._db.connect() as conn:
             self._db.add_sample(
                 conn,
@@ -432,7 +440,7 @@ class Samples(QWidget):
         self._compounds_edit.set_value(None)
         self._micrograph_edit.set_value(None)
         self._protocol_edit.set_value(None)
-        self._current_sample = _empty_sample()
+        self._current_sample = _empty_sample(self._attributi_table.metadata)
         self._attributi_table.data_changed(
             self._current_sample.attributi, self._attributi_table.metadata, []
         )
@@ -480,14 +488,14 @@ class Samples(QWidget):
         self._targets = self._db.retrieve_targets(conn)
 
         self._target_id_edit.reset_items(
-            [(s.short_name, cast(int, s.id)) for s in self._targets]
+            [("None", cast(Optional[int], None))]
+            + [(s.short_name, cast(Optional[int], s.id)) for s in self._targets]
         )
-        if self._target_id_edit.current_value() is None and self._targets:
-            self._target_id_edit.set_current_value(cast(int, self._targets[0].id))
         self._fill_table()
 
     def _fill_table(self):
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        current_row = self._sample_table.currentRow()
         self._sample_table.clear()
         attributi_headers = [
             k.pretty_id() for k in self._attributi_table.metadata.values()
@@ -507,7 +515,12 @@ class Samples(QWidget):
             built_in_columns = (
                 str(sample.id),
                 str(len(self._samples_with_runs.get(sample.id, []))),
-                [t.short_name for t in self._targets if sample.target_id == t.id][0],
+                next(
+                    iter(
+                        t.short_name for t in self._targets if sample.target_id == t.id
+                    ),
+                    None,
+                ),
                 ", ".join(sample.compounds if sample is not None else [])
                 if sample.compounds is not None
                 else "",
@@ -533,3 +546,5 @@ class Samples(QWidget):
                 )
                 i += 1
         self._sample_table.resizeColumnsToContents()
+        if current_row != -1:
+            self._sample_table.selectRow(current_row)
