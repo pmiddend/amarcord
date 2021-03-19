@@ -89,6 +89,8 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
             if format_ == "duration"
             else JSONSchemaStringFormat.USER_NAME
             if format_ == "user-name"
+            else JSONSchemaStringFormat.TAG
+            if format_ == "tag"
             else None,
         )
 

@@ -223,6 +223,50 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "associated_table": AssociatedTable.RUN,
                     },
                     {
+                        "name": "xray_energy",
+                        "description": "X-Ray energy",
+                        "json_schema": {
+                            "type": "number",
+                            "suffix": "keV",
+                            "minimum": 0,
+                        },
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "pulse_energy",
+                        "description": "Pulse energy",
+                        "json_schema": {
+                            "type": "number",
+                            "suffix": "mJ",
+                            "minimum": 0,
+                        },
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "detector_gain",
+                        "description": "Detector gain",
+                        "json_schema": {
+                            "type": "number",
+                            "suffix": "dB",
+                            "minimum": 0,
+                        },
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "gain_mode",
+                        "description": "Detector gain mode",
+                        "json_schema": {
+                            "type": "string",
+                            "enum": [
+                                "fixed high",
+                                "fixed medium",
+                                "fixed low",
+                                "adaptive",
+                            ],
+                        },
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
                         "name": "hit_rate",
                         "description": "Hit Rate",
                         "json_schema": {
@@ -234,8 +278,14 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "associated_table": AssociatedTable.RUN,
                     },
                     {
-                        "name": "trains",
-                        "description": "Train count",
+                        "name": "first_train",
+                        "description": "First Train",
+                        "json_schema": {"type": "integer"},
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "last_train",
+                        "description": "Last Train",
                         "json_schema": {"type": "integer"},
                         "associated_table": AssociatedTable.RUN,
                     },
@@ -246,11 +296,68 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "associated_table": AssociatedTable.RUN,
                     },
                     {
+                        "name": "injector_flow_rate",
+                        "description": "Injector Flow Rate",
+                        "json_schema": {"type": "number", "suffix": "uL/min"},
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "sample_delivery_rate",
+                        "description": "Sample Delivery Rate",
+                        "json_schema": {"type": "number", "suffix": "uL/min"},
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "detector_darks",
+                        "description": "Detector Darks",
+                        "json_schema": {"type": "string"},
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "injector_valve_config",
+                        "description": "Injector Valve Config",
+                        "json_schema": {"type": "string"},
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "injector_image",
+                        "description": "Injector Image",
+                        "json_schema": {"type": "string"},
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "bunch_pattern",
+                        "description": "Bunch Pattern",
+                        "json_schema": {"type": "string"},
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "detector_quadrant_positions",
+                        "description": "Detector Quadrant Positions",
+                        "json_schema": {"type": "string"},
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
+                        "name": "transmission",
+                        "description": "Transmission",
+                        "json_schema": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100,
+                            "suffix": "%",
+                        },
+                        "associated_table": AssociatedTable.RUN,
+                    },
+                    {
                         "name": "tags",
                         "description": "Tags",
                         "json_schema": {
                             "type": "array",
-                            "items": {"type": "string", "minLength": 1},
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "format": "tag",
+                            },
                         },
                         "associated_table": AssociatedTable.RUN,
                     },
