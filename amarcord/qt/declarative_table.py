@@ -203,6 +203,8 @@ class DeclarativeTable(QTableView):
             )
             self.setSortingEnabled(True)
 
+        self.resizeColumnsToContents()
+
     def _sort_indicator_changed(self, i: int) -> None:
         scc = self._data.columns[i].sort_click_callback
         if scc is not None:
