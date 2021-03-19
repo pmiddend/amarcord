@@ -3,7 +3,15 @@ from typing import Any, Dict, Final, List, Optional
 
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QTimer, QVariant, pyqtSignal
-from PyQt5.QtWidgets import QCheckBox, QPushButton, QStyle, QWidget
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QHBoxLayout,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    QStyle,
+    QWidget,
+)
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.comment import DBComment
@@ -38,7 +46,7 @@ def _refresh_button(style: QStyle) -> QPushButton:
     )
 
 
-class RunDetailsInner(QtWidgets.QWidget):
+class RunDetailsInner(QWidget):
     current_run_changed = pyqtSignal(int)
     refresh = pyqtSignal()
     comment_delete = pyqtSignal(int)
@@ -67,8 +75,8 @@ class RunDetailsInner(QtWidgets.QWidget):
         self.run_ids = run_ids
         self.sample_ids = sample_ids
 
-        top_row = QtWidgets.QWidget()
-        top_layout = QtWidgets.QHBoxLayout(top_row)
+        top_row = QWidget()
+        top_layout = QHBoxLayout(top_row)
 
         selected_run_id = max(r for r in self.run_ids)
         self._run_selector = ComboBox[int](
@@ -145,20 +153,19 @@ class RunDetailsInner(QtWidgets.QWidget):
 
         self._root_layout.addWidget(top_row)
 
-        root_columns = QtWidgets.QHBoxLayout()
-        self._root_layout.addLayout(root_columns)
+        root_splitter = QSplitter()
+        root_splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._root_layout.addWidget(root_splitter)
 
-        editable_column = QtWidgets.QWidget()
-        editable_column_layout = QtWidgets.QVBoxLayout()
-        editable_column.setLayout(editable_column_layout)
-        editable_column_layout.addWidget(comment_column)
-        editable_column_layout.addWidget(additional_data_column)
-
-        details_column = QtWidgets.QGroupBox("Run details")
-        details_column_layout = QtWidgets.QVBoxLayout()
-        details_column.setLayout(details_column_layout)
+        details_box = QtWidgets.QGroupBox("Run details")
+        details_column_layout = QtWidgets.QVBoxLayout(details_box)
         self._details_tree = RunDetailsTree()
         details_column_layout.addWidget(self._details_tree)
+
+        right_column = QtWidgets.QWidget()
+        right_column_layout = QtWidgets.QVBoxLayout(right_column)
+        right_column_layout.addWidget(comment_column)
+        right_column_layout.addWidget(details_box)
 
         tree_search_row = QtWidgets.QHBoxLayout()
         tree_search_row.addWidget(QtWidgets.QLabel("Filter:"))
@@ -168,10 +175,8 @@ class RunDetailsInner(QtWidgets.QWidget):
         tree_search_row.addWidget(self._tree_filter_line)
         details_column_layout.addLayout(tree_search_row)
 
-        root_columns.addWidget(editable_column)
-        root_columns.addWidget(details_column)
-        root_columns.setStretch(0, 2)
-        root_columns.setStretch(1, 3)
+        root_splitter.addWidget(additional_data_column)
+        root_splitter.addWidget(right_column)
 
         self.run_changed(self.run, self.karabo, run_ids, sample_ids, runs_metadata)
 
