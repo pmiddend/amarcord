@@ -180,7 +180,7 @@ class Targets(QWidget):
         b = QPushButton(
             self.style().standardIcon(QStyle.SP_DialogCancelButton), "Cancel"
         )
-        b.clicked.connect(self._cancel_edit)
+        b.clicked.connect(self._slot_cancel_edit)
         return b
 
     def _slot_row_selected(self, index: QModelIndex) -> None:
@@ -208,7 +208,7 @@ class Targets(QWidget):
         self._add_button = None
         self._edit_button = None
 
-    def _cancel_edit(self) -> None:
+    def _slot_cancel_edit(self) -> None:
         self._clear_submit()
         self._add_button = self._create_add_button()
         self._submit_layout.addWidget(self._add_button)
