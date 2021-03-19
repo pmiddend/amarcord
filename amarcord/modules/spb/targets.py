@@ -150,9 +150,9 @@ class Targets(QWidget):
                     if samples_used:
                         QMessageBox.critical(
                             self,
-                            "Cannot delete",
-                            "The target is used by the following samples:\n\n"
-                            + "\n".join(samples_used),
+                            f'Cannot delete "{target.short_name}"',
+                            "The target is used by the following samples. You cannot delete the target until no "
+                            "samples use it anymore.\n\n" + "\n".join(samples_used),
                         )
                         return
                     self._db.delete_target(conn, target.id)
