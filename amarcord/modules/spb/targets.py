@@ -133,13 +133,11 @@ class Targets(QWidget):
 
         assert target.id is not None
 
-        result = QMessageBox(  # type: ignore
-            QMessageBox.Critical,
+        result = QMessageBox.question(
+            self,
             f"Delete “{target.short_name}”",
             f"Are you sure you want to delete “{target.short_name}”?",
-            QMessageBox.Yes | QMessageBox.Cancel,
-            self,
-        ).exec()
+        )
 
         if result == QMessageBox.Yes:
             with self._db.connect() as conn:

@@ -48,7 +48,7 @@ class DBTarget:
 @dataclass(frozen=True)
 class DBSample:
     id: Optional[int]
-    target_id: int
+    target_id: Optional[int]
     compounds: Optional[List[int]]
     micrograph: Optional[str]
     protocol: Optional[str]

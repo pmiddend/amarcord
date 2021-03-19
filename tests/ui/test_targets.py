@@ -1,6 +1,7 @@
 from typing import Any
 
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMessageBox
 
 from amarcord.db.tables import create_tables
 from amarcord.modules.context import Context
@@ -8,7 +9,7 @@ from amarcord.modules.dbcontext import CreationMode, DBContext
 from amarcord.modules.spb.targets import Targets
 
 
-def test_target_tab(qtbot: Any) -> None:
+def test_add_then_delete_target(qtbot: Any, monkeypatch) -> None:
     dbcontext = DBContext("sqlite://")
     uicontext = None
     # noinspection PyTypeChecker
@@ -36,3 +37,10 @@ def test_target_tab(qtbot: Any) -> None:
     assert widget._short_name_edit.text() == ""
     assert widget._name_edit.text() == ""
     assert widget._target_table.rowCount() == 1
+
+    widget._target_table.setCurrentCell(0, 0)
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.Yes)
+    widget._delete_target()
+
+    assert widget._target_table.rowCount() == 0
