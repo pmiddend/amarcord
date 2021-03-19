@@ -241,6 +241,7 @@ class Targets(QWidget):
         self._name_edit.setText("")
         self._short_name_edit.setText("")
         self._uniprot_edit.setText("")
+        self._uniprot_edit.setStyleSheet("")
         self._molecular_weight_edit.set_value(None)
         self._current_target = _empty_target()
 
