@@ -495,7 +495,8 @@ class Samples(QWidget):
 
     def _fill_table(self):
         self._sample_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        current_row = self._sample_table.currentRow()
+        selected_row = next(iter(self._sample_table.selectedItems()), None)
+        selected_row = selected_row.row() if selected_row is not None else None
         self._sample_table.clear()
         attributi_headers = [
             k.pretty_id() for k in self._attributi_table.metadata.values()
@@ -546,5 +547,5 @@ class Samples(QWidget):
                 )
                 i += 1
         self._sample_table.resizeColumnsToContents()
-        if current_row != -1:
-            self._sample_table.selectRow(current_row)
+        if selected_row is not None:
+            self._sample_table.selectRow(selected_row)
