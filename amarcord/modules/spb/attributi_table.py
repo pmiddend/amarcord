@@ -134,7 +134,9 @@ class AttributiTable(QtWidgets.QWidget):
 
         attributi_changed = new_attributi != self.attributi.to_raw()
 
-        if not attributi_changed and not metadata_changed:
+        sample_ids_changed = sample_ids != self._sample_ids
+
+        if not attributi_changed and not metadata_changed and not sample_ids_changed:
             return
 
         self.metadata = deepcopy(metadata)
