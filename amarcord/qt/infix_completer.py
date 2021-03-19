@@ -3,13 +3,13 @@ from typing import Optional
 from PyQt5 import QtWidgets
 from PyQt5 import QtGui
 from PyQt5 import QtCore
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QCompleter, QWidget
+from PyQt5.QtCore import QTimer, pyqtSignal
+from PyQt5.QtWidgets import QCompleter, QLineEdit, QWidget
 
 from amarcord.util import word_under_cursor
 
 
-class InfixCompletingLineEdit(QtWidgets.QLineEdit):
+class InfixCompletingLineEdit(QLineEdit):
     text_changed_debounced = pyqtSignal(str)
 
     def __init__(
@@ -20,7 +20,7 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
         if content is not None:
             self.setText(content)
         self.textChanged.connect(self._slot_text_changed)
-        self._debounce = QtCore.QTimer()
+        self._debounce = QTimer()
         self._debounce.setInterval(500)
         self._debounce.setSingleShot(True)
         self._debounce.timeout.connect(self._debounced)
@@ -31,7 +31,7 @@ class InfixCompletingLineEdit(QtWidgets.QLineEdit):
     def _debounced(self) -> None:
         self.text_changed_debounced.emit(self.text())
 
-    def setCompleter(self, completer: Optional[QtWidgets.QCompleter]) -> None:
+    def setCompleter(self, completer: Optional[QCompleter]) -> None:
         if self._completer is not None:
             # mypy complains about too many arguments to "disconnect"
             self._completer.disconnect()  # type: ignore

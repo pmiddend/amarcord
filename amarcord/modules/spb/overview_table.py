@@ -1,11 +1,19 @@
 import datetime
 import logging
 from functools import partial
-from typing import Any, Final, Iterable, List, Tuple
+from typing import Any, Final, Iterable, List, Tuple, cast
 
 from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import QPoint, QTimer, pyqtSignal
-from PyQt5.QtWidgets import QCheckBox, QMenu, QMessageBox, QPushButton, QStyle, QWidget
+from PyQt5.QtCore import QPoint, QStringListModel, QTimer, pyqtSignal
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QCompleter,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QStyle,
+    QWidget,
+)
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
@@ -116,7 +124,8 @@ class OverviewTable(QWidget):
         inner_filter_widget.setLayout(inner_filter_layout)
         self._filter_widget = InfixCompletingLineEdit(parent=self)
         self._filter_widget.text_changed_debounced.connect(self._slot_filter_changed)
-        completer = QtWidgets.QCompleter(self._filter_query_completions(), self)
+        self._completer_model = QStringListModel(self._filter_query_completions())
+        completer = QtWidgets.QCompleter(self._completer_model, self)
         completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
         self._filter_widget.setCompleter(completer)
         inner_filter_layout.addWidget(self._filter_widget)
@@ -251,9 +260,9 @@ class OverviewTable(QWidget):
     def _slot_refresh(self, force: bool = False) -> None:
         with self._db.connect() as conn:
             self._attributi_metadata = self._retrieve_attributi_metadata(conn)
-            completer = QtWidgets.QCompleter(self._filter_query_completions(), self)
-            completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
-            self._filter_widget.setCompleter(completer)
+            if self._completer_model.stringList() != self._filter_query_completions():
+                self._completer_model.setStringList(self._filter_query_completions())
+            assert self._filter_widget.completer() is not None
             latest_update_time = self._db.overview_update_time(conn)
             latest_run_count = self._db.run_count(conn)
             needs_update = (
