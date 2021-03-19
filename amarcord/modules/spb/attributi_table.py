@@ -112,7 +112,7 @@ class AttributiTable(QtWidgets.QWidget):
     def _update_table(self) -> None:
         display_attributi: List[DBAttributo] = sorted(
             [k for k in self.metadata.values() if _is_editable(k.attributo_type)],
-            key=lambda x: x.name,
+            key=lambda x: x.description if x.description else x.name,
         )
 
         self._table.set_data(
