@@ -77,6 +77,7 @@ class RunDetailsInner(QWidget):
         self.runs_metadata = runs_metadata
         self.run_ids = run_ids
         self.sample_ids = sample_ids
+        self._prior_filter: Optional[str] = None
 
         top_row = QWidget()
         top_layout = QHBoxLayout(top_row)
@@ -258,6 +259,7 @@ class RunDetailsInner(QWidget):
 
         self._comments.set_comments(self.run.id, self.run.comments)
 
+        self._prior_filter = None
         self._slot_tree_filter_changed(self._tree_filter_line.text())
         self._details_tree.resizeColumnToContents(0)
         self._details_tree.resizeColumnToContents(1)
@@ -272,8 +274,9 @@ class RunDetailsInner(QWidget):
         self._switch_to_latest_button.setEnabled(self.run.id != max(self.run_ids))
 
     def _slot_tree_filter_changed(self, new_filter: str) -> None:
-        if self._details_tree.topLevelItemCount():
+        if new_filter == self._prior_filter:
             return
+        self._prior_filter = new_filter
         self._details_tree.clear()
         if self.karabo is None:
             return
@@ -292,3 +295,4 @@ class RunDetailsInner(QWidget):
                 while p is not None:
                     p.setExpanded(True)
                     p = p.parent()
+        self._details_tree.resizeColumnToContents(1)
