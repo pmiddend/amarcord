@@ -52,7 +52,7 @@ def to_python_operator(
 
     def with_row(row: Dict[str, Any]) -> bool:
         row_value = row[field.value]
-        if not isinstance(row_value, (str, int, float, list)):
+        if row_value is not None and not isinstance(row_value, (str, int, float, list)):
             raise SemanticError(
                 f'row "{field.value}" has invalid type {type(row_value)}'
             )
@@ -64,7 +64,7 @@ def to_python_operator(
             )
         massaged_value, massaged_comparison = massage(row_value, comparison.value)
         if massaged_value is None:
-            return True
+            return False
         if op == "<":
             if isinstance(massaged_value, list) or isinstance(
                 massaged_comparison, list

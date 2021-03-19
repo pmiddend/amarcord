@@ -366,8 +366,8 @@ class OverviewTable(QWidget):
                 f, set(k.technical_id() for k in self._attributi_metadata)
             )
             logger.info("Filter query changed successfully, refreshing")
-            self._slot_refresh(force=True)
         except UnexpectedEOF:
             self._query_error.setText("")
         except Exception as e:
             self._query_error.setText(f"{e}")
+        self._slot_refresh(force=True)
