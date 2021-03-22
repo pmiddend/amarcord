@@ -12,6 +12,7 @@ from PyQt5.QtCore import QPoint
 from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import QVariant
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QCheckBox
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QLabel
@@ -185,7 +186,28 @@ class AttributiCrud(QWidget):
             ]
             self._attributi_table = DeclarativeTable(data=self._create_table_data())
 
-        root_widget.addWidget(self._attributi_table)
+        left_column = QWidget()
+        left_column_layout = QVBoxLayout(left_column)
+        refresh_line_layout = QHBoxLayout()
+        refresh_button = QPushButton(
+            self.style().standardIcon(QStyle.SP_BrowserReload),
+            "Refresh",
+        )
+        refresh_line_layout.addWidget(refresh_button)
+        refresh_button.clicked.connect(self._slot_refresh_with_conn)
+        self._auto_refresh = QCheckBox("Auto refresh")
+        self._auto_refresh.setChecked(True)
+        self._auto_refresh.toggled.connect(self._slot_toggle_auto_refresh)
+        refresh_line_layout.addWidget(self._auto_refresh)
+        refresh_line_layout.addStretch()
+        left_column_layout.addLayout(refresh_line_layout)
+        left_column_layout.addWidget(
+            QLabel(
+                "<b>Right-click</b> column header to show options. Editing not possible yet."
+            )
+        )
+        left_column_layout.addWidget(self._attributi_table)
+        root_widget.addWidget(left_column)
 
         right_widget = QWidget()
         right_root_layout = QVBoxLayout()
@@ -264,11 +286,19 @@ class AttributiCrud(QWidget):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._slot_refresh_with_conn)
 
+    def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
+        if self._update_timer.isActive():
+            self._update_timer.stop()
+        else:
+            self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+
     def hideEvent(self, _e: Any) -> None:
         self._update_timer.stop()
 
     def showEvent(self, _e: Any) -> None:
-        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+        if self._auto_refresh.isChecked():
+            self._slot_refresh_with_conn()
+            self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def regenerate_for_table(self, t: AssociatedTable) -> None:
         self._reset_input_fields()
