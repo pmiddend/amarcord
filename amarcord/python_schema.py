@@ -47,6 +47,12 @@ class ConfigBool:
 
 
 @dataclass(frozen=True)
+class ConfigNull:
+    def __repr__(self) -> str:
+        return "null"
+
+
+@dataclass(frozen=True)
 class ConfigFloat:
     def __repr__(self) -> str:
         return "float"
@@ -63,7 +69,9 @@ class Path:
         return Path(self.value + [other])
 
 
-ConfigAST = Union[ConfigDict, ConfigStr, ConfigInt, ConfigBool, ConfigFloat, ConfigList]
+ConfigAST = Union[
+    ConfigDict, ConfigStr, ConfigInt, ConfigBool, ConfigFloat, ConfigList, ConfigNull
+]
 
 
 @dataclass(frozen=True)
@@ -206,6 +214,8 @@ def infer_type(path: Path, d: Any) -> InferenceResult:
         return ConfigFloat()
     if isinstance(d, str):
         return ConfigStr()
+    if d is None:
+        return ConfigNull()
     return [f"{path}: invalid type {type(d)} found"]
 
 
