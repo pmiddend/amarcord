@@ -2,6 +2,7 @@ import logging
 from enum import Enum
 from functools import partial
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import Final
 from typing import Optional
@@ -90,7 +91,7 @@ def _fill_preset(
     ureg: UnitRegistry,
     p: TypePreset,
     metadata: Dict[str, Any],
-    add_button: QPushButton,
+    metadata_change: Callable[[], None],
 ) -> None:
     while w.layout().count():
         removed_item = w.layout().takeAt(0)
@@ -125,6 +126,7 @@ def _fill_preset(
     elif p == TypePreset.STANDARD_UNIT:
         metadata["range"] = None
         metadata["suffix"] = None
+        metadata["valid"] = False
 
         def set_range(new_range: NumericRange) -> None:
             metadata["range"] = new_range
@@ -134,9 +136,10 @@ def _fill_preset(
             if not isinstance(s, Partial):
                 # noinspection PyStringFormat
                 l.setText("Normalized: {:H}".format(ureg(s)))  # type: ignore
-                add_button.setEnabled(True)
+                metadata["valid"] = True
             else:
-                add_button.setEnabled(False)
+                metadata["valid"] = False
+            metadata_change()
 
         numeric_range_input = NumericRangeFormatWidget(numeric_range=None)
         numeric_range_input.range_changed.connect(set_range)
@@ -245,7 +248,7 @@ class AttributiCrud(QWidget):
             UnitRegistry(),
             cast(TypePreset, self._type_selection.current_value()),
             self._type_specific_metadata,
-            self._add_button,
+            self._update_add_button,
         )
         # Type end
 
@@ -277,8 +280,9 @@ class AttributiCrud(QWidget):
             UnitRegistry(),
             new_value,
             self._type_specific_metadata,
-            self._add_button,
+            self._update_add_button,
         )
+        self._update_add_button()
 
     def _create_table_data(self) -> Data:
         return Data(
@@ -358,6 +362,7 @@ class AttributiCrud(QWidget):
                 cast(AssociatedTable, self._attributi_table_combo.current_value()),
                 AttributoId(self._attributo_id_edit.text()),
             )
+            and self._type_specific_metadata.get("valid", True)
         )
 
     def _attributo_id_change(self, _new_text: str) -> None:
