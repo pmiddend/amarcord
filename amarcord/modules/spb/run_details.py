@@ -120,6 +120,7 @@ class RunDetails(QWidget):
                 self._inner.new_attributo.connect(self.new_attributo.emit)
                 self._inner.manual_new_run.connect(self._slot_manual_new_run)
                 self._root_layout.addWidget(self._inner)
+                self._root_layout.setContentsMargins(0, 0, 0, 0)
 
     def _build_runs_metadata(self, conn: Connection) -> Dict[AttributoId, DBAttributo]:
         md = self._db.run_attributi(conn)

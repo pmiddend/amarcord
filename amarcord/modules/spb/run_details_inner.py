@@ -104,6 +104,7 @@ class RunDetailsInner(QWidget):
 
         top_row = QWidget()
         top_layout = QHBoxLayout(top_row)
+        top_layout.setContentsMargins(0, 0, 0, 0)
 
         selected_run_id = max(r for r in self.run_ids)
         self._run_selector = QLineEdit(str(selected_run_id))
