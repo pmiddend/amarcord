@@ -1,7 +1,6 @@
 import logging
 from typing import Any
 from typing import Dict
-from typing import Final
 from typing import Optional
 from typing import cast
 
@@ -31,8 +30,6 @@ from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.new_run_dialog import new_run_dialog
 from amarcord.modules.spb.run_details_inner import RunDetailsInner
-
-AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
 logger = logging.getLogger(__name__)
 
