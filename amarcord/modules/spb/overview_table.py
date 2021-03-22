@@ -5,6 +5,7 @@ from typing import Any
 from typing import Final
 from typing import Iterable
 from typing import List
+from typing import Optional
 from typing import Tuple
 
 from PyQt5 import QtCore
@@ -93,7 +94,7 @@ class OverviewTable(QWidget):
             ] = self._retrieve_attributi_metadata(conn)
             self._attributi_metadata.sort(key=_attributo_sort_key)
             self._visible_columns = self._attributi_metadata.copy()
-            self._last_refresh = datetime.datetime.utcnow()
+            self._last_refresh: Optional[datetime.datetime] = datetime.datetime.utcnow()
             self._last_run_count = self._db.run_count(conn)
             self._rows: List[OverviewAttributi] = self._db.retrieve_overview(
                 conn, self._proposal_id, self._db.retrieve_attributi(conn)
@@ -278,9 +279,10 @@ class OverviewTable(QWidget):
             latest_update_time = self._db.overview_update_time(conn)
             latest_run_count = self._db.run_count(conn)
             needs_update = (
-                latest_update_time > self._last_refresh
-                or latest_run_count != self._last_run_count
-            )
+                latest_update_time is None
+                or self._last_refresh is None
+                or latest_update_time > self._last_refresh
+            ) or latest_run_count != self._last_run_count
             if needs_update:
                 self._rows = self._db.retrieve_overview(
                     conn, self._proposal_id, self._db.retrieve_attributi(conn)

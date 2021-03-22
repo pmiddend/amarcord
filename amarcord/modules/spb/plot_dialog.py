@@ -62,7 +62,7 @@ class PlotDialog(QDialog):
         self.setWindowTitle(f"Plot {x_axis.pretty_id()} vs {y_axis.pretty_id()}")
 
         with self._db.connect() as conn:
-            self._last_update = datetime.datetime.utcnow()
+            self._last_update: Optional[datetime.datetime] = datetime.datetime.utcnow()
             self._attributi_metadata = self._retrieve_attributi_metadata(conn)
             self._rows = self._db.retrieve_overview(
                 conn, proposal_id, self._db.retrieve_attributi(conn)
@@ -187,7 +187,11 @@ class PlotDialog(QDialog):
         #
         with self._db.connect() as conn:
             update_time = self._db.overview_update_time(conn)
-            if update_time > self._last_update:
+            if (
+                update_time is None
+                or self._last_update is None
+                or update_time > self._last_update
+            ):
                 self._last_update = datetime.datetime.utcnow()
                 self._rows = self._db.retrieve_overview(
                     conn, self._proposal_id, self._db.retrieve_attributi(conn)

@@ -146,16 +146,22 @@ class DB:
         self.dbcontext = dbcontext
         self.tables = tables
 
-    def overview_update_time(self, conn: Connection) -> datetime.datetime:
-        return max(
-            conn.execute(
-                sa.select(
-                    [
-                        sa.func.max(self.tables.run.c.modified),
-                        sa.func.max(self.tables.sample.c.modified),
-                    ]
-                ).select_from(self.tables.run.outerjoin(self.tables.sample))
-            ).fetchone()
+    def overview_update_time(self, conn: Connection) -> Optional[datetime.datetime]:
+        max_run, max_sample = conn.execute(
+            sa.select(
+                [
+                    sa.func.max(self.tables.run.c.modified),
+                    sa.func.max(self.tables.sample.c.modified),
+                ]
+            ).select_from(self.tables.run.outerjoin(self.tables.sample))
+        ).fetchone()
+        # We are compromising here: if there is either no run (yet) or no samples (yet), we return None
+        # which downstream should handle as "list
+        # needs update!"
+        return (
+            max(max_run, max_sample)
+            if max_run is not None and max_sample is not None
+            else None
         )
 
     def run_count(self, conn: Connection) -> int:
@@ -181,10 +187,11 @@ class DB:
         for r in runs:
             sample_id = r.sample_id
             sample = samples.get(sample_id, None) if sample_id is not None else None
-            assert sample is not None, f"run {r.id} has invalid sample {sample_id}"
             result.append(
                 {
-                    AssociatedTable.SAMPLE: sample,
+                    AssociatedTable.SAMPLE: sample
+                    if sample is not None
+                    else AttributiMap(sample_types, None),
                     AssociatedTable.RUN: _run_to_attributi(r, run_types),
                 }
             )
