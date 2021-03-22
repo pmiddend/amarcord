@@ -33,6 +33,7 @@ from amarcord.db.tables import (
     DBTables,
 )
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.json import JSONValue
 from amarcord.query_parser import Row as QueryRow
 from amarcord.util import dict_union
 from amarcord.util import remove_duplicates_stable
@@ -77,7 +78,7 @@ def _update_attributi(
     entity_id: int,
     entity_table: sa.Table,
     runprop: AttributoId,
-    value: Any,
+    value: JSONValue,
 ):
     current_json = conn.execute(
         sa.select([entity_table.c.attributi]).where(entity_table.c.id == entity_id)
@@ -93,7 +94,10 @@ def _update_attributi(
     assert isinstance(
         manual, dict
     ), f"manual input should be dictionary, not {type(manual)}"
-    manual[str(runprop)] = value
+    if value is None:
+        manual.pop(str(runprop), None)
+    else:
+        manual[str(runprop)] = value
     conn.execute(
         sa.update(entity_table)
         .where(entity_table.c.id == entity_id)
@@ -470,7 +474,9 @@ class DB:
         value: AttributoValue,
     ) -> None:
         if attributo == self.tables.attributo_run_sample_id:
-            assert isinstance(value, int), "sample ID should be an integer"
+            assert value is None or isinstance(
+                value, int
+            ), "sample ID should be an integer"
 
             conn.execute(
                 sa.update(self.tables.run)
@@ -479,7 +485,7 @@ class DB:
             )
             return
 
-        assert isinstance(
+        assert value is None or isinstance(
             value, (str, int, float, list)
         ), f"attributi can only have str, int and float values currently, got {type(value)}"
 
