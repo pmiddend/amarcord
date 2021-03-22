@@ -263,7 +263,9 @@ class RunDetailsInner(QWidget):
         new_metadata: Dict[AttributoId, DBAttributo],
     ) -> None:
         old_run_modified = self.run.modified
-        run_was_modified = old_run_modified != new_run.modified
+        run_was_modified = (
+            old_run_modified != new_run.modified or new_run.id != self.run.id
+        )
         self.run = new_run
         metadata_was_modified = self.runs_metadata != new_metadata
         self.karabo = new_karabo
@@ -275,11 +277,12 @@ class RunDetailsInner(QWidget):
         self.sample_ids = new_sample_ids
 
         if old_run_ids != new_run_ids:
-            self._run_selector.reset_run_ids(new_run_ids)
+            self._run_id_validator.reset_run_ids(new_run_ids)
 
-            max_run_id = max(self.run_ids)
-            if self.run.id != max_run_id:
-                self.current_run_changed.emit(max_run_id)
+            if self._auto_switch_to_latest.isChecked():
+                max_run_id = max(self.run_ids)
+                if self.run.id != max_run_id:
+                    self.current_run_changed.emit(max_run_id)
 
         self._run_selector.setText(str(new_run.id))
 
@@ -297,7 +300,13 @@ class RunDetailsInner(QWidget):
                 self.sample_ids,
             )
 
-        self._switch_to_latest_button.setEnabled(self.run.id != max(self.run_ids))
+        is_latest = self.run.id == max(self.run_ids)
+        self._switch_to_latest_button.setEnabled(not is_latest)
+
+        # If we've explicitly selected (or changed to otherwise) a run which is not the latest
+        # then auto-disable the "switch to latest" logic
+        if not is_latest and self._auto_switch_to_latest.isChecked():
+            self._auto_switch_to_latest.setChecked(False)
 
     def _slot_tree_filter_changed(self, new_filter: str) -> None:
         if new_filter == self._prior_filter:
