@@ -263,6 +263,8 @@ class DeclarativeTable(QTableView):
             # noinspection PyTypeChecker
             self.setItemDelegateForColumn(row_idx, QStyledItemDelegate())  # type: ignore
 
+        selected_indexes = next(iter(self.selectedIndexes()), None)
+
         self.model().set_data(data)
         self._data = data
         sort_column: Optional[Tuple[int, Column]] = next(
@@ -283,6 +285,9 @@ class DeclarativeTable(QTableView):
             self.setItemDelegateForColumn(row_idx, delegate)
 
         self._resize()
+
+        if selected_indexes is not None:
+            self.selectRow(selected_indexes.row())
 
     # Keep these commented out. Maybe we want to really delete the delegates when
     # we're done with them, instead of keeping them around like idiots.
