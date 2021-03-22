@@ -132,10 +132,18 @@ class Samples(QWidget):
 
         root_widget = QSplitter(self)
         root_layout.addWidget(root_widget)
+        left_column = QWidget()
+        left_column_layout = QVBoxLayout(left_column)
         self._sample_table = _SampleTable()
         self._sample_table.delete_current_row.connect(self._slot_delete_sample)
         self._sample_table.doubleClicked.connect(self._slot_row_selected)
-        root_widget.addWidget(self._sample_table)
+        left_column_layout.addWidget(
+            QLabel(
+                "<b>Double-click</b> row to edit. <b>Right-click</b> column header to show options."
+            )
+        )
+        left_column_layout.addWidget(self._sample_table)
+        root_widget.addWidget(left_column)
 
         right_widget = QWidget()
         right_root_layout = QVBoxLayout()
