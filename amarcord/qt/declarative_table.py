@@ -244,6 +244,15 @@ class DeclarativeTable(QTableView):
         if right_click_menu is not None:
             right_click_menu(self.mapToGlobal(event.pos()))
 
+    def scrollTo(
+        self,
+        index: QModelIndex,
+        hint: QAbstractItemView.ScrollHint = QAbstractItemView.EnsureVisible,
+    ) -> None:
+        if hint == QAbstractItemView.EnsureVisible:
+            return
+        super().scrollTo(index, hint)
+
     def set_data(self, data: Data) -> None:
         # When this is called, we might be in the middle of an edit
         # operation, so the editor is still open. The current delegate needs to
