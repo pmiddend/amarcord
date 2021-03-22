@@ -121,13 +121,13 @@ class Samples(QWidget):
 
         self._db = DB(context.db, tables)
 
-        if "filesystem" not in context.config:
-            raise Exception('Cannot find "filesystem" in configuration')
-        if "base_path" not in context.config["filesystem"]:
-            raise Exception('Cannot find "filesystem.base_path" in configuration')
-        if not isinstance(context.config["filesystem"]["base_path"], str):
-            raise Exception('"filesystem.base_path" in configuration is not a string')
-        self._proposal_file_path = Path(context.config["filesystem"]["base_path"])
+        # if "filesystem" not in context.config:
+        #     raise Exception('Cannot find "filesystem" in configuration')
+        # if "base_path" not in context.config["filesystem"]:
+        #     raise Exception('Cannot find "filesystem.base_path" in configuration')
+        # if not isinstance(context.config["filesystem"]["base_path"], str):
+        #     raise Exception('"filesystem.base_path" in configuration is not a string')
+        # self._proposal_file_path = Path(context.config["filesystem"]["base_path"])
         root_layout = QHBoxLayout()
         self.setLayout(root_layout)
 
@@ -332,7 +332,6 @@ class Samples(QWidget):
         result, _ = QFileDialog.getOpenFileName(
             self,
             "Choose a protocol file",
-            str(self._proposal_file_path),
         )
         if not result:
             return
@@ -345,7 +344,6 @@ class Samples(QWidget):
         result, _ = QFileDialog.getOpenFileName(
             self,
             "Choose an image file",
-            str(self._proposal_file_path),
         )
         if not result:
             return

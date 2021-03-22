@@ -11,9 +11,8 @@ pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
   script:
-    - pip install -e .
+    - pip install -e .[gui,webserver]
     - pip install mypy pylint sqlalchemy-stubs
-    - pip install 'PyQt5==5.15.*' 'PyQt5-stubs==5.15.*' 'pyzmq==22.0.*' 'Flask==1.1.*' 'Flask-Cors==3.0.*' 'PyYAML==5.4.*' 'pandas==1.2.*' 'PubChemPy==1.0.*' 'humanize==3.2.*' 'metadata-client==3.0.*' 'PyYAML==5.4.*' 'karabo-bridge==0.6.*' 'numpy==1.19.*' 'matplotlib==3.3.*' 'pint==0.16.*'
     - mypy amarcord
     - apt-get update -y && apt-get install -y qt5-default
     - pylint amarcord
@@ -22,7 +21,7 @@ deploy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: deploy
   script:
-    - pip install -e .
+    - pip install -e .[gui]
     - pip install wheel twine
     - python setup.py sdist bdist_wheel
     - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
@@ -43,7 +42,6 @@ integration-uitest:
   script:
     - apt-get update -y
     - apt-get install -y libgl1-mesa-glx qt5-default
-    - pip install -e .
-    - pip install 'PyQt5==5.15.*' 'PyQt5-stubs==5.15.*' 'pyzmq==22.0.*' 'Flask==1.1.*' 'Flask-Cors==3.0.*' 'PyYAML==5.4.*' 'pandas==1.2.*' 'PubChemPy==1.0.*' 'humanize==3.2.*' 'metadata-client==3.0.*' 'PyYAML==5.4.*' 'karabo-bridge==0.6.*' 'numpy==1.19.*' 'matplotlib==3.3.*' 'pint==0.16.*'
+    - pip install -e .[gui]
     - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*'
     - PYTHONPATH=".:$PYTHONPATH" pytest tests/ui

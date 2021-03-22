@@ -5,12 +5,15 @@ from functools import partial
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox
 
-from amarcord.config import load_config
+from amarcord.config import load_user_config
+from amarcord.config import remove_user_config
+from amarcord.config import write_user_config
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.constants import CONTACT_INFO
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
+from amarcord.modules.connection_wizard import show_connection_dialog
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -27,101 +30,152 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
-if __name__ == "__main__":
-    config = load_config()
 
-    dbcontext = DBContext(config["db"]["url"])
-    context = Context(config=config, ui=UIContext(sys.argv), db=dbcontext)
+class XFELGui:
+    def __init__(self) -> None:
+        self._ui_context = UIContext(sys.argv)
+        self._user_config = load_user_config()
+        self.restart = False
 
-    tables = create_tables(context.db)
+        db_url = self._user_config["db_url"]
+        if db_url is None:
+            db_url = show_connection_dialog(self._ui_context)
+            if db_url is None:
+                sys.exit(1)
 
-    dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
-    if (
-        isinstance(config["db"]["create_sample_data"], bool)
-        and config["db"]["create_sample_data"]
-    ):
-        create_sample_data(dbcontext, tables)
+        self._db_context = DBContext(db_url)
+        self._context = Context(self._user_config, self._ui_context, self._db_context)
+        self._tables = create_tables(self._db_context)
+        self._db_context.create_all(creation_mode=CreationMode.CHECK_FIRST)
+        if self._user_config["create_sample_data"]:
+            create_sample_data(self._db_context, self._tables)
+        self._proposal_ids = retrieve_proposal_ids(self._db_context, self._tables)
 
-    proposal_ids = retrieve_proposal_ids(context, tables)
+        if not self._proposal_ids:
+            box = QMessageBox(  # type: ignore
+                QMessageBox.Critical,
+                "No proposals",
+                f"<p>There are no proposals in the database! This means it has not been initialized properly.</p><p>If "
+                f"you know how to do "
+                f"that, add a proposal. If you don't know what's going on, please contact:</p>{CONTACT_INFO}",
+                QMessageBox.Ok,
+                None,
+            )
+            box.setTextFormat(Qt.RichText)
+            box.exec()
+            # This is a "hack" for now. Ideally, we would want to display something like "Change database" in case there
+            # are no proposals anymore. But we assume this doesn't happen often, so let's just remove the user config.
+            remove_user_config()
+            sys.exit(1)
 
-    proposal_id = config.get("proposal_id", None)
+        self._proposal_id = self._user_config["proposal_id"]
 
-    if not proposal_ids:
-        box = QMessageBox(  # type: ignore
-            QMessageBox.Critical,
-            "No proposals",
-            f"<p>There are no proposals in the database! This means it has not been initialized properly.</p><p>If "
-            f"you know how to do "
-            f"that, add a proposal. If you don't know what's going on, please contact:</p>{CONTACT_INFO}",
-            QMessageBox.Ok,
-            None,
-        )
-        box.setTextFormat(Qt.RichText)
-        box.exec()
-        sys.exit(1)
-
-    if proposal_id is None:
-        if len(proposal_ids) == 1:
-            proposal_id = next(iter(proposal_ids))
+        if self._proposal_id is None:
+            if len(self._proposal_ids) == 1:
+                self._proposal_id = next(iter(self._proposal_ids))
+            else:
+                self._proposal_id = proposal_chooser(self._proposal_ids)
+                if self._proposal_id is None:
+                    sys.exit(0)
         else:
-            proposal_id = proposal_chooser(proposal_ids)
-            if proposal_id is None:
-                sys.exit(0)
-    else:
-        proposal_id = ProposalId(proposal_id)
-    context.ui.set_application_suffix(f"proposal {proposal_id}")
+            if self._proposal_id not in self._proposal_ids:
+                QMessageBox.critical(
+                    None,
+                    "Proposal not found",
+                    "I have a prior proposal with ID {self._proposal_Id}, but I cannot find it in the current DB. I "
+                    "will delete your user configuration and you have to restart AMARCORD.",
+                )
+                remove_user_config()
+                sys.exit(1)
+            self._proposal_id = ProposalId(self._proposal_id)
+        self._user_config["proposal_id"] = self._proposal_id
+        self._user_config["db_url"] = db_url
+        write_user_config(self._user_config)
+        self._ui_context.add_menu_item(
+            "Change &database",
+            self._slot_change_database,
+        )
+        self._ui_context.add_menu_item(
+            "&Change proposal",
+            self._slot_change_proposal,
+        )
+        self._ui_context.set_application_suffix(f"proposal {self._proposal_id}")
 
-    targets_index = context.ui.register_tab(
-        "Targets",
-        Targets(context, tables),
-        context.ui.icon("SP_MediaStop"),
-    )
+        _targets_index = self._ui_context.register_tab(
+            "Targets",
+            Targets(self._context, self._tables),
+            self._ui_context.icon("SP_MediaStop"),
+        )
 
-    samples_tab = Samples(context, tables)
-    samples_index = context.ui.register_tab(
-        "Samples",
-        samples_tab,
-        context.ui.icon("SP_DialogResetButton"),
-    )
+        samples_tab = Samples(self._context, self._tables)
+        _samples_index = self._ui_context.register_tab(
+            "Samples",
+            samples_tab,
+            self._ui_context.icon("SP_DialogResetButton"),
+        )
 
-    run_table_tab = run_table(context, tables, proposal_id)
-    context.ui.register_tab(
-        "Experiment Overview",
-        run_table_tab,
-        context.ui.icon("SP_ComputerIcon"),
-    )
-    run_details_tab = run_details(context, tables, proposal_id)
-    # run_details_tab.run_changed.connect(run_table_tab.run_changed)
-    run_details_index = context.ui.register_tab(
-        "Run details",
-        run_details_tab,
-        context.ui.icon("SP_FileDialogContentsView"),
-    )
+        run_table_tab = run_table(self._context, self._tables, self._proposal_id)
+        self._ui_context.register_tab(
+            "Experiment Overview",
+            run_table_tab,
+            self._ui_context.icon("SP_ComputerIcon"),
+        )
+        run_details_tab = run_details(self._context, self._tables, self._proposal_id)
+        # run_details_tab.run_changed.connect(run_table_tab.run_changed)
+        run_details_index = self._ui_context.register_tab(
+            "Run details",
+            run_details_tab,
+            self._ui_context.icon("SP_FileDialogContentsView"),
+        )
 
-    def change_run(
-        run_id: int,
-    ) -> None:
-        run_details_tab.select_run(run_id)
-        context.ui.select_tab(run_details_index)
+        def change_run(
+            run_id: int,
+        ) -> None:
+            run_details_tab.select_run(run_id)
+            self._ui_context.select_tab(run_details_index)
 
-    run_table_tab.run_selected.connect(change_run)
+        run_table_tab.run_selected.connect(change_run)
 
-    attributi_crud_tab = AttributiCrud(context, tables)
-    attributi_crud_index = context.ui.register_tab(
-        "Attributi",
-        attributi_crud_tab,
-        context.ui.icon("SP_DirIcon"),
-    )
+        attributi_crud_tab = AttributiCrud(self._context, self._tables)
+        attributi_crud_index = self._ui_context.register_tab(
+            "Attributi",
+            attributi_crud_tab,
+            self._ui_context.icon("SP_DirIcon"),
+        )
 
-    def open_new_attributo(table: AssociatedTable):
-        attributi_crud_tab.regenerate_for_table(table)
-        context.ui.select_tab(attributi_crud_index)
+        def open_new_attributo(table: AssociatedTable):
+            attributi_crud_tab.regenerate_for_table(table)
+            self._ui_context.select_tab(attributi_crud_index)
 
-    run_details_tab.new_attributo.connect(
-        partial(open_new_attributo, AssociatedTable.RUN)
-    )
-    samples_tab.new_attributo.connect(
-        partial(open_new_attributo, AssociatedTable.SAMPLE)
-    )
+        run_details_tab.new_attributo.connect(
+            partial(open_new_attributo, AssociatedTable.RUN)
+        )
+        samples_tab.new_attributo.connect(
+            partial(open_new_attributo, AssociatedTable.SAMPLE)
+        )
 
-    context.ui.exec_()
+    def exec(self) -> None:
+        self._ui_context.exec_()
+
+    def _slot_change_database(self) -> None:
+        self._user_config["proposal_id"] = None
+        self._user_config["db_url"] = None
+        write_user_config(self._user_config)
+        self.restart = True
+        self._ui_context.close()
+
+    def _slot_change_proposal(self) -> None:
+        self._user_config["proposal_id"] = None
+        write_user_config(self._user_config)
+        self.restart = True
+        self._ui_context.close()
+
+
+if __name__ == "__main__":
+    while True:
+        gui = XFELGui()
+        gui.exec()
+        if not gui.restart:
+            break
+        gui = XFELGui()
+        gui.exec()

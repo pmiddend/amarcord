@@ -97,3 +97,4 @@ urllib3==1.26.3
 Werkzeug==1.0.1
 wrapt==1.12.1
 xarray==0.16.2
+xdg==5.0.1
