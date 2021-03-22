@@ -119,11 +119,11 @@ class OverviewTable(QWidget):
         root_layout = QtWidgets.QVBoxLayout(self)
 
         header_layout = QtWidgets.QHBoxLayout()
-        auto_refresh = QCheckBox("Auto refresh")
-        auto_refresh.setChecked(True)
-        auto_refresh.toggled.connect(self._slot_toggle_auto_refresh)
+        self._auto_refresh = QCheckBox("Auto refresh")
+        self._auto_refresh.setChecked(True)
+        self._auto_refresh.toggled.connect(self._slot_toggle_auto_refresh)
         header_layout.addWidget(refresh_button, 0, QtCore.Qt.AlignTop)
-        header_layout.addWidget(auto_refresh, 0, QtCore.Qt.AlignTop)
+        header_layout.addWidget(self._auto_refresh, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
 
         filter_query_layout = QtWidgets.QFormLayout()
@@ -171,7 +171,8 @@ class OverviewTable(QWidget):
 
     def showEvent(self, _e: Any) -> None:
         self._slot_refresh(force=True)
-        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+        if self._auto_refresh.isChecked():
+            self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _retrieve_attributi_metadata(self, conn: Connection) -> List[TabledAttributo]:
         return [

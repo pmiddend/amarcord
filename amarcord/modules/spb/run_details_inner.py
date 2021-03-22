@@ -115,10 +115,10 @@ class RunDetailsInner(QWidget):
         refresh_button = _refresh_button(self.style())
         refresh_button.clicked.connect(self.refresh.emit)
         top_layout.addWidget(refresh_button)
-        auto_refresh = QCheckBox("Auto refresh")
-        auto_refresh.setChecked(True)
-        auto_refresh.clicked.connect(self._slot_toggle_auto_refresh)
-        top_layout.addWidget(auto_refresh)
+        self._auto_refresh = QCheckBox("Auto refresh")
+        self._auto_refresh.setChecked(True)
+        self._auto_refresh.clicked.connect(self._slot_toggle_auto_refresh)
+        top_layout.addWidget(self._auto_refresh)
         top_layout.addWidget(QtWidgets.QLabel("Run:"))
         top_layout.addWidget(self._run_selector)
         self._switch_to_latest_button = QtWidgets.QPushButton(
@@ -223,7 +223,8 @@ class RunDetailsInner(QWidget):
 
     def showEvent(self, _e: Any) -> None:
         self.refresh.emit()
-        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+        if self._auto_refresh.isChecked():
+            self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _toggle_auto_switch_to_latest(self, new_state: bool) -> None:
         max_run_id = max(self.run_ids)
