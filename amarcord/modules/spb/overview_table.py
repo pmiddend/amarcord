@@ -122,8 +122,8 @@ class OverviewTable(QWidget):
         auto_refresh = QCheckBox("Auto refresh")
         auto_refresh.setChecked(True)
         auto_refresh.toggled.connect(self._slot_toggle_auto_refresh)
-        header_layout.addWidget(auto_refresh, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(refresh_button, 0, QtCore.Qt.AlignTop)
+        header_layout.addWidget(auto_refresh, 0, QtCore.Qt.AlignTop)
         header_layout.addWidget(choose_columns, 0, QtCore.Qt.AlignTop)
 
         filter_query_layout = QtWidgets.QFormLayout()
