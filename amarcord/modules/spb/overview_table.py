@@ -170,8 +170,8 @@ class OverviewTable(QWidget):
         self._update_timer.stop()
 
     def showEvent(self, _e: Any) -> None:
-        self._slot_refresh(force=True)
         if self._auto_refresh.isChecked():
+            self._slot_refresh(force=True)
             self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _retrieve_attributi_metadata(self, conn: Connection) -> List[TabledAttributo]:

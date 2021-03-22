@@ -222,8 +222,8 @@ class RunDetailsInner(QWidget):
         self._update_timer.stop()
 
     def showEvent(self, _e: Any) -> None:
-        self.refresh.emit()
         if self._auto_refresh.isChecked():
+            self.refresh.emit()
             self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _toggle_auto_switch_to_latest(self, new_state: bool) -> None:

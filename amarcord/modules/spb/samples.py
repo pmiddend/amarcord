@@ -19,6 +19,7 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import QAbstractItemView
+from PyQt5.QtWidgets import QCheckBox
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QHBoxLayout
@@ -137,6 +138,19 @@ class Samples(QWidget):
         self._sample_table = _SampleTable()
         self._sample_table.delete_current_row.connect(self._slot_delete_sample)
         self._sample_table.doubleClicked.connect(self._slot_row_selected)
+        refresh_line_layout = QHBoxLayout()
+        refresh_button = QPushButton(
+            self.style().standardIcon(QStyle.SP_BrowserReload),
+            "Refresh",
+        )
+        refresh_line_layout.addWidget(refresh_button)
+        refresh_button.clicked.connect(self._slot_refresh_with_conn)
+        self._auto_refresh = QCheckBox("Auto refresh")
+        self._auto_refresh.setChecked(True)
+        self._auto_refresh.toggled.connect(self._slot_toggle_auto_refresh)
+        refresh_line_layout.addWidget(self._auto_refresh)
+        refresh_line_layout.addStretch()
+        left_column_layout.addLayout(refresh_line_layout)
         left_column_layout.addWidget(
             QLabel(
                 "<b>Double-click</b> row to edit. <b>Right-click</b> column header to show options."
@@ -267,6 +281,12 @@ class Samples(QWidget):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._slot_refresh_with_conn)
 
+    def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
+        if self._update_timer.isActive():
+            self._update_timer.stop()
+        else:
+            self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         # We could immediately change the attribute, but we have this "Save changes" button
         # with self._db.connect() as conn:
@@ -296,8 +316,9 @@ class Samples(QWidget):
         self._update_timer.stop()
 
     def showEvent(self, _e: Any) -> None:
-        self._slot_refresh_with_conn()
-        self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+        if self._auto_refresh.isChecked():
+            self._slot_refresh_with_conn()
+            self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
 
     def _display_micrograph(self) -> None:
         assert self._current_sample.micrograph is not None
