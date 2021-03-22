@@ -2,16 +2,20 @@ import logging
 from typing import Any
 from typing import Dict
 from typing import Final
+from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from PyQt5 import QtCore
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import QVariant
 from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QValidator
 from PyQt5.QtWidgets import QCheckBox
 from PyQt5.QtWidgets import QHBoxLayout
+from PyQt5.QtWidgets import QLineEdit
 from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QSizePolicy
 from PyQt5.QtWidgets import QSplitter
@@ -32,9 +36,9 @@ from amarcord.modules.spb.run_details_tree import RunDetailsTree
 from amarcord.modules.spb.run_details_tree import _dict_to_items
 from amarcord.modules.spb.run_details_tree import _filter_dict
 from amarcord.modules.spb.run_details_tree import _preprocess_dict
-from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
+from amarcord.util import str_to_int
 
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
 
@@ -47,6 +51,25 @@ def _refresh_button(style: QStyle) -> QPushButton:
         style.standardIcon(QtWidgets.QStyle.SP_BrowserReload),
         "Refresh",
     )
+
+
+class _RunIdValidator(QValidator):
+    def __init__(self, run_ids: Iterable[int]) -> None:
+        super().__init__()
+        self._run_ids = set(run_ids)
+
+    def reset_run_ids(self, run_ids: Iterable[int]) -> None:
+        self._run_ids = set(run_ids)
+
+    def validate(self, input_: str, pos: int) -> Tuple["QValidator.State", str, int]:
+        if input_ == "":
+            return QValidator.Intermediate, input_, pos
+        id_to_int = str_to_int(input_)
+        if id_to_int is None:
+            return QValidator.Invalid, input_, pos
+        if id_to_int in self._run_ids:
+            return QValidator.Acceptable, input_, pos
+        return QValidator.Intermediate, input_, pos
 
 
 class RunDetailsInner(QWidget):
@@ -83,11 +106,12 @@ class RunDetailsInner(QWidget):
         top_layout = QHBoxLayout(top_row)
 
         selected_run_id = max(r for r in self.run_ids)
-        self._run_selector = ComboBox[int](
-            [(str(r), r) for r in self.run_ids],  # type: ignore
-            selected=selected_run_id,  # type: ignore
+        self._run_selector = QLineEdit(str(selected_run_id))
+        self._run_id_validator = _RunIdValidator(self.run_ids)
+        self._run_selector.setValidator(self._run_id_validator)
+        self._run_selector.editingFinished.connect(
+            lambda: self.current_run_changed.emit(int(self._run_selector.text()))
         )
-        self._run_selector.item_selected.connect(self.current_run_changed.emit)
         refresh_button = _refresh_button(self.style())
         refresh_button.clicked.connect(self.refresh.emit)
         top_layout.addWidget(refresh_button)
@@ -249,13 +273,13 @@ class RunDetailsInner(QWidget):
         self.sample_ids = new_sample_ids
 
         if old_run_ids != new_run_ids:
-            self._run_selector.reset_items([(str(s), s) for s in new_run_ids])
+            self._run_selector.reset_run_ids(new_run_ids)
 
             max_run_id = max(self.run_ids)
             if self.run.id != max_run_id:
                 self.current_run_changed.emit(max_run_id)
 
-        self._run_selector.set_current_value(new_run.id)
+        self._run_selector.setText(str(new_run.id))
 
         self._comments.set_comments(self.run.id, self.run.comments)
 
