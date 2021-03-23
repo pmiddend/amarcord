@@ -19,6 +19,7 @@ from amarcord.modules.connection_wizard import show_connection_dialog
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.spb.analysis_view import AnalysisView
 from amarcord.modules.spb.attributi_crud import AttributiCrud
 from amarcord.modules.spb.factories import proposal_chooser
 from amarcord.modules.spb.factories import retrieve_proposal_ids
@@ -27,7 +28,6 @@ from amarcord.modules.spb.factories import run_table
 from amarcord.modules.spb.samples import Samples
 from amarcord.modules.spb.targets import Targets
 from amarcord.modules.uicontext import UIContext
-import resources
 
 try:
     # noinspection PyStatementEffect
@@ -138,6 +138,11 @@ class XFELGui:
             self._ui_context.select_tab(run_details_index)
 
         run_table_tab.run_selected.connect(change_run)
+
+        analysis_tab = AnalysisView(self._context, self._tables)
+        _analysis_index = self._ui_context.register_tab(
+            "Analysis", analysis_tab, QIcon(":/icons/chart-line-solid.png")
+        )
 
         attributi_crud_tab = AttributiCrud(self._context, self._tables)
         attributi_crud_index = self._ui_context.register_tab(

@@ -4,6 +4,7 @@ from random import randint
 from random import random
 from random import randrange
 from random import seed
+from random import uniform
 from typing import List
 
 from amarcord.db.associated_table import AssociatedTable
@@ -381,6 +382,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         base_date = datetime.datetime.utcnow()
         # To always get the same sample data, yet somewhat random values
         seed(1337)
+        run_ids: List[int] = []
         # for _ in range(10000):
         for _ in range(100):
             run_id = conn.execute(
@@ -402,6 +404,8 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                 )
             ).inserted_primary_key[0]
 
+            run_ids.append(run_id)
+
             for _ in range(randrange(0, 10)):
                 conn.execute(
                     tables.run_comment.insert().values(
@@ -411,4 +415,88 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         created=datetime.datetime.utcnow(),
                     )
                 )
+
+        # Insert analysis results
+        # For each run, add 1 to 2 data sources
+        # For each data source, generate 1 to 2 peak search result, hit finding parameters and hit finding results
+        # For each hit finding result, generate 1 to 2 indexing parameters, integration parameters  and indexing results
+        # For indexing result, generate 1 or 2 merge results
+
+        for run_id in run_ids:
+            for _ in range(choice([1, 2])):
+                data_source_id = conn.execute(
+                    tables.data_source.insert().values(run_id=run_id)
+                ).inserted_primary_key[0]
+
+                for _ in range(choice([1, 2])):
+                    peak_search_parameters_id = conn.execute(
+                        tables.peak_search_parameters.insert().values(
+                            data_source_id=data_source_id,
+                            method="dummy-method",
+                            software="dummy-software",
+                            command_line="command-line",
+                        )
+                    ).inserted_primary_key[0]
+
+                    hit_finding_parameters_id = conn.execute(
+                        tables.hit_finding_parameters.insert().values(
+                            min_peaks=int(uniform(10, 100))
+                        )
+                    ).inserted_primary_key[0]
+
+                    hit_finding_results_id = conn.execute(
+                        tables.hit_finding_results.insert().values(
+                            peak_search_parameters_id=peak_search_parameters_id,
+                            hit_finding_parameters_id=hit_finding_parameters_id,
+                            number_of_hits=int(uniform(0, 100)),
+                            hit_rate=random() * 100,
+                            result_filename="/tmp/result",
+                        )
+                    ).inserted_primary_key[0]
+
+                    for _ in range(choice([1, 2])):
+                        indexing_parameters_id = conn.execute(
+                            tables.indexing_parameters.insert().values(
+                                hit_finding_results_id=hit_finding_results_id,
+                                software="dummy-software",
+                                command_line="",
+                                parameters={},
+                            )
+                        ).inserted_primary_key[0]
+
+                        integration_parameters_id = conn.execute(
+                            tables.integration_parameters.insert().values()
+                        ).inserted_primary_key[0]
+
+                        indexing_results_id = conn.execute(
+                            tables.indexing_results.insert().values(
+                                indexing_parameters_id=indexing_parameters_id,
+                                integration_parameters_id=integration_parameters_id,
+                                num_indexed=int(uniform(0, 100)),
+                                num_crystals=1,
+                            )
+                        ).inserted_primary_key[0]
+
+                        for _ in range(choice([1, 2])):
+                            merge_parameters_id = conn.execute(
+                                tables.merge_parameters.insert().values(
+                                    software="dummy-software", parameters={}
+                                )
+                            ).inserted_primary_key[0]
+
+                            merge_results_id = conn.execute(
+                                tables.merge_results.insert().values(
+                                    merge_parameters_id=merge_parameters_id,
+                                    rsplit=random(),
+                                    cc_half=random(),
+                                )
+                            ).inserted_primary_key[0]
+
+                            conn.execute(
+                                tables.merge_has_indexing.insert().values(
+                                    merge_results_id=merge_results_id,
+                                    indexing_results_id=indexing_results_id,
+                                )
+                            )
+
     logger.info("Done")

@@ -8,6 +8,7 @@ from typing import Dict
 from typing import Final
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import cast
 
 import sqlalchemy as sa
@@ -69,6 +70,17 @@ class DBRun:
     proposal_id: int
     modified: datetime.datetime
     comments: List[DBComment]
+
+
+@dataclass(frozen=True)
+class DBAnalysisResults:
+    sample_id: int
+    run_ids: Set[int]
+    hit_rates: Set[float]
+    num_crystals: Set[int]
+    num_indexed: Set[int]
+    rsplits: Set[float]
+    cc_halfs: Set[float]
 
 
 Connection = Any
@@ -718,6 +730,61 @@ class DB:
                 raise Exception(
                     f"cannot delete attributo {name} of table {table} because that code doesn't exist yet"
                 )
+
+    def retrieve_analysis(self, conn: Connection) -> List[DBAnalysisResults]:
+        rows = conn.execute(
+            sa.select(
+                [
+                    self.tables.sample.c.id.label("sample_id"),
+                    self.tables.run.c.id.label("run_id"),
+                    self.tables.hit_finding_results.c.hit_rate,
+                    self.tables.indexing_results.c.num_crystals,
+                    self.tables.indexing_results.c.num_indexed,
+                    self.tables.merge_results.c.rsplit,
+                    self.tables.merge_results.c.cc_half,
+                ]
+            ).select_from(
+                self.tables.sample.outerjoin(self.tables.run)
+                .outerjoin(self.tables.data_source)
+                .outerjoin(self.tables.peak_search_parameters)
+                .outerjoin(self.tables.hit_finding_results)
+                .outerjoin(self.tables.indexing_parameters)
+                .outerjoin(self.tables.indexing_results)
+                .outerjoin(self.tables.merge_has_indexing)
+                .outerjoin(self.tables.merge_results)
+            )
+        ).fetchall()
+
+        sample_ids = set(x["sample_id"] for x in rows)
+
+        result: List[DBAnalysisResults] = []
+        for sample_id in sample_ids:
+            sample_rows = [r for r in rows if r["sample_id"] == sample_id]
+            has_runs = len(sample_rows) != 1 or sample_rows[0]["run_id"] is not None
+            result.append(
+                DBAnalysisResults(
+                    sample_id=sample_id,
+                    run_ids=set(r["run_id"] for r in sample_rows)
+                    if has_runs
+                    else set(),
+                    hit_rates=set(r["hit_rate"] for r in sample_rows)
+                    if has_runs
+                    else set(),
+                    num_crystals=set(r["num_crystals"] for r in sample_rows)
+                    if has_runs
+                    else set(),
+                    num_indexed=set(r["num_indexed"] for r in sample_rows)
+                    if has_runs
+                    else set(),
+                    rsplits=set(r["rsplit"] for r in sample_rows)
+                    if has_runs
+                    else set(),
+                    cc_halfs=set(r["cc_half"] for r in sample_rows)
+                    if has_runs
+                    else set(),
+                )
+            )
+        return result
 
 
 def overview_row_to_query_row(

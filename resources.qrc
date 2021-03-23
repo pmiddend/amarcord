@@ -6,5 +6,6 @@
         <file alias="table-solid.png">table-solid.png</file>
         <file alias="running-solid.png">running-solid.png</file>
         <file alias="book-solid.png">book-solid.png</file>
+        <file alias="chart-line-solid.png">chart-line-solid.png</file>
     </qresource>
 </RCC>
