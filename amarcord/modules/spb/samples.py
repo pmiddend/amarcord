@@ -129,6 +129,7 @@ class Samples(QWidget):
         #     raise Exception('"filesystem.base_path" in configuration is not a string')
         # self._proposal_file_path = Path(context.config["filesystem"]["base_path"])
         root_layout = QHBoxLayout()
+        root_layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(root_layout)
 
         root_widget = QSplitter(self)
