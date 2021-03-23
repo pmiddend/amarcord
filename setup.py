@@ -1,13 +1,18 @@
 import setuptools
 
 setuptools.setup(
-    name="amarcord-amici",
+    name="amarcord",
     version="0.2pre6",
     author="Philipp Middendorf <philipp.middendorf@desy.de>",
     author_email="sc@cfel.de",
-    description="external interface for AMARCORD",
+    description="AMARCORD main application",
     packages=setuptools.find_packages(),
-    install_requires=["SQLAlchemy==1.3.*", "lark==0.11.*", "isodate==0.6.*"],
+    entry_points={"console_scripts": ["amarcord-xfel-gui = amarcord.xfel_gui:mymain"]},
+    install_requires=[
+        "SQLAlchemy==1.3.*",
+        "lark-parser==0.11.*",
+        "isodate==0.6.*",
+    ],
     extras_require={
         "gui": [
             "PyQt5==5.15.*",
