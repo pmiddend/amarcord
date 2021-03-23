@@ -1,0 +1,10 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="icons">
+        <file alias="bullseye-solid.png">bullseye-solid.png</file>
+        <file alias="flask-solid.png">flask-solid.png</file>
+        <file alias="table-solid.png">table-solid.png</file>
+        <file alias="running-solid.png">running-solid.png</file>
+        <file alias="book-solid.png">book-solid.png</file>
+    </qresource>
+</RCC>

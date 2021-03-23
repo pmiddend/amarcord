@@ -3,8 +3,10 @@ import sys
 from functools import partial
 
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QMessageBox
 
+import resources
 from amarcord.config import load_user_config
 from amarcord.config import remove_user_config
 from amarcord.config import write_user_config
@@ -25,6 +27,12 @@ from amarcord.modules.spb.factories import run_table
 from amarcord.modules.spb.samples import Samples
 from amarcord.modules.spb.targets import Targets
 from amarcord.modules.uicontext import UIContext
+
+try:
+    # noinspection PyStatementEffect
+    resources.qInitResources
+except:
+    pass
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -104,28 +112,22 @@ class XFELGui:
         _targets_index = self._ui_context.register_tab(
             "Targets",
             Targets(self._context, self._tables),
-            self._ui_context.icon("SP_MediaStop"),
+            QIcon(":/icons/bullseye-solid.png"),
         )
 
         samples_tab = Samples(self._context, self._tables)
         _samples_index = self._ui_context.register_tab(
-            "Samples",
-            samples_tab,
-            self._ui_context.icon("SP_DialogResetButton"),
+            "Samples", samples_tab, QIcon(":/icons/flask-solid.png")
         )
 
         run_table_tab = run_table(self._context, self._tables, self._proposal_id)
         self._ui_context.register_tab(
-            "Experiment Overview",
-            run_table_tab,
-            self._ui_context.icon("SP_ComputerIcon"),
+            "Experiment Overview", run_table_tab, QIcon(":/icons/table-solid.png")
         )
         run_details_tab = run_details(self._context, self._tables, self._proposal_id)
         # run_details_tab.run_changed.connect(run_table_tab.run_changed)
         run_details_index = self._ui_context.register_tab(
-            "Run details",
-            run_details_tab,
-            self._ui_context.icon("SP_FileDialogContentsView"),
+            "Run details", run_details_tab, QIcon(":/icons/running-solid.png")
         )
 
         def change_run(
@@ -138,9 +140,7 @@ class XFELGui:
 
         attributi_crud_tab = AttributiCrud(self._context, self._tables)
         attributi_crud_index = self._ui_context.register_tab(
-            "Attributi",
-            attributi_crud_tab,
-            self._ui_context.icon("SP_DirIcon"),
+            "Attributi", attributi_crud_tab, QIcon(":/icons/book-solid.png")
         )
 
         def open_new_attributo(table: AssociatedTable):
