@@ -174,6 +174,7 @@ class AttributiCrud(QWidget):
 
         root_layout = QHBoxLayout()
         self.setLayout(root_layout)
+        root_layout.setContentsMargins(0, 0, 0, 0)
 
         root_widget = QSplitter(self)
         root_layout.addWidget(root_widget)
