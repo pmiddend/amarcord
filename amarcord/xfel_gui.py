@@ -27,6 +27,7 @@ from amarcord.modules.spb.factories import run_table
 from amarcord.modules.spb.samples import Samples
 from amarcord.modules.spb.targets import Targets
 from amarcord.modules.uicontext import UIContext
+import resources
 
 try:
     # noinspection PyStatementEffect
