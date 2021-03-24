@@ -9,8 +9,10 @@ from typing import List
 from typing import Optional
 
 from PyQt5 import QtWidgets
+from PyQt5.QtCore import QPoint
 from PyQt5.QtGui import QBrush
 from PyQt5.QtWidgets import QHBoxLayout
+from PyQt5.QtWidgets import QMenu
 
 from amarcord.db.attributi import attributo_type_to_string
 from amarcord.db.attributi import pretty_print_attributo
@@ -50,9 +52,11 @@ class AttributiTable(QtWidgets.QWidget):
         metadata: Dict[AttributoId, DBAttributo],
         sample_ids: List[int],
         attributo_change: Callable[[AttributoId, Any], None],
+        remove_manual_attributo: Callable[[AttributoId], None],
     ) -> None:
         super().__init__(None)
 
+        self._remove_manual_attributo = remove_manual_attributo
         self._attributo_change = attributo_change
         self._columns = [
             Column(header_label="Name", editable=False),
@@ -94,6 +98,7 @@ class AttributiTable(QtWidgets.QWidget):
                 else "",
                 attributo_type_to_string(self.metadata[attributo.name].attributo_type),
             ],
+            right_click_menu=partial(self._right_click_menu, attributo.name),
             edit_roles=[None, selected.value if selected is not None else None, None],
             background_roles={
                 0: QBrush(COLOR_MANUAL_ATTRIBUTO),
@@ -108,6 +113,17 @@ class AttributiTable(QtWidgets.QWidget):
                 None,
             ],
         )
+
+    def _right_click_menu(self, attributo_id: AttributoId, p: QPoint) -> None:
+        if not self.attributi.has_manual_value(attributo_id):
+            return
+        menu = QMenu(self)
+        deleteAction = menu.addAction(
+            "Delete manual value",
+        )
+        action = menu.exec_(p)
+        if action == deleteAction:
+            self._remove_manual_attributo(attributo_id)
 
     def _update_table(self) -> None:
         display_attributi: List[DBAttributo] = sorted(
@@ -152,4 +168,8 @@ class AttributiTable(QtWidgets.QWidget):
 
     def set_single_manual(self, attributo: AttributoId, value: AttributoValue) -> None:
         self.attributi.set_single_manual(attributo, value)
+        self._update_table()
+
+    def remove_manual(self, attributo: AttributoId) -> None:
+        self.attributi.remove_manual(attributo)
         self._update_table()

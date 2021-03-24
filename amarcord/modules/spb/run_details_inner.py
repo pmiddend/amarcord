@@ -79,6 +79,7 @@ class RunDetailsInner(QWidget):
     comment_add = pyqtSignal(DBComment)
     comment_changed = pyqtSignal(DBComment)
     attributo_change = pyqtSignal(str, QVariant)
+    attributo_manual_remove = pyqtSignal(str)
     new_attributo = pyqtSignal()
     manual_new_run = pyqtSignal()
 
@@ -160,6 +161,7 @@ class RunDetailsInner(QWidget):
             self.runs_metadata,
             self.sample_ids,
             self.attributo_change.emit,
+            self.attributo_manual_remove.emit,
         )
         additional_data_layout = QtWidgets.QVBoxLayout()
         additional_data_layout.addWidget(self._attributi_table)

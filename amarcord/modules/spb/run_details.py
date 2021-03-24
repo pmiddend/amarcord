@@ -113,6 +113,9 @@ class RunDetails(QWidget):
                 self._inner.comment_delete.connect(self._slot_delete_comment)
                 self._inner.comment_changed.connect(self._slot_change_comment)
                 self._inner.attributo_change.connect(self._slot_attributo_change)
+                self._inner.attributo_manual_remove.connect(
+                    self._slot_attributo_manual_remove
+                )
                 self._inner.refresh.connect(self._slot_refresh)
                 self._inner.new_attributo.connect(self.new_attributo.emit)
                 self._inner.manual_new_run.connect(self._slot_manual_new_run)
@@ -168,6 +171,14 @@ class RunDetails(QWidget):
                 comment.author,
                 comment.text,
             )
+            self._slot_refresh_run(conn)
+            self.run_changed.emit()
+
+    def _slot_attributo_manual_remove(self, prop: AttributoId) -> None:
+        with self._db.connect() as conn:
+            selected_run = self.selected_run_id()
+            # None as value deletes
+            self._db.update_run_attributo(conn, selected_run, prop, None)
             self._slot_refresh_run(conn)
             self.run_changed.emit()
 

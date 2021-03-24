@@ -252,6 +252,7 @@ class Samples(QWidget):
                 available_attributi,
                 [],
                 self._attributo_change,
+                self._attributo_manual_remove,
             )
             metadata_wrapper_layout.addWidget(self._attributi_table)
             attributo_button = QPushButton(
@@ -287,6 +288,9 @@ class Samples(QWidget):
             self._update_timer.stop()
         else:
             self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
+
+    def _attributo_manual_remove(self, attributo: AttributoId) -> None:
+        self._attributi_table.remove_manual(attributo)
 
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         # We could immediately change the attribute, but we have this "Save changes" button

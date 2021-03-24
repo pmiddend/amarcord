@@ -147,6 +147,12 @@ class AttributiMap:
                     for k, v in source_attributi.items()
                 }
 
+    def has_manual_value(self, attributo_id: AttributoId) -> bool:
+        manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
+        if manual_attributi is None:
+            return False
+        return attributo_id in manual_attributi
+
     def select_int_unsafe(self, attributo_id: AttributoId) -> int:
         selected = self.select_unsafe(attributo_id)
         if not isinstance(selected.value, int):
@@ -229,6 +235,12 @@ class AttributiMap:
         self, source: Source, attributo: AttributoId, value: AttributoValue
     ) -> None:
         self.append_to_source(source, {attributo: value})
+
+    def remove_manual(self, attributo: AttributoId) -> None:
+        manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
+        if manual_attributi is None:
+            return
+        manual_attributi.pop(attributo, None)
 
     def set_single_manual(self, attributo: AttributoId, value: AttributoValue) -> None:
         # TODO: check proper types here
