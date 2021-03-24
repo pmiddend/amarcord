@@ -36,7 +36,9 @@ AttributiMapImpl = Dict[Source, Dict[AttributoId, AttributoValue]]
 
 
 def _convert_single_attributo_value_from_json(
-    i: AttributoId, v: JSONValue, types: Dict[AttributoId, DBAttributo]
+    i: AttributoId,
+    v: JSONValue,
+    types: Dict[AttributoId, DBAttributo],
 ) -> AttributoValue:
     attributo_type = types.get(i, None)
     if attributo_type is None:
@@ -46,12 +48,19 @@ def _convert_single_attributo_value_from_json(
 
     if v is None:
         return None
-    if isinstance(
-        attributo_type.attributo_type, (AttributoTypeInt, AttributoTypeSample)
-    ):
+    if isinstance(attributo_type.attributo_type, AttributoTypeSample):
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
+        return v
+    if isinstance(attributo_type.attributo_type, AttributoTypeInt):
+        assert isinstance(
+            v, int
+        ), f'expected type int for attributo "{i}", got {type(v)}'
+        if attributo_type.attributo_type.nonNegative and v < 0:
+            raise ValueError(
+                f'attributo "{i}" is supposed to be non-negative, but is {v}'
+            )
         return v
     if isinstance(attributo_type.attributo_type, AttributoTypeString):
         assert isinstance(
@@ -62,7 +71,13 @@ def _convert_single_attributo_value_from_json(
         assert isinstance(
             v, (float, int)
         ), f'expected type float for attributo "{i}", got {type(v)}'
-        # TODO: check if it's the correct double here (range!)
+        if (
+            attributo_type.attributo_type.range is not None
+            and not attributo_type.attributo_type.range.value_is_inside(v)
+        ):
+            raise ValueError(
+                f'value for attributo "{i}" is out of range; range is {attributo_type.attributo_type.range}, value is {v}'
+            )
         return float(v)
     if isinstance(attributo_type.attributo_type, AttributoTypeComments):
         raise Exception(f"cannot deserialize comments from JSON for attributo {i}")
@@ -91,7 +106,12 @@ def _convert_single_attributo_value_from_json(
         assert isinstance(
             v, str
         ), f'expected type str for choice attributo "{i}", got {type(v)}'
-        # TODO: check if it's the correct choice here
+        choices = [v[1] for v in attributo_type.attributo_type.values]
+        if v not in choices:
+            choices_str = ", ".join(choices)
+            raise ValueError(
+                f'value for attributo "{i}" has to be one of {choices_str}, is "{v}"'
+            )
         return v
     if isinstance(attributo_type.attributo_type, AttributoTypeUserName):
         assert isinstance(

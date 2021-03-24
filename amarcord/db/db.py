@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from itertools import groupby
 from typing import Any
 from typing import Dict
+from typing import Final
 from typing import List
 from typing import Optional
 from typing import cast
@@ -23,7 +24,6 @@ from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.constants import DB_SOURCE_NAME
-from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
@@ -33,12 +33,13 @@ from amarcord.db.tables import (
     DBTables,
 )
 from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.json import JSONValue
 from amarcord.query_parser import Row as QueryRow
 from amarcord.util import dict_union
 from amarcord.util import remove_duplicates_stable
 
 logger = logging.getLogger(__name__)
+
+VALIDATE_ATTRIBUTI: Final = True
 
 
 @dataclass(frozen=True)
@@ -71,38 +72,6 @@ class DBRun:
 
 
 Connection = Any
-
-
-def _update_attributi(
-    conn: Connection,
-    entity_id: int,
-    entity_table: sa.Table,
-    runprop: AttributoId,
-    value: JSONValue,
-):
-    current_json = conn.execute(
-        sa.select([entity_table.c.attributi]).where(entity_table.c.id == entity_id)
-    ).first()[0]
-    assert current_json is None or isinstance(
-        current_json, dict
-    ), f"attributi should be None or dictionary, got {type(current_json)}"
-    if current_json is None:
-        current_json = {}
-    if MANUAL_SOURCE_NAME not in current_json:
-        current_json[MANUAL_SOURCE_NAME] = {}
-    manual = current_json[MANUAL_SOURCE_NAME]
-    assert isinstance(
-        manual, dict
-    ), f"manual input should be dictionary, not {type(manual)}"
-    if value is None:
-        manual.pop(str(runprop), None)
-    else:
-        manual[str(runprop)] = value
-    conn.execute(
-        sa.update(entity_table)
-        .where(entity_table.c.id == entity_id)
-        .values(attributi=current_json, modified=datetime.datetime.utcnow())
-    )
 
 
 OverviewAttributi = Dict[AssociatedTable, AttributiMap]
@@ -139,6 +108,12 @@ def _sample_to_attributi(
     result = AttributiMap(types, s.attributi)
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("id"): s.id})
     return result
+
+
+def validate_attributi(
+    metadata: Dict[AttributoId, DBAttributo], attributi: RawAttributiMap
+) -> None:
+    AttributiMap(metadata, attributi)
 
 
 class DB:
@@ -385,6 +360,10 @@ class DB:
         attributi: RawAttributiMap,
     ) -> bool:
         with conn.begin():
+            if VALIDATE_ATTRIBUTI:
+                validate_attributi(
+                    self.retrieve_table_attributi(conn, AssociatedTable.RUN), attributi
+                )
             run_exists = conn.execute(
                 sa.select([self.tables.run.c.id]).where(self.tables.run.c.id == run_id)
             ).fetchall()
@@ -462,11 +441,30 @@ class DB:
     def update_sample_attributo(
         self, conn: Connection, sample_id: int, attributo: AttributoId, value: Any
     ) -> None:
-        _update_attributi(conn, sample_id, self.tables.sample, attributo, value)
+        current_json = conn.execute(
+            sa.select([self.tables.sample.c.attributi]).where(
+                self.tables.sample.c.id == sample_id
+            )
+        ).first()[0]
+        assert current_json is None or isinstance(
+            current_json, dict
+        ), f"attributi should be None or dictionary, got {type(current_json)}"
+        if current_json is None:
+            current_json = {}
+        attributi_map = RawAttributiMap(current_json)
+        if value is not None:
+            attributi_map.set_single_manual(attributo, value)
+        else:
+            attributi_map.remove_manual_attributo(attributo)
+        self.update_sample_attributi(conn, sample_id, attributi_map)
 
     def update_run_attributi(
         self, conn: Connection, run_id: int, attributi: RawAttributiMap
     ) -> None:
+        if VALIDATE_ATTRIBUTI:
+            validate_attributi(
+                self.retrieve_table_attributi(conn, AssociatedTable.RUN), attributi
+            )
         conn.execute(
             sa.update(self.tables.run)
             .where(self.tables.run.c.id == run_id)
@@ -476,6 +474,10 @@ class DB:
     def update_sample_attributi(
         self, conn: Connection, sample_id: int, attributi: RawAttributiMap
     ) -> None:
+        if VALIDATE_ATTRIBUTI:
+            validate_attributi(
+                self.retrieve_table_attributi(conn, AssociatedTable.SAMPLE), attributi
+            )
         conn.execute(
             sa.update(self.tables.sample)
             .where(self.tables.sample.c.id == sample_id)
@@ -489,25 +491,22 @@ class DB:
         attributo: AttributoId,
         value: AttributoValue,
     ) -> None:
-        if attributo == self.tables.attributo_run_sample_id:
-            assert value is None or isinstance(
-                value, int
-            ), "sample ID should be an integer"
-
-            conn.execute(
-                sa.update(self.tables.run)
-                .where(self.tables.run.c.id == run_id)
-                .values(sample_id=value, modified=datetime.datetime.utcnow())
+        current_json = conn.execute(
+            sa.select([self.tables.run.c.attributi]).where(
+                self.tables.run.c.id == run_id
             )
-            return
-
-        assert value is None or isinstance(
-            value, (str, int, float, list)
-        ), f"attributi can only have str, int and float values currently, got {type(value)}"
-
-        with conn.begin():
-            # TODO: This has to be fixed
-            _update_attributi(conn, run_id, self.tables.run, attributo, value)
+        ).first()[0]
+        assert current_json is None or isinstance(
+            current_json, dict
+        ), f"attributi should be None or dictionary, got {type(current_json)}"
+        if current_json is None:
+            current_json = {}
+        attributi_map = RawAttributiMap(current_json)
+        if value is not None:
+            attributi_map.set_single_manual(attributo, value)
+        else:
+            attributi_map.remove_manual_attributo(attributo)
+        self.update_run_attributi(conn, run_id, attributi_map)
 
     def connect(self) -> Connection:
         return self.dbcontext.connect()
@@ -558,9 +557,10 @@ class DB:
         ]
 
     def add_target(self, conn: Connection, t: DBTarget) -> int:
-        assert t.name
-        assert t.short_name
+        assert t.name.strip()
+        assert t.short_name.strip()
         assert t.id is None
+        assert t.molecular_weight is None or t.molecular_weight >= 0
         return conn.execute(
             sa.insert(self.tables.target).values(
                 name=t.name,
@@ -571,6 +571,10 @@ class DB:
         ).inserted_primary_key[0]
 
     def edit_target(self, conn: Connection, t: DBTarget) -> None:
+        assert t.name.strip()
+        assert t.short_name.strip()
+        assert t.id is not None
+        assert t.molecular_weight is None or t.molecular_weight >= 0
         conn.execute(
             sa.update(self.tables.target)
             .values(
@@ -635,8 +639,12 @@ class DB:
 
         return [prepare_sample(row) for row in conn.execute(select_stmt).fetchall()]
 
-    def add_sample(self, conn: Connection, t: DBSample) -> None:
-        conn.execute(
+    def add_sample(self, conn: Connection, t: DBSample) -> int:
+        if VALIDATE_ATTRIBUTI:
+            validate_attributi(
+                self.retrieve_table_attributi(conn, AssociatedTable.SAMPLE), t.attributi
+            )
+        return conn.execute(
             sa.insert(self.tables.sample).values(
                 target_id=t.target_id,
                 compounds=t.compounds,
@@ -645,10 +653,14 @@ class DB:
                 attributi=t.attributi.to_json() if t.attributi is not None else None,
                 modified=datetime.datetime.utcnow(),
             )
-        )
+        ).inserted_primary_key[0]
 
     def edit_sample(self, conn: Connection, t: DBSample) -> None:
         assert t.id is not None
+        if VALIDATE_ATTRIBUTI:
+            validate_attributi(
+                self.retrieve_table_attributi(conn, AssociatedTable.SAMPLE), t.attributi
+            )
         conn.execute(
             sa.update(self.tables.sample)
             .values(
@@ -684,7 +696,7 @@ class DB:
             )
             if table == AssociatedTable.RUN:
                 for run in self.retrieve_runs(conn, proposal_id=None, since=None):
-                    existed = run.attributi.remove_attributo(name)
+                    existed = run.attributi.remove_attributo(name, source=None)
                     if existed:
                         self.update_run_attributi(
                             conn,
@@ -695,7 +707,7 @@ class DB:
                         )
             elif table == AssociatedTable.SAMPLE:
                 for sample in self.retrieve_samples(conn, since=None):
-                    existed = sample.attributi.remove_attributo(name)
+                    existed = sample.attributi.remove_attributo(name, source=None)
                     if existed:
                         self.update_sample_attributi(
                             conn,

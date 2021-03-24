@@ -105,15 +105,29 @@ class RawAttributiMap:
         self.append_to_source(source, {attributo: value})
 
     def set_single_manual(self, attributo: AttributoId, value: JSONValue) -> None:
+        assert value is not None
+        if not isinstance(value, (int, str, float, bool, dict, list)):
+            raise ValueError(
+                f"attributo {attributo} can only hold JSON-compatible values, got {type(value)}"
+            )
         self.append_single_to_source(MANUAL_SOURCE_NAME, attributo, value)
 
     def to_json(self) -> JSONDict:
         return self._sources  # type: ignore
 
-    def remove_attributo(self, attributo_id: AttributoId) -> bool:
+    def remove_attributo(
+        self, attributo_id: AttributoId, source: Optional[str]
+    ) -> bool:
+        if source is not None:
+            if source not in self._sources:
+                return False
+            return self._sources[source].pop(attributo_id) is not None
         existed = False
         for v in self._sources.values():
             assert v is None or isinstance(v, dict)
             if v is not None and v.pop(attributo_id, None) is not None:
                 existed = True
         return existed
+
+    def remove_manual_attributo(self, attributo_id: AttributoId) -> bool:
+        return self.remove_attributo(attributo_id, MANUAL_SOURCE_NAME)
