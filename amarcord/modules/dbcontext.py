@@ -2,6 +2,7 @@ from enum import Enum
 from enum import auto
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import List
 
 from sqlalchemy import MetaData
@@ -49,6 +50,18 @@ class DBContext:
         for f in self._after_db_created:
             f()
         self._after_db_created = []
+
+    def dump_schema(self) -> None:
+        v: Dict[int, Any] = {}
+
+        def _metadata_dump(sql):
+            print(sql.compile(dialect=v[0].dialect))
+
+        engine = create_engine(
+            "sqlite://", echo=False, strategy="mock", executor=_metadata_dump
+        )
+        v[0] = engine
+        self.metadata.create_all(engine)
 
     def connect(self) -> Any:
         return self.engine.connect()
