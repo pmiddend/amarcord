@@ -76,6 +76,7 @@ class Data:
     column_delegates: Dict[int, QAbstractItemDelegate] = field(
         hash=False, compare=False
     )
+    resize_rows: bool = False
 
 
 class DeclarativeTableModel(QAbstractTableModel):
@@ -211,6 +212,9 @@ class DeclarativeTable(QTableView):
 
     def _resize(self) -> None:
         self.resizeColumnsToContents()
+
+        if self._data.resize_rows:
+            self.resizeRowsToContents()
 
         for idx, c in enumerate(self._data.columns):
             if c.stretch:

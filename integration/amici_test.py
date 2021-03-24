@@ -1,31 +1,42 @@
-from amarcord.amici.analysis import DataSource
-from amarcord.amici.analysis import HitFindingParameters
-from amarcord.amici.analysis import HitFindingResults
-from amarcord.amici.analysis import PeakSearchParameters
-from amarcord.amici.analysis import ingest_cheetah
+import logging
+import os
+from pathlib import Path
 
-ingest_cheetah(
-    DataSource(run_id=10, number_of_frames=20, tag="test"),
-    PeakSearchParameters(
-        max_num_peaks=100,
-        adc_threshold=25,
-        minimum_snr=3.5,
-        min_pixel_count=1,
-        max_pixel_count=10,
-        min_res=0,
-        max_res=1000,
-        bad_pixel_map_filename="/gpfs/bad_masks/very_bad.h5",
-        bad_pixel_map_hdf5_path="/data/data",
-        local_bg_radius=4,
-        min_peak_over_neighbour=0,
-        min_snr_biggest_pix=3.5,
-        min_snr_peak_pix=6,
-        min_sig=11,
-        min_squared_gradient=10000,
-        geometry="",
-    ),
-    HitFindingParameters(min_peaks=10),
-    HitFindingResults(
-        number_hits=1021, hit_rate=0.1021, result_filename="/tmp/foo/cheetah.cxi"
-    ),
+from amarcord.amici.analysis import AMARCORD_DB_ENV_VAR
+from amarcord.amici.analysis import ingest_cheetah
+from amarcord.db.db import DB
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.table_classes import DBSample
+from amarcord.db.tables import create_tables
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
+
+logging.basicConfig(
+    format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
+
+test_db_filename = "/tmp/testdb.sqlite"
+
+dbcontext = DBContext(f"sqlite:///{test_db_filename}")
+tables = create_tables(dbcontext)
+dbcontext.create_all(CreationMode.CHECK_FIRST)
+db = DB(dbcontext, tables)
+
+with db.connect() as conn:
+    db.add_proposal(conn, ProposalId(1))
+    sample_id = db.add_sample(conn, DBSample(id=None, attributi=RawAttributiMap({})))
+    db.add_run(
+        conn,
+        ProposalId(1),
+        run_id=9,
+        sample_id=sample_id,
+        attributi=RawAttributiMap({}),
+    )
+
+os.environ[AMARCORD_DB_ENV_VAR] = f"sqlite:///{test_db_filename}?proposal_id=1"
+config_path = Path("integration") / "gui" / "crawler.config"
+result = ingest_cheetah(config_path)
+print(f"Ingested {result.number_of_ingested_data_sources} data source(s)")
+result = ingest_cheetah(config_path)
+print(f"Ingested {result.number_of_ingested_data_sources} data source(s)")

@@ -2,8 +2,8 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.db import DB
-from amarcord.db.db import DBSample
 from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.table_classes import DBSample
 
 MY_ATTRIBUTO = "my_attributo"
 

@@ -20,12 +20,12 @@ from amarcord.db.comment import DBComment
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
-from amarcord.db.db import DBRun
 from amarcord.db.db import RunNotFound
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.table_classes import DBRun
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.spb.new_run_dialog import new_run_dialog

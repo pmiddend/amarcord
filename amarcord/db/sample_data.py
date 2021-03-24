@@ -5,6 +5,7 @@ from random import random
 from random import randrange
 from random import seed
 from random import uniform
+from typing import Final
 from typing import List
 
 from amarcord.db.associated_table import AssociatedTable
@@ -383,8 +384,10 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         # To always get the same sample data, yet somewhat random values
         seed(1337)
         run_ids: List[int] = []
+        current_train = 0
         # for _ in range(10000):
         for _ in range(100):
+            train_count = randint(600, 3000)
             run_id = conn.execute(
                 tables.run.insert().values(
                     proposal_id=proposal_id,
@@ -399,10 +402,14 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                             "repetition_rate": randrange(0, 20),
                             "hit_rate": random(),
                             "injector_position_z": randrange(0, 100),
+                            "first_train": current_train + 1,
+                            "last_train": current_train + train_count,
                         }
                     },
                 )
             ).inserted_primary_key[0]
+
+            current_train += train_count
 
             run_ids.append(run_id)
 
@@ -422,25 +429,54 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         # For each hit finding result, generate 1 to 2 indexing parameters, integration parameters  and indexing results
         # For indexing result, generate 1 or 2 merge results
 
+        possible_tags: Final = [
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "noice",
+            "newtry",
+            "foo",
+            "othertag",
+            "goodweather",
+            "spring",
+            "more_kev",
+            "pixhigher",
+        ]
+
         for run_id in run_ids:
             for _ in range(choice([1, 2])):
+                number_of_frames = randint(0, 1000)
                 data_source_id = conn.execute(
-                    tables.data_source.insert().values(run_id=run_id)
+                    tables.data_source.insert().values(
+                        run_id=run_id,
+                        number_of_frames=number_of_frames,
+                        tag=choice(possible_tags),
+                        source=[
+                            "/var/log/foo/bar/bux/quuux/baaaaaaaaar/hoooo.h5"
+                            for _ in range(40)
+                        ],
+                    )
                 ).inserted_primary_key[0]
 
-                for _ in range(choice([1, 2])):
+                for _ in range(choice([0, 1, 2])):
                     peak_search_parameters_id = conn.execute(
                         tables.peak_search_parameters.insert().values(
                             data_source_id=data_source_id,
                             method="dummy-method",
                             software="dummy-software",
                             command_line="command-line",
+                            tag=choice(possible_tags),
                         )
                     ).inserted_primary_key[0]
 
                     hit_finding_parameters_id = conn.execute(
                         tables.hit_finding_parameters.insert().values(
-                            min_peaks=int(uniform(10, 100))
+                            min_peaks=int(uniform(10, 100)),
+                            tag=choice(possible_tags),
                         )
                     ).inserted_primary_key[0]
 
@@ -448,39 +484,47 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         tables.hit_finding_results.insert().values(
                             peak_search_parameters_id=peak_search_parameters_id,
                             hit_finding_parameters_id=hit_finding_parameters_id,
-                            number_of_hits=int(uniform(0, 100)),
+                            number_of_hits=int(uniform(0, number_of_frames)),
                             hit_rate=random() * 100,
                             result_filename="/tmp/result",
+                            tag=choice(possible_tags),
                         )
                     ).inserted_primary_key[0]
 
-                    for _ in range(choice([1, 2])):
+                    for _ in range(choice([0, 1, 2])):
                         indexing_parameters_id = conn.execute(
                             tables.indexing_parameters.insert().values(
                                 hit_finding_results_id=hit_finding_results_id,
                                 software="dummy-software",
                                 command_line="",
                                 parameters={},
+                                tag=choice(possible_tags),
                             )
                         ).inserted_primary_key[0]
 
                         integration_parameters_id = conn.execute(
-                            tables.integration_parameters.insert().values()
+                            tables.integration_parameters.insert().values(
+                                tag=choice(possible_tags)
+                            )
                         ).inserted_primary_key[0]
 
                         indexing_results_id = conn.execute(
                             tables.indexing_results.insert().values(
                                 indexing_parameters_id=indexing_parameters_id,
                                 integration_parameters_id=integration_parameters_id,
-                                num_indexed=int(uniform(0, 100)),
+                                num_indexed=int(uniform(0, number_of_frames)),
                                 num_crystals=1,
+                                tag=choice(possible_tags),
                             )
                         ).inserted_primary_key[0]
 
                         for _ in range(choice([1, 2])):
                             merge_parameters_id = conn.execute(
                                 tables.merge_parameters.insert().values(
-                                    software="dummy-software", parameters={}
+                                    software="dummy-software",
+                                    parameters={},
+                                    command_line="",
+                                    tag=choice(possible_tags),
                                 )
                             ).inserted_primary_key[0]
 

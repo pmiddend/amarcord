@@ -40,4 +40,6 @@ def test_parse_natural_timedelta() -> None:
 
 def test_to_natural_timedelta() -> None:
     input_delta = "2 days, 4 hours, 5 minutes"
-    assert print_natural_delta(parse_natural_delta(input_delta)) == input_delta
+    delta = parse_natural_delta(input_delta)
+    assert isinstance(delta, datetime.timedelta)
+    assert print_natural_delta(delta) == input_delta

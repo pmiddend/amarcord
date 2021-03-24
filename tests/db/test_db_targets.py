@@ -1,5 +1,5 @@
 from amarcord.db.db import DB
-from amarcord.db.db import DBTarget
+from amarcord.db.table_classes import DBTarget
 
 
 def test_add_and_delete_target(db: DB) -> None:

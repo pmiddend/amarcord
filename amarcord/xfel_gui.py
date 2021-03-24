@@ -139,7 +139,9 @@ class XFELGui:
 
         run_table_tab.run_selected.connect(change_run)
 
-        analysis_tab = AnalysisView(self._context, self._tables)
+        analysis_tab = AnalysisView(
+            self._context, self._tables, proposal_id=self._proposal_id
+        )
         _analysis_index = self._ui_context.register_tab(
             "Analysis", analysis_tab, QIcon(":/icons/chart-line-solid.png")
         )

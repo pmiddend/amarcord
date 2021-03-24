@@ -34,7 +34,7 @@ integration-tests:
     - apt-get update -y
     - apt-get install -y libgl1-mesa-glx qt5-default
     - pip install -e .[gui]
-    - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*' 'pytest-cov==2.11.*'
+    - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*' 'hypothesis==6.3.*' 'pytest-cov==2.11.*'
     - PYTHONPATH=".:$PYTHONPATH" pytest --cov=amarcord/ --junitxml=report.xml tests
     - coverage xml
   artifacts:

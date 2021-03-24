@@ -24,10 +24,10 @@ from PyQt5.QtWidgets import QWidget
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.comment import DBComment
-from amarcord.db.db import DBRun
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.table_classes import DBRun
 from amarcord.db.tables import DBTables
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
@@ -216,9 +216,10 @@ class RunDetailsInner(QWidget):
 
     def _augmented_attributi(self) -> RawAttributiMap:
         copied = self.run.attributi.copy()
-        copied.set_single_manual(
-            self.tables.attributo_run_sample_id, self.run.sample_id
-        )
+        if self.run.sample_id is not None:
+            copied.set_single_manual(
+                self.tables.attributo_run_sample_id, self.run.sample_id
+            )
         return copied
 
     def hideEvent(self, _e: Any) -> None:

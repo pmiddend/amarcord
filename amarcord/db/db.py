@@ -8,7 +8,6 @@ from typing import Dict
 from typing import Final
 from typing import List
 from typing import Optional
-from typing import Set
 from typing import cast
 
 import sqlalchemy as sa
@@ -29,6 +28,19 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.table_classes import DBDataSource
+from amarcord.db.table_classes import DBHitFindingParameters
+from amarcord.db.table_classes import DBHitFindingResult
+from amarcord.db.table_classes import DBIndexingParameters
+from amarcord.db.table_classes import DBIndexingResult
+from amarcord.db.table_classes import DBIntegrationParameters
+from amarcord.db.table_classes import DBMergeParameters
+from amarcord.db.table_classes import DBMergeResult
+from amarcord.db.table_classes import DBPeakSearchParameters
+from amarcord.db.table_classes import DBRun
+from amarcord.db.table_classes import DBSample
+from amarcord.db.table_classes import DBSampleAnalysisResult
+from amarcord.db.table_classes import DBTarget
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import (
     DBTables,
@@ -41,47 +53,6 @@ from amarcord.util import remove_duplicates_stable
 logger = logging.getLogger(__name__)
 
 VALIDATE_ATTRIBUTI: Final = True
-
-
-@dataclass(frozen=True)
-class DBTarget:
-    id: Optional[int]
-    name: str
-    short_name: str
-    molecular_weight: Optional[float]
-    uniprot_id: str
-
-
-@dataclass(frozen=True)
-class DBSample:
-    id: Optional[int]
-    target_id: Optional[int]
-    compounds: Optional[List[int]]
-    micrograph: Optional[str]
-    protocol: Optional[str]
-    attributi: RawAttributiMap
-
-
-@dataclass(frozen=True)
-class DBRun:
-    attributi: RawAttributiMap
-    id: int
-    sample_id: Optional[int]
-    proposal_id: int
-    modified: datetime.datetime
-    comments: List[DBComment]
-
-
-@dataclass(frozen=True)
-class DBAnalysisResults:
-    sample_id: int
-    run_ids: Set[int]
-    hit_rates: Set[float]
-    num_crystals: Set[int]
-    num_indexed: Set[int]
-    rsplits: Set[float]
-    cc_halfs: Set[float]
-
 
 Connection = Any
 
@@ -731,60 +702,378 @@ class DB:
                     f"cannot delete attributo {name} of table {table} because that code doesn't exist yet"
                 )
 
-    def retrieve_analysis(self, conn: Connection) -> List[DBAnalysisResults]:
-        rows = conn.execute(
+    def add_data_source(self, conn: Connection, ds: DBDataSource) -> int:
+        return conn.execute(
+            sa.insert(self.tables.data_source).values(
+                run_id=ds.run_id,
+                number_of_frames=ds.number_of_frames,
+                source=ds.source,
+                tag=ds.tag,
+                comment=ds.comment,
+            )
+        ).inserted_primary_key[0]
+
+    def add_hit_finding_result(self, conn: Connection, ds: DBHitFindingResult) -> int:
+        with conn.begin():
+            peak_search_id = conn.execute(
+                sa.insert(self.tables.peak_search_parameters).values(
+                    data_source_id=ds.data_source_id,
+                    method=ds.peak_search_parameters.method,
+                    software=ds.peak_search_parameters.software,
+                    command_line=ds.peak_search_parameters.command_line,
+                    tag=ds.peak_search_parameters.tag,
+                    comment=ds.peak_search_parameters.comment,
+                    software_version=ds.peak_search_parameters.software_version,
+                    software_git_repository=ds.peak_search_parameters.software_git_repository,
+                    software_git_sha=ds.peak_search_parameters.software_git_sha,
+                    max_num_peaks=ds.peak_search_parameters.max_num_peaks,
+                    adc_threshold=ds.peak_search_parameters.adc_threshold,
+                    minimum_snr=ds.peak_search_parameters.minimum_snr,
+                    min_pixel_count=ds.peak_search_parameters.min_pixel_count,
+                    max_pixel_count=ds.peak_search_parameters.max_pixel_count,
+                    min_res=ds.peak_search_parameters.min_res,
+                    max_res=ds.peak_search_parameters.max_res,
+                    bad_pixel_filename=ds.peak_search_parameters.bad_pixel_filename,
+                    local_bg_radius=ds.peak_search_parameters.local_bg_radius,
+                    min_peak_over_neighbor=ds.peak_search_parameters.min_peak_over_neighbor,
+                    min_snr_biggest_pix=ds.peak_search_parameters.min_snr_biggest_pix,
+                    min_snr_peak_pix=ds.peak_search_parameters.min_snr_peak_pix,
+                    min_sig=ds.peak_search_parameters.min_sig,
+                    min_squared_gradient=ds.peak_search_parameters.min_squared_gradient,
+                    geometry_filename=ds.peak_search_parameters.geometry_filename,
+                )
+            ).inserted_primary_key[0]
+
+            hit_finding_param_id = conn.execute(
+                sa.insert(self.tables.hit_finding_parameters).values(
+                    min_peaks=ds.hit_finding_parameters.min_peaks,
+                    tag=ds.hit_finding_parameters.tag,
+                    comment=ds.hit_finding_parameters.comment,
+                )
+            ).inserted_primary_key[0]
+
+            return conn.execute(
+                sa.insert(self.tables.hit_finding_results).values(
+                    peak_search_parameters_id=peak_search_id,
+                    hit_finding_parameters_id=hit_finding_param_id,
+                    result_filename=ds.result_filename,
+                    number_of_hits=ds.number_of_hits,
+                    hit_rate=ds.hit_rate,
+                    tag=ds.tag,
+                    comment=ds.comment,
+                )
+            ).inserted_primary_key[0]
+
+    def add_indexing_result(self, conn: Connection, ds: DBIndexingResult) -> int:
+        with conn.begin():
+            indexing_parameters_id = conn.execute(
+                sa.insert(self.tables.indexing_parameters).values(
+                    hit_finding_results_id=ds.hit_finding_results_id,
+                    software=ds.indexing_parameters.software,
+                    command_line=ds.indexing_parameters.command_line,
+                    parameters=ds.indexing_parameters.parameters,
+                    tag=ds.tag,
+                    comment=ds.comment,
+                )
+            ).inserted_primary_key[0]
+
+            integration_parameters_id = conn.execute(
+                sa.insert(self.tables.integration_parameters).values()
+            ).inserted_primary_key[0]
+
+            return conn.execute(
+                sa.insert(self.tables.indexing_results).values(
+                    indexing_parameters_id=indexing_parameters_id,
+                    integration_parameters_id=integration_parameters_id,
+                    num_indexed=ds.num_indexed,
+                    num_crystals=ds.num_crystals,
+                )
+            ).inserted_primary_key[0]
+
+    def add_merge_result(self, conn: Connection, mr: DBMergeResult) -> None:
+        with conn.begin():
+            merge_parameters_id = conn.execute(
+                sa.insert(self.tables.merge_parameters).values(
+                    software=mr.merge_parameters.software,
+                    command_line=mr.merge_parameters.command_line,
+                    parameters=mr.merge_parameters.parameters,
+                )
+            ).inserted_primary_key[0]
+
+            merge_results_id = conn.execute(
+                sa.insert(self.tables.merge_results).values(
+                    merge_parameters_id=merge_parameters_id,
+                    rsplit=mr.rsplit,
+                    cc_half=mr.cc_half,
+                )
+            ).inserted_primary_key[0]
+
+            for i in mr.indexing_result_ids:
+                conn.execute(
+                    sa.insert(self.tables.merge_has_indexing).values(
+                        merge_results_id=merge_results_id, indexing_results_id=i
+                    )
+                )
+
+    def retrieve_analysis_data_sources(self, conn: Connection) -> List[DBDataSource]:
+        data_sources: List[DBDataSource] = []
+        data_source_id_to_hit_finding_results: Dict[int, List[DBHitFindingResult]] = {}
+        hit_finding_results_to_indexing_results: Dict[int, List[DBIndexingResult]] = {}
+        for r in conn.execute(
+            sa.select(
+                [
+                    self.tables.data_source.c.id,
+                    self.tables.data_source.c.run_id,
+                    self.tables.data_source.c.number_of_frames,
+                    self.tables.data_source.c.source,
+                    self.tables.data_source.c.tag,
+                    self.tables.data_source.c.comment,
+                ]
+            )
+        ).fetchall():
+            hit_finding_result_list: List[DBHitFindingResult] = []
+            data_sources.append(
+                DBDataSource(
+                    id=r["id"],
+                    run_id=r["run_id"],
+                    number_of_frames=r["number_of_frames"],
+                    hit_finding_results=hit_finding_result_list,
+                    source=r["source"],
+                    tag=r["tag"],
+                    comment=r["comment"],
+                )
+            )
+            data_source_id_to_hit_finding_results[r["id"]] = hit_finding_result_list
+
+        for r in conn.execute(
+            sa.select(
+                [
+                    self.tables.data_source.c.id.label("data_source_id"),
+                    self.tables.peak_search_parameters.c.id.label("psp_id"),
+                    self.tables.peak_search_parameters.c.method,
+                    self.tables.peak_search_parameters.c.software,
+                    self.tables.peak_search_parameters.c.command_line,
+                    self.tables.peak_search_parameters.c.tag.label("psp_tag"),
+                    self.tables.peak_search_parameters.c.comment.label("psp_comment"),
+                    self.tables.peak_search_parameters.c.software_version,
+                    self.tables.peak_search_parameters.c.software_git_repository,
+                    self.tables.peak_search_parameters.c.software_git_sha,
+                    self.tables.peak_search_parameters.c.max_num_peaks,
+                    self.tables.peak_search_parameters.c.adc_threshold,
+                    self.tables.peak_search_parameters.c.minimum_snr,
+                    self.tables.peak_search_parameters.c.min_pixel_count,
+                    self.tables.peak_search_parameters.c.max_pixel_count,
+                    self.tables.peak_search_parameters.c.min_res,
+                    self.tables.peak_search_parameters.c.max_res,
+                    self.tables.peak_search_parameters.c.bad_pixel_filename,
+                    self.tables.peak_search_parameters.c.local_bg_radius,
+                    self.tables.peak_search_parameters.c.min_peak_over_neighbor,
+                    self.tables.peak_search_parameters.c.min_snr_biggest_pix,
+                    self.tables.peak_search_parameters.c.min_snr_peak_pix,
+                    self.tables.peak_search_parameters.c.min_sig,
+                    self.tables.peak_search_parameters.c.min_squared_gradient,
+                    self.tables.peak_search_parameters.c.geometry_filename,
+                    self.tables.hit_finding_parameters.c.id.label("hfp_id"),
+                    self.tables.hit_finding_parameters.c.tag.label("hfp_tag"),
+                    self.tables.hit_finding_parameters.c.comment.label("hfp_comment"),
+                    self.tables.hit_finding_parameters.c.min_peaks.label("min_peaks"),
+                    self.tables.hit_finding_results.c.id,
+                    self.tables.hit_finding_results.c.number_of_hits,
+                    self.tables.hit_finding_results.c.hit_rate,
+                    self.tables.hit_finding_results.c.result_filename,
+                    self.tables.hit_finding_results.c.tag,
+                    self.tables.hit_finding_results.c.comment,
+                ]
+            ).select_from(
+                self.tables.data_source.join(self.tables.peak_search_parameters)
+                .join(self.tables.hit_finding_results)
+                .join(self.tables.hit_finding_parameters)
+            )
+        ).fetchall():
+            # TODO: This loop only works if PeakSearchParameters and IndexingParameters isn't shared among results
+            # which I suppose is fine.
+            indexing_result_list: List[DBIndexingResult] = []
+            data_source_id_to_hit_finding_results[r["data_source_id"]].append(
+                DBHitFindingResult(
+                    id=r["id"],
+                    data_source_id=r["data_source_id"],
+                    peak_search_parameters=DBPeakSearchParameters(
+                        id=r["psp_id"],
+                        method=r["method"],
+                        software=r["software"],
+                        command_line=r["command_line"],
+                        tag=r["psp_tag"],
+                        comment=r["psp_comment"],
+                        software_version=r["software_version"],
+                        software_git_repository=r["software_git_repository"],
+                        software_git_sha=r["software_git_sha"],
+                        max_num_peaks=r["max_num_peaks"],
+                        adc_threshold=r["adc_threshold"],
+                        minimum_snr=r["minimum_snr"],
+                        min_pixel_count=r["min_pixel_count"],
+                        max_pixel_count=r["max_pixel_count"],
+                        min_res=r["min_res"],
+                        max_res=r["max_res"],
+                        bad_pixel_filename=r["bad_pixel_filename"],
+                        local_bg_radius=r["local_bg_radius"],
+                        min_peak_over_neighbor=r["min_peak_over_neighbor"],
+                        min_snr_biggest_pix=r["min_snr_biggest_pix"],
+                        min_snr_peak_pix=r["min_snr_peak_pix"],
+                        min_sig=r["min_sig"],
+                        min_squared_gradient=r["min_squared_gradient"],
+                        geometry_filename=r["geometry_filename"],
+                    ),
+                    hit_finding_parameters=DBHitFindingParameters(
+                        id=r["hfp_id"],
+                        min_peaks=r["min_peaks"],
+                        tag=r["hfp_tag"],
+                        comment=r["hfp_comment"],
+                    ),
+                    result_filename=r["result_filename"],
+                    number_of_hits=r["number_of_hits"],
+                    hit_rate=r["hit_rate"],
+                    indexing_results=indexing_result_list,
+                    tag=r["tag"],
+                    comment=r["comment"],
+                )
+            )
+            hit_finding_results_to_indexing_results[r["id"]] = indexing_result_list
+
+        for r in conn.execute(
+            sa.select(
+                [
+                    self.tables.indexing_parameters.c.hit_finding_results_id,
+                    self.tables.indexing_parameters.c.software,
+                    self.tables.indexing_parameters.c.command_line,
+                    self.tables.indexing_parameters.c.parameters,
+                    self.tables.indexing_results.c.id,
+                    self.tables.indexing_results.c.num_indexed,
+                    self.tables.indexing_results.c.num_crystals,
+                    self.tables.indexing_results.c.tag,
+                    self.tables.indexing_results.c.comment,
+                ]
+            ).select_from(
+                self.tables.hit_finding_results.join(
+                    self.tables.indexing_parameters
+                ).join(self.tables.indexing_results)
+            )
+        ).fetchall():
+            hit_finding_results_to_indexing_results[r["hit_finding_results_id"]].append(
+                DBIndexingResult(
+                    id=r["id"],
+                    hit_finding_results_id=r["hit_finding_results_id"],
+                    indexing_parameters=DBIndexingParameters(
+                        software=r["software"],
+                        command_line=r["command_line"],
+                        parameters=r["parameters"],
+                    ),
+                    integration_parameters=DBIntegrationParameters(),
+                    ambiguity_parameters=None,
+                    num_indexed=r["num_indexed"],
+                    num_crystals=r["num_crystals"],
+                    tag=r["tag"],
+                    comment=r["comment"],
+                )
+            )
+
+        return data_sources
+
+    def retrieve_sample_based_analysis(
+        self, conn: Connection
+    ) -> List[DBSampleAnalysisResult]:
+        data_sources: Dict[int, DBDataSource] = {
+            cast(int, k.id): k for k in self.retrieve_analysis_data_sources(conn)
+        }
+
+        sample_id_to_data_sources: Dict[int, List[DBDataSource]] = {}
+        for row in conn.execute(
             sa.select(
                 [
                     self.tables.sample.c.id.label("sample_id"),
-                    self.tables.run.c.id.label("run_id"),
-                    self.tables.hit_finding_results.c.hit_rate,
-                    self.tables.indexing_results.c.num_crystals,
-                    self.tables.indexing_results.c.num_indexed,
-                    self.tables.merge_results.c.rsplit,
-                    self.tables.merge_results.c.cc_half,
+                    self.tables.data_source.c.id,
                 ]
             ).select_from(
-                self.tables.sample.outerjoin(self.tables.run)
-                .outerjoin(self.tables.data_source)
-                .outerjoin(self.tables.peak_search_parameters)
-                .outerjoin(self.tables.hit_finding_results)
-                .outerjoin(self.tables.indexing_parameters)
-                .outerjoin(self.tables.indexing_results)
-                .outerjoin(self.tables.merge_has_indexing)
-                .outerjoin(self.tables.merge_results)
+                self.tables.sample.outerjoin(self.tables.run).outerjoin(
+                    self.tables.data_source
+                )
             )
-        ).fetchall()
+        ).fetchall():
+            sample_id = row["sample_id"]
+            if sample_id not in sample_id_to_data_sources:
+                sample_id_to_data_sources[sample_id] = []
+            # Filters samples without runs
+            if row["id"] is not None:
+                sample_id_to_data_sources[sample_id].append(data_sources[row["id"]])
 
-        sample_ids = set(x["sample_id"] for x in rows)
+        sample_to_merge_results = self.retrieve_analysis_merge_results(conn)
 
-        result: List[DBAnalysisResults] = []
-        for sample_id in sample_ids:
-            sample_rows = [r for r in rows if r["sample_id"] == sample_id]
-            has_runs = len(sample_rows) != 1 or sample_rows[0]["run_id"] is not None
+        result: List[DBSampleAnalysisResult] = []
+        for sample_id, indexing_paths in sample_id_to_data_sources.items():
             result.append(
-                DBAnalysisResults(
-                    sample_id=sample_id,
-                    run_ids=set(r["run_id"] for r in sample_rows)
-                    if has_runs
-                    else set(),
-                    hit_rates=set(r["hit_rate"] for r in sample_rows)
-                    if has_runs
-                    else set(),
-                    num_crystals=set(r["num_crystals"] for r in sample_rows)
-                    if has_runs
-                    else set(),
-                    num_indexed=set(r["num_indexed"] for r in sample_rows)
-                    if has_runs
-                    else set(),
-                    rsplits=set(r["rsplit"] for r in sample_rows)
-                    if has_runs
-                    else set(),
-                    cc_halfs=set(r["cc_half"] for r in sample_rows)
-                    if has_runs
-                    else set(),
+                DBSampleAnalysisResult(
+                    sample_id,
+                    indexing_paths=indexing_paths,
+                    merge_results=sample_to_merge_results.get(sample_id, []),
                 )
             )
         return result
+
+    def retrieve_analysis_merge_results(
+        self, conn: Connection
+    ) -> Dict[int, List[DBMergeResult]]:
+        sample_to_merge_results: Dict[int, List[DBMergeResult]] = {}
+        for merge_result_id, results in groupby(
+            conn.execute(
+                sa.select(
+                    [
+                        self.tables.sample.c.id.label("sample_id"),
+                        self.tables.merge_parameters.c.software,
+                        self.tables.merge_parameters.c.command_line,
+                        self.tables.merge_parameters.c.parameters,
+                        self.tables.merge_results.c.id,
+                        self.tables.merge_results.c.cc_half,
+                        self.tables.merge_results.c.rsplit,
+                        self.tables.merge_has_indexing.c.indexing_results_id,
+                    ]
+                )
+                .select_from(
+                    self.tables.merge_results.join(self.tables.merge_has_indexing)
+                    .join(self.tables.merge_parameters)
+                    .join(self.tables.indexing_results)
+                    .join(self.tables.indexing_parameters)
+                    .join(self.tables.hit_finding_results)
+                    .join(self.tables.peak_search_parameters)
+                    .join(self.tables.data_source)
+                    .join(self.tables.run)
+                    .join(self.tables.sample)
+                )
+                .order_by(self.tables.merge_results.c.id)
+            ).fetchall(),
+            lambda x: x["id"],
+        ):
+            results_list = list(results)
+            first_row = results_list[0]
+            if first_row["sample_id"] not in sample_to_merge_results:
+                sample_to_merge_results[first_row["sample_id"]] = []
+            sample_to_merge_results[first_row["sample_id"]].append(
+                DBMergeResult(
+                    id=merge_result_id,
+                    merge_parameters=DBMergeParameters(
+                        software=first_row["software"],
+                        command_line=first_row["command_line"],
+                        parameters=first_row["parameters"],
+                    ),
+                    indexing_result_ids=[
+                        r["indexing_results_id"] for r in results_list
+                    ],
+                    rsplit=first_row["rsplit"],
+                    cc_half=first_row["cc_half"],
+                )
+            )
+        return sample_to_merge_results
+
+    def have_proposals(self, conn: Connection) -> bool:
+        return conn.execute(sa.select([self.tables.proposal.c.id])).fetchall()
 
 
 def overview_row_to_query_row(

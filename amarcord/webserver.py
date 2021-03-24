@@ -15,10 +15,10 @@ from amarcord.db.attributi import (
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.comment import DBComment
 from amarcord.db.db import DB
-from amarcord.db.db import DBRun
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
+from amarcord.db.table_classes import DBRun
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext

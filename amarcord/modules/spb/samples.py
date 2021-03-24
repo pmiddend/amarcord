@@ -43,9 +43,9 @@ from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
-from amarcord.db.db import DBSample
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.json import JSONDict
@@ -246,6 +246,8 @@ class Samples(QWidget):
             available_attributi = self._db.retrieve_table_attributi(
                 conn, AssociatedTable.SAMPLE
             )
+            # The sample ID itself shouldn't be in the table
+            available_attributi.pop(AttributoId("id"), None)
             self._current_sample = _empty_sample(available_attributi)
             self._attributi_table = AttributiTable(
                 self._current_sample.attributi,

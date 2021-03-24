@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import QWidget
 
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
-from amarcord.db.db import DBTarget
+from amarcord.db.table_classes import DBTarget
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.numeric_range import NumericRange

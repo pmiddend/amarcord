@@ -106,6 +106,7 @@ def test_smaller_than_for_lists() -> None:
 def test_invalid_type() -> None:
     q = parse_query("foo < 3", {"foo"})
     try:
-        filter_by_query(q, {"foo": {"x": "u"}})
+        # noinspection PyTypeChecker
+        filter_by_query(q, {"foo": {"x": "u"}})  # type: ignore
     except Exception as e:
         assert isinstance(e, SemanticError)

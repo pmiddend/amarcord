@@ -2,10 +2,12 @@ import datetime
 import re
 from typing import Callable
 from typing import Dict
+from typing import Generator
 from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Sequence
+from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
@@ -93,6 +95,20 @@ def retuple_dict(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> Dict[X, W]:
         for table, attributi in d.items()
         for attributo_id, values in attributi.items()
     }
+
+
+def create_intervals(xs: List[int]) -> Generator[Tuple[int, int], None, None]:
+    if not xs:
+        return
+    sorted_xs = sorted(xs)
+    interval_start = sorted_xs[0]
+    last_element = interval_start
+    for x in sorted_xs[1:]:
+        if x != last_element + 1:
+            yield interval_start, last_element
+            interval_start = x
+        last_element = x
+    yield interval_start, sorted_xs[-1]
 
 
 def print_natural_delta(td: datetime.timedelta) -> str:
@@ -191,3 +207,14 @@ def parse_natural_delta(s: str) -> Union[None, str, datetime.timedelta]:
         return s
     except Exception:
         return None
+
+
+def find_by(xs: List[T], by: Callable[[T], bool]) -> Optional[T]:
+    return next((x for x in xs if by(x)), default=None)
+
+
+def contains(xs: List[T], by: Callable[[T], bool]) -> bool:
+    for x in xs:
+        if by(x):
+            return True
+    return False

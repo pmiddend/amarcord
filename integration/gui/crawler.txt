@@ -1,0 +1,2 @@
+Run,Dataset,Rawdata,Cheetah,CrystFEL,H5Directory,Nprocessed,Nhits,Nindex,Hitrate%,Recipe,Calibration
+9,BL_WAT,Ready,Finished,---,r0213-cry41,1012035,113,---,0.01,agipd-snr8pix1.ini,calib_r13-18.ini
