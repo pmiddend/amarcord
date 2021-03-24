@@ -24,6 +24,7 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.raw_attributi_map import Source
 from amarcord.db.table_delegates import delegate_for_attributo_type
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
 from amarcord.qt.declarative_table import Column
@@ -115,12 +116,20 @@ class AttributiTable(QtWidgets.QWidget):
         )
 
     def _right_click_menu(self, attributo_id: AttributoId, p: QPoint) -> None:
-        if not self.attributi.has_manual_value(attributo_id):
-            return
-        menu = QMenu(self)
-        deleteAction = menu.addAction(
-            "Delete manual value",
+        per_source: Dict[Source, AttributoValue] = self.attributi.values_per_source(
+            attributo_id
         )
+        menu = QMenu(self)
+        deleteAction = None
+        if MANUAL_SOURCE_NAME in per_source:
+            deleteAction = menu.addAction(
+                "Delete manual value",
+            )
+        exploreMenu = menu.addMenu(
+            "Values per source",
+        )
+        for source, value in per_source.items():
+            exploreMenu.addAction(f"{source}: {value}")
         action = menu.exec_(p)
         if action == deleteAction:
             self._remove_manual_attributo(attributo_id)

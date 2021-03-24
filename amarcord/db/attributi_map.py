@@ -284,3 +284,13 @@ class AttributiMap:
             if v.pop(attributo_id, None) is not None:
                 existed = True
         return existed
+
+    def values_per_source(
+        self, attributo_id: AttributoId
+    ) -> Dict[Source, AttributoValue]:
+        result: Dict[Source, AttributoValue] = {}
+        for source, attributi in self._attributi.items():
+            a = attributi.get(attributo_id, None)
+            if a is not None:
+                result[source] = a
+        return result
