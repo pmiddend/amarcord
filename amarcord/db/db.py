@@ -284,10 +284,15 @@ class DB:
     def change_comment(self, conn: Connection, c: DBComment) -> None:
         assert c.id is not None
 
+        if not c.text.strip():
+            raise ValueError("Text (after white-space stripping) is empty")
+        if not c.author.strip():
+            raise ValueError("Author (after white-space stripping) is empty")
+
         conn.execute(
             sa.update(self.tables.run_comment)
             .where(self.tables.run_comment.c.id == c.id)
-            .values(author=c.author, comment_text=c.text)
+            .values(author=c.author.strip(), comment_text=c.text.strip())
         )
         conn.execute(
             sa.update(self.tables.run)
@@ -340,6 +345,10 @@ class DB:
         )
 
     def add_comment(self, conn: Connection, run_id: int, author: str, text: str) -> int:
+        if not text.strip():
+            raise ValueError("Text (after white-space stripping) is empty")
+        if not author.strip():
+            raise ValueError("Author (after white-space stripping) is empty")
         conn.execute(
             sa.update(self.tables.run)
             .where(self.tables.run.c.id == run_id)
@@ -348,8 +357,8 @@ class DB:
         result = conn.execute(
             sa.insert(self.tables.run_comment).values(
                 run_id=run_id,
-                author=author,
-                comment_text=text,
+                author=author.strip(),
+                comment_text=text.strip(),
                 created=datetime.datetime.utcnow(),
             )
         )
