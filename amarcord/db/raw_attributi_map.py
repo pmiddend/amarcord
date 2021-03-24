@@ -121,7 +121,7 @@ class RawAttributiMap:
         if source is not None:
             if source not in self._sources:
                 return False
-            return self._sources[source].pop(attributo_id) is not None
+            return self._sources[source].pop(attributo_id, None) is not None
         existed = False
         for v in self._sources.values():
             assert v is None or isinstance(v, dict)
