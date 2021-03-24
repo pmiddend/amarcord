@@ -117,6 +117,7 @@ class PlotDialog(QDialog):
             if self._type == _PlotType.LINE:
                 # noinspection PyArgumentList
                 self._df.plot(ax=self._sc.axes)  # type: ignore
+                self._sc.axes.set_xlabel(self._y_axis.pretty_id())
             else:
                 # noinspection PyArgumentList
                 self._df.plot(ax=self._sc.axes, x=0, y=1, kind="scatter")  # type: ignore
