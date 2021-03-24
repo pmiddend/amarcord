@@ -171,7 +171,7 @@ class XFELGui:
         self._ui_context.close()
 
 
-if __name__ == "__main__":
+def mymain():
     while True:
         gui = XFELGui()
         gui.exec()
@@ -179,3 +179,7 @@ if __name__ == "__main__":
             break
         gui = XFELGui()
         gui.exec()
+
+
+if __name__ == "__main__":
+    mymain()

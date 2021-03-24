@@ -1,7 +1,7 @@
 stages:
   - test
-  - deploy
   - integration
+  - deploy
 
 variables:
   AMARCORD_PYTHON_DOCKER: python:3.8
@@ -17,21 +17,14 @@ pylint-and-mypy:
     - apt-get update -y && apt-get install -y qt5-default
     - pylint amarcord
 
-deploy:
-  image: $AMARCORD_PYTHON_DOCKER
-  stage: deploy
-  script:
-    - pip install -e .[gui]
-    - pip install wheel twine
-    - python setup.py sdist bdist_wheel
-    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
 
 integration-amici:
   image: $AMARCORD_PYTHON_DOCKER
   stage: integration
   script:
+    - cp setup-amici.py setup.py
     - pip install -e .
-    - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/370/packages/pypi/simple amarcord-amici
+    - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple amarcord-amici
     - python integration/amici_test.py
 
 integration-uitest:
@@ -45,3 +38,45 @@ integration-uitest:
     - pip install -e .[gui]
     - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*'
     - PYTHONPATH=".:$PYTHONPATH" pytest tests/ui
+
+# The image built by Nix is much smaller than the one below, but we have to find a way to
+# call “docker load” on it and then upload it. Not sure how to best do this.
+# build-docker-image-nix:
+#   image: nixos/nix
+#   stage: integration
+#   script:
+#     - nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs
+#     - nix-channel --update
+#     - IMAGE=$(nix-build ./default.nix)
+#     - cp $IMAGE docker-image.tar.gz
+#   artifacts:
+#     paths:
+#       - docker-image.tar.gz
+deploy-amici:
+  image: $AMARCORD_PYTHON_DOCKER
+  stage: deploy
+  script:
+    - cp setup-amici.py setup.py
+    - pip install -e .
+    - pip install wheel twine
+    - python setup.py sdist bdist_wheel
+    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+
+upload-docker-image:
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  stage: deploy
+  variables:
+    # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
+    IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    IMAGE_COMMIT_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  only:
+    - tags
+    - master
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
