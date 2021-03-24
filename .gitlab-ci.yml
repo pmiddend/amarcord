@@ -6,7 +6,6 @@ stages:
 variables:
   AMARCORD_PYTHON_DOCKER: python:3.8
 
-# Commented out for now since these need pyqt5 and I wanted to get amici running first
 pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
@@ -17,7 +16,6 @@ pylint-and-mypy:
     - apt-get update -y && apt-get install -y qt5-default
     - pylint amarcord
 
-
 integration-amici:
   image: $AMARCORD_PYTHON_DOCKER
   stage: integration
@@ -27,7 +25,7 @@ integration-amici:
     - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple amarcord-amici
     - python integration/amici_test.py
 
-integration-uitest:
+integration-tests:
   image: $AMARCORD_PYTHON_DOCKER
   stage: integration
   variables:
@@ -37,7 +35,7 @@ integration-uitest:
     - apt-get install -y libgl1-mesa-glx qt5-default
     - pip install -e .[gui]
     - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*'
-    - PYTHONPATH=".:$PYTHONPATH" pytest tests/ui
+    - PYTHONPATH=".:$PYTHONPATH" pytest tests
 
 # The image built by Nix is much smaller than the one below, but we have to find a way to
 # call “docker load” on it and then upload it. Not sure how to best do this.
