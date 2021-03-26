@@ -40,6 +40,7 @@ class UIContext:
         log_root_layout.addWidget(QLabel("Log:"))
         log_output = QPlainTextEdit()
         log_output.setReadOnly(True)
+        log_output.setMaximumBlockCount(1024)
         log_root_layout.addWidget(log_output)
         self._logging_handler = QtLoggingHandler(log_output)
         logging.getLogger().addHandler(self._logging_handler)
