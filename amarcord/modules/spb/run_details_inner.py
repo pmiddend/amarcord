@@ -290,7 +290,6 @@ class RunDetailsInner(QWidget):
 
         self._comments.set_comments(self.run.id, self.run.comments)
 
-        self._prior_filter = None
         self._slot_tree_filter_changed(self._tree_filter_line.text())
         self._details_tree.resizeColumnToContents(0)
         self._details_tree.resizeColumnToContents(1)
