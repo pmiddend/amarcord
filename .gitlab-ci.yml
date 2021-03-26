@@ -35,11 +35,13 @@ integration-tests:
     - apt-get install -y libgl1-mesa-glx qt5-default
     - pip install -e .[gui]
     - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*' 'pytest-cov==2.11.*'
-    - PYTHONPATH=".:$PYTHONPATH" pytest --cov=amarcord/ tests
+    - PYTHONPATH=".:$PYTHONPATH" pytest --cov=amarcord/ --junitxml=report.xml tests
     - coverage xml
   artifacts:
+    when: always
     reports:
       cobertura: coverage.xml
+      junit: report.xml
 
 # The image built by Nix is much smaller than the one below, but we have to find a way to
 # call “docker load” on it and then upload it. Not sure how to best do this.
