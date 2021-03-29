@@ -18,21 +18,8 @@ Note that this uses a generated token called =maxwell-token= to access the GitLa
 It /should/ ideally be simple:
 
 #+begin_example
-pip install -r < requirements.txt
+pip install -e '.[gui]'
 python amarcord/xfel_gui.py
 #+end_example
 
 Depending on your operating system, you might have to install Qt 5 or pyqt-5 separately. I’ll add some notes on that later.
-
-To also query Karabo, start the simulator:
-
-#+begin_example
-karabo-bridge-server-sim 4545
-#+end_example
-
-And add the following lines to your =config.yml=:
-
-#+begin_src yaml
-karabo:
-  server_url: tcp://localhost:4545
-#+end_src
