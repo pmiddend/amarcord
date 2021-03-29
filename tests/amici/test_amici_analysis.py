@@ -2,6 +2,7 @@ import logging
 from dataclasses import replace
 from pathlib import Path
 
+from amarcord.amici.analysis import DeepComparisonResult
 from amarcord.amici.analysis import cheetah_to_database
 from amarcord.amici.analysis import deep_compare_data_source
 from amarcord.amici.analysis import ingest_cheetah_internal
@@ -44,9 +45,15 @@ def test_deep_compare_datasource_shallow() -> None:
     right = replace(left, number_of_frames=2)
 
     # Simple compare (shallow) works
-    assert not deep_compare_data_source(left, right)
+    assert (
+        deep_compare_data_source(left, right)
+        == DeepComparisonResult.DATA_SOURCE_DIFFERS
+    )
     # Comparing doesn't care about IDs
-    assert deep_compare_data_source(left, replace(left, id=1))
+    assert (
+        deep_compare_data_source(left, replace(left, id=1))
+        == DeepComparisonResult.NO_DIFFERENCE
+    )
 
 
 def test_deep_compare_datasource_deep() -> None:
@@ -79,10 +86,13 @@ def test_deep_compare_datasource_deep() -> None:
     right = replace(left, hit_finding_results=[right_hfr])
 
     # Simple compare (shallow) works
-    assert not deep_compare_data_source(left, right)
+    assert (
+        deep_compare_data_source(left, right)
+        == DeepComparisonResult.HIT_FINDING_DIFFERS
+    )
 
 
-def test_ingest_cheetah(db: DB) -> None:
+def test_ingest_cheetah_idempotent(db: DB) -> None:
     with db.connect() as conn:
         db.add_proposal(conn, ProposalId(1))
         sample_id = db.add_sample(
@@ -119,3 +129,40 @@ def test_ingest_cheetah(db: DB) -> None:
             conn,
         )
         assert second_ingest.number_of_ingested_data_sources == 0
+
+
+def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
+    with db.connect() as conn:
+        db.add_proposal(conn, ProposalId(1))
+        sample_id = db.add_sample(
+            conn, DBSample(id=None, attributi=RawAttributiMap({}))
+        )
+        db.add_run(
+            conn,
+            ProposalId(1),
+            run_id=9,
+            sample_id=sample_id,
+            attributi=RawAttributiMap({}),
+        )
+        db.add_run(
+            conn,
+            ProposalId(1),
+            run_id=13,
+            sample_id=sample_id,
+            attributi=RawAttributiMap({}),
+        )
+        first_ingest = ingest_cheetah_internal(
+            Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config",
+            db,
+            conn,
+        )
+        assert first_ingest.number_of_ingested_data_sources == 2
+
+        # The updated directory is the same as the normal one, but has a different "min SNR" value.
+        # Doesn't matter which value you change, as long as the data source (i.e. the source files) stay the same.
+        second_ingest = ingest_cheetah_internal(
+            Path(__file__).parent.parent / "cheetah-update" / "gui" / "crawler.config",
+            db,
+            conn,
+        )
+        assert second_ingest.number_of_ingested_data_sources == 2

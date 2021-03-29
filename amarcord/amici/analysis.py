@@ -4,6 +4,8 @@ import re
 import sys
 from dataclasses import dataclass
 from dataclasses import replace
+from enum import Enum
+from enum import auto
 from pathlib import Path
 from typing import Generator
 
@@ -130,17 +132,39 @@ def cheetah_to_database(config_file: Path) -> Generator[DBDataSource, None, None
         yield ds
 
 
-def deep_compare_data_source(left: DBDataSource, right: DBDataSource) -> bool:
+class DeepComparisonResult(Enum):
+    DATA_SOURCE_DIFFERS = auto()
+    HIT_FINDING_DIFFERS = auto()
+    INDEXING_DIFFERS = auto()
+    NO_DIFFERENCE = auto()
+
+
+def deep_compare_data_source(
+    left: DBDataSource, right: DBDataSource
+) -> DeepComparisonResult:
     if left != right:
-        return False
+        return DeepComparisonResult.DATA_SOURCE_DIFFERS
     if len(left.hit_finding_results) != len(right.hit_finding_results):
-        return False
+        return DeepComparisonResult.HIT_FINDING_DIFFERS
     for left_hfr, right_hfr in zip(left.hit_finding_results, right.hit_finding_results):
         if left_hfr != right_hfr:
-            return False
+            return DeepComparisonResult.HIT_FINDING_DIFFERS
         if left_hfr.indexing_results != right_hfr.indexing_results:
-            return False
-    return True
+            return DeepComparisonResult.INDEXING_DIFFERS
+    return DeepComparisonResult.NO_DIFFERENCE
+
+
+def shallow_ingest_data_source(
+    ds: DBDataSource, existing_ds: DBDataSource, db: DB, conn: Connection
+) -> None:
+    with conn.begin():
+        for hfr in ds.hit_finding_results:
+            hfr_id = db.add_hit_finding_result(
+                conn, replace(hfr, data_source_id=existing_ds.id)
+            )
+
+            for ir in hfr.indexing_results:
+                db.add_indexing_result(conn, replace(ir, hit_finding_results_id=hfr_id))
 
 
 def deep_ingest_data_source(ds: DBDataSource, db: DB, conn: Connection) -> None:
@@ -168,10 +192,21 @@ def ingest_cheetah_internal(
     number_of_ingested_data_sources = 0
     existing_indexings = db.retrieve_analysis_data_sources(conn)
     for ds in cheetah_to_database(config_file):
-        if not any(
-            deep_compare_data_source(ds, existing_ds)
-            for existing_ds in existing_indexings
-        ):
+        already_ingested = False
+        for existing_ds in existing_indexings:
+            comparison = deep_compare_data_source(ds, existing_ds)
+            if comparison == DeepComparisonResult.NO_DIFFERENCE:
+                already_ingested = True
+                break
+            if comparison in (
+                DeepComparisonResult.INDEXING_DIFFERS,
+                DeepComparisonResult.HIT_FINDING_DIFFERS,
+            ):
+                shallow_ingest_data_source(ds, existing_ds, db, conn)
+                number_of_ingested_data_sources += 1
+                already_ingested = True
+                break
+        if not already_ingested:
             deep_ingest_data_source(ds, db, conn)
             number_of_ingested_data_sources += 1
     return CheetahIngestResults(
