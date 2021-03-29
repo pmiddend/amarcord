@@ -21,6 +21,7 @@ class DBTarget:
 @dataclass(frozen=True)
 class DBSample:
     id: Optional[int]
+    name: str
     attributi: RawAttributiMap
     target_id: Optional[int] = None
     compounds: Optional[List[int]] = None
@@ -148,5 +149,6 @@ class DBDataSource:
 @dataclass(frozen=True)
 class DBSampleAnalysisResult:
     sample_id: int
+    sample_name: str
     indexing_paths: List[DBDataSource]
     merge_results: List[DBMergeResult]

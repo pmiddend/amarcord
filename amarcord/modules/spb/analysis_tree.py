@@ -199,7 +199,7 @@ def build_analysis_tree(
 ) -> List[TreeNode]:
     return [
         TreeNode(
-            f"Sample {k.sample_id}",
+            f"Sample “{k.sample_name}”",
             sample_duration(runs_with_train_count, k),
             sample_number_of_frames(k),
             "",

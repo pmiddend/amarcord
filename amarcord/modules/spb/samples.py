@@ -24,6 +24,7 @@ from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLineEdit
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtWidgets import QPushButton
@@ -79,6 +80,7 @@ def _empty_sample(available_attributi: Dict[AttributoId, DBAttributo]) -> DBSamp
         attributi_map[MANUAL_SOURCE_NAME] = new_source
     return DBSample(
         id=None,
+        name="",
         target_id=None,
         compounds=None,
         micrograph=None,
@@ -176,6 +178,13 @@ class Samples(QWidget):
         right_widget.setLayout(right_root_layout)
         root_widget.addWidget(right_widget)
 
+        self._name_edit = QLineEdit()
+        self._name_edit.textChanged.connect(self._name_changed)
+        right_form_layout.addRow(
+            "Name*",
+            self._name_edit,
+        )
+
         self._target_id_edit = ComboBox[Optional[int]](
             items=[("None", None)], selected=None
         )
@@ -271,7 +280,7 @@ class Samples(QWidget):
         self._submit_layout.setContentsMargins(0, 0, 0, 0)
         self._submit_widget.setLayout(self._submit_layout)
         self._add_button = self._create_add_button()
-        self._add_button.setEnabled(True)
+        self._add_button.setEnabled(False)
         self._submit_layout.addWidget(self._add_button)
 
         self._samples_with_runs: Dict[int, List[int]] = {}
@@ -314,7 +323,7 @@ class Samples(QWidget):
         self._attributi_table.data_changed(
             self._attributi_table.attributi.to_raw(),
             self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
-            sample_ids=[],
+            samples=[],
         )
 
         self._reload_and_fill_samples(conn)
@@ -423,13 +432,14 @@ class Samples(QWidget):
     def _slot_row_selected(self, index: QModelIndex) -> None:
         self._attributo_manual_changes.clear()
         self._current_sample = self._samples[index.row()]
-        sample_id = self._current_sample.id
-        self._right_headline.setText(f"Edit sample “{sample_id}”")
+        sample_name = self._current_sample.name
+        self._right_headline.setText(f"Edit sample “{sample_name}”")
         self._target_id_edit.set_current_value(self._current_sample.target_id)
         self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
         self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
         # noinspection PyTypeChecker
         self._compounds_edit.set_value(self._current_sample.compounds)  # type: ignore
+        self._name_edit.setText(self._current_sample.name)
         self._clear_submit()
         self._submit_layout.addWidget(self._create_edit_button())
         self._submit_layout.addWidget(self._create_cancel_button())
@@ -437,7 +447,7 @@ class Samples(QWidget):
         self._attributi_table.data_changed(
             self._current_sample.attributi,
             self._attributi_table.metadata,
-            sample_ids=[],
+            samples=[],
         )
 
     def _clear_submit(self):
@@ -482,6 +492,7 @@ class Samples(QWidget):
 
     def _reset_input_fields(self):
         self._compounds_edit.set_value(None)
+        self._name_edit.setText("")
         self._micrograph_edit.set_value(None)
         self._protocol_edit.set_value(None)
         self._current_sample = _empty_sample(self._attributi_table.metadata)
@@ -513,14 +524,10 @@ class Samples(QWidget):
         self._reset_button()
 
     def _button_enabled(self) -> bool:
-        return self._compounds_edit.valid_value()
+        return self._compounds_edit.valid_value() and bool(self._name_edit.text())
 
     def _reset_button(self) -> None:
         self._add_button.setEnabled(self._button_enabled())
-
-    def _short_name_changed(self, new_name: str) -> None:
-        self._current_sample = replace(self._current_sample, short_name=new_name)
-        self._reset_button()
 
     def _name_changed(self, new_name: str) -> None:
         self._current_sample = replace(self._current_sample, name=new_name)
@@ -547,6 +554,7 @@ class Samples(QWidget):
         ]
         headers = [
             "ID",
+            "Name",
             "Number of runs",
             "Target",
             "Compounds",
@@ -559,6 +567,7 @@ class Samples(QWidget):
         for row, sample in enumerate(self._samples):
             built_in_columns = (
                 str(sample.id),
+                sample.name,
                 str(len(self._samples_with_runs.get(sample.id, []))),
                 next(
                     iter(
@@ -586,6 +595,7 @@ class Samples(QWidget):
                             attributo_value.value
                             if attributo_value is not None
                             else None,
+                            [],
                         )
                     ),
                 )

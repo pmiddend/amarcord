@@ -26,6 +26,7 @@ from amarcord.db.comment import DBComment
 from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
+from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBDataSource
@@ -90,6 +91,7 @@ def _sample_to_attributi(
 ) -> AttributiMap:
     result = AttributiMap(types, s.attributi)
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("id"): s.id})
+    result.append_to_source(DB_SOURCE_NAME, {AttributoId("name"): s.name})
     return result
 
 
@@ -231,11 +233,13 @@ class DB:
             ).fetchall()
         ]
 
-    def retrieve_sample_ids(self, conn: Connection) -> List[int]:
+    def retrieve_mini_samples(self, conn: Connection) -> List[DBMiniSample]:
         return [
-            row[0]
+            DBMiniSample(row[0], row[1])
             for row in conn.execute(
-                sa.select([self.tables.sample.c.id]).order_by(self.tables.sample.c.id)
+                sa.select(
+                    [self.tables.sample.c.id, self.tables.sample.c.name]
+                ).order_by(self.tables.sample.c.name)
             ).fetchall()
         ]
 
@@ -474,6 +478,15 @@ class DB:
         attributo: AttributoId,
         value: AttributoValue,
     ) -> None:
+        if attributo == AttributoId("sample_id"):
+            assert isinstance(value, int)
+            conn.execute(
+                sa.update(self.tables.run)
+                .where(self.tables.run.c.id == run_id)
+                .values(sample_id=value, modified=datetime.datetime.utcnow())
+            )
+            return
+
         current_json = conn.execute(
             sa.select([self.tables.run.c.attributi]).where(
                 self.tables.run.c.id == run_id
@@ -600,6 +613,7 @@ class DB:
         select_stmt = sa.select(
             [
                 tc.id,
+                tc.name,
                 tc.target_id,
                 tc.compounds,
                 tc.micrograph,
@@ -613,6 +627,7 @@ class DB:
         def prepare_sample(row: Any) -> DBSample:
             return DBSample(
                 id=row["id"],
+                name=row["name"],
                 target_id=row["target_id"],
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
@@ -629,6 +644,7 @@ class DB:
             )
         return conn.execute(
             sa.insert(self.tables.sample).values(
+                name=t.name,
                 target_id=t.target_id,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
@@ -648,6 +664,7 @@ class DB:
             sa.update(self.tables.sample)
             .values(
                 target_id=t.target_id,
+                name=t.name,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
@@ -985,11 +1002,13 @@ class DB:
             cast(int, k.id): k for k in self.retrieve_analysis_data_sources(conn)
         }
 
+        sample_id_to_name: Dict[int, str] = {}
         sample_id_to_data_sources: Dict[int, List[DBDataSource]] = {}
         for row in conn.execute(
             sa.select(
                 [
                     self.tables.sample.c.id.label("sample_id"),
+                    self.tables.sample.c.name.label("sample_name"),
                     self.tables.data_source.c.id,
                 ]
             ).select_from(
@@ -999,6 +1018,8 @@ class DB:
             )
         ).fetchall():
             sample_id = row["sample_id"]
+            sample_name = row["sample_name"]
+            sample_id_to_name[sample_id] = sample_name
             if sample_id not in sample_id_to_data_sources:
                 sample_id_to_data_sources[sample_id] = []
             # Filters samples without runs
@@ -1012,6 +1033,7 @@ class DB:
             result.append(
                 DBSampleAnalysisResult(
                     sample_id,
+                    sample_id_to_name[sample_id],
                     indexing_paths=indexing_paths,
                     merge_results=sample_to_merge_results.get(sample_id, []),
                 )

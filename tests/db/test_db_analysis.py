@@ -25,7 +25,7 @@ def test_retrieve_analysis_only_singletons(db: DB) -> None:
         db.add_proposal(conn, PROPOSAL_ID)
 
         sample_id = db.add_sample(
-            conn, DBSample(id=None, attributi=RawAttributiMap({}))
+            conn, DBSample(id=None, name="sample1", attributi=RawAttributiMap({}))
         )
         db.add_run(
             conn,
@@ -108,7 +108,7 @@ def test_retrieve_analysis(db: DB) -> None:
         db.add_proposal(conn, PROPOSAL_ID)
 
         sample_id = db.add_sample(
-            conn, DBSample(id=None, attributi=RawAttributiMap({}))
+            conn, DBSample(id=None, name="sample1", attributi=RawAttributiMap({}))
         )
         db.add_run(
             conn,

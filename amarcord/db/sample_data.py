@@ -184,6 +184,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
             sample_ids.append(
                 conn.execute(
                     tables.sample.insert().values(
+                        name=f"mpro {i}",
                         target_id=first_target_id,
                         modified=datetime.datetime.utcnow(),
                         attributi={
@@ -200,6 +201,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         conn.execute(
             tables.sample.insert().values(
                 target_id=first_target_id,
+                name="mpro unused",
                 modified=datetime.datetime.utcnow(),
                 attributi={
                     DB_SOURCE_NAME: {"created": datetime.datetime.utcnow().isoformat()}

@@ -23,6 +23,7 @@ from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.raw_attributi_map import Source
 from amarcord.db.table_delegates import delegate_for_attributo_type
@@ -51,7 +52,7 @@ class AttributiTable(QtWidgets.QWidget):
         self,
         raw_attributi: RawAttributiMap,
         metadata: Dict[AttributoId, DBAttributo],
-        sample_ids: List[int],
+        samples: List[DBMiniSample],
         attributo_change: Callable[[AttributoId, Any], None],
         remove_manual_attributo: Callable[[AttributoId], None],
     ) -> None:
@@ -76,7 +77,7 @@ class AttributiTable(QtWidgets.QWidget):
             parent=self,
         )
         layout.addWidget(self._table)
-        self._sample_ids = sample_ids
+        self._samples = samples
         self.metadata = metadata
         self.attributi = AttributiMap(metadata, raw_attributi)
 
@@ -94,7 +95,9 @@ class AttributiTable(QtWidgets.QWidget):
         return Row(
             display_roles=[
                 attributo.description if attributo.description else attributo.name,
-                pretty_print_attributo(self.metadata[attributo.name], selected.value)
+                pretty_print_attributo(
+                    self.metadata[attributo.name], selected.value, self._samples
+                )
                 if selected is not None
                 else "",
                 attributo_type_to_string(self.metadata[attributo.name].attributo_type),
@@ -147,7 +150,7 @@ class AttributiTable(QtWidgets.QWidget):
                 row_delegates={
                     idx: delegate_for_attributo_type(
                         md.attributo_type,
-                        self._sample_ids,
+                        self._samples,
                     )
                     for (idx, md) in enumerate(display_attributi)
                 },
@@ -159,20 +162,20 @@ class AttributiTable(QtWidgets.QWidget):
         self,
         new_attributi: RawAttributiMap,
         metadata: Dict[AttributoId, DBAttributo],
-        sample_ids: List[int],
+        samples: List[DBMiniSample],
     ) -> None:
         metadata_changed = self.metadata != metadata
 
         attributi_changed = new_attributi != self.attributi.to_raw()
 
-        sample_ids_changed = sample_ids != self._sample_ids
+        samples_changed = samples != self._samples
 
-        if not attributi_changed and not metadata_changed and not sample_ids_changed:
+        if not attributi_changed and not metadata_changed and not samples_changed:
             return
 
         self.metadata = deepcopy(metadata)
         self.attributi = AttributiMap(metadata, new_attributi)
-        self._sample_ids = sample_ids
+        self._samples = samples
         self._update_table()
 
     def set_single_manual(self, attributo: AttributoId, value: AttributoValue) -> None:

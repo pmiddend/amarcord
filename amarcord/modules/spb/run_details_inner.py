@@ -26,6 +26,7 @@ from amarcord.db.attributo_id import AttributoId
 from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
+from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBRun
 from amarcord.db.tables import DBTables
@@ -87,7 +88,7 @@ class RunDetailsInner(QWidget):
         self,
         tables: DBTables,
         run_ids: List[int],
-        sample_ids: List[int],
+        samples: List[DBMiniSample],
         run: DBRun,
         karabo: Optional[Karabo],
         runs_metadata: Dict[AttributoId, DBAttributo],
@@ -100,7 +101,7 @@ class RunDetailsInner(QWidget):
         self.karabo = karabo
         self.runs_metadata = runs_metadata
         self.run_ids = run_ids
-        self.sample_ids = sample_ids
+        self.sample_ids = samples
         self._prior_filter: Optional[str] = None
 
         top_row = QWidget()
@@ -209,7 +210,7 @@ class RunDetailsInner(QWidget):
         root_splitter.addWidget(additional_data_column)
         root_splitter.addWidget(right_column)
 
-        self.run_changed(self.run, self.karabo, run_ids, sample_ids, runs_metadata)
+        self.run_changed(self.run, self.karabo, run_ids, samples, runs_metadata)
 
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._timed_refresh)
@@ -262,7 +263,7 @@ class RunDetailsInner(QWidget):
         new_run: DBRun,
         new_karabo: Optional[Karabo],
         new_run_ids: List[int],
-        new_sample_ids: List[int],
+        new_samples: List[DBMiniSample],
         new_metadata: Dict[AttributoId, DBAttributo],
     ) -> None:
         old_run_modified = self.run.modified
@@ -276,8 +277,8 @@ class RunDetailsInner(QWidget):
 
         old_run_ids = self.run_ids
         self.run_ids = new_run_ids
-        sample_ids_was_modified = new_sample_ids != self.sample_ids
-        self.sample_ids = new_sample_ids
+        sample_ids_was_modified = new_samples != self.sample_ids
+        self.sample_ids = new_samples
 
         if old_run_ids != new_run_ids:
             self._run_id_validator.reset_run_ids(new_run_ids)

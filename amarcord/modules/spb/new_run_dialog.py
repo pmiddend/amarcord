@@ -1,8 +1,12 @@
 from dataclasses import dataclass
 from typing import List
 from typing import Optional
+from typing import cast
 
 from PyQt5 import QtWidgets
+
+from amarcord.db.mini_sample import DBMiniSample
+from amarcord.qt.combo_box import ComboBox
 
 
 @dataclass(frozen=True)
@@ -14,7 +18,7 @@ class NewRunData:
 def new_run_dialog(
     parent: Optional[QtWidgets.QWidget],
     highest_id: Optional[int],
-    sample_ids: List[int],
+    samples: List[DBMiniSample],
 ) -> Optional[NewRunData]:
     dialog = QtWidgets.QDialog(parent)
     dialog_layout = QtWidgets.QVBoxLayout(dialog)
@@ -37,8 +41,11 @@ def new_run_dialog(
     run_id.setMaximum(2 ** 30)
     run_id.setValue(highest_id + 1 if highest_id is not None else 1)
 
-    sample_chooser = QtWidgets.QComboBox()
-    sample_chooser.addItems([str(s) for s in sample_ids] + ["None"])
+    sample_chooser = ComboBox[Optional[int]](
+        [(v.sample_name, cast(Optional[int], v.sample_id)) for v in samples]
+        + [("None", cast(Optional[int], None))],
+        selected=None,
+    )
 
     form_layout.addRow("Run ID", run_id)
     form_layout.addRow("Sample", sample_chooser)
@@ -50,8 +57,5 @@ def new_run_dialog(
     if dialog.exec() == QtWidgets.QDialog.Rejected:
         return None
 
-    chosen_sample = sample_chooser.currentText()
-    return NewRunData(
-        id=run_id.value(),
-        sample_id=int(chosen_sample) if chosen_sample != "None" else None,
-    )
+    chosen_sample = sample_chooser.current_value()
+    return NewRunData(id=run_id.value(), sample_id=chosen_sample)

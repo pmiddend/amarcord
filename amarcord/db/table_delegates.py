@@ -21,6 +21,7 @@ from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_type import AttributoTypeTags
 from amarcord.db.attributo_type import AttributoTypeUserName
+from amarcord.db.mini_sample import DBMiniSample
 from amarcord.qt.datetime import from_qt_datetime
 from amarcord.qt.datetime import to_qt_datetime
 from amarcord.qt.numeric_input_widget import NumericInputWidget
@@ -441,7 +442,7 @@ class DurationItemDelegate(QtWidgets.QStyledItemDelegate):
 
 def delegate_for_attributo_type(
     proptype: AttributoType,
-    sample_ids: List[int],
+    samples: List[DBMiniSample],
     parent: Optional[QtCore.QObject] = None,
 ) -> QtWidgets.QAbstractItemDelegate:
     if isinstance(proptype, AttributoTypeInt):
@@ -462,7 +463,7 @@ def delegate_for_attributo_type(
         return ComboItemDelegate(values=proptype.values, parent=parent)
     if isinstance(proptype, AttributoTypeSample):
         return ComboItemDelegate(
-            values=[(str(v), v) for v in sample_ids], parent=parent
+            values=[(v.sample_name, v.sample_id) for v in samples], parent=parent
         )
     if isinstance(proptype, AttributoTypeTags):
         return TagsItemDelegate(available_tags=[], parent=parent)

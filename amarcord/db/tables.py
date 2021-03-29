@@ -10,6 +10,7 @@ from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.modules.dbcontext import DBContext
 
@@ -56,6 +57,7 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
             sa.ForeignKey("Target.id", use_alter=True),
             nullable=True,
         ),
+        sa.Column("name", sa.String, nullable=False),
         sa.Column("compounds", sa.JSON, nullable=True),
         sa.Column("micrograph", sa.Text, nullable=True),
         sa.Column("protocol", sa.Text, nullable=True),
@@ -406,6 +408,12 @@ class DBTables:
                     description="Sample ID",
                     associated_table=AssociatedTable.SAMPLE,
                     attributo_type=AttributoTypeInt(),
+                ),
+                AttributoId("name"): DBAttributo(
+                    name=AttributoId("name"),
+                    description="Name",
+                    associated_table=AssociatedTable.SAMPLE,
+                    attributo_type=AttributoTypeString(),
                 ),
                 AttributoId("created"): DBAttributo(
                     name=AttributoId("created"),

@@ -24,6 +24,7 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import DB
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBDataSource
@@ -96,9 +97,7 @@ def action_change_run_property() -> None:
         ):
             print(f"skipping because special attributo: {random_attributo.name}")
             return
-        new_value = generate_attributo(
-            [cast(int, s.id) for s in db.retrieve_samples(conn, None)], random_attributo
-        )
+        new_value = generate_attributo(db.retrieve_mini_samples(conn), random_attributo)
 
         print(
             f"changing run {random_run_id}'s attributo {random_attributo.name} to {new_value}"
@@ -115,7 +114,7 @@ def action_add_run() -> None:
         rid = max(prior_run_ids, default=0) + 1
         print(f"adding run {rid}")
         run_attributi = generate_attributi(
-            [cast(int, s.id) for s in samples],
+            db.retrieve_mini_samples(conn),
             db.retrieve_table_attributi(conn, AssociatedTable.RUN),
         )
         run_attributi.set_single_manual(AttributoId("first_train"), 0)
@@ -190,7 +189,7 @@ def generate_attributo_type() -> AttributoType:
     return random.choice(attributo_choices)()  # type: ignore
 
 
-def generate_attributo(sample_ids: List[int], amd: DBAttributo) -> AttributoValue:
+def generate_attributo(samples: List[DBMiniSample], amd: DBAttributo) -> AttributoValue:
     if isinstance(amd.attributo_type, AttributoTypeInt):
         return random.randint(0, 99999)
     if isinstance(amd.attributo_type, AttributoTypeChoice):
@@ -202,7 +201,7 @@ def generate_attributo(sample_ids: List[int], amd: DBAttributo) -> AttributoValu
     if isinstance(amd.attributo_type, AttributoTypeString):
         return generate_random_string()
     if isinstance(amd.attributo_type, AttributoTypeSample):
-        return random.choice(sample_ids) if sample_ids else None
+        return random.choice(samples).sample_id if samples else None
     if isinstance(amd.attributo_type, AttributoTypeDuration):
         return duration_isoformat(
             datetime.timedelta(
@@ -215,14 +214,14 @@ def generate_attributo(sample_ids: List[int], amd: DBAttributo) -> AttributoValu
 
 
 def generate_attributi(
-    sample_ids: List[int], param: Dict[AttributoId, DBAttributo]
+    samples: List[DBMiniSample], param: Dict[AttributoId, DBAttributo]
 ) -> RawAttributiMap:
     manual_source: JSONDict = {}
     result: JSONDict = {MANUAL_SOURCE_NAME: manual_source}
     for aid, amd in param.items():
         if aid == AttributoId("id") or aid == AttributoId("proposal_id"):
             continue
-        new_value = generate_attributo(sample_ids, amd)
+        new_value = generate_attributo(samples, amd)
         if new_value is not None:
             manual_source[str(aid)] = new_value
 
@@ -236,12 +235,13 @@ def action_add_sample() -> None:
             conn,
             DBSample(
                 id=None,
+                name=generate_random_string(),
                 target_id=random.choice(targets).id,
                 compounds=None,
                 micrograph=None,
                 protocol=None,
                 attributi=generate_attributi(
-                    db.retrieve_sample_ids(conn),
+                    db.retrieve_mini_samples(conn),
                     db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
                 ),
             ),
@@ -257,7 +257,7 @@ def action_modify_sample() -> None:
             attributi.pop(AttributoId("id"), None)
             random_attributo = random.choice(list(attributi.values()))
             new_value = generate_attributo(
-                [cast(int, sample.id) for sample in samples], random_attributo
+                db.retrieve_mini_samples(conn), random_attributo
             )
             print(f"sample {s.id}: setting {random_attributo.name} to {new_value}")
             db.update_sample_attributo(

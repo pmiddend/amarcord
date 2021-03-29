@@ -2,6 +2,7 @@ import datetime
 import logging
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 
 from amarcord.db.attributo_type import AttributoType
@@ -19,6 +20,7 @@ from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.mini_sample import DBMiniSample
 from amarcord.json_schema import JSONSchemaArray
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaNumber
@@ -162,12 +164,16 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
 
 
 def pretty_print_attributo(
-    attributo_metadata: DBAttributo, value: AttributoValue
+    attributo_metadata: DBAttributo, value: AttributoValue, samples: List[DBMiniSample]
 ) -> str:
     if value is None:
         return ""
     rpt = attributo_metadata.attributo_type if attributo_metadata is not None else None
     if rpt is not None:
+        if isinstance(rpt, AttributoTypeSample):
+            return next(
+                iter(x.sample_name for x in samples if x.sample_id == value), ""
+            )
         if isinstance(rpt, AttributoTypeDuration):
             # FIXME
             assert isinstance(

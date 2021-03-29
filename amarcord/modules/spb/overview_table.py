@@ -94,6 +94,7 @@ class OverviewTable(QWidget):
             ] = self._retrieve_attributi_metadata(conn)
             self._attributi_metadata.sort(key=_attributo_sort_key)
             self._visible_columns = self._attributi_metadata.copy()
+            self._samples = self._db.retrieve_mini_samples(conn)
             self._last_refresh: Optional[datetime.datetime] = datetime.datetime.utcnow()
             self._last_run_count = self._db.run_count(conn)
             self._rows: List[OverviewAttributi] = self._db.retrieve_overview(
@@ -204,7 +205,9 @@ class OverviewTable(QWidget):
                 Row(
                     display_roles=[
                         pretty_print_attributo(
-                            r.attributo, c[r.table].select_value(r.attributo.name)
+                            r.attributo,
+                            c[r.table].select_value(r.attributo.name),
+                            self._samples,
                         )
                         for r in self._visible_columns
                     ],

@@ -16,6 +16,7 @@ def test_add_and_delete_sample(db: DB) -> None:
             conn,
             DBSample(
                 id=None,
+                name="sample1",
                 target_id=None,
                 compounds=None,
                 micrograph=None,
@@ -52,6 +53,7 @@ def test_modify_sample_attributi(db: DB) -> None:
             conn,
             DBSample(
                 id=None,
+                name="sample1",
                 target_id=None,
                 compounds=None,
                 micrograph=None,
@@ -86,6 +88,7 @@ def test_remove_attributo(db: DB) -> None:
             conn,
             DBSample(
                 id=None,
+                name="sample1",
                 target_id=None,
                 compounds=None,
                 micrograph=None,

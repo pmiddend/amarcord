@@ -40,11 +40,15 @@ def hit_finding_result_mock(
 
 def test_analysis_tree_no_indexing_paths() -> None:
     tree = build_analysis_tree(
-        [DBSampleAnalysisResult(sample_id=1, indexing_paths=[], merge_results=[])], {}
+        [
+            DBSampleAnalysisResult(
+                sample_id=1, sample_name="a", indexing_paths=[], merge_results=[]
+            )
+        ],
+        {},
     )
     assert len(tree) == 1
     assert not tree[0].children
-    assert tree[0].description == "Sample 1"
     assert tree[0].indexing_rate is None
     assert tree[0].hit_rate is None
     assert tree[0].number_of_frames == 0
