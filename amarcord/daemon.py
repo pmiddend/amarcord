@@ -1,152 +1,302 @@
-# import datetime
-# from typing import Dict
-# from typing import Any
-# import sys
-# from argparse import ArgumentParser
-# import json
-# import multiprocessing
+import asyncio
+import logging
+from argparse import ArgumentParser
+from dataclasses import dataclass
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
-# import sqlalchemy as sa
-# from rx import of, operators as op
-# from rx.scheduler import ThreadPoolScheduler
-# import rx
+import msgpack
+import zmq
+from karabo_bridge import deserialize
+from zmq.asyncio import Context
 
-# from extra_data import RunDirectory
+from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.constants import ONLINE_SOURCE_NAME
+from amarcord.db.db import DB
+from amarcord.db.db import RunNotFound
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.tables import create_tables
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
 
-# from amarcord.sources.karabo import XFELKaraboBridge
-# from amarcord.sources.karabo import XFELKaraboBridgeConfig
-# from amarcord.sources.karabo import logger as karabo_logger
-# from amarcord.modules.dbcontext import DBContext
-# from amarcord.modules.dbcontext import CreationMode
+logging.basicConfig(
+    format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
+)
 
-# parser = ArgumentParser(description="Daemon to ingest XFEL data from multiple sources")
-# parser.add_argument("--database-url", required=True, help="Database url")
-# parser.add_argument("--zeromq-url", required=True, help="ZeroMQ url")
+logger = logging.getLogger(__name__)
 
-# args = parser.parse_args()
+parser = ArgumentParser(description="Daemon to ingest XFEL data from multiple sources")
+parser.add_argument(
+    "--proposal-id",
+    type=int,
+    required=True,
+    help="Proposal ID (integer, no leading digits)",
+)
+parser.add_argument("--database-url", required=True, help="Database url")
+parser.add_argument(
+    "--karabo-url", required=True, help="URL for the Karabo ZeroMQ Bridge (optional)"
+)
+parser.add_argument(
+    "--onda-url", required=False, help="URL for the OnDA ZeroMQ interface (optional)"
+)
 
-
-# dbcontext = DBContext(args.database_url)
-
-# table_train = sa.Table(
-#     "Train",
-#     dbcontext.metadata,
-#     sa.Column("run_id", sa.Integer, primary_key=True),
-#     sa.Column("train_id", sa.Integer, primary_key=True),
-#     sa.Column("created", sa.DateTime, nullable=False),
-#     sa.Column("source", sa.String(length=255), nullable=False),
-#     sa.Column("metadata", sa.JSON, nullable=False),
-# )
-
-# table_train_property = sa.Table(
-#     "TrainProperty",
-#     dbcontext.metadata,
-#     sa.Column("run_id", sa.Integer, primary_key=True),
-#     sa.Column("train_id", sa.Integer, primary_key=True),
-#     sa.Column("property_key", sa.String(length=255), primary_key=True),
-#     sa.Column("property_value", sa.String(length=255)),
-# )
-
-# dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
-
-
-# def metadata_to_json(metadata: Dict[str, Any]) -> Dict[str, Any]:
-#     result: Dict[str, Any] = {}
-#     for k, v in metadata.items():
-#         if isinstance(v, dict):
-#             result[k] = metadata_to_json(v)
-#         elif isinstance(v, (bool, int, str)):
-#             result[k] = v
-#     return result
+args = parser.parse_args()
 
 
-# tid = 1
+@dataclass
+class TrainRange:
+    train_begin_inclusive: int
+    train_end_inclusive: int
 
 
-# def inject_train_id(metadata: Dict[str, Any]) -> Dict[str, Any]:
-#     global tid
-#     metadata["ACC_SYS_DOOCS/CTRL/BEAMCONDITIONS"] = {"metadata": {"timestamp.tid": tid}}
-#     tid += 1
-#     return metadata
+@dataclass
+class KaraboExport:
+    runs: Dict[int, TrainRange]
 
 
-# if __name__ == "__main__":
+def find_run_for_train(karabo_export: KaraboExport, train_id: int) -> Optional[int]:
+    return next(
+        iter(
+            run_id
+            for run_id, x in karabo_export.runs.items()
+            if x.train_begin_inclusive <= train_id <= x.train_end_inclusive
+        ),
+        None,
+    )
 
-#     def get_train_id(d: Dict[str, Any]) -> str:
-#         return d["ACC_SYS_DOOCS/CTRL/BEAMCONDITIONS"]["metadata"]["timestamp.tid"]
 
-#     def create_values(observer, scheduler):
-#         karabo = XFELKaraboBridge({"socket_url": args.zeromq_url})
-#         try:
-#             while True:
-#                 observer.on_next(karabo.read_data()[0])
-#         except:
-#             observer.on_completed()
+async def karabo_loop(
+    db: DB,
+    zmq_context: Context,
+    proposal_id: ProposalId,
+    karabo_url: Optional[str],
+    karabo_export: KaraboExport,
+) -> None:
+    if karabo_url is None:
+        return
 
-#     def convert_to_table_row(d: Dict[str, Any]) -> Dict[str, Any]:
-#         train_id = get_train_id(d)
-#         return {
-#             "run_id": 100,
-#             "train_id": train_id,
-#             "created": datetime.datetime.utcnow(),
-#             "source": "online",
-#             "metadata": {},
-#         }
+    # pylint: disable=no-member
+    socket = zmq_context.socket(zmq.REQ)
 
-#     def write_to_db(engine, entries):
-#         if not entries:
-#             return
-#         with engine.connect() as conn:
-#             print(f"writing {len(entries)} entry/entries")
-#             conn.execute(table_train.insert(), entries)
+    socket.connect(karabo_url)
 
-#     # i = 0
-#     print("Beginning reading")
+    while True:
+        # noinspection PyUnresolvedReferences
+        await socket.send(b"next")
+        try:
+            # noinspection PyUnresolvedReferences
+            raw_data = await socket.recv_multipart(copy=False)
 
-#     source = rx.create(create_values)
+            logger.info("karabo: new data received")
 
-#     optimal_thread_count = multiprocessing.cpu_count()
-#     pool_scheduler = ThreadPoolScheduler(optimal_thread_count)
+            data, metadata = deserialize(raw_data)
 
-#     def print_and_ret(x):
-#         print(x)
-#         return x
+            # FIXME: Get run ID from data
+            run_id = data["run_id"]
 
-#     # composed = source.pipe(op.map(metadata_to_json), op.buffer(rx.interval(1.0)))
-#     composed = source.pipe(
-#         op.map(metadata_to_json),
-#         # op.map(print_and_ret),
-#         # op.map(inject_train_id),
-#         # op.buffer_with_time(1.0),
-#         # op.map(lambda values: [convert_to_table_row(r) for r in values]),
-#         op.map(lambda value: [convert_to_table_row(value)]),
-#         op.subscribe_on(pool_scheduler),
-#     )
-#     composed.subscribe(on_next=lambda v: write_to_db(dbcontext.engine, v))
-#     # composed.subscribe(on_next=lambda v: print("values received ", v))
-#     print("subscribed")
+            # FIXME: Get train begin/end from data
+            karabo_export.runs[run_id].train_begin_inclusive = data["first_train"]
+            karabo_export.runs[run_id].train_end_inclusive = data["last_train"]
 
-# with engine.connect() as connection:
-#     while True:
-#         data, metadata = karabo.read_data()
-#         json_data = metadata_to_json(data)
-#         # json_metadata = metadata_to_json(metadata)
-#         train_id = get_train_id(json_data)
-#         if i == 0:
-#             print("Read first data frame")
-#             # pylint: disable=no-value-for-parameter
-#             table_train.insert().values(
-#                 run_id=100,
-#                 train_id=train_id,
-#                 created=datetime.datetime.utcnow(),
-#                 source="online",
-#                 metadata=json.dumps(json_data),
-#             )
-#         i += 1
-#         if i % 100 == 0:
-#             print(f"i={i}, train id {train_id}")
+            with db.connect() as conn:
+                with conn.begin():
+                    try:
+                        run_attributi = db.retrieve_run(conn, run_id).attributi
+                    except RunNotFound:
+                        run_attributi = RawAttributiMap({})
+                        db.add_run(conn, proposal_id, run_id, None, run_attributi)
 
-# print("Done!")
+                    # FIXME: Insert attributi values here!
+                    run_attributi.append_single_to_source(
+                        ONLINE_SOURCE_NAME, AttributoId("xray_energy"), 3.0
+                    )
 
-# run = RunDirectory("/home/pmidden/data/shared/r0100")
-# run.info()  # Show overview info about this data
+                    db.update_run_attributi(conn, run_id, run_attributi)
+
+            # Do something with data
+        except zmq.error.Again:
+            logger.error("No data received in time")
+
+
+@dataclass(frozen=True)
+class OndaZeroMQData:
+    event_id: int
+    hit_rate: float
+    timestamp: float
+
+
+def validate_onda_entry(d: Any) -> Optional[OndaZeroMQData]:
+    if not isinstance(d, dict):
+        logger.error(
+            "received invalid data from OnDA: not a dictionary but %s", type(d)
+        )
+        return None
+
+    event_id = d.get("event_id", None)
+    if event_id is None:
+        logger.error('received invalid data from OnDA, no "event_id": %s', d)
+        return None
+
+    hit_rate = d.get("hit_rate", None)
+    if hit_rate is None:
+        logger.error('received invalid data from OnDA, no "hit_rate": %s', d)
+        return None
+
+    timestamp = d.get("timestamp", None)
+    if timestamp is None:
+        logger.error('received invalid data from OnDA, no "timestamp": %s', d)
+        return None
+
+    if not isinstance(event_id, int):
+        logger.error(
+            'received invalid data from OnDA, "event_id" not integer but %s',
+            type(event_id),
+        )
+        return None
+
+    if not isinstance(timestamp, (int, float)):
+        logger.error(
+            'received invalid data from OnDA, "timestamp" not number but %s',
+            type(timestamp),
+        )
+        return None
+
+    if not isinstance(hit_rate, (int, float)):
+        logger.error(
+            'received invalid data from OnDA, "hit_rate" not a number but %s',
+            type(hit_rate),
+        )
+        return None
+
+    return OndaZeroMQData(event_id, hit_rate, timestamp)
+
+
+def validate_onda_list(d: Any) -> Optional[List[OndaZeroMQData]]:
+    if not isinstance(d, list):
+        logger.error("received invalid data from OnDA: not a list but %s", type(d))
+        return None
+
+    result: List[OndaZeroMQData] = []
+    for x in d:
+        v = validate_onda_entry(x)
+        if v is None:
+            return None
+        result.append(v)
+    return result
+
+
+async def onda_loop(
+    db: DB, zmq_context: Context, onda_url: Optional[str], karabo_export: KaraboExport
+) -> None:
+    if onda_url is None:
+        return
+
+    socket = zmq_context.socket(zmq.SUB)
+    socket.connect(onda_url)
+    # noinspection PyUnresolvedReferences
+    socket.setsockopt_string(zmq.SUBSCRIBE, "ondadata")
+
+    while True:
+        logger.info("Waiting for OnDA data")
+        # noinspection PyUnresolvedReferences
+        full_msg = await socket.recv_multipart()
+
+        onda_entries = validate_onda_list(msgpack.unpackb(full_msg[1]))
+
+        if onda_entries is None:
+            continue
+
+        if not onda_entries:
+            logger.warning("No entries in OnDA response")
+            continue
+
+        logger.info("Valid OnDA data received")
+
+        onda_entry = max(onda_entries, key=lambda entry: entry.timestamp)
+
+        run_for_train = find_run_for_train(karabo_export, onda_entry.event_id)
+
+        if run_for_train is None:
+            logger.warning("couldn't find corresponding run for train ID %s")
+            continue
+
+        try:
+            with db.connect() as conn:
+                db.update_run_attributo(
+                    conn,
+                    run_for_train,
+                    AttributoId("hit_rate"),
+                    onda_entry.hit_rate * 100,
+                    ONLINE_SOURCE_NAME,
+                )
+        except Exception as e:
+            logger.error(
+                "couldn't update hit rate %s for run %s: %s",
+                onda_entry.hit_rate,
+                run_for_train,
+                e,
+            )
+
+
+def mymain(
+    database_url: str,
+    proposal_id: ProposalId,
+    karabo_url: Optional[str],
+    onda_url: Optional[str],
+) -> None:
+    dbcontext = DBContext(database_url)
+
+    tables = create_tables(dbcontext)
+
+    dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+
+    db = DB(dbcontext, tables)
+
+    zmq_ctx = Context.instance()
+
+    # Just for testing!
+    with db.dbcontext.connect() as local_conn:
+        db.add_proposal(local_conn, proposal_id)
+
+        # FIXME: Add other attributo here
+        db.add_attributo(
+            local_conn, "xray_energy", "", AssociatedTable.RUN, AttributoTypeDouble()
+        )
+        db.add_attributo(
+            local_conn, "hit_rate", "", AssociatedTable.RUN, AttributoTypeDouble()
+        )
+        db.add_attributo(
+            local_conn, "first_train", "", AssociatedTable.RUN, AttributoTypeInt()
+        )
+        db.add_attributo(
+            local_conn, "last_train", "", AssociatedTable.RUN, AttributoTypeInt()
+        )
+
+    asyncio.run(async_main(db, proposal_id, karabo_url, onda_url, zmq_ctx))
+
+
+async def async_main(
+    db: DB,
+    proposal_id: ProposalId,
+    karabo_url: Optional[str],
+    onda_url: Optional[str],
+    zmq_ctx: Context,
+) -> None:
+    karabo_export = KaraboExport(runs={})
+
+    await asyncio.gather(
+        karabo_loop(db, zmq_ctx, proposal_id, karabo_url, karabo_export),
+        onda_loop(db, zmq_ctx, onda_url, karabo_export),
+    )
+
+
+if __name__ == "__main__":
+    mymain(
+        args.database_url, ProposalId(args.proposal_id), args.karabo_url, args.onda_url
+    )

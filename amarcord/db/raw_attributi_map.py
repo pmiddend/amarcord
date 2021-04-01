@@ -102,14 +102,14 @@ class RawAttributiMap:
     def append_single_to_source(
         self, source: Source, attributo: AttributoId, value: JSONValue
     ) -> None:
-        self.append_to_source(source, {attributo: value})
-
-    def set_single_manual(self, attributo: AttributoId, value: JSONValue) -> None:
         assert value is not None
         if not isinstance(value, (int, str, float, bool, dict, list)):
             raise ValueError(
                 f"attributo {attributo} can only hold JSON-compatible values, got {type(value)}"
             )
+        self.append_to_source(source, {attributo: value})
+
+    def set_single_manual(self, attributo: AttributoId, value: JSONValue) -> None:
         self.append_single_to_source(MANUAL_SOURCE_NAME, attributo, value)
 
     def to_json(self) -> JSONDict:

@@ -37,6 +37,8 @@ setuptools.setup(
             "pyzmq==22.0.*",
             "karabo-bridge==0.6.*",
             "numpy==1.19.*",
+            "msgpack==1.0.*",
+            "msgpack-types==0.1.*",
         ],
         "gui": [
             "PyQt5==5.15.*",

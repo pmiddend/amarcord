@@ -27,6 +27,7 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.constants import DB_SOURCE_NAME
+from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.karabo import Karabo
@@ -521,6 +522,7 @@ class DB:
         run_id: int,
         attributo: AttributoId,
         value: AttributoValue,
+        source: str = MANUAL_SOURCE_NAME,
     ) -> None:
         if attributo == AttributoId("sample_id"):
             assert value is None or isinstance(value, int)
@@ -543,9 +545,9 @@ class DB:
             current_json = {}
         attributi_map = RawAttributiMap(current_json)
         if value is not None:
-            attributi_map.set_single_manual(attributo, value)
+            attributi_map.append_single_to_source(source, attributo, value)
         else:
-            attributi_map.remove_manual_attributo(attributo)
+            attributi_map.remove_attributo(attributo, source)
         self.update_run_attributi(conn, run_id, attributi_map)
 
     def connect(self) -> Connection:
