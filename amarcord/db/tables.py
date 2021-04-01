@@ -84,6 +84,7 @@ def _table_proposal(metadata: sa.MetaData) -> sa.Table:
         metadata,
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=False),
         sa.Column("metadata", sa.JSON, nullable=True),
+        sa.Column("admin_password", sa.String(length=255), nullable=True),
     )
 
 

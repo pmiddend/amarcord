@@ -36,6 +36,7 @@ from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
+from amarcord.modules.password_check_dialog import password_check_dialog
 from amarcord.modules.spb.column_chooser import display_column_chooser
 from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.plot_dialog import PlotDialog
@@ -241,16 +242,25 @@ class OverviewTable(QWidget):
         )
         action = menu.exec_(p)
         if action == deleteAction:
-            result = QMessageBox(  # type: ignore
-                QMessageBox.Critical,
+            password = password_check_dialog(
                 f"Delete run “{run_id}”",
                 f"Are you sure you want to delete run “{run_id}”?",
-                QMessageBox.Yes | QMessageBox.Cancel,
-                self,
-            ).exec()
+            )
 
-            if result == QMessageBox.Yes:
-                with self._db.connect() as conn:
+            if not password:
+                return
+
+            with self._db.connect() as conn:
+                if not self._db.check_proposal_password(
+                    conn, self._proposal_id, password
+                ):
+                    QMessageBox.critical(  # type: ignore
+                        self,
+                        "Invalid password",
+                        "Password was invalid!",
+                        QMessageBox.Ok,
+                    )
+                else:
                     self._db.delete_run(
                         conn,
                         run_id,

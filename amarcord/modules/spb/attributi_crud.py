@@ -41,9 +41,11 @@ from amarcord.db.attributo_type import AttributoTypeTags
 from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
+from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
+from amarcord.modules.password_check_dialog import password_check_dialog
 from amarcord.numeric_range import NumericRange
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.declarative_table import Column
@@ -166,10 +168,12 @@ class AttributiCrud(QWidget):
         self,
         context: Context,
         tables: DBTables,
+        proposal_id: ProposalId,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
+        self._proposal_id = proposal_id
         self._db = DB(context.db, tables)
 
         root_layout = QHBoxLayout()
@@ -348,22 +352,32 @@ class AttributiCrud(QWidget):
         )
         action = menu.exec_(p)
         if action == deleteAction:
-            result = QMessageBox(  # type: ignore
-                QMessageBox.Critical,
+            password = password_check_dialog(
                 f"Delete attributo “{a.attributo.name}”",
                 f"Are you sure you want to delete attributo <b>“{a.attributo.pretty_id()}”</b> from table <b>“{a.table.pretty_id()}”</b>?",
-                QMessageBox.Yes | QMessageBox.Cancel,
-                self,
-            ).exec()
+            )
 
-            if result == QMessageBox.Yes:
+            if password:
                 with self._db.connect() as conn:
-                    self._db.delete_attributo(
-                        conn,
-                        a.table,
-                        a.attributo.name,
-                    )
-                    self._slot_refresh(conn)
+                    if not self._db.check_proposal_password(
+                        conn, self._proposal_id, password
+                    ):
+                        self._show_invalid_password()
+                    else:
+                        self._db.delete_attributo(
+                            conn,
+                            a.table,
+                            a.attributo.name,
+                        )
+                        self._slot_refresh(conn)
+
+    def _show_invalid_password(self):
+        QMessageBox.critical(  # type: ignore
+            self,
+            "Invalid password",
+            "Password was invalid!",
+            QMessageBox.Ok,
+        )
 
     def _slot_refresh_with_conn(self) -> None:
         with self._db.connect() as conn:
@@ -449,6 +463,18 @@ class AttributiCrud(QWidget):
 
     def _add_attributo(self) -> None:
         with self._db.connect() as conn:
+            password = password_check_dialog(
+                "Add attributo",
+                "Please enter the admin password to add the attributo.",
+            )
+
+            if not password:
+                return
+
+            if not self._db.check_proposal_password(conn, self._proposal_id, password):
+                self._show_invalid_password()
+                return
+
             self._db.add_attributo(
                 conn,
                 self._attributo_id_edit.text(),

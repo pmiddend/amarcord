@@ -10,6 +10,7 @@ from typing import List
 from typing import Optional
 from typing import cast
 
+import bcrypt
 import sqlalchemy as sa
 from sqlalchemy import and_
 
@@ -368,8 +369,40 @@ class DB:
             )
             return True
 
-    def add_proposal(self, conn: Connection, prop_id: ProposalId) -> None:
-        conn.execute(self.tables.proposal.insert().values(id=prop_id))
+    def add_proposal(
+        self,
+        conn: Connection,
+        prop_id: ProposalId,
+        admin_password_plaintext: Optional[str] = None,
+    ) -> None:
+        hashed_password: Optional[str] = None
+        if admin_password_plaintext is not None:
+
+            salt = bcrypt.gensalt()
+            hashed_password = bcrypt.hashpw(
+                admin_password_plaintext.encode("utf-8"), salt
+            ).decode("utf-8")
+        conn.execute(
+            self.tables.proposal.insert().values(
+                id=prop_id, admin_password=hashed_password
+            )
+        )
+
+    def check_proposal_password(
+        self, conn: Connection, prop_id: ProposalId, admin_password_plaintext: str
+    ) -> bool:
+        password = conn.execute(
+            sa.select([self.tables.proposal.c.admin_password]).where(
+                self.tables.proposal.c.id == prop_id
+            )
+        ).fetchone()[0]
+
+        if password is None:
+            return True
+
+        return bcrypt.checkpw(
+            admin_password_plaintext.encode("utf-8"), password.encode("utf-8")
+        )
 
     def update_run_karabo(self, conn: Connection, run_id: int, karabo: bytes) -> None:
         conn.execute(

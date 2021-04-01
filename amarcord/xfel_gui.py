@@ -146,7 +146,9 @@ class XFELGui:
             "Analysis", analysis_tab, QIcon(":/icons/chart-line-solid.png")
         )
 
-        attributi_crud_tab = AttributiCrud(self._context, self._tables)
+        attributi_crud_tab = AttributiCrud(
+            self._context, self._tables, self._proposal_id
+        )
         attributi_crud_index = self._ui_context.register_tab(
             "Attributi", attributi_crud_tab, QIcon(":/icons/book-solid.png")
         )

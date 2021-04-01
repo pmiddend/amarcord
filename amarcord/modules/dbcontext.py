@@ -16,8 +16,8 @@ class CreationMode(Enum):
 
 
 class DBContext:
-    def __init__(self, connection_url: str) -> None:
-        self.engine = create_engine(connection_url, echo=False)
+    def __init__(self, connection_url: str, echo: bool = False) -> None:
+        self.engine = create_engine(connection_url, echo=echo)
 
         # sqlite doesn't care about foreign keys unless you do this dance, see
         # https://stackoverflow.com/questions/2614984/sqlite-sqlalchemy-how-to-enforce-foreign-keys

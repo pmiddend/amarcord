@@ -8,6 +8,8 @@ from random import uniform
 from typing import Final
 from typing import List
 
+import bcrypt
+
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.constants import MANUAL_SOURCE_NAME
@@ -20,10 +22,16 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
     logger.info("Creating sample data...")
     with context.connect() as conn:
         proposal_id = 1
+
+        salt = bcrypt.gensalt()
+        hashed_password = bcrypt.hashpw("foobar".encode("utf-8"), salt)
+
         # Create proposal
         conn.execute(
             tables.proposal.insert().values(
-                id=proposal_id, metadata={"data": {}, "title": "test proposal"}
+                id=proposal_id,
+                metadata={"data": {}, "title": "test proposal"},
+                admin_password=hashed_password.decode("utf-8"),
             )
         )
         # Second proposal in case you want to test the proposal chooser
@@ -37,7 +45,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
             tables.target.insert().values(name="Main Protease", short_name="MPro")
         ).inserted_primary_key[0]
         # pylint: disable=unused-variable
-        second_target_id = conn.execute(
+        _second_target_id = conn.execute(
             tables.target.insert().values(
                 name="Protein Like Protease", short_name="PlPro"
             )

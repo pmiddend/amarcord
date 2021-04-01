@@ -12,6 +12,7 @@ setuptools.setup(
         "SQLAlchemy==1.3.*",
         "lark-parser==0.11.*",
         "isodate==0.6.*",
+        "bcrypt==3.2.*",
     ],
     extras_require={
         "gui": [
