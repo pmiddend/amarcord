@@ -1,6 +1,19 @@
 let
   pkgs = import <nixpkgs> {};
   pythonPkgs = pkgs.python3Packages;
+  karabo-bridge = pythonPkgs.buildPythonPackage rec {
+    pname = "karabo_bridge";
+    version = "0.6.0";
+
+    src = pythonPkgs.fetchPypi {
+      inherit pname version;
+      sha256 = "0q3msk432hbyq14v2bfg4imbrzi2cgvhvb20hi1dv0kgilfyjr32";
+    };
+
+    doCheck = false;
+
+    propagatedBuildInputs = with pythonPkgs; [ msgpack pyzmq numpy msgpack-numpy ];
+  };
   lark-parser = pythonPkgs.buildPythonPackage rec {
     pname = "lark-parser";
     version = "0.11.2";
@@ -27,44 +40,33 @@ let
     
     propagatedBuildInputs = [ ];
   };
-  amarcordPackage = pythonPkgs.buildPythonPackage rec {
-  pname = "amarcord-xfel";
-  version = "1.0";
+  amarcord-daemon = pythonPkgs.buildPythonPackage rec {
+    pname = "amarcord-daemon";
+    version = "1.0";
 
-  src = ./.;
+    src = ./.;
 
-  doCheck = false;
+    doCheck = false;
   
-  propagatedBuildInputs = [
-    lark-parser
-    pythonPkgs.isodate
-    pythonPkgs.sqlalchemy
-    pythonPkgs.pyqt5
-    pythonPkgs.pyyaml
-    pythonPkgs.xdg
-    pythonPkgs.pandas
-    pythonPkgs.matplotlib
-    pythonPkgs.humanize
-    pythonPkgs.pint
-    pubchempy
-  ];
-
-  dontWrapQtApps = true;
-  nativeBuildInputs = [ pkgs.qt5.wrapQtAppsHook ];
-
-  makeWrapperArgs = [
-    "\${qtWrapperArgs[@]}"
-  ];
+    propagatedBuildInputs = [
+      lark-parser
+      pythonPkgs.isodate
+      pythonPkgs.bcrypt
+      pythonPkgs.sqlalchemy
+      karabo-bridge
+    ];
 
   };
-in 
-pkgs.dockerTools.buildImage {
-  name = "amarcord";
-  tag = "latest";
+in {
+  daemon = amarcord-daemon;
+  daemon-docker = pkgs.dockerTools.buildImage {
+    name = "amarcord-daemon";
+    tag = "latest";
 
-  contents = amarcordPackage;
+    contents = amarcord-daemon;
 
-  config = {
-    Cmd = [ "/bin/amarcord-xfel-gui" ];
+    config = {
+      Cmd = [ "/bin/amarcord-daemon" ];
+    };
   };
 }

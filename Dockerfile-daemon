@@ -1,0 +1,9 @@
+FROM python:3.8-slim
+
+RUN mkdir /app
+COPY amarcord /app/amarcord
+COPY setup.py /app/setup.py
+WORKDIR /app
+
+RUN pip install '.[daemon]'
+CMD ["python", "amarcord/daemon.py"]

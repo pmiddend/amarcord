@@ -10,7 +10,7 @@ pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
   script:
-    - pip install -e .[gui,webserver]
+    - pip install -e .[gui,webserver,daemon]
     - pip install mypy pylint sqlalchemy-stubs
     - mypy amarcord
     - apt-get update -y && apt-get install -y qt5-default
@@ -67,7 +67,7 @@ deploy-amici:
     - python setup.py sdist bdist_wheel
     - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
 
-upload-docker-image:
+upload-gui-docker-image:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
@@ -85,3 +85,22 @@ upload-docker-image:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
+
+upload-daemon-docker-image:
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  stage: deploy
+  variables:
+    # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
+    IMAGE_SLUG_TAG: ${CI_REGISTRY_IMAGE}/daemon:$CI_COMMIT_REF_SLUG
+    IMAGE_COMMIT_TAG: ${CI_REGISTRY_IMAGE}/daemon:$CI_COMMIT_SHORT_SHA
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  only:
+    - tags
+    - master
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile-daemon --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
