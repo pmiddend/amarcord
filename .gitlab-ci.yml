@@ -15,6 +15,7 @@ pylint-and-mypy:
     - mypy amarcord
     - apt-get update -y && apt-get install -y qt5-default
     - pylint amarcord
+    - pyrcc5 icons/resources.qrc -o resources-copy.py
 
 integration-amici:
   image: $AMARCORD_PYTHON_DOCKER
