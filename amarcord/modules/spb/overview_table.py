@@ -387,11 +387,13 @@ class OverviewTable(QWidget):
         self._slot_refresh()
 
     def _slot_filter_changed(self, f: str) -> None:
+        logger.info('filter change to "%s"', f)
         try:
             self._filter_query = parse_query(
                 f, set(k.technical_id() for k in self._attributi_metadata)
             )
             logger.info("Filter query changed successfully, refreshing")
+            self._query_error.setText("")
         except UnexpectedEOF:
             self._query_error.setText("")
         except Exception as e:
