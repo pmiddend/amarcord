@@ -1,9 +1,12 @@
+import time
 from typing import Optional
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QDialog
 from PyQt5.QtWidgets import QDialogButtonBox
+from PyQt5.QtWidgets import QFormLayout
+from PyQt5.QtWidgets import QGroupBox
 from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtWidgets import QLineEdit
@@ -14,6 +17,9 @@ from PyQt5.QtWidgets import QWidget
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.exc import OperationalError
 
+from amarcord.db.alembic import upgrade_to_head
+from amarcord.db.db import DB
+from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.factories import retrieve_proposal_ids
@@ -58,8 +64,14 @@ class ConnectionDialog(QWidget):
         self._alembic_button = QPushButton(
             self.style().standardIcon(QStyle.SP_MessageBoxCritical), "Call Alembic"
         )
-        input_line_layout.addWidget(self._alembic_button)
         self._alembic_button.clicked.connect(self._slot_alembic)
+
+        self._add_proposal_button = QPushButton(
+            self.style().standardIcon(QStyle.SP_MessageBoxInformation),
+            "Create test proposal",
+        )
+        input_line_layout.addWidget(self._add_proposal_button)
+        self._add_proposal_button.clicked.connect(self._slot_add_proposal)
 
         self._root_layout.addLayout(input_line_layout)
 
@@ -72,6 +84,19 @@ class ConnectionDialog(QWidget):
         self._button_box.rejected.connect(self.rejected.emit)
         self._button_box.accepted.connect(self.accepted.emit)
         self._button_box.button(QDialogButtonBox.Ok).setEnabled(False)
+
+        admin_widget = QGroupBox("Admin options")
+        admin_widget_layout = QFormLayout(admin_widget)
+        admin_widget_layout.addWidget(self._alembic_button)
+        self._proposal_id_edit = QLineEdit()
+        admin_widget_layout.addRow("Proposal ID", self._proposal_id_edit)
+        admin_widget_layout.addWidget(self._add_proposal_button)
+        self._admin_log = QLabel()
+        admin_widget_layout.addWidget(self._admin_log)
+
+        if admin_mode:
+            self._root_layout.addWidget(admin_widget)
+
         self._root_layout.addWidget(self._button_box)
 
     def _set_error(self, e: str, long_message: Optional[str] = None) -> None:
@@ -89,14 +114,25 @@ class ConnectionDialog(QWidget):
         self._button_box.button(QDialogButtonBox.Ok).setEnabled(True)
 
     def _slot_alembic(self) -> None:
-        from alembic.config import Config
-        from alembic import command
+        upgrade_to_head(self._url_edit.text())
+        self._append_log_line("Upgraded to head")
+        self._admin_log.setText(self._admin_log.text() + "\n")
 
-        alembic_cfg = Config()
-        alembic_cfg.set_main_option("sqlalchemy.url", self._url_edit.text())
-        alembic_cfg.set_main_option("script_location", "alembic")
-        # alembic_cfg.attributes["script_location"] = "alembic"
-        command.upgrade(alembic_cfg, "head")
+    def _append_log_line(self, t: str) -> None:
+        nt = f"{int(time.time())}: {t}"
+        if not self._admin_log.text():
+            self._admin_log.setText(nt)
+        else:
+            self._admin_log.setText(self._admin_log.text() + "\n" + nt)
+
+    def _slot_add_proposal(self) -> None:
+        context = DBContext(self._url_edit.text())
+        tables = create_tables(context)
+        db = DB(context, tables)
+
+        with db.connect() as conn:
+            db.add_proposal(conn, ProposalId(int(self._proposal_id_edit.text())))
+            self._append_log_line("Added proposal")
 
     def _slot_test(self) -> None:
         try:

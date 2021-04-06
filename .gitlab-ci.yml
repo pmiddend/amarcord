@@ -26,6 +26,13 @@ integration-amici:
     - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple amarcord-amici
     - python integration/amici_test.py
 
+run-migrations:
+  image: $AMARCORD_PYTHON_DOCKER
+  stage: integration
+  script:
+    - pip install -e .
+    - python amarcord/db_cli.py --connection-url="sqlite://" migrate
+
 integration-tests:
   image: $AMARCORD_PYTHON_DOCKER
   stage: integration
