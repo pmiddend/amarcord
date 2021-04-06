@@ -8,8 +8,8 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     entry_points={
         "console_scripts": [
-            "amarcord-daemon = amarcord.daemon:mymain",
-            "amarcord-admin = amarcord.cli.admin:main",
+            "amarcord-daemon = amarcord.cli.daemon:main",
+            "amarcord-db-cli = amarcord.cli.admin:main",
             "amarcord-database-fuzzer = amarcord.cli.database_fuzzer:main",
         ]
     },

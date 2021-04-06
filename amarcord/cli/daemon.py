@@ -2,9 +2,7 @@ import asyncio
 import logging
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 
 import msgpack
@@ -24,6 +22,9 @@ from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.onda.zeromq import OnDAZeroMQProcessor
+from amarcord.modules.onda.zeromq import TrainRange
+from amarcord.run_id import RunId
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -50,25 +51,8 @@ args = parser.parse_args()
 
 
 @dataclass
-class TrainRange:
-    train_begin_inclusive: int
-    train_end_inclusive: int
-
-
-@dataclass
 class KaraboExport:
-    runs: Dict[int, TrainRange]
-
-
-def find_run_for_train(karabo_export: KaraboExport, train_id: int) -> Optional[int]:
-    return next(
-        iter(
-            run_id
-            for run_id, x in karabo_export.runs.items()
-            if x.train_begin_inclusive <= train_id <= x.train_end_inclusive
-        ),
-        None,
-    )
+    runs: Dict[RunId, TrainRange]
 
 
 async def karabo_loop(
@@ -95,7 +79,7 @@ async def karabo_loop(
 
             logger.info("karabo: new data received")
 
-            data, metadata = deserialize(raw_data)
+            data, _metadata = deserialize(raw_data)
 
             # FIXME: Get run ID from data
             run_id = data["run_id"]
@@ -124,73 +108,6 @@ async def karabo_loop(
             logger.error("No data received in time")
 
 
-@dataclass(frozen=True)
-class OndaZeroMQData:
-    event_id: int
-    hit_rate: float
-    timestamp: float
-
-
-def validate_onda_entry(d: Any) -> Optional[OndaZeroMQData]:
-    if not isinstance(d, dict):
-        logger.error(
-            "received invalid data from OnDA: not a dictionary but %s", type(d)
-        )
-        return None
-
-    event_id = d.get("event_id", None)
-    if event_id is None:
-        logger.error('received invalid data from OnDA, no "event_id": %s', d)
-        return None
-
-    hit_rate = d.get("hit_rate", None)
-    if hit_rate is None:
-        logger.error('received invalid data from OnDA, no "hit_rate": %s', d)
-        return None
-
-    timestamp = d.get("timestamp", None)
-    if timestamp is None:
-        logger.error('received invalid data from OnDA, no "timestamp": %s', d)
-        return None
-
-    if not isinstance(event_id, int):
-        logger.error(
-            'received invalid data from OnDA, "event_id" not integer but %s',
-            type(event_id),
-        )
-        return None
-
-    if not isinstance(timestamp, (int, float)):
-        logger.error(
-            'received invalid data from OnDA, "timestamp" not number but %s',
-            type(timestamp),
-        )
-        return None
-
-    if not isinstance(hit_rate, (int, float)):
-        logger.error(
-            'received invalid data from OnDA, "hit_rate" not a number but %s',
-            type(hit_rate),
-        )
-        return None
-
-    return OndaZeroMQData(event_id, hit_rate, timestamp)
-
-
-def validate_onda_list(d: Any) -> Optional[List[OndaZeroMQData]]:
-    if not isinstance(d, list):
-        logger.error("received invalid data from OnDA: not a list but %s", type(d))
-        return None
-
-    result: List[OndaZeroMQData] = []
-    for x in d:
-        v = validate_onda_entry(x)
-        if v is None:
-            return None
-        result.append(v)
-    return result
-
-
 async def onda_loop(
     db: DB, zmq_context: Context, onda_url: Optional[str], karabo_export: KaraboExport
 ) -> None:
@@ -202,49 +119,38 @@ async def onda_loop(
     # noinspection PyUnresolvedReferences
     socket.setsockopt_string(zmq.SUBSCRIBE, "ondadata")
 
+    processor = OnDAZeroMQProcessor()
     while True:
         logger.info("Waiting for OnDA data")
         # noinspection PyUnresolvedReferences
         full_msg = await socket.recv_multipart()
 
-        onda_entries = validate_onda_list(msgpack.unpackb(full_msg[1]))
+        for hit_rate, run_id in processor.process_batch(
+            karabo_export.runs, msgpack.unpackb(full_msg[1])
+        ):
+            write_hit_rate_to_db(db, hit_rate, run_id)
 
-        if onda_entries is None:
-            continue
 
-        if not onda_entries:
-            logger.warning("No entries in OnDA response")
-            continue
-
-        logger.info("Valid OnDA data received")
-
-        onda_entry = max(onda_entries, key=lambda entry: entry.timestamp)
-
-        run_for_train = find_run_for_train(karabo_export, onda_entry.event_id)
-
-        if run_for_train is None:
-            logger.warning("couldn't find corresponding run for train ID %s")
-            continue
-
-        try:
-            with db.connect() as conn:
-                db.update_run_attributo(
-                    conn,
-                    run_for_train,
-                    AttributoId("hit_rate"),
-                    onda_entry.hit_rate * 100,
-                    ONLINE_SOURCE_NAME,
-                )
-        except Exception as e:
-            logger.error(
-                "couldn't update hit rate %s for run %s: %s",
-                onda_entry.hit_rate,
-                run_for_train,
-                e,
+def write_hit_rate_to_db(db: DB, result: float, run_id: int) -> None:
+    try:
+        with db.connect() as conn:
+            db.update_run_attributo(
+                conn,
+                run_id,
+                AttributoId("hit_rate"),
+                result * 100,
+                ONLINE_SOURCE_NAME,
             )
+    except Exception as e:
+        logger.error(
+            "couldn't update hit rate %s for run %s: %s",
+            result,
+            run_id,
+            e,
+        )
 
 
-def mymain(
+def main(
     database_url: str,
     proposal_id: ProposalId,
     karabo_url: Optional[str],
@@ -297,6 +203,6 @@ async def async_main(
 
 
 if __name__ == "__main__":
-    mymain(
+    main(
         args.database_url, ProposalId(args.proposal_id), args.karabo_url, args.onda_url
     )
