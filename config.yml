@@ -1,0 +1,534 @@
+myMdC:
+  #! configuration for myMdC
+  user_id: 0000000000000000000000000000000000000000000
+  user_secret: 0000000000000000000000000000000000000000000
+  user_email: foo@cfel.de
+
+# Q. The client returns data and metadata. TrainIds are present in both variables.
+#    Is it safe to assume that trainId in data are redudant and therefore only consider information in data?
+#    Or is some sanity check required?
+# D. We should have 'filling values' in case a device disappears from the stream
+# D. Key should be defined for each `attributo`. If this is not specified, the one from the higher level is used.
+Karabo_bridge:
+  #! configuration for the Karabo bridge.
+  #   comment [str]     `attributo` comment
+  #   source [str]      EuXFEL source
+  #   value [str]       value to extract
+  #   store [bool]      whether to store the value (default: True)
+  #   action [str]      average or check_if_constant (default: average)
+  version: 1
+
+  run:
+    # required to slice data from the bridge
+
+    index:
+      comment: Run index
+      source: SPB_DAQ_DATA/DM/RUN_CONTROL
+      key: runDetails.runId.value
+
+    timestamp_UTC_initial:
+      comment: Started at
+      source: SPB_DAQ_DATA/DM/RUN_CONTROL
+      key: runDetails.beginAt.value
+      unit: datetime
+
+    train_index_initial:
+      comment: Initial train
+      source: SPB_DAQ_DATA/DM/RUN_CONTROL
+      key: runDetails.firstTrainId.value
+
+    trains_in_run:
+      # Q. Not known a priori... Updated at each step?
+      comment: Number of trains
+      source: SPB_DAQ_DATA/DM/RUN_CONTROL
+      key: runDetails.length.value
+
+    #train_index_final:
+    #  # Q. Not known a priori... Updated at each step?
+    #  # not really needed since this can be computed as (train_index_initial + trains_in_run)
+    #  source: SPB_DAQ_DATA/DM/RUN_CONTROL
+    #  key: runDetails.lastTrainId.value
+
+  source:
+    # data from the source
+    # http://hdrmx.medsbio.org/manual/build/html/classes/base_classes/NXsource.html#nxsource
+
+    bunch_charge:
+      # D. Should AMARCORD key == Karabo key? If not, where do we store it?
+      # Q. Electron charge value?
+      # Q. Can this vary within a run?
+      source: SPB_RR_SYS/MDL/BUNCH_PATTERN
+      key: SASE1.charge.value
+      unit: nC # ?
+      action: check_if_constant
+
+    bunch_pattern:
+      # Q. Is this related to the repetition rate?
+      # Q. Can this vary within a run?
+      source: SPB_RR_SYS/MDL/BUNCH_PATTERN
+      key: SASE1.pulseIds.value
+      action: check_if_constant
+
+    number_of_bunches:
+      # Q. Can this vary within a run?
+      source: SPB_RR_SYS/MDL/BUNCH_PATTERN
+      key: SASE1.nPulses.value
+      action: check_if_constant
+
+  detector:
+    # any detector
+    # D. How to model this in the database?
+
+    XGM_XTD9:
+      # Q. Is mJ the unit of measurement?
+      # Q. The wavelength should also be here. Can we add it?
+      kind: X-ray intensity monitor
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+
+      # intensityTD:
+      #   # Q. Is this intensitySa1TD + intensitySa3TD?
+      #   key: data.intensityTD
+      #   unit: mJ # ?
+
+      # intensitySigmaTD:
+      #  # Q. I guess this is the errorbar...
+      #  key: data.intensitySigmaTD
+
+      # intensityAUXTD:
+      #   # Q. Always assumed intensityTD is the right one
+      #   key: data.intensityAUXTD
+
+      # xTD:
+      #   key: data.xTD
+      #   unit: mm # ?
+
+      # xSigmaTD:
+      #   # Q. Errorbar?
+      #   key: data.xSigmaTD
+
+      # yTD:
+      #   key: data.yTD
+      #   unit: mm # ?
+
+      # ySigmaTD:
+      #   # Q. Errorbar?
+      #   key: data.ySigmaTD
+
+      SASE1_intensity:
+        key: data.intensitySa1TD
+        unit: mJ # ?
+
+      # intensitySa1SigmaTD:
+      #   key: data.intensitySa1SigmaTD
+
+      # intensityAUXSa1TD:
+      #   key: data.intensityAUXSa1TD
+
+      SASE1_beam_position_x:
+        # Q. This equals xTD? Same for all other quantities...
+        key: data.xSa1TD
+        unit: mm # ?
+
+      # xSa1SigmaTD:
+      #   key: data.xSa1SigmaTD
+
+      SASE1_beam_position_y:
+        key: data.ySa1TD
+        unit: mm # ?
+
+      # ySa1SigmaTD:
+      #   key: data.ySa1SigmaTD
+
+      SASE3_intensity:
+        key: data.intensitySa3TD
+        unit: mJ # ?
+
+      # intensitySa3SigmaTD:
+      #   key: data.intensitySa3SigmaTD
+
+      # intensityAUXSa3TD:
+      #   key: data.intensityAUXSa3TD
+
+      SASE3_beam_position_x:
+        key: data.xSa3TD
+        unit: mm # ?
+
+      # xSa3SigmaTD:
+      #   key: data.xSa3SigmaTD
+
+      SASE3_beam_position_y:
+        key: data.ySa3TD
+        unit: mm # ?
+
+      # ySa3SigmaTD:
+      #   key: data.ySa3SigmaTD
+
+    ZYLA:
+      kind: Optical imager
+      source: SPB_EXP_ZYLA/CAM/1:output
+
+      injector_image:
+        key: data.image.data
+
+      matadata:
+        - data.image.type
+        - data.image.dimensions
+        - data.image.dimensionTypes
+        - data.image.rOIOffsets
+        - data.image.binning
+        - data.image.rotation
+        - data.image.flipX
+        - data.image.flipY
+        - data.image.bitsPerPixel
+        - data.image.encoding GRAY
+        - data.image.dimensionScales
+        - data.image.geometry.alignment.offsets
+        - data.image.geometry.alignment.rotations
+        - data.image.geometry.tileId
+        - data.image.header
+
+    AGIPD:
+      kind: X-ray detector
+
+      gain_setting:
+        source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
+        key: gainMode.value
+        action: check_if_constant
+
+      # gain_data:
+      #   # Q. Is this the numerical equivalent of the `gain mode?` If so, it can be ignored
+      #   source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
+      #   key: gain.value
+      #   store: false
+      #   action: check_if_constant
+
+      position_z:
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+      position_Q1_x:
+        # Q. Is M1 x or y?
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Q1M1
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+      position_Q1_y:
+        # Q. Is M1 x or y?
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Q1M2
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+      position_Q2_x:
+        # Q. Is M1 x or y?
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Q2M1
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+      position_Q2_y:
+        # Q. Is M1 x or y?
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Q2M2
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+      position_Q3_x:
+        # Q. Is M1 x or y?
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Q3M1
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+      position_Q3_y:
+        # Q. Is M1 x or y?
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Q3M2
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+      position_Q4_x:
+        # Q. Is M1 x or y?
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Q4M1
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+      position_Q4_y:
+        # Q. Is M1 x or y?
+        # Q. Unit of measurement?
+        source: SPB_IRU_AGIPD1M/MOTOR/Q4M2
+        key: actualPosition.value
+        unit: mm # ?
+        action: check_if_constant
+
+  device:
+    # any device
+    # D. How to model this in the database?
+
+    attenuator_SASE1_XTD2:
+      kind: attenuator
+      source: SA1_XTD2_ATT/MDL/MAIN
+      action: check_if_constant
+
+      attenuator1_inserted:
+        key: actual.value.isInsertedAct1
+      attenuator1_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct1
+        unit: mm # ?
+      attenuator1_material:
+        key: actual.value.materialAct1
+      attenuator1_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct1
+
+      attenuator2_inserted:
+        key: actual.value.isInsertedAct2
+      attenuator2_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct2
+        unit: mm # ?
+      attenuator2_material:
+        key: actual.value.materialAct2
+      attenuator2_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct2
+
+      attenuator3_inserted:
+        key: actual.value.isInsertedAct3
+      attenuator3_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct3
+        unit: mm # ?
+      attenuator3_material:
+        key: actual.value.materialAct3
+      attenuator3_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct3
+
+      attenuator4_inserted:
+        key: actual.value.isInsertedAct4
+      attenuator4_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct4
+        unit: mm # ?
+      attenuator4_material:
+        key: actual.value.materialAct4
+      attenuator4_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct4
+
+      attenuator5_inserted:
+        key: actual.value.isInsertedAct5
+      attenuator5_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct5
+        unit: mm # ?
+      attenuator5_material:
+        key: actual.value.materialAct5
+      attenuator5_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct5
+
+      attenuator6_inserted:
+        key: actual.value.isInsertedAct6
+      attenuator6_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct6
+        unit: mm # ?
+      attenuator6_material:
+        key: actual.value.materialAct6
+      attenuator6_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct6
+
+      attenuator7_inserted:
+        key: actual.value.isInsertedAct7
+      attenuator7_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct7
+        unit: mm # ?
+      attenuator7_material:
+        key: actual.value.materialAct7
+      attenuator7_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct7
+
+      attenuator8_inserted:
+        key: actual.value.isInsertedAct8
+      attenuator8_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct8
+        unit: mm # ?
+      attenuator8_material:
+        key: actual.value.materialAct8
+      attenuator8_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct8
+
+      attenuator9_inserted:
+        key: actual.value.isInsertedAct9
+      attenuator9_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessAct9
+        unit: mm # ?
+      attenuator9_material:
+        key: actual.value.materialAct9
+      attenuator9_absorption:
+        # Q. Percent?
+        key: actual.value.absorptionAct9
+
+      transmission:
+        # Q. Percent?
+        key: actual.value.transmission
+
+    attenuator_SPB_XTD9:
+      kind: attenuator
+      source: SPB_XTD9_ATT/MDL/MAIN
+      action: check_if_constant
+
+      attenuator1_increment:
+        # Q. What is this? Inserted or not I suppose
+        key: actual.value.incrementRod1
+      attenuator1_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessRod1
+        unit: mm # ?
+      attenuator1_material:
+        key: actual.value.materialRod1
+      attenuator1_absorption:
+        key: actual.value.absorptionRod1
+
+      attenuator2_increment:
+        # Q. What is this? Inserted or not I suppose
+        key: actual.value.incrementRod2
+      attenuator2_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessRod2
+        unit: mm # ?
+      attenuator2_material:
+        key: actual.value.materialRod2
+      attenuator2_absorption:
+        key: actual.value.absorptionRod2
+
+      attenuator3_increment:
+        # Q. What is this? Inserted or not I suppose
+        key: actual.value.incrementRod3
+      attenuator3_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessRod3
+        unit: mm # ?
+      attenuator3_material:
+        key: actual.value.materialRod3
+      attenuator3_absorption:
+        key: actual.value.absorptionRod3
+
+      attenuator4_increment:
+        # Q. What is this? Inserted or not I suppose
+        key: actual.value.incrementRod4
+      attenuator4_thickness:
+        # Q. Unit of measurement?
+        key: actual.value.thicknessRod4
+        unit: mm # ?
+      attenuator4_material:
+        key: actual.value.materialRod4
+      attenuator4_absorption:
+        key: actual.value.absorptionRod4
+
+      transmission:
+        # Q. Percent?
+        key: actual.value.transmission
+
+    sample_delivery_valves:
+      # Q. Are these constant?
+      # Q. Need some documentation...
+      source: SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES
+      action: check_if_constant
+
+      config0_valve_group_name:
+        key: valvesConfigTable.value[0].valveGroupName
+      config0_valve_indices:
+        key: valvesConfigTable.value[0].valveIds
+      config0_positions:
+        key: valvesConfigTable.value[0].nPositions
+      config0_labels:
+        key: valvesConfigTable.value[0].labels
+
+      config1_valve_group_name:
+        key: valvesConfigTable.value[1].valveGroupName
+      config1_valve_indices:
+        key: valvesConfigTable.value[1].valveIds
+      config1_positions:
+        key: valvesConfigTable.value[1].nPositions
+      config1_labels:
+        key: valvesConfigTable.value[1].labels
+
+      config2_valve_group_name:
+        key: valvesConfigTable.value[2].valveGroupName
+      config2_valve_indices:
+        key: valvesConfigTable.value[2].valveIds
+      config2_positions:
+        key: valvesConfigTable.value[2].nPositions
+      config2_labels:
+        key: valvesConfigTable.value[2].labels
+
+      groupA_position:
+        key: GROUPA.currentPosition.value
+      sample1_position:
+        key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.value
+      sample2_position:
+        key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.value
+
+    sample_delivery_HPLC_pump:
+      # Q. needs some documentation
+      # Q. This is not constant, I suppose?
+      source: SPB_BIO_SYS/PUMP/HPLC
+
+      a_flow_value:
+        key: a.flow.value
+        unit: L/s # ?
+      a_value:
+        key: a.volume.value
+        unit: L # ?
+
+      b_flow_value:
+        key: b.volume.value
+        unit: L/s # ?
+      b_value:
+        key: b.flow.value
+        unit: L # ?
+
+      c_flow_value:
+        key: c.flow.value
+        unit: L/s # ?
+      c_value:
+        key: c.volume.value
+        unit: L # ?
+
+      d_flow_value:
+        key: d.flow.value
+        unit: L/s # ?
+      d_value:
+        key: d.volume.value
+        unit: L # ?
+
+    sample_delivery_injector:
+      source: SPB_IRU_INJMOV/MOTOR/Z
+      action: check_if_constant
+
+      position_z:
+        # Q. Unit?
+        key: actualPosition.value
+        unit: mm # ?
