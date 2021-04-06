@@ -7,7 +7,12 @@ setuptools.setup(
     author_email="sc@cfel.de",
     description="AMARCORD main application",
     packages=setuptools.find_packages(),
-    entry_points={"console_scripts": ["amarcord-daemon = amarcord.daemon:mymain"]},
+    entry_points={
+        "console_scripts": [
+            "amarcord-daemon = amarcord.daemon:mymain",
+            "amarcord-db-cli = amarcord.db_cli:main",
+        ]
+    },
     install_requires=[
         # for general DB access
         "SQLAlchemy==1.3.*",
