@@ -182,6 +182,14 @@ class XFELGui:
 
 
 def mymain():
+    from alembic.config import Config
+    from alembic import command
+
+    alembic_cfg = Config("./alembic.ini")
+    command.stamp(alembic_cfg, "head")
+
+    sys.exit(1)
+
     while True:
         gui = XFELGui()
         gui.exec()

@@ -3,6 +3,7 @@ from typing import Dict
 
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey
+from sqlalchemy import MetaData
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
@@ -459,23 +460,27 @@ class DBTables:
         self.attributo_attributi = AttributoId(self.run.c.attributi.name)
 
 
-def create_tables(context: DBContext) -> DBTables:
+def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     return DBTables(
-        sample=_table_sample(context.metadata),
-        proposal=_table_proposal(context.metadata),
-        run=_table_run(context.metadata),
-        run_comment=_table_run_comment(context.metadata),
-        attributo=_table_attributo(context.metadata),
-        target=_table_target(context.metadata),
-        data_source=_table_data_source(context.metadata),
-        peak_search_parameters=_table_peak_search_parameters(context.metadata),
-        hit_finding_parameters=_table_hit_finding_parameters(context.metadata),
-        hit_finding_results=_table_hit_finding_results(context.metadata),
-        indexing_parameters=_table_indexing_parameters(context.metadata),
-        indexing_results=_table_indexing_results(context.metadata),
-        integration_parameters=_table_integration_parameters(context.metadata),
-        merge_parameters=_table_merge_parameters(context.metadata),
-        merge_results=_table_merge_results(context.metadata),
-        ambiguity_parameters=_table_ambiguity_parameters(context.metadata),
-        merge_has_indexing=_table_merge_has_indexing(context.metadata),
+        sample=_table_sample(metadata),
+        proposal=_table_proposal(metadata),
+        run=_table_run(metadata),
+        run_comment=_table_run_comment(metadata),
+        attributo=_table_attributo(metadata),
+        target=_table_target(metadata),
+        data_source=_table_data_source(metadata),
+        peak_search_parameters=_table_peak_search_parameters(metadata),
+        hit_finding_parameters=_table_hit_finding_parameters(metadata),
+        hit_finding_results=_table_hit_finding_results(metadata),
+        indexing_parameters=_table_indexing_parameters(metadata),
+        indexing_results=_table_indexing_results(metadata),
+        integration_parameters=_table_integration_parameters(metadata),
+        merge_parameters=_table_merge_parameters(metadata),
+        merge_results=_table_merge_results(metadata),
+        ambiguity_parameters=_table_ambiguity_parameters(metadata),
+        merge_has_indexing=_table_merge_has_indexing(metadata),
     )
+
+
+def create_tables(context: DBContext) -> DBTables:
+    return create_tables_from_metadata(context.metadata)
