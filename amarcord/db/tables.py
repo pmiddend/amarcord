@@ -13,6 +13,7 @@ from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.modules.dbcontext import DBContext
 
 logger = logging.getLogger(__name__)
@@ -318,6 +319,22 @@ def _table_merge_parameters(metadata: sa.MetaData) -> sa.Table:
     )
 
 
+def _table_event_log(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "EventLog",
+        metadata,
+        sa.Column(
+            "id",
+            sa.Integer,
+            primary_key=True,
+        ),
+        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
+        sa.Column("level", sa.Enum(EventLogLevel), nullable=False),
+        sa.Column("source", sa.String(length=255), nullable=False),
+        sa.Column("text", sa.Text, nullable=False),
+    )
+
+
 def _table_merge_has_indexing(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "MergeHasIndexing",
@@ -377,7 +394,9 @@ class DBTables:
         merge_results: sa.Table,
         ambiguity_parameters: sa.Table,
         merge_has_indexing: sa.Table,
+        event_log: sa.Table,
     ) -> None:
+        self.event_log = event_log
         self.merge_has_indexing = merge_has_indexing
         self.ambiguity_parameters = ambiguity_parameters
         self.merge_results = merge_results
@@ -479,6 +498,7 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         merge_results=_table_merge_results(metadata),
         ambiguity_parameters=_table_ambiguity_parameters(metadata),
         merge_has_indexing=_table_merge_has_indexing(metadata),
+        event_log=_table_event_log(metadata),
     )
 
 
