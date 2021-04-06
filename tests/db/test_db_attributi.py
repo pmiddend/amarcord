@@ -15,6 +15,8 @@ RUN_ID = 1
 
 ATTRIBUTO_VALUE = 3
 
+NEW_ATTRIBUTO_VALUE = 5
+
 PROPOSAL_ID = ProposalId(1)
 
 
@@ -159,3 +161,36 @@ def test_add_set_delete_sample_attributo(db: DB) -> None:
         sample = samples[0]
 
         assert sample.attributi.select_int(AttributoId(aid)) is None
+
+
+def test_update_run_attributo(db: DB) -> None:
+    """ Check if we can update a run attributo """
+    table = AssociatedTable.RUN
+    aid = f"{table.value}_attributo"
+    with db.connect() as conn:
+        db.add_proposal(conn, PROPOSAL_ID)
+
+        # Then add the attributo and a run with it
+        db.add_attributo(
+            conn,
+            aid,
+            "description",
+            table,
+            AttributoTypeInt(),
+        )
+
+        db.add_run(
+            conn,
+            PROPOSAL_ID,
+            run_id=RUN_ID,
+            sample_id=None,
+            attributi=RawAttributiMap({MANUAL_SOURCE_NAME: {aid: ATTRIBUTO_VALUE}}),
+        )
+
+        # Now change the attributo and retrieve the run
+        db.update_run_attributo(conn, RUN_ID, AttributoId(aid), NEW_ATTRIBUTO_VALUE)
+
+        assert (
+            db.retrieve_run(conn, RUN_ID).attributi.select_int(AttributoId(aid))
+            == NEW_ATTRIBUTO_VALUE
+        )
