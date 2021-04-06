@@ -13,17 +13,20 @@ setuptools.setup(
             "amarcord-db-cli = amarcord.db_cli:main",
         ]
     },
+    # see https://github.com/dolfinus/setuptools-git-versioning
+    setup_requires=["setuptools-git-versioning"],
+    version_config=True,
     install_requires=[
         # for general DB access
         "SQLAlchemy==1.3.*",
         # for migrating a DB
         "alembic==1.5.*",
-        # for attributi: parsing a natural delta (not needed in general?)
-        # "lark-parser==0.11.*",
         # for attributi: parsing/printing a delta
         "isodate==0.6.*",
         # for verifying passwords in the DB
         "bcrypt==3.2.*",
+        # to pretty-print attributi (yeah, it's a bit overkill)
+        "lark-parser==0.11.*",
     ],
     extras_require={
         "daemon": [
@@ -40,7 +43,6 @@ setuptools.setup(
             "pandas==1.2.*",
             # For validating pubchem cids
             "PubChemPy==1.0.*",
-            "lark-parser==0.11.*",
             # For printing "x second(s) ago" in the comments
             "humanize==3.2.*",
             # Not really directly used I think
