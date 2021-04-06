@@ -44,11 +44,12 @@ class XFELGui:
     def __init__(self) -> None:
         self._ui_context = UIContext(sys.argv)
         self._user_config = load_user_config()
+
         self.restart = False
 
         db_url = self._user_config["db_url"]
         if db_url is None:
-            db_url = show_connection_dialog(self._ui_context)
+            db_url = show_connection_dialog(True, self._ui_context)
             if db_url is None:
                 sys.exit(1)
 
@@ -182,14 +183,6 @@ class XFELGui:
 
 
 def mymain():
-    from alembic.config import Config
-    from alembic import command
-
-    alembic_cfg = Config("./alembic.ini")
-    command.stamp(alembic_cfg, "head")
-
-    sys.exit(1)
-
     while True:
         gui = XFELGui()
         gui.exec()

@@ -11,6 +11,8 @@ setuptools.setup(
     install_requires=[
         # for general DB access
         "SQLAlchemy==1.3.*",
+        # for migrating a DB
+        "alembic==1.5.*",
         # for attributi: parsing a natural delta (not needed in general?)
         # "lark-parser==0.11.*",
         # for attributi: parsing/printing a delta

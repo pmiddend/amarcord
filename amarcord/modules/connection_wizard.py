@@ -24,9 +24,10 @@ class ConnectionDialog(QWidget):
     accepted = pyqtSignal()
     rejected = pyqtSignal()
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, admin_mode: bool, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
+        self._admin_mode = admin_mode
         self._root_layout = QVBoxLayout(self)
 
         headline = QLabel("Choose database")
@@ -54,6 +55,12 @@ class ConnectionDialog(QWidget):
         input_line_layout.addWidget(self._url_test_button)
         self._url_test_button.clicked.connect(self._slot_test)
 
+        self._alembic_button = QPushButton(
+            self.style().standardIcon(QStyle.SP_MessageBoxCritical), "Call Alembic"
+        )
+        input_line_layout.addWidget(self._alembic_button)
+        self._alembic_button.clicked.connect(self._slot_alembic)
+
         self._root_layout.addLayout(input_line_layout)
 
         self._test_result = QLabel("")
@@ -80,6 +87,16 @@ class ConnectionDialog(QWidget):
         self._test_result.setText(e)
         self._test_result.setStyleSheet("QLabel { color: green; }")
         self._button_box.button(QDialogButtonBox.Ok).setEnabled(True)
+
+    def _slot_alembic(self) -> None:
+        from alembic.config import Config
+        from alembic import command
+
+        alembic_cfg = Config()
+        alembic_cfg.set_main_option("sqlalchemy.url", self._url_edit.text())
+        alembic_cfg.set_main_option("script_location", "alembic")
+        # alembic_cfg.attributes["script_location"] = "alembic"
+        command.upgrade(alembic_cfg, "head")
 
     def _slot_test(self) -> None:
         try:
@@ -115,10 +132,10 @@ class ConnectionDialog(QWidget):
         )
 
 
-def show_connection_dialog(_ui_context: UIContext) -> Optional[str]:
+def show_connection_dialog(admin_mode: bool, _ui_context: UIContext) -> Optional[str]:
     dialog = QDialog()
     dialog_layout = QHBoxLayout(dialog)
-    connection_dialog = ConnectionDialog()
+    connection_dialog = ConnectionDialog(admin_mode)
     connection_dialog.rejected.connect(dialog.reject)
     connection_dialog.accepted.connect(dialog.accept)
     dialog_layout.addWidget(connection_dialog)
