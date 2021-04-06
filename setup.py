@@ -2,7 +2,6 @@ import setuptools
 
 setuptools.setup(
     name="amarcord",
-    version="0.2pre6",
     author="Philipp Middendorf <philipp.middendorf@desy.de>",
     author_email="sc@cfel.de",
     description="AMARCORD main application",

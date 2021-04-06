@@ -60,6 +60,9 @@ integration-tests:
 deploy-pypi:
   image: $AMARCORD_PYTHON_DOCKER
   stage: deploy
+  only:
+    - tags
+    - master
   script:
     - pip install -e .
     - pip install wheel twine
@@ -69,6 +72,9 @@ deploy-pypi:
 integration-amici:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test-deploy
+  only:
+    - tags
+    - master
   script:
     - pip install -e .
     - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple amarcord
