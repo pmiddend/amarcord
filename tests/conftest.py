@@ -8,7 +8,7 @@ from amarcord.modules.dbcontext import DBContext
 
 @pytest.fixture
 def db() -> DB:
-    db_context = DBContext("sqlite://", echo=True)
+    db_context = DBContext("sqlite://", echo=False)
     tables = create_tables(db_context)
     db_context.create_all(creation_mode=CreationMode.DONT_CHECK)
     return DB(db_context, tables)

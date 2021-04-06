@@ -1,6 +1,7 @@
 import datetime
 import logging
 import pickle
+import re
 from dataclasses import dataclass
 from itertools import groupby
 from typing import Any
@@ -24,6 +25,7 @@ from amarcord.db.attributo_id import (
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
+from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
@@ -559,6 +561,11 @@ class DB:
         associated_table: AssociatedTable,
         prop_type: AttributoType,
     ) -> None:
+        if not re.fullmatch(ATTRIBUTO_NAME_REGEX, name):
+            raise ValueError(
+                f'attributo name "{name}" contains invalid characters (maybe a number at the beginning '
+                f"or a dash?)"
+            )
         conn.execute(
             self.tables.attributo.insert().values(
                 name=name,
@@ -733,9 +740,7 @@ class DB:
                     if existed:
                         self.update_run_attributi(
                             conn,
-                            run.attributi.select_int_unsafe(
-                                self.tables.attributo_run_id
-                            ),
+                            run.id,
                             run.attributi,
                         )
             elif table == AssociatedTable.SAMPLE:

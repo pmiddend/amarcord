@@ -9,9 +9,11 @@ from typing import Optional
 from typing import cast
 
 from PyQt5.QtCore import QPoint
+from PyQt5.QtCore import QRegExp
 from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import QVariant
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import QCheckBox
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QHBoxLayout
@@ -39,6 +41,7 @@ from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_type import AttributoTypeTags
 from amarcord.db.attributo_type import AttributoTypeUserName
+from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
@@ -232,6 +235,9 @@ class AttributiCrud(QWidget):
         root_widget.addWidget(right_widget)
 
         self._attributo_id_edit = QLineEdit()
+        self._attributo_id_edit.setValidator(
+            QRegExpValidator(QRegExp(ATTRIBUTO_NAME_REGEX, Qt.CaseInsensitive))
+        )
         right_form_layout.addRow(
             "ID",
             self._attributo_id_edit,
