@@ -348,6 +348,24 @@ def upgrade():
         ),
         sa.PrimaryKeyConstraint("merge_results_id", "indexing_results_id"),
     )
+    op.create_table(
+        "EventLog",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column(
+            "created",
+            sa.DateTime(),
+            server_default=sa.func.current_timestamp(),
+            nullable=False,
+        ),
+        sa.Column(
+            "level",
+            sa.Enum("INFO", "WARNING", "ERROR", name="eventloglevel"),
+            nullable=False,
+        ),
+        sa.Column("source", sa.String(length=255), nullable=False),
+        sa.Column("text", sa.Text(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
     # ### end Alembic commands ###
 
 
@@ -370,4 +388,5 @@ def downgrade():
     op.drop_table("HitFindingParameters")
     op.drop_table("Attributo")
     op.drop_table("AmbiguityParameters")
+    op.drop_table("EventLog")
     # ### end Alembic commands ###

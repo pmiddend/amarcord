@@ -5,8 +5,18 @@ from typing import List
 from typing import Optional
 
 from amarcord.db.comment import DBComment
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.modules.json import JSONDict
+
+
+@dataclass(frozen=True)
+class DBEvent:
+    id: int
+    created: datetime.datetime
+    level: EventLogLevel
+    source: str
+    text: str
 
 
 @dataclass(frozen=True)

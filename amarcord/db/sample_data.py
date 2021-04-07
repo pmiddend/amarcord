@@ -13,6 +13,7 @@ import bcrypt
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.tables import DBTables
 from amarcord.db.tables import logger
 from amarcord.modules.dbcontext import DBContext
@@ -25,6 +26,15 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
 
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw("foobar".encode("utf-8"), salt)
+
+        # Create some events
+        conn.execute(
+            tables.event_log.insert().values(
+                source="karabo",
+                text="test line please ignore",
+                level=EventLogLevel.INFO,
+            )
+        )
 
         # Create proposal
         conn.execute(

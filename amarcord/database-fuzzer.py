@@ -24,6 +24,7 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import DB
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
@@ -228,6 +229,17 @@ def generate_attributi(
     return RawAttributiMap(result)
 
 
+def action_add_event() -> None:
+    with db.connect() as conn:
+        db.add_event(
+            conn,
+            EventLogLevel.INFO,
+            generate_random_string(10),
+            generate_random_string(),
+            datetime.datetime.utcnow(),
+        )
+
+
 def action_add_sample() -> None:
     with db.connect() as conn:
         targets = db.retrieve_targets(conn)
@@ -393,6 +405,7 @@ actions_with_weights = [
     # Commented out temporarily because we cannot delete run "1" in SQLite for some shitty reason
     # (action_remove_run, 3),
     (action_add_sample, 3),
+    (action_add_event, 3),
     (action_modify_sample, 3),
     (action_add_comment, 1),
     (action_add_attributi, 1),

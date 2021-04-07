@@ -9,6 +9,7 @@ from typing import Dict
 from typing import Final
 from typing import List
 from typing import Optional
+from typing import Union
 from typing import cast
 
 import bcrypt
@@ -28,11 +29,13 @@ from amarcord.db.comment import DBComment
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.karabo import Karabo
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBDataSource
+from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBHitFindingParameters
 from amarcord.db.table_classes import DBHitFindingResult
 from amarcord.db.table_classes import DBIndexingParameters
@@ -1134,6 +1137,53 @@ class DB:
 
     def have_proposals(self, conn: Connection) -> bool:
         return conn.execute(sa.select([self.tables.proposal.c.id])).fetchall()
+
+    def add_event(
+        self,
+        conn: Connection,
+        level: EventLogLevel,
+        source: str,
+        text: str,
+        created: Optional[datetime.datetime] = None,
+    ) -> None:
+        conn.execute(
+            sa.insert(self.tables.event_log).values(
+                level=level,
+                source=source,
+                text=text,
+                created=created if created is not None else datetime.datetime.utcnow(),
+            )
+        )
+
+    def retrieve_events(
+        self, conn: Connection, since: Optional[Union[datetime.datetime, int]] = None
+    ) -> List[DBEvent]:
+        result: List[DBEvent] = []
+        for row in conn.execute(
+            sa.select(
+                [
+                    self.tables.event_log.c.id,
+                    self.tables.event_log.c.created,
+                    self.tables.event_log.c.level,
+                    self.tables.event_log.c.source,
+                    self.tables.event_log.c.text,
+                ]
+            )
+            .order_by(self.tables.event_log.c.created)
+            .where(
+                True
+                if since is None
+                else self.tables.event_log.c.created >= since
+                if isinstance(since, datetime.datetime)
+                else self.tables.event_log.c.id > since
+            )
+        ).fetchall():
+            result.append(
+                DBEvent(
+                    row["id"], row["created"], row["level"], row["source"], row["text"]
+                )
+            )
+        return result
 
 
 def overview_row_to_query_row(

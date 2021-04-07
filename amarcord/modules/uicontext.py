@@ -34,9 +34,9 @@ class UIContext:
         self._app.setApplicationName("AMARCORD")
         self._app.setApplicationDisplayName("AMARCORD")
         self._app.setWindowIcon(QIcon(":/icons/window-icon.png"))
-        self._main_window = QMainWindow()
+        self.main_window = QMainWindow()
         splitter = QSplitter(QtCore.Qt.Vertical)
-        self._tabs = QTabWidget(splitter)
+        self.tabs = QTabWidget(splitter)
         log_root = QWidget(splitter)
         log_root_layout = QVBoxLayout(log_root)
         log_root_layout.addWidget(QLabel("Log:"))
@@ -48,16 +48,16 @@ class UIContext:
         logging.getLogger().addHandler(self._logging_handler)
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 1)
-        self._main_window.setCentralWidget(splitter)
+        self.main_window.setCentralWidget(splitter)
 
-        self._file_menu = self._main_window.menuBar().addMenu("&File")
+        self._file_menu = self.main_window.menuBar().addMenu("&File")
         self._quit_action = QAction(
             self.style().standardIcon(QStyle.SP_DialogCloseButton),
             "&Exit",
-            self._main_window,
+            self.main_window,
         )
         # mypy complains that close returns a boolean or something
-        self._quit_action.triggered.connect(self._main_window.close)  # type: ignore
+        self._quit_action.triggered.connect(self.main_window.close)  # type: ignore
         self._file_menu.addAction(self._quit_action)
 
         # Enable this if you want to gdb-debug weird assertion messages
@@ -70,11 +70,11 @@ class UIContext:
         self, label: str, w: QWidget, icon: Optional[QtGui.QIcon] = None
     ) -> int:
         if icon is not None:
-            return self._tabs.addTab(w, icon, label)
-        return self._tabs.addTab(w, label)
+            return self.tabs.addTab(w, icon, label)
+        return self.tabs.addTab(w, label)
 
     def select_tab(self, idx: int) -> None:
-        self._tabs.setCurrentIndex(idx)
+        self.tabs.setCurrentIndex(idx)
 
     def style(self) -> QStyle:
         return self._app.style()
@@ -83,15 +83,15 @@ class UIContext:
         return self._app.style().standardIcon(getattr(QStyle, icon_name))
 
     def exec_(self) -> None:
-        self._main_window.show()
+        self.main_window.show()
         self._app.exec_()
 
     def add_menu_item(self, title: str, f: Callable[[], None]) -> None:
-        a = QAction(title, self._main_window)
+        a = QAction(title, self.main_window)
         a.triggered.connect(f)
         self._file_menu.insertAction(self._quit_action, a)
 
     def close(self) -> None:
         logging.getLogger().removeHandler(self._logging_handler)
-        self._main_window.close()
-        self._main_window.deleteLater()
+        self.main_window.close()
+        self.main_window.deleteLater()
