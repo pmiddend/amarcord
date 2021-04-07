@@ -268,6 +268,11 @@ Karabo_bridge:
         unit: mm
         action: check_if_constant
 
+      # position_quadrant1_xy:
+      #   build_attributo: (position_quadrant1_x, position_quadrant1_y)
+      #   unit: mm
+      #   action: check_if_constant
+
   device:
     # any device
     # D. How to model this in the database?
