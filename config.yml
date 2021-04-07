@@ -8,16 +8,15 @@ myMdC:
 #    Is it safe to assume that trainId in data are redudant and therefore only consider information in data?
 #    Or is some sanity check required?
 # D. We should have 'filling values' in case a device disappears from the stream
-# D. Source/action should be defined for each `attributo`. If this is not specified, the one from the higher level is used.
 Karabo_bridge:
   #! configuration for the Karabo bridge.
-  #   comment [str]         `attributo` comment
-  #   source [str]          EuXFEL source
-  #   key [str]             value to extract
-  #   store [bool]          whether to store the value (default: True)
-  #   action [str]          average or check_if_constant (default: average)
-  #   unit [str]            unit of measurement
-  #   filling_value [Any]   filling value in case a source is missing (default: None)
+  #   source (str)                    EuXFEL source
+  #   key (str)                       value to extract
+  #   comment (str, optional)         `attributo` comment (default: '')
+  #   store (bool, optional)          whether to store the value (default: True)
+  #   action (str, optional)          average or check_if_constant (default: average)
+  #   unit (str, optional)            unit of measurement (default: None)
+  #   filling_value [Any, optional]   filling value in case a source is missing (default: None)
   configuration:
     version: 1
     client_endpoint: tcp://cfeld-pcx36341.desy.de:1234
@@ -65,7 +64,6 @@ Karabo_bridge:
       source: SPB_RR_SYS/MDL/BUNCH_PATTERN
       key: SASE1.charge.value
       unit: nC # ?
-      action: check_if_constant
 
     bunch_pattern:
       # Q. Is this related to the repetition rate?
@@ -77,7 +75,6 @@ Karabo_bridge:
       # Q. Can this vary within a run?
       source: SPB_RR_SYS/MDL/BUNCH_PATTERN
       key: SASE1.nPulses.value
-      action: check_if_constant
 
   detector:
     # any detector
@@ -87,7 +84,6 @@ Karabo_bridge:
       # Q. Is mJ the unit of measurement?
       # Q. The wavelength should also be here. Can we add it?
       kind: X-ray intensity monitor
-      source: SPB_XTD9_XGM/XGM/DOOCS:output
 
       # intensityTD:
       #   # Q. Is this intensitySa1TD + intensitySa3TD?
@@ -119,8 +115,9 @@ Karabo_bridge:
       #   key: data.ySigmaTD
 
       SASE1_pulse_energy:
+        source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa1TD
-        unit: milliJoules
+        unit: microJoules
 
       # intensitySa1SigmaTD:
       #   key: data.intensitySa1SigmaTD
@@ -130,6 +127,7 @@ Karabo_bridge:
 
       SASE1_beam_position_x:
         # Q. This equals xTD? Same for all other quantities...
+        source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa1TD
         unit: millimeter # ?
 
@@ -137,6 +135,7 @@ Karabo_bridge:
       #   key: data.xSa1SigmaTD
 
       SASE1_beam_position_y:
+        source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa1TD
         unit: millimeter # ?
 
@@ -144,8 +143,9 @@ Karabo_bridge:
       #   key: data.ySa1SigmaTD
 
       SASE3_pulse_energy:
+        source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa3TD
-        unit: milliJoules
+        unit: microJoules
 
       # intensitySa3SigmaTD:
       #   key: data.intensitySa3SigmaTD
@@ -154,6 +154,7 @@ Karabo_bridge:
       #   key: data.intensityAUXSa3TD
 
       SASE3_beam_position_x:
+        source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa3TD
         unit: mm # ?
 
@@ -161,11 +162,18 @@ Karabo_bridge:
       #   key: data.xSa3SigmaTD
 
       SASE3_beam_position_y:
+        source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa3TD
         unit: mm # ?
 
       # ySa3SigmaTD:
       #   key: data.ySa3SigmaTD
+
+      Xray_wavelength_set:
+        source: SPB_XTD9_XGM/XGM/DOOCS
+        key: pulseEnergy.wavelengthUsed.value
+        comment: X-ray wavelength
+        unit: angstrom
 
     ZYLA:
       kind: Optical imager
@@ -383,12 +391,10 @@ Karabo_bridge:
       action: check_if_constant
 
       attenuator1_increment:
-        # Q. What is this? 'Inserted' or not I suppose
         key: actual.value.incrementRod1
       attenuator1_thickness:
-        # Q. Unit of measurement?
         key: actual.value.thicknessRod1
-        unit: micrometer # ?
+        unit: micrometer
       attenuator1_material:
         key: actual.value.materialRod1
       attenuator1_absorption:
@@ -396,7 +402,6 @@ Karabo_bridge:
         unit: percent
 
       attenuator2_increment:
-        # Q. What is this? Inserted or not I suppose
         key: actual.value.incrementRod2
       attenuator2_thickness:
         key: actual.value.thicknessRod2
@@ -407,7 +412,6 @@ Karabo_bridge:
         unit: percent
 
       attenuator3_increment:
-        # Q. What is this? Inserted or not I suppose
         key: actual.value.incrementRod3
       attenuator3_thickness:
         key: actual.value.thicknessRod3
@@ -418,7 +422,6 @@ Karabo_bridge:
         unit: percent
 
       attenuator4_increment:
-        # Q. What is this? Inserted or not I suppose
         key: actual.value.incrementRod4
       attenuator4_thickness:
         key: actual.value.thicknessRod4
@@ -433,8 +436,6 @@ Karabo_bridge:
         unit: percent
 
     sample_delivery_valves:
-      # Q. Are these constant?
-      # Q. Need some documentation...
       source: SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES
       action: check_if_constant
 
@@ -473,8 +474,6 @@ Karabo_bridge:
         key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.value
 
     sample_delivery_rate:
-      # Q. needs some documentation
-      # Q. This is not constant, I suppose?
       source: SPB_BIO_SYS/PUMP/HPLC
 
       a_flow_value:
