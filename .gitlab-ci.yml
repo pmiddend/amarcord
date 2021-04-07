@@ -24,7 +24,7 @@ run-migrations:
   stage: integration
   script:
     - pip install -e .
-    - python amarcord/db_cli.py --connection-url="sqlite://" migrate
+    - python amarcord/cli/admin.py --connection-url="sqlite://" migrate
 
 integration-tests:
   image: $AMARCORD_PYTHON_DOCKER
