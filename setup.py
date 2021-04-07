@@ -9,7 +9,8 @@ setuptools.setup(
     entry_points={
         "console_scripts": [
             "amarcord-daemon = amarcord.daemon:mymain",
-            "amarcord-db-cli = amarcord.db_cli:main",
+            "amarcord-admin = amarcord.cli.admin:main",
+            "amarcord-database-fuzzer = amarcord.cli.database-fuzzer:main",
         ]
     },
     # see https://github.com/dolfinus/setuptools-git-versioning

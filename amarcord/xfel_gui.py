@@ -1,7 +1,5 @@
-import argparse
 import logging
 import sys
-from dataclasses import dataclass
 from functools import partial
 
 from PyQt5.QtCore import Qt
@@ -45,33 +43,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class Arguments:
-    admin_mode: bool
-
-
-def parse_arguments() -> Arguments:
-    parser = argparse.ArgumentParser(description="Main GUI for AMARCORD")
-
-    parser.add_argument("--admin", action="store_true")
-
-    args = parser.parse_args()
-
-    return Arguments(args.admin)
-
-
 class XFELGui:
     def __init__(self) -> None:
         self._ui_context = UIContext(sys.argv)
         self._user_config = load_user_config()
 
-        cli_args = parse_arguments()
-
         self.restart = False
 
         db_url = self._user_config["db_url"]
         if db_url is None:
-            db_url = show_connection_dialog(cli_args.admin_mode, self._ui_context)
+            db_url = show_connection_dialog(self._ui_context)
             if db_url is None:
                 sys.exit(1)
 

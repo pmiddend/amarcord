@@ -382,7 +382,6 @@ class DB:
     ) -> None:
         hashed_password: Optional[str] = None
         if admin_password_plaintext is not None:
-
             salt = bcrypt.gensalt()
             hashed_password = bcrypt.hashpw(
                 admin_password_plaintext.encode("utf-8"), salt
@@ -391,6 +390,24 @@ class DB:
             self.tables.proposal.insert().values(
                 id=prop_id, admin_password=hashed_password
             )
+        )
+
+    def change_proposal_password(
+        self,
+        conn: Connection,
+        prop_id: ProposalId,
+        admin_password_plaintext: Optional[str],
+    ) -> None:
+        hashed_password: Optional[str] = None
+        if admin_password_plaintext:
+            salt = bcrypt.gensalt()
+            hashed_password = bcrypt.hashpw(
+                admin_password_plaintext.encode("utf-8"), salt
+            ).decode("utf-8")
+        conn.execute(
+            self.tables.proposal.update()
+            .values(admin_password=hashed_password)
+            .where(self.tables.proposal.c.id == prop_id)
         )
 
     def check_proposal_password(

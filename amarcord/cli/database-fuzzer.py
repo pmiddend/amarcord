@@ -411,8 +411,17 @@ actions_with_weights = [
     (action_add_attributi, 1),
 ]
 
-while True:
-    random.choices(
-        [x[0] for x in actions_with_weights], [x[1] for x in actions_with_weights], k=1
-    )[0]()
-    sleep(1)
+
+def main() -> int:
+    while True:
+        random.choices(
+            [x[0] for x in actions_with_weights],
+            [x[1] for x in actions_with_weights],
+            k=1,
+        )[0]()
+        sleep(1)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,12 +1,9 @@
-import time
 from typing import Optional
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QDialog
 from PyQt5.QtWidgets import QDialogButtonBox
-from PyQt5.QtWidgets import QFormLayout
-from PyQt5.QtWidgets import QGroupBox
 from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QLabel
 from PyQt5.QtWidgets import QLineEdit
@@ -16,9 +13,6 @@ from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QWidget
 from sqlalchemy.exc import ArgumentError
 
-from amarcord.db.alembic import upgrade_to_head
-from amarcord.db.db import DB
-from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.factories import retrieve_proposal_ids
@@ -29,10 +23,9 @@ class ConnectionDialog(QWidget):
     accepted = pyqtSignal()
     rejected = pyqtSignal()
 
-    def __init__(self, admin_mode: bool, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
-        self._admin_mode = admin_mode
         self._root_layout = QVBoxLayout(self)
 
         headline = QLabel("Choose database")
@@ -60,18 +53,6 @@ class ConnectionDialog(QWidget):
         input_line_layout.addWidget(self._url_test_button)
         self._url_test_button.clicked.connect(self._slot_test)
 
-        self._alembic_button = QPushButton(
-            self.style().standardIcon(QStyle.SP_MessageBoxCritical), "Call Alembic"
-        )
-        self._alembic_button.clicked.connect(self._slot_alembic)
-
-        self._add_proposal_button = QPushButton(
-            self.style().standardIcon(QStyle.SP_MessageBoxInformation),
-            "Create test proposal",
-        )
-        input_line_layout.addWidget(self._add_proposal_button)
-        self._add_proposal_button.clicked.connect(self._slot_add_proposal)
-
         self._root_layout.addLayout(input_line_layout)
 
         self._test_result = QLabel("")
@@ -83,19 +64,6 @@ class ConnectionDialog(QWidget):
         self._button_box.rejected.connect(self.rejected.emit)
         self._button_box.accepted.connect(self.accepted.emit)
         self._button_box.button(QDialogButtonBox.Ok).setEnabled(False)
-
-        admin_widget = QGroupBox("Admin options")
-        admin_widget_layout = QFormLayout(admin_widget)
-        admin_widget_layout.addWidget(self._alembic_button)
-        self._proposal_id_edit = QLineEdit()
-        admin_widget_layout.addRow("Proposal ID", self._proposal_id_edit)
-        admin_widget_layout.addWidget(self._add_proposal_button)
-        self._admin_log = QLabel()
-        admin_widget_layout.addWidget(self._admin_log)
-
-        if admin_mode:
-            self._root_layout.addWidget(admin_widget)
-
         self._root_layout.addWidget(self._button_box)
 
     def _set_error(self, e: str, long_message: Optional[str] = None) -> None:
@@ -111,27 +79,6 @@ class ConnectionDialog(QWidget):
         self._test_result.setText(e)
         self._test_result.setStyleSheet("QLabel { color: green; }")
         self._button_box.button(QDialogButtonBox.Ok).setEnabled(True)
-
-    def _slot_alembic(self) -> None:
-        upgrade_to_head(self._url_edit.text())
-        self._append_log_line("Upgraded to head")
-        self._admin_log.setText(self._admin_log.text() + "\n")
-
-    def _append_log_line(self, t: str) -> None:
-        nt = f"{int(time.time())}: {t}"
-        if not self._admin_log.text():
-            self._admin_log.setText(nt)
-        else:
-            self._admin_log.setText(self._admin_log.text() + "\n" + nt)
-
-    def _slot_add_proposal(self) -> None:
-        context = DBContext(self._url_edit.text())
-        tables = create_tables(context)
-        db = DB(context, tables)
-
-        with db.connect() as conn:
-            db.add_proposal(conn, ProposalId(int(self._proposal_id_edit.text())))
-            self._append_log_line("Added proposal")
 
     def _slot_test(self) -> None:
         try:
@@ -169,10 +116,10 @@ class ConnectionDialog(QWidget):
         )
 
 
-def show_connection_dialog(admin_mode: bool, _ui_context: UIContext) -> Optional[str]:
+def show_connection_dialog(_ui_context: UIContext) -> Optional[str]:
     dialog = QDialog()
     dialog_layout = QHBoxLayout(dialog)
-    connection_dialog = ConnectionDialog(admin_mode)
+    connection_dialog = ConnectionDialog()
     connection_dialog.rejected.connect(dialog.reject)
     connection_dialog.accepted.connect(dialog.accept)
     dialog_layout.addWidget(connection_dialog)
