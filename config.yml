@@ -26,20 +26,20 @@ Karabo_bridge:
     source: SPB_DAQ_DATA/DM/RUN_CONTROL
 
     index:
-      comment: Run index
+      description: Run index
       key: runDetails.runId.value
 
     timestamp_UTC_initial:
-      comment: Started at
+      description: Started at
       key: runDetails.beginAt.value
       unit: datetime
 
     train_index_initial:
-      comment: Initial train
+      description: Initial train
       key: runDetails.firstTrainId.value
 
     trains_in_run:
-      comment: Number of trains
+      description: Number of trains
       key: runDetails.length.value
 
   source:
@@ -67,7 +67,7 @@ Karabo_bridge:
   detector.XGM_XTD9:
     # Q. Is mJ the unit of measurement?
     # Q. The wavelength should also be here. Can we add it?
-    kind: X-ray intensity monitor
+    comment: X-ray intensity monitor
 
     SASE1_pulse_energy:
       source: SPB_XTD9_XGM/XGM/DOOCS:output
@@ -103,11 +103,11 @@ Karabo_bridge:
     Xray_wavelength_set:
       source: SPB_XTD9_XGM/XGM/DOOCS
       key: pulseEnergy.wavelengthUsed.value
-      comment: X-ray wavelength
+      description: X-ray wavelength
       unit: angstrom
 
   detector.ZYLA:
-    kind: Optical imager
+    comment: Optical imager
     source: SPB_EXP_ZYLA/CAM/1:output
 
     injector_image:
@@ -131,7 +131,7 @@ Karabo_bridge:
       - data.image.header
 
   AGIPD:
-    kind: X-ray detector
+    comment: X-ray detector
 
     gain_setting:
       source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
@@ -208,7 +208,7 @@ Karabo_bridge:
   # any device
   # D. How to model this in the database?
   device.attenuator_SASE1_XTD2:
-    kind: attenuator
+    comment: attenuator
     source: SA1_XTD2_ATT/MDL/MAIN
     action: check_if_constant
 
@@ -308,7 +308,7 @@ Karabo_bridge:
       unit: percent
 
   attenuator_SPB_XTD9:
-    kind: attenuator
+    comment: attenuator
     source: SPB_XTD9_ATT/MDL/MAIN
     action: check_if_constant
 
