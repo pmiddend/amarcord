@@ -72,12 +72,6 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                         "associated_table": AssociatedTable.SAMPLE,
                     },
                     {
-                        "name": "micrograph_new",
-                        "description": "Micrograph",
-                        "json_schema": {"type": "string", "format": "image-path"},
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
                         "name": "shaking_time",
                         "description": "Shaking Time",
                         "json_schema": {"type": "string", "format": "duration"},

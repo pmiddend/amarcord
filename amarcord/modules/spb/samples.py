@@ -252,15 +252,14 @@ class Samples(QWidget):
         with self._db.connect() as conn:
             metadata_wrapper = QWidget()
             metadata_wrapper_layout = QVBoxLayout(metadata_wrapper)
-            available_attributi = self._db.retrieve_table_attributi(
-                conn, AssociatedTable.SAMPLE
+            self._available_attributi: Dict[AttributoId, DBAttributo] = {}
+            attributi_table_attributi = (
+                self._update_and_retrieve_metadata_table_attributi(conn)
             )
-            # The sample ID itself shouldn't be in the table
-            available_attributi.pop(AttributoId("id"), None)
-            self._current_sample = _empty_sample(available_attributi)
+            self._current_sample = _empty_sample(attributi_table_attributi)
             self._attributi_table = AttributiTable(
                 self._current_sample.attributi,
-                available_attributi,
+                attributi_table_attributi,
                 [],
                 self._attributo_change,
                 self._attributo_manual_remove,
@@ -294,6 +293,18 @@ class Samples(QWidget):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._slot_refresh_with_conn)
 
+    def _update_and_retrieve_metadata_table_attributi(
+        self, conn: Connection
+    ) -> Dict[AttributoId, DBAttributo]:
+        self._available_attributi = self._db.retrieve_table_attributi(
+            conn, AssociatedTable.SAMPLE
+        )
+        metadata_table_attributi = self._available_attributi.copy()
+        # Some attributes shouldn't be editable in the table
+        for aid in ("id", "name", "micrograph", "protocol"):
+            metadata_table_attributi.pop(AttributoId(aid), None)
+        return metadata_table_attributi
+
     def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
         if self._update_timer.isActive():
             self._update_timer.stop()
@@ -322,7 +333,7 @@ class Samples(QWidget):
         # FIXME: We could reload the sample data here, but that'd impede editing a bit if we don't do it smart
         self._attributi_table.data_changed(
             self._attributi_table.attributi.to_raw(),
-            self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
+            self._update_and_retrieve_metadata_table_attributi(conn),
             samples=[],
         )
 
@@ -558,6 +569,8 @@ class Samples(QWidget):
             "Number of runs",
             "Target",
             "Compounds",
+            "Micrograph",
+            "Protocol",
         ] + attributi_headers
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
@@ -578,13 +591,14 @@ class Samples(QWidget):
                 ", ".join(sample.compounds if sample is not None else [])
                 if sample.compounds is not None
                 else "",
-                # type: ignore
+                sample.micrograph if sample.micrograph is not None else "",
+                sample.protocol if sample.protocol is not None else "",
             )
             for col, column_value in enumerate(built_in_columns):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore
             i = len(built_in_columns)
             attributi = AttributiMap(self._attributi_table.metadata, sample.attributi)
-            for attributo_id in self._attributi_table.metadata:
+            for attributo_id in self._available_attributi:
                 attributo_value = attributi.select(attributo_id)
                 self._sample_table.setItem(
                     row,

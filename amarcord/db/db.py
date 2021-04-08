@@ -96,6 +96,8 @@ def _sample_to_attributi(
     result = AttributiMap(types, s.attributi)
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("id"): s.id})
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("name"): s.name})
+    result.append_to_source(DB_SOURCE_NAME, {AttributoId("micrograph"): s.micrograph})
+    result.append_to_source(DB_SOURCE_NAME, {AttributoId("protocol"): s.protocol})
     return result
 
 
