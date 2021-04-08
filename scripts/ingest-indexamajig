@@ -97,7 +97,11 @@ def lookup_peaksearch_params(param_json, program, program_version, geometry):
 #  2. I checked already that hitfinding_results isn't 'false'
 #       (as returned from lookup_hitfinding_results)
 def lookup_peaksearch_for_hitfinding(hitfinding_results):
-    print("Looking up PeakSearchParameters for HitFindingResults id {}".format(hitfinding_results))
+    print(
+        "Looking up PeakSearchParameters for HitFindingResults id {}".format(
+            hitfinding_results
+        )
+    )
     return 6
 
 
@@ -109,9 +113,11 @@ def lookup_peaksearch_for_hitfinding(hitfinding_results):
 #  1. DO add a new HitFindingParameters if nothing is found.
 #  2. When adding a new entry, git_repository and git_SHA = NULL.
 def lookup_hitfinding_params(param_json, program, program_version):
-    print("Looking up HitFindingParameters for {}/{}/{}".format(program,
-                                                                program_version,
-                                                                param_json['min_num_peaks']))
+    print(
+        "Looking up HitFindingParameters for {}/{}/{}".format(
+            program, program_version, param_json["min_num_peaks"]
+        )
+    )
     return 7
 
 
@@ -144,7 +150,7 @@ def lookup_datasource_id(input_files):
 # Notes:
 #  1. DO add a new IndexingParameters if nothing is found.
 #  2. git_repository, git_SHA and command_line = NULL
-#  3. Might add a command-line option for tag and comment.  Set them to 
+#  3. Might add a command-line option for tag and comment.  Set them to
 #     NULL until then.
 def lookup_indexing_params(param_json, program, program_version, geometry):
     return 3
@@ -161,7 +167,7 @@ def lookup_indexing_params(param_json, program, program_version, geometry):
 # Notes:
 #  1. DO add a new IntegrationParameters if nothing is found.
 #  2. git_repository, git_SHA should perhaps be added to DB (NULL here)
-#  3. Might add a command-line option for tag and comment.  Set them to 
+#  3. Might add a command-line option for tag and comment.  Set them to
 #     NULL until then.
 def lookup_integration_params(param_json, program, program_version):
     return 4
@@ -187,15 +193,17 @@ def lookup_integration_params(param_json, program, program_version):
 #      (though, this check may be unreliable, as we've discussed
 #      - let's see how it goes)
 #  4. 'timestamp' is as returned from os.path.getmtime()
-def insert_hitfinding_results(peaksearch_params,
-                              hitfinding_params,
-                              data_source_id,
-                              timestamp,
-                              num_hits,
-                              hit_rate,
-                              average_peaks_event,
-                              average_resolution,
-                              stream_list):
+def insert_hitfinding_results(
+    peaksearch_params,
+    hitfinding_params,
+    data_source_id,
+    timestamp,
+    num_hits,
+    hit_rate,
+    average_peaks_event,
+    average_resolution,
+    stream_list,
+):
     print("Mock insert of HitFindingResults:")
     print("              Data source: {}".format(data_source_id))
     print("   Peak search parameters: {}".format(peaksearch_params))
@@ -228,21 +236,23 @@ def insert_hitfinding_results(peaksearch_params,
 #      (needs to be turned into "filename,filename,filename")
 #  4. Command-line option for tag/comment possibly to be added in future.
 #  5. 'timestamp' is as returned from os.path.getmtime()
-def insert_indexing_results(hitfinding_results,
-                            peaksearch_params,
-                            indexing_params,
-                            integration_params,
-                            stream_list,
-                            num_indexed,
-                            num_crystals,
-                            timestamp):
+def insert_indexing_results(
+    hitfinding_results,
+    peaksearch_params,
+    indexing_params,
+    integration_params,
+    stream_list,
+    num_indexed,
+    num_crystals,
+    timestamp,
+):
     print("Mock insert of IndexingResults:")
     print("      Hit finding results: {}".format(hitfinding_results))
     print("   Peak search parameters: {}".format(peaksearch_params))
     print("      Indexing parameters: {}".format(indexing_params))
     print("   Integration parameters: {}".format(integration_params))
     print("                Stream(s): {}".format(stream_list))
-    print("  {} indexed frames, {} crystals".format(num_indexed,num_crystals))
+    print("  {} indexed frames, {} crystals".format(num_indexed, num_crystals))
     print("                Timestamp: {}".format(timestamp))
     return 5
 
@@ -264,10 +274,10 @@ def read_streams(stream_list):
         timestamp = path.getmtime(fn)
         with open(fn, "r") as f:
             while True:
-    
+
                 fline = f.readline()
                 if not fline:
-                    break;
+                    break
 
                 if in_geom:
                     if fline.strip() == "----- End geometry file -----":
@@ -277,10 +287,10 @@ def read_streams(stream_list):
                     continue
 
                 fline = fline.strip()
-    
+
                 if fline.find("Generated by CrystFEL ") != -1:
                     version = fline.split(" ", 3)[3]
-    
+
                 if fline.find("Image filename: ") != -1:
                     filename = fline.split(": ", 1)[1]
                     n_frames += 1
@@ -291,7 +301,7 @@ def read_streams(stream_list):
                     n_hits += 1
 
                 if fline.find("peak_resolution") != -1:
-                    resolution += float(fline.split(" ")[2])*1e9
+                    resolution += float(fline.split(" ")[2]) * 1e9
 
                 if fline.find("num_peaks = ") != -1:
                     n_peaks += int(fline.split(" = ", 1)[1])
@@ -308,16 +318,16 @@ def read_streams(stream_list):
                     in_geom = True
 
     stuff = {}
-    stuff['input_files'] = all_fns
-    stuff['version'] = version
-    stuff['geometry'] = geom
-    stuff['timestamp'] = timestamp
-    stuff['num_hits'] = n_hits
-    stuff['hit_rate'] = n_hits / n_frames
-    stuff['num_indexed'] = n_indexed
-    stuff['num_crystals'] = n_crystals
-    stuff['average_peaks_event'] = n_peaks / n_frames
-    stuff['average_resolution'] = resolution / n_frames
+    stuff["input_files"] = all_fns
+    stuff["version"] = version
+    stuff["geometry"] = geom
+    stuff["timestamp"] = timestamp
+    stuff["num_hits"] = n_hits
+    stuff["hit_rate"] = n_hits / n_frames
+    stuff["num_indexed"] = n_indexed
+    stuff["num_crystals"] = n_crystals
+    stuff["average_peaks_event"] = n_peaks / n_frames
+    stuff["average_resolution"] = resolution / n_frames
     return stuff
 
 
@@ -333,9 +343,7 @@ def is_from_hitfinding(s):
 
 def harvest_folder(folder, stream_patt, harvest_fn):
 
-    print("Harvesting {} ({}, {})".format(folder,
-                                          stream_patt,
-                                          harvest_fn))
+    print("Harvesting {} ({}, {})".format(folder, stream_patt, harvest_fn))
 
     stream_list = glob.glob(folder + "/" + stream_patt, recursive=False)
     if lookup_indexing_id(stream_list):
@@ -347,7 +355,7 @@ def harvest_folder(folder, stream_patt, harvest_fn):
     # We require that the input for CrystFEL is just one file,
     #  probably a multi-frame file, and possibly a VDS "top-level" file
     # See note #1 for lookup_hitfinding_results
-    if len(stream_stuff['input_files']) != 1:
+    if len(stream_stuff["input_files"]) != 1:
         print("Stopping because there is more than one filename in the stream")
         return
 
@@ -357,77 +365,99 @@ def harvest_folder(folder, stream_patt, harvest_fn):
         print("Couldn't read harvest file {}".format(harvest_fn))
         return
 
-    hitfinding_results = lookup_hitfinding_results(stream_stuff['input_files'])
+    hitfinding_results = lookup_hitfinding_results(stream_stuff["input_files"])
 
     # If using hdf5/cxi peaks, link to already-existing hitfinding ID.
     # Otherwise, find the parameters matching ours, creating if necessary.
-    if is_from_hitfinding(harvest_json['peaksearch']['method']):
+    if is_from_hitfinding(harvest_json["peaksearch"]["method"]):
         if not hitfinding_results:
-            print("Indexing was performed using peaks from hit finding, "
-                  "but I couldn't find the HitFindingResults entry.")
+            print(
+                "Indexing was performed using peaks from hit finding, "
+                "but I couldn't find the HitFindingResults entry."
+            )
             return
         peaksearch_params = lookup_peaksearch_for_hitfinding(hitfinding_results)
     else:
-        peaksearch_params = lookup_peaksearch_params(harvest_json['peaksearch'],
-                                                     "CrystFEL,indexamajig",
-                                                     stream_stuff['version'],
-                                                     stream_stuff['geometry'])
+        peaksearch_params = lookup_peaksearch_params(
+            harvest_json["peaksearch"],
+            "CrystFEL,indexamajig",
+            stream_stuff["version"],
+            stream_stuff["geometry"],
+        )
 
     if not hitfinding_results:
 
         print("HitFindingResults not found - adding my own")
 
-        data_source_id = lookup_datasource_id(stream_stuff['input_files'])
+        data_source_id = lookup_datasource_id(stream_stuff["input_files"])
         if not data_source_id:
             print("Stopping because DataSource couldn't be created.")
             return
 
-        hitfinding_params = lookup_hitfinding_params(harvest_json['hitfinding'],
-                                                     "CrystFEL,indexamajig",
-                                                     stream_stuff['version'])
+        hitfinding_params = lookup_hitfinding_params(
+            harvest_json["hitfinding"], "CrystFEL,indexamajig", stream_stuff["version"]
+        )
 
-        hitfinding_results = insert_hitfinding_results(peaksearch_params,
-                                                       hitfinding_params,
-                                                       data_source_id,
-                                                       stream_stuff['timestamp'],
-                                                       stream_stuff['num_hits'],
-                                                       stream_stuff['hit_rate'],
-                                                       stream_stuff['average_peaks_event'],
-                                                       stream_stuff['average_resolution'],
-                                                       stream_list)
+        hitfinding_results = insert_hitfinding_results(
+            peaksearch_params,
+            hitfinding_params,
+            data_source_id,
+            stream_stuff["timestamp"],
+            stream_stuff["num_hits"],
+            stream_stuff["hit_rate"],
+            stream_stuff["average_peaks_event"],
+            stream_stuff["average_resolution"],
+            stream_list,
+        )
 
-    indexing_params = lookup_indexing_params(harvest_json['indexing'],
-                                             "CrystFEL,indexamajig",
-                                             stream_stuff['version'],
-                                             stream_stuff['geometry'])
+    indexing_params = lookup_indexing_params(
+        harvest_json["indexing"],
+        "CrystFEL,indexamajig",
+        stream_stuff["version"],
+        stream_stuff["geometry"],
+    )
 
-    integration_params = lookup_integration_params(harvest_json['integration'],
-                                                   "CrystFEL,indexamajig",
-                                                   stream_stuff['version'])
+    integration_params = lookup_integration_params(
+        harvest_json["integration"], "CrystFEL,indexamajig", stream_stuff["version"]
+    )
 
     # Create IndexingResults in database
-    insert_indexing_results(hitfinding_results,
-                            peaksearch_params,
-                            indexing_params,
-                            integration_params,
-                            stream_list,
-                            stream_stuff['num_indexed'],
-                            stream_stuff['num_crystals'],
-                            stream_stuff['timestamp'])
+    insert_indexing_results(
+        hitfinding_results,
+        peaksearch_params,
+        indexing_params,
+        integration_params,
+        stream_list,
+        stream_stuff["num_indexed"],
+        stream_stuff["num_crystals"],
+        stream_stuff["timestamp"],
+    )
 
 
 parser = ArgumentParser(description="Ingest indexing data for Amarcord")
 
-parser.add_argument(metavar="folder", nargs="*", type=str, default=".",
-                    help="Folder to process", dest="folder")
-parser.add_argument("--stream-pattern", type=str, default="*.stream*",
-                    help="Pattern for matching stream filenames")
-parser.add_argument("--harvest-filename", type=str,  default="parameters.json",
-                    help="Name of harvest file")
+parser.add_argument(
+    metavar="folder",
+    nargs="*",
+    type=str,
+    default=".",
+    help="Folder to process",
+    dest="folder",
+)
+parser.add_argument(
+    "--stream-pattern",
+    type=str,
+    default="*.stream*",
+    help="Pattern for matching stream filenames",
+)
+parser.add_argument(
+    "--harvest-filename",
+    type=str,
+    default="parameters.json",
+    help="Name of harvest file",
+)
 
 args = parser.parse_args()
 
 for folder in args.folder:
-    harvest_folder(path.abspath(folder),
-                   args.stream_pattern,
-                   args.harvest_filename)
+    harvest_folder(path.abspath(folder), args.stream_pattern, args.harvest_filename)

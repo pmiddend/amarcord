@@ -12,6 +12,8 @@ from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBDataSource
 from amarcord.db.table_classes import DBHitFindingParameters
 from amarcord.db.table_classes import DBHitFindingResult
+from amarcord.db.table_classes import DBLinkedDataSource
+from amarcord.db.table_classes import DBLinkedHitFindingResult
 from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSample
 
@@ -33,16 +35,21 @@ def test_cheetah_to_database() -> None:
 
 
 def test_deep_compare_datasource_shallow() -> None:
-    left = DBDataSource(
-        id=None,
-        run_id=1,
-        number_of_frames=1,
+    """
+    Check if comparing two trees and a differing data source, our test really shows that it differs.
+    """
+    left = DBLinkedDataSource(
+        DBDataSource(
+            id=None,
+            run_id=1,
+            number_of_frames=1,
+            source=None,
+            tag=None,
+            comment=None,
+        ),
         hit_finding_results=[],
-        source=None,
-        tag=None,
-        comment=None,
     )
-    right = replace(left, number_of_frames=2)
+    right = replace(left, data_source=replace(left.data_source, number_of_frames=2))
 
     # Simple compare (shallow) works
     assert (
@@ -51,37 +58,54 @@ def test_deep_compare_datasource_shallow() -> None:
     )
     # Comparing doesn't care about IDs
     assert (
-        deep_compare_data_source(left, replace(left, id=1))
+        deep_compare_data_source(
+            left, replace(left, data_source=replace(left.data_source, id=1))
+        )
         == DeepComparisonResult.NO_DIFFERENCE
     )
 
 
 def test_deep_compare_datasource_deep() -> None:
-    psp = DBPeakSearchParameters(
-        id=None, method="method1", software="software1", command_line="cl"
+    """
+    This test has one data source and two hit finding results and we check if this is caught by our comparison function.
+    """
+    psp = DBPeakSearchParameters(id=None, method="method1", software="software1")
+    hfp = DBHitFindingParameters(
+        id=None, min_peaks=1, tag=None, comment=None, software=""
     )
-    hfp = DBHitFindingParameters(id=None, min_peaks=1, tag=None, comment=None)
-    left_hfr = DBHitFindingResult(
-        id=None,
-        data_source_id=None,
+    left_hfr = DBLinkedHitFindingResult(
+        DBHitFindingResult(
+            id=None,
+            data_source_id=None,
+            peak_search_parameters_id=1,
+            hit_finding_parameters_id=2,
+            result_filename="a",
+            result_type="",
+            average_resolution=0,
+            average_peaks_event=0,
+            number_of_hits=1,
+            hit_rate=0.2,
+            tag=None,
+            comment=None,
+        ),
         peak_search_parameters=psp,
         hit_finding_parameters=hfp,
-        result_filename="a",
-        number_of_hits=1,
-        hit_rate=0.2,
         indexing_results=[],
-        tag=None,
-        comment=None,
     )
-    right_hfr = replace(left_hfr, result_filename="b")
-    left = DBDataSource(
-        id=None,
-        run_id=1,
-        number_of_frames=1,
+    right_hfr = replace(
+        left_hfr,
+        hit_finding_result=replace(left_hfr.hit_finding_result, result_filename="b"),
+    )
+    left = DBLinkedDataSource(
+        DBDataSource(
+            id=None,
+            run_id=1,
+            number_of_frames=1,
+            source=None,
+            tag=None,
+            comment=None,
+        ),
         hit_finding_results=[left_hfr],
-        source=None,
-        tag=None,
-        comment=None,
     )
     right = replace(left, hit_finding_results=[right_hfr])
 
@@ -93,6 +117,9 @@ def test_deep_compare_datasource_deep() -> None:
 
 
 def test_ingest_cheetah_idempotent(db: DB) -> None:
+    """
+    We ingest the same data twice with cheetah and expect it to do nothing the second time.
+    """
     with db.connect() as conn:
         db.add_proposal(conn, ProposalId(1))
         sample_id = db.add_sample(
@@ -120,8 +147,8 @@ def test_ingest_cheetah_idempotent(db: DB) -> None:
         assert first_ingest.number_of_ingested_data_sources == 2
         analysis_results = db.retrieve_sample_based_analysis(conn)
         assert len(analysis_results) == 1
-        assert len(analysis_results[0].indexing_paths) == 2
-        assert analysis_results[0].indexing_paths[0].hit_finding_results
+        assert len(analysis_results[0].data_sources) == 2
+        assert analysis_results[0].data_sources[0].hit_finding_results
 
         second_ingest = ingest_cheetah_internal(
             Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config",

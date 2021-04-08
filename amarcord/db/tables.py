@@ -131,33 +131,27 @@ def _table_peak_search_parameters(metadata: sa.MetaData) -> sa.Table:
         "PeakSearchParameters",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column(
-            "data_source_id", sa.Integer, ForeignKey("DataSource.id"), nullable=False
-        ),
         sa.Column("tag", sa.String(length=255), nullable=True),
         sa.Column("comment", sa.String(length=255), nullable=True),
         sa.Column("method", sa.String(length=255), nullable=False),
         sa.Column("software", sa.String(length=255), nullable=False),
         sa.Column("software_version", sa.String(length=255), nullable=True),
-        sa.Column("software_git_repository", sa.Text, nullable=True),
-        sa.Column("software_git_sha", sa.String(length=255), nullable=True),
-        sa.Column("command_line", sa.Text, nullable=False),
         sa.Column("max_num_peaks", sa.Float, nullable=True),
         sa.Column("adc_threshold", sa.Float, nullable=True),
         sa.Column("minimum_snr", sa.Float, nullable=True),
-        sa.Column("min_pixel_count", sa.Float, nullable=True),
-        sa.Column("max_pixel_count", sa.Float, nullable=True),
+        sa.Column("min_pixel_count", sa.Integer, nullable=True),
+        sa.Column("max_pixel_count", sa.Integer, nullable=True),
         sa.Column("min_res", sa.Float, nullable=True),
         sa.Column("max_res", sa.Float, nullable=True),
-        sa.Column("bad_pixel_filename", sa.Text, nullable=True),
+        sa.Column("bad_pixel_map_filename", sa.Text, nullable=True),
+        sa.Column("bad_pixel_map_hdf5_path", sa.Text, nullable=True),
         sa.Column("local_bg_radius", sa.Float, nullable=True),
         sa.Column("min_peak_over_neighbor", sa.Float, nullable=True),
         sa.Column("min_snr_biggest_pix", sa.Float, nullable=True),
         sa.Column("min_snr_peak_pix", sa.Float, nullable=True),
         sa.Column("min_sig", sa.Float, nullable=True),
         sa.Column("min_squared_gradient", sa.Float, nullable=True),
-        sa.Column("geometry_filename", sa.Text, nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
+        sa.Column("geometry", sa.Text, nullable=True),
     )
 
 
@@ -169,13 +163,14 @@ def _table_hit_finding_parameters(metadata: sa.MetaData) -> sa.Table:
         sa.Column("min_peaks", sa.Integer, nullable=False),
         sa.Column("tag", sa.String(length=255), nullable=True),
         sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
+        sa.Column("software", sa.String(length=255), nullable=False),
+        sa.Column("software_version", sa.String(length=255), nullable=True),
     )
 
 
-def _table_hit_finding_results(metadata: sa.MetaData) -> sa.Table:
+def _table_hit_finding_result(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
-        "HitFindingResults",
+        "HitFindingResult",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column(
@@ -190,12 +185,18 @@ def _table_hit_finding_results(metadata: sa.MetaData) -> sa.Table:
             ForeignKey("HitFindingParameters.id"),
             nullable=False,
         ),
+        sa.Column(
+            "data_source_id", sa.Integer, ForeignKey("DataSource.id"), nullable=False
+        ),
+        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("tag", sa.String(length=255), nullable=True),
         sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("number_of_hits", sa.Integer, nullable=False),
         sa.Column("hit_rate", sa.Float, nullable=False),
+        sa.Column("average_peaks_event", sa.Float, nullable=True),
+        sa.Column("average_resolution", sa.Float, nullable=True),
         sa.Column("result_filename", sa.Text, nullable=False),
+        sa.Column("result_type", sa.String(length=255), nullable=False),
     )
 
 
@@ -204,25 +205,14 @@ def _table_indexing_parameters(metadata: sa.MetaData) -> sa.Table:
         "IndexingParameters",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column(
-            "hit_finding_results_id",
-            sa.Integer,
-            ForeignKey("HitFindingResults.id"),
-            nullable=False,
-        ),
         sa.Column("tag", sa.String(length=255), nullable=True),
         sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("software", sa.String(length=255), nullable=False),
         sa.Column("software_version", sa.String(length=255), nullable=True),
-        sa.Column("software_git_repository", sa.Text, nullable=True),
-        sa.Column("software_git_sha", sa.String(length=255), nullable=True),
         sa.Column("command_line", sa.Text, nullable=False),
         sa.Column("parameters", sa.JSON, nullable=False),
         sa.Column("methods", sa.JSON, nullable=True),
-        sa.Column("target_cell_filename", sa.Text, nullable=True),
         sa.Column("geometry", sa.Text, nullable=True),
-        sa.Column("geometry_filename", sa.Text, nullable=True),
     )
 
 
@@ -233,7 +223,8 @@ def _table_integration_parameters(metadata: sa.MetaData) -> sa.Table:
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("tag", sa.String(length=255), nullable=True),
         sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
+        sa.Column("software", sa.String(length=255), nullable=False),
+        sa.Column("software_version", sa.String(length=255), nullable=True),
         sa.Column("method", sa.String(length=255), nullable=True),
         sa.Column("center_boxes", sa.Boolean, nullable=True),
         sa.Column("overpredict", sa.Boolean, nullable=True),
@@ -244,15 +235,21 @@ def _table_integration_parameters(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_indexing_results(metadata: sa.MetaData) -> sa.Table:
+def _table_indexing_result(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
-        "IndexingResults",
+        "IndexingResult",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column(
-            "indexing_parameters_id",
+            "hit_finding_result_id",
             sa.Integer,
-            ForeignKey("IndexingParameters.id"),
+            ForeignKey("HitFindingResult.id"),
+            nullable=False,
+        ),
+        sa.Column(
+            "peak_search_parameters_id",
+            sa.Integer,
+            ForeignKey("PeakSearchParameters.id"),
             nullable=False,
         ),
         sa.Column(
@@ -261,9 +258,15 @@ def _table_indexing_results(metadata: sa.MetaData) -> sa.Table:
             ForeignKey("IntegrationParameters.id"),
             nullable=False,
         ),
+        sa.Column(
+            "indexing_parameters_id",
+            sa.Integer,
+            ForeignKey("IndexingParameters.id"),
+            nullable=False,
+        ),
+        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("tag", sa.String(length=255), nullable=True),
         sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("result_filename", sa.Text, nullable=True),
         sa.Column("num_indexed", sa.Integer, nullable=False),
         sa.Column("num_crystals", sa.Integer, nullable=False),
@@ -405,9 +408,9 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         data_source=_table_data_source(metadata),
         peak_search_parameters=_table_peak_search_parameters(metadata),
         hit_finding_parameters=_table_hit_finding_parameters(metadata),
-        hit_finding_results=_table_hit_finding_results(metadata),
+        hit_finding_results=_table_hit_finding_result(metadata),
         indexing_parameters=_table_indexing_parameters(metadata),
-        indexing_results=_table_indexing_results(metadata),
+        indexing_results=_table_indexing_result(metadata),
         integration_parameters=_table_integration_parameters(metadata),
         event_log=_table_event_log(metadata),
     )

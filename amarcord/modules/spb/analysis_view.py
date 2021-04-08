@@ -25,9 +25,9 @@ from PyQt5.QtWidgets import QWidget
 
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
-from amarcord.db.table_classes import DBDataSource
-from amarcord.db.table_classes import DBHitFindingResult
-from amarcord.db.table_classes import DBIndexingResult
+from amarcord.db.table_classes import DBLinkedDataSource
+from amarcord.db.table_classes import DBLinkedHitFindingResult
+from amarcord.db.table_classes import DBLinkedIndexingResult
 from amarcord.db.table_classes import DBSampleAnalysisResult
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
@@ -114,38 +114,40 @@ def _build_tree(
 def _is_same_item(a: TreeItem, b: TreeItem) -> bool:
     if isinstance(a, DBSampleAnalysisResult) and isinstance(b, DBSampleAnalysisResult):
         return a.sample_id == b.sample_id
-    if isinstance(a, DBDataSource) and isinstance(b, DBDataSource):
-        return a.id == b.id
-    if isinstance(a, DBHitFindingResult) and isinstance(b, DBHitFindingResult):
-        return a.id == b.id
-    if isinstance(a, DBIndexingResult) and isinstance(b, DBIndexingResult):
-        return a.id == b.id
+    if isinstance(a, DBLinkedDataSource) and isinstance(b, DBLinkedDataSource):
+        return a.data_source.id == b.data_source.id
+    if isinstance(a, DBLinkedHitFindingResult) and isinstance(
+        b, DBLinkedHitFindingResult
+    ):
+        return a.hit_finding_result.id == b.hit_finding_result.id
+    if isinstance(a, DBLinkedIndexingResult) and isinstance(b, DBLinkedIndexingResult):
+        return a.indexing_result.id == b.indexing_result.id
     return False
 
 
 def _item_to_prop_dict(item: TreeItem) -> Dict[str, str]:
-    if isinstance(item, DBDataSource):
+    if isinstance(item, DBLinkedDataSource):
         source_content = (
-            "\n".join(str(s) for s in item.source["files"])  # type: ignore
-            if isinstance(item.source, dict) and "files" in item.source
-            else json.dumps(item.source)
+            "\n".join(str(s) for s in item.data_source.source["files"])  # type: ignore
+            if isinstance(item.data_source.source, dict)
+            and "files" in item.data_source.source
+            else json.dumps(item.data_source.source)
         )
         return {
-            "Comment": item.comment,  # type: ignore
-            "Number of frames": str(item.number_of_frames),
-            "Source files": source_content if item.source else "",
+            "Comment": item.data_source.comment,  # type: ignore
+            "Number of frames": str(item.data_source.number_of_frames),
+            "Source files": source_content if item.data_source.source else "",
         }
-    if isinstance(item, DBHitFindingResult):
+    if isinstance(item, DBLinkedHitFindingResult):
         psp = item.peak_search_parameters
         return {
-            "Hit Finding.Comment": item.comment,  # type: ignore
-            "Hit Finding.Number of hits": item.number_of_hits,  # type: ignore
-            "Hit Finding.Filename": item.result_filename,
+            "Hit Finding.Comment": item.hit_finding_result.comment,  # type: ignore
+            "Hit Finding.Number of hits": item.hit_finding_result.number_of_hits,  # type: ignore
+            "Hit Finding.Result filename": item.hit_finding_result.result_filename,
             "Hit Finding.Minimum peaks": str(item.hit_finding_parameters.min_peaks),
             "Peak Search.Tag": _empty_if_none(psp.tag),
             "Peak Search.Comment": _empty_if_none(psp.comment),
             "Peak Search.Software": psp.software,
-            "Peak Search.Command Line": psp.command_line,
             "Peak Search.Max Num Peaks": str(psp.max_num_peaks),
             "Peak Search.ADC Threshold": str(psp.adc_threshold),
             "Peak Search.Minimum SNR": str(psp.minimum_snr),
@@ -153,21 +155,22 @@ def _item_to_prop_dict(item: TreeItem) -> Dict[str, str]:
             "Peak Search.Maximum Pixel Count": str(psp.max_pixel_count),
             "Peak Search.Minimum Res": str(psp.min_res),
             "Peak Search.Maximum Res": str(psp.max_res),
-            "Peak Search.Bad Pixel Filename": _empty_if_none(psp.bad_pixel_filename),
+            "Peak Search.Bad Pixel Filename": _empty_if_none(
+                psp.bad_pixel_map_filename
+            ),
             "Peak Search.Local BG Radius": str(psp.local_bg_radius),
             "Peak Search.Min Peak Over Neighbor": str(psp.min_peak_over_neighbor),
             "Peak Search.Min SNR Biggest Pix": str(psp.min_snr_biggest_pix),
             "Peak Search.Min SNR Peak Pix": str(psp.min_snr_peak_pix),
             "Peak Search.Min sig": str(psp.min_sig),
             "Peak Search.Min Squared Gradient": str(psp.min_squared_gradient),
-            "Peak Search.Geometry Filename": _empty_if_none(psp.geometry_filename),
         }
-    if isinstance(item, DBIndexingResult):
+    if isinstance(item, DBLinkedIndexingResult):
         return {
-            "Indexing.Tag": _empty_if_none(item.tag),
-            "Indexing.Comment": _empty_if_none(item.comment),
-            "Indexing.Num Indexed": str(item.num_indexed),
-            "Indexing.Num Crystals": str(item.num_crystals),
+            "Indexing.Tag": _empty_if_none(item.indexing_result.tag),
+            "Indexing.Comment": _empty_if_none(item.indexing_result.comment),
+            "Indexing.Num Indexed": str(item.indexing_result.num_indexed),
+            "Indexing.Num Crystals": str(item.indexing_result.num_crystals),
             "Indexing.Software": item.indexing_parameters.software,
             "Indexing.Command Line": item.indexing_parameters.command_line,
             "Indexing.Parameters": json.dumps(item.indexing_parameters.parameters),
@@ -188,7 +191,7 @@ class AnalysisView(QWidget):
         self._proposal_id = proposal_id
         self._db = DB(context.db, tables)
         self._current_item: Union[
-            None, DBDataSource, DBIndexingResult, DBHitFindingResult
+            None, DBLinkedDataSource, DBLinkedIndexingResult, DBLinkedHitFindingResult
         ] = None
 
         root_layout = QVBoxLayout(self)
@@ -221,10 +224,10 @@ class AnalysisView(QWidget):
 
         self._expanded_items: List[
             Union[
-                DBDataSource,
+                DBLinkedDataSource,
                 DBSampleAnalysisResult,
-                DBHitFindingResult,
-                DBIndexingResult,
+                DBLinkedHitFindingResult,
+                DBLinkedIndexingResult,
             ]
         ] = []
         self._refresh_tree()

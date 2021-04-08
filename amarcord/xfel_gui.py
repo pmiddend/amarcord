@@ -12,6 +12,7 @@ from amarcord.config import remove_user_config
 from amarcord.config import write_user_config
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.constants import CONTACT_INFO
+from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
@@ -61,7 +62,7 @@ class XFELGui:
         self._tables = create_tables(self._db_context)
         self._db_context.create_all(creation_mode=CreationMode.CHECK_FIRST)
         if self._user_config["create_sample_data"]:
-            create_sample_data(self._db_context, self._tables)
+            create_sample_data(DB(self._db_context, self._tables))
 
         self._event_timer = EventLogDaemon(
             self._db_context, self._tables, self._ui_context.main_window

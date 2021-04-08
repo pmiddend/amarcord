@@ -14,6 +14,8 @@ from amarcord.db.db import DB
 from amarcord.db.table_classes import DBDataSource
 from amarcord.db.table_classes import DBHitFindingParameters
 from amarcord.db.table_classes import DBHitFindingResult
+from amarcord.db.table_classes import DBLinkedDataSource
+from amarcord.db.table_classes import DBLinkedHitFindingResult
 from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.tables import create_tables
 from amarcord.modules.cheetah import cheetah_read_crawler_config_file
@@ -21,12 +23,16 @@ from amarcord.modules.cheetah import cheetah_read_crawler_runs_table
 from amarcord.modules.cheetah import cheetah_read_recipe
 from amarcord.modules.dbcontext import DBContext
 
+SOFTWARE_VERSION = None
+
+CHEETAH = "Cheetah"
+
 AMARCORD_DB_ENV_VAR = "AMARCORD_DB"
 
 logger = logging.getLogger(__name__)
 
 
-def cheetah_to_database(config_file: Path) -> Generator[DBDataSource, None, None]:
+def cheetah_to_database(config_file: Path) -> Generator[DBLinkedDataSource, None, None]:
     """
     Convert the cheetah file(s) to database objects. This nicely splits the process of ingesting Cheetah results in
     two distinct steps: conversion and actual ingestion.
@@ -64,29 +70,27 @@ def cheetah_to_database(config_file: Path) -> Generator[DBDataSource, None, None
             logger.debug("nprocessed isn't set, skipping")
             continue
 
-        ds = DBDataSource(
-            id=None,
-            run_id=line.run_id,
-            number_of_frames=line.nprocessed,
+        ds = DBLinkedDataSource(
+            DBDataSource(
+                id=None,
+                run_id=line.run_id,
+                number_of_frames=line.nprocessed,
+                source={"files": source_files},
+                tag=None,
+                comment=None,
+            ),
             hit_finding_results=[],
-            source={"files": source_files},
-            tag=None,
-            comment=None,
         )
 
         recipe = cheetah_read_recipe(line_hdf_dir / line.recipe)
 
         peak_search_params = DBPeakSearchParameters(
             id=None,
-            software="Cheetah",
-            command_line="unclear",
+            software=CHEETAH,
+            software_version=SOFTWARE_VERSION,
             tag=line.dataset,
             comment=None,
             method=f"hitfinderAlgorithm={recipe.algorithm}",
-            software_version="unclear",
-            software_git_repository="https://github.com/antonbarty/cheetah",
-            # I just took the latest one at time of writing
-            software_git_sha="5c174325c03ec884b918384157953b3521694036",
             max_num_peaks=recipe.npeaks_max,
             adc_threshold=recipe.adc,
             minimum_snr=recipe.min_snr,
@@ -94,14 +98,15 @@ def cheetah_to_database(config_file: Path) -> Generator[DBDataSource, None, None
             max_pixel_count=recipe.max_pix_count,
             min_res=recipe.min_res,
             max_res=recipe.max_res,
-            bad_pixel_filename=str(recipe.bad_pixel_map),
+            bad_pixel_map_filename=str(recipe.bad_pixel_map),
             local_bg_radius=recipe.local_bg_radius,
             min_peak_over_neighbor=None,
             min_snr_biggest_pix=None,
             min_snr_peak_pix=None,
             min_sig=None,
             min_squared_gradient=None,
-            geometry_filename=str(recipe.geometry_file),
+            geometry=None
+            # geometry_filename=str(recipe.geometry_file),
         )
 
         hit_finding_parameters = DBHitFindingParameters(
@@ -109,23 +114,32 @@ def cheetah_to_database(config_file: Path) -> Generator[DBDataSource, None, None
             min_peaks=recipe.npeaks,
             tag=None,
             comment=None,
+            software=CHEETAH,
+            software_version=SOFTWARE_VERSION,
         )
 
         if line.nhits is None or line.hit_rate is None:
             logger.debug(f"Either {line.nhits} or {line.hit_rate} isn't set, skipping")
             continue
 
-        hit_finding_result = DBHitFindingResult(
-            id=None,
-            data_source_id=None,
+        hit_finding_result = DBLinkedHitFindingResult(
+            hit_finding_result=DBHitFindingResult(
+                id=None,
+                peak_search_parameters_id=None,  # type: ignore
+                hit_finding_parameters_id=None,  # type: ignore
+                data_source_id=None,
+                result_filename=str(peaks_results_file),
+                number_of_hits=line.nhits,
+                hit_rate=line.hit_rate,
+                tag=None,
+                comment=None,
+                average_resolution=None,
+                average_peaks_event=None,
+                result_type="txt",
+            ),
             peak_search_parameters=peak_search_params,
             hit_finding_parameters=hit_finding_parameters,
-            result_filename=str(peaks_results_file),
-            number_of_hits=line.nhits,
-            hit_rate=line.hit_rate,
             indexing_results=[],
-            tag=None,
-            comment=None,
         )
 
         ds.hit_finding_results.append(hit_finding_result)
@@ -140,14 +154,18 @@ class DeepComparisonResult(Enum):
 
 
 def deep_compare_data_source(
-    left: DBDataSource, right: DBDataSource
+    left: DBLinkedDataSource, right: DBLinkedDataSource
 ) -> DeepComparisonResult:
-    if left != right:
+    if left.data_source != right.data_source:
         return DeepComparisonResult.DATA_SOURCE_DIFFERS
     if len(left.hit_finding_results) != len(right.hit_finding_results):
         return DeepComparisonResult.HIT_FINDING_DIFFERS
     for left_hfr, right_hfr in zip(left.hit_finding_results, right.hit_finding_results):
-        if left_hfr != right_hfr:
+        if (
+            left_hfr.hit_finding_result != right_hfr.hit_finding_result
+            or left_hfr.hit_finding_parameters != right_hfr.hit_finding_parameters
+            or left_hfr.peak_search_parameters != right_hfr.peak_search_parameters
+        ):
             return DeepComparisonResult.HIT_FINDING_DIFFERS
         if left_hfr.indexing_results != right_hfr.indexing_results:
             return DeepComparisonResult.INDEXING_DIFFERS
@@ -155,26 +173,66 @@ def deep_compare_data_source(
 
 
 def shallow_ingest_data_source(
-    ds: DBDataSource, existing_ds: DBDataSource, db: DB, conn: Connection
+    ds: DBLinkedDataSource, existing_ds: DBLinkedDataSource, db: DB, conn: Connection
 ) -> None:
     with conn.begin():
         for hfr in ds.hit_finding_results:
+            psp_id = db.add_peak_search_parameters(conn, hfr.peak_search_parameters)
+            hfp_id = db.add_hit_finding_parameters(conn, hfr.hit_finding_parameters)
             hfr_id = db.add_hit_finding_result(
-                conn, replace(hfr, data_source_id=existing_ds.id)
+                conn,
+                replace(
+                    hfr.hit_finding_result,
+                    data_source_id=existing_ds.data_source.id,
+                    peak_search_parameters_id=psp_id,
+                    hit_finding_parameters_id=hfp_id,
+                ),
             )
 
             for ir in hfr.indexing_results:
-                db.add_indexing_result(conn, replace(ir, hit_finding_results_id=hfr_id))
+                ip_id = db.add_indexing_parameters(conn, ir.indexing_parameters)
+                intp_id = db.add_integration_parameters(conn, ir.integration_parameters)
+                db.add_indexing_result(
+                    conn,
+                    replace(
+                        ir.indexing_result,
+                        hit_finding_result_id=hfr_id,
+                        peak_search_parameters_id=psp_id,
+                        indexing_parameters_id=ip_id,
+                        integration_parameters_id=intp_id,
+                    ),
+                )
 
 
-def deep_ingest_data_source(ds: DBDataSource, db: DB, conn: Connection) -> None:
+def deep_ingest_data_source(ds: DBLinkedDataSource, db: DB, conn: Connection) -> None:
     with conn.begin():
-        ds_id = db.add_data_source(conn, ds)
+        ds_id = db.add_data_source(conn, ds.data_source)
         for hfr in ds.hit_finding_results:
-            hfr_id = db.add_hit_finding_result(conn, replace(hfr, data_source_id=ds_id))
+            psp_id = db.add_peak_search_parameters(conn, hfr.peak_search_parameters)
+            hfp_id = db.add_hit_finding_parameters(conn, hfr.hit_finding_parameters)
+            hfr_id = db.add_hit_finding_result(
+                conn,
+                replace(
+                    hfr.hit_finding_result,
+                    data_source_id=ds_id,
+                    peak_search_parameters_id=psp_id,
+                    hit_finding_parameters_id=hfp_id,
+                ),
+            )
 
             for ir in hfr.indexing_results:
-                db.add_indexing_result(conn, replace(ir, hit_finding_results_id=hfr_id))
+                ip_id = db.add_indexing_parameters(conn, ir.indexing_parameters)
+                intp_id = db.add_integration_parameters(conn, ir.integration_parameters)
+                db.add_indexing_result(
+                    conn,
+                    replace(
+                        ir.indexing_result,
+                        hit_finding_result_id=hfr_id,
+                        peak_search_parameters_id=psp_id,
+                        indexing_parameters_id=ip_id,
+                        integration_parameters_id=intp_id,
+                    ),
+                )
 
 
 @dataclass(frozen=True)

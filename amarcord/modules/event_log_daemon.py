@@ -52,5 +52,5 @@ class EventLogDaemon(QObject):
         self._thread = QThread()
         self._worker = Worker(self._db, self._last_id)
         self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
+        self._thread.started.connect(self._worker.run)  # type: ignore
         self._thread.start()

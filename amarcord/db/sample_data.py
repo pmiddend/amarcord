@@ -8,42 +8,49 @@ from random import uniform
 from typing import Final
 from typing import List
 
-import bcrypt
-
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.constants import DB_SOURCE_NAME
-from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDuration
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.attributo_type import AttributoTypeTags
+from amarcord.db.attributo_type import AttributoTypeUserName
+from amarcord.db.db import DB
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.tables import DBTables
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.table_classes import DBDataSource
+from amarcord.db.table_classes import DBHitFindingParameters
+from amarcord.db.table_classes import DBHitFindingResult
+from amarcord.db.table_classes import DBIndexingParameters
+from amarcord.db.table_classes import DBIndexingResult
+from amarcord.db.table_classes import DBIntegrationParameters
+from amarcord.db.table_classes import DBPeakSearchParameters
+from amarcord.db.table_classes import DBSample
+from amarcord.db.table_classes import DBTarget
 from amarcord.db.tables import logger
-from amarcord.modules.dbcontext import DBContext
+from amarcord.numeric_range import NumericRange
 
 
-def create_sample_data(context: DBContext, tables: DBTables) -> None:
+def create_sample_data(db: DB) -> None:
     logger.info("Creating sample data...")
-    with context.connect() as conn:
+    with db.connect() as conn:
+        db.add_event(
+            conn,
+            EventLogLevel.INFO,
+            source="karabo",
+            text="test line please ignore",
+            created=None,
+        )
         proposal_id = 1
 
-        salt = bcrypt.gensalt()
-        hashed_password = bcrypt.hashpw("foobar".encode("utf-8"), salt)
-
-        # Create some events
-        conn.execute(
-            tables.event_log.insert().values(
-                source="karabo",
-                text="test line please ignore",
-                level=EventLogLevel.INFO,
-            )
-        )
-
         # Create proposal
-        conn.execute(
-            tables.proposal.insert().values(
-                id=proposal_id,
-                metadata={"data": {}, "title": "test proposal"},
-                admin_password=hashed_password.decode("utf-8"),
-            )
-        )
+        db.add_proposal(conn, ProposalId(proposal_id), "foobar")
+
         # Second proposal in case you want to test the proposal chooser
         # conn.execute(
         #     tables.proposal.insert().values(
@@ -51,346 +58,268 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         #     )
         # )
         # Create targets
-        first_target_id = conn.execute(
-            tables.target.insert().values(name="Main Protease", short_name="MPro")
-        ).inserted_primary_key[0]
+        first_target_id = db.add_target(
+            conn,
+            DBTarget(
+                id=None,
+                name="Main Protease",
+                short_name="MPro",
+                molecular_weight=None,
+                uniprot_id="",
+            ),
+        )
         # pylint: disable=unused-variable
-        _second_target_id = conn.execute(
-            tables.target.insert().values(
-                name="Protein Like Protease", short_name="PlPro"
-            )
-        ).inserted_primary_key[0]
+        _second_target_id = db.add_target(
+            conn,
+            DBTarget(
+                id=None,
+                name="Protein Like Protease",
+                short_name="PLPro",
+                molecular_weight=None,
+                uniprot_id="",
+            ),
+        )
 
-        # Sample attributi
-        conn.execute(
-            tables.attributo.insert().values(
-                [
-                    {
-                        "name": "crystal_buffer",
-                        "description": "Crystal Buffer",
-                        "json_schema": {"type": "string"},
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "shaking_time",
-                        "description": "Shaking Time",
-                        "json_schema": {"type": "string", "format": "duration"},
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "avg_crystal_size",
-                        "description": "Average Crystal Size",
-                        "json_schema": {
-                            "type": "number",
-                            "minimum": 0,
-                            "suffix": "μm",
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "crystallization_temperature",
-                        "description": "Crystallization Temperature",
-                        "json_schema": {
-                            "type": "number",
-                            "suffix": "°C",
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "shaking_strength",
-                        "description": "Shaking Strength",
-                        "json_schema": {
-                            "type": "number",
-                            "suffix": "RPM",
-                            "minimum": 0,
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "protein_concentration",
-                        "description": "Protein Concentration",
-                        "json_schema": {
-                            "type": "number",
-                            "suffix": "mg/mL",
-                            "minimum": 0,
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "comment",
-                        "description": "Comment",
-                        "json_schema": {
-                            "type": "string",
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "crystal_settlement_volume",
-                        "description": "Crystal Settlement Volume",
-                        "json_schema": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 100,
-                            "suffix": "%",
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "seed_stock_used",
-                        "description": "Seed Stock Used",
-                        "json_schema": {
-                            "type": "string",
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "plate_origin",
-                        "description": "Plate Origin",
-                        "json_schema": {
-                            "type": "string",
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "creator",
-                        "description": "Creator",
-                        "json_schema": {"type": "string", "format": "user-name"},
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "crystallization_method",
-                        "description": "Crystallization Method",
-                        "json_schema": {"type": "string"},
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "incubation_time",
-                        "description": "Incubation Time",
-                        "json_schema": {"type": "string", "format": "date-time"},
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "crystal_shape",
-                        "description": "Crystal Shape",
-                        "json_schema": {
-                            "type": "array",
-                            "items": {"type": "number", "suffix": "nm", "minimum": 0},
-                            "minItems": 3,
-                            "maxItems": 3,
-                        },
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                    {
-                        "name": "filters",
-                        "description": "Filters",
-                        "json_schema": {"type": "array", "items": {"type": "string"}},
-                        "associated_table": AssociatedTable.SAMPLE,
-                    },
-                ]
-            )
+        db.add_attributo(
+            conn,
+            name="crystal_buffer",
+            description="Crystal Buffer",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeString(),
+        )
+        db.add_attributo(
+            conn,
+            name="shaking_time",
+            description="Shaking Time",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeDuration(),
+        )
+        db.add_attributo(
+            conn,
+            name="avg_crystal_size",
+            description="Average Crystal Size",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeDouble(
+                range=NumericRange(
+                    0, minimum_inclusive=False, maximum=None, maximum_inclusive=False
+                ),
+                suffix="μm",
+                standard_unit=True,
+            ),
+        )
+        db.add_attributo(
+            conn,
+            name="crystallization_temperature",
+            description="Crystallization Temperature",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeDouble(range=None, suffix="°C", standard_unit=False),
+        )
+        db.add_attributo(
+            conn,
+            name="shaking_strength",
+            description="Shaking Strength",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeDouble(
+                range=NumericRange(
+                    0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
+                ),
+                suffix="RPM",
+                standard_unit=False,
+            ),
+        )
+        db.add_attributo(
+            conn,
+            name="protein_concentration",
+            description="Protein Concentration",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeDouble(
+                range=NumericRange(
+                    0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
+                ),
+                suffix="mg/mL",
+                standard_unit=True,
+            ),
+        )
+        db.add_attributo(
+            conn,
+            name="comment",
+            description="Comment",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeString(),
+        )
+        db.add_attributo(
+            conn,
+            name="crystal_settlement_volume",
+            description="Crystal Settlement Volume",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeDouble(
+                range=NumericRange(
+                    0, minimum_inclusive=True, maximum=100, maximum_inclusive=True
+                ),
+                suffix="%",
+                standard_unit=False,
+            ),
+        )
+        db.add_attributo(
+            conn,
+            name="seed_stock_used",
+            description="Seed Stock Used",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeString(),
+        )
+        db.add_attributo(
+            conn,
+            name="plate_origin",
+            description="Plate Origin",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeString(),
+        )
+        db.add_attributo(
+            conn,
+            name="creator",
+            description="Creator",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeUserName(),
+        )
+        db.add_attributo(
+            conn,
+            name="crystallization_method",
+            description="Crystallization Method",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeString(),
+        )
+        db.add_attributo(
+            conn,
+            name="incubation_time",
+            description="Incubation Time",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeDateTime(),
+        )
+        db.add_attributo(
+            conn,
+            name="crystal_shape",
+            description="Crystal Shape",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeList(
+                sub_type=AttributoTypeDouble(
+                    range=NumericRange(
+                        0, minimum_inclusive=True, maximum=None, maximum_inclusive=True
+                    ),
+                    suffix="nm",
+                    standard_unit=True,
+                ),
+                min_length=3,
+                max_length=3,
+            ),
+        )
+        db.add_attributo(
+            conn,
+            name="filters",
+            description="Filters",
+            associated_table=AssociatedTable.SAMPLE,
+            prop_type=AttributoTypeList(
+                sub_type=AttributoTypeString(), min_length=None, max_length=None
+            ),
         )
 
         # Create samples
         sample_ids: List[int] = []
         for i in range(10):
+            attributi = RawAttributiMap({})
+            attributi.set_single_manual(
+                AttributoId("crystal_buffer"), "foo crystal buffer bar"
+            )
+            attributi.set_single_manual(AttributoId("shaking_time"), "P2D")
             sample_ids.append(
-                conn.execute(
-                    tables.sample.insert().values(
+                db.add_sample(
+                    conn,
+                    DBSample(
+                        id=None,
                         name=f"mpro {i}",
                         target_id=first_target_id,
-                        modified=datetime.datetime.utcnow(),
-                        attributi={
-                            MANUAL_SOURCE_NAME: {
-                                "crystal_buffer": "foo crystal buffer bar",
-                                "shaking_time": "P2D",
-                                "created": datetime.datetime.utcnow().isoformat(),
-                            }
-                        },
-                    )
-                ).inserted_primary_key[0]
+                        compounds=None,
+                        micrograph=None,
+                        protocol=None,
+                        attributi=attributi,
+                    ),
+                )
             )
 
-        conn.execute(
-            tables.sample.insert().values(
-                target_id=first_target_id,
+        db.add_sample(
+            conn,
+            DBSample(
+                id=None,
                 name="mpro unused",
-                modified=datetime.datetime.utcnow(),
-                attributi={
-                    DB_SOURCE_NAME: {"created": datetime.datetime.utcnow().isoformat()}
-                },
-            )
+                target_id=first_target_id,
+                compounds=None,
+                micrograph=None,
+                protocol=None,
+                attributi=RawAttributiMap({}),
+            ),
         )
 
-        # Create run properties
-        conn.execute(
-            tables.attributo.insert().values(
-                [
-                    {
-                        "name": "repetition_rate",
-                        "description": "Repetition Rate",
-                        "json_schema": {
-                            "type": "number",
-                            "suffix": "MHz",
-                            "minimumExclusive": 0,
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "status",
-                        "description": "Status",
-                        "json_schema": {
-                            "type": "string",
-                            "enum": ["running", "finished"],
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "xray_energy",
-                        "description": "X-Ray energy",
-                        "json_schema": {
-                            "type": "number",
-                            "suffix": "keV",
-                            "minimum": 0,
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "pulse_energy",
-                        "description": "Pulse energy",
-                        "json_schema": {
-                            "type": "number",
-                            "suffix": "mJ",
-                            "minimum": 0,
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "detector_gain",
-                        "description": "Detector gain",
-                        "json_schema": {
-                            "type": "number",
-                            "suffix": "dB",
-                            "minimum": 0,
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "gain_mode",
-                        "description": "Detector gain mode",
-                        "json_schema": {
-                            "type": "string",
-                            "enum": [
-                                "fixed high",
-                                "fixed medium",
-                                "fixed low",
-                                "adaptive",
-                            ],
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "hit_rate",
-                        "description": "Hit Rate",
-                        "json_schema": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 100,
-                            "suffix": "%",
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "first_train",
-                        "description": "First Train",
-                        "json_schema": {"type": "integer"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "last_train",
-                        "description": "Last Train",
-                        "json_schema": {"type": "integer"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "injector_position_z",
-                        "description": "Injector Position Z",
-                        "json_schema": {"type": "number", "suffix": "mm"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "injector_flow_rate",
-                        "description": "Injector Flow Rate",
-                        "json_schema": {"type": "number", "suffix": "uL/min"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "sample_delivery_rate",
-                        "description": "Sample Delivery Rate",
-                        "json_schema": {"type": "number", "suffix": "uL/min"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "detector_darks",
-                        "description": "Detector Darks",
-                        "json_schema": {"type": "string"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "injector_valve_config",
-                        "description": "Injector Valve Config",
-                        "json_schema": {"type": "string"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "injector_image",
-                        "description": "Injector Image",
-                        "json_schema": {"type": "string"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "bunch_pattern",
-                        "description": "Bunch Pattern",
-                        "json_schema": {"type": "string"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "detector_quadrant_positions",
-                        "description": "Detector Quadrant Positions",
-                        "json_schema": {"type": "string"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "transmission",
-                        "description": "Transmission",
-                        "json_schema": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 100,
-                            "suffix": "%",
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "tags",
-                        "description": "Tags",
-                        "json_schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string",
-                                "minLength": 1,
-                                "format": "tag",
-                            },
-                        },
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                    {
-                        "name": "started",
-                        "description": "Started",
-                        "json_schema": {"type": "string", "format": "date-time"},
-                        "associated_table": AssociatedTable.RUN,
-                    },
-                ]
-            )
+        db.add_attributo(
+            conn,
+            "repetition_rate",
+            description="Repetition Rate",
+            associated_table=AssociatedTable.RUN,
+            prop_type=AttributoTypeDouble(
+                range=NumericRange(
+                    0, minimum_inclusive=True, maximum=None, maximum_inclusive=True
+                ),
+                suffix="MHz",
+                standard_unit=True,
+            ),
+        )
+        db.add_attributo(
+            conn,
+            "status",
+            description="Status",
+            associated_table=AssociatedTable.RUN,
+            prop_type=AttributoTypeChoice(
+                [("running", "running"), ("running", "finished")]
+            ),
+        )
+        db.add_attributo(
+            conn,
+            "hit_rate",
+            description="Hit Rate",
+            associated_table=AssociatedTable.RUN,
+            prop_type=AttributoTypeDouble(
+                range=NumericRange(
+                    0, minimum_inclusive=True, maximum=100, maximum_inclusive=True
+                ),
+                suffix="%",
+                standard_unit=False,
+            ),
+        )
+        db.add_attributo(
+            conn,
+            "first_train",
+            description="First Train",
+            associated_table=AssociatedTable.RUN,
+            prop_type=AttributoTypeInt(),
+        )
+        db.add_attributo(
+            conn,
+            "last_train",
+            description="Last Train",
+            associated_table=AssociatedTable.RUN,
+            prop_type=AttributoTypeInt(),
+        )
+        db.add_attributo(
+            conn,
+            "tags",
+            description="Tags",
+            associated_table=AssociatedTable.RUN,
+            prop_type=AttributoTypeTags(),
+        )
+        db.add_attributo(
+            conn,
+            name="started",
+            description="Started",
+            associated_table=AssociatedTable.RUN,
+            prop_type=AttributoTypeDateTime(),
         )
 
         # Create runs
@@ -399,42 +328,34 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         seed(1337)
         run_ids: List[int] = []
         current_train = 0
-        # for _ in range(10000):
-        for _ in range(100):
+        for run_id in range(100):
             train_count = randint(600, 3000)
-            run_id = conn.execute(
-                tables.run.insert().values(
-                    proposal_id=proposal_id,
-                    modified=datetime.datetime.utcnow(),
-                    sample_id=choice(sample_ids),
-                    attributi={
-                        "karabo": {
-                            "started": (
-                                base_date + datetime.timedelta(0, randint(10, 200))
-                            ).isoformat(),
-                            "status": "running",
-                            "repetition_rate": randrange(0, 20),
-                            "hit_rate": random(),
-                            "injector_position_z": randrange(0, 100),
-                            "first_train": current_train + 1,
-                            "last_train": current_train + train_count,
-                        }
-                    },
-                )
-            ).inserted_primary_key[0]
+            attributi = RawAttributiMap({})
+            attributi.append_to_source(
+                "online",
+                {
+                    AttributoId("status"): "running",
+                    AttributoId("repetition_rate"): randrange(0, 20),
+                    AttributoId("hit_rate"): random() * 100,
+                    AttributoId("first_train"): current_train + 1,
+                    AttributoId("last_train"): current_train + train_count,
+                },
+            )
+            db.add_run(
+                conn,
+                ProposalId(proposal_id),
+                run_id=run_id,
+                sample_id=choice(sample_ids),
+                attributi=attributi,
+            )
 
             current_train += train_count
 
             run_ids.append(run_id)
 
             for _ in range(randrange(0, 10)):
-                conn.execute(
-                    tables.run_comment.insert().values(
-                        run_id=run_id,
-                        author="testauthor",
-                        comment_text="foooooo",
-                        created=datetime.datetime.utcnow(),
-                    )
+                db.add_comment(
+                    conn, run_id, "testauthor", choice(["foo", "bar", "baz"])
                 )
 
         # Insert analysis results
@@ -464,72 +385,109 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
         for run_id in run_ids:
             for _ in range(choice([1, 2])):
                 number_of_frames = randint(0, 1000)
-                data_source_id = conn.execute(
-                    tables.data_source.insert().values(
+                data_source_id = db.add_data_source(
+                    conn,
+                    DBDataSource(
+                        id=None,
                         run_id=run_id,
                         number_of_frames=number_of_frames,
+                        source={"files": ["/var/log/file/hoooo.h5" for _ in range(10)]},
                         tag=choice(possible_tags),
-                        source=[
-                            "/var/log/foo/bar/bux/quuux/baaaaaaaaar/hoooo.h5"
-                            for _ in range(40)
-                        ],
-                    )
-                ).inserted_primary_key[0]
+                        comment=None,
+                    ),
+                )
 
                 for _ in range(choice([0, 1, 2])):
-                    peak_search_parameters_id = conn.execute(
-                        tables.peak_search_parameters.insert().values(
-                            data_source_id=data_source_id,
+                    psp_id = db.add_peak_search_parameters(
+                        conn,
+                        DBPeakSearchParameters(
+                            id=None,
                             method="dummy-method",
                             software="dummy-software",
-                            command_line="command-line",
                             tag=choice(possible_tags),
-                        )
-                    ).inserted_primary_key[0]
+                            comment=None,
+                            software_version=None,
+                        ),
+                    )
 
-                    hit_finding_parameters_id = conn.execute(
-                        tables.hit_finding_parameters.insert().values(
+                    hfp_id = db.add_hit_finding_parameters(
+                        conn,
+                        DBHitFindingParameters(
+                            id=None,
                             min_peaks=int(uniform(10, 100)),
                             tag=choice(possible_tags),
-                        )
-                    ).inserted_primary_key[0]
+                            comment=None,
+                            software="dummy-software",
+                            software_version="1.0",
+                        ),
+                    )
 
-                    hit_finding_results_id = conn.execute(
-                        tables.hit_finding_results.insert().values(
-                            peak_search_parameters_id=peak_search_parameters_id,
-                            hit_finding_parameters_id=hit_finding_parameters_id,
-                            number_of_hits=int(uniform(0, number_of_frames)),
-                            hit_rate=random() * 100,
-                            result_filename="/tmp/result",
-                            tag=choice(possible_tags),
-                        )
-                    ).inserted_primary_key[0]
+                    hfr_id = db.add_hit_finding_result(
+                        conn,
+                        DBHitFindingResult(
+                            id=None,
+                            peak_search_parameters_id=psp_id,
+                            hit_finding_parameters_id=hfp_id,
+                            data_source_id=data_source_id,
+                            result_filename="/tmp/result.hkl",
+                            result_type="hkl",
+                            average_resolution=None,
+                            number_of_hits=1000,
+                            average_peaks_event=0,
+                            hit_rate=30,
+                            tag=None,
+                            comment=None,
+                        ),
+                    )
 
                     for _ in range(choice([0, 1, 2])):
-                        indexing_parameters_id = conn.execute(
-                            tables.indexing_parameters.insert().values(
-                                hit_finding_results_id=hit_finding_results_id,
-                                software="dummy-software",
-                                command_line="",
-                                parameters={},
+                        ip_id = db.add_indexing_parameters(
+                            conn,
+                            DBIndexingParameters(
+                                id=None,
                                 tag=choice(possible_tags),
-                            )
-                        ).inserted_primary_key[0]
+                                comment=None,
+                                software="dummy-software",
+                                software_version="",
+                                command_line="command-line",
+                                parameters={},
+                                methods=[],
+                                geometry=None,
+                            ),
+                        )
 
-                        integration_parameters_id = conn.execute(
-                            tables.integration_parameters.insert().values(
-                                tag=choice(possible_tags)
-                            )
-                        ).inserted_primary_key[0]
+                        intp_id = db.add_integration_parameters(
+                            conn,
+                            DBIntegrationParameters(
+                                id=None,
+                                tag=choice(possible_tags),
+                                comment=None,
+                                software="dummy-software",
+                                software_version="1.0",
+                                method=None,
+                                center_boxes=None,
+                                overpredict=None,
+                                push_res=None,
+                                radius_inner=None,
+                                radius_outer=None,
+                                radius_middle=None,
+                            ),
+                        )
 
-                        _indexing_results_id = conn.execute(
-                            tables.indexing_results.insert().values(
-                                indexing_parameters_id=indexing_parameters_id,
-                                integration_parameters_id=integration_parameters_id,
+                        db.add_indexing_result(
+                            conn,
+                            DBIndexingResult(
+                                id=None,
+                                hit_finding_result_id=hfr_id,
+                                peak_search_parameters_id=psp_id,
+                                indexing_parameters_id=ip_id,
+                                integration_parameters_id=intp_id,
                                 num_indexed=int(uniform(0, number_of_frames)),
                                 num_crystals=1,
-                                tag=choice(possible_tags),
-                            )
-                        ).inserted_primary_key[0]
+                                tag=None,
+                                comment=None,
+                                result_filename="/tmp/result.hkl",
+                            ),
+                        )
 
     logger.info("Done")
