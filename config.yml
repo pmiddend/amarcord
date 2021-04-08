@@ -4,9 +4,6 @@ myMdC:
   user_secret: 0000000000000000000000000000000000000000000
   user_email: foo@cfel.de
 
-# Q. The client returns data and metadata. TrainIds are present in both variables.
-#    Is it safe to assume that trainId in data are redudant and therefore only consider information in data?
-#    Or is some sanity check required?
 # D. We should have 'filling values' in case a device disappears from the stream
 Karabo_bridge:
   #! configuration for the Karabo bridge.
@@ -402,3 +399,5 @@ Karabo_bridge:
     position_z:
       key: actualPosition.value
       unit: mm
+
+OnDA:
