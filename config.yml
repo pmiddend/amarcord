@@ -54,12 +54,9 @@ Karabo_bridge:
       unit: nC
 
     bunch_pattern:
-      # Q. Is this related to the repetition rate?
-      # Q. Can this vary within a run?
       key: SASE1.pulseIds.value
 
     number_of_bunches:
-      # Q. Can this vary within a run?
       key: SASE1.nPulses.value
 
   # any detector
