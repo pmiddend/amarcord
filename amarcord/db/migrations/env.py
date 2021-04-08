@@ -1,10 +1,15 @@
 from alembic import context
+
+# pylint: disable=wrong-import-order
 from sqlalchemy import engine_from_config
+
+# pylint: disable=wrong-import-order
 from sqlalchemy import pool
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 
+# pylint: disable=no-member
 config = context.config
 
 # Interpret the config file for Python logging.
@@ -35,6 +40,7 @@ def run_migrations_offline():
     script output.
 
     """
+    # pylint: disable=no-member
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -43,7 +49,9 @@ def run_migrations_offline():
         dialect_opts={"paramstyle": "named"},
     )
 
+    # pylint: disable=no-member
     with context.begin_transaction():
+        # pylint: disable=no-member
         context.run_migrations()
 
 
@@ -63,10 +71,13 @@ def run_migrations_online():
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
 
+        # pylint: disable=no-member
         with context.begin_transaction():
+            # pylint: disable=no-member
             context.run_migrations()
 
 
+# pylint: disable=no-member
 if context.is_offline_mode():
     run_migrations_offline()
 else:
