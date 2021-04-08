@@ -270,6 +270,7 @@ class RunDetailsInner(QWidget):
         run_was_modified = (
             old_run_modified != new_run.modified or new_run.id != self.run.id
         )
+        run_id_was_modified = self.run.id != new_run.id
         self.run = new_run
         metadata_was_modified = self.runs_metadata != new_metadata
         self.karabo = new_karabo
@@ -288,7 +289,8 @@ class RunDetailsInner(QWidget):
                 if self.run.id != max_run_id:
                     self.current_run_changed.emit(max_run_id)
 
-        self._run_selector.setText(str(new_run.id))
+        if run_id_was_modified:
+            self._run_selector.setText(str(new_run.id))
 
         self._comments.set_comments(self.run.id, self.run.comments)
 

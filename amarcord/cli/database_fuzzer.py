@@ -266,7 +266,8 @@ def action_modify_sample() -> None:
         if samples:
             s = random.choice(samples)
             attributi = db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE)
-            attributi.pop(AttributoId("id"), None)
+            for aid in ("id", "name", "micrograph", "protocol"):
+                attributi.pop(AttributoId(aid), None)
             random_attributo = random.choice(list(attributi.values()))
             new_value = generate_attributo(
                 db.retrieve_mini_samples(conn), random_attributo
