@@ -113,23 +113,6 @@ Karabo_bridge:
     injector_image:
       key: data.image.data
 
-    matadata:
-      - data.image.type
-      - data.image.dimensions
-      - data.image.dimensionTypes
-      - data.image.rOIOffsets
-      - data.image.binning
-      - data.image.rotation
-      - data.image.flipX
-      - data.image.flipY
-      - data.image.bitsPerPixel
-      - data.image.encoding GRAY
-      - data.image.dimensionScales
-      - data.image.geometry.alignment.offsets
-      - data.image.geometry.alignment.rotations
-      - data.image.geometry.tileId
-      - data.image.header
-
   AGIPD:
     comment: X-ray detector
 
