@@ -353,7 +353,6 @@ def generate_indexing_result(hfr_id: int, number_of_hits: int) -> DBIndexingResu
             parameters={},
         ),
         integration_parameters=DBIntegrationParameters(),
-        ambiguity_parameters=None,
         num_indexed=random.randint(0, number_of_hits),
         num_crystals=1,
         tag=generate_random_string(8),

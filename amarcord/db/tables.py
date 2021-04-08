@@ -244,22 +244,6 @@ def _table_integration_parameters(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_ambiguity_parameters(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "AmbiguityParameters",
-        metadata,
-        sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
-        sa.Column("software", sa.String(length=255), nullable=False),
-        sa.Column("software_version", sa.String(length=255), nullable=True),
-        sa.Column("software_git_repository", sa.Text, nullable=True),
-        sa.Column("software_git_sha", sa.String(length=255), nullable=True),
-        sa.Column("parameters", sa.JSON, nullable=False),
-    )
-
-
 def _table_indexing_results(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "IndexingResults",
@@ -277,45 +261,12 @@ def _table_indexing_results(metadata: sa.MetaData) -> sa.Table:
             ForeignKey("IntegrationParameters.id"),
             nullable=False,
         ),
-        sa.Column(
-            "ambiguity_parameters_id",
-            sa.Integer,
-            ForeignKey("AmbiguityParameters.id"),
-            nullable=True,
-        ),
         sa.Column("tag", sa.String(length=255), nullable=True),
         sa.Column("comment", sa.String(length=255), nullable=True),
         sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("result_filename", sa.Text, nullable=True),
         sa.Column("num_indexed", sa.Integer, nullable=False),
         sa.Column("num_crystals", sa.Integer, nullable=False),
-    )
-
-
-def _table_merge_parameters(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "MergeParameters",
-        metadata,
-        sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
-        sa.Column("software", sa.String(length=255), nullable=False),
-        sa.Column("software_version", sa.String(length=255), nullable=True),
-        sa.Column("software_git_repository", sa.Text, nullable=True),
-        sa.Column("software_git_sha", sa.String(length=255), nullable=True),
-        sa.Column("command_line", sa.Text, nullable=False),
-        sa.Column("parameters", sa.JSON, nullable=False),
-        sa.Column("partiality_model", sa.String(length=255), nullable=True),
-        sa.Column("num_iterations", sa.Integer, nullable=True),
-        sa.Column("scale_linear", sa.Boolean, nullable=True),
-        sa.Column("scale_bfactor", sa.Boolean, nullable=True),
-        sa.Column("post_refine", sa.Boolean, nullable=True),
-        sa.Column("symmetry", sa.String(length=255), nullable=True),
-        sa.Column("polarization", sa.String(length=255), nullable=True),
-        sa.Column("min_measurements", sa.Integer, nullable=True),
-        sa.Column("max_adu", sa.Float, nullable=True),
-        sa.Column("min_res", sa.Float, nullable=True),
     )
 
 
@@ -335,45 +286,6 @@ def _table_event_log(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_merge_has_indexing(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "MergeHasIndexing",
-        metadata,
-        sa.Column(
-            "merge_results_id",
-            sa.Integer,
-            ForeignKey("MergeResults.id"),
-            primary_key=True,
-        ),
-        sa.Column(
-            "indexing_results_id",
-            sa.Integer,
-            ForeignKey("IndexingResults.id"),
-            primary_key=True,
-        ),
-    )
-
-
-def _table_merge_results(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "MergeResults",
-        metadata,
-        sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column(
-            "merge_parameters_id",
-            sa.Integer,
-            ForeignKey("MergeParameters.id"),
-            nullable=False,
-        ),
-        sa.Column("result_hkl_filename", sa.Text, nullable=True),
-        sa.Column("result_mtz_filename", sa.Text, nullable=True),
-        sa.Column("rsplit", sa.Float, nullable=False),
-        sa.Column("cc_half", sa.Float, nullable=False),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
-    )
-
-
 class DBTables:
     def __init__(
         self,
@@ -390,17 +302,9 @@ class DBTables:
         indexing_parameters: sa.Table,
         indexing_results: sa.Table,
         integration_parameters: sa.Table,
-        merge_parameters: sa.Table,
-        merge_results: sa.Table,
-        ambiguity_parameters: sa.Table,
-        merge_has_indexing: sa.Table,
         event_log: sa.Table,
     ) -> None:
         self.event_log = event_log
-        self.merge_has_indexing = merge_has_indexing
-        self.ambiguity_parameters = ambiguity_parameters
-        self.merge_results = merge_results
-        self.merge_parameters = merge_parameters
         self.integration_parameters = integration_parameters
         self.indexing_results = indexing_results
         self.indexing_parameters = indexing_parameters
@@ -494,10 +398,6 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         indexing_parameters=_table_indexing_parameters(metadata),
         indexing_results=_table_indexing_results(metadata),
         integration_parameters=_table_integration_parameters(metadata),
-        merge_parameters=_table_merge_parameters(metadata),
-        merge_results=_table_merge_results(metadata),
-        ambiguity_parameters=_table_ambiguity_parameters(metadata),
-        merge_has_indexing=_table_merge_has_indexing(metadata),
         event_log=_table_event_log(metadata),
     )
 

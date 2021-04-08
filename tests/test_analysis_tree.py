@@ -40,11 +40,7 @@ def hit_finding_result_mock(
 
 def test_analysis_tree_no_indexing_paths() -> None:
     tree = build_analysis_tree(
-        [
-            DBSampleAnalysisResult(
-                sample_id=1, sample_name="a", indexing_paths=[], merge_results=[]
-            )
-        ],
+        [DBSampleAnalysisResult(sample_id=1, sample_name="a", indexing_paths=[])],
         {},
     )
     assert len(tree) == 1
@@ -108,7 +104,6 @@ def test_datasource_indexing_rate_simple() -> None:
                             1,
                             indexing_parameters=None,  # type: ignore
                             integration_parameters=None,  # type: ignore
-                            ambiguity_parameters=None,
                             num_indexed=10,
                             num_crystals=1,
                             tag=None,
@@ -146,7 +141,6 @@ def test_datasource_indexing_rate_multiple() -> None:
                             1,
                             indexing_parameters=None,  # type: ignore
                             integration_parameters=None,  # type: ignore
-                            ambiguity_parameters=None,
                             num_indexed=10,
                             num_crystals=1,
                             tag=None,
@@ -157,7 +151,6 @@ def test_datasource_indexing_rate_multiple() -> None:
                             1,
                             indexing_parameters=None,  # type: ignore
                             integration_parameters=None,  # type: ignore
-                            ambiguity_parameters=None,
                             num_indexed=1,
                             num_crystals=1,
                             tag=None,
@@ -196,7 +189,6 @@ def test_datasource_indexing_rate_multiple_hit_findings() -> None:
                             1,
                             indexing_parameters=None,  # type: ignore
                             integration_parameters=None,  # type: ignore
-                            ambiguity_parameters=None,
                             num_indexed=10,
                             num_crystals=1,
                             tag=None,
@@ -207,7 +199,6 @@ def test_datasource_indexing_rate_multiple_hit_findings() -> None:
                             1,
                             indexing_parameters=None,  # type: ignore
                             integration_parameters=None,  # type: ignore
-                            ambiguity_parameters=None,
                             num_indexed=1,
                             num_crystals=1,
                             tag=None,
@@ -226,7 +217,6 @@ def test_datasource_indexing_rate_multiple_hit_findings() -> None:
                             1,
                             indexing_parameters=None,  # type: ignore
                             integration_parameters=None,  # type: ignore
-                            ambiguity_parameters=None,
                             num_indexed=200,
                             num_crystals=1,
                             tag=None,
@@ -237,7 +227,6 @@ def test_datasource_indexing_rate_multiple_hit_findings() -> None:
                             1,
                             indexing_parameters=None,  # type: ignore
                             integration_parameters=None,  # type: ignore
-                            ambiguity_parameters=None,
                             num_indexed=300,
                             num_crystals=1,
                             tag=None,

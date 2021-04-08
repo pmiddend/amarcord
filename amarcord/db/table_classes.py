@@ -98,33 +98,11 @@ class DBIntegrationParameters:
 
 
 @dataclass(frozen=True, eq=True)
-class DBAmbiguityParameters:
-    pass
-
-
-@dataclass(frozen=True, eq=True)
-class DBMergeParameters:
-    software: str
-    command_line: str
-    parameters: JSONDict
-
-
-@dataclass(frozen=True, eq=True)
-class DBMergeResult:
-    id: Optional[int]
-    merge_parameters: DBMergeParameters
-    indexing_result_ids: List[int] = field(compare=False)
-    rsplit: float
-    cc_half: float
-
-
-@dataclass(frozen=True, eq=True)
 class DBIndexingResult:
     id: Optional[int]
     hit_finding_results_id: int = field(compare=False)
     indexing_parameters: DBIndexingParameters
     integration_parameters: DBIntegrationParameters
-    ambiguity_parameters: Optional[DBAmbiguityParameters]
     num_indexed: int
     num_crystals: int
     tag: Optional[str]
@@ -161,4 +139,3 @@ class DBSampleAnalysisResult:
     sample_id: int
     sample_name: str
     indexing_paths: List[DBDataSource]
-    merge_results: List[DBMergeResult]

@@ -41,8 +41,6 @@ from amarcord.db.table_classes import DBHitFindingResult
 from amarcord.db.table_classes import DBIndexingParameters
 from amarcord.db.table_classes import DBIndexingResult
 from amarcord.db.table_classes import DBIntegrationParameters
-from amarcord.db.table_classes import DBMergeParameters
-from amarcord.db.table_classes import DBMergeResult
 from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBRun
 from amarcord.db.table_classes import DBSample
@@ -566,6 +564,7 @@ class DB:
     # noinspection PyMethodMayBeStatic
     def retrieve_karabo(self, _conn: Connection, _run_id: int) -> Optional[Karabo]:
         result: Optional[bytes]
+        # noinspection PyBroadException
         try:
             with open("data/pickled_karabo", "rb") as f:
                 result = f.read()
@@ -865,31 +864,6 @@ class DB:
                 )
             ).inserted_primary_key[0]
 
-    def add_merge_result(self, conn: Connection, mr: DBMergeResult) -> None:
-        with conn.begin():
-            merge_parameters_id = conn.execute(
-                sa.insert(self.tables.merge_parameters).values(
-                    software=mr.merge_parameters.software,
-                    command_line=mr.merge_parameters.command_line,
-                    parameters=mr.merge_parameters.parameters,
-                )
-            ).inserted_primary_key[0]
-
-            merge_results_id = conn.execute(
-                sa.insert(self.tables.merge_results).values(
-                    merge_parameters_id=merge_parameters_id,
-                    rsplit=mr.rsplit,
-                    cc_half=mr.cc_half,
-                )
-            ).inserted_primary_key[0]
-
-            for i in mr.indexing_result_ids:
-                conn.execute(
-                    sa.insert(self.tables.merge_has_indexing).values(
-                        merge_results_id=merge_results_id, indexing_results_id=i
-                    )
-                )
-
     def retrieve_analysis_data_sources(self, conn: Connection) -> List[DBDataSource]:
         data_sources: List[DBDataSource] = []
         data_source_id_to_hit_finding_results: Dict[int, List[DBHitFindingResult]] = {}
@@ -1043,7 +1017,6 @@ class DB:
                         parameters=r["parameters"],
                     ),
                     integration_parameters=DBIntegrationParameters(),
-                    ambiguity_parameters=None,
                     num_indexed=r["num_indexed"],
                     num_crystals=r["num_crystals"],
                     tag=r["tag"],
@@ -1084,8 +1057,6 @@ class DB:
             if row["id"] is not None:
                 sample_id_to_data_sources[sample_id].append(data_sources[row["id"]])
 
-        sample_to_merge_results = self.retrieve_analysis_merge_results(conn)
-
         result: List[DBSampleAnalysisResult] = []
         for sample_id, indexing_paths in sample_id_to_data_sources.items():
             result.append(
@@ -1093,64 +1064,9 @@ class DB:
                     sample_id,
                     sample_id_to_name[sample_id],
                     indexing_paths=indexing_paths,
-                    merge_results=sample_to_merge_results.get(sample_id, []),
                 )
             )
         return result
-
-    def retrieve_analysis_merge_results(
-        self, conn: Connection
-    ) -> Dict[int, List[DBMergeResult]]:
-        sample_to_merge_results: Dict[int, List[DBMergeResult]] = {}
-        for merge_result_id, results in groupby(
-            conn.execute(
-                sa.select(
-                    [
-                        self.tables.sample.c.id.label("sample_id"),
-                        self.tables.merge_parameters.c.software,
-                        self.tables.merge_parameters.c.command_line,
-                        self.tables.merge_parameters.c.parameters,
-                        self.tables.merge_results.c.id,
-                        self.tables.merge_results.c.cc_half,
-                        self.tables.merge_results.c.rsplit,
-                        self.tables.merge_has_indexing.c.indexing_results_id,
-                    ]
-                )
-                .select_from(
-                    self.tables.merge_results.join(self.tables.merge_has_indexing)
-                    .join(self.tables.merge_parameters)
-                    .join(self.tables.indexing_results)
-                    .join(self.tables.indexing_parameters)
-                    .join(self.tables.hit_finding_results)
-                    .join(self.tables.peak_search_parameters)
-                    .join(self.tables.data_source)
-                    .join(self.tables.run)
-                    .join(self.tables.sample)
-                )
-                .order_by(self.tables.merge_results.c.id)
-            ).fetchall(),
-            lambda x: x["id"],
-        ):
-            results_list = list(results)
-            first_row = results_list[0]
-            if first_row["sample_id"] not in sample_to_merge_results:
-                sample_to_merge_results[first_row["sample_id"]] = []
-            sample_to_merge_results[first_row["sample_id"]].append(
-                DBMergeResult(
-                    id=merge_result_id,
-                    merge_parameters=DBMergeParameters(
-                        software=first_row["software"],
-                        command_line=first_row["command_line"],
-                        parameters=first_row["parameters"],
-                    ),
-                    indexing_result_ids=[
-                        r["indexing_results_id"] for r in results_list
-                    ],
-                    rsplit=first_row["rsplit"],
-                    cc_half=first_row["cc_half"],
-                )
-            )
-        return sample_to_merge_results
 
     def have_proposals(self, conn: Connection) -> bool:
         return conn.execute(sa.select([self.tables.proposal.c.id])).fetchall()

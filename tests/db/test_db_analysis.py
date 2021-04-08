@@ -7,8 +7,6 @@ from amarcord.db.table_classes import DBHitFindingResult
 from amarcord.db.table_classes import DBIndexingParameters
 from amarcord.db.table_classes import DBIndexingResult
 from amarcord.db.table_classes import DBIntegrationParameters
-from amarcord.db.table_classes import DBMergeParameters
-from amarcord.db.table_classes import DBMergeResult
 from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSample
 
@@ -66,31 +64,16 @@ def test_retrieve_analysis_only_singletons(db: DB) -> None:
                     software="dummy", command_line="dummy", parameters={}
                 ),
                 integration_parameters=DBIntegrationParameters(),
-                ambiguity_parameters=None,
                 num_indexed=1,
                 num_crystals=1,
                 tag="",
                 comment="",
             ),
         )
-        db.add_merge_result(
-            conn,
-            DBMergeResult(
-                id=None,
-                merge_parameters=DBMergeParameters(
-                    software="dummy", command_line="dummy", parameters={}
-                ),
-                indexing_result_ids=[indexing_result_id],
-                rsplit=0.5,
-                cc_half=0.8,
-            ),
-        )
-
         analysis = db.retrieve_sample_based_analysis(conn)
 
         assert len(analysis) == 1
         assert analysis[0].sample_id == sample_id
-        assert len(analysis[0].merge_results) == 1
         assert len(analysis[0].indexing_paths) == 1
         assert analysis[0].indexing_paths[0].run_id == RUN_ID
         assert len(analysis[0].indexing_paths[0].hit_finding_results) == 1
@@ -140,7 +123,7 @@ def test_retrieve_analysis(db: DB) -> None:
                 indexing_results=[],
             ),
         )
-        indexing_result_id = db.add_indexing_result(
+        _indexing_result_id = db.add_indexing_result(
             conn,
             DBIndexingResult(
                 id=None,
@@ -149,26 +132,12 @@ def test_retrieve_analysis(db: DB) -> None:
                     software="dummy", command_line="dummy", parameters={}
                 ),
                 integration_parameters=DBIntegrationParameters(),
-                ambiguity_parameters=None,
                 num_indexed=1,
                 num_crystals=1,
                 tag="",
                 comment="",
             ),
         )
-        db.add_merge_result(
-            conn,
-            DBMergeResult(
-                id=None,
-                merge_parameters=DBMergeParameters(
-                    software="dummy", command_line="dummy", parameters={}
-                ),
-                indexing_result_ids=[indexing_result_id],
-                rsplit=0.5,
-                cc_half=0.8,
-            ),
-        )
-
         data_source_2_id = db.add_data_source(
             conn,
             DBDataSource(
@@ -197,5 +166,4 @@ def test_retrieve_analysis(db: DB) -> None:
 
         assert len(analysis) == 1
         assert analysis[0].sample_id == sample_id
-        assert len(analysis[0].merge_results) == 1
         assert len(analysis[0].indexing_paths) == 2

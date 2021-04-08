@@ -528,7 +528,7 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                             )
                         ).inserted_primary_key[0]
 
-                        indexing_results_id = conn.execute(
+                        _indexing_results_id = conn.execute(
                             tables.indexing_results.insert().values(
                                 indexing_parameters_id=indexing_parameters_id,
                                 integration_parameters_id=integration_parameters_id,
@@ -537,30 +537,5 @@ def create_sample_data(context: DBContext, tables: DBTables) -> None:
                                 tag=choice(possible_tags),
                             )
                         ).inserted_primary_key[0]
-
-                        for _ in range(choice([1, 2])):
-                            merge_parameters_id = conn.execute(
-                                tables.merge_parameters.insert().values(
-                                    software="dummy-software",
-                                    parameters={},
-                                    command_line="",
-                                    tag=choice(possible_tags),
-                                )
-                            ).inserted_primary_key[0]
-
-                            merge_results_id = conn.execute(
-                                tables.merge_results.insert().values(
-                                    merge_parameters_id=merge_parameters_id,
-                                    rsplit=random(),
-                                    cc_half=random(),
-                                )
-                            ).inserted_primary_key[0]
-
-                            conn.execute(
-                                tables.merge_has_indexing.insert().values(
-                                    merge_results_id=merge_results_id,
-                                    indexing_results_id=indexing_results_id,
-                                )
-                            )
 
     logger.info("Done")
