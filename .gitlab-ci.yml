@@ -19,6 +19,12 @@ pylint-and-mypy:
     - pylint amarcord
     - pyrcc5 icons/resources.qrc -o resources-copy.py
 
+validate-conda-yaml:
+  image: continuumio/miniconda3:4.9.2
+  stage: test
+  script:
+    - conda env create -f environment.yml
+
 run-migrations:
   image: $AMARCORD_PYTHON_DOCKER
   stage: integration
