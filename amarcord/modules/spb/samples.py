@@ -60,8 +60,6 @@ from amarcord.qt.validators import parse_existing_filename
 from amarcord.qt.validators import parse_list
 from amarcord.util import str_to_int
 
-DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
-
 NEW_SAMPLE_HEADLINE = "New sample"
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
 

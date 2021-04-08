@@ -392,7 +392,6 @@ class DBTables:
                 ),
             },
         }
-        self.attributo_attributi = AttributoId(self.run.c.attributi.name)
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:

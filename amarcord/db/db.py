@@ -2,7 +2,6 @@ import datetime
 import logging
 import pickle
 import re
-from dataclasses import dataclass
 from itertools import groupby
 from typing import Any
 from typing import Dict
@@ -63,12 +62,6 @@ Connection = Any
 
 
 OverviewAttributi = Dict[AssociatedTable, AttributiMap]
-
-
-@dataclass(frozen=True)
-class TableWithAttributi:
-    table: AssociatedTable
-    attributi: Dict[AttributoId, DBAttributo]
 
 
 class RunNotFound(Exception):
@@ -424,13 +417,6 @@ class DB:
 
         return bcrypt.checkpw(
             admin_password_plaintext.encode("utf-8"), password.encode("utf-8")
-        )
-
-    def update_run_karabo(self, conn: Connection, run_id: int, karabo: bytes) -> None:
-        conn.execute(
-            sa.update(self.tables.run)
-            .where(self.tables.run.c.id == run_id)
-            .values(karabo=karabo, modified=datetime.datetime.utcnow())
         )
 
     def retrieve_attributi(
