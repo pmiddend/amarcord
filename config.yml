@@ -65,8 +65,6 @@ Karabo_bridge:
   # any detector
   # D. How to model detectors in the database?
   detector.XGM_XTD9:
-    # Q. Is mJ the unit of measurement?
-    # Q. The wavelength should also be here. Can we add it?
     comment: X-ray intensity monitor
 
     SASE1_pulse_energy:
@@ -75,7 +73,6 @@ Karabo_bridge:
       unit: microJoules
 
     SASE1_beam_position_x:
-      # Q. This equals xTD? Same for all other quantities...
       source: SPB_XTD9_XGM/XGM/DOOCS:output
       key: data.xSa1TD
       unit: millimeter # ?
@@ -128,56 +125,48 @@ Karabo_bridge:
       action: check_if_constant
 
     position_quadrant1_x:
-      # Q. Is M1 x or y?
       source: SPB_IRU_AGIPD1M/MOTOR/Q1M1
       key: actualPosition.value
       unit: mm
       action: check_if_constant
 
     position_quadrant1_y:
-      # Q. Is M1 x or y?
       source: SPB_IRU_AGIPD1M/MOTOR/Q1M2
       key: actualPosition.value
       unit: mm
       action: check_if_constant
 
     position_quadrant2_x:
-      # Q. Is M1 x or y?
       source: SPB_IRU_AGIPD1M/MOTOR/Q2M1
       key: actualPosition.value
       unit: mm
       action: check_if_constant
 
     position_quadrant2_y:
-      # Q. Is M1 x or y?
       source: SPB_IRU_AGIPD1M/MOTOR/Q2M2
       key: actualPosition.value
       unit: mm
       action: check_if_constant
 
     position_quadrant3_x:
-      # Q. Is M1 x or y?
       source: SPB_IRU_AGIPD1M/MOTOR/Q3M1
       key: actualPosition.value
       unit: mm
       action: check_if_constant
 
     position_quadrant3_y:
-      # Q. Is M1 x or y?
       source: SPB_IRU_AGIPD1M/MOTOR/Q3M2
       key: actualPosition.value
       unit: mm
       action: check_if_constant
 
     position_quadrant4_x:
-      # Q. Is M1 x or y?
       source: SPB_IRU_AGIPD1M/MOTOR/Q4M1
       key: actualPosition.value
       unit: mm
       action: check_if_constant
 
     position_quadrant4_y:
-      # Q. Is M1 x or y?
       source: SPB_IRU_AGIPD1M/MOTOR/Q4M2
       key: actualPosition.value
       unit: mm
