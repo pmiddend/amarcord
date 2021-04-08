@@ -23,57 +23,43 @@ Karabo_bridge:
 
   run:
     # required to slice data from the bridge
+    source: SPB_DAQ_DATA/DM/RUN_CONTROL
 
     index:
       comment: Run index
-      source: SPB_DAQ_DATA/DM/RUN_CONTROL
       key: runDetails.runId.value
 
     timestamp_UTC_initial:
       comment: Started at
-      source: SPB_DAQ_DATA/DM/RUN_CONTROL
       key: runDetails.beginAt.value
       unit: datetime
 
     train_index_initial:
       comment: Initial train
-      source: SPB_DAQ_DATA/DM/RUN_CONTROL
       key: runDetails.firstTrainId.value
 
     trains_in_run:
-      # Q. Not known a priori... Updated at each step?
       comment: Number of trains
-      source: SPB_DAQ_DATA/DM/RUN_CONTROL
       key: runDetails.length.value
-
-    #train_index_final:
-    #  # Q. Not known a priori... Updated at each step?
-    #  # not really needed since this can be computed as (train_index_initial + trains_in_run)
-    #  source: SPB_DAQ_DATA/DM/RUN_CONTROL
-    #  key: runDetails.lastTrainId.value
 
   source:
     # data from the source
     # http://hdrmx.medsbio.org/manual/build/html/classes/base_classes/NXsource.html#nxsource
+    source: SPB_RR_SYS/MDL/BUNCH_PATTERN
 
     bunch_charge:
       # D. Should AMARCORD key == Karabo key? If not, where do we store it?
       # -- this might be "description" + we add header
-      # Q. Electron charge value?
-      # Q. Can this vary within a run?
-      source: SPB_RR_SYS/MDL/BUNCH_PATTERN
       key: SASE1.charge.value
-      unit: nC # ?
+      unit: nC
 
     bunch_pattern:
       # Q. Is this related to the repetition rate?
       # Q. Can this vary within a run?
-      source: SPB_RR_SYS/MDL/BUNCH_PATTERN
       key: SASE1.pulseIds.value
 
     number_of_bunches:
       # Q. Can this vary within a run?
-      source: SPB_RR_SYS/MDL/BUNCH_PATTERN
       key: SASE1.nPulses.value
 
   detector:
@@ -85,45 +71,10 @@ Karabo_bridge:
       # Q. The wavelength should also be here. Can we add it?
       kind: X-ray intensity monitor
 
-      # intensityTD:
-      #   # Q. Is this intensitySa1TD + intensitySa3TD?
-      #   key: data.intensityTD
-      #   unit: mJ # ?
-
-      # intensitySigmaTD:
-      #  # Q. I guess this is the errorbar...
-      #  key: data.intensitySigmaTD
-
-      # intensityAUXTD:
-      #   # Q. Always assumed intensityTD is the right one
-      #   key: data.intensityAUXTD
-
-      # xTD:
-      #   key: data.xTD
-      #   unit: mm # ?
-
-      # xSigmaTD:
-      #   # Q. Errorbar?
-      #   key: data.xSigmaTD
-
-      # yTD:
-      #   key: data.yTD
-      #   unit: mm # ?
-
-      # ySigmaTD:
-      #   # Q. Errorbar?
-      #   key: data.ySigmaTD
-
       SASE1_pulse_energy:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa1TD
         unit: microJoules
-
-      # intensitySa1SigmaTD:
-      #   key: data.intensitySa1SigmaTD
-
-      # intensityAUXSa1TD:
-      #   key: data.intensityAUXSa1TD
 
       SASE1_beam_position_x:
         # Q. This equals xTD? Same for all other quantities...
@@ -131,43 +82,25 @@ Karabo_bridge:
         key: data.xSa1TD
         unit: millimeter # ?
 
-      # xSa1SigmaTD:
-      #   key: data.xSa1SigmaTD
-
       SASE1_beam_position_y:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa1TD
         unit: millimeter # ?
-
-      # ySa1SigmaTD:
-      #   key: data.ySa1SigmaTD
 
       SASE3_pulse_energy:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa3TD
         unit: microJoules
 
-      # intensitySa3SigmaTD:
-      #   key: data.intensitySa3SigmaTD
-
-      # intensityAUXSa3TD:
-      #   key: data.intensityAUXSa3TD
-
       SASE3_beam_position_x:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa3TD
         unit: mm # ?
 
-      # xSa3SigmaTD:
-      #   key: data.xSa3SigmaTD
-
       SASE3_beam_position_y:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa3TD
         unit: mm # ?
-
-      # ySa3SigmaTD:
-      #   key: data.ySa3SigmaTD
 
       Xray_wavelength_set:
         source: SPB_XTD9_XGM/XGM/DOOCS
@@ -206,13 +139,6 @@ Karabo_bridge:
         source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
         key: gainMode.value
         action: check_if_constant
-
-      # gain_data:
-      #   # Q. Is this the numerical equivalent of the `gain mode?` If so, it can be ignored
-      #   source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
-      #   key: gain.value
-      #   store: false
-      #   action: check_if_constant
 
       position_z:
         source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
@@ -435,7 +361,7 @@ Karabo_bridge:
         key: actual.value.transmission
         unit: percent
 
-    sample_delivery_valves:
+    sample_delivery_manifold_valves:
       source: SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES
       action: check_if_constant
 
@@ -476,33 +402,33 @@ Karabo_bridge:
     sample_delivery_rate:
       source: SPB_BIO_SYS/PUMP/HPLC
 
-      a_flow_value:
+      pump_a_flow_value:
         key: a.flow.value
         unit: microliter/minute
-      a_value:
+      pump_a_value:
         key: a.volume.value
-        unit: L # ?
+        unit: unknown
 
-      b_flow_value:
+      pump_b_flow_value:
         key: b.volume.value
         unit: microliter/minute
-      b_value:
+      pump_b_value:
         key: b.flow.value
-        unit: L # ?
+        unit: unknown
 
-      c_flow_value:
+      pump_c_flow_value:
         key: c.flow.value
         unit: microliter/minute
-      c_value:
+      pump_c_value:
         key: c.volume.value
-        unit: L # ?
+        unit: unknown
 
-      d_flow_value:
+      pump_d_flow_value:
         key: d.flow.value
         unit: microliter/minute
-      d_value:
+      pump_d_value:
         key: d.volume.value
-        unit: L # ?
+        unit: unknown
 
     sample_delivery_injector:
       source: SPB_IRU_INJMOV/MOTOR/Z
