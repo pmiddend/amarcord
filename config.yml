@@ -62,378 +62,374 @@ Karabo_bridge:
       # Q. Can this vary within a run?
       key: SASE1.nPulses.value
 
-  detector:
-    # any detector
-    # D. How to model this in the database?
+  # any detector
+  # D. How to model detectors in the database?
+  detector.XGM_XTD9:
+    # Q. Is mJ the unit of measurement?
+    # Q. The wavelength should also be here. Can we add it?
+    kind: X-ray intensity monitor
 
-    XGM_XTD9:
-      # Q. Is mJ the unit of measurement?
-      # Q. The wavelength should also be here. Can we add it?
-      kind: X-ray intensity monitor
+    SASE1_pulse_energy:
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.intensitySa1TD
+      unit: microJoules
 
-      SASE1_pulse_energy:
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.intensitySa1TD
-        unit: microJoules
+    SASE1_beam_position_x:
+      # Q. This equals xTD? Same for all other quantities...
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.xSa1TD
+      unit: millimeter # ?
 
-      SASE1_beam_position_x:
-        # Q. This equals xTD? Same for all other quantities...
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.xSa1TD
-        unit: millimeter # ?
+    SASE1_beam_position_y:
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.ySa1TD
+      unit: millimeter # ?
 
-      SASE1_beam_position_y:
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.ySa1TD
-        unit: millimeter # ?
+    SASE3_pulse_energy:
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.intensitySa3TD
+      unit: microJoules
 
-      SASE3_pulse_energy:
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.intensitySa3TD
-        unit: microJoules
+    SASE3_beam_position_x:
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.xSa3TD
+      unit: mm # ?
 
-      SASE3_beam_position_x:
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.xSa3TD
-        unit: mm # ?
+    SASE3_beam_position_y:
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.ySa3TD
+      unit: mm # ?
 
-      SASE3_beam_position_y:
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.ySa3TD
-        unit: mm # ?
+    Xray_wavelength_set:
+      source: SPB_XTD9_XGM/XGM/DOOCS
+      key: pulseEnergy.wavelengthUsed.value
+      comment: X-ray wavelength
+      unit: angstrom
 
-      Xray_wavelength_set:
-        source: SPB_XTD9_XGM/XGM/DOOCS
-        key: pulseEnergy.wavelengthUsed.value
-        comment: X-ray wavelength
-        unit: angstrom
+  detector.ZYLA:
+    kind: Optical imager
+    source: SPB_EXP_ZYLA/CAM/1:output
 
-    ZYLA:
-      kind: Optical imager
-      source: SPB_EXP_ZYLA/CAM/1:output
+    injector_image:
+      key: data.image.data
 
-      injector_image:
-        key: data.image.data
+    matadata:
+      - data.image.type
+      - data.image.dimensions
+      - data.image.dimensionTypes
+      - data.image.rOIOffsets
+      - data.image.binning
+      - data.image.rotation
+      - data.image.flipX
+      - data.image.flipY
+      - data.image.bitsPerPixel
+      - data.image.encoding GRAY
+      - data.image.dimensionScales
+      - data.image.geometry.alignment.offsets
+      - data.image.geometry.alignment.rotations
+      - data.image.geometry.tileId
+      - data.image.header
 
-      matadata:
-        - data.image.type
-        - data.image.dimensions
-        - data.image.dimensionTypes
-        - data.image.rOIOffsets
-        - data.image.binning
-        - data.image.rotation
-        - data.image.flipX
-        - data.image.flipY
-        - data.image.bitsPerPixel
-        - data.image.encoding GRAY
-        - data.image.dimensionScales
-        - data.image.geometry.alignment.offsets
-        - data.image.geometry.alignment.rotations
-        - data.image.geometry.tileId
-        - data.image.header
+  AGIPD:
+    kind: X-ray detector
 
-    AGIPD:
-      kind: X-ray detector
-
-      gain_setting:
-        source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
-        key: gainMode.value
-        action: check_if_constant
-
-      position_z:
-        source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      position_quadrant1_x:
-        # Q. Is M1 x or y?
-        source: SPB_IRU_AGIPD1M/MOTOR/Q1M1
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      position_quadrant1_y:
-        # Q. Is M1 x or y?
-        source: SPB_IRU_AGIPD1M/MOTOR/Q1M2
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      position_quadrant2_x:
-        # Q. Is M1 x or y?
-        source: SPB_IRU_AGIPD1M/MOTOR/Q2M1
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      position_quadrant2_y:
-        # Q. Is M1 x or y?
-        source: SPB_IRU_AGIPD1M/MOTOR/Q2M2
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      position_quadrant3_x:
-        # Q. Is M1 x or y?
-        source: SPB_IRU_AGIPD1M/MOTOR/Q3M1
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      position_quadrant3_y:
-        # Q. Is M1 x or y?
-        source: SPB_IRU_AGIPD1M/MOTOR/Q3M2
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      position_quadrant4_x:
-        # Q. Is M1 x or y?
-        source: SPB_IRU_AGIPD1M/MOTOR/Q4M1
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      position_quadrant4_y:
-        # Q. Is M1 x or y?
-        source: SPB_IRU_AGIPD1M/MOTOR/Q4M2
-        key: actualPosition.value
-        unit: mm
-        action: check_if_constant
-
-      # position_quadrant1_xy:
-      #   build_attributo: (position_quadrant1_x, position_quadrant1_y)
-      #   unit: mm
-      #   action: check_if_constant
-
-  device:
-    # any device
-    # D. How to model this in the database?
-
-    attenuator_SASE1_XTD2:
-      kind: attenuator
-      source: SA1_XTD2_ATT/MDL/MAIN
+    gain_setting:
+      source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
+      key: gainMode.value
       action: check_if_constant
 
-      attenuator1_inserted:
-        key: actual.value.isInsertedAct1
-      attenuator1_thickness:
-        key: actual.value.thicknessAct1
-        unit: micrometer
-      attenuator1_material:
-        key: actual.value.materialAct1
-      attenuator1_absorption:
-        key: actual.value.absorptionAct1
-        unit: percent
-
-      attenuator2_inserted:
-        key: actual.value.isInsertedAct2
-      attenuator2_thickness:
-        key: actual.value.thicknessAct2
-      attenuator2_material:
-        key: actual.value.materialAct2
-      attenuator2_absorption:
-        key: actual.value.absorptionAct2
-        unit: percent
-
-      attenuator3_inserted:
-        key: actual.value.isInsertedAct3
-      attenuator3_thickness:
-        key: actual.value.thicknessAct3
-      attenuator3_material:
-        key: actual.value.materialAct3
-      attenuator3_absorption:
-        key: actual.value.absorptionAct3
-        unit: percent
-
-      attenuator4_inserted:
-        key: actual.value.isInsertedAct4
-      attenuator4_thickness:
-        key: actual.value.thicknessAct4
-      attenuator4_material:
-        key: actual.value.materialAct4
-      attenuator4_absorption:
-        key: actual.value.absorptionAct4
-        unit: percent
-
-      attenuator5_inserted:
-        key: actual.value.isInsertedAct5
-      attenuator5_thickness:
-        key: actual.value.thicknessAct5
-      attenuator5_material:
-        key: actual.value.materialAct5
-      attenuator5_absorption:
-        key: actual.value.absorptionAct5
-        unit: percent
-
-      attenuator6_inserted:
-        key: actual.value.isInsertedAct6
-      attenuator6_thickness:
-        key: actual.value.thicknessAct6
-      attenuator6_material:
-        key: actual.value.materialAct6
-      attenuator6_absorption:
-        key: actual.value.absorptionAct6
-        unit: percent
-
-      attenuator7_inserted:
-        key: actual.value.isInsertedAct7
-      attenuator7_thickness:
-        key: actual.value.thicknessAct7
-      attenuator7_material:
-        key: actual.value.materialAct7
-      attenuator7_absorption:
-        key: actual.value.absorptionAct7
-        unit: percent
-
-      attenuator8_inserted:
-        key: actual.value.isInsertedAct8
-      attenuator8_thickness:
-        key: actual.value.thicknessAct8
-      attenuator8_material:
-        key: actual.value.materialAct8
-      attenuator8_absorption:
-        key: actual.value.absorptionAct8
-        unit: percent
-
-      attenuator9_inserted:
-        key: actual.value.isInsertedAct9
-      attenuator9_thickness:
-        key: actual.value.thicknessAct9
-      attenuator9_material:
-        key: actual.value.materialAct9
-      attenuator9_absorption:
-        key: actual.value.absorptionAct9
-        unit: percent
-
-      transmission:
-        key: actual.value.transmission
-        unit: percent
-
-    attenuator_SPB_XTD9:
-      kind: attenuator
-      source: SPB_XTD9_ATT/MDL/MAIN
+    position_z:
+      source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
+      key: actualPosition.value
+      unit: mm
       action: check_if_constant
 
-      attenuator1_increment:
-        key: actual.value.incrementRod1
-      attenuator1_thickness:
-        key: actual.value.thicknessRod1
-        unit: micrometer
-      attenuator1_material:
-        key: actual.value.materialRod1
-      attenuator1_absorption:
-        key: actual.value.absorptionRod1
-        unit: percent
-
-      attenuator2_increment:
-        key: actual.value.incrementRod2
-      attenuator2_thickness:
-        key: actual.value.thicknessRod2
-      attenuator2_material:
-        key: actual.value.materialRod2
-      attenuator2_absorption:
-        key: actual.value.absorptionRod2
-        unit: percent
-
-      attenuator3_increment:
-        key: actual.value.incrementRod3
-      attenuator3_thickness:
-        key: actual.value.thicknessRod3
-      attenuator3_material:
-        key: actual.value.materialRod3
-      attenuator3_absorption:
-        key: actual.value.absorptionRod3
-        unit: percent
-
-      attenuator4_increment:
-        key: actual.value.incrementRod4
-      attenuator4_thickness:
-        key: actual.value.thicknessRod4
-      attenuator4_material:
-        key: actual.value.materialRod4
-      attenuator4_absorption:
-        key: actual.value.absorptionRod4
-        unit: percent
-
-      transmission:
-        key: actual.value.transmission
-        unit: percent
-
-    sample_delivery_manifold_valves:
-      source: SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES
+    position_quadrant1_x:
+      # Q. Is M1 x or y?
+      source: SPB_IRU_AGIPD1M/MOTOR/Q1M1
+      key: actualPosition.value
+      unit: mm
       action: check_if_constant
 
-      config0_valve_group_name:
-        key: valvesConfigTable.value[0].valveGroupName
-      config0_valve_indices:
-        key: valvesConfigTable.value[0].valveIds
-      config0_positions:
-        key: valvesConfigTable.value[0].nPositions
-      config0_labels:
-        key: valvesConfigTable.value[0].labels
-
-      config1_valve_group_name:
-        key: valvesConfigTable.value[1].valveGroupName
-      config1_valve_indices:
-        key: valvesConfigTable.value[1].valveIds
-      config1_positions:
-        key: valvesConfigTable.value[1].nPositions
-      config1_labels:
-        key: valvesConfigTable.value[1].labels
-
-      config2_valve_group_name:
-        key: valvesConfigTable.value[2].valveGroupName
-      config2_valve_indices:
-        key: valvesConfigTable.value[2].valveIds
-      config2_positions:
-        key: valvesConfigTable.value[2].nPositions
-      config2_labels:
-        key: valvesConfigTable.value[2].labels
-
-      groupA_position:
-        key: GROUPA.currentPosition.value
-      sample1_position:
-        key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.value
-      sample2_position:
-        key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.value
-
-    sample_delivery_rate:
-      source: SPB_BIO_SYS/PUMP/HPLC
-
-      pump_a_flow_value:
-        key: a.flow.value
-        unit: microliter/minute
-      pump_a_value:
-        key: a.volume.value
-        unit: unknown
-
-      pump_b_flow_value:
-        key: b.volume.value
-        unit: microliter/minute
-      pump_b_value:
-        key: b.flow.value
-        unit: unknown
-
-      pump_c_flow_value:
-        key: c.flow.value
-        unit: microliter/minute
-      pump_c_value:
-        key: c.volume.value
-        unit: unknown
-
-      pump_d_flow_value:
-        key: d.flow.value
-        unit: microliter/minute
-      pump_d_value:
-        key: d.volume.value
-        unit: unknown
-
-    sample_delivery_injector:
-      source: SPB_IRU_INJMOV/MOTOR/Z
+    position_quadrant1_y:
+      # Q. Is M1 x or y?
+      source: SPB_IRU_AGIPD1M/MOTOR/Q1M2
+      key: actualPosition.value
+      unit: mm
       action: check_if_constant
 
-      position_z:
-        key: actualPosition.value
-        unit: mm
+    position_quadrant2_x:
+      # Q. Is M1 x or y?
+      source: SPB_IRU_AGIPD1M/MOTOR/Q2M1
+      key: actualPosition.value
+      unit: mm
+      action: check_if_constant
+
+    position_quadrant2_y:
+      # Q. Is M1 x or y?
+      source: SPB_IRU_AGIPD1M/MOTOR/Q2M2
+      key: actualPosition.value
+      unit: mm
+      action: check_if_constant
+
+    position_quadrant3_x:
+      # Q. Is M1 x or y?
+      source: SPB_IRU_AGIPD1M/MOTOR/Q3M1
+      key: actualPosition.value
+      unit: mm
+      action: check_if_constant
+
+    position_quadrant3_y:
+      # Q. Is M1 x or y?
+      source: SPB_IRU_AGIPD1M/MOTOR/Q3M2
+      key: actualPosition.value
+      unit: mm
+      action: check_if_constant
+
+    position_quadrant4_x:
+      # Q. Is M1 x or y?
+      source: SPB_IRU_AGIPD1M/MOTOR/Q4M1
+      key: actualPosition.value
+      unit: mm
+      action: check_if_constant
+
+    position_quadrant4_y:
+      # Q. Is M1 x or y?
+      source: SPB_IRU_AGIPD1M/MOTOR/Q4M2
+      key: actualPosition.value
+      unit: mm
+      action: check_if_constant
+
+    # position_quadrant1_xy:
+    #   build_attributo: (position_quadrant1_x, position_quadrant1_y)
+    #   unit: mm
+    #   action: check_if_constant
+
+  # any device
+  # D. How to model this in the database?
+  device.attenuator_SASE1_XTD2:
+    kind: attenuator
+    source: SA1_XTD2_ATT/MDL/MAIN
+    action: check_if_constant
+
+    attenuator1_inserted:
+      key: actual.value.isInsertedAct1
+    attenuator1_thickness:
+      key: actual.value.thicknessAct1
+      unit: micrometer
+    attenuator1_material:
+      key: actual.value.materialAct1
+    attenuator1_absorption:
+      key: actual.value.absorptionAct1
+      unit: percent
+
+    attenuator2_inserted:
+      key: actual.value.isInsertedAct2
+    attenuator2_thickness:
+      key: actual.value.thicknessAct2
+    attenuator2_material:
+      key: actual.value.materialAct2
+    attenuator2_absorption:
+      key: actual.value.absorptionAct2
+      unit: percent
+
+    attenuator3_inserted:
+      key: actual.value.isInsertedAct3
+    attenuator3_thickness:
+      key: actual.value.thicknessAct3
+    attenuator3_material:
+      key: actual.value.materialAct3
+    attenuator3_absorption:
+      key: actual.value.absorptionAct3
+      unit: percent
+
+    attenuator4_inserted:
+      key: actual.value.isInsertedAct4
+    attenuator4_thickness:
+      key: actual.value.thicknessAct4
+    attenuator4_material:
+      key: actual.value.materialAct4
+    attenuator4_absorption:
+      key: actual.value.absorptionAct4
+      unit: percent
+
+    attenuator5_inserted:
+      key: actual.value.isInsertedAct5
+    attenuator5_thickness:
+      key: actual.value.thicknessAct5
+    attenuator5_material:
+      key: actual.value.materialAct5
+    attenuator5_absorption:
+      key: actual.value.absorptionAct5
+      unit: percent
+
+    attenuator6_inserted:
+      key: actual.value.isInsertedAct6
+    attenuator6_thickness:
+      key: actual.value.thicknessAct6
+    attenuator6_material:
+      key: actual.value.materialAct6
+    attenuator6_absorption:
+      key: actual.value.absorptionAct6
+      unit: percent
+
+    attenuator7_inserted:
+      key: actual.value.isInsertedAct7
+    attenuator7_thickness:
+      key: actual.value.thicknessAct7
+    attenuator7_material:
+      key: actual.value.materialAct7
+    attenuator7_absorption:
+      key: actual.value.absorptionAct7
+      unit: percent
+
+    attenuator8_inserted:
+      key: actual.value.isInsertedAct8
+    attenuator8_thickness:
+      key: actual.value.thicknessAct8
+    attenuator8_material:
+      key: actual.value.materialAct8
+    attenuator8_absorption:
+      key: actual.value.absorptionAct8
+      unit: percent
+
+    attenuator9_inserted:
+      key: actual.value.isInsertedAct9
+    attenuator9_thickness:
+      key: actual.value.thicknessAct9
+    attenuator9_material:
+      key: actual.value.materialAct9
+    attenuator9_absorption:
+      key: actual.value.absorptionAct9
+      unit: percent
+
+    transmission:
+      key: actual.value.transmission
+      unit: percent
+
+  attenuator_SPB_XTD9:
+    kind: attenuator
+    source: SPB_XTD9_ATT/MDL/MAIN
+    action: check_if_constant
+
+    attenuator1_increment:
+      key: actual.value.incrementRod1
+    attenuator1_thickness:
+      key: actual.value.thicknessRod1
+      unit: micrometer
+    attenuator1_material:
+      key: actual.value.materialRod1
+    attenuator1_absorption:
+      key: actual.value.absorptionRod1
+      unit: percent
+
+    attenuator2_increment:
+      key: actual.value.incrementRod2
+    attenuator2_thickness:
+      key: actual.value.thicknessRod2
+    attenuator2_material:
+      key: actual.value.materialRod2
+    attenuator2_absorption:
+      key: actual.value.absorptionRod2
+      unit: percent
+
+    attenuator3_increment:
+      key: actual.value.incrementRod3
+    attenuator3_thickness:
+      key: actual.value.thicknessRod3
+    attenuator3_material:
+      key: actual.value.materialRod3
+    attenuator3_absorption:
+      key: actual.value.absorptionRod3
+      unit: percent
+
+    attenuator4_increment:
+      key: actual.value.incrementRod4
+    attenuator4_thickness:
+      key: actual.value.thicknessRod4
+    attenuator4_material:
+      key: actual.value.materialRod4
+    attenuator4_absorption:
+      key: actual.value.absorptionRod4
+      unit: percent
+
+    transmission:
+      key: actual.value.transmission
+      unit: percent
+
+  sample_delivery_manifold_valves:
+    source: SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES
+    action: check_if_constant
+
+    config0_valve_group_name:
+      key: valvesConfigTable.value[0].valveGroupName
+    config0_valve_indices:
+      key: valvesConfigTable.value[0].valveIds
+    config0_positions:
+      key: valvesConfigTable.value[0].nPositions
+    config0_labels:
+      key: valvesConfigTable.value[0].labels
+
+    config1_valve_group_name:
+      key: valvesConfigTable.value[1].valveGroupName
+    config1_valve_indices:
+      key: valvesConfigTable.value[1].valveIds
+    config1_positions:
+      key: valvesConfigTable.value[1].nPositions
+    config1_labels:
+      key: valvesConfigTable.value[1].labels
+
+    config2_valve_group_name:
+      key: valvesConfigTable.value[2].valveGroupName
+    config2_valve_indices:
+      key: valvesConfigTable.value[2].valveIds
+    config2_positions:
+      key: valvesConfigTable.value[2].nPositions
+    config2_labels:
+      key: valvesConfigTable.value[2].labels
+
+    groupA_position:
+      key: GROUPA.currentPosition.value
+    sample1_position:
+      key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.value
+    sample2_position:
+      key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.value
+
+  sample_delivery_rate:
+    source: SPB_BIO_SYS/PUMP/HPLC
+
+    pump_a_flow_value:
+      key: a.flow.value
+      unit: microliter/minute
+    pump_a_value:
+      key: a.volume.value
+      unit: unknown
+
+    pump_b_flow_value:
+      key: b.volume.value
+      unit: microliter/minute
+    pump_b_value:
+      key: b.flow.value
+      unit: unknown
+
+    pump_c_flow_value:
+      key: c.flow.value
+      unit: microliter/minute
+    pump_c_value:
+      key: c.volume.value
+      unit: unknown
+
+    pump_d_flow_value:
+      key: d.flow.value
+      unit: microliter/minute
+    pump_d_value:
+      key: d.volume.value
+      unit: unknown
+
+  sample_delivery_injector:
+    source: SPB_IRU_INJMOV/MOTOR/Z
+    action: check_if_constant
+
+    position_z:
+      key: actualPosition.value
+      unit: mm
