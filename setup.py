@@ -19,6 +19,8 @@ setuptools.setup(
     install_requires=[
         # for general DB access
         "SQLAlchemy==1.3.*",
+        # for mysql
+        "pymysql==1.0.*",
         # for migrating a DB
         "alembic==1.5.*",
         # for attributi: parsing/printing a delta
