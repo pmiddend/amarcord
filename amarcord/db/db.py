@@ -523,7 +523,7 @@ class DB:
         value: AttributoValue,
     ) -> None:
         if attributo == AttributoId("sample_id"):
-            assert isinstance(value, int)
+            assert value is None or isinstance(value, int)
             conn.execute(
                 sa.update(self.tables.run)
                 .where(self.tables.run.c.id == run_id)
