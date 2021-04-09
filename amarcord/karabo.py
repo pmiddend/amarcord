@@ -29,18 +29,31 @@ def parse_configuration(stream: Dict[str, Any]):
     return
 
 
-def navigate(stream: Dict[str, Any]):
+def _stream_content(
+    data: Dict[str, Any], metadata: Dict[str, Any]
+) -> Dict[str, List[str]]:
     """Navigate the stream from the Karabo bridge
 
     Args:
-        stream (Dict[str, Any]): [description]
+        stream (Dict[str, Any]): The Karabo bridge stream
+
+    Returns:
+        Dict[str, List[str]]: The stream content
     """
+    _data, _metadata = {}, {}
 
-    for ki, vi in stream.items():
-        print("{}".format(ki))
+    def extractor(stream):
+        container = {}
 
-        for kj, vj in vi.items():
-            print("  {} {}".format(kj, vj))
+        for si, si_content in stream.items():
+            container[si] = []
+
+            for ki in si_content.keys():
+                container[si].append(ki)
+
+        return container
+
+    return {"data": extractor(data), "metadata": extractor(metadata)}
 
 
 # at the first run check there are extra entries in the stream
@@ -86,6 +99,14 @@ def _explicitize_attributo(
 def _parse_configuration(
     configuration: Dict[str, Any]
 ) -> Dict[str, List[Dict[str, Any]]]:
+    """Parse the configuration file
+
+    Args:
+        configuration (Dict[str, Any]): The configuration
+
+    Returns:
+        Dict[str, List[Dict[str, Any]]]: A dictionary of attributi
+    """
     entry: Dict[str, List[Dict[str, Any]]] = {}
 
     for (gi, gi_content,) in configuration.items():
@@ -111,7 +132,13 @@ def _parse_configuration(
                     attributo[ki] = vi
 
                 # add the attributo
-                entry[gi].append(_explicitize_attributo(**attributo))
+                try:
+                    entry[gi].append(_explicitize_attributo(**attributo))
+
+                except TypeError:
+                    raise TypeError(
+                        "Wrong attributo definition in {}::{}".format(gi, attributo)
+                    )
 
     return entry
 
