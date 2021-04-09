@@ -468,9 +468,11 @@ class Samples(QWidget):
     def _cancel_edit(self) -> None:
         self._attributo_manual_changes.clear()
         self._clear_submit()
-        self._submit_layout.addWidget(self._create_add_button())
+        self._add_button = self._create_add_button()
+        self._submit_layout.addWidget(self._add_button)
         self._reset_input_fields()
         self._right_headline.setText(NEW_SAMPLE_HEADLINE)
+        self._reset_button()
 
     def _slot_add_sample(self) -> None:
         with self._db.connect() as conn:
