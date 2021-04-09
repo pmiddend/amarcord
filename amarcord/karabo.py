@@ -1,37 +1,16 @@
 from typing import Any, List, Tuple, Dict
 
 import os
+import sys
 import yaml
 import logging
 import karabo_bridge
 
-logger = logging.getLogger(__name__)
-
-
-def load_configuration(descriptor: str) -> Dict[str, Any]:
-    """Load the configuration file
-
-    Args:
-        descriptor (str): The YAML file
-
-    Raises:
-        FileNotFoundError: Self explaining
-
-    Returns:
-        Dict[str, Any]: The configuration
-    """
-
-    if os.path.exists(descriptor):
-        with open(descriptor) as fh:
-            configuration = yaml.load(fh, Loader=yaml.Loader)
-
-    else:
-        raise FileNotFoundError("{} not found...".format(descriptor))
-
-    return configuration
-
-
-# at the first run check there are extra entries in the stream
+logging.basicConfig(
+    format="%(asctime)s.%(msecs)03d %(levelname)s [%(module)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+)
 
 
 class KaraboBridge:
@@ -57,6 +36,8 @@ class KaraboBridge:
         self._client = karabo_bridge.Client(self.client_endpoint)
 
         self.karabo_bridge_content = None
+
+        logging.info("Connected to the Karabo bridge at {}".format(client_endpoint))
 
     def __enter__(self):
         return self
@@ -211,7 +192,12 @@ class KaraboBridge:
         missing_source = set(self.attributi) ^ set(self.karabo_bridge_content["data"])
 
         # to be sure we are not missing anything
-        pass
+        if verbose:
+            logging.info("Requested entries:")
+
+            for source, source_content in self.attributi.items():
+                for key in source_content.keys():
+                    logging.info("  {}::{}".format(source, key))
 
     def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Get and cache the next train from the Karabo bridge
@@ -244,3 +230,34 @@ class KaraboBridge:
 
     def run_stats(self):
         pass
+
+
+if __name__ == "__main__":
+
+    def load_configuration(descriptor: str) -> Dict[str, Any]:
+        """Load the configuration file
+
+        Args:
+            descriptor (str): The YAML file
+
+        Raises:
+            FileNotFoundError: Self explaining
+
+        Returns:
+            Dict[str, Any]: The configuration
+        """
+
+        if os.path.exists(descriptor):
+            with open(descriptor) as fh:
+                configuration = yaml.load(fh, Loader=yaml.Loader)
+
+        else:
+            raise FileNotFoundError("{} not found...".format(descriptor))
+
+        return configuration
+
+    config = load_configuration("./config.yml")
+
+    karabo_data = KaraboBridge(**config["Karabo_bridge"])
+
+    data, metadata = karabo_data.cache_next_train()
