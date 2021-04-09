@@ -39,16 +39,16 @@ tables = create_tables(dbcontext)
 
 dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
-if (
-    isinstance(config["db"]["create_sample_data"], bool)
-    and config["db"]["create_sample_data"]
-):
-    create_sample_data(dbcontext, tables)
-
 db = DB(
     dbcontext,
     tables,
 )
+
+if (
+    isinstance(config["db"]["create_sample_data"], bool)
+    and config["db"]["create_sample_data"]
+):
+    create_sample_data(db)
 
 
 def _convert_run(r: DBRun) -> JSONDict:

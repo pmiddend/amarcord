@@ -42,7 +42,7 @@ def _convert_single_attributo_value_from_json(
 ) -> AttributoValue:
     attributo_type = types.get(i, None)
     if attributo_type is None:
-        raise Exception(
+        raise ValueError(
             f'cannot convert attributo "{i}" from JSON, don\'t have a type! value is "{v}"'
         )
 

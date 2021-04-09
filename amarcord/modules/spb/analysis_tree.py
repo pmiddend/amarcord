@@ -6,72 +6,80 @@ from typing import Union
 from typing import cast
 
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.table_classes import DBDataSource
-from amarcord.db.table_classes import DBHitFindingResult
-from amarcord.db.table_classes import DBIndexingResult
+from amarcord.db.table_classes import DBLinkedDataSource
+from amarcord.db.table_classes import DBLinkedHitFindingResult
+from amarcord.db.table_classes import DBLinkedIndexingResult
 from amarcord.db.table_classes import DBRun
 from amarcord.db.table_classes import DBSampleAnalysisResult
 
 
-def ds_hit_rate(k: DBDataSource) -> Optional[float]:
+def ds_hit_rate(k: DBLinkedDataSource) -> Optional[float]:
     if not k.hit_finding_results:
         return None
-    return sorted(k.hit_finding_results, key=lambda x: cast(int, x.id), reverse=True)[
-        0
-    ].hit_rate
+    return sorted(
+        k.hit_finding_results,
+        key=lambda x: cast(int, x.hit_finding_result.id),
+        reverse=True,
+    )[0].hit_finding_result.hit_rate
 
 
-def ds_indexing_rate(k: DBDataSource) -> Optional[float]:
-    hit_findings_with_indexings = [
+def ds_indexing_rate(k: DBLinkedDataSource) -> Optional[float]:
+    hit_findings_with_indexings: List[DBLinkedHitFindingResult] = [
         hfr for hfr in k.hit_finding_results if hfr.indexing_results
     ]
     if not hit_findings_with_indexings:
         return None
-    hit_findings_with_indexings.sort(key=lambda y: cast(int, y.id), reverse=True)
+    hit_findings_with_indexings.sort(
+        key=lambda y: cast(int, y.hit_finding_result.id), reverse=True
+    )
     latest_hfr = hit_findings_with_indexings[0]
     return (
         sorted(
             latest_hfr.indexing_results,
-            key=lambda y: cast(int, y.id),
+            key=lambda y: cast(int, y.indexing_result.id),
             reverse=True,
-        )[0].num_indexed
-        / k.number_of_frames
+        )[0].indexing_result.num_indexed
+        / k.data_source.number_of_frames
         * 100
     )
 
 
 def sample_hit_rate(k: DBSampleAnalysisResult) -> Optional[float]:
-    total_number_of_frames = sum(ip.number_of_frames for ip in k.indexing_paths)
+    total_number_of_frames = sum(
+        ip.data_source.number_of_frames for ip in k.data_sources
+    )
     if total_number_of_frames == 0:
         return None
 
     return (
         sum(
             (ds_hit_rate(ip) if ds_hit_rate(ip) is not None else 0)  # type: ignore
-            * ip.number_of_frames
-            for ip in k.indexing_paths
+            * ip.data_source.number_of_frames
+            for ip in k.data_sources
         )
         / total_number_of_frames
     )
 
 
 def sample_indexing_rate(k: DBSampleAnalysisResult) -> Optional[float]:
-    total_number_of_frames = sum(ip.number_of_frames for ip in k.indexing_paths)
+    total_number_of_frames = sum(
+        ip.data_source.number_of_frames for ip in k.data_sources
+    )
     if total_number_of_frames == 0:
         return None
     return (
         sum(
             (ds_indexing_rate(ip) if ds_indexing_rate(ip) is not None else 0)  # type: ignore
-            * ip.number_of_frames
-            for ip in k.indexing_paths
+            * ip.data_source.number_of_frames
+            for ip in k.data_sources
         )
         / total_number_of_frames
     )
 
 
-def hfr_num_indexed(hfr: DBHitFindingResult) -> Optional[float]:
+def hfr_num_indexed(hfr: DBLinkedHitFindingResult) -> Optional[float]:
     return max(
-        [ir.num_indexed for ir in hfr.indexing_results],
+        [ir.indexing_result.num_indexed for ir in hfr.indexing_results],
         default=None,
     )
 
@@ -94,15 +102,17 @@ def run_no_trains(r: DBRun) -> int:
 
 def sample_train_count(runs: Dict[int, DBRun], k: DBSampleAnalysisResult) -> int:
     return sum(
-        run_no_trains(runs[ip.run_id]) if ip.run_id in runs else 0
-        for ip in k.indexing_paths
+        run_no_trains(runs[ip.data_source.run_id])
+        if ip.data_source.run_id in runs
+        else 0
+        for ip in k.data_sources
     )
 
 
 def sample_duration(
     runs_with_train_count: Dict[int, int], k: DBSampleAnalysisResult
 ) -> Optional[int]:
-    runs_for_sample = set(ip.run_id for ip in k.indexing_paths)
+    runs_for_sample = set(ip.data_source.run_id for ip in k.data_sources)
     duration_secs = (
         sum(
             runs_with_train_count[run_id]
@@ -115,16 +125,21 @@ def sample_duration(
 
 
 def sample_number_of_frames(k: DBSampleAnalysisResult) -> int:
-    return sum(r.number_of_frames for r in k.indexing_paths)
+    return sum(r.data_source.number_of_frames for r in k.data_sources)
 
 
-def data_source_duration(runs_with_train_count: Dict[int, int], k: DBDataSource) -> int:
-    duration_secs = runs_with_train_count.get(k.run_id, 0) / 10.0
+def data_source_duration(
+    runs_with_train_count: Dict[int, int], k: DBLinkedDataSource
+) -> int:
+    duration_secs = runs_with_train_count.get(k.data_source.run_id, 0) / 10.0
     return int(duration_secs / 60.0)
 
 
 TreeItem = Union[
-    DBSampleAnalysisResult, DBDataSource, DBIndexingResult, DBHitFindingResult
+    DBSampleAnalysisResult,
+    DBLinkedDataSource,
+    DBLinkedIndexingResult,
+    DBLinkedHitFindingResult,
 ]
 
 
@@ -141,33 +156,33 @@ class TreeNode:
 
 
 def build_data_source_tree(
-    ds: DBDataSource, runs_with_train_count: Dict[int, int]
+    ds: DBLinkedDataSource, runs_with_train_count: Dict[int, int]
 ) -> TreeNode:
     return TreeNode(
-        f"Data source {ds.id} [run {ds.run_id}]",
+        f"Data source {ds.data_source.id} [run {ds.data_source.run_id}]",
         data_source_duration(runs_with_train_count, ds),
-        ds.number_of_frames,
-        ds.tag if ds.tag is not None else "",
+        ds.data_source.number_of_frames,
+        ds.data_source.tag if ds.data_source.tag is not None else "",
         ds_hit_rate(ds),
         ds_indexing_rate(ds),
         ds,
         [
-            build_hit_finding_tree(ds.number_of_frames, hfr)
+            build_hit_finding_tree(ds.data_source.number_of_frames, hfr)
             for hfr in ds.hit_finding_results
         ],
     )
 
 
 def build_hit_finding_tree(
-    total_number_of_frames: int, hfr: DBHitFindingResult
+    total_number_of_frames: int, hfr: DBLinkedHitFindingResult
 ) -> TreeNode:
     indexed = hfr_num_indexed(hfr)
     return TreeNode(
-        f"Hit Finding {hfr.id}",
+        f"Hit Finding {hfr.hit_finding_result.id}",
         None,
         None,
-        hfr.tag,
-        hfr.hit_rate,
+        hfr.hit_finding_result.tag,
+        hfr.hit_finding_result.hit_rate,
         indexed / total_number_of_frames * 100 if indexed is not None else None,
         hfr,
         [
@@ -177,14 +192,16 @@ def build_hit_finding_tree(
     )
 
 
-def build_indexing_tree(total_number_of_frames: int, ir: DBIndexingResult) -> TreeNode:
+def build_indexing_tree(
+    total_number_of_frames: int, ir: DBLinkedIndexingResult
+) -> TreeNode:
     return TreeNode(
-        f"Indexing {ir.id}",
+        f"Indexing {ir.indexing_result.id}",
         None,
         None,
-        ir.tag,
+        ir.indexing_result.tag,
         None,
-        ir.num_indexed / total_number_of_frames * 100,
+        ir.indexing_result.num_indexed / total_number_of_frames * 100,
         ir,
         [],
     )
@@ -208,7 +225,7 @@ def build_analysis_tree(
             k,
             [
                 build_data_source_tree(ds, runs_with_train_count)
-                for ds in k.indexing_paths
+                for ds in k.data_sources
             ],
         )
         for k in analysis

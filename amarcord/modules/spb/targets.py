@@ -111,7 +111,6 @@ class Targets(QWidget):
             placeholder="Value in g/mol",
         )
         self._molecular_weight_edit.value_change.connect(self._molecular_weight_change)
-        self._molecular_weight: NumericInputValue = None
         right_form_layout.addRow(
             "Molecular weight",
             self._molecular_weight_edit,
@@ -195,7 +194,6 @@ class Targets(QWidget):
         self._short_name_edit.setText(self._current_target.short_name)
         self._molecular_weight_edit.set_value(self._current_target.molecular_weight)
         self._uniprot_edit.setText(self._current_target.uniprot_id)
-        self._molecular_weight = self._current_target.molecular_weight
         self._clear_submit()
         self._edit_button = self._create_edit_button()
         self._submit_layout.addWidget(self._edit_button)
@@ -251,7 +249,6 @@ class Targets(QWidget):
         self._current_target = _empty_target()
 
     def _molecular_weight_change(self, value: NumericInputValue) -> None:
-        self._molecular_weight = value
         if not isinstance(value, str):
             self._current_target = replace(self._current_target, molecular_weight=value)
         self._reset_button()

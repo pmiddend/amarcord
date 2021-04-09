@@ -105,3 +105,39 @@ def test_remove_attributo(db: DB) -> None:
             )
             is None
         )
+
+
+def test_inherent_attributi_are_not_in_attributi_list(db: DB) -> None:
+    with db.connect() as conn:
+        db.add_attributo(
+            conn,
+            MY_ATTRIBUTO,
+            "description",
+            AssociatedTable.SAMPLE,
+            AttributoTypeString(),
+        )
+
+        db.add_sample(
+            conn,
+            DBSample(
+                id=None,
+                name="sample1",
+                target_id=None,
+                compounds=[1, 2],
+                micrograph="/tmp/foo",
+                protocol="/tmp/bar",
+                attributi=RawAttributiMap({}),
+            ),
+        )
+
+        samples = db.retrieve_samples(conn, since=None)
+
+        s = samples[0]
+
+        assert s.attributi.select_value(AttributoId("compounds")) is None
+        assert s.attributi.select_value(AttributoId("micrograph")) is None
+        assert s.attributi.select_value(AttributoId("protocol")) is None
+
+        assert s.micrograph is not None
+        assert s.protocol is not None
+        assert s.compounds == [1, 2]

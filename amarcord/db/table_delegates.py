@@ -462,8 +462,12 @@ def delegate_for_attributo_type(
     if isinstance(proptype, AttributoTypeChoice):
         return ComboItemDelegate(values=proptype.values, parent=parent)
     if isinstance(proptype, AttributoTypeSample):
+        values: List[Tuple[str, Optional[int]]] = [
+            ("None", cast(Optional[int], None))
+        ] + [(v.sample_name, v.sample_id) for v in samples]
         return ComboItemDelegate(
-            values=[(v.sample_name, v.sample_id) for v in samples], parent=parent
+            values=values,
+            parent=parent,
         )
     if isinstance(proptype, AttributoTypeTags):
         return TagsItemDelegate(available_tags=[], parent=parent)

@@ -6,7 +6,7 @@ We’ve created the =amarcord.amici= Python package containing functions to acce
 To start using =amarcord.amici=, you can use the following =pip= command:
 
 #+begin_example
-pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/370/packages/pypi/simple amarcord-amici
+pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/370/packages/pypi/simple amarcord
 #+end_example
 
 Note that this uses a generated token called =maxwell-token= to access the GitLab Python package registry. Two notes on that:
@@ -23,3 +23,6 @@ python amarcord/xfel_gui.py
 #+end_example
 
 Depending on your operating system, you might have to install Qt 5 or pyqt-5 separately. I’ll add some notes on that later.
+** How to administer the database
+
+There’s a command-line program in =amarcord/cli/admin.py= that providse administrative functions like adding proposals, changing passwords and migrating the database.

@@ -1,0 +1,5 @@
+#!/bin/sh
+
+gunzip -kf test001.stream.gz
+gunzip -kf test002.stream.gz
+../../scripts/ingest-indexamajig . --stream-pattern='test*.stream'

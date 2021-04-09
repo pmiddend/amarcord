@@ -2,6 +2,8 @@ stages:
   - test
   - integration
   - deploy
+  - test-deploy
+  - upload-docker
 
 variables:
   AMARCORD_PYTHON_DOCKER: python:3.8
@@ -17,14 +19,18 @@ pylint-and-mypy:
     - pylint amarcord
     - pyrcc5 icons/resources.qrc -o resources-copy.py
 
-integration-amici:
+validate-conda-yaml:
+  image: continuumio/miniconda3:4.9.2
+  stage: test
+  script:
+    - conda env create -f environment.yml
+
+run-migrations:
   image: $AMARCORD_PYTHON_DOCKER
   stage: integration
   script:
-    - cp setup-amici.py setup.py
     - pip install -e .
-    - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple amarcord-amici
-    - python integration/amici_test.py
+    - python amarcord/cli/admin.py --connection-url="sqlite://" migrate
 
 integration-tests:
   image: $AMARCORD_PYTHON_DOCKER
@@ -57,21 +63,34 @@ integration-tests:
 #   artifacts:
 #     paths:
 #       - docker-image.tar.gz
-deploy-amici:
+deploy-pypi:
   image: $AMARCORD_PYTHON_DOCKER
   stage: deploy
+  only:
+    - tags
+    - master
   script:
-    - cp setup-amici.py setup.py
     - pip install -e .
     - pip install wheel twine
     - python setup.py sdist bdist_wheel
     - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
 
+integration-amici:
+  image: $AMARCORD_PYTHON_DOCKER
+  stage: test-deploy
+  only:
+    - tags
+    - master
+  script:
+    - pip install -e .
+    - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple amarcord
+    - python integration/amici_test.py
+
 upload-gui-docker-image:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
-  stage: deploy
+  stage: upload-docker
   variables:
     # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
     IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
@@ -90,7 +109,7 @@ upload-daemon-docker-image:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
-  stage: deploy
+  stage: upload-docker
   variables:
     # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
     IMAGE_SLUG_TAG: ${CI_REGISTRY_IMAGE}/daemon:$CI_COMMIT_REF_SLUG

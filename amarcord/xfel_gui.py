@@ -12,6 +12,7 @@ from amarcord.config import remove_user_config
 from amarcord.config import write_user_config
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.constants import CONTACT_INFO
+from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
@@ -19,6 +20,7 @@ from amarcord.modules.connection_wizard import show_connection_dialog
 from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.event_log_daemon import EventLogDaemon
 from amarcord.modules.spb.analysis_view import AnalysisView
 from amarcord.modules.spb.attributi_crud import AttributiCrud
 from amarcord.modules.spb.factories import proposal_chooser
@@ -39,11 +41,14 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
+logger = logging.getLogger(__name__)
+
 
 class XFELGui:
     def __init__(self) -> None:
         self._ui_context = UIContext(sys.argv)
         self._user_config = load_user_config()
+
         self.restart = False
 
         db_url = self._user_config["db_url"]
@@ -57,7 +62,14 @@ class XFELGui:
         self._tables = create_tables(self._db_context)
         self._db_context.create_all(creation_mode=CreationMode.CHECK_FIRST)
         if self._user_config["create_sample_data"]:
-            create_sample_data(self._db_context, self._tables)
+            create_sample_data(DB(self._db_context, self._tables))
+
+        self._event_timer = EventLogDaemon(
+            self._ui_context.log_output,
+            self._db_context,
+            self._tables,
+            self._ui_context.main_window,
+        )
         self._proposal_ids = retrieve_proposal_ids(self._db_context, self._tables)
 
         if not self._proposal_ids:

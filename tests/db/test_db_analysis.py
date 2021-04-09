@@ -7,8 +7,6 @@ from amarcord.db.table_classes import DBHitFindingResult
 from amarcord.db.table_classes import DBIndexingParameters
 from amarcord.db.table_classes import DBIndexingResult
 from amarcord.db.table_classes import DBIntegrationParameters
-from amarcord.db.table_classes import DBMergeParameters
-from amarcord.db.table_classes import DBMergeResult
 from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSample
 
@@ -36,8 +34,16 @@ def test_retrieve_analysis_only_singletons(db: DB) -> None:
         )
         data_source_id = db.add_data_source(
             conn,
-            DBDataSource(
-                id=None, run_id=RUN_ID, number_of_frames=10, hit_finding_results=[]
+            DBDataSource(id=None, run_id=RUN_ID, number_of_frames=10),
+        )
+        psp_id = db.add_peak_search_parameters(
+            conn,
+            DBPeakSearchParameters(id=None, method="dummy", software="dummy"),
+        )
+        hfp_id = db.add_hit_finding_parameters(
+            conn,
+            DBHitFindingParameters(
+                id=None, min_peaks=1, tag=None, comment=None, software=""
             ),
         )
         hit_finding_result_id = db.add_hit_finding_result(
@@ -45,57 +51,71 @@ def test_retrieve_analysis_only_singletons(db: DB) -> None:
             DBHitFindingResult(
                 id=None,
                 data_source_id=data_source_id,
-                peak_search_parameters=DBPeakSearchParameters(
-                    id=None, method="dummy", software="dummy", command_line="dummy"
-                ),
-                hit_finding_parameters=DBHitFindingParameters(
-                    id=None, min_peaks=1, tag=None, comment=None
-                ),
+                peak_search_parameters_id=psp_id,
+                hit_finding_parameters_id=hfp_id,
                 result_filename="/tmp/test.hkl",
+                result_type="",
+                average_resolution=0,
+                average_peaks_event=0,
                 number_of_hits=2,
                 hit_rate=0.2,
-                indexing_results=[],
+            ),
+        )
+        ip_id = db.add_indexing_parameters(
+            conn,
+            DBIndexingParameters(
+                id=None,
+                tag=None,
+                comment=None,
+                software="dummy",
+                software_version=None,
+                command_line="dummy",
+                parameters={},
+                methods=[],
+                geometry=None,
+            ),
+        )
+        intp_id = db.add_integration_parameters(
+            conn,
+            DBIntegrationParameters(
+                id=None,
+                tag=None,
+                comment=None,
+                software="",
+                software_version=None,
+                method=None,
+                center_boxes=None,
+                overpredict=None,
+                push_res=None,
+                radius_outer=None,
+                radius_inner=None,
+                radius_middle=None,
             ),
         )
         indexing_result_id = db.add_indexing_result(
             conn,
             DBIndexingResult(
                 id=None,
-                hit_finding_results_id=hit_finding_result_id,
-                indexing_parameters=DBIndexingParameters(
-                    software="dummy", command_line="dummy", parameters={}
-                ),
-                integration_parameters=DBIntegrationParameters(),
-                ambiguity_parameters=None,
+                peak_search_parameters_id=psp_id,
+                hit_finding_result_id=hit_finding_result_id,
+                indexing_parameters_id=ip_id,
+                integration_parameters_id=intp_id,
                 num_indexed=1,
                 num_crystals=1,
                 tag="",
                 comment="",
+                result_filename="",
             ),
         )
-        db.add_merge_result(
-            conn,
-            DBMergeResult(
-                id=None,
-                merge_parameters=DBMergeParameters(
-                    software="dummy", command_line="dummy", parameters={}
-                ),
-                indexing_result_ids=[indexing_result_id],
-                rsplit=0.5,
-                cc_half=0.8,
-            ),
-        )
-
         analysis = db.retrieve_sample_based_analysis(conn)
 
         assert len(analysis) == 1
         assert analysis[0].sample_id == sample_id
-        assert len(analysis[0].merge_results) == 1
-        assert len(analysis[0].indexing_paths) == 1
-        assert analysis[0].indexing_paths[0].run_id == RUN_ID
-        assert len(analysis[0].indexing_paths[0].hit_finding_results) == 1
+        assert len(analysis[0].data_sources) == 1
+        assert analysis[0].data_sources[0].data_source.run_id == RUN_ID
+        assert len(analysis[0].data_sources[0].hit_finding_results) == 1
         assert (
-            len(analysis[0].indexing_paths[0].hit_finding_results[0].indexing_results)
+            len(analysis[0].data_sources[0].hit_finding_results[0].indexing_results)
             == 1
         )
 
@@ -119,77 +139,100 @@ def test_retrieve_analysis(db: DB) -> None:
         )
         data_source_id = db.add_data_source(
             conn,
-            DBDataSource(
-                id=None, run_id=RUN_ID, number_of_frames=10, hit_finding_results=[]
+            DBDataSource(id=None, run_id=RUN_ID, number_of_frames=10),
+        )
+        psp_id = db.add_peak_search_parameters(
+            conn, DBPeakSearchParameters(id=None, method="dummy", software="dummy")
+        )
+        hfp_id = db.add_hit_finding_parameters(
+            conn,
+            DBHitFindingParameters(
+                id=None,
+                min_peaks=1,
+                tag=None,
+                comment=None,
+                software="",
+                software_version="",
             ),
         )
         hit_finding_result_id = db.add_hit_finding_result(
             conn,
             DBHitFindingResult(
-                None,
-                data_source_id,
-                DBPeakSearchParameters(
-                    id=None, method="dummy", software="dummy", command_line="dummy"
-                ),
-                hit_finding_parameters=DBHitFindingParameters(
-                    id=None, min_peaks=1, tag=None, comment=None
-                ),
+                id=None,
+                data_source_id=data_source_id,
+                peak_search_parameters_id=psp_id,
+                hit_finding_parameters_id=hfp_id,
                 result_filename="/tmp/test.hkl",
+                result_type="",
                 number_of_hits=2,
                 hit_rate=0.2,
-                indexing_results=[],
+                average_resolution=0,
+                average_peaks_event=0,
             ),
         )
-        indexing_result_id = db.add_indexing_result(
+        ip_id = db.add_indexing_parameters(
+            conn,
+            DBIndexingParameters(
+                id=None,
+                tag=None,
+                comment=None,
+                software="dummy",
+                software_version=None,
+                command_line="dummy",
+                parameters={},
+                methods=[],
+                geometry=None,
+            ),
+        )
+        intp_id = db.add_integration_parameters(
+            conn,
+            DBIntegrationParameters(
+                id=None,
+                tag=None,
+                comment=None,
+                software="",
+                software_version="",
+                method="",
+                center_boxes=None,
+                overpredict=None,
+                push_res=None,
+                radius_inner=None,
+                radius_outer=None,
+                radius_middle=None,
+            ),
+        )
+        _indexing_result_id = db.add_indexing_result(
             conn,
             DBIndexingResult(
                 id=None,
-                hit_finding_results_id=hit_finding_result_id,
-                indexing_parameters=DBIndexingParameters(
-                    software="dummy", command_line="dummy", parameters={}
-                ),
-                integration_parameters=DBIntegrationParameters(),
-                ambiguity_parameters=None,
+                peak_search_parameters_id=psp_id,
+                hit_finding_result_id=hit_finding_result_id,
+                indexing_parameters_id=ip_id,
+                integration_parameters_id=intp_id,
                 num_indexed=1,
                 num_crystals=1,
                 tag="",
                 comment="",
+                result_filename="",
             ),
         )
-        db.add_merge_result(
+        _data_source_2_id = db.add_data_source(
             conn,
-            DBMergeResult(
-                id=None,
-                merge_parameters=DBMergeParameters(
-                    software="dummy", command_line="dummy", parameters={}
-                ),
-                indexing_result_ids=[indexing_result_id],
-                rsplit=0.5,
-                cc_half=0.8,
-            ),
+            DBDataSource(id=None, run_id=RUN_ID, number_of_frames=10),
         )
-
-        data_source_2_id = db.add_data_source(
-            conn,
-            DBDataSource(
-                id=None, run_id=RUN_ID, number_of_frames=10, hit_finding_results=[]
-            ),
-        )
-        _hit_finding_result_2_id = db.add_hit_finding_result(
+        _second_hit_finding_result_id = db.add_hit_finding_result(
             conn,
             DBHitFindingResult(
                 id=None,
-                data_source_id=data_source_2_id,
-                peak_search_parameters=DBPeakSearchParameters(
-                    id=None, method="dummy", software="dummy", command_line="dummy"
-                ),
-                hit_finding_parameters=DBHitFindingParameters(
-                    id=None, min_peaks=1, tag=None, comment=None
-                ),
-                result_filename="/tmp/foo.hkl",
-                number_of_hits=10,
+                data_source_id=data_source_id,
+                peak_search_parameters_id=psp_id,
+                hit_finding_parameters_id=hfp_id,
+                result_filename="/tmp/test.hkl",
+                result_type="",
+                number_of_hits=2,
                 hit_rate=0.2,
-                indexing_results=[],
+                average_resolution=0,
+                average_peaks_event=0,
             ),
         )
 
@@ -197,5 +240,4 @@ def test_retrieve_analysis(db: DB) -> None:
 
         assert len(analysis) == 1
         assert analysis[0].sample_id == sample_id
-        assert len(analysis[0].merge_results) == 1
-        assert len(analysis[0].indexing_paths) == 2
+        assert len(analysis[0].data_sources) == 2

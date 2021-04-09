@@ -8,6 +8,7 @@ from typing import List
 from sqlalchemy import MetaData
 from sqlalchemy import create_engine
 from sqlalchemy import event
+from sqlalchemy.pool import StaticPool
 
 
 class CreationMode(Enum):
@@ -17,7 +18,19 @@ class CreationMode(Enum):
 
 class DBContext:
     def __init__(self, connection_url: str, echo: bool = False) -> None:
-        self.engine = create_engine(connection_url, echo=echo)
+        # For the sqlite in-memory stuff, see here:
+        #
+        # https://docs.sqlalchemy.org/en/13/dialects/sqlite.html#threading-pooling-behavior
+        #
+        # In short, with in-memory databases, we normally get one DB per thread, which is bad if we have
+        # background threads updating the DB (in test scenarios, of course).
+        in_memory_db = connection_url == "sqlite://"
+        self.engine = create_engine(
+            connection_url,
+            echo=echo,
+            connect_args={"check_same_thread": False} if in_memory_db else {},
+            poolclass=StaticPool if in_memory_db else None,
+        )
 
         # sqlite doesn't care about foreign keys unless you do this dance, see
         # https://stackoverflow.com/questions/2614984/sqlite-sqlalchemy-how-to-enforce-foreign-keys

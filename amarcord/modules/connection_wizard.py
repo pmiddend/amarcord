@@ -12,7 +12,6 @@ from PyQt5.QtWidgets import QStyle
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QWidget
 from sqlalchemy.exc import ArgumentError
-from sqlalchemy.exc import OperationalError
 
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import DBContext
@@ -93,7 +92,9 @@ class ConnectionDialog(QWidget):
         with context.connect():
             try:
                 propos = retrieve_proposal_ids(context, tables)
-            except OperationalError as e:
+            except Exception as e:
+                # I used to catch concrete exceptions here, but that's no use, since they depend on the
+                # connector used, so that's not sensible.
                 self._set_error(
                     "Connection worked, but the database doesn't look valid!",
                     long_message=str(e),

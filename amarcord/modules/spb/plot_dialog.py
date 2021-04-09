@@ -2,12 +2,16 @@ import datetime
 import logging
 from enum import Enum
 from enum import auto
+from time import sleep
 from typing import Final
 from typing import List
 from typing import Optional
 
 import pandas as pd
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QObject
+from PyQt5.QtCore import QThread
+from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QDialog
 from PyQt5.QtWidgets import QDialogButtonBox
 from PyQt5.QtWidgets import QVBoxLayout
@@ -18,6 +22,7 @@ from matplotlib.pyplot import Figure
 
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
+from amarcord.db.db import OverviewAttributi
 from amarcord.db.db import overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
@@ -38,6 +43,44 @@ class _MplCanvas(FigureCanvasQTAgg):
 class _PlotType(Enum):
     LINE = auto()
     SCATTER = auto()
+
+
+class _Worker(QObject):
+    finished = pyqtSignal(QVariant, QVariant)
+
+    def __init__(
+        self, db: DB, proposal_id: ProposalId, last_update: Optional[datetime.datetime]
+    ) -> None:
+        super().__init__()
+        self._db = db
+        self._proposal_id = proposal_id
+        self._last_update = last_update
+
+    def run(self) -> None:
+        with self._db.connect() as conn:
+            while True:
+                sleep(TIMER_INTERVAL_MSEC / 1000)
+                update_time = self._db.overview_update_time(conn)
+                if (
+                    update_time is None
+                    or self._last_update is None
+                    or update_time > self._last_update
+                ):
+                    self._last_update = datetime.datetime.utcnow()
+                    rows = self._db.retrieve_overview(
+                        conn, self._proposal_id, self._db.retrieve_attributi(conn)
+                    )
+                    attributi_metadata = _retrieve_attributi_metadata(conn, self._db)
+
+                    self.finished.emit(rows, attributi_metadata)
+
+
+def _retrieve_attributi_metadata(conn: Connection, db: DB) -> List[TabledAttributo]:
+    return [
+        TabledAttributo(k, attributo)
+        for k, attributi in db.retrieve_attributi(conn).items()
+        for attributo in attributi.values()
+    ]
 
 
 class PlotDialog(QDialog):
@@ -63,7 +106,8 @@ class PlotDialog(QDialog):
 
         with self._db.connect() as conn:
             self._last_update: Optional[datetime.datetime] = datetime.datetime.utcnow()
-            self._attributi_metadata = self._retrieve_attributi_metadata(conn)
+            db = self._db
+            self._attributi_metadata = _retrieve_attributi_metadata(conn, db)
             self._rows = self._db.retrieve_overview(
                 conn, proposal_id, self._db.retrieve_attributi(conn)
             )
@@ -108,9 +152,25 @@ class PlotDialog(QDialog):
 
         self._plot()
 
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._slot_refresh)
-        self._timer.start(TIMER_INTERVAL_MSEC)
+        self._worker = _Worker(self._db, self._proposal_id, self._last_update)
+        self._thread = QThread()
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)  # type: ignore
+        self._thread.finished.connect(self._thread.deleteLater)  # type: ignore
+        self._worker.finished.connect(self._update)
+        self._thread.start()
+
+    def _update(
+        self, rows: List[OverviewAttributi], attributi: List[TabledAttributo]
+    ) -> None:
+        self._rows = rows
+        self._attributi_metadata = attributi
+        self._df = self._create_data_frame()
+
+        self._sc.axes.clear()
+
+        self._plot()
+        self._sc.draw()
 
     def _plot(self):
         try:
@@ -160,56 +220,3 @@ class PlotDialog(QDialog):
                 self._y_axis.attributo.pretty_id(),
             ],
         )
-
-    def _retrieve_attributi_metadata(self, conn: Connection) -> List[TabledAttributo]:
-        return [
-            TabledAttributo(k, attributo)
-            for k, attributi in self._db.retrieve_attributi(conn).items()
-            for attributo in attributi.values()
-        ]
-
-    # def _update_query(self):
-    #     try:
-    #         self._query: Optional[Query] = parse_query(
-    #             self._filter_widget.text(),
-    #             set(str(s) for s in self._property_metadata.keys()),
-    #         )
-    #     except:
-    #         self._query = None
-
-    # def _slot_filter_changed(self, new_text: str) -> None:
-    #     self._filter_query = new_text
-    #     self._slot_refresh()
-
-    def _slot_refresh(self) -> None:
-        # self._update_query()
-        #
-        # if self._query is None:
-        #     return
-        #
-        with self._db.connect() as conn:
-            update_time = self._db.overview_update_time(conn)
-            if (
-                update_time is None
-                or self._last_update is None
-                or update_time > self._last_update
-            ):
-                self._last_update = datetime.datetime.utcnow()
-                self._rows = self._db.retrieve_overview(
-                    conn, self._proposal_id, self._db.retrieve_attributi(conn)
-                )
-                self._attributi_metadata = self._retrieve_attributi_metadata(conn)
-                # filtered_runs = [
-                #     r
-                #     for r in self._rows
-                #     if r.select(self._attributo)
-                #     and filter_by_query(
-                #         self._query, r.to_query_row(self._property_metadata.keys())
-                #     )
-                # ]
-                self._df = self._create_data_frame()
-
-                self._sc.axes.clear()
-
-                self._plot()
-                self._sc.draw()

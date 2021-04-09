@@ -53,14 +53,11 @@ from amarcord.modules.json import JSONDict
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.image_viewer import display_image_viewer
-from amarcord.qt.pubchem import validate_pubchem_compound
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import Partial
 from amarcord.qt.validators import parse_existing_filename
 from amarcord.qt.validators import parse_list
 from amarcord.util import str_to_int
-
-DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 
 NEW_SAMPLE_HEADLINE = "New sample"
 AUTO_REFRESH_TIMER_MSEC: Final = 5000
@@ -91,7 +88,8 @@ def _empty_sample(available_attributi: Dict[AttributoId, DBAttributo]) -> DBSamp
 
 def _validate_pubchem(s: str) -> Union[int, Partial, None]:
     si = str_to_int(s)
-    if si is not None and validate_pubchem_compound(si):
+    # Commented out for now, since it is horribly slow
+    if si is not None:  # and validate_pubchem_compound(si):
         return si
     return None
 
@@ -252,15 +250,14 @@ class Samples(QWidget):
         with self._db.connect() as conn:
             metadata_wrapper = QWidget()
             metadata_wrapper_layout = QVBoxLayout(metadata_wrapper)
-            available_attributi = self._db.retrieve_table_attributi(
-                conn, AssociatedTable.SAMPLE
+            self._available_attributi: Dict[AttributoId, DBAttributo] = {}
+            attributi_table_attributi = (
+                self._update_and_retrieve_metadata_table_attributi(conn)
             )
-            # The sample ID itself shouldn't be in the table
-            available_attributi.pop(AttributoId("id"), None)
-            self._current_sample = _empty_sample(available_attributi)
+            self._current_sample = _empty_sample(attributi_table_attributi)
             self._attributi_table = AttributiTable(
                 self._current_sample.attributi,
-                available_attributi,
+                attributi_table_attributi,
                 [],
                 self._attributo_change,
                 self._attributo_manual_remove,
@@ -294,6 +291,17 @@ class Samples(QWidget):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._slot_refresh_with_conn)
 
+    def _update_and_retrieve_metadata_table_attributi(
+        self, conn: Connection
+    ) -> Dict[AttributoId, DBAttributo]:
+        self._available_attributi = self._db.retrieve_table_attributi(
+            conn, AssociatedTable.SAMPLE
+        )
+        # Some attributes shouldn't be editable in the table
+        for aid in ("id", "name", "micrograph", "protocol"):
+            self._available_attributi.pop(AttributoId(aid), None)
+        return self._available_attributi
+
     def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
         if self._update_timer.isActive():
             self._update_timer.stop()
@@ -306,7 +314,6 @@ class Samples(QWidget):
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         # We could immediately change the attribute, but we have this "Save changes" button
         # with self._db.connect() as conn:
-        logger.info("Setting attributo %s to %s", attributo, value)
         self._attributi_table.set_single_manual(attributo, value)
         # if self._current_sample.id is not None:
         #     self._db.update_sample_attributo(
@@ -320,9 +327,16 @@ class Samples(QWidget):
     def _slot_refresh(self, conn: Connection) -> None:
         # FIXME: What if the current sample was deleted?
         # FIXME: We could reload the sample data here, but that'd impede editing a bit if we don't do it smart
+        new_metadata = self._update_and_retrieve_metadata_table_attributi(conn)
+
+        # If the metadata changed (might happen if someone added a new attributo), we panic and cancel
+        # the current edit (it crashes otherwise). In the future, we might opt for a cooler solution.
+        if new_metadata != self._attributi_table.metadata:
+            self._cancel_edit()
+
         self._attributi_table.data_changed(
             self._attributi_table.attributi.to_raw(),
-            self._db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
+            new_metadata,
             samples=[],
         )
 
@@ -461,9 +475,11 @@ class Samples(QWidget):
     def _cancel_edit(self) -> None:
         self._attributo_manual_changes.clear()
         self._clear_submit()
-        self._submit_layout.addWidget(self._create_add_button())
+        self._add_button = self._create_add_button()
+        self._submit_layout.addWidget(self._add_button)
         self._reset_input_fields()
         self._right_headline.setText(NEW_SAMPLE_HEADLINE)
+        self._reset_button()
 
     def _slot_add_sample(self) -> None:
         with self._db.connect() as conn:
@@ -558,6 +574,8 @@ class Samples(QWidget):
             "Number of runs",
             "Target",
             "Compounds",
+            "Micrograph",
+            "Protocol",
         ] + attributi_headers
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
@@ -575,16 +593,21 @@ class Samples(QWidget):
                     ),
                     None,
                 ),
-                ", ".join(sample.compounds if sample is not None else [])
+                ", ".join(
+                    [str(c) for c in sample.compounds]
+                    if sample.compounds is not None
+                    else []
+                )
                 if sample.compounds is not None
                 else "",
-                # type: ignore
+                sample.micrograph if sample.micrograph is not None else "",
+                sample.protocol if sample.protocol is not None else "",
             )
             for col, column_value in enumerate(built_in_columns):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore
             i = len(built_in_columns)
             attributi = AttributiMap(self._attributi_table.metadata, sample.attributi)
-            for attributo_id in self._attributi_table.metadata:
+            for attributo_id in self._available_attributi:
                 attributo_value = attributi.select(attributo_id)
                 self._sample_table.setItem(
                     row,
