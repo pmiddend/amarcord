@@ -297,11 +297,10 @@ class Samples(QWidget):
         self._available_attributi = self._db.retrieve_table_attributi(
             conn, AssociatedTable.SAMPLE
         )
-        metadata_table_attributi = self._available_attributi.copy()
         # Some attributes shouldn't be editable in the table
         for aid in ("id", "name", "micrograph", "protocol"):
-            metadata_table_attributi.pop(AttributoId(aid), None)
-        return metadata_table_attributi
+            self._available_attributi.pop(AttributoId(aid), None)
+        return self._available_attributi
 
     def _slot_toggle_auto_refresh(self, _new_state: bool) -> None:
         if self._update_timer.isActive():
@@ -315,7 +314,6 @@ class Samples(QWidget):
     def _attributo_change(self, attributo: AttributoId, value: Any) -> None:
         # We could immediately change the attribute, but we have this "Save changes" button
         # with self._db.connect() as conn:
-        logger.info("Setting attributo %s to %s", attributo, value)
         self._attributi_table.set_single_manual(attributo, value)
         # if self._current_sample.id is not None:
         #     self._db.update_sample_attributo(
@@ -586,7 +584,11 @@ class Samples(QWidget):
                     ),
                     None,
                 ),
-                ", ".join(sample.compounds if sample is not None else [])
+                ", ".join(
+                    [str(c) for c in sample.compounds]
+                    if sample.compounds is not None
+                    else []
+                )
                 if sample.compounds is not None
                 else "",
                 sample.micrograph if sample.micrograph is not None else "",
