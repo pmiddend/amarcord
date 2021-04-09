@@ -2,7 +2,10 @@ from typing import Any, List, Tuple, Dict
 
 import os
 import yaml
+import logging
 import karabo_bridge
+
+logger = logging.getLogger(__name__)
 
 
 def load_configuration(descriptor: str) -> Dict[str, Any]:
@@ -46,7 +49,7 @@ class KaraboBridge:
 
         self.cache = self._initialize_cache()
 
-        # informa AMARCORD
+        # inform AMARCORD
         #
 
         # instantiate the Karabo bridge client
@@ -203,7 +206,10 @@ class KaraboBridge:
 
         return {"data": extractor(data), "metadata": extractor(metadata)}
 
-    def _compare_attributi_and_karabo_data(self):
+    def _compare_attributi_and_karabo_data(self, verbose=True):
+
+        missing_source = set(self.attributi) ^ set(self.karabo_bridge_content["data"])
+
         # to be sure we are not missing anything
         pass
 
@@ -228,7 +234,13 @@ class KaraboBridge:
                 for key in source_content.keys():
                     if key in self.karabo_bridge_content["data"][source]:
 
-                        print("Adding {} {}".format(source, key))
                         self.cache[source][key].append(data[source][key])
 
+        ##
+        source = list(k.attributi.keys())[0]
+        print("get train {}".format(metadata[source]["timestamp.tid"]))
+
         return data, metadata
+
+    def run_stats(self):
+        pass
