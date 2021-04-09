@@ -47,14 +47,14 @@ Karabo_bridge:
       bunch_charge:
         # D. Should AMARCORD key == Karabo key? If not, where do we store it?
         # -- this might be "description" + we add header
-        key: SASE1.charge.value
+        key: sase1.charge.value
         unit: nC
 
       bunch_pattern:
-        key: SASE1.pulseIds.value
+        key: sase1.pulseIds.value
 
       number_of_bunches:
-        key: SASE1.nPulses.value
+        key: sase1.nPulses.value
 
     # any detector
     # D. How to model detectors in the database?
