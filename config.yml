@@ -14,18 +14,17 @@ Karabo_bridge:
   #   action (str, optional)          average or check_if_constant (default: average)
   #   unit (str, optional)            unit of measurement (default: None)
   #   filling_value [Any, optional]   filling value in case a source is missing (default: None)
-  configuration:
-    version: 1
-    client_endpoint: tcp://cfeld-pcx36341.desy.de:1234
+  version: 1
+  client_endpoint: tcp://cfeld-pcx36341.desy.de:1234
 
-  content:
+  attributi_definition:
     run:
       # required to slice data from the bridge
       source: SPB_DAQ_DATA/DM/RUN_CONTROL
 
       index:
         description: Run index
-        keya: runDetails.runId.value
+        key: runDetails.runId.value
 
       timestamp_UTC_initial:
         description: Started at
