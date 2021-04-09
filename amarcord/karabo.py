@@ -3,8 +3,18 @@ import os
 import yaml
 
 
-def load_configuration(descriptor: str):
-    # should AMARCORD send the configuration to the daemon?
+def load_configuration(descriptor: str) -> Dict[str, Any]:
+    """Load the configuration file
+
+    Args:
+        descriptor (str): The YAML file
+
+    Raises:
+        FileNotFoundError: Self explaining
+
+    Returns:
+        Dict[str, Any]: The configuration
+    """
 
     if os.path.exists(descriptor):
         with open(descriptor) as fh:
@@ -14,19 +24,6 @@ def load_configuration(descriptor: str):
         raise FileNotFoundError("{} not found...".format(descriptor))
 
     return configuration
-
-
-def parse_configuration(stream: Dict[str, Any]):
-    # remember to apply default values
-
-    # run information
-    if "run" in stream:
-        pass
-
-    else:
-        raise ValueError("Run configuration missing")
-
-    return
 
 
 def _stream_content(
