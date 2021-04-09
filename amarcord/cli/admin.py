@@ -40,19 +40,21 @@ def main() -> int:
     if args.command == "migrate":
         upgrade_to_head(args.connection_url)
         logger.info("Migration finished successfully!")
-    if args.command == "remove-admin-password":
+    elif args.command == "remove-admin-password":
         with db.connect() as conn:
             db.change_proposal_password(conn, args.proposal_id, None)
             logger.info("Password successfully removed!")
-    if args.command == "switch-admin-password":
+    elif args.command == "switch-admin-password":
         new_password = getpass()
         with db.connect() as conn:
             db.change_proposal_password(conn, args.proposal_id, new_password)
             logger.info("Password successfully switched!")
-    if args.command == "add-proposal":
+    elif args.command == "add-proposal":
         with db.connect() as conn:
             db.add_proposal(conn, ProposalId(args.proposal_id), args.proposal_password)
             logger.info("Proposal added!")
+    else:
+        logger.warning("No command given!")
     return 0
 
 
