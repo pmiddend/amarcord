@@ -65,7 +65,10 @@ class XFELGui:
             create_sample_data(DB(self._db_context, self._tables))
 
         self._event_timer = EventLogDaemon(
-            self._db_context, self._tables, self._ui_context.main_window
+            self._ui_context.log_output,
+            self._db_context,
+            self._tables,
+            self._ui_context.main_window,
         )
         self._proposal_ids = retrieve_proposal_ids(self._db_context, self._tables)
 

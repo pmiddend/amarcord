@@ -441,16 +441,16 @@ def action_add_data_source() -> None:
 
 
 actions_with_weights = [
-    # (action_change_run_property, 80),
-    (action_add_run, 15),
-    (action_add_data_source, 5),
+    (action_change_run_property, 5000),
+    (action_add_event, 500),
+    (action_add_run, 30),
+    (action_modify_sample, 16),
+    (action_add_data_source, 10),
     # Commented out temporarily because we cannot delete run "1" in SQLite for some shitty reason
     # (action_remove_run, 3),
-    # (action_add_sample, 3),
-    # (action_add_event, 3),
-    # (action_modify_sample, 3),
-    # (action_add_comment, 1),
-    # (action_add_attributi, 1),
+    (action_add_comment, 2),
+    (action_add_sample, 1),
+    (action_add_attributi, 1),
 ]
 
 
