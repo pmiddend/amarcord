@@ -17,7 +17,6 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.comment import DBComment
-from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.db import RunNotFound
@@ -250,9 +249,9 @@ class RunDetails(QWidget):
                 samples=self._db.retrieve_mini_samples(conn),
             )
             attributi = RawAttributiMap({})
-            attributi.append_single_to_source(
-                MANUAL_SOURCE_NAME, AttributoId("status"), "running"
-            )
+            # attributi.append_single_to_source(
+            #     MANUAL_SOURCE_NAME, AttributoId("status"), "running"
+            # )
             if new_run is not None:
                 if not self._db.add_run(
                     conn, self._proposal_id, new_run.id, new_run.sample_id, attributi
