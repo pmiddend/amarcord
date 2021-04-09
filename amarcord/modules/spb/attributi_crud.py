@@ -192,6 +192,7 @@ class AttributiCrud(QWidget):
                 for k, attributi in self._db.retrieve_attributi(conn).items()
                 for attributo in attributi.values()
             ]
+            self._attributi.sort(key=lambda ta: (ta.table.name, ta.attributo.name))
             self._attributi_table = DeclarativeTable(data=self._create_table_data())
 
         left_column = QWidget()
@@ -395,6 +396,7 @@ class AttributiCrud(QWidget):
             for k, attributi in self._db.retrieve_attributi(conn).items()
             for attributo in attributi.values()
         ]
+        self._attributi.sort(key=lambda ta: (ta.table.name, ta.attributo.name))
         self._attributi_table.set_data(self._create_table_data())
 
     def _attributo_id_taken(
