@@ -11,7 +11,7 @@ Karabo_bridge:
   #   key (str)                       value to extract
   #   description (str, optional)     `attributo` comment (default: '')
   #   store (bool, optional)          whether to store the value (default: True)
-  #   action (str, optional)          average or check_if_constant (default: average)
+  #   action (str, optional)          average, check_if_constant or store_last (default: average)
   #   unit (str, optional)            unit of measurement (default: None)
   #   filling_value [Any, optional]   filling value in case a source is missing (default: None)
   version: 1
@@ -103,6 +103,7 @@ Karabo_bridge:
 
       injector_image:
         key: data.image.data
+        action: store_last
 
     detector.AGIPD:
       comment: X-ray detector
