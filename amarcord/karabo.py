@@ -44,12 +44,16 @@ class KaraboBridge:
             attributi_definition
         )
 
+        self.cache = self._initialize_cache()
+
+        # informa AMARCORD
+        #
+
         # instantiate the Karabo bridge client
         self.client_endpoint = client_endpoint
         self._client = karabo_bridge.Client(self.client_endpoint)
 
-        # cache data from the bridge
-        self.cache = {}
+        self.karabo_bridge_content = None
 
     def __enter__(self):
         return self
@@ -160,12 +164,18 @@ class KaraboBridge:
 
         return entry, karabo_expected_entry
 
-    def _initialize_cache(self) -> None:
+    def _initialize_cache(self) -> Dict[str, Dict[str, List]]:
         """Initialize arrays holding data
+
+        Returns:
+            Dict[str, Dict[str, List]]: The cache
         """
+        cache = {}
 
         for source, source_content in self.attributi.items():
-            self.cache[source] = {li: [] for li in source_content}
+            cache[source] = {li: [] for li in source_content}
+
+        return cache
 
     def _stream_content(
         self, data: Dict[str, Any], metadata: Dict[str, Any]
@@ -197,29 +207,28 @@ class KaraboBridge:
         # to be sure we are not missing anything
         pass
 
-    def next_train(self, verbose=True) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Get the next train from the Karabo Bridge
-
-        Args:
-            verbose (bool, optional): [description]. Defaults to True.
+    def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Get and cache the next train from the Karabo bridge
 
         Returns:
-            Tuple[Dict[str, Any], Dict[str, Any]]: data, metadata
+            Tuple[Dict[str, Any], Dict[str, Any]]: Tuple[Dict[str, Any], Dict[str, Any]]: data, metadata
         """
 
-        # get next train
-        data, _ = self._client.next()
+        # get the next train
+        data, metadata = self._client.next()
 
-        if verbose:
-            print("Available devices:")
+        if self.karabo_bridge_content is None:
+            self.karabo_bridge_content = self._stream_content(data, metadata)
 
-            for ki, vi in data.items():
-                print("  {}\n    {}".format(ki, "\n    ".join([i for i in vi.keys()])))
+            self._compare_attributi_and_karabo_data()
 
         # cache data
-        for ki, vi in self.karabo_devices.items():
-            if ki in data.keys():
-                for li in vi:
-                    if li in data[ki].keys():
+        for source, source_content in self.attributi.items():
+            if source in self.karabo_bridge_content["data"]:
+                for key in source_content.keys():
+                    if key in self.karabo_bridge_content["data"][source]:
 
-                        self.cache[ki][li].append(data[ki][li])
+                        print("Adding {} {}".format(source, key))
+                        self.cache[source][key].append(data[source][key])
+
+        return data, metadata
