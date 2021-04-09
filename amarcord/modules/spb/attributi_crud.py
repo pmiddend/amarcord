@@ -70,8 +70,7 @@ logger = logging.getLogger(__name__)
 
 class TypePreset(Enum):
     INT = "integer"
-    DOUBLE = "number"
-    PERCENT = "percent"
+    DOUBLE = "decimal number"
     STANDARD_UNIT = "standard unit"
     TAGS = "list of tags"
     STRING = "string"
@@ -446,11 +445,6 @@ class AttributiCrud(QWidget):
         value = self._type_selection.current_value()
         if value == TypePreset.INT:
             return AttributoTypeInt()
-        if value == TypePreset.PERCENT:
-            return AttributoTypeDouble(
-                range=NumericRange(0, True, 100, True),
-                suffix="%",
-            )
         if value == TypePreset.STANDARD_UNIT:
             return AttributoTypeDouble(
                 range=self._type_specific_metadata.get("range", None),
