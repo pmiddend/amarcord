@@ -140,7 +140,7 @@ class DB:
         sample_types = types[AssociatedTable.SAMPLE]
         samples: Dict[int, AttributiMap] = {
             cast(int, k.id): _sample_to_attributi(k, sample_types)
-            for k in self.retrieve_samples(conn)
+            for k in self.retrieve_samples(conn, proposal_id)
         }
         runs: List[DBRun] = self.retrieve_runs(conn, proposal_id, None)
 
@@ -585,11 +585,14 @@ class DB:
             )
         )
 
-    def retrieve_targets(self, conn: Connection) -> List[DBTarget]:
+    def retrieve_targets(
+        self, conn: Connection, proposal_id: Optional[ProposalId] = None
+    ) -> List[DBTarget]:
         tc = self.tables.target.c
         return [
             DBTarget(
                 row["id"],
+                row["proposal_id"],
                 row["name"],
                 row["short_name"],
                 row["molecular_weight"],
@@ -597,8 +600,19 @@ class DB:
             )
             for row in conn.execute(
                 sa.select(
-                    [tc.id, tc.name, tc.short_name, tc.molecular_weight, tc.uniprot_id]
-                ).order_by(tc.short_name)
+                    [
+                        tc.id,
+                        tc.proposal_id,
+                        tc.name,
+                        tc.short_name,
+                        tc.molecular_weight,
+                        tc.uniprot_id,
+                    ]
+                )
+                .where(
+                    tc.proposal_id == proposal_id if proposal_id is not None else True
+                )
+                .order_by(tc.short_name)
             ).fetchall()
         ]
 
@@ -610,6 +624,7 @@ class DB:
         return conn.execute(
             sa.insert(self.tables.target).values(
                 name=t.name,
+                proposal_id=t.proposal_id,
                 short_name=t.short_name,
                 molecular_weight=t.molecular_weight,
                 uniprot_id=t.uniprot_id,
@@ -657,26 +672,39 @@ class DB:
         return result
 
     def retrieve_samples(
-        self, conn: Connection, since: Optional[datetime.datetime] = None
+        self,
+        conn: Connection,
+        proposal_id: Optional[ProposalId],
+        since: Optional[datetime.datetime] = None,
     ) -> List[DBSample]:
         tc = self.tables.sample.c
-        select_stmt = sa.select(
-            [
-                tc.id,
-                tc.name,
-                tc.target_id,
-                tc.compounds,
-                tc.micrograph,
-                tc.protocol,
-                tc.attributi,
-            ]
-        ).order_by(tc.id)
+        select_stmt = (
+            sa.select(
+                [
+                    tc.id,
+                    tc.proposal_id,
+                    tc.name,
+                    tc.target_id,
+                    tc.compounds,
+                    tc.micrograph,
+                    tc.protocol,
+                    tc.attributi,
+                ]
+            )
+            .where(
+                self.tables.sample.c.proposal_id == proposal_id
+                if proposal_id is not None
+                else True
+            )
+            .order_by(tc.id)
+        )
         if since is not None:
             select_stmt = select_stmt.where(tc.modified >= since)
 
         def prepare_sample(row: Any) -> DBSample:
             return DBSample(
                 id=row["id"],
+                proposal_id=ProposalId(row["proposal_id"]),
                 name=row["name"],
                 target_id=row["target_id"],
                 compounds=row["compounds"],
@@ -695,6 +723,7 @@ class DB:
         return conn.execute(
             sa.insert(self.tables.sample).values(
                 name=t.name,
+                proposal_id=t.proposal_id,
                 target_id=t.target_id,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
@@ -754,7 +783,7 @@ class DB:
                             run.attributi,
                         )
             elif table == AssociatedTable.SAMPLE:
-                for sample in self.retrieve_samples(conn, since=None):
+                for sample in self.retrieve_samples(conn, proposal_id=None, since=None):
                     existed = sample.attributi.remove_attributo(name, source=None)
                     if existed:
                         self.update_sample_attributi(

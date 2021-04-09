@@ -68,6 +68,7 @@ with db.connect() as global_conn:
             global_conn,
             DBTarget(
                 id=None,
+                proposal_id=PROPOSAL_ID,
                 name="target name",
                 short_name="target short name",
                 molecular_weight=None,
@@ -110,7 +111,7 @@ def action_add_run() -> None:
     with db.connect() as conn:
         prior_run_ids = db.retrieve_run_ids(conn, PROPOSAL_ID)
 
-        samples = db.retrieve_samples(conn, None)
+        samples = db.retrieve_samples(conn, PROPOSAL_ID, None)
 
         rid = max(prior_run_ids, default=0) + 1
         print(f"adding run {rid}")
@@ -247,6 +248,7 @@ def action_add_sample() -> None:
             conn,
             DBSample(
                 id=None,
+                proposal_id=PROPOSAL_ID,
                 name=generate_random_string(),
                 target_id=random.choice(targets).id,
                 compounds=None,
@@ -262,7 +264,7 @@ def action_add_sample() -> None:
 
 def action_modify_sample() -> None:
     with db.connect() as conn:
-        samples = db.retrieve_samples(conn, None)
+        samples = db.retrieve_samples(conn, PROPOSAL_ID, None)
         if samples:
             s = random.choice(samples)
             attributi = db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE)

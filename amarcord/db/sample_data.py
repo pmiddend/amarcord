@@ -19,6 +19,7 @@ from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_type import AttributoTypeTags
 from amarcord.db.attributo_type import AttributoTypeUserName
+from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.proposal_id import ProposalId
@@ -62,6 +63,7 @@ def create_sample_data(db: DB) -> None:
             conn,
             DBTarget(
                 id=None,
+                proposal_id=ProposalId(1),
                 name="Main Protease",
                 short_name="MPro",
                 molecular_weight=None,
@@ -73,6 +75,7 @@ def create_sample_data(db: DB) -> None:
             conn,
             DBTarget(
                 id=None,
+                proposal_id=ProposalId(1),
                 name="Protein Like Protease",
                 short_name="PLPro",
                 molecular_weight=None,
@@ -80,147 +83,7 @@ def create_sample_data(db: DB) -> None:
             ),
         )
 
-        db.add_attributo(
-            conn,
-            name="crystal_buffer",
-            description="Crystal Buffer",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeString(),
-        )
-        db.add_attributo(
-            conn,
-            name="shaking_time",
-            description="Shaking Time",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeDuration(),
-        )
-        db.add_attributo(
-            conn,
-            name="avg_crystal_size",
-            description="Average Crystal Size",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeDouble(
-                range=NumericRange(
-                    0, minimum_inclusive=False, maximum=None, maximum_inclusive=False
-                ),
-                suffix="μm",
-                standard_unit=True,
-            ),
-        )
-        db.add_attributo(
-            conn,
-            name="crystallization_temperature",
-            description="Crystallization Temperature",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeDouble(range=None, suffix="°C", standard_unit=False),
-        )
-        db.add_attributo(
-            conn,
-            name="shaking_strength",
-            description="Shaking Strength",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeDouble(
-                range=NumericRange(
-                    0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
-                ),
-                suffix="RPM",
-                standard_unit=False,
-            ),
-        )
-        db.add_attributo(
-            conn,
-            name="protein_concentration",
-            description="Protein Concentration",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeDouble(
-                range=NumericRange(
-                    0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
-                ),
-                suffix="mg/mL",
-                standard_unit=True,
-            ),
-        )
-        db.add_attributo(
-            conn,
-            name="comment",
-            description="Comment",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeString(),
-        )
-        db.add_attributo(
-            conn,
-            name="crystal_settlement_volume",
-            description="Crystal Settlement Volume",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeDouble(
-                range=NumericRange(
-                    0, minimum_inclusive=True, maximum=100, maximum_inclusive=True
-                ),
-                suffix="%",
-                standard_unit=False,
-            ),
-        )
-        db.add_attributo(
-            conn,
-            name="seed_stock_used",
-            description="Seed Stock Used",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeString(),
-        )
-        db.add_attributo(
-            conn,
-            name="plate_origin",
-            description="Plate Origin",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeString(),
-        )
-        db.add_attributo(
-            conn,
-            name="creator",
-            description="Creator",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeUserName(),
-        )
-        db.add_attributo(
-            conn,
-            name="crystallization_method",
-            description="Crystallization Method",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeString(),
-        )
-        db.add_attributo(
-            conn,
-            name="incubation_time",
-            description="Incubation Time",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeDateTime(),
-        )
-        db.add_attributo(
-            conn,
-            name="crystal_shape",
-            description="Crystal Shape",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeList(
-                sub_type=AttributoTypeDouble(
-                    range=NumericRange(
-                        0, minimum_inclusive=True, maximum=None, maximum_inclusive=True
-                    ),
-                    suffix="nm",
-                    standard_unit=True,
-                ),
-                min_length=3,
-                max_length=3,
-            ),
-        )
-        db.add_attributo(
-            conn,
-            name="filters",
-            description="Filters",
-            associated_table=AssociatedTable.SAMPLE,
-            prop_type=AttributoTypeList(
-                sub_type=AttributoTypeString(), min_length=None, max_length=None
-            ),
-        )
+        add_xfel_2696_attributi(db, conn)
 
         # Create samples
         sample_ids: List[int] = []
@@ -235,6 +98,7 @@ def create_sample_data(db: DB) -> None:
                     conn,
                     DBSample(
                         id=None,
+                        proposal_id=ProposalId(proposal_id),
                         name=f"mpro {i}",
                         target_id=first_target_id,
                         compounds=None,
@@ -249,6 +113,7 @@ def create_sample_data(db: DB) -> None:
             conn,
             DBSample(
                 id=None,
+                proposal_id=ProposalId(proposal_id),
                 name="mpro unused",
                 target_id=first_target_id,
                 compounds=None,
@@ -491,3 +356,147 @@ def create_sample_data(db: DB) -> None:
                         )
 
     logger.info("Done")
+
+
+def add_xfel_2696_attributi(db: DB, conn: Connection) -> None:
+    db.add_attributo(
+        conn,
+        name="crystal_buffer",
+        description="Crystal Buffer",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeString(),
+    )
+    db.add_attributo(
+        conn,
+        name="shaking_time",
+        description="Shaking Time",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeDuration(),
+    )
+    db.add_attributo(
+        conn,
+        name="avg_crystal_size",
+        description="Average Crystal Size",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeDouble(
+            range=NumericRange(
+                0, minimum_inclusive=False, maximum=None, maximum_inclusive=False
+            ),
+            suffix="μm",
+            standard_unit=True,
+        ),
+    )
+    db.add_attributo(
+        conn,
+        name="crystallization_temperature",
+        description="Crystallization Temperature",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeDouble(range=None, suffix="°C", standard_unit=False),
+    )
+    db.add_attributo(
+        conn,
+        name="shaking_strength",
+        description="Shaking Strength",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeDouble(
+            range=NumericRange(
+                0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
+            ),
+            suffix="RPM",
+            standard_unit=False,
+        ),
+    )
+    db.add_attributo(
+        conn,
+        name="protein_concentration",
+        description="Protein Concentration",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeDouble(
+            range=NumericRange(
+                0, minimum_inclusive=True, maximum=None, maximum_inclusive=False
+            ),
+            suffix="mg/mL",
+            standard_unit=True,
+        ),
+    )
+    db.add_attributo(
+        conn,
+        name="comment",
+        description="Comment",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeString(),
+    )
+    db.add_attributo(
+        conn,
+        name="crystal_settlement_volume",
+        description="Crystal Settlement Volume",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeDouble(
+            range=NumericRange(
+                0, minimum_inclusive=True, maximum=100, maximum_inclusive=True
+            ),
+            suffix="%",
+            standard_unit=False,
+        ),
+    )
+    db.add_attributo(
+        conn,
+        name="seed_stock_used",
+        description="Seed Stock Used",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeString(),
+    )
+    db.add_attributo(
+        conn,
+        name="plate_origin",
+        description="Plate Origin",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeString(),
+    )
+    db.add_attributo(
+        conn,
+        name="creator",
+        description="Creator",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeUserName(),
+    )
+    db.add_attributo(
+        conn,
+        name="crystallization_method",
+        description="Crystallization Method",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeString(),
+    )
+    db.add_attributo(
+        conn,
+        name="incubation_time",
+        description="Incubation Time",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeDateTime(),
+    )
+    db.add_attributo(
+        conn,
+        name="crystal_shape",
+        description="Crystal Shape",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeList(
+            sub_type=AttributoTypeDouble(
+                range=NumericRange(
+                    0, minimum_inclusive=True, maximum=None, maximum_inclusive=True
+                ),
+                suffix="nm",
+                standard_unit=True,
+            ),
+            min_length=3,
+            max_length=3,
+        ),
+    )
+    db.add_attributo(
+        conn,
+        name="filters",
+        description="Filters",
+        associated_table=AssociatedTable.SAMPLE,
+        prop_type=AttributoTypeList(
+            sub_type=AttributoTypeString(), min_length=None, max_length=None
+        ),
+    )

@@ -24,6 +24,7 @@ from PyQt5.QtWidgets import QWidget
 
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
+from amarcord.db.proposal_id import ProposalId
 from amarcord.db.table_classes import DBTarget
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
@@ -38,9 +39,14 @@ NEW_TARGET_HEADLINE = "New target"
 logger = logging.getLogger(__name__)
 
 
-def _empty_target():
+def _empty_target(proposal_id: ProposalId):
     return DBTarget(
-        id=None, name="", short_name="", molecular_weight=None, uniprot_id=""
+        id=None,
+        proposal_id=proposal_id,
+        name="",
+        short_name="",
+        molecular_weight=None,
+        uniprot_id="",
     )
 
 
@@ -63,10 +69,12 @@ class Targets(QWidget):
         self,
         context: Context,
         tables: DBTables,
+        proposal_id: ProposalId,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
+        self._proposal_id = proposal_id
         self._db = DB(context.db, tables)
         root_layout = QHBoxLayout()
         self.setLayout(root_layout)
@@ -78,7 +86,7 @@ class Targets(QWidget):
         self._target_table.doubleClicked.connect(self._slot_row_selected)
         root_widget.addWidget(self._target_table)
 
-        self._current_target = _empty_target()
+        self._current_target = _empty_target(self._proposal_id)
         right_widget = QWidget()
         right_root_layout = QVBoxLayout()
         right_widget.setLayout(right_root_layout)
@@ -148,7 +156,7 @@ class Targets(QWidget):
                 with conn.begin():
                     samples_used = [
                         str(s.id)
-                        for s in self._db.retrieve_samples(conn)
+                        for s in self._db.retrieve_samples(conn, self._proposal_id)
                         if s.target_id == target.id
                     ]
                     if samples_used:
@@ -246,7 +254,7 @@ class Targets(QWidget):
         self._uniprot_edit.setText("")
         self._uniprot_edit.setStyleSheet("")
         self._molecular_weight_edit.set_value(None)
-        self._current_target = _empty_target()
+        self._current_target = _empty_target(self._proposal_id)
 
     def _molecular_weight_change(self, value: NumericInputValue) -> None:
         if not isinstance(value, str):

@@ -118,6 +118,7 @@ def test_add_set_delete_sample_attributo(db: DB) -> None:
                 DBSample(
                     id=None,
                     name=SAMPLE_NAME,
+                    proposal_id=ProposalId(1),
                     attributi=RawAttributiMap(
                         {MANUAL_SOURCE_NAME: {aid: ATTRIBUTO_VALUE}}
                     ),
@@ -138,12 +139,13 @@ def test_add_set_delete_sample_attributo(db: DB) -> None:
             DBSample(
                 id=None,
                 name=SAMPLE_NAME,
+                proposal_id=ProposalId(1),
                 attributi=RawAttributiMap({MANUAL_SOURCE_NAME: {aid: ATTRIBUTO_VALUE}}),
             ),
         )
 
         # Retrieve the sample, check if the attributo is there and has the correct value
-        samples = db.retrieve_samples(conn)
+        samples = db.retrieve_samples(conn, PROPOSAL_ID)
 
         assert len(samples) == 1
 
@@ -154,7 +156,7 @@ def test_add_set_delete_sample_attributo(db: DB) -> None:
         # Then delete the attributo, re-retrieve sample, check that attributo is not there.
         db.delete_attributo(conn, AssociatedTable.SAMPLE, AttributoId(aid))
 
-        samples = db.retrieve_samples(conn)
+        samples = db.retrieve_samples(conn, PROPOSAL_ID)
 
         assert len(samples) == 1
 

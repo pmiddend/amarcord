@@ -66,6 +66,7 @@ def upgrade():
     op.create_table(
         "Sample",
         sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("proposal_id", sa.Integer(), nullable=False),
         sa.Column("target_id", sa.Integer(), nullable=True),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("compounds", sa.JSON(), nullable=True),
@@ -74,15 +75,18 @@ def upgrade():
         sa.Column("modified", sa.DateTime(), nullable=False),
         sa.Column("attributi", sa.JSON(), nullable=False),
         sa.ForeignKeyConstraint(["target_id"], ["Target.id"], use_alter=True),
+        sa.ForeignKeyConstraint(["proposal_id"], ["Proposal.id"], use_alter=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
         "Target",
         sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("proposal_id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("short_name", sa.String(length=255), nullable=False),
         sa.Column("molecular_weight", sa.Float(), nullable=True),
         sa.Column("uniprot_id", sa.String(length=64), nullable=True),
+        sa.ForeignKeyConstraint(["proposal_id"], ["Proposal.id"], use_alter=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(

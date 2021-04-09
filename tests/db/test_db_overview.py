@@ -18,7 +18,13 @@ def test_single_run(db: DB) -> None:
         db.add_proposal(conn, PROPOSAL_ID)
 
         sample_id = db.add_sample(
-            conn, DBSample(id=None, name="testsample", attributi=RawAttributiMap({}))
+            conn,
+            DBSample(
+                id=None,
+                proposal_id=ProposalId(1),
+                name="testsample",
+                attributi=RawAttributiMap({}),
+            ),
         )
         db.add_run(
             conn, PROPOSAL_ID, 1, sample_id=sample_id, attributi=RawAttributiMap({})
@@ -37,7 +43,13 @@ def test_two_runs_one_sample(db: DB) -> None:
         db.add_proposal(conn, PROPOSAL_ID)
 
         sample_id = db.add_sample(
-            conn, DBSample(id=None, name="testsample", attributi=RawAttributiMap({}))
+            conn,
+            DBSample(
+                id=None,
+                proposal_id=ProposalId(1),
+                name="testsample",
+                attributi=RawAttributiMap({}),
+            ),
         )
         db.add_run(conn, PROPOSAL_ID, 1, sample_id, RawAttributiMap({}))
         db.add_run(conn, PROPOSAL_ID, 2, None, RawAttributiMap({}))

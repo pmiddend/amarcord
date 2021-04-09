@@ -124,11 +124,11 @@ class XFELGui:
 
         _targets_index = self._ui_context.register_tab(
             "Targets",
-            Targets(self._context, self._tables),
+            Targets(self._context, self._tables, self._proposal_id),
             QIcon(":/icons/bullseye-solid.png"),
         )
 
-        samples_tab = Samples(self._context, self._tables)
+        samples_tab = Samples(self._context, self._tables, self._proposal_id)
         _samples_index = self._ui_context.register_tab(
             "Samples", samples_tab, QIcon(":/icons/flask-solid.png")
         )

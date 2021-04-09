@@ -6,6 +6,7 @@ from typing import Optional
 
 from amarcord.db.comment import DBComment
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.modules.json import JSONDict
 
@@ -22,6 +23,7 @@ class DBEvent:
 @dataclass(frozen=True)
 class DBTarget:
     id: Optional[int]
+    proposal_id: ProposalId
     name: str
     short_name: str
     molecular_weight: Optional[float]
@@ -31,6 +33,7 @@ class DBTarget:
 @dataclass(frozen=True)
 class DBSample:
     id: Optional[int]
+    proposal_id: ProposalId
     name: str
     attributi: RawAttributiMap
     target_id: Optional[int] = None

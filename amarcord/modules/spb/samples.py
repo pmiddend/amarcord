@@ -45,6 +45,7 @@ from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import DBTables
@@ -65,7 +66,9 @@ AUTO_REFRESH_TIMER_MSEC: Final = 5000
 logger = logging.getLogger(__name__)
 
 
-def _empty_sample(available_attributi: Dict[AttributoId, DBAttributo]) -> DBSample:
+def _empty_sample(
+    proposal_id: ProposalId, available_attributi: Dict[AttributoId, DBAttributo]
+) -> DBSample:
     attributi_map: JSONDict = {}
     if AttributoId("created") in available_attributi:
         new_source = cast(JSONDict, attributi_map.get(MANUAL_SOURCE_NAME, {}))
@@ -77,6 +80,7 @@ def _empty_sample(available_attributi: Dict[AttributoId, DBAttributo]) -> DBSamp
         attributi_map[MANUAL_SOURCE_NAME] = new_source
     return DBSample(
         id=None,
+        proposal_id=proposal_id,
         name="",
         target_id=None,
         compounds=None,
@@ -115,10 +119,12 @@ class Samples(QWidget):
         self,
         context: Context,
         tables: DBTables,
+        proposal_id: ProposalId,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
 
+        self._proposal_id = proposal_id
         self._db = DB(context.db, tables)
 
         # if "filesystem" not in context.config:
@@ -254,7 +260,9 @@ class Samples(QWidget):
             attributi_table_attributi = (
                 self._update_and_retrieve_metadata_table_attributi(conn)
             )
-            self._current_sample = _empty_sample(attributi_table_attributi)
+            self._current_sample = _empty_sample(
+                self._proposal_id, attributi_table_attributi
+            )
             self._attributi_table = AttributiTable(
                 self._current_sample.attributi,
                 attributi_table_attributi,
@@ -511,7 +519,9 @@ class Samples(QWidget):
         self._name_edit.setText("")
         self._micrograph_edit.set_value(None)
         self._protocol_edit.set_value(None)
-        self._current_sample = _empty_sample(self._attributi_table.metadata)
+        self._current_sample = _empty_sample(
+            self._proposal_id, self._attributi_table.metadata
+        )
         self._attributi_table.data_changed(
             self._current_sample.attributi, self._attributi_table.metadata, []
         )
@@ -551,7 +561,7 @@ class Samples(QWidget):
 
     def _reload_and_fill_samples(self, conn: Connection) -> None:
         self._samples_with_runs = self._db.retrieve_used_sample_ids(conn)
-        self._samples = self._db.retrieve_samples(conn)
+        self._samples = self._db.retrieve_samples(conn, self._proposal_id)
         self._targets = self._db.retrieve_targets(conn)
 
         self._target_id_edit.reset_items(

@@ -123,7 +123,13 @@ def test_ingest_cheetah_idempotent(db: DB) -> None:
     with db.connect() as conn:
         db.add_proposal(conn, ProposalId(1))
         sample_id = db.add_sample(
-            conn, DBSample(id=None, name="sample1", attributi=RawAttributiMap({}))
+            conn,
+            DBSample(
+                id=None,
+                proposal_id=ProposalId(1),
+                name="sample1",
+                attributi=RawAttributiMap({}),
+            ),
         )
         db.add_run(
             conn,
@@ -162,7 +168,13 @@ def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
     with db.connect() as conn:
         db.add_proposal(conn, ProposalId(1))
         sample_id = db.add_sample(
-            conn, DBSample(id=None, name="sample1", attributi=RawAttributiMap({}))
+            conn,
+            DBSample(
+                id=None,
+                proposal_id=ProposalId(1),
+                name="sample1",
+                attributi=RawAttributiMap({}),
+            ),
         )
         db.add_run(
             conn,

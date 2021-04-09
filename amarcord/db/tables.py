@@ -41,6 +41,12 @@ def _table_target(metadata: sa.MetaData) -> sa.Table:
         "Target",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "proposal_id",
+            sa.Integer,
+            sa.ForeignKey("Proposal.id", use_alter=True),
+            nullable=True,
+        ),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("short_name", sa.String(length=255), nullable=False),
         sa.Column("molecular_weight", sa.Float, nullable=True),
@@ -53,6 +59,12 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
         "Sample",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "proposal_id",
+            sa.Integer,
+            sa.ForeignKey("Proposal.id", use_alter=True),
+            nullable=True,
+        ),
         sa.Column(
             "target_id",
             sa.Integer,

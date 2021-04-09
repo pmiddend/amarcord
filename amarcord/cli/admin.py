@@ -6,6 +6,7 @@ from getpass import getpass
 from amarcord.db.alembic import upgrade_to_head
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
+from amarcord.db.sample_data import add_xfel_2696_attributi
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import DBContext
 
@@ -32,6 +33,8 @@ def main() -> int:
     add_proposal.add_argument("--proposal-id", type=int, required=True)
     add_proposal.add_argument("--proposal-password", type=str, required=False)
 
+    _add_2696_attributi = subparsers.add_parser("add-2696-attributi")
+
     _migrate_parser = subparsers.add_parser("migrate")
     args = parser.parse_args()
 
@@ -40,6 +43,10 @@ def main() -> int:
     if args.command == "migrate":
         upgrade_to_head(args.connection_url)
         logger.info("Migration finished successfully!")
+    elif args.command == "add-2696-attributi":
+        with db.connect() as conn:
+            add_xfel_2696_attributi(db, conn)
+            logger.info("Attributi successfully inserted!")
     elif args.command == "remove-admin-password":
         with db.connect() as conn:
             db.change_proposal_password(conn, args.proposal_id, None)

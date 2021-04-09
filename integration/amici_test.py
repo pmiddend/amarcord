@@ -26,7 +26,13 @@ db = DB(dbcontext, tables)
 with db.connect() as conn:
     db.add_proposal(conn, ProposalId(1))
     sample_id = db.add_sample(
-        conn, DBSample(id=None, name="sample1", attributi=RawAttributiMap({}))
+        conn,
+        DBSample(
+            id=None,
+            proposal_id=ProposalId(1),
+            name="sample1",
+            attributi=RawAttributiMap({}),
+        ),
     )
     db.add_run(
         conn,
