@@ -327,9 +327,16 @@ class Samples(QWidget):
     def _slot_refresh(self, conn: Connection) -> None:
         # FIXME: What if the current sample was deleted?
         # FIXME: We could reload the sample data here, but that'd impede editing a bit if we don't do it smart
+        new_metadata = self._update_and_retrieve_metadata_table_attributi(conn)
+
+        # If the metadata changed (might happen if someone added a new attributo), we panic and cancel
+        # the current edit (it crashes otherwise). In the future, we might opt for a cooler solution.
+        if new_metadata != self._attributi_table.metadata:
+            self._cancel_edit()
+
         self._attributi_table.data_changed(
             self._attributi_table.attributi.to_raw(),
-            self._update_and_retrieve_metadata_table_attributi(conn),
+            new_metadata,
             samples=[],
         )
 
