@@ -53,7 +53,6 @@ from amarcord.modules.json import JSONDict
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.image_viewer import display_image_viewer
-from amarcord.qt.pubchem import validate_pubchem_compound
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import Partial
 from amarcord.qt.validators import parse_existing_filename
@@ -89,7 +88,8 @@ def _empty_sample(available_attributi: Dict[AttributoId, DBAttributo]) -> DBSamp
 
 def _validate_pubchem(s: str) -> Union[int, Partial, None]:
     si = str_to_int(s)
-    if si is not None and validate_pubchem_compound(si):
+    # Commented out for now, since it is horribly slow
+    if si is not None:  # and validate_pubchem_compound(si):
         return si
     return None
 
