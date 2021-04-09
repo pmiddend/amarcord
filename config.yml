@@ -15,7 +15,7 @@ Karabo_bridge:
   #   unit (str, optional)            unit of measurement (default: None)
   #   filling_value [Any, optional]   filling value in case a source is missing (default: None)
   version: 1
-  client_endpoint: tcp://cfeld-pcx36341.desy.de:1234
+  client_endpoint: tcp://10.253.0.51:41014
 
   attributi_definition:
     run:
