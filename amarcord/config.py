@@ -42,7 +42,6 @@ def load_user_config() -> UserConfig:
 
 
 def write_user_config(uc: UserConfig) -> None:
-    logger.info("updating user configuration...")
     CONFIG_YML.parent.mkdir(parents=True, exist_ok=True)
     with CONFIG_YML.open("w") as f:
         f.write(yaml.dump(uc, Dumper=yaml.Dumper))
