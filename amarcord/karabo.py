@@ -7,7 +7,7 @@ import logging
 import karabo_bridge
 
 logging.basicConfig(
-    format="%(asctime)s.%(msecs)03d %(levelname)s [%(module)s] %(message)s",
+    format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     level=logging.INFO,
 )
@@ -37,7 +37,7 @@ class KaraboBridge:
 
         self.karabo_bridge_content = None
 
-        logging.info("Connected to the Karabo bridge at {}".format(client_endpoint))
+        logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
 
     def __enter__(self):
         return self
@@ -193,11 +193,45 @@ class KaraboBridge:
 
         # to be sure we are not missing anything
         if verbose:
-            logging.info("Requested entries:")
+            logging.info("Requested and missing entries:")
 
             for source, source_content in self.attributi.items():
-                for key in source_content.keys():
-                    logging.info("  {}::{}".format(source, key))
+                for key, attributo in source_content.items():
+
+                    if source not in self.karabo_bridge_content["data"]:
+                        logging.warn(
+                            "  [{}.{}] {}: not available".format(
+                                attributo["group"], attributo["identifier"], source
+                            )
+                        )
+                    else:
+                        if key not in self.karabo_bridge_content["data"][source]:
+                            logging.warn(
+                                "  [{}.{}] {}::{}: not available".format(
+                                    attributo["group"],
+                                    attributo["identifier"],
+                                    source,
+                                    key,
+                                )
+                            )
+                        else:
+                            logging.info(
+                                "  [{}.{}] {}::{}".format(
+                                    attributo["group"],
+                                    attributo["identifier"],
+                                    source,
+                                    key,
+                                )
+                            )
+
+            for source, source_content in self.karabo_bridge_content["data"].items():
+                if source not in self.attributi:
+                    logging.warn("  {}: not requested".format(source))
+
+                for key in source_content:
+                    if source in self.attributi:
+                        if key not in self.attributi[source]:
+                            logging.warn("  {}::{}: not requested".format(source, key,))
 
     def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Get and cache the next train from the Karabo bridge
@@ -223,8 +257,8 @@ class KaraboBridge:
                         self.cache[source][key].append(data[source][key])
 
         ##
-        source = list(k.attributi.keys())[0]
-        print("get train {}".format(metadata[source]["timestamp.tid"]))
+        # source = list(k.attributi.keys())[0]
+        # print("get train {}".format(metadata[source]["timestamp.tid"]))
 
         return data, metadata
 
@@ -259,5 +293,4 @@ if __name__ == "__main__":
     config = load_configuration("./config.yml")
 
     karabo_data = KaraboBridge(**config["Karabo_bridge"])
-
     data, metadata = karabo_data.cache_next_train()
