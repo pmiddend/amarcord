@@ -296,10 +296,15 @@ class KaraboBridge:
                 for key in source_content.keys():
                     if key in self.karabo_bridge_content["data"][source]:
 
+                        try:
+                            value = data[source][key]
+                        except KeyError:
+                            value = self.attributi[source][key]["filling_value"]
+
                         if self.attributi[source][key]["action"] == "store_last":
-                            self._cache[source][key] = data[source][key]
+                            self._cache[source][key] = value
                         else:
-                            self._cache[source][key].append(data[source][key])
+                            self._cache[source][key].append(value)
 
         trainId = self._compare_metadata_trains(metadata)
         self._trainId.append(trainId)
@@ -341,6 +346,11 @@ class KaraboBridge:
             )
 
             # reset cache?
+
+        else:
+
+            # running average?
+            pass
 
 
 if __name__ == "__main__":
