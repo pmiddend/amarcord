@@ -26,7 +26,7 @@ class KaraboBridge:
             attributi_definition
         )
 
-        self._cache, self._counter = self._initialize_cache()
+        self._cache, self._trainId = self._initialize_cache()
 
         # inform AMARCORD
         #
@@ -44,6 +44,22 @@ class KaraboBridge:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         return
+
+    def _attributo2karabo(self, group: str, attributo: str) -> Tuple[str, str]:
+        """Karabo source and key from `attributo` identifier
+
+        Args:
+            group (str): Group hosting the `attributo`
+            attributo (str): `attributo` identifier
+
+        Returns:
+            Tuple[str, str]: Karabo source and key
+        """
+
+        for ai in self._attributi[group]:
+            if ai["identifier"] == attributo:
+
+                return ai["source"], ai["key"]
 
     def _explicitize_attributo(
         self,
@@ -64,19 +80,19 @@ class KaraboBridge:
             key (str): Value to extract
             description (str, optional): `attributo` description. Defaults to None.
             store (bool, optional): Whether to store the value. Defaults to True.
-            action (str, optional): Either average or check_if_constant. Defaults to "average".
+            action (str, optional): Either "average", "check_if_constant" or "store_last". Defaults to "average".
             unit (str, optional): Unit of measurement. Defaults to None.
             filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
 
         Raises:
-            ValueError: If action is different from "average" or "check_if_constant"
+            ValueError: If action is different from "average", "check_if_constant" or "store_last"
 
         Returns:
             (Dict[str, Any]): The `attributo`
         """
         attributo = dict(set(locals().items()) - set({"self": self}.items()))
 
-        action_choice = ["average", "check_if_constant"]
+        action_choice = ["average", "check_if_constant", "store_last"]
         if action not in action_choice:
             raise ValueError(
                 "Action must be either '{}'...".format("' or '".join(action_choice))
@@ -152,14 +168,14 @@ class KaraboBridge:
         """Initialize arrays holding data
 
         Returns:
-            Tuple[Dict[str, Dict[str, List]], int]: The cache and counter
+            Tuple[Dict[str, Dict[str, List]], List[int]]: The cache and tranId array
         """
         cache = {}
 
         for source, source_content in self.attributi.items():
             cache[source] = {li: [] for li in source_content}
 
-        return cache, 0
+        return cache, []
 
     def _stream_content(
         self, data: Dict[str, Any], metadata: Dict[str, Any]
@@ -269,8 +285,6 @@ class KaraboBridge:
         # get the next train
         data, metadata = self._client.next()
 
-        self._counter += 1
-
         if self.karabo_bridge_content is None:
             self.karabo_bridge_content = self._stream_content(data, metadata)
 
@@ -282,17 +296,51 @@ class KaraboBridge:
                 for key in source_content.keys():
                     if key in self.karabo_bridge_content["data"][source]:
 
-                        self._cache[source][key].append(data[source][key])
+                        if self.attributi[source][key]["action"] == "store_last":
+                            self._cache[source][key] = data[source][key]
+                        else:
+                            self._cache[source][key].append(data[source][key])
 
         trainId = self._compare_metadata_trains(metadata)
+        self._trainId.append(trainId)
+        size = len(self._trainId)
 
-        if not self._counter % 10:
-            logging.info("Train {}: cached {} events".format(trainId, self._counter))
+        if not size % 10:
+            logging.info("Train {}: cached {} events".format(trainId, size))
 
         return data, metadata
 
-    def run_stats(self):
-        pass
+    def run_slicer(self):
+
+        data, _ = self.cache_next_train()
+
+        # tutto questo in un loop
+        # variabili in un dict
+
+        # run index
+        source, key = self._attributo2karabo("run", "index")
+        index = data[source][key]
+
+        # first train in the run
+        source, key = self._attributo2karabo("run", "train_index_initial")
+        train_index_initial = data[source][key]
+
+        # starting time
+        source, key = self._attributo2karabo("run", "timestamp_UTC_initial")
+        timestamp_UTC_initial = data[source][key]
+
+        # is the run complete?
+        source, key = self._attributo2karabo("run", "trains_in_run")
+        trains_in_run = data[source][key]
+
+        if trains_in_run > 0:
+            logging.info(
+                "Run {} completed: {} trains starting at {} from index {}".format(
+                    index, trains_in_run, timestamp_UTC_initial, train_index_initial,
+                )
+            )
+
+            # reset cache?
 
 
 if __name__ == "__main__":
@@ -324,4 +372,4 @@ if __name__ == "__main__":
     karabo_data = KaraboBridge(**config["Karabo_bridge"])
 
     while True:
-        kdata, kmetadata = karabo_data.cache_next_train()
+        karabo_data.run_slicer()
