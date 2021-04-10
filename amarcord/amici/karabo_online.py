@@ -26,7 +26,7 @@ class KaraboBridge:
             attributi_definition
         )
 
-        self._cache, self._trainId = self._initialize_cache()
+        self._cache = self._initialize_cache()
 
         # inform AMARCORD
         #
@@ -36,6 +36,8 @@ class KaraboBridge:
         self._client = karabo_bridge.Client(self.client_endpoint)
 
         self.karabo_bridge_content = None
+        self._train_history = []
+        self.run_history = {}
 
         logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
 
@@ -168,14 +170,14 @@ class KaraboBridge:
         """Initialize arrays holding data
 
         Returns:
-            Tuple[Dict[str, Dict[str, List]], List[int]]: The cache and tranId array
+            Dict[str, Dict[str, List]]: The cache
         """
         cache = {}
 
         for source, source_content in self.attributi.items():
             cache[source] = {li: [] for li in source_content}
 
-        return cache, []
+        return cache
 
     def _stream_content(
         self, data: Dict[str, Any], metadata: Dict[str, Any]
@@ -284,15 +286,12 @@ class KaraboBridge:
 
         return self._client.next()
 
-    def cache_train(
-        self, data: Dict[str, Any], metadata: Dict[str, Any], verbose=True
-    ) -> None:
+    def cache_train(self, data: Dict[str, Any], metadata: Dict[str, Any]) -> None:
         """Cache a given train from the Karabo bridge
 
         Args:
             data (Dict[str, Any]): Data from the bridge
             metadata (Dict[str, Any]): Metadata from the bridge
-            verbose (bool, optional): Be verbose. Defaults to True.
         """
 
         if self.karabo_bridge_content is None:
@@ -316,14 +315,6 @@ class KaraboBridge:
                         else:
                             self._cache[source][key].append(value)
 
-        trainId = self._compare_metadata_trains(metadata)
-        self._trainId.append(trainId)
-        size = len(self._trainId)
-
-        if verbose:
-            if not size % 10:
-                logging.info("Train {}: cached {} events".format(trainId, size))
-
     def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Get and cache the next train from the Karabo bridge
 
@@ -339,42 +330,77 @@ class KaraboBridge:
 
         return data, metadata
 
-    def run_slicer(self):
+    def run_definer(self, averaging_interval=10, verbose=True):
 
-        data, _ = self.cache_next_train()
+        # get a train
+        data, metadata = self.get_next_train()
+        trainId = self._compare_metadata_trains(metadata)
 
-        # tutto questo in un loop
-        # variabili in un dict
+        self._train_history.append(trainId)
 
-        # run index
-        source, key = self._attributo2karabo("run", "index")
-        index = data[source][key]
+        if verbose:
+            if not len(self._train_history) % 10:
+                logging.info("Train {}".format(trainId))
 
-        # first train in the run
-        source, key = self._attributo2karabo("run", "train_index_initial")
-        train_index_initial = data[source][key]
+        # inspect it
+        train_content = {}
 
-        # starting time
-        source, key = self._attributo2karabo("run", "timestamp_UTC_initial")
-        timestamp_UTC_initial = data[source][key]
+        for attributo in [
+            "index",
+            "train_index_initial",
+            "timestamp_UTC_initial",
+            "trains_in_run",
+        ]:
+            source, key = self._attributo2karabo("run", attributo)
 
-        # is the run complete?
-        source, key = self._attributo2karabo("run", "trains_in_run")
-        trains_in_run = data[source][key]
+            try:
+                train_content[attributo] = data[source][key]
+            except KeyError:
+                logging.warn("Missing entry '{}' in the stream".format(attributo))
 
-        if trains_in_run > 0:
+        # run is running
+        if not train_content["trains_in_run"]:
+
+            # starting a new run...
+            if train_content["train_index_initial"] == trainId:
+                logging.info(
+                    "Run {index} started at {timestamp_UTC_initial}}".format(
+                        **train_content,
+                    )
+                )
+
+        # run is over
+        else:
+            if self.run_history["status"] == "finished":
+                self.run_history["status"] = "finished"
+
+                return
+
             logging.info(
-                "Run {index} completed: {trains_in_run} trains starting at {timestamp_UTC_initial} from index {train_index_initial}".format(
-                    index, trains_in_run, timestamp_UTC_initial, train_index_initial,
+                "Run {index} completed with {trains_in_run} trains".format(
+                    **train_content
                 )
             )
 
-            # reset cache?
+            # update the average
+            self._compute_statistics()
 
-        else:
+            # reset the cache
+            self._initialize_cache()
 
-            # running average?
-            pass
+            return
+
+        # update the average
+        if not len(self._cache) % averaging_interval:
+            self._compute_statistics()
+
+        # - the trainId in the data is the train id corresponding to when the value if the property changed
+        # - if a trainid  in the data is equal to zero,
+        #   that indicates that the last update on the value happened before the matcher device was started
+        #   (in this case we cannot recover when the last value was updated)
+
+    def _compute_statistics(self):
+        pass
 
 
 if __name__ == "__main__":
