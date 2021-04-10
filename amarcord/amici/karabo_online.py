@@ -275,15 +275,25 @@ class KaraboBridge:
 
         return tuple(trainId)[0]
 
-    def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Get and cache the next train from the Karabo bridge
+    def get_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Get the next train from the Karabo bridge
 
         Returns:
             Tuple[Dict[str, Any], Dict[str, Any]]: Tuple[Dict[str, Any], Dict[str, Any]]: data, metadata
         """
 
-        # get the next train
-        data, metadata = self._client.next()
+        return self._client.next()
+
+    def cache_train(
+        self, data: Dict[str, Any], metadata: Dict[str, Any], verbose=True
+    ) -> None:
+        """Cache a given train from the Karabo bridge
+
+        Args:
+            data (Dict[str, Any]): Data from the bridge
+            metadata (Dict[str, Any]): Metadata from the bridge
+            verbose (bool, optional): Be verbose. Defaults to True.
+        """
 
         if self.karabo_bridge_content is None:
             self.karabo_bridge_content = self._stream_content(data, metadata)
@@ -310,8 +320,22 @@ class KaraboBridge:
         self._trainId.append(trainId)
         size = len(self._trainId)
 
-        if not size % 10:
-            logging.info("Train {}: cached {} events".format(trainId, size))
+        if verbose:
+            if not size % 10:
+                logging.info("Train {}: cached {} events".format(trainId, size))
+
+    def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Get and cache the next train from the Karabo bridge
+
+        Returns:
+            Tuple[Dict[str, Any], Dict[str, Any]]: Tuple[Dict[str, Any], Dict[str, Any]]: data, metadata
+        """
+
+        # get the next train
+        data, metadata = self.get_next_train()
+
+        # cache data
+        self.cache_train(data, metadata)
 
         return data, metadata
 
@@ -340,7 +364,7 @@ class KaraboBridge:
 
         if trains_in_run > 0:
             logging.info(
-                "Run {} completed: {} trains starting at {} from index {}".format(
+                "Run {index} completed: {trains_in_run} trains starting at {timestamp_UTC_initial} from index {train_index_initial}".format(
                     index, trains_in_run, timestamp_UTC_initial, train_index_initial,
                 )
             )
