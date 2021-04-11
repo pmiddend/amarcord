@@ -330,7 +330,23 @@ class KaraboBridge:
 
         return data, metadata
 
-    def run_definer(self, averaging_interval=10, verbose=True):
+    def _compute_statistics(self):
+
+        for source in self._cache.keys():
+            for key in self._cache[source].keys():
+
+                data = self._cache[source][key]
+
+                if self.attributi[source][key]["action"] == "average":
+                    # remove filling value
+                    pass
+
+    def run_definer(self, averaging_interval=10):
+        """Defines a run
+
+        Args:
+            averaging_interval (int, optional): [description]. Defaults to 10.
+        """
 
         # get a train
         data, metadata = self.get_next_train()
@@ -338,9 +354,7 @@ class KaraboBridge:
 
         self._train_history.append(trainId)
 
-        if verbose:
-            if not len(self._train_history) % 10:
-                logging.info("Train {}".format(trainId))
+        logging.debug("Train {}".format(trainId))
 
         # inspect it
         train_content = {}
@@ -363,6 +377,12 @@ class KaraboBridge:
 
             # starting a new run...
             if train_content["train_index_initial"] == trainId:
+                index = train_content["index"]
+
+                self.run_history[index] = {**train_content} + {
+                    "status": "running",
+                }
+
                 logging.info(
                     "Run {index} started at {timestamp_UTC_initial}}".format(
                         **train_content,
@@ -371,8 +391,13 @@ class KaraboBridge:
 
         # run is over
         else:
-            if self.run_history["status"] == "finished":
-                self.run_history["status"] = "finished"
+            if self.run_history[train_content["index"]]["status"] == "finished":
+                index = train_content["index"]
+
+                self.run_history[index]["trains_in_run"] = train_content[
+                    "trains_in_run"
+                ]
+                self.run_history[index]["status"] = "finished"
 
                 return
 
@@ -393,14 +418,6 @@ class KaraboBridge:
         # update the average
         if not len(self._cache) % averaging_interval:
             self._compute_statistics()
-
-        # - the trainId in the data is the train id corresponding to when the value if the property changed
-        # - if a trainid  in the data is equal to zero,
-        #   that indicates that the last update on the value happened before the matcher device was started
-        #   (in this case we cannot recover when the last value was updated)
-
-    def _compute_statistics(self):
-        pass
 
 
 if __name__ == "__main__":
@@ -432,4 +449,4 @@ if __name__ == "__main__":
     karabo_data = KaraboBridge(**config["Karabo_bridge"])
 
     while True:
-        karabo_data.run_slicer()
+        karabo_data.run_definer()
