@@ -4,6 +4,7 @@ import os
 import sys
 import yaml
 import logging
+import numpy as np
 import karabo_bridge
 
 logging.basicConfig(
@@ -26,7 +27,7 @@ class KaraboBridge:
             attributi_definition
         )
 
-        self._cache = self._initialize_cache()
+        self._cache, self.statistics = self._initialize_cache()
 
         # inform AMARCORD
         #
@@ -70,7 +71,7 @@ class KaraboBridge:
         key: str,
         description: str = None,
         store: bool = True,
-        action: str = "average",
+        action: str = "compute_statistics",
         unit: str = None,
         filling_value: Any = None,
     ) -> Dict[str, Any]:
@@ -82,19 +83,19 @@ class KaraboBridge:
             key (str): Value to extract
             description (str, optional): `attributo` description. Defaults to None.
             store (bool, optional): Whether to store the value. Defaults to True.
-            action (str, optional): Either "average", "check_if_constant" or "store_last". Defaults to "average".
+            action (str, optional): Either "compute_statistics", "check_if_constant" or "store_last". Defaults to "compute_statistics".
             unit (str, optional): Unit of measurement. Defaults to None.
             filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
 
         Raises:
-            ValueError: If action is different from "average", "check_if_constant" or "store_last"
+            ValueError: If action is different from "compute_statistics", "check_if_constant" or "store_last"
 
         Returns:
             (Dict[str, Any]): The `attributo`
         """
         attributo = dict(set(locals().items()) - set({"self": self}.items()))
 
-        action_choice = ["average", "check_if_constant", "store_last"]
+        action_choice = ["compute_statistics", "check_if_constant", "store_last"]
         if action not in action_choice:
             raise ValueError(
                 "Action must be either '{}'...".format("' or '".join(action_choice))
@@ -166,18 +167,23 @@ class KaraboBridge:
 
         return entry, karabo_expected_entry
 
-    def _initialize_cache(self) -> Tuple[Dict[str, Dict[str, List]], int]:
+    def _initialize_cache(
+        self,
+    ) -> Tuple[Dict[str, Dict[str, List]], Dict[str, Dict[str, Any]]]:
         """Initialize arrays holding data
 
         Returns:
-            Dict[str, Dict[str, List]]: The cache
+            Tuple[Dict[str, Dict[str, List]], Dict[str, Dict[str, Any]]]: The cache
         """
-        cache = {}
+        cache, statistics = {}, {"arithmetic_mean": {}, "standard_deviation": {}}
 
         for source, source_content in self.attributi.items():
             cache[source] = {li: [] for li in source_content}
 
-        return cache
+            for ki in statistics:
+                statistics[ki][source] = {li: None for li in source_content}
+
+        return cache, statistics
 
     def _stream_content(
         self, data: Dict[str, Any], metadata: Dict[str, Any]
@@ -331,15 +337,44 @@ class KaraboBridge:
         return data, metadata
 
     def _compute_statistics(self):
+        """Compute statistics
+        """
+
+        def remove_filling_values(data, filling_value):
+            container = []
+            removed = 0
+
+            for entry in data:
+                if not hasattr(entry, "__len__"):
+                    # remove filling value, which must be a scalar
+                    if entry == filling_value:
+                        removed += 1
+
+                        continue
+
+                container.append(entry)
+
+            return container, removed
 
         for source in self._cache.keys():
             for key in self._cache[source].keys():
 
-                data = self._cache[source][key]
+                if self.attributi[source][key]["action"] == "compute_statistics":
+                    cached_data, removed = remove_filling_values(
+                        self._cache[source][key],
+                        self.attributi[source][key]["filling_value"],
+                    )
 
-                if self.attributi[source][key]["action"] == "average":
-                    # remove filling value
-                    pass
+                    if removed:
+                        logging.info(
+                            "{}//{}: removed {} entries".format(source, key, removed)
+                        )
+
+                    # compute statistics
+                    self.statistics["arithmetic_mean"] = np.mean(cached_data, axis=0)
+                    self.statistics["standard_deviation"] = np.std(
+                        cached_data, axis=0, ddof=1
+                    )
 
     def run_definer(self, averaging_interval=10):
         """Defines a run
