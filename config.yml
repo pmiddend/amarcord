@@ -414,4 +414,149 @@ Karabo_bridge:
         key: actualPosition.value
         unit: mm
 
+  # explicitly ignore the following entries
+  ignore_entry:
+    SPB_EXP_ZYLA/CAM/1:output:
+      - data.image.type
+      - data.image.dimensions
+      - data.image.dimensionTypes
+      - data.image.rOIOffsets
+      - data.image.binning
+      - data.image.rotation
+      - data.image.flipX
+      - data.image.flipY
+      - data.image.bitsPerPixel
+      - data.image.encoding
+      - data.image.dimensionScales
+      - data.image.geometry.alignment.offsets
+      - data.image.geometry.alignment.rotations
+      - data.image.geometry.tileId
+      - data.image.header
+
+    SPB_XTD9_XGM/XGM/DOOCS:output:
+      - data.intensitySigmaTD
+      - data.intensityAUXTD
+      - data.xTD
+      - data.xSigmaTD
+      - data.yTD
+      - data.ySigmaTD
+      - data.intensitySa1SigmaTD
+      - data.intensityAUXSa1TD
+      - data.xSa1SigmaTD
+      - data.ySa1SigmaTD
+      - data.intensitySa3SigmaTD
+      - data.intensityAUXSa3TD
+      - data.xSa3SigmaTD
+      - data.ySa3SigmaTD
+      - data.intensityTD
+
+    SPB_DAQ_DATA/DM/RUN_CONTROL:
+      - runDetails.runId.timestamp.tid
+      - runDetails.runId.timestamp.timestamp
+      - runDetails.beginAt.timestamp.tid
+      - runDetails.beginAt.timestamp.timestamp
+      - runDetails.lastTrainId.value
+      - runDetails.lastTrainId.timestamp.tid
+      - runDetails.lastTrainId.timestamp.timestamp
+      - runDetails.length.timestamp.tid
+      - runDetails.length.timestamp.timestamp
+      - runDetails.firstTrainId.timestamp.tid
+      - runDetails.firstTrainId.timestamp.timestamp
+
+    SPB_RR_SYS/MDL/BUNCH_PATTERN:
+      - sase1.nPulses.timestamp.tid
+      - sase1.nPulses.timestamp.timestamp
+      - sase1.charge.timestamp.tid
+      - sase1.charge.timestamp.timestamp
+      - sase1.pulseIds.timestamp.tid
+      - sase1.pulseIds.timestamp.timestamp
+
+    SA1_XTD2_ATT/MDL/MAIN:
+      - actual.timestamp.tid
+      - actual.timestamp.timestamp
+
+    SPB_XTD9_ATT/MDL/MAIN:
+      - actual.timestamp.tid
+      - actual.timestamp.timestamp
+
+    SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER:
+      - actualPosition.timestamp.tid
+      - actualPosition.timestamp.timestamp
+
+    SPB_IRU_AGIPD1M/MOTOR/Q1M1:
+    SPB_IRU_AGIPD1M/MOTOR/Q1M2:
+    SPB_IRU_AGIPD1M/MOTOR/Q2M1:
+    SPB_IRU_AGIPD1M/MOTOR/Q2M2:
+    SPB_IRU_AGIPD1M/MOTOR/Q3M1:
+    SPB_IRU_AGIPD1M/MOTOR/Q3M2:
+    SPB_IRU_AGIPD1M/MOTOR/Q4M1:
+    SPB_IRU_AGIPD1M/MOTOR/Q4M2:
+
+    SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
+      - gain.value
+      - gain.timestamp.tid
+      - gain.timestamp.timestamp
+      - gainMode.timestamp.tid
+      - gainMode.timestamp.timestamp
+
+    SPB_IRU_INJMOV/MOTOR/Z:
+      - actualPosition.timestamp.tid
+      - actualPosition.timestamp.timestamp
+
+    SPB_BIO_SYS/PUMP/HPLC:
+      - c.flow.timestamp.tid
+      - c.flow.timestamp.timestamp
+      - c.volume.timestamp.tid
+      - c.volume.timestamp.timestamp
+      - a.volume.timestamp.tid
+      - a.volume.timestamp.timestamp
+      - a.flow.timestamp.tid
+      - a.flow.timestamp.timestamp
+      - b.flow.timestamp.tid
+      - b.flow.timestamp.timestamp
+      - b.volume.timestamp.tid
+      - b.volume.timestamp.timestamp
+      - d.flow.timestamp.tid
+      - d.flow.timestamp.timestamp
+      - d.volume.timestamp.tid
+      - d.volume.timestamp.timestamp
+
+    SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES:
+      - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.timestamp.tid
+      - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.timestamp.timestamp
+      - valvesConfigTable.timestamp.tid
+      - valvesConfigTable.timestamp.timestamp
+      - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.timestamp.tid
+      - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.timestamp.timestamp
+      - GROUPA.currentPosition.timestamp.tid
+      - GROUPA.currentPosition.timestamp.timestamp
+
+    SPB_XTD9_XGM/XGM/DOOCS:
+      - pulseEnergy.wavelengthUsed.timestamp.tid
+      - pulseEnergy.wavelengthUsed.timestamp.timestamp
+
+    SPB_IRU_AGIPD1M/MDL/MOVER:
+      - q4.x.timestamp.tid
+      - q4.x.timestamp.timestamp
+      - q4.y.timestamp.tid
+      - q4.y.timestamp.timestamp
+      - q1.y.timestamp.tid
+      - q1.y.timestamp.timestamp
+      - q1.x.timestamp.tid
+      - q1.x.timestamp.timestamp
+      - q2.y.timestamp.tid
+      - q2.y.timestamp.timestamp
+      - q2.x.timestamp.tid
+      - q2.x.timestamp.timestamp
+      - q3.y.timestamp.tid
+      - q3.y.timestamp.timestamp
+      - q3.x.timestamp.tid
+      - q3.x.timestamp.timestamp
+
+    SPB_DA_USR/MDL/AMARCORD_INFO:
+      - darkExperiment.timestamp.tid
+      - darkExperiment.timestamp.timestamp
+      - darkRunNumber.timestamp.tid
+      - darkRunNumber.timestamp.timestamp
+
 OnDA:
