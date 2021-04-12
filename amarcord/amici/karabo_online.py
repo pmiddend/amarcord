@@ -437,6 +437,10 @@ class KaraboBridge:
                     )
                 )
 
+            # update the average
+            if (not len(self._cache)) and (not len(self._cache) % averaging_interval):
+                self._compute_statistics()
+
         # run is over
         else:
             if self.run_history[train_content["index"]]["status"] != "finished":
@@ -460,12 +464,6 @@ class KaraboBridge:
 
             # reset the cache
             self._initialize_cache()
-
-            return
-
-        # update the average
-        if not len(self._cache) % averaging_interval:
-            self._compute_statistics()
 
     def _define_AMARCORD_attributi(self, table, attributi) -> None:
 
