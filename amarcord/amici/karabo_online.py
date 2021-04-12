@@ -512,8 +512,15 @@ class KaraboBridge:
                     }
 
                 # the runId value is still here even if the run is over
-                # we don't want to record anything, just exit here
+                # we don't want to record anything, we check the stream and exit here
                 else:
+                    if self.karabo_bridge_content is None:
+                        self.karabo_bridge_content = self._stream_content(
+                            data, metadata
+                        )
+
+                        self._compare_attributi_and_karabo_data()
+
                     return
 
             # run is over
