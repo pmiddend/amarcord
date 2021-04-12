@@ -1,20 +1,30 @@
 # type: ignore
 # pylint: skip-file
 import os
-import sys
+import argparse
 import h5py
 import karabo_bridge
 
-# parse command line
-if len(sys.argv) != 3:
-    print("{} karabo_client_url events_to_record".format(sys.argv[0]))
+parser = argparse.ArgumentParser(description="Dump the stream from the Karabo bridge.")
+parser.add_argument(
+    "karabo-client-URL",
+    metavar="Karabo client URL",
+    type=str,
+    help="URL of the Karabo client",
+)
+parser.add_argument(
+    "--events-to-record",
+    metavar="N",
+    default=100,
+    help="events to record (default: %(default)s)",
+)
 
-    sys.exit()
+args = parser.parse_args()
 
 #
-karabo_client = karabo_bridge.Client(sys.argv[1])
+karabo_client = karabo_bridge.Client(args.karabo_client)
 
-for i in range(sys.argv[2]):
+for i in range(args.events_to_record):
     data, metadata = karabo_client.next()
 
     # the trainId
