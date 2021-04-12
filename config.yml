@@ -133,50 +133,50 @@ Karabo_bridge:
         action: check_if_constant
 
       position_quadrant1_x:
-        source: SPB_IRU_AGIPD1M/MDL/MOVERq1.x
-        key: actualPosition.value
+        source: SPB_IRU_AGIPD1M/MDL/MOVER
+        key: q1.x.value
         unit: mm
         action: check_if_constant
 
       position_quadrant1_y:
-        source: SPB_IRU_AGIPD1M/MDL/MOVERq1.y
-        key: actualPosition.value
+        source: SPB_IRU_AGIPD1M/MDL/MOVER
+        key: q1.y.value
         unit: mm
         action: check_if_constant
 
       position_quadrant2_x:
-        source: SPB_IRU_AGIPD1M/MDL/MOVERq2.x
-        key: actualPosition.value
+        source: SPB_IRU_AGIPD1M/MDL/MOVER
+        key: q2.x.value
         unit: mm
         action: check_if_constant
 
       position_quadrant2_y:
-        source: SPB_IRU_AGIPD1M/MDL/MOVERq2.y
-        key: actualPosition.value
+        source: SPB_IRU_AGIPD1M/MDL/MOVER
+        key: q2.y.value
         unit: mm
         action: check_if_constant
 
       position_quadrant3_x:
-        source: SPB_IRU_AGIPD1M/MDL/MOVERq3.x
-        key: actualPosition.value
+        source: SPB_IRU_AGIPD1M/MDL/MOVER
+        key: q3.x.value
         unit: mm
         action: check_if_constant
 
       position_quadrant3_y:
-        source: SPB_IRU_AGIPD1M/MDL/MOVERq3.y
-        key: actualPosition.value
+        source: SPB_IRU_AGIPD1M/MDL/MOVER
+        key: q3.y.value
         unit: mm
         action: check_if_constant
 
       position_quadrant4_x:
-        source: SPB_IRU_AGIPD1M/MDL/MOVERq4.x
-        key: actualPosition.value
+        source: SPB_IRU_AGIPD1M/MDL/MOVER
+        key: q4.x.value
         unit: mm
         action: check_if_constant
 
       position_quadrant4_y:
-        source: SPB_IRU_AGIPD1M/MDL/MOVERq4.y
-        key: actualPosition.value
+        source: SPB_IRU_AGIPD1M/MDL/MOVER
+        key: q4.y.value
         unit: mm
         action: check_if_constant
 
