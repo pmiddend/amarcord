@@ -483,15 +483,6 @@ Karabo_bridge:
       - actualPosition.timestamp.tid
       - actualPosition.timestamp.timestamp
 
-    SPB_IRU_AGIPD1M/MOTOR/Q1M1:
-    SPB_IRU_AGIPD1M/MOTOR/Q1M2:
-    SPB_IRU_AGIPD1M/MOTOR/Q2M1:
-    SPB_IRU_AGIPD1M/MOTOR/Q2M2:
-    SPB_IRU_AGIPD1M/MOTOR/Q3M1:
-    SPB_IRU_AGIPD1M/MOTOR/Q3M2:
-    SPB_IRU_AGIPD1M/MOTOR/Q4M1:
-    SPB_IRU_AGIPD1M/MOTOR/Q4M2:
-
     SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
       - gain.value
       - gain.timestamp.tid
