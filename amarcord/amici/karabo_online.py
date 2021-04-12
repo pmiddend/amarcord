@@ -388,11 +388,12 @@ class KaraboBridge:
             "table_name_should_come_as_arg_of_the_function", attributi
         )
 
-    def run_definer(self, averaging_interval=10):
+    def run_definer(self, train_cache_size: int = 0, averaging_interval: int = 10):
         """Defines a run
 
         Args:
-            averaging_interval (int, optional): [description]. Defaults to 10.
+            train_cache_size (int, optional): In case trains are missed, this must be bigger than 0. Defaults to 0.
+            averaging_interval (int, optional): Average updating frequency. Defaults to 10.
         """
 
         # get a train
@@ -423,7 +424,7 @@ class KaraboBridge:
         if not train_content["trains_in_run"]:
 
             # starting a new run...
-            if train_content["train_index_initial"] == trainId:
+            if train_content["train_index_initial"] <= trainId + train_cache_size:
                 index = train_content["index"]
 
                 self.run_history[index] = {**train_content} + {
