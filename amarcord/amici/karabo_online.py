@@ -1,12 +1,15 @@
-from typing import Any, List, Tuple, Dict
-
-import os
-import sys
-import yaml
+# type: ignore
+# pylint: skip-file
 import logging
-import numpy as np
-import sqlalchemy as sa
+import os
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Tuple
+
 import karabo_bridge
+import numpy as np
+import yaml
 
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
