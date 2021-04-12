@@ -86,40 +86,42 @@ integration-amici:
     - pip install --upgrade --extra-index-url https://maxwell-token:JUX_f_ivQjyZbxZAEPYi@gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple amarcord
     - python integration/amici_test.py
 
-upload-gui-docker-image:
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  stage: upload-docker
-  variables:
-    # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
-    IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-    IMAGE_COMMIT_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  only:
-    - tags
-    - master
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
-
-upload-daemon-docker-image:
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  stage: upload-docker
-  variables:
-    # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
-    IMAGE_SLUG_TAG: ${CI_REGISTRY_IMAGE}/daemon:$CI_COMMIT_REF_SLUG
-    IMAGE_COMMIT_TAG: ${CI_REGISTRY_IMAGE}/daemon:$CI_COMMIT_SHORT_SHA
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  only:
-    - tags
-    - master
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile-daemon --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
+# Docker images were a thing, but only to convert it to singularity.
+# However, since singularity is hard to build and behaved weirdly, might as well ditch the images
+#upload-gui-docker-image:
+#  image:
+#    name: gcr.io/kaniko-project/executor:debug
+#    entrypoint: [""]
+#  stage: upload-docker
+#  variables:
+#    # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
+#    IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+#    IMAGE_COMMIT_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+#    DOCKER_HOST: tcp://docker:2375
+#    DOCKER_TLS_CERTDIR: ""
+#  only:
+#    - tags
+#    - master
+#  script:
+#    - mkdir -p /kaniko/.docker
+#    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+#    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
+#
+#upload-daemon-docker-image:
+#  image:
+#    name: gcr.io/kaniko-project/executor:debug
+#    entrypoint: [""]
+#  stage: upload-docker
+#  variables:
+#    # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
+#    IMAGE_SLUG_TAG: ${CI_REGISTRY_IMAGE}/daemon:$CI_COMMIT_REF_SLUG
+#    IMAGE_COMMIT_TAG: ${CI_REGISTRY_IMAGE}/daemon:$CI_COMMIT_SHORT_SHA
+#    DOCKER_HOST: tcp://docker:2375
+#    DOCKER_TLS_CERTDIR: ""
+#  only:
+#    - tags
+#    - master
+#  script:
+#    - mkdir -p /kaniko/.docker
+#    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+#    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile-daemon --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
