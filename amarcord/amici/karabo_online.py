@@ -70,6 +70,7 @@ class KaraboBridge:
 
         self.karabo_bridge_content = None
         self._train_history = []
+        self._current_run = None
         self.run_history = {}
 
         logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
@@ -407,6 +408,7 @@ class KaraboBridge:
                         "{}//{}: removed {} entries".format(source, key, removed)
                     )
 
+                # compute statistics
                 if (
                     self.attributi[source][key]["action"] == "compute_arithmetic_mean"
                 ) or (
@@ -423,6 +425,15 @@ class KaraboBridge:
                             source, key, self._cache[source][key], reduced_value
                         )
                     )
+
+                # check if values are constant
+                elif self.attributi[source][key]["action"] == "check_if_constant":
+                    if len(set(cached_data)):
+                        logging.warn(
+                            "{}//{}: not constant over run {}".format(
+                                source, key, self._current_run
+                            )
+                        )
 
     def run_definer(self, train_cache_size: int = 0, averaging_interval: int = 10):
         """Defines a run
@@ -472,6 +483,8 @@ class KaraboBridge:
                         **train_content,
                     )
                 )
+
+                self._current_run = index
 
             # update the average and send results to AMARCORD
             if (not len(self._cache)) and (not len(self._cache) % averaging_interval):
