@@ -5,6 +5,7 @@ import sys
 import yaml
 import logging
 import numpy as np
+import sqlalchemy as sa
 import karabo_bridge
 
 logging.basicConfig(
@@ -453,6 +454,9 @@ class KaraboBridge:
         # update the average
         if not len(self._cache) % averaging_interval:
             self._compute_statistics()
+
+    def _define_AMARCORD_table(table, foreign_key="run_id"):
+        pass
 
 
 if __name__ == "__main__":
