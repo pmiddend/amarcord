@@ -10,13 +10,14 @@ myMdC:
 # D. We should have 'filling values' in case a device disappears from the stream
 Karabo_bridge:
   #! configuration for the Karabo bridge.
-  #   source (str)                    EuXFEL source
-  #   key (str)                       value to extract
-  #   description (str, optional)     `attributo` comment (default: '')
-  #   store (bool, optional)          whether to store the value (default: True)
-  #   action (str, optional)          average, check_if_constant or store_last (default: average)
-  #   unit (str, optional)            unit of measurement (default: None)
-  #   filling_value [Any, optional]   filling value in case a source is missing (default: None)
+  #    identifier (str): `attributo` identifier
+  #    source (str): EuXFEL source
+  #    key (str): Value to extract
+  #    description (str, optional): `attributo` description. Defaults to None.
+  #    store (bool, optional): Whether to store the value. Defaults to True.
+  #    action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to "compute_arithmetic_mean".
+  #    unit (str, optional): Unit of measurement. Defaults to None.
+  #    filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
   version: 1
   client_endpoint: tcp://10.253.0.51:41014
 

@@ -103,7 +103,7 @@ class KaraboBridge:
         key: str,
         description: str = None,
         store: bool = True,
-        action: str = "compute_statistics",
+        action: str = "compute_arithmetic_mean",
         unit: str = None,
         filling_value: Any = None,
     ) -> Dict[str, Any]:
@@ -115,7 +115,7 @@ class KaraboBridge:
             key (str): Value to extract
             description (str, optional): `attributo` description. Defaults to None.
             store (bool, optional): Whether to store the value. Defaults to True.
-            action (str, optional): Either "compute_statistics", "check_if_constant" or "store_last". Defaults to "compute_statistics".
+            action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to "compute_arithmetic_mean".
             unit (str, optional): Unit of measurement. Defaults to None.
             filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
 
@@ -127,7 +127,12 @@ class KaraboBridge:
         """
         attributo = dict(set(locals().items()) - set({"self": self}.items()))
 
-        action_choice = ["compute_statistics", "check_if_constant", "store_last"]
+        action_choice = [
+            "compute_arithmetic_mean",
+            "compute_standard_deviation",
+            "check_if_constant",
+            "store_last",
+        ]
         if action not in action_choice:
             raise ValueError(
                 "Action must be either '{}'...".format("' or '".join(action_choice))
