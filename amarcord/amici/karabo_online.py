@@ -383,6 +383,11 @@ class KaraboBridge:
                         cached_data, axis=0, ddof=1
                     )
 
+        # send results to AMARCORD
+        self._update_AMARCORD_attributi(
+            "table_name_should_come_as_arg_of_the_function", attributi
+        )
+
     def run_definer(self, averaging_interval=10):
         """Defines a run
 
