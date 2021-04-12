@@ -48,6 +48,7 @@ class KaraboBridge:
         self,
         client_endpoint: str,
         attributi_definition: Dict[str, Any],
+        ignore_entry: Dict[str, List[str]],
         **kwargs: Dict[str, Any]
     ) -> None:
 
@@ -57,6 +58,7 @@ class KaraboBridge:
         )
 
         self._cache, self.statistics = self._initialize_cache()
+        self._ignore_entry = ignore_entry
 
         # inform AMARCORD
         # will the connection be configed here or in each call?
@@ -68,9 +70,9 @@ class KaraboBridge:
         self.client_endpoint = client_endpoint
         self._client = karabo_bridge.Client(self.client_endpoint)
 
-        self.karabo_bridge_content = None
         self._train_history = []
         self._current_run = None
+        self.karabo_bridge_content = None
         self.run_history = {}
 
         logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
@@ -156,11 +158,10 @@ class KaraboBridge:
             TypeError: If the attributo syntax is wrong
 
         Returns:
-            Dict[str, List[Dict[str, Any]]]: A dictionary of attributi and one with expected Karabo keywords
+            Dict[str, List[Dict[str, Any]]], Dict[str, List[str]]: A dictionary of attributi and one with expected Karabo keywords
         """
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[List[str]] = {}
-        ignore_entry: Dict[str, List[str]] = {}
 
         for (gi, gi_content,) in configuration.items():
             source = None
@@ -299,9 +300,13 @@ class KaraboBridge:
                 for key in source_content:
                     if source in self.attributi:
                         if key not in self.attributi[source]:
-                            logging.warning(
-                                "  {}//{}: not requested".format(source, key,)
-                            )
+
+                            if source in self._ignore_entry:
+                                if key not in self._ignore_entry[source]:
+
+                                    logging.warning(
+                                        "  {}//{}: not requested".format(source, key,)
+                                    )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
         """Checks if Karabo devices are synchronized
