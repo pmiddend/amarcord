@@ -23,6 +23,18 @@ class Statistics:
         pass
 
     @staticmethod
+    def call(method, data, **kwargs):
+
+        if method == "arithmetic_mean":
+            self.arithmetic_mean(data, **kwargs)
+
+        elif method == "standard_deviation":
+            self.standard_deviation(data, **kwargs)
+
+        else:
+            raise KeyError("Method {} not implemented".format(method))
+
+    @staticmethod
     def arithmetic_mean(data, axis=0):
         return np.mean(data, axis=axis)
 
@@ -390,17 +402,22 @@ class KaraboBridge:
                         "{}//{}: removed {} entries".format(source, key, removed)
                     )
 
-                if self.attributi[source][key]["action"] == "compute_arithmetic_mean":
-                    self.attributi[source][key]["value"] = Statistics.arithmetic_mean()
-
                 if (
+                    self.attributi[source][key]["action"] == "compute_arithmetic_mean"
+                ) or (
                     self.attributi[source][key]["action"]
                     == "compute_standard_deviation"
                 ):
+                    reduced_value = Statistics.call(
+                        self.attributi[source][key]["action"], cached_data
+                    )
+                    self.attributi[source][key]["value"] = reduced_value
 
-                    self.attributi[source][key][
-                        "value"
-                    ] = Statistics.standard_deviation()
+                    logging.debug(
+                        "{} on {}//{}:\n  intial dataset: {}\n  reduced value: {}".format(
+                            source, key, self._cache[source][key], reduced_value
+                        )
+                    )
 
     def run_definer(self, train_cache_size: int = 0, averaging_interval: int = 10):
         """Defines a run
