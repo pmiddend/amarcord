@@ -437,11 +437,11 @@ class KaraboBridge:
                             )
                         )
 
-    def run_definer(self, train_cache_size: int = 0, averaging_interval: int = 10):
+    def run_definer(self, train_cache_size: int = 5, averaging_interval: int = 10):
         """Defines a run
 
         Args:
-            train_cache_size (int, optional): In case trains are missed, this must be bigger than 0. Defaults to 0.
+            train_cache_size (int, optional): In case trains are missed, this must be bigger than 0. Defaults to 5.
             averaging_interval (int, optional): Average updating frequency. Defaults to 10.
         """
 
