@@ -467,14 +467,15 @@ class KaraboBridge:
             except KeyError:
                 logging.warn("Missing entry '{}' in the stream".format(attributo))
 
+        # run index
+        self._current_run = train_content["index"]
+
         # run is running
         if not train_content["trains_in_run"]:
 
             # starting a new run...
             if train_content["train_index_initial"] <= trainId + train_cache_size:
-                index = train_content["index"]
-
-                self.run_history[index] = {**train_content} + {
+                self.run_history[self._current_run] = {**train_content} + {
                     "status": "running",
                 }
 
@@ -484,22 +485,34 @@ class KaraboBridge:
                     )
                 )
 
-                self._current_run = index
-
             # update the average and send results to AMARCORD
             if (not len(self._cache)) and (not len(self._cache) % averaging_interval):
                 self._compute_statistics()
                 self._update_AMARCORD_attributi(table="run table?")
 
-        # run is over
+        # run is over or in progress when we start
         else:
-            if self.run_history[train_content["index"]]["status"] != "finished":
-                index = train_content["index"]
 
-                self.run_history[index]["trains_in_run"] = train_content[
+            # run is in progress when we start
+            if train_content["index"] not in self.run_history:
+
+                # we are really in the middle of the run if "trains_in_run" == 0
+                if not train_content["trains_in_run"]:
+                    self.run_history[self._current_run] = {**train_content} + {
+                        "status": "running",
+                    }
+
+                # the runId value is still here even if the run is over
+                # we don't want to record anything, just exit here
+                else:
+                    return
+
+            # run is over
+            if self.run_history[train_content["index"]]["status"] != "finished":
+                self.run_history[self._current_run]["trains_in_run"] = train_content[
                     "trains_in_run"
                 ]
-                self.run_history[index]["status"] = "finished"
+                self.run_history[self._current_run]["status"] = "finished"
 
                 return
 
