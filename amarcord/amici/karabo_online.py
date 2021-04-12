@@ -75,6 +75,9 @@ class KaraboBridge:
 
         logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
 
+        # sanity check
+        self._sanity_get_all_trains = 0
+
     def __enter__(self):
         return self
 
@@ -454,13 +457,15 @@ class KaraboBridge:
         logging.debug("Train {}".format(trainId))
 
         # check if we get all trains
-        for vi in range(1, len(self._train_history)):
+        for vi in range(self._sanity_get_all_trains + 1, len(self._train_history)):
             if self._train_history[vi] - self._train_history[vi - 1] > 1:
                 logging.warning(
                     "Missed trains between {} and {}".format(
                         self._train_history[vi - 1], self._train_history[vi]
                     )
                 )
+
+                self._sanity_get_all_trains = len(self._train_history) - 1
 
         # inspect it
         train_content = {}

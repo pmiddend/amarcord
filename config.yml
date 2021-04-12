@@ -111,14 +111,14 @@ Karabo_bridge:
     detector.AGIPD:
       comment: X-ray detector
 
-      dark_run:
-        source: SPB_DA_USR/MDL/AMARCORD_INFO.darkRunNumber
-        key: "?"
+      dark_run_type:
+        source: SPB_DA_USR/MDL/AMARCORD_INFO
+        key: darkExperiment.value
         action: check_if_constant
 
-      dark_experiment:
-        source: SPB_DA_USR/MDL/AMARCORD_INFO.darkExperiment
-        key: "?"
+      dark_run_index:
+        source: SPB_DA_USR/MDL/AMARCORD_INFO
+        key: darkRunNumber.value
         action: check_if_constant
 
       gain_setting:
