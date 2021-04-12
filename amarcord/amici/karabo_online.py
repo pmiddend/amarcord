@@ -446,7 +446,7 @@ class KaraboBridge:
                             )
                         )
 
-    def _sanity_get_all_trains(self):
+    def _sanity_check_get_all_trains(self):
         """Check if we get all trains
         """
         for vi in range(self._sanity_get_all_trains + 1, len(self._train_history)):
@@ -492,7 +492,7 @@ class KaraboBridge:
         logging.debug("Train {}".format(trainId))
 
         # check if we get all trains
-        self._sanity_get_all_trains()
+        self._sanity_check_get_all_trains()
 
         # inspect the run
         train_content = {}
