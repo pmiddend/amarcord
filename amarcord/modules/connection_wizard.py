@@ -89,24 +89,28 @@ class ConnectionDialog(QWidget):
 
         tables = create_tables(context)
 
-        with context.connect():
-            try:
-                propos = retrieve_proposal_ids(context, tables)
-            except Exception as e:
-                # I used to catch concrete exceptions here, but that's no use, since they depend on the
-                # connector used, so that's not sensible.
-                self._set_error(
-                    "Connection worked, but the database doesn't look valid!",
-                    long_message=str(e),
-                )
-                return
+        try:
+            with context.connect():
+                try:
+                    propos = retrieve_proposal_ids(context, tables)
+                except Exception as e:
+                    # I used to catch concrete exceptions here, but that's no use, since they depend on the
+                    # connector used, so that's not sensible.
+                    self._set_error(
+                        "Connection worked, but the database doesn't look valid!",
+                        long_message=str(e),
+                    )
+                    return
 
-            if not propos:
-                self._set_error("Connecting worked, but we have no proposals!")
-            else:
-                self._set_success(
-                    f"Connecting worked, and we have {len(propos)} proposal(s)!"
-                )
+                if not propos:
+                    self._set_error("Connecting worked, but we have no proposals!")
+                else:
+                    self._set_success(
+                        f"Connecting worked, and we have {len(propos)} proposal(s)!"
+                    )
+        except Exception as e:
+            self._set_error(f"Could not connect to database: {e}")
+            return
 
     def valid_url(self) -> Optional[str]:
         return (

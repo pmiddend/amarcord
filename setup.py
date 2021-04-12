@@ -21,6 +21,8 @@ setuptools.setup(
         "SQLAlchemy==1.3.*",
         # for mysql
         "pymysql==1.0.*",
+        # for caching_sha2_password access
+        "cryptography==3.4.*",
         # for migrating a DB
         "alembic==1.5.*",
         # for attributi: parsing/printing a delta
