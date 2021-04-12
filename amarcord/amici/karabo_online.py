@@ -160,6 +160,7 @@ class KaraboBridge:
         """
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[List[str]] = {}
+        ignore_entry: Dict[str, List[str]] = {}
 
         for (gi, gi_content,) in configuration.items():
             source = None
@@ -191,7 +192,7 @@ class KaraboBridge:
 
                     except TypeError:
                         raise TypeError(
-                            "Wrong attributo definition in {}::{}".format(gi, attributo)
+                            "Wrong attributo definition in {}//{}".format(gi, attributo)
                         )
 
         # build the corresponding Karabo bridge expected entry
@@ -274,7 +275,7 @@ class KaraboBridge:
                     else:
                         if key not in self.karabo_bridge_content["data"][source]:
                             logging.warning(
-                                "  [{}.{}] {}::{}: not available".format(
+                                "  [{}.{}] {}//{}: not available".format(
                                     attributo["group"],
                                     attributo["identifier"],
                                     source,
@@ -283,7 +284,7 @@ class KaraboBridge:
                             )
                         else:
                             logging.info(
-                                "  [{}.{}] {}::{}".format(
+                                "  [{}.{}] {}//{}".format(
                                     attributo["group"],
                                     attributo["identifier"],
                                     source,
@@ -299,7 +300,7 @@ class KaraboBridge:
                     if source in self.attributi:
                         if key not in self.attributi[source]:
                             logging.warning(
-                                "  {}::{}: not requested".format(source, key,)
+                                "  {}//{}: not requested".format(source, key,)
                             )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
