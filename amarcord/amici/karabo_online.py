@@ -439,7 +439,7 @@ class KaraboBridge:
 
         # run is over
         else:
-            if self.run_history[train_content["index"]]["status"] == "finished":
+            if self.run_history[train_content["index"]]["status"] != "finished":
                 index = train_content["index"]
 
                 self.run_history[index]["trains_in_run"] = train_content[
