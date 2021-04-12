@@ -109,7 +109,7 @@ class ConnectionDialog(QWidget):
                         f"Connecting worked, and we have {len(propos)} proposal(s)!"
                     )
         except Exception as e:
-            self._set_error(f"Could not connect to database: {e}")
+            self._set_error("Could not connect to database", str(e))
             return
 
     def valid_url(self) -> Optional[str]:
