@@ -451,6 +451,15 @@ class KaraboBridge:
 
         logging.debug("Train {}".format(trainId))
 
+        # check if we get all trains
+        for vi in range(1, len(self._train_history)):
+            if self._train_history[vi] - self._train_history[vi - 1] > 1:
+                logging.warn(
+                    "Missed trains between {} and {}".format(
+                        self._train_history[vi - 1], self._train_history[vi]
+                    )
+                )
+
         # inspect it
         train_content = {}
 
