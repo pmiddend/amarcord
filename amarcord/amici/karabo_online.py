@@ -441,6 +441,35 @@ class KaraboBridge:
                             )
                         )
 
+    def _sanity_get_all_trains(self):
+        """Check if we get all trains
+        """
+        for vi in range(self._sanity_get_all_trains + 1, len(self._train_history)):
+            if self._train_history[vi] - self._train_history[vi - 1] > 1:
+                logging.warning(
+                    "Missed train {}".format(self._train_history[vi - 1] + 1)
+                )
+
+                self._sanity_get_all_trains = len(self._train_history) - 1
+
+    def _sanity_check_runs_are_closed(self):
+        """Check if a run that should be closed is still running
+        """
+        running = []
+
+        for ki, vi in self.run_history.items():
+            if vi["status"] == "running":
+                running.append(ki)
+
+        if len(running) > 1:
+            logging.warn(
+                "Multiple runs runnig {}. Forcefully closing run {}".format(
+                    running, running[0]
+                )
+            )
+
+            self.run_history[running[0]]["status"] = "closed"
+
     def run_definer(self, train_cache_size: int = 5, averaging_interval: int = 10):
         """Defines a run
 
@@ -458,17 +487,9 @@ class KaraboBridge:
         logging.debug("Train {}".format(trainId))
 
         # check if we get all trains
-        for vi in range(self._sanity_get_all_trains + 1, len(self._train_history)):
-            if self._train_history[vi] - self._train_history[vi - 1] > 1:
-                logging.warning(
-                    "Missed trains between {} and {}".format(
-                        self._train_history[vi - 1], self._train_history[vi]
-                    )
-                )
+        self._sanity_get_all_trains()
 
-                self._sanity_get_all_trains = len(self._train_history) - 1
-
-        # inspect it
+        # inspect the run
         train_content = {}
 
         for attributo in [
@@ -495,6 +516,9 @@ class KaraboBridge:
                 self.run_history[self._current_run] = {**train_content} + {
                     "status": "running",
                 }
+
+                # are all the runs closed?
+                self._sanity_check_runs_are_closed()
 
                 logging.info(
                     "Run {index} started at {timestamp_UTC_initial}}".format(
@@ -536,7 +560,7 @@ class KaraboBridge:
                 self.run_history[self._current_run]["trains_in_run"] = train_content[
                     "trains_in_run"
                 ]
-                self.run_history[self._current_run]["status"] = "finished"
+                self.run_history[self._current_run]["status"] = "closed"
 
                 logging.info(
                     "Run {index} completed with {trains_in_run} trains".format(
