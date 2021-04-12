@@ -263,14 +263,14 @@ class KaraboBridge:
                 for key, attributo in source_content.items():
 
                     if source not in self.karabo_bridge_content["data"]:
-                        logging.warn(
+                        logging.warning(
                             "  [{}.{}] {}: not available".format(
                                 attributo["group"], attributo["identifier"], source
                             )
                         )
                     else:
                         if key not in self.karabo_bridge_content["data"][source]:
-                            logging.warn(
+                            logging.warning(
                                 "  [{}.{}] {}::{}: not available".format(
                                     attributo["group"],
                                     attributo["identifier"],
@@ -290,12 +290,14 @@ class KaraboBridge:
 
             for source, source_content in self.karabo_bridge_content["data"].items():
                 if source not in self.attributi:
-                    logging.warn("  {}: not requested".format(source))
+                    logging.warning("  {}: not requested".format(source))
 
                 for key in source_content:
                     if source in self.attributi:
                         if key not in self.attributi[source]:
-                            logging.warn("  {}::{}: not requested".format(source, key,))
+                            logging.warning(
+                                "  {}::{}: not requested".format(source, key,)
+                            )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
         """Checks if Karabo devices are synchronized
@@ -404,7 +406,7 @@ class KaraboBridge:
                 )
 
                 if removed:
-                    logging.warn(
+                    logging.warning(
                         "{}//{}: removed {} entries".format(source, key, removed)
                     )
 
@@ -429,7 +431,7 @@ class KaraboBridge:
                 # check if values are constant
                 elif self.attributi[source][key]["action"] == "check_if_constant":
                     if len(set(cached_data)):
-                        logging.warn(
+                        logging.warning(
                             "{}//{}: not constant over run {}".format(
                                 source, key, self._current_run
                             )
@@ -454,7 +456,7 @@ class KaraboBridge:
         # check if we get all trains
         for vi in range(1, len(self._train_history)):
             if self._train_history[vi] - self._train_history[vi - 1] > 1:
-                logging.warn(
+                logging.warning(
                     "Missed trains between {} and {}".format(
                         self._train_history[vi - 1], self._train_history[vi]
                     )
@@ -474,7 +476,7 @@ class KaraboBridge:
             try:
                 train_content[attributo] = data[source][key]
             except KeyError:
-                logging.warn("Missing entry '{}' in the stream".format(attributo))
+                logging.warning("Missing entry '{}' in the stream".format(attributo))
 
         # run index
         self._current_run = train_content["index"]
