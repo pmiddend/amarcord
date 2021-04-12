@@ -34,7 +34,10 @@ class KaraboBridge:
         self._cache, self.statistics = self._initialize_cache()
 
         # inform AMARCORD
-        #
+        # will the connection be configed here or in each call?
+        self._define_AMARCORD_attributi(
+            "how is the experiment table called?", self._attributi
+        )
 
         # instantiate the Karabo bridge client
         self.client_endpoint = client_endpoint
@@ -458,7 +461,12 @@ class KaraboBridge:
         if not len(self._cache) % averaging_interval:
             self._compute_statistics()
 
-    def _define_AMARCORD_table(table, foreign_key="run_id"):
+    def _define_AMARCORD_attributi(self, table, attributi) -> None:
+
+        pass
+
+    def _update_AMARCORD_attributi(self, table, attributi) -> None:
+
         pass
 
 
