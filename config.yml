@@ -1,5 +1,4 @@
 AMARCORD:
-  
 
 myMdC:
   #! configuration for myMdC
@@ -114,12 +113,12 @@ Karabo_bridge:
 
       dark_run:
         source: SPB_DA_USR/MDL/AMARCORD_INFO.darkRunNumber
-        key: ?
+        key: "?"
         action: check_if_constant
 
       dark_experiment:
         source: SPB_DA_USR/MDL/AMARCORD_INFO.darkExperiment
-        key: ?
+        key: "?"
         action: check_if_constant
 
       gain_setting:
