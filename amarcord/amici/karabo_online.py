@@ -18,6 +18,19 @@ logging.basicConfig(
 )
 
 
+class Statistics:
+    def __init__(self) -> None:
+        pass
+
+    @staticmethod
+    def arithmetic_mean(data, axis=0):
+        return np.mean(data, axis=axis)
+
+    @staticmethod
+    def standard_deviation(data, axis=0):
+        return np.std(data, axis=axis, ddof=1)
+
+
 class KaraboBridge:
     def __init__(
         self,
@@ -343,7 +356,7 @@ class KaraboBridge:
 
         return data, metadata
 
-    def _compute_statistics(self):
+    def _compute_statistics(self) -> None:
         """Compute statistics
         """
 
@@ -366,27 +379,28 @@ class KaraboBridge:
         for source in self._cache.keys():
             for key in self._cache[source].keys():
 
-                if self.attributi[source][key]["action"] == "compute_statistics":
-                    cached_data, removed = remove_filling_values(
-                        self._cache[source][key],
-                        self.attributi[source][key]["filling_value"],
+                # remove filling values
+                cached_data, removed = remove_filling_values(
+                    self._cache[source][key],
+                    self.attributi[source][key]["filling_value"],
+                )
+
+                if removed:
+                    logging.warn(
+                        "{}//{}: removed {} entries".format(source, key, removed)
                     )
 
-                    if removed:
-                        logging.info(
-                            "{}//{}: removed {} entries".format(source, key, removed)
-                        )
+                if self.attributi[source][key]["action"] == "compute_arithmetic_mean":
+                    self.attributi[source][key]["value"] = Statistics.arithmetic_mean()
 
-                    # compute statistics
-                    self.statistics["arithmetic_mean"] = np.mean(cached_data, axis=0)
-                    self.statistics["standard_deviation"] = np.std(
-                        cached_data, axis=0, ddof=1
-                    )
+                if (
+                    self.attributi[source][key]["action"]
+                    == "compute_standard_deviation"
+                ):
 
-        # send results to AMARCORD
-        self._update_AMARCORD_attributi(
-            "table_name_should_come_as_arg_of_the_function", attributi
-        )
+                    self.attributi[source][key][
+                        "value"
+                    ] = Statistics.standard_deviation()
 
     def run_definer(self, train_cache_size: int = 0, averaging_interval: int = 10):
         """Defines a run
@@ -437,9 +451,10 @@ class KaraboBridge:
                     )
                 )
 
-            # update the average
+            # update the average and send results to AMARCORD
             if (not len(self._cache)) and (not len(self._cache) % averaging_interval):
                 self._compute_statistics()
+                self._update_AMARCORD_attributi(table="run table?")
 
         # run is over
         else:
@@ -459,8 +474,9 @@ class KaraboBridge:
                 )
             )
 
-            # update the average
+            # update the average one more time and send results to AMARCORD
             self._compute_statistics()
+            self._update_AMARCORD_attributi(table="run table?")
 
             # reset the cache
             self._initialize_cache()
