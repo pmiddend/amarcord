@@ -538,20 +538,18 @@ class KaraboBridge:
                 ]
                 self.run_history[self._current_run]["status"] = "finished"
 
-                return
-
-            logging.info(
-                "Run {index} completed with {trains_in_run} trains".format(
-                    **train_content
+                logging.info(
+                    "Run {index} completed with {trains_in_run} trains".format(
+                        **train_content
+                    )
                 )
-            )
 
-            # update the average one more time and send results to AMARCORD
-            self._compute_statistics()
-            self._update_AMARCORD_attributi(table="run table?")
+                # update the average one more time and send results to AMARCORD
+                self._compute_statistics()
+                self._update_AMARCORD_attributi(table="run table?")
 
-            # reset the cache
-            self._initialize_cache()
+                # reset the cache
+                self._initialize_cache()
 
     def _define_AMARCORD_attributi(self, table, attributi) -> None:
 
