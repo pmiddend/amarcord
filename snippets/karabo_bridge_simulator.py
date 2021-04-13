@@ -110,9 +110,11 @@ if __name__ == "__main__":
         print("{}: {}".format(trainId, karabo_data.run_definer(data, metadata)))
 
     #
-    position = 2  # or 0
-    position_size = 5
-    trainId_at_position = trainId_list[position]
+    position = 1  # or 0
+    position_size = 4
+
+    position2 = 7  # or 0
+    position_size2 = 2
 
     print("RunId is changing...")
     karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
@@ -124,28 +126,53 @@ if __name__ == "__main__":
             bridge_content[trainId]["metadata"],
         )
 
-        if trainId == trainId_list[0]:
+        # new run starts
+        if trainId >= trainId_list[position] and trainId_list[position] + position_size:
             runId = data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runNumber.value"]
 
-        # new run starts
-        if (
-            trainId >= trainId_list[position]
-            and trainId < trainId_list[position] + position_size
-        ):
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runNumber.value"] = runId + 1
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
                 "runDetails.beginAt.value"
-            ] = trainId_list[position + 1]
+            ] = trainId_list[position]
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.length.value"] = 0
 
         # new run is over
-        else:
+        if trainId >= trainId_list[position] + position_size:
 
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runNumber.value"] = runId + 1
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
+                "runDetails.beginAt.value"
+            ] = trainId_list[position]
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
                 "runDetails.length.value"
             ] = position_size
 
-        print("{}: {}".format(trainId, type(karabo_data.run_definer(data, metadata))))
+            runId = data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runNumber.value"]
+
+        # new run starts
+        if (
+            trainId >= trainId_list[position2]
+            and trainId_list[position2] + position_size2
+        ):
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runNumber.value"] = runId + 1
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
+                "runDetails.beginAt.value"
+            ] = trainId_list[position2]
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.length.value"] = 0
+
+        # new run is over
+        if trainId >= trainId_list[position2] + position_size2:
+
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runNumber.value"] = runId + 1
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
+                "runDetails.beginAt.value"
+            ] = trainId_list[position2]
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
+                "runDetails.length.value"
+            ] = position_size2
+
+        karabo_data.run_definer(data, metadata)
+        # print("{}: {}".format(trainId, type(karabo_data.run_definer(data, metadata))))
 
 # remove one device
 # compute and test aveage
