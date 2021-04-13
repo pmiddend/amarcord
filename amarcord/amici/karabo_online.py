@@ -144,7 +144,7 @@ class KaraboBridgeSlicer:
         # pylint: disable=redefined-builtin
         type: str = "decimal",
         store: bool = True,
-        action: str = "compute_arithmetic_mean",
+        action: str = None,
         unit: str = None,
         filling_value: Any = None,
     ) -> Dict[str, Any]:
@@ -157,7 +157,7 @@ class KaraboBridgeSlicer:
             description (str, optional): `attributo` description. Defaults to None.
             type (str, optional): The AMARCORD data type. Defaults to "decimal".
             store (bool, optional): Whether to store the value. Defaults to True.
-            action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to "compute_arithmetic_mean".
+            action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to None.
             unit (str, optional): Unit of measurement. Defaults to None.
             filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
 
@@ -180,6 +180,7 @@ class KaraboBridgeSlicer:
             )
 
         action_choice = [
+            None,
             "compute_arithmetic_mean",
             "compute_standard_deviation",
             "check_if_constant",
@@ -213,12 +214,15 @@ class KaraboBridgeSlicer:
 
         for (gi, gi_content,) in configuration.items():
             source = None
+            action = None
 
             for (ai, ai_content,) in gi_content.items():
 
-                # source can be set globally, for the entire group
+                # source and action can be set globally, for the entire group
                 if ai == "source":
                     source = ai_content
+                elif ai == "action":
+                    action = ai_content
 
                 if isinstance(ai_content, dict):
                     attributo = {}
@@ -228,6 +232,9 @@ class KaraboBridgeSlicer:
 
                     if source is not None:
                         attributo["source"] = source
+
+                    if action is not None:
+                        attributo["action"] = action
 
                     # fill the attributo
                     for ki, vi in ai_content.items():
@@ -414,6 +421,8 @@ class KaraboBridgeSlicer:
                         else:
                             self._cache[source][key].append(value)
 
+        self._cached_events += 1
+
     # def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     #     """Get and cache the next train from the Karabo bridge
     #
@@ -486,12 +495,15 @@ class KaraboBridgeSlicer:
 
                 # check if values are constant
                 elif self.attributi[source][key]["action"] == "check_if_constant":
-                    if set(cached_data):
+                    if len(set(cached_data)) != 1:
                         logging.warning(
                             "{}//{}: not constant over run {}".format(
                                 source, key, self._current_run
                             )
                         )
+
+                else:
+                    pass
 
     def _sanity_check_get_all_trains(self):
         """Check if we get all trains"""
@@ -525,7 +537,7 @@ class KaraboBridgeSlicer:
         data: Dict[str, Any],
         metadata: Dict[str, Any],
         train_cache_size: int = 5,
-        averaging_interval: int = 10,
+        averaging_interval: int = 2,
     ) -> List[KaraboAction]:
         """Defines a run
 
@@ -548,7 +560,7 @@ class KaraboBridgeSlicer:
         train_content: Dict[str, Any] = {}
 
         for attributo in [
-            "index",
+            "number",
             "train_index_initial",
             "timestamp_UTC_initial",
             "trains_in_run",
@@ -563,7 +575,7 @@ class KaraboBridgeSlicer:
                 logging.warning("Missing entry '{}' in the stream".format(attributo))
 
         # run index
-        self._current_run = train_content["index"]
+        self._current_run = train_content["number"]
 
         assert self._current_run is not None
 
@@ -595,50 +607,53 @@ class KaraboBridgeSlicer:
                     )
                 ]
 
-            if len(self._cache) % averaging_interval != 0 or len(self._cache) < 1:
-                print(len(self._cache))
+            if self._cached_events % averaging_interval != 0:
                 return []
+
+            # cache the data
+            self.cache_train(data, metadata)
 
             # update the average and send results to AMARCORD
             self._compute_statistics()
+
             return [
                 KaraboAttributiUpdate(self._current_run, copy.deepcopy(self._attributi))
             ]
 
         # run is over or in progress when we start
+        else:
+            # run is in progress when we start
+            if train_content["number"] not in self.run_history:
 
-        # first: run is in progress when we start
-        if train_content["index"] not in self.run_history:
+                if self.karabo_bridge_content is None:
+                    logging.info("Waiting for a new run...")
 
-            if self.karabo_bridge_content is None:
-                logging.info("Waiting for a new run...")
+                    self.karabo_bridge_content = self._stream_content(data, metadata)
 
-                self.karabo_bridge_content = self._stream_content(data, metadata)
+                    self._compare_attributi_and_karabo_data()
 
-                self._compare_attributi_and_karabo_data()
+                return []
 
-            return []
+            # run is over
+            if self.run_history[self._current_run]["status"] != "closed":
+                self.run_history[self._current_run]["trains_in_run"] = train_content[
+                    "trains_in_run"
+                ]
+                self.run_history[self._current_run]["status"] = "closed"
 
-        # run is over
-        if self.run_history[train_content["index"]]["status"] != "closed":
-            self.run_history[self._current_run]["trains_in_run"] = train_content[
-                "trains_in_run"
-            ]
-            self.run_history[self._current_run]["status"] = "closed"
-
-            logging.info(
-                "Run {index} completed with {trains_in_run} trains".format(
-                    **train_content
+                logging.info(
+                    "Run {index} completed with {trains_in_run} trains".format(
+                        **train_content
+                    )
                 )
-            )
 
-            # update the average one more time and send results to AMARCORD
-            self._compute_statistics()
+                # update the average one more time and send results to AMARCORD
+                self._compute_statistics()
 
-            # reset the cache
-            self._initialize_cache()
+                # reset the cache
+                self._initialize_cache()
 
-            return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
+                return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
         return []
 
 
