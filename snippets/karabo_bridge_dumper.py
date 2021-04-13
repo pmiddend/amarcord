@@ -7,19 +7,14 @@ import karabo_bridge
 
 parser = argparse.ArgumentParser(description="Dump the stream from the Karabo bridge.")
 parser.add_argument(
-    "karabo-client-URL",
-    metavar="Karabo client URL",
-    type=str,
-    help="URL of the Karabo client",
+    "karabo_client_URL", metavar="URL", help="URL of the Karabo client",
 )
 parser.add_argument(
-    "--events-to-record",
+    "--events",
     metavar="N",
-    default=100,
+    type=int,
     help="events to record (default: %(default)s)",
-)
-parser.add_argument(
-    "--seed", type=int, help="events to record (default: %(default)s)", default=100
+    default=100,
 )
 
 args = parser.parse_args()
