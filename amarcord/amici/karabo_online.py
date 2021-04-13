@@ -611,6 +611,8 @@ class KaraboBridgeSlicer:
             # cache the data
             self.cache_train(data, metadata)
 
+            logging.debug("Caching train {}".format(trainId))
+
             # starting a new run...
             if (
                 train_content["train_index_initial"] <= trainId + train_cache_size
@@ -668,8 +670,8 @@ class KaraboBridgeSlicer:
                 self.run_history[self._current_run]["status"] = "closed"
 
                 logging.info(
-                    "Run {number} completed with {trains_in_run} trains".format(
-                        **train_content
+                    "Run {number} closed at {trainId}: {trains_in_run} trains".format(
+                        **train_content, trainId=trainId
                     )
                 )
 
@@ -678,8 +680,6 @@ class KaraboBridgeSlicer:
 
                 # reset the cache
                 self._initialize_cache()
-
-                print(train_content)
 
                 return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
 
