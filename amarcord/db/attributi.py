@@ -71,6 +71,12 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
                 min_length=parsed_schema.min_items,
                 max_length=parsed_schema.max_items,
             )
+        if isinstance(parsed_schema.value_type, JSONSchemaInteger):
+            return AttributoTypeList(
+                schema_to_attributo_type(parsed_schema.value_type),
+                min_length=parsed_schema.min_items,
+                max_length=parsed_schema.max_items,
+            )
         assert isinstance(
             parsed_schema.value_type, JSONSchemaString
         ), "arrays of non-strings aren't supported yet"

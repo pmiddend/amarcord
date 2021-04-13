@@ -29,6 +29,7 @@ from amarcord.qt.numeric_range_format_widget import NumericRange
 from amarcord.qt.tags import Tags
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import parse_float_list
+from amarcord.qt.validators import parse_int_list
 from amarcord.qt.validators import parse_string_list
 from amarcord.util import parse_natural_delta
 from amarcord.util import print_natural_delta
@@ -292,7 +293,25 @@ class ListItemDelegate(QtWidgets.QStyledItemDelegate):
             return ValidatedLineEdit(
                 None,
                 lambda float_list: ", ".join(str(s) for s in float_list),  # type: ignore
-                lambda float_list_str: parse_float_list(float_list_str, min_elements=3, max_elements=3),  # type: ignore
+                lambda float_list_str: parse_float_list(float_list_str, min_elements=self._min_length, max_elements=self._max_length),  # type: ignore
+                infix + suffix,
+                parent,
+            )
+        if isinstance(self._subtype, AttributoTypeInt):
+            infix = (
+                "list of integers"
+                if self._min_length is None and self._max_length is None
+                else f"list of at least {self._min_length} integer(s)"
+                if self._min_length is not None and self._max_length is None
+                else f"{self._min_length} integers"
+                if self._min_length == self._max_length
+                else f"at least {self._min_length}, at most {self._max_length} integer(s)"
+            )
+            suffix = ", separated by commas"
+            return ValidatedLineEdit(
+                None,
+                lambda int_list: ", ".join(str(s) for s in int_list),  # type: ignore
+                lambda int_list_str: parse_int_list(int_list_str, min_elements=self._min_length, max_elements=self._max_length),  # type: ignore
                 infix + suffix,
                 parent,
             )

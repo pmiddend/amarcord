@@ -10,6 +10,7 @@ from typing import Union
 from typing import cast
 
 from amarcord.util import str_to_float
+from amarcord.util import str_to_int
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,24 @@ def parse_string_list(
         return None
 
     return parts
+
+
+def parse_int_list(
+    input_: str, min_elements: Optional[int], max_elements: Optional[int]
+) -> Union[Partial, None, List[int]]:
+    parts = re.split(", *", input_)
+
+    if parts and parts[-1] == "":
+        return Partial(input_)
+
+    if min_elements is not None and len(parts) < min_elements:
+        return Partial(input_)
+
+    if max_elements is not None and len(parts) > max_elements:
+        return Partial(input_)
+
+    ints = [str_to_int(f) for f in parts]
+    return cast(List[int], ints) if all(f is not None for f in ints) else None
 
 
 def parse_float_list(

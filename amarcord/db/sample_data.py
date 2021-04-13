@@ -128,12 +128,10 @@ def create_sample_data(db: DB) -> None:
             "repetition_rate",
             description="Repetition Rate",
             associated_table=AssociatedTable.RUN,
-            prop_type=AttributoTypeDouble(
-                range=NumericRange(
-                    0, minimum_inclusive=True, maximum=None, maximum_inclusive=True
-                ),
-                suffix="MHz",
-                standard_unit=True,
+            prop_type=AttributoTypeList(
+                sub_type=AttributoTypeInt(),
+                min_length=None,
+                max_length=None,
             ),
         )
         db.add_attributo(
@@ -200,7 +198,7 @@ def create_sample_data(db: DB) -> None:
                 "online",
                 {
                     AttributoId("status"): "running",
-                    AttributoId("repetition_rate"): randrange(0, 20),
+                    AttributoId("repetition_rate"): [randrange(0, 20)],
                     AttributoId("hit_rate"): random() * 100,
                     AttributoId("first_train"): current_train + 1,
                     AttributoId("last_train"): current_train + train_count,

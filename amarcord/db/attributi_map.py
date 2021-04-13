@@ -123,7 +123,7 @@ def _convert_single_attributo_value_from_json(
             v, list
         ), f'expected type list for list attributo "{i}", got {type(v)}'
         assert not v or isinstance(
-            v[0], (float, str)
+            v[0], (float, str, int)
         ), f"got a non-empty list of {type(v[0])}, we only support float, int for now"
         return v
     raise Exception(
