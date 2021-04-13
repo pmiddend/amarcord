@@ -3,6 +3,7 @@
 import copy
 import logging
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 from typing import Dict
@@ -71,11 +72,12 @@ KaraboAction = Union[KaraboAttributiUpdate, KaraboRunEnd, KaraboRunStartOrUpdate
 
 
 class KaraboBridgeSlicer:
+    # noinspection PyUnusedLocal
     def __init__(
         self,
         attributi_definition: Dict[str, Any],
         ignore_entry: Dict[str, List[str]],
-        **kwargs: Dict[str, Any]
+        **kwargs: Dict[str, Any],
     ) -> None:
 
         # build the attributi dictionary
@@ -126,6 +128,7 @@ class KaraboBridgeSlicer:
         source: str,
         key: str,
         description: str = None,
+        type: str = "decimal",
         store: bool = True,
         action: str = "compute_arithmetic_mean",
         unit: str = None,
@@ -151,6 +154,14 @@ class KaraboBridgeSlicer:
         """
         attributo = dict(set(locals().items()) - set({"self": self}.items()))
 
+        list_re = re.match(
+            r"image|int|decimal|str|datetime|list\[(int|decimal|str)]", type
+        )
+        if not list_re:
+            raise ValueError(
+                f"Attributo type must be str, int, decimal, datetime or a list of int or decimal, is {type}"
+            )
+
         action_choice = [
             "compute_arithmetic_mean",
             "compute_standard_deviation",
@@ -166,7 +177,7 @@ class KaraboBridgeSlicer:
 
     def _parse_configuration(
         self, configuration: Dict[str, Any]
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> Tuple[KaraboAttributi, Dict[str, Dict[str, Any]]]:
         """Parse the configuration file
 
         Args:
@@ -179,12 +190,18 @@ class KaraboBridgeSlicer:
             Dict[str, List[Dict[str, Any]]], Dict[str, List[str]]: A dictionary of attributi and one with expected Karabo keywords
         """
         entry: Dict[str, List[Dict[str, Any]]] = {}
-        karabo_expected_entry: Dict[List[str]] = {}
+        karabo_expected_entry: Dict[str, Dict[str, Any]] = {}
 
-        for (gi, gi_content,) in configuration.items():
+        for (
+            gi,
+            gi_content,
+        ) in configuration.items():
             source = None
 
-            for (ai, ai_content,) in gi_content.items():
+            for (
+                ai,
+                ai_content,
+            ) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -248,7 +265,7 @@ class KaraboBridgeSlicer:
 
     def _stream_content(
         self, data: Dict[str, Any], metadata: Dict[str, Any]
-    ) -> Dict[str, List[str]]:
+    ) -> Dict[str, Any]:
         """Navigate the stream from the Karabo bridge
 
         Args:
@@ -323,7 +340,10 @@ class KaraboBridgeSlicer:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(source, key,)
+                                        "  {}//{}: not requested".format(
+                                            source,
+                                            key,
+                                        )
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -440,7 +460,7 @@ class KaraboBridgeSlicer:
                     self.attributi[source][key]["value"] = reduced_value
 
                     logging.debug(
-                        "{} on {}//{}:\n  intial dataset: {}\n  reduced value: {}".format(
+                        "{} on {}//{}:\n  initial dataset: {}\n  reduced value: {}".format(
                             source, key, self._cache[source][key], reduced_value
                         )
                     )
@@ -474,7 +494,7 @@ class KaraboBridgeSlicer:
 
         if len(running) > 1:
             logging.warn(
-                "Multiple runs runnig {}. Forcefully closing run {}".format(
+                "Multiple runs running {}. Forcefully closing run {}".format(
                     running, running[0]
                 )
             )

@@ -32,15 +32,17 @@ Karabo_bridge:
       timestamp_UTC_initial:
         description: Started at
         key: runDetails.beginAt.value
-        unit: datetime
+        type: datetime
 
       train_index_initial:
         description: Initial train
         key: runDetails.firstTrainId.value
+        type: int
 
       trains_in_run:
         description: Number of trains
         key: runDetails.length.value
+        type: int
 
     source:
       # data from the source
@@ -51,6 +53,7 @@ Karabo_bridge:
         # D. Should AMARCORD key == Karabo key? If not, where do we store it?
         # -- this might be "description" + we add header
         key: sase1.charge.value
+        type: decimal
         unit: nC
 
       bunch_pattern:
@@ -67,37 +70,44 @@ Karabo_bridge:
       SASE1_pulse_energy:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa1TD
+        type: decimal
         unit: microJoules
 
       SASE1_beam_position_x:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa1TD
+        type: decimal
         unit: millimeter # ?
 
       SASE1_beam_position_y:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa1TD
+        type: decimal
         unit: millimeter # ?
 
       SASE3_pulse_energy:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa3TD
+        type: decimal
         unit: microJoules
 
       SASE3_beam_position_x:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa3TD
+        type: decimal
         unit: mm # ?
 
       SASE3_beam_position_y:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa3TD
+        type: decimal
         unit: mm # ?
 
       Xray_wavelength_set:
         source: SPB_XTD9_XGM/XGM/DOOCS
         key: pulseEnergy.wavelengthUsed.value
         description: X-ray wavelength
+        type: decimal
         unit: angstrom
 
     detector.ZYLA:
@@ -106,6 +116,7 @@ Karabo_bridge:
 
       injector_image:
         key: data.image.data
+        type: image
         action: store_last
 
     detector.AGIPD:
@@ -124,59 +135,69 @@ Karabo_bridge:
       gain_setting:
         source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
         key: gainMode.value
+        type: decimal
         action: check_if_constant
 
       position_z:
         source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
         key: actualPosition.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
       position_quadrant1_x:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q1.x.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
       position_quadrant1_y:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q1.y.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
       position_quadrant2_x:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q2.x.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
       position_quadrant2_y:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q2.y.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
       position_quadrant3_x:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q3.x.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
       position_quadrant3_y:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q3.y.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
       position_quadrant4_x:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q4.x.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
       position_quadrant4_y:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q4.y.value
+        type: decimal
         unit: mm
         action: check_if_constant
 
@@ -201,6 +222,7 @@ Karabo_bridge:
         key: actual.value.materialAct1
       attenuator1_absorption:
         key: actual.value.absorptionAct1
+        type: decimal
         unit: percent
 
       attenuator2_inserted:
@@ -211,6 +233,7 @@ Karabo_bridge:
         key: actual.value.materialAct2
       attenuator2_absorption:
         key: actual.value.absorptionAct2
+        type: decimal
         unit: percent
 
       attenuator3_inserted:
@@ -221,6 +244,7 @@ Karabo_bridge:
         key: actual.value.materialAct3
       attenuator3_absorption:
         key: actual.value.absorptionAct3
+        type: decimal
         unit: percent
 
       attenuator4_inserted:
@@ -231,6 +255,7 @@ Karabo_bridge:
         key: actual.value.materialAct4
       attenuator4_absorption:
         key: actual.value.absorptionAct4
+        type: decimal
         unit: percent
 
       attenuator5_inserted:
@@ -241,6 +266,7 @@ Karabo_bridge:
         key: actual.value.materialAct5
       attenuator5_absorption:
         key: actual.value.absorptionAct5
+        type: decimal
         unit: percent
 
       attenuator6_inserted:
@@ -251,6 +277,7 @@ Karabo_bridge:
         key: actual.value.materialAct6
       attenuator6_absorption:
         key: actual.value.absorptionAct6
+        type: decimal
         unit: percent
 
       attenuator7_inserted:
@@ -261,6 +288,7 @@ Karabo_bridge:
         key: actual.value.materialAct7
       attenuator7_absorption:
         key: actual.value.absorptionAct7
+        type: decimal
         unit: percent
 
       attenuator8_inserted:
@@ -271,6 +299,7 @@ Karabo_bridge:
         key: actual.value.materialAct8
       attenuator8_absorption:
         key: actual.value.absorptionAct8
+        type: decimal
         unit: percent
 
       attenuator9_inserted:
@@ -281,10 +310,12 @@ Karabo_bridge:
         key: actual.value.materialAct9
       attenuator9_absorption:
         key: actual.value.absorptionAct9
+        type: decimal
         unit: percent
 
       transmission:
         key: actual.value.transmission
+        type: decimal
         unit: percent
 
     device.attenuator_SPB_XTD9:
@@ -296,11 +327,13 @@ Karabo_bridge:
         key: actual.value.incrementRod1
       attenuator1_thickness:
         key: actual.value.thicknessRod1
+        type: decimal
         unit: micrometer
       attenuator1_material:
         key: actual.value.materialRod1
       attenuator1_absorption:
         key: actual.value.absorptionRod1
+        type: decimal
         unit: percent
 
       attenuator2_increment:
@@ -311,6 +344,7 @@ Karabo_bridge:
         key: actual.value.materialRod2
       attenuator2_absorption:
         key: actual.value.absorptionRod2
+        type: decimal
         unit: percent
 
       attenuator3_increment:
@@ -321,6 +355,7 @@ Karabo_bridge:
         key: actual.value.materialRod3
       attenuator3_absorption:
         key: actual.value.absorptionRod3
+        type: decimal
         unit: percent
 
       attenuator4_increment:
@@ -331,10 +366,12 @@ Karabo_bridge:
         key: actual.value.materialRod4
       attenuator4_absorption:
         key: actual.value.absorptionRod4
+        type: decimal
         unit: percent
 
       transmission:
         key: actual.value.transmission
+        type: decimal
         unit: percent
 
     device.sample_delivery_manifold_valves:
@@ -380,6 +417,7 @@ Karabo_bridge:
 
       pump_a_flow_value:
         key: a.flow.value
+        type: decimal
         unit: microliter/minute
       pump_a_value:
         key: a.volume.value
@@ -387,6 +425,7 @@ Karabo_bridge:
 
       pump_b_flow_value:
         key: b.volume.value
+        type: decimal
         unit: microliter/minute
       pump_b_value:
         key: b.flow.value
@@ -394,6 +433,7 @@ Karabo_bridge:
 
       pump_c_flow_value:
         key: c.flow.value
+        type: decimal
         unit: microliter/minute
       pump_c_value:
         key: c.volume.value
@@ -401,6 +441,7 @@ Karabo_bridge:
 
       pump_d_flow_value:
         key: d.flow.value
+        type: decimal
         unit: microliter/minute
       pump_d_value:
         key: d.volume.value
