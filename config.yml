@@ -30,6 +30,11 @@ Karabo_bridge:
         description: Run index
         key: runDetails.runId.value
 
+      number:
+        description: Run number
+        key: runDetails.runNumber.number
+        type: int
+
       timestamp_UTC_initial:
         description: Started at
         key: runDetails.beginAt.value
