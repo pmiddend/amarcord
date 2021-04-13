@@ -495,12 +495,16 @@ class KaraboBridgeSlicer:
 
                 # check if values are constant
                 elif self.attributi[source][key]["action"] == "check_if_constant":
-                    if len(set(cached_data)) != 1:
+                    # print(source, key, cached_data)
+                    # print(np.unique(cached_data), np.unique(cached_data).size)
+                    if np.unique(cached_data).size != 1:
                         logging.warning(
                             "{}//{}: not constant over run {}".format(
                                 source, key, self._current_run
                             )
                         )
+
+                    self.attributi[source][key]["value"] = cached_data[-1]
 
                 else:
                     pass
@@ -596,7 +600,7 @@ class KaraboBridgeSlicer:
                 self._sanity_check_runs_are_closed()
 
                 logging.info(
-                    "Run {index} started at {timestamp_UTC_initial}".format(
+                    "Run {number} started at {timestamp_UTC_initial}".format(
                         **train_content,
                     )
                 )
@@ -606,8 +610,6 @@ class KaraboBridgeSlicer:
                         self._current_run, copy.deepcopy(self._attributi)
                     )
                 ]
-
-            print("....................")
 
             if self._cached_events % averaging_interval != 0:
                 return []
