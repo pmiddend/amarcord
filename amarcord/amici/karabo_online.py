@@ -495,7 +495,7 @@ class KaraboBridgeSlicer:
 
                 # check if values are constant
                 elif self.attributi[source][key]["action"] == "check_if_constant":
-                    if set(cached_data):
+                    if len(set(cached_data)) != 1:
                         logging.warning(
                             "{}//{}: not constant over run {}".format(
                                 source, key, self._current_run
@@ -560,7 +560,7 @@ class KaraboBridgeSlicer:
         train_content: Dict[str, Any] = {}
 
         for attributo in [
-            "index",
+            "number",
             "train_index_initial",
             "timestamp_UTC_initial",
             "trains_in_run",
@@ -574,25 +574,19 @@ class KaraboBridgeSlicer:
             except KeyError:
                 logging.warning("Missing entry '{}' in the stream".format(attributo))
 
-        result: List[KaraboAction] = []
-
         # run index
-        self._current_run = train_content["index"]
+        self._current_run = train_content["number"]
 
         assert self._current_run is not None
 
         # run is running
-        print(train_content["trains_in_run"])
         if train_content["trains_in_run"] == 0:
-
-            print("Running!")
 
             # starting a new run...
             if (
                 train_content["train_index_initial"] <= trainId + train_cache_size
                 and self._current_run not in self.run_history
             ):
-                print("here at", trainId)
                 self.run_history[self._current_run] = {
                     **train_content,
                     **{"status": "running",},
@@ -619,7 +613,6 @@ class KaraboBridgeSlicer:
                 return []
 
             # cache the data
-            print("cacccccccche!")
             self.cache_train(data, metadata)
 
             # update the average and send results to AMARCORD
@@ -632,7 +625,7 @@ class KaraboBridgeSlicer:
         # run is over or in progress when we start
         else:
             # run is in progress when we start
-            if train_content["index"] not in self.run_history:
+            if train_content["number"] not in self.run_history:
 
                 if self.karabo_bridge_content is None:
                     logging.info("Waiting for a new run...")
@@ -644,7 +637,7 @@ class KaraboBridgeSlicer:
                 return []
 
             # run is over
-            if self.run_history[train_content["index"]]["status"] != "closed":
+            if self.run_history[self._current_run]["status"] != "closed":
                 self.run_history[self._current_run]["trains_in_run"] = train_content[
                     "trains_in_run"
                 ]
@@ -657,11 +650,6 @@ class KaraboBridgeSlicer:
                 )
 
                 # update the average one more time and send results to AMARCORD
-                print(
-                    "qui",
-                    self._cache["SPB_XTD9_XGM/XGM/DOOCS:output"]["data.intensitySa1TD"],
-                    len(self._cache),
-                )
                 self._compute_statistics()
 
                 # reset the cache
