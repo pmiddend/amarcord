@@ -210,7 +210,7 @@ def parse_natural_delta(s: str) -> Union[None, str, datetime.timedelta]:
 
 
 def find_by(xs: List[T], by: Callable[[T], bool]) -> Optional[T]:
-    return next((x for x in xs if by(x)), default=None)
+    return next((x for x in xs if by(x)), None)
 
 
 def contains(xs: List[T], by: Callable[[T], bool]) -> bool:
