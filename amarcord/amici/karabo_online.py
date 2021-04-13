@@ -19,7 +19,7 @@ import yaml
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
+    level=logging.DEBUG,
 )
 
 
@@ -82,17 +82,25 @@ class KaraboBridgeSlicer:
     ) -> None:
 
         # build the attributi dictionary
+        self.karabo_bridge_content: Optional[Dict[str, Any]] = None
+        self._ignore_entry = ignore_entry
+
         self._attributi: KaraboAttributi
         self._attributi, self.attributi = self._parse_configuration(
             attributi_definition
         )
 
-        self._cache, self.statistics = self._initialize_cache()
-        self._ignore_entry = ignore_entry
+        # populate the cache
+        self._cache: int = 0
+        self._cached_events: Dict[str, Dict[str, List]] = {}
+        self.statistics: Dict[str, Dict[str, Any]] = {}
 
+        self._initialize_cache()
+
+        #
         self._train_history: List[int] = []
         self._current_run: Optional[int] = None
-        self.karabo_bridge_content: Optional[Dict[str, Any]] = None
+
         self.run_history: Dict[int, Dict[str, Any]] = {}
 
         # sanity check
@@ -255,21 +263,16 @@ class KaraboBridgeSlicer:
         self,
     ) -> Tuple[Dict[str, Dict[str, List]], Dict[str, Dict[str, Any]]]:
         """Initialize arrays holding data
-
-        Returns:
-            Tuple[Dict[str, Dict[str, List]], Dict[str, Dict[str, Any]]]: The cache
         """
-        cache: Dict[str, Any]
-        statistics: Dict[str, Any]
-        cache, statistics = {}, {"arithmetic_mean": {}, "standard_deviation": {}}
+        self._cached_events = 0
+        self._cache = {}
+        self.statistics = {"arithmetic_mean": {}, "standard_deviation": {}}
 
         for source, source_content in self.attributi.items():
-            cache[source] = {li: [] for li in source_content}
+            self._cache[source] = {li: [] for li in source_content}
 
-            for ki in statistics:
-                statistics[ki][source] = {li: None for li in source_content}
-
-        return cache, statistics
+            for ki in self.statistics:
+                self.statistics[ki][source] = {li: None for li in source_content}
 
     # pylint: disable=no-self-use
     def _stream_content(
@@ -592,7 +595,8 @@ class KaraboBridgeSlicer:
                     )
                 ]
 
-            if len(self._cache) % averaging_interval != 0:
+            if len(self._cache) % averaging_interval != 0 or len(self._cache) < 1:
+                print(len(self._cache))
                 return []
 
             # update the average and send results to AMARCORD
