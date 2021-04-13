@@ -171,7 +171,7 @@ if __name__ == "__main__":
                 "runDetails.length.value"
             ] = position_size2
 
-        karabo_data.run_definer(data, metadata)
+        karabo_data.run_definer(data, metadata, averaging_interval=2)
         # print("{}: {}".format(trainId, type(karabo_data.run_definer(data, metadata))))
 
 # remove one device
