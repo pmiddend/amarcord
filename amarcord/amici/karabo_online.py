@@ -19,7 +19,7 @@ import yaml
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.DEBUG,
+    level=logging.INFO,
 )
 
 
@@ -91,8 +91,8 @@ class KaraboBridgeSlicer:
         )
 
         # populate the cache
-        self._cache: int = 0
-        self._cached_events: Dict[str, Dict[str, List]] = {}
+        self._cached_events: int = 0
+        self._cache: Dict[str, Dict[str, List]] = {}
         self.statistics: Dict[str, Dict[str, Any]] = {}
 
         self._initialize_cache()
@@ -266,9 +266,7 @@ class KaraboBridgeSlicer:
 
         return entry, karabo_expected_entry
 
-    def _initialize_cache(
-        self,
-    ) -> Tuple[Dict[str, Dict[str, List]], Dict[str, Dict[str, Any]]]:
+    def _initialize_cache(self,) -> None:
         """Initialize arrays holding data
         """
         self._cached_events = 0
@@ -646,7 +644,7 @@ class KaraboBridgeSlicer:
                 self.run_history[self._current_run]["status"] = "closed"
 
                 logging.info(
-                    "Run {index} completed with {trains_in_run} trains".format(
+                    "Run {number} completed with {trains_in_run} trains".format(
                         **train_content
                     )
                 )
