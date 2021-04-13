@@ -201,16 +201,10 @@ class KaraboBridgeSlicer:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[str, Dict[str, Any]] = {}
 
-        for (
-            gi,
-            gi_content,
-        ) in configuration.items():
+        for (gi, gi_content,) in configuration.items():
             source = None
 
-            for (
-                ai,
-                ai_content,
-            ) in gi_content.items():
+            for (ai, ai_content,) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -357,10 +351,7 @@ class KaraboBridgeSlicer:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(
-                                            source,
-                                            key,
-                                        )
+                                        "  {}//{}: not requested".format(source, key,)
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -478,7 +469,11 @@ class KaraboBridgeSlicer:
 
                     logging.debug(
                         "{} on {}//{}:\n  initial dataset: {}\n  reduced value: {}".format(
-                            source, key, self._cache[source][key], reduced_value
+                            self.attributi[source][key]["action"],
+                            source,
+                            key,
+                            self._cache[source][key],
+                            reduced_value,
                         )
                     )
 
@@ -574,9 +569,7 @@ class KaraboBridgeSlicer:
             if train_content["train_index_initial"] <= trainId + train_cache_size:
                 self.run_history[self._current_run] = {
                     **train_content,
-                    **{
-                        "status": "running",
-                    },
+                    **{"status": "running",},
                 }
 
                 result.append(
@@ -612,9 +605,7 @@ class KaraboBridgeSlicer:
                 if not train_content["trains_in_run"]:
                     self.run_history[self._current_run] = {
                         **train_content,
-                        **{
-                            "status": "running",
-                        },
+                        **{"status": "running",},
                     }
 
                     result.append(
