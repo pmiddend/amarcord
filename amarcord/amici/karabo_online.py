@@ -73,7 +73,6 @@ KaraboAction = Union[KaraboAttributiUpdate, KaraboRunEnd, KaraboRunStartOrUpdate
 class KaraboBridge:
     def __init__(
         self,
-        client_endpoint: str,
         attributi_definition: Dict[str, Any],
         ignore_entry: Dict[str, List[str]],
         **kwargs: Dict[str, Any]
@@ -88,16 +87,10 @@ class KaraboBridge:
         self._cache, self.statistics = self._initialize_cache()
         self._ignore_entry = ignore_entry
 
-        # instantiate the Karabo bridge client
-        self.client_endpoint = client_endpoint
-        self._client = karabo_bridge.Client(self.client_endpoint)
-
         self._train_history = []
         self._current_run = None
         self.karabo_bridge_content = None
         self.run_history = {}
-
-        logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
 
         # sanity check
         self._sanity_get_all_trains = 0
@@ -188,10 +181,16 @@ class KaraboBridge:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[List[str]] = {}
 
-        for (gi, gi_content,) in configuration.items():
+        for (
+            gi,
+            gi_content,
+        ) in configuration.items():
             source = None
 
-            for (ai, ai_content,) in gi_content.items():
+            for (
+                ai,
+                ai_content,
+            ) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -330,7 +329,10 @@ class KaraboBridge:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(source, key,)
+                                        "  {}//{}: not requested".format(
+                                            source,
+                                            key,
+                                        )
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -356,15 +358,6 @@ class KaraboBridge:
             raise ValueError("Karabo devices desynchronized")
 
         return tuple(trainId)[0]
-
-    def get_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Get the next train from the Karabo bridge
-
-        Returns:
-            Tuple[Dict[str, Any], Dict[str, Any]]: Tuple[Dict[str, Any], Dict[str, Any]]: data, metadata
-        """
-
-        return self._client.next()
 
     def cache_train(self, data: Dict[str, Any], metadata: Dict[str, Any]) -> None:
         """Cache a given train from the Karabo bridge
@@ -654,9 +647,15 @@ if __name__ == "__main__":
 
     config = load_configuration("./config.yml")
 
+    # instantiate the Karabo bridge client
+    client_endpoint = config["Karabo_bridge"]["client_endpoint"]
+    client = karabo_bridge.Client(client_endpoint)
+
+    logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
+
     karabo_data = KaraboBridge(**config["Karabo_bridge"])
 
     while True:
-        data, metadata = karabo_data.get_next_train()
+        data, metadata = client.next()
 
         karabo_data.run_definer(data, metadata)
