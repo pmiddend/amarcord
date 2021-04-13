@@ -32,7 +32,7 @@ Karabo_bridge:
 
       number:
         description: Run number
-        key: runDetails.runNumber.number
+        key: runNumber.value
         type: int
 
       timestamp_UTC_initial:
