@@ -141,13 +141,15 @@ class KaraboBridgeSlicer:
             source (str): EuXFEL source
             key (str): Value to extract
             description (str, optional): `attributo` description. Defaults to None.
+            type (str, optional): The AMARCORD data type. Defaults to "decimal".
             store (bool, optional): Whether to store the value. Defaults to True.
             action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to "compute_arithmetic_mean".
             unit (str, optional): Unit of measurement. Defaults to None.
             filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
 
         Raises:
-            ValueError: If action is different from "compute_statistics", "check_if_constant" or "store_last"
+            ValueError: If type is not supported
+            ValueError: If action is not supported
 
         Returns:
             (Dict[str, Any]): The `attributo`
@@ -170,7 +172,9 @@ class KaraboBridgeSlicer:
         ]
         if action not in action_choice:
             raise ValueError(
-                "Action must be either '{}'...".format("' or '".join(action_choice))
+                "Action must be either '{}', is {action}".format(
+                    "' or '".join(action_choice)
+                )
             )
 
         return attributo
@@ -192,16 +196,10 @@ class KaraboBridgeSlicer:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[str, Dict[str, Any]] = {}
 
-        for (
-            gi,
-            gi_content,
-        ) in configuration.items():
+        for (gi, gi_content,) in configuration.items():
             source = None
 
-            for (
-                ai,
-                ai_content,
-            ) in gi_content.items():
+            for (ai, ai_content,) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -340,10 +338,7 @@ class KaraboBridgeSlicer:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(
-                                            source,
-                                            key,
-                                        )
+                                        "  {}//{}: not requested".format(source, key,)
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
