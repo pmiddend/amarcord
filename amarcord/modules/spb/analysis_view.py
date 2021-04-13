@@ -230,7 +230,7 @@ class AnalysisView(QWidget):
                 DBLinkedIndexingResult,
             ]
         ] = []
-        self._refresh_tree()
+        # self._refresh_tree()
 
         root_splitter.addWidget(self._tree)
         self._tree.currentItemChanged.connect(self._current_item_changed)
