@@ -601,6 +601,9 @@ class KaraboBridgeSlicer:
                 print(len(self._cache))
                 return []
 
+            # cache the data
+            self.cache_train(data, metadata)
+
             # update the average and send results to AMARCORD
             self._compute_statistics()
             return [
