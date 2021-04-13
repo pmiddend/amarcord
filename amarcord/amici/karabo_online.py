@@ -31,10 +31,10 @@ class Statistics:
     def call(method, data, **kwargs):
 
         if method in ["arithmetic_mean", "compute_arithmetic_mean"]:
-            Statistics.arithmetic_mean(data, **kwargs)
+            return Statistics.arithmetic_mean(data, **kwargs)
 
         elif method in ["standard_deviation", "compute_standard_deviation"]:
-            Statistics.standard_deviation(data, **kwargs)
+            return Statistics.standard_deviation(data, **kwargs)
 
         else:
             raise KeyError("Method {} not implemented".format(method))
