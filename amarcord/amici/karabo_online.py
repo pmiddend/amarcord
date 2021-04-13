@@ -19,7 +19,7 @@ import yaml
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
+    level=logging.DEBUG,
 )
 
 
@@ -421,7 +421,6 @@ class KaraboBridgeSlicer:
                         if self.attributi[source][key]["action"] == "store_last":
                             self._cache[source][key] = value
                         else:
-                            # print("ssssssssss", source, key)
                             self._cache[source][key].append(value)
 
         self._cached_events += 1
@@ -499,17 +498,35 @@ class KaraboBridgeSlicer:
 
                 # check if values are constant
                 elif self.attributi[source][key]["action"] == "check_if_constant":
-                    if np.unique(cached_data, axis=0, return_index=True)[1].size != 1:
+                    unique_value, unique_index = np.unique(
+                        cached_data,
+                        axis=self.attributi[source][key]["action_axis"],
+                        return_index=True,
+                    )
+
+                    # np.unique([[], []], return_index=True)[1].size -> unique_index.size > 1
+                    if unique_index.size > 1:
                         logging.warning(
                             "{}//{}: not constant over run {}".format(
                                 source, key, self._current_run
                             )
                         )
 
-                    print(
-                        "------------", source, key, cached_data[-1],
+                    # the if thing handles empty lists
+                    reduced_value = (
+                        unique_value[0] if unique_value.size == 1 else unique_value
                     )
-                    self.attributi[source][key]["value"] = cached_data[-1]
+
+                    self.attributi[source][key]["value"] = reduced_value
+
+                    logging.debug(
+                        "{} on {}//{}: reduced value: {}".format(
+                            self.attributi[source][key]["action"],
+                            source,
+                            key,
+                            reduced_value,
+                        )
+                    )
 
                 else:
                     pass
@@ -546,7 +563,7 @@ class KaraboBridgeSlicer:
         data: Dict[str, Any],
         metadata: Dict[str, Any],
         train_cache_size: int = 5,
-        averaging_interval: int = 1,
+        averaging_interval: int = 50,
     ) -> List[KaraboAction]:
         """Defines a run
 
@@ -554,7 +571,7 @@ class KaraboBridgeSlicer:
             data (Dict[str, Any]): Data from the Karabo bridge
             metadata (Dict[str, Any]): Data from the Karabo bridge
             train_cache_size (int, optional): In case trains are missed, this must be bigger than 0. Defaults to 5.
-            averaging_interval (int, optional): Average updating frequency. Defaults to 10.
+            averaging_interval (int, optional): Average updating frequency. Defaults to 50.
         """
         trainId = self._compare_metadata_trains(metadata)
 
@@ -592,12 +609,8 @@ class KaraboBridgeSlicer:
         if train_content["trains_in_run"] == 0:
 
             # cache the data
-            print(
-                self._cached_events, trainId, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-            )
             self.cache_train(data, metadata)
 
-            # print("runnnnnnnnnnnnnning")
             # starting a new run...
             if (
                 train_content["train_index_initial"] <= trainId + train_cache_size
@@ -623,11 +636,6 @@ class KaraboBridgeSlicer:
                     )
                 ]
 
-            # print(
-            #    trainId, "sssssssssaaaaaa",
-            # )
-            # print(train_content)
-            # print(self.run_history)
             if self._cached_events % averaging_interval != 0:
                 return []
 
@@ -672,7 +680,6 @@ class KaraboBridgeSlicer:
                 self._initialize_cache()
 
                 print(train_content)
-                print(self.run_history)
 
                 return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
 
