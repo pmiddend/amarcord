@@ -30,10 +30,10 @@ class Statistics:
     @staticmethod
     def call(method, data, **kwargs):
 
-        if method == "arithmetic_mean":
+        if method in ["arithmetic_mean", "compute_arithmetic_mean"]:
             Statistics.arithmetic_mean(data, **kwargs)
 
-        elif method == "standard_deviation":
+        elif method in ["standard_deviation", "compute_standard_deviation"]:
             Statistics.standard_deviation(data, **kwargs)
 
         else:
@@ -203,16 +203,10 @@ class KaraboBridgeSlicer:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[str, Dict[str, Any]] = {}
 
-        for (
-            gi,
-            gi_content,
-        ) in configuration.items():
+        for (gi, gi_content,) in configuration.items():
             source = None
 
-            for (
-                ai,
-                ai_content,
-            ) in gi_content.items():
+            for (ai, ai_content,) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -279,9 +273,7 @@ class KaraboBridgeSlicer:
 
     # pylint: disable=no-self-use
     def _stream_content(
-        self,
-        data: Dict[str, Any],
-        metadata: Dict[str, Any],
+        self, data: Dict[str, Any], metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Navigate the stream from the Karabo bridge
 
@@ -363,10 +355,7 @@ class KaraboBridgeSlicer:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(
-                                            source,
-                                            key,
-                                        )
+                                        "  {}//{}: not requested".format(source, key,)
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -587,9 +576,7 @@ class KaraboBridgeSlicer:
             ):
                 self.run_history[self._current_run] = {
                     **train_content,
-                    **{
-                        "status": "running",
-                    },
+                    **{"status": "running",},
                 }
 
                 # are all the runs closed?
