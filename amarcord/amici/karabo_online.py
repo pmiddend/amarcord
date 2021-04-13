@@ -659,4 +659,4 @@ if __name__ == "__main__":
     while True:
         data, metadata = karabo_data.get_next_train()
 
-        karabo_data.run_definer()
+        karabo_data.run_definer(data, metadata)
