@@ -70,7 +70,7 @@ class KaraboRunStartOrUpdate:
 KaraboAction = Union[KaraboAttributiUpdate, KaraboRunEnd, KaraboRunStartOrUpdate]
 
 
-class KaraboBridge:
+class KaraboBridgeSlicer:
     def __init__(
         self,
         attributi_definition: Dict[str, Any],
@@ -181,16 +181,10 @@ class KaraboBridge:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[List[str]] = {}
 
-        for (
-            gi,
-            gi_content,
-        ) in configuration.items():
+        for (gi, gi_content,) in configuration.items():
             source = None
 
-            for (
-                ai,
-                ai_content,
-            ) in gi_content.items():
+            for (ai, ai_content,) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -329,10 +323,7 @@ class KaraboBridge:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(
-                                            source,
-                                            key,
-                                        )
+                                        "  {}//{}: not requested".format(source, key,)
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -530,10 +521,11 @@ class KaraboBridge:
             except KeyError:
                 logging.warning("Missing entry '{}' in the stream".format(attributo))
 
+        result: List[KaraboAction] = []
+
         # run index
         self._current_run = train_content["index"]
 
-        result: List[KaraboAction] = []
         # run is running
         if not train_content["trains_in_run"]:
 
@@ -653,7 +645,7 @@ if __name__ == "__main__":
 
     logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
 
-    karabo_data = KaraboBridge(**config["Karabo_bridge"])
+    karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
 
     while True:
         data, metadata = client.next()
