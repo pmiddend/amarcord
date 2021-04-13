@@ -570,8 +570,6 @@ class KaraboBridgeSlicer:
             except KeyError:
                 logging.warning("Missing entry '{}' in the stream".format(attributo))
 
-        result: List[KaraboAction] = []
-
         # run index
         self._current_run = train_content["index"]
 
@@ -617,39 +615,39 @@ class KaraboBridgeSlicer:
             ]
 
         # run is over or in progress when we start
-        else:
-            # run is in progress when we start
-            if train_content["index"] not in self.run_history:
 
-                if self.karabo_bridge_content is None:
-                    logging.info("Waiting for a new run...")
+        # first: run is in progress when we start
+        if train_content["index"] not in self.run_history:
 
-                    self.karabo_bridge_content = self._stream_content(data, metadata)
+            if self.karabo_bridge_content is None:
+                logging.info("Waiting for a new run...")
 
-                    self._compare_attributi_and_karabo_data()
+                self.karabo_bridge_content = self._stream_content(data, metadata)
 
-                return []
+                self._compare_attributi_and_karabo_data()
 
-            # run is over
-            if self.run_history[train_content["index"]]["status"] != "closed":
-                self.run_history[self._current_run]["trains_in_run"] = train_content[
-                    "trains_in_run"
-                ]
-                self.run_history[self._current_run]["status"] = "closed"
+            return []
 
-                logging.info(
-                    "Run {index} completed with {trains_in_run} trains".format(
-                        **train_content
-                    )
+        # run is over
+        if self.run_history[train_content["index"]]["status"] != "closed":
+            self.run_history[self._current_run]["trains_in_run"] = train_content[
+                "trains_in_run"
+            ]
+            self.run_history[self._current_run]["status"] = "closed"
+
+            logging.info(
+                "Run {index} completed with {trains_in_run} trains".format(
+                    **train_content
                 )
+            )
 
-                # update the average one more time and send results to AMARCORD
-                self._compute_statistics()
+            # update the average one more time and send results to AMARCORD
+            self._compute_statistics()
 
-                # reset the cache
-                self._initialize_cache()
+            # reset the cache
+            self._initialize_cache()
 
-                return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
+            return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
         return []
 
 
