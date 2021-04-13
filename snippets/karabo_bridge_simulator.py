@@ -15,7 +15,7 @@ parser.add_argument(
     "datasets",
     metavar="PICKLE",
     nargs="+",
-    help="List of pickle files to be loaded (minimum 5)",
+    help="List of pickle files to be loaded (minimum 10)",
 )
 parser.add_argument(
     "--sending-interval",
@@ -111,6 +111,7 @@ if __name__ == "__main__":
 
     #
     position = 3
+    position_size = 2
     trainId_at_position = trainId_list[position]
 
     print("RunId is changing...")
@@ -126,9 +127,21 @@ if __name__ == "__main__":
         if trainId == trainId_list[position]:
             runId = data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runId.value"]
 
-        elif trainId == trainId_list[position + 1]:
+        # new run starts
+        elif (
+            trainId == trainId_list[position + 1]
+            and trainId < trainId_list[position + 1] + position_size
+        ):
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runId.value"] = runId + 1
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.beginAt.value"] = trainId
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.length.value"] = 0
+
+        # new run is over
+        elif trainId > trainId_list[position + 1] + position_size:
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runId.value"] = runId + 1
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.beginAt.value"] = trainId
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
+                "runDetails.length.value"
+            ] = position_size
 
         print("{}: {}".format(trainId, karabo_data.run_definer(data, metadata)))
