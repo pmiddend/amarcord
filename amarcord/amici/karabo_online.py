@@ -578,22 +578,19 @@ class KaraboBridgeSlicer:
         assert self._current_run is not None
 
         # run is running
-        if not train_content["trains_in_run"]:
+        if train_content["trains_in_run"] == 0:
 
             # starting a new run...
-            if train_content["train_index_initial"] <= trainId + train_cache_size:
+            if (
+                train_content["train_index_initial"] <= trainId + train_cache_size
+                and self._current_run not in self.run_history
+            ):
                 self.run_history[self._current_run] = {
                     **train_content,
                     **{
                         "status": "running",
                     },
                 }
-
-                result.append(
-                    KaraboRunStartOrUpdate(
-                        self._current_run, copy.deepcopy(self._attributi)
-                    )
-                )
 
                 # are all the runs closed?
                 self._sanity_check_runs_are_closed()
@@ -604,48 +601,37 @@ class KaraboBridgeSlicer:
                     )
                 )
 
-            # update the average and send results to AMARCORD
-            if (not self._cache) and (not len(self._cache) % averaging_interval):
-                self._compute_statistics()
                 return [
-                    KaraboAttributiUpdate(
+                    KaraboRunStartOrUpdate(
                         self._current_run, copy.deepcopy(self._attributi)
                     )
                 ]
+
+            if len(self._cache) % averaging_interval != 0:
+                return []
+
+            # update the average and send results to AMARCORD
+            self._compute_statistics()
+            return [
+                KaraboAttributiUpdate(self._current_run, copy.deepcopy(self._attributi))
+            ]
 
         # run is over or in progress when we start
         else:
             # run is in progress when we start
             if train_content["index"] not in self.run_history:
 
-                # we are really in the middle of the run if "trains_in_run" == 0
-                if not train_content["trains_in_run"]:
-                    self.run_history[self._current_run] = {
-                        **train_content,
-                        **{
-                            "status": "running",
-                        },
-                    }
+                if self.karabo_bridge_content is None:
+                    logging.info("Waiting for a new run...")
 
-                    result.append(
-                        KaraboRunStartOrUpdate(
-                            self._current_run, train_content["index"]
-                        )
-                    )
-                # the runId value is still here even if the run is over
-                # we don't want to record anything, we check the stream and exit here
-                else:
-                    if self.karabo_bridge_content is None:
-                        self.karabo_bridge_content = self._stream_content(
-                            data, metadata
-                        )
+                    self.karabo_bridge_content = self._stream_content(data, metadata)
 
-                        self._compare_attributi_and_karabo_data()
+                    self._compare_attributi_and_karabo_data()
 
-                    return result
+                return []
 
             # run is over
-            if self.run_history[train_content["index"]]["status"] != "finished":
+            if self.run_history[train_content["index"]]["status"] != "closed":
                 self.run_history[self._current_run]["trains_in_run"] = train_content[
                     "trains_in_run"
                 ]
@@ -663,10 +649,7 @@ class KaraboBridgeSlicer:
                 # reset the cache
                 self._initialize_cache()
 
-                result.append(
-                    KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))
-                )
-                return result
+                return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
         return []
 
 
