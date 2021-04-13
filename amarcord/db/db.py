@@ -571,7 +571,7 @@ class DB:
         associated_table: AssociatedTable,
         prop_type: AttributoType,
     ) -> None:
-        if not re.fullmatch(ATTRIBUTO_NAME_REGEX, name):
+        if not re.fullmatch(ATTRIBUTO_NAME_REGEX, name, re.IGNORECASE):
             raise ValueError(
                 f'attributo name "{name}" contains invalid characters (maybe a number at the beginning '
                 f"or a dash?)"
