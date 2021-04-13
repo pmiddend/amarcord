@@ -74,6 +74,7 @@ Karabo_bridge:
     detector.XGM_XTD9:
       comment: X-ray intensity monitor
       action: compute_arithmetic_mean
+      action_axis:
 
       SASE1_pulse_energy:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
@@ -412,6 +413,7 @@ Karabo_bridge:
     device.sample_delivery_rate:
       source: SPB_BIO_SYS/PUMP/HPLC
       action: compute_arithmetic_mean
+      action_axis:
 
       pump_a_flow_value:
         key: a.flow.value
