@@ -110,8 +110,8 @@ if __name__ == "__main__":
         print("{}: {}".format(trainId, karabo_data.run_definer(data, metadata)))
 
     #
-    position = 3
-    position_size = 2
+    position = 2  # or 0
+    position_size = 5
     trainId_at_position = trainId_list[position]
 
     print("RunId is changing...")
@@ -124,24 +124,32 @@ if __name__ == "__main__":
             bridge_content[trainId]["metadata"],
         )
 
-        if trainId == trainId_list[position]:
-            runId = data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runId.value"]
+        if trainId == trainId_list[0]:
+            runId = data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runNumber.value"]
 
         # new run starts
-        elif (
-            trainId == trainId_list[position + 1]
-            and trainId < trainId_list[position + 1] + position_size
+        if (
+            trainId >= trainId_list[position]
+            and trainId < trainId_list[position] + position_size
         ):
-            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runId.value"] = runId + 1
-            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.beginAt.value"] = trainId
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runNumber.value"] = (
+                runId + 1
+            )
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
+                "runDetails.beginAt.value"
+            ] = trainId_list[position + 1]
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.length.value"] = 0
 
         # new run is over
-        elif trainId > trainId_list[position + 1] + position_size:
-            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runId.value"] = runId + 1
-            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.beginAt.value"] = trainId
+        else:
+
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
                 "runDetails.length.value"
             ] = position_size
 
-        print("{}: {}".format(trainId, karabo_data.run_definer(data, metadata)))
+        print("{}: {}".format(trainId, type(karabo_data.run_definer(data, metadata))))
+
+# remove one device
+# compute and test aveage
+# avoid to close a run
+# run will never start (exceed the train_cache)
