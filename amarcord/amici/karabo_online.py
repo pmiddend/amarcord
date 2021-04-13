@@ -145,6 +145,7 @@ class KaraboBridgeSlicer:
         type: str = "decimal",
         store: bool = True,
         action: str = None,
+        action_axis: Dict[str, Any] = None,
         unit: str = None,
         filling_value: Any = None,
     ) -> Dict[str, Any]:
@@ -158,6 +159,7 @@ class KaraboBridgeSlicer:
             type (str, optional): The AMARCORD data type. Defaults to "decimal".
             store (bool, optional): Whether to store the value. Defaults to True.
             action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to None.
+            action_axis (Dict[str, Any], optional): Any kwarg for the action. Defaults to {}
             unit (str, optional): Unit of measurement. Defaults to None.
             filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
 
@@ -213,8 +215,7 @@ class KaraboBridgeSlicer:
         karabo_expected_entry: Dict[str, Dict[str, Any]] = {}
 
         for (gi, gi_content,) in configuration.items():
-            source = None
-            action = None
+            source, action, action_axis = None, None, None
 
             for (ai, ai_content,) in gi_content.items():
 
@@ -223,6 +224,8 @@ class KaraboBridgeSlicer:
                     source = ai_content
                 elif ai == "action":
                     action = ai_content
+                elif ai == "action_axis":
+                    action_axis = ai_content
 
                 if isinstance(ai_content, dict):
                     attributo = {}
@@ -232,9 +235,10 @@ class KaraboBridgeSlicer:
 
                     if source is not None:
                         attributo["source"] = source
-
                     if action is not None:
                         attributo["action"] = action
+                    if action_axis is not None:
+                        attributo["action_axis"] = action_axis
 
                     # fill the attributo
                     for ki, vi in ai_content.items():
@@ -417,6 +421,7 @@ class KaraboBridgeSlicer:
                         if self.attributi[source][key]["action"] == "store_last":
                             self._cache[source][key] = value
                         else:
+                            # print("ssssssssss", source, key)
                             self._cache[source][key].append(value)
 
         self._cached_events += 1
@@ -477,31 +482,33 @@ class KaraboBridgeSlicer:
                     == "compute_standard_deviation"
                 ):
                     reduced_value = Statistics.call(
-                        self.attributi[source][key]["action"], cached_data
+                        self.attributi[source][key]["action"],
+                        cached_data,
+                        axis=self.attributi[source][key]["action_axis"],
                     )
                     self.attributi[source][key]["value"] = reduced_value
 
                     logging.debug(
-                        "{} on {}//{}:\n  initial dataset: {}\n  reduced value: {}".format(
+                        "{} on {}//{}: reduced value: {}".format(
                             self.attributi[source][key]["action"],
                             source,
                             key,
-                            self._cache[source][key],
                             reduced_value,
                         )
                     )
 
                 # check if values are constant
                 elif self.attributi[source][key]["action"] == "check_if_constant":
-                    # print(source, key, cached_data)
-                    # print(np.unique(cached_data), np.unique(cached_data).size)
-                    if np.unique(cached_data).size != 1:
+                    if np.unique(cached_data, axis=0, return_index=True)[1].size != 1:
                         logging.warning(
                             "{}//{}: not constant over run {}".format(
                                 source, key, self._current_run
                             )
                         )
 
+                    print(
+                        "------------", source, key, cached_data[-1],
+                    )
                     self.attributi[source][key]["value"] = cached_data[-1]
 
                 else:
@@ -539,7 +546,7 @@ class KaraboBridgeSlicer:
         data: Dict[str, Any],
         metadata: Dict[str, Any],
         train_cache_size: int = 5,
-        averaging_interval: int = 2,
+        averaging_interval: int = 1,
     ) -> List[KaraboAction]:
         """Defines a run
 
@@ -584,6 +591,13 @@ class KaraboBridgeSlicer:
         # run is running
         if train_content["trains_in_run"] == 0:
 
+            # cache the data
+            print(
+                self._cached_events, trainId, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            )
+            self.cache_train(data, metadata)
+
+            # print("runnnnnnnnnnnnnning")
             # starting a new run...
             if (
                 train_content["train_index_initial"] <= trainId + train_cache_size
@@ -609,11 +623,13 @@ class KaraboBridgeSlicer:
                     )
                 ]
 
+            # print(
+            #    trainId, "sssssssssaaaaaa",
+            # )
+            # print(train_content)
+            # print(self.run_history)
             if self._cached_events % averaging_interval != 0:
                 return []
-
-            # cache the data
-            self.cache_train(data, metadata)
 
             # update the average and send results to AMARCORD
             self._compute_statistics()
@@ -655,7 +671,11 @@ class KaraboBridgeSlicer:
                 # reset the cache
                 self._initialize_cache()
 
+                print(train_content)
+                print(self.run_history)
+
                 return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
+
         return []
 
 
