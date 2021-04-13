@@ -191,7 +191,7 @@ class KaraboBridgeSlicer:
         if action not in action_choice:
             raise ValueError(
                 "Action must be either '{}', is {}".format(
-                    "' or '".join(action_choice), action
+                    "' or '".join(str(s) for s in action_choice), action
                 )
             )
 
