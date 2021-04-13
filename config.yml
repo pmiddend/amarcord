@@ -54,6 +54,7 @@ Karabo_bridge:
       # data from the source
       # http://hdrmx.medsbio.org/manual/build/html/classes/base_classes/NXsource.html#nxsource
       source: SPB_RR_SYS/MDL/BUNCH_PATTERN
+      action: check_if_constant
 
       bunch_charge:
         # D. Should AMARCORD key == Karabo key? If not, where do we store it?
@@ -72,6 +73,7 @@ Karabo_bridge:
     # D. How to model detectors in the database?
     detector.XGM_XTD9:
       comment: X-ray intensity monitor
+      action: compute_arithmetic_mean
 
       SASE1_pulse_energy:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
@@ -127,85 +129,74 @@ Karabo_bridge:
 
     detector.AGIPD:
       comment: X-ray detector
+      action: check_if_constant
 
       dark_run_type:
         source: SPB_DA_USR/MDL/AMARCORD_INFO
         key: darkExperiment.value
-        action: check_if_constant
 
       dark_run_index:
         source: SPB_DA_USR/MDL/AMARCORD_INFO
         key: darkRunNumber.value
-        action: check_if_constant
 
       gain_setting:
         source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
         key: gainMode.value
         type: decimal
-        action: check_if_constant
 
       position_z:
         source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
         key: actualPosition.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       position_quadrant1_x:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q1.x.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       position_quadrant1_y:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q1.y.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       position_quadrant2_x:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q2.x.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       position_quadrant2_y:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q2.y.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       position_quadrant3_x:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q3.x.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       position_quadrant3_y:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q3.y.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       position_quadrant4_x:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q4.x.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       position_quadrant4_y:
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q4.y.value
         type: decimal
         unit: mm
-        action: check_if_constant
 
       # position_quadrant1_xy:
       #   build_attributo: (position_quadrant1_x, position_quadrant1_y)
@@ -420,6 +411,7 @@ Karabo_bridge:
 
     device.sample_delivery_rate:
       source: SPB_BIO_SYS/PUMP/HPLC
+      action: compute_arithmetic_mean
 
       pump_a_flow_value:
         key: a.flow.value
@@ -498,6 +490,8 @@ Karabo_bridge:
       - data.intensityTD
 
     SPB_DAQ_DATA/DM/RUN_CONTROL:
+      - runNumber.timestamp.tid
+      - runNumber.timestamp.timestamp
       - runDetails.runId.timestamp.tid
       - runDetails.runId.timestamp.timestamp
       - runDetails.beginAt.timestamp.tid
