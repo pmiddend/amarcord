@@ -63,8 +63,8 @@ Karabo_bridge:
         type: decimal
         unit: nC
 
-      bunch_pattern:
-        key: sase1.pulseIds.value
+      # bunch_pattern:
+      #   key: sase1.pulseIds.value
 
       number_of_bunches:
         key: sase1.nPulses.value
@@ -380,6 +380,7 @@ Karabo_bridge:
         key: valvesConfigTable.value[0].valveGroupName
       config0_valve_indices:
         key: valvesConfigTable.value[0].valveIds
+        action_axis: 0
       config0_positions:
         key: valvesConfigTable.value[0].nPositions
       config0_labels:
@@ -389,6 +390,7 @@ Karabo_bridge:
         key: valvesConfigTable.value[1].valveGroupName
       config1_valve_indices:
         key: valvesConfigTable.value[1].valveIds
+        action_axis: 0
       config1_positions:
         key: valvesConfigTable.value[1].nPositions
       config1_labels:
@@ -398,6 +400,7 @@ Karabo_bridge:
         key: valvesConfigTable.value[2].valveGroupName
       config2_valve_indices:
         key: valvesConfigTable.value[2].valveIds
+        action_axis: 0
       config2_positions:
         key: valvesConfigTable.value[2].nPositions
       config2_labels:
