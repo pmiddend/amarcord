@@ -1,11 +1,14 @@
 # type: ignore
 # pylint: skip-file
+import copy
 import logging
 import os
+from dataclasses import dataclass
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
+from typing import Union
 
 import karabo_bridge
 import numpy as np
@@ -43,6 +46,30 @@ class Statistics:
         return np.std(data, axis=axis, ddof=1)
 
 
+KaraboAttributi = Dict[str, List[Dict[str, Any]]]
+
+
+@dataclass(frozen=True)
+class KaraboAttributiUpdate:
+    run_id: int
+    attributi: KaraboAttributi
+
+
+@dataclass(frozen=True)
+class KaraboRunEnd:
+    run_id: int
+    attributi: KaraboAttributi
+
+
+@dataclass(frozen=True)
+class KaraboRunStartOrUpdate:
+    run_id: int
+    attributi: KaraboAttributi
+
+
+KaraboAction = Union[KaraboAttributiUpdate, KaraboRunEnd, KaraboRunStartOrUpdate]
+
+
 class KaraboBridge:
     def __init__(
         self,
@@ -53,18 +80,13 @@ class KaraboBridge:
     ) -> None:
 
         # build the attributi dictionary
+        self._attributi: KaraboAttributi
         self._attributi, self.attributi = self._parse_configuration(
             attributi_definition
         )
 
         self._cache, self.statistics = self._initialize_cache()
         self._ignore_entry = ignore_entry
-
-        # inform AMARCORD
-        # will the connection be configed here or in each call?
-        self._define_AMARCORD_attributi(
-            "how is the experiment table called?", self._attributi
-        )
 
         # instantiate the Karabo bridge client
         self.client_endpoint = client_endpoint
@@ -79,6 +101,9 @@ class KaraboBridge:
 
         # sanity check
         self._sanity_get_all_trains = 0
+
+    def get_attributi(self) -> Dict[str, List[Dict[str, Any]]]:
+        return self._attributi
 
     def __enter__(self):
         return self
@@ -163,10 +188,16 @@ class KaraboBridge:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[List[str]] = {}
 
-        for (gi, gi_content,) in configuration.items():
+        for (
+            gi,
+            gi_content,
+        ) in configuration.items():
             source = None
 
-            for (ai, ai_content,) in gi_content.items():
+            for (
+                ai,
+                ai_content,
+            ) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -305,7 +336,10 @@ class KaraboBridge:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(source, key,)
+                                        "  {}//{}: not requested".format(
+                                            source,
+                                            key,
+                                        )
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -386,8 +420,7 @@ class KaraboBridge:
         return data, metadata
 
     def _compute_statistics(self) -> None:
-        """Compute statistics
-        """
+        """Compute statistics"""
 
         def remove_filling_values(data, filling_value):
             container = []
@@ -447,8 +480,7 @@ class KaraboBridge:
                         )
 
     def _sanity_check_get_all_trains(self):
-        """Check if we get all trains
-        """
+        """Check if we get all trains"""
         for vi in range(self._sanity_get_all_trains + 1, len(self._train_history)):
             if self._train_history[vi] - self._train_history[vi - 1] > 1:
                 logging.warning(
@@ -458,8 +490,7 @@ class KaraboBridge:
                 self._sanity_get_all_trains = len(self._train_history) - 1
 
     def _sanity_check_runs_are_closed(self):
-        """Check if a run that should be closed is still running
-        """
+        """Check if a run that should be closed is still running"""
         running = []
 
         for ki, vi in self.run_history.items():
@@ -475,7 +506,9 @@ class KaraboBridge:
 
             self.run_history[running[0]]["status"] = "closed"
 
-    def run_definer(self, train_cache_size: int = 5, averaging_interval: int = 10):
+    def run_definer(
+        self, train_cache_size: int = 5, averaging_interval: int = 10
+    ) -> List[KaraboAction]:
         """Defines a run
 
         Args:
@@ -513,6 +546,7 @@ class KaraboBridge:
         # run index
         self._current_run = train_content["index"]
 
+        result: List[KaraboAction] = []
         # run is running
         if not train_content["trains_in_run"]:
 
@@ -521,6 +555,12 @@ class KaraboBridge:
                 self.run_history[self._current_run] = {**train_content} + {
                     "status": "running",
                 }
+
+                result.append(
+                    KaraboRunStartOrUpdate(
+                        self._current_run, copy.deepcopy(self._attributi)
+                    )
+                )
 
                 # are all the runs closed?
                 self._sanity_check_runs_are_closed()
@@ -534,11 +574,14 @@ class KaraboBridge:
             # update the average and send results to AMARCORD
             if (not len(self._cache)) and (not len(self._cache) % averaging_interval):
                 self._compute_statistics()
-                self._update_AMARCORD_attributi(table="run table?")
+                return [
+                    KaraboAttributiUpdate(
+                        self._current_run, copy.deepcopy(self._attributi)
+                    )
+                ]
 
         # run is over or in progress when we start
         else:
-
             # run is in progress when we start
             if train_content["index"] not in self.run_history:
 
@@ -548,6 +591,11 @@ class KaraboBridge:
                         "status": "running",
                     }
 
+                    result.append(
+                        KaraboRunStartOrUpdate(
+                            self._current_run, train_content["index"]
+                        )
+                    )
                 # the runId value is still here even if the run is over
                 # we don't want to record anything, we check the stream and exit here
                 else:
@@ -558,7 +606,7 @@ class KaraboBridge:
 
                         self._compare_attributi_and_karabo_data()
 
-                    return
+                    return result
 
             # run is over
             if self.run_history[train_content["index"]]["status"] != "finished":
@@ -575,18 +623,15 @@ class KaraboBridge:
 
                 # update the average one more time and send results to AMARCORD
                 self._compute_statistics()
-                self._update_AMARCORD_attributi(table="run table?")
 
                 # reset the cache
                 self._initialize_cache()
 
-    def _define_AMARCORD_attributi(self, table, attributi) -> None:
-
-        pass
-
-    def _update_AMARCORD_attributi(self, table, attributi) -> None:
-
-        pass
+                result.append(
+                    KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))
+                )
+                return result
+        return []
 
 
 if __name__ == "__main__":
