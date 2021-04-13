@@ -188,16 +188,10 @@ class KaraboBridge:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[List[str]] = {}
 
-        for (
-            gi,
-            gi_content,
-        ) in configuration.items():
+        for (gi, gi_content,) in configuration.items():
             source = None
 
-            for (
-                ai,
-                ai_content,
-            ) in gi_content.items():
+            for (ai, ai_content,) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -336,10 +330,7 @@ class KaraboBridge:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(
-                                            source,
-                                            key,
-                                        )
+                                        "  {}//{}: not requested".format(source, key,)
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -507,17 +498,20 @@ class KaraboBridge:
             self.run_history[running[0]]["status"] = "closed"
 
     def run_definer(
-        self, train_cache_size: int = 5, averaging_interval: int = 10
+        self,
+        data: Dict[str, Any],
+        metadata: Dict[str, Any],
+        train_cache_size: int = 5,
+        averaging_interval: int = 10,
     ) -> List[KaraboAction]:
         """Defines a run
 
         Args:
+            data (Dict[str, Any]): Data from the Karabo bridge
+            metadata (Dict[str, Any]): Data from the Karabo bridge
             train_cache_size (int, optional): In case trains are missed, this must be bigger than 0. Defaults to 5.
             averaging_interval (int, optional): Average updating frequency. Defaults to 10.
         """
-
-        # get a train
-        data, metadata = self.get_next_train()
         trainId = self._compare_metadata_trains(metadata)
 
         self._train_history.append(trainId)
@@ -663,4 +657,6 @@ if __name__ == "__main__":
     karabo_data = KaraboBridge(**config["Karabo_bridge"])
 
     while True:
+        data, metadata = karabo_data.get_next_train()
+
         karabo_data.run_definer()
