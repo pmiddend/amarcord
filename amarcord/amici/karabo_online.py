@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name,logging-format-interpolation,consider-using-set-comprehension
 import copy
 import logging
 import os
@@ -73,12 +74,11 @@ KaraboAction = Union[KaraboAttributiUpdate, KaraboRunEnd, KaraboRunStartOrUpdate
 
 
 class KaraboBridgeSlicer:
-    # noinspection PyUnusedLocal
     def __init__(
         self,
         attributi_definition: Dict[str, Any],
         ignore_entry: Dict[str, List[str]],
-        **kwargs: Dict[str, Any],
+        **_kwargs: Dict[str, Any],
     ) -> None:
 
         # build the attributi dictionary
@@ -126,12 +126,14 @@ class KaraboBridgeSlicer:
                 return ai["source"], ai["key"]
         return None
 
+    # pylint: disable=unused-argument
     def _explicitize_attributo(
         self,
         identifier: str,
         source: str,
         key: str,
         description: str = None,
+        # pylint: disable=redefined-builtin
         type: str = "decimal",
         store: bool = True,
         action: str = "compute_arithmetic_mean",
@@ -201,10 +203,16 @@ class KaraboBridgeSlicer:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[str, Dict[str, Any]] = {}
 
-        for (gi, gi_content,) in configuration.items():
+        for (
+            gi,
+            gi_content,
+        ) in configuration.items():
             source = None
 
-            for (ai, ai_content,) in gi_content.items():
+            for (
+                ai,
+                ai_content,
+            ) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -230,6 +238,7 @@ class KaraboBridgeSlicer:
                         )
 
                     except TypeError:
+                        # pylint: disable=raise-missing-from
                         raise TypeError(
                             "Wrong attributo definition in {}//{}".format(gi, attributo)
                         )
@@ -268,8 +277,11 @@ class KaraboBridgeSlicer:
 
         return cache, statistics
 
+    # pylint: disable=no-self-use
     def _stream_content(
-        self, data: Dict[str, Any], metadata: Dict[str, Any]
+        self,
+        data: Dict[str, Any],
+        metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Navigate the stream from the Karabo bridge
 
@@ -351,7 +363,10 @@ class KaraboBridgeSlicer:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(source, key,)
+                                        "  {}//{}: not requested".format(
+                                            source,
+                                            key,
+                                        )
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -441,7 +456,7 @@ class KaraboBridgeSlicer:
 
             return container, removed
 
-        for source in self._cache.keys():
+        for source in self._cache:
             for key in self._cache[source].keys():
 
                 # remove filling values
@@ -479,7 +494,7 @@ class KaraboBridgeSlicer:
 
                 # check if values are constant
                 elif self.attributi[source][key]["action"] == "check_if_constant":
-                    if len(set(cached_data)):
+                    if set(cached_data):
                         logging.warning(
                             "{}//{}: not constant over run {}".format(
                                 source, key, self._current_run
@@ -569,7 +584,9 @@ class KaraboBridgeSlicer:
             if train_content["train_index_initial"] <= trainId + train_cache_size:
                 self.run_history[self._current_run] = {
                     **train_content,
-                    **{"status": "running",},
+                    **{
+                        "status": "running",
+                    },
                 }
 
                 result.append(
@@ -588,7 +605,7 @@ class KaraboBridgeSlicer:
                 )
 
             # update the average and send results to AMARCORD
-            if (not len(self._cache)) and (not len(self._cache) % averaging_interval):
+            if (not self._cache) and (not len(self._cache) % averaging_interval):
                 self._compute_statistics()
                 return [
                     KaraboAttributiUpdate(
@@ -605,7 +622,9 @@ class KaraboBridgeSlicer:
                 if not train_content["trains_in_run"]:
                     self.run_history[self._current_run] = {
                         **train_content,
-                        **{"status": "running",},
+                        **{
+                            "status": "running",
+                        },
                     }
 
                     result.append(
@@ -686,6 +705,7 @@ if __name__ == "__main__":
     karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
 
     while True:
+        # pylint: disable=not-callable
         data, metadata = client.next()
 
         karabo_data.run_definer(data, metadata)

@@ -61,7 +61,7 @@ confidence=
 # no Warning level messages displayed, use "--disable=all --enable=classes
 # --disable=W".
 # reinstate after refactoring: no-self-use,non-parent-init-called,super-init-not-called
-disable=invalid-name,missing-module-docstring,too-many-instance-attributes,too-many-branches,missing-class-docstring,missing-function-docstring,line-too-long,missing-final-newline,broad-except,too-many-arguments,bad-whitespace,bad-continuation,bare-except,too-few-public-methods,too-many-locals,too-many-nested-blocks,too-many-statements,too-many-public-methods,too-many-return-statements,blacklisted-name,fixme,duplicate-code,logging-fstring-interpolation,too-many-lines,too-many-boolean-expressions
+disable=invalid-name,missing-module-docstring,too-many-instance-attributes,too-many-branches,missing-class-docstring,missing-function-docstring,line-too-long,missing-final-newline,broad-except,too-many-arguments,bad-whitespace,bad-continuation,bare-except,too-few-public-methods,too-many-locals,too-many-nested-blocks,too-many-statements,too-many-public-methods,too-many-return-statements,blacklisted-name,fixme,duplicate-code,logging-fstring-interpolation,too-many-lines,too-many-boolean-expressions,logging-format-interpolation
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
