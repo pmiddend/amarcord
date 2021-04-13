@@ -1,5 +1,3 @@
-# type: ignore
-# pylint: skip-file
 import copy
 import logging
 import os
@@ -8,8 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 import karabo_bridge
 import numpy as np
@@ -30,10 +30,10 @@ class Statistics:
     def call(method, data, **kwargs):
 
         if method == "arithmetic_mean":
-            self.arithmetic_mean(data, **kwargs)
+            Statistics.arithmetic_mean(data, **kwargs)
 
         elif method == "standard_deviation":
-            self.standard_deviation(data, **kwargs)
+            Statistics.standard_deviation(data, **kwargs)
 
         else:
             raise KeyError("Method {} not implemented".format(method))
@@ -44,6 +44,7 @@ class Statistics:
 
     @staticmethod
     def standard_deviation(data, axis=0):
+        # noinspection PyArgumentList
         return np.std(data, axis=axis, ddof=1)
 
 
@@ -89,10 +90,10 @@ class KaraboBridgeSlicer:
         self._cache, self.statistics = self._initialize_cache()
         self._ignore_entry = ignore_entry
 
-        self._train_history = []
-        self._current_run = None
-        self.karabo_bridge_content = None
-        self.run_history = {}
+        self._train_history: List[int] = []
+        self._current_run: Optional[int] = None
+        self.karabo_bridge_content: Optional[Dict[str, Any]] = None
+        self.run_history: Dict[int, Dict[str, Any]] = {}
 
         # sanity check
         self._sanity_get_all_trains = 0
@@ -106,7 +107,9 @@ class KaraboBridgeSlicer:
     def __exit__(self, exc_type, exc_val, exc_tb):
         return
 
-    def _attributo2karabo(self, group: str, attributo: str) -> Tuple[str, str]:
+    def _attributo2karabo(
+        self, group: str, attributo: str
+    ) -> Optional[Tuple[str, str]]:
         """Karabo source and key from `attributo` identifier
 
         Args:
@@ -121,6 +124,7 @@ class KaraboBridgeSlicer:
             if ai["identifier"] == attributo:
 
                 return ai["source"], ai["key"]
+        return None
 
     def _explicitize_attributo(
         self,
@@ -154,6 +158,7 @@ class KaraboBridgeSlicer:
         Returns:
             (Dict[str, Any]): The `attributo`
         """
+        # noinspection PyTypeChecker
         attributo = dict(set(locals().items()) - set({"self": self}.items()))
 
         list_re = re.match(
@@ -172,8 +177,8 @@ class KaraboBridgeSlicer:
         ]
         if action not in action_choice:
             raise ValueError(
-                "Action must be either '{}', is {action}".format(
-                    "' or '".join(action_choice)
+                "Action must be either '{}', is {}".format(
+                    "' or '".join(action_choice), action
                 )
             )
 
@@ -196,10 +201,16 @@ class KaraboBridgeSlicer:
         entry: Dict[str, List[Dict[str, Any]]] = {}
         karabo_expected_entry: Dict[str, Dict[str, Any]] = {}
 
-        for (gi, gi_content,) in configuration.items():
+        for (
+            gi,
+            gi_content,
+        ) in configuration.items():
             source = None
 
-            for (ai, ai_content,) in gi_content.items():
+            for (
+                ai,
+                ai_content,
+            ) in gi_content.items():
 
                 # source can be set globally, for the entire group
                 if ai == "source":
@@ -251,6 +262,8 @@ class KaraboBridgeSlicer:
         Returns:
             Tuple[Dict[str, Dict[str, List]], Dict[str, Dict[str, Any]]]: The cache
         """
+        cache: Dict[str, Any]
+        statistics: Dict[str, Any]
         cache, statistics = {}, {"arithmetic_mean": {}, "standard_deviation": {}}
 
         for source, source_content in self.attributi.items():
@@ -267,12 +280,12 @@ class KaraboBridgeSlicer:
         """Navigate the stream from the Karabo bridge
 
         Args:
-            stream (Dict[str, Any]): The Karabo bridge stream
+            data (Dict[str, Any]): The Karabo bridge stream data
+            metadata (Dict[str, Any]): The Karabo bridge stream metadata
 
         Returns:
             Dict[str, List[str]]: The stream content
         """
-        _data, _metadata = {}, {}
 
         def extractor(stream):
             container = {}
@@ -300,7 +313,10 @@ class KaraboBridgeSlicer:
             for source, source_content in self.attributi.items():
                 for key, attributo in source_content.items():
 
-                    if source not in self.karabo_bridge_content["data"]:
+                    if (
+                        self.karabo_bridge_content is None
+                        or source not in self.karabo_bridge_content["data"]
+                    ):
                         logging.warning(
                             "  [{}.{}] {}: not available".format(
                                 attributo["group"], attributo["identifier"], source
@@ -326,6 +342,9 @@ class KaraboBridgeSlicer:
                                 )
                             )
 
+            if self.karabo_bridge_content is None:
+                return
+
             for source, source_content in self.karabo_bridge_content["data"].items():
                 if source not in self.attributi:
                     logging.warning("  {}: not requested".format(source))
@@ -338,7 +357,10 @@ class KaraboBridgeSlicer:
                                 if key not in self._ignore_entry[source]:
 
                                     logging.warning(
-                                        "  {}//{}: not requested".format(source, key,)
+                                        "  {}//{}: not requested".format(
+                                            source,
+                                            key,
+                                        )
                                     )
 
     def _compare_metadata_trains(self, metadata: Dict[str, Any]) -> int:
@@ -394,20 +416,20 @@ class KaraboBridgeSlicer:
                         else:
                             self._cache[source][key].append(value)
 
-    def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Get and cache the next train from the Karabo bridge
-
-        Returns:
-            Tuple[Dict[str, Any], Dict[str, Any]]: Tuple[Dict[str, Any], Dict[str, Any]]: data, metadata
-        """
-
-        # get the next train
-        data, metadata = self.get_next_train()
-
-        # cache data
-        self.cache_train(data, metadata)
-
-        return data, metadata
+    # def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    #     """Get and cache the next train from the Karabo bridge
+    #
+    #     Returns:
+    #         Tuple[Dict[str, Any], Dict[str, Any]]: Tuple[Dict[str, Any], Dict[str, Any]]: data, metadata
+    #     """
+    #
+    #     # get the next train
+    #     data, metadata = self.get_next_train()
+    #
+    #     # cache data
+    #     self.cache_train(data, metadata)
+    #
+    #     return data, metadata
 
     def _compute_statistics(self) -> None:
         """Compute statistics"""
@@ -488,7 +510,7 @@ class KaraboBridgeSlicer:
                 running.append(ki)
 
         if len(running) > 1:
-            logging.warn(
+            logging.warning(
                 "Multiple runs running {}. Forcefully closing run {}".format(
                     running, running[0]
                 )
@@ -521,7 +543,7 @@ class KaraboBridgeSlicer:
         self._sanity_check_get_all_trains()
 
         # inspect the run
-        train_content = {}
+        train_content: Dict[str, Any] = {}
 
         for attributo in [
             "index",
@@ -529,7 +551,9 @@ class KaraboBridgeSlicer:
             "timestamp_UTC_initial",
             "trains_in_run",
         ]:
-            source, key = self._attributo2karabo("run", attributo)
+            source, key = cast(
+                Tuple[str, str], self._attributo2karabo("run", attributo)
+            )
 
             try:
                 train_content[attributo] = data[source][key]
@@ -541,13 +565,18 @@ class KaraboBridgeSlicer:
         # run index
         self._current_run = train_content["index"]
 
+        assert self._current_run is not None
+
         # run is running
         if not train_content["trains_in_run"]:
 
             # starting a new run...
             if train_content["train_index_initial"] <= trainId + train_cache_size:
-                self.run_history[self._current_run] = {**train_content} + {
-                    "status": "running",
+                self.run_history[self._current_run] = {
+                    **train_content,
+                    **{
+                        "status": "running",
+                    },
                 }
 
                 result.append(
@@ -560,7 +589,7 @@ class KaraboBridgeSlicer:
                 self._sanity_check_runs_are_closed()
 
                 logging.info(
-                    "Run {index} started at {timestamp_UTC_initial}}".format(
+                    "Run {index} started at {timestamp_UTC_initial}".format(
                         **train_content,
                     )
                 )
@@ -581,8 +610,11 @@ class KaraboBridgeSlicer:
 
                 # we are really in the middle of the run if "trains_in_run" == 0
                 if not train_content["trains_in_run"]:
-                    self.run_history[self._current_run] = {**train_content} + {
-                        "status": "running",
+                    self.run_history[self._current_run] = {
+                        **train_content,
+                        **{
+                            "status": "running",
+                        },
                     }
 
                     result.append(
