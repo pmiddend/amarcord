@@ -15,7 +15,7 @@ Karabo_bridge:
   #    description (str, optional): `attributo` description. Defaults to None.
   #    type (str, optional): The AMARCORD data type. Defaults to "decimal".
   #    store (bool, optional): Whether to store the value. Defaults to True.
-  #    action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to "compute_arithmetic_mean".
+  #    action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to None.
   #    unit (str, optional): Unit of measurement. Defaults to None.
   #    filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
   version: 1

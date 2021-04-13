@@ -144,7 +144,7 @@ class KaraboBridgeSlicer:
         # pylint: disable=redefined-builtin
         type: str = "decimal",
         store: bool = True,
-        action: str = "compute_arithmetic_mean",
+        action: str = None,
         unit: str = None,
         filling_value: Any = None,
     ) -> Dict[str, Any]:
@@ -157,7 +157,7 @@ class KaraboBridgeSlicer:
             description (str, optional): `attributo` description. Defaults to None.
             type (str, optional): The AMARCORD data type. Defaults to "decimal".
             store (bool, optional): Whether to store the value. Defaults to True.
-            action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to "compute_arithmetic_mean".
+            action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to None.
             unit (str, optional): Unit of measurement. Defaults to None.
             filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
 
@@ -180,6 +180,7 @@ class KaraboBridgeSlicer:
             )
 
         action_choice = [
+            None,
             "compute_arithmetic_mean",
             "compute_standard_deviation",
             "check_if_constant",
@@ -213,12 +214,15 @@ class KaraboBridgeSlicer:
 
         for (gi, gi_content,) in configuration.items():
             source = None
+            action = None
 
             for (ai, ai_content,) in gi_content.items():
 
-                # source can be set globally, for the entire group
+                # source and action can be set globally, for the entire group
                 if ai == "source":
                     source = ai_content
+                elif ai == "action":
+                    action = ai_content
 
                 if isinstance(ai_content, dict):
                     attributo = {}
@@ -228,6 +232,9 @@ class KaraboBridgeSlicer:
 
                     if source is not None:
                         attributo["source"] = source
+
+                    if action is not None:
+                        attributo["action"] = action
 
                     # fill the attributo
                     for ki, vi in ai_content.items():
@@ -414,6 +421,8 @@ class KaraboBridgeSlicer:
                         else:
                             self._cache[source][key].append(value)
 
+        self._cached_events += 1
+
     # def cache_next_train(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     #     """Get and cache the next train from the Karabo bridge
     #
@@ -493,6 +502,9 @@ class KaraboBridgeSlicer:
                             )
                         )
 
+                else:
+                    pass
+
     def _sanity_check_get_all_trains(self):
         """Check if we get all trains"""
         for vi in range(self._sanity_get_all_trains + 1, len(self._train_history)):
@@ -525,7 +537,7 @@ class KaraboBridgeSlicer:
         data: Dict[str, Any],
         metadata: Dict[str, Any],
         train_cache_size: int = 5,
-        averaging_interval: int = 10,
+        averaging_interval: int = 2,
     ) -> List[KaraboAction]:
         """Defines a run
 
@@ -570,13 +582,17 @@ class KaraboBridgeSlicer:
         assert self._current_run is not None
 
         # run is running
+        print(train_content["trains_in_run"])
         if train_content["trains_in_run"] == 0:
+
+            print("Running!")
 
             # starting a new run...
             if (
                 train_content["train_index_initial"] <= trainId + train_cache_size
                 and self._current_run not in self.run_history
             ):
+                print("here at", trainId)
                 self.run_history[self._current_run] = {
                     **train_content,
                     **{"status": "running",},
@@ -597,15 +613,18 @@ class KaraboBridgeSlicer:
                     )
                 ]
 
-            if len(self._cache) % averaging_interval != 0 or len(self._cache) < 1:
-                print(len(self._cache))
+            print("....................")
+
+            if self._cached_events % averaging_interval != 0:
                 return []
 
             # cache the data
+            print("cacccccccche!")
             self.cache_train(data, metadata)
 
             # update the average and send results to AMARCORD
             self._compute_statistics()
+
             return [
                 KaraboAttributiUpdate(self._current_run, copy.deepcopy(self._attributi))
             ]
