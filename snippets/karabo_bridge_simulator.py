@@ -125,16 +125,14 @@ if __name__ == "__main__":
         )
 
         if trainId == trainId_list[0]:
-            runId = data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runNumber.value"]
+            runId = data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runNumber.value"]
 
         # new run starts
         if (
             trainId >= trainId_list[position]
             and trainId < trainId_list[position] + position_size
         ):
-            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runDetails.runNumber.value"] = (
-                runId + 1
-            )
+            data["SPB_DAQ_DATA/DM/RUN_CONTROL"]["runNumber.value"] = runId + 1
             data["SPB_DAQ_DATA/DM/RUN_CONTROL"][
                 "runDetails.beginAt.value"
             ] = trainId_list[position + 1]
