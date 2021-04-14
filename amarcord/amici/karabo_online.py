@@ -650,7 +650,7 @@ class KaraboBridgeSlicer:
 
                 # populate run attributi
                 # TO BE FIXED: LUT needed for self._attributi
-                for key in train_content.keys():
+                for key in train_content:
                     if key == "timestamp_UTC_initial":
                         continue
 
@@ -711,7 +711,7 @@ class KaraboBridgeSlicer:
 
                 # populate run attributi
                 # TO BE FIXED: LUT needed for self._attributi
-                for key in train_content.keys():
+                for key in train_content:
                     if key == "timestamp_UTC_initial":
                         continue
 
