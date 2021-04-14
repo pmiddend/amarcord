@@ -60,6 +60,7 @@ Karabo_bridge:
       bunch_charge:
         # D. Should AMARCORD key == Karabo key? If not, where do we store it?
         # -- this might be "description" + we add header
+        description: Bunch charge [nC]
         key: sase1.charge.value
         type: decimal
         unit: nC
@@ -68,6 +69,7 @@ Karabo_bridge:
       #   key: sase1.pulseIds.value
 
       number_of_bunches:
+        description: Number of bunches
         key: sase1.nPulses.value
         type: int
 
@@ -79,18 +81,21 @@ Karabo_bridge:
       action_axis:
 
       SASE1_pulse_energy:
+        description: SASE1 pulse energy [μJ]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa1TD
         type: decimal
         unit: microJoules
 
       SASE1_beam_position_x:
+        description: SASE1 beam position x [mm]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa1TD
         type: decimal
         unit: millimeter # ?
 
       SASE1_beam_position_y:
+        description: SASE1 beam position y [mm]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa1TD
         type: decimal
@@ -115,9 +120,9 @@ Karabo_bridge:
         unit: mm # ?
 
       Xray_wavelength_set:
+        description: X-ray wavelength [Å]
         source: SPB_XTD9_XGM/XGM/DOOCS
         key: pulseEnergy.wavelengthUsed.value
-        description: X-ray wavelength
         type: decimal
         unit: angstrom
 
@@ -149,54 +154,63 @@ Karabo_bridge:
         type: str
 
       position_z:
+        description: AGIPD z [mm]
         source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
         key: actualPosition.value
         type: decimal
         unit: mm
 
       position_quadrant1_x:
+        description: AGIPD Q1.x [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q1.x.value
         type: decimal
         unit: mm
 
       position_quadrant1_y:
+        description: AGIPD Q1.y [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q1.y.value
         type: decimal
         unit: mm
 
       position_quadrant2_x:
+        description: AGIPD Q2.x [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q2.x.value
         type: decimal
         unit: mm
 
       position_quadrant2_y:
+        description: AGIPD Q2.y [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q2.y.value
         type: decimal
         unit: mm
 
       position_quadrant3_x:
+        description: AGIPD Q3.x [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q3.x.value
         type: decimal
         unit: mm
 
       position_quadrant3_y:
+        description: AGIPD Q3.y [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q3.y.value
         type: decimal
         unit: mm
 
       position_quadrant4_x:
+        description: AGIPD Q4.x [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q4.x.value
         type: decimal
         unit: mm
 
       position_quadrant4_y:
+        description: AGIPD Q4.y [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q4.y.value
         type: decimal
@@ -342,6 +356,7 @@ Karabo_bridge:
         unit: percent
 
       transmission:
+        description: XTD2 transmission
         key: actual.value.transmission
         type: decimal
         unit: percent
@@ -406,6 +421,7 @@ Karabo_bridge:
         unit: percent
 
       transmission:
+        description: XTD9 transmission
         key: actual.value.transmission
         type: decimal
         unit: percent
@@ -511,6 +527,7 @@ Karabo_bridge:
       action: check_if_constant
 
       position_z:
+        description: injector position z [mm]
         key: actualPosition.value
         type: decimal
         unit: mm
