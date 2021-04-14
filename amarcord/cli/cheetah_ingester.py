@@ -6,6 +6,7 @@ from time import sleep
 from amarcord.amici.analysis import ingest_cheetah_internal
 from amarcord.db.db import DB
 from amarcord.db.tables import create_tables
+from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 
 logging.basicConfig(
@@ -35,7 +36,15 @@ def main() -> int:
     dbcontext = DBContext(args.connection_url)
 
     tables = create_tables(dbcontext)
+    if args.database_url.startswith("sqlite://"):
+        dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
     db = DB(dbcontext, tables)
+
+    if args.database_url.startswith("sqlite://"):
+        # Just for testing!
+        with db.dbcontext.connect() as local_conn:
+            if db.have_proposals(local_conn):
+                db.add_proposal(local_conn, args.proposal_id)
 
     logger.info("Starting to ingest Cheetah config data")
     while True:
