@@ -485,8 +485,15 @@ class KaraboBridgeSlicer:
                         cached_data,
                         axis=self.attributi[source][key]["action_axis"],
                     )
+
+                    # TO BE FIXED: LUT needed for self._attributi
+                    _group = self.attributi[source][key]["group"]
+                    _index = [
+                        entry["identifier"] for entry in self._attributi[_group]
+                    ].index(self.attributi[source][key]["identifier"])
+
                     self.attributi[source][key]["value"] = reduced_value
-                    self._attributi[source][key]["value"] = reduced_value
+                    self._attributi[_group][_index]["value"] = reduced_value
 
                     logging.debug(
                         "{} on {}//{}: reduced value: {}".format(
@@ -518,8 +525,14 @@ class KaraboBridgeSlicer:
                         unique_value[0] if unique_value.size == 1 else unique_value
                     )
 
+                    # TO BE FIXED: LUT needed for self._attributi
+                    _group = self.attributi[source][key]["group"]
+                    _index = [
+                        entry["identifier"] for entry in self._attributi[_group]
+                    ].index(self.attributi[source][key]["identifier"])
+
                     self.attributi[source][key]["value"] = reduced_value
-                    self._attributi[source][key]["value"] = reduced_value
+                    self._attributi[_group][_index]["value"] = reduced_value
 
                     logging.debug(
                         "{} on {}//{}: reduced value: {}".format(
