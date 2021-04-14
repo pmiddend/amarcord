@@ -486,6 +486,7 @@ class KaraboBridgeSlicer:
                         axis=self.attributi[source][key]["action_axis"],
                     )
                     self.attributi[source][key]["value"] = reduced_value
+                    self._attributi[source][key]["value"] = reduced_value
 
                     logging.debug(
                         "{} on {}//{}: reduced value: {}".format(
@@ -518,6 +519,7 @@ class KaraboBridgeSlicer:
                     )
 
                     self.attributi[source][key]["value"] = reduced_value
+                    self._attributi[source][key]["value"] = reduced_value
 
                     logging.debug(
                         "{} on {}//{}: reduced value: {}".format(
