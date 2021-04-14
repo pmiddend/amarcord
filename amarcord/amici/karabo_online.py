@@ -587,6 +587,7 @@ class KaraboBridgeSlicer:
 
         for attributo in [
             "number",
+            "index",
             "train_index_initial",
             "timestamp_UTC_initial",
             "trains_in_run",
