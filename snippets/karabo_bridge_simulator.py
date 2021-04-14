@@ -1,12 +1,23 @@
 # type: ignore
 # pylint: skip-file
-import os
 import argparse
+import os
 import pickle
-import yaml
-from typing import Dict
 from typing import Any
+from typing import Dict
+
+import yaml
+
 from amarcord.amici.karabo_online import KaraboBridgeSlicer
+from amarcord.cli.daemon import ingest_attributi
+from amarcord.cli.daemon import ingest_karabo_action
+from amarcord.db.db import DB
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.tables import create_tables
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
+
+PROPOSAL_ID = ProposalId(1)
 
 parser = argparse.ArgumentParser(
     description="Read dumps of the stream from the Karabo bridge and run some tests."
@@ -83,13 +94,29 @@ if __name__ == "__main__":
     print("The complete data set...")
     karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
 
+    dbcontext = DBContext("sqlite://")
+    tables = create_tables(dbcontext)
+
+    dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+
+    db = DB(
+        dbcontext,
+        tables,
+    )
+    with db.connect() as conn:
+        db.add_proposal(conn, PROPOSAL_ID)
+
+    ingest_attributi(db, karabo_data.get_attributi())
+
     for trainId in trainId_list:
         data, metadata = (
             bridge_content[trainId]["data"],
             bridge_content[trainId]["metadata"],
         )
 
-        print(karabo_data.run_definer(data, metadata))
+        for action in karabo_data.run_definer(data, metadata):
+            with db.connect() as conn:
+                ingest_karabo_action(action, conn, db, PROPOSAL_ID)
 
     #
     trainId_at_position = trainId_list[4]
@@ -107,7 +134,9 @@ if __name__ == "__main__":
         if trainId == trainId_at_position:
             continue
 
-        print("{}: {}".format(trainId, karabo_data.run_definer(data, metadata)))
+        for action in karabo_data.run_definer(data, metadata):
+            with db.connect() as conn:
+                ingest_karabo_action(action, conn, db, PROPOSAL_ID)
 
     #
     position = 1  # or 0
@@ -171,7 +200,9 @@ if __name__ == "__main__":
                 "runDetails.length.value"
             ] = position_size2
 
-        karabo_data.run_definer(data, metadata, averaging_interval=2)
+        for action in karabo_data.run_definer(data, metadata, averaging_interval=2):
+            with db.connect() as conn:
+                ingest_karabo_action(action, conn, db, PROPOSAL_ID)
         # print("{}: {}".format(trainId, type(karabo_data.run_definer(data, metadata))))
 
 # remove one device
