@@ -57,7 +57,7 @@ Karabo_bridge:
       source: SPB_RR_SYS/MDL/BUNCH_PATTERN
       action: check_if_constant
 
-      bunch_charge:
+      source_bunch_charge:
         # D. Should AMARCORD key == Karabo key? If not, where do we store it?
         # -- this might be "description" + we add header
         description: Bunch charge [nC]
@@ -68,7 +68,7 @@ Karabo_bridge:
       # bunch_pattern:
       #   key: sase1.pulseIds.value
 
-      number_of_bunches:
+      source_number_of_bunches:
         description: Number of bunches
         key: sase1.nPulses.value
         type: int
@@ -80,46 +80,46 @@ Karabo_bridge:
       action: compute_arithmetic_mean
       action_axis:
 
-      SASE1_pulse_energy:
+      XGM_XTD9_SASE1_pulse_energy:
         description: SASE1 pulse energy [μJ]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa1TD
         type: decimal
         unit: microJoules
 
-      SASE1_beam_position_x:
+      XGM_XTD9_SASE1_beam_position_x:
         description: SASE1 beam position x [mm]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa1TD
         type: decimal
         unit: millimeter # ?
 
-      SASE1_beam_position_y:
+      XGM_XTD9_SASE1_beam_position_y:
         description: SASE1 beam position y [mm]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa1TD
         type: decimal
         unit: millimeter # ?
 
-      SASE3_pulse_energy:
+      XGM_XTD9_SASE3_pulse_energy:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa3TD
         type: decimal
         unit: microJoules
 
-      SASE3_beam_position_x:
+      XGM_XTD9_SASE3_beam_position_x:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa3TD
         type: decimal
         unit: mm # ?
 
-      SASE3_beam_position_y:
+      XGM_XTD9_SASE3_beam_position_y:
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa3TD
         type: decimal
         unit: mm # ?
 
-      Xray_wavelength_set:
+      XGM_XTD9_Xray_wavelength_set:
         description: X-ray wavelength [Å]
         source: SPB_XTD9_XGM/XGM/DOOCS
         key: pulseEnergy.wavelengthUsed.value
@@ -130,7 +130,7 @@ Karabo_bridge:
       comment: Optical imager
       source: SPB_EXP_ZYLA/CAM/1:output
 
-      injector_image:
+      ZYLA_injector_image:
         key: data.image.data
         action: store_last
 
@@ -138,78 +138,78 @@ Karabo_bridge:
       comment: X-ray detector
       action: check_if_constant
 
-      dark_run_type:
+      AGIPD_dark_run_type:
         source: SPB_DA_USR/MDL/AMARCORD_INFO
         key: darkExperiment.value
         type: str
 
-      dark_run_index:
+      AGIPD_dark_run_index:
         source: SPB_DA_USR/MDL/AMARCORD_INFO
         key: darkRunNumber.value
         type: int
 
-      gain_setting:
+      AGIPD_gain_setting:
         source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
         key: gainMode.value
         type: str
 
-      position_z:
+      AGIPD_position_z:
         description: AGIPD z [mm]
         source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
         key: actualPosition.value
         type: decimal
         unit: mm
 
-      position_quadrant1_x:
+      AGIPD_position_quadrant1_x:
         description: AGIPD Q1.x [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q1.x.value
         type: decimal
         unit: mm
 
-      position_quadrant1_y:
+      AGIPD_position_quadrant1_y:
         description: AGIPD Q1.y [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q1.y.value
         type: decimal
         unit: mm
 
-      position_quadrant2_x:
+      AGIPD_position_quadrant2_x:
         description: AGIPD Q2.x [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q2.x.value
         type: decimal
         unit: mm
 
-      position_quadrant2_y:
+      AGIPD_position_quadrant2_y:
         description: AGIPD Q2.y [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q2.y.value
         type: decimal
         unit: mm
 
-      position_quadrant3_x:
+      AGIPD_position_quadrant3_x:
         description: AGIPD Q3.x [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q3.x.value
         type: decimal
         unit: mm
 
-      position_quadrant3_y:
+      AGIPD_position_quadrant3_y:
         description: AGIPD Q3.y [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q3.y.value
         type: decimal
         unit: mm
 
-      position_quadrant4_x:
+      AGIPD_position_quadrant4_x:
         description: AGIPD Q4.x [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q4.x.value
         type: decimal
         unit: mm
 
-      position_quadrant4_y:
+      AGIPD_position_quadrant4_y:
         description: AGIPD Q4.y [mm]
         source: SPB_IRU_AGIPD1M/MDL/MOVER
         key: q4.y.value
@@ -355,7 +355,7 @@ Karabo_bridge:
       #   type: decimal
       #   unit: percent
 
-      transmission:
+      attenuator_SASE1_XTD2_transmission:
         description: XTD2 transmission
         key: actual.value.transmission
         type: decimal
@@ -420,7 +420,7 @@ Karabo_bridge:
       #   type: decimal
       #   unit: percent
 
-      transmission:
+      attenuator_SPB_XTD9_transmission:
         description: XTD9 transmission
         key: actual.value.transmission
         type: decimal
@@ -430,55 +430,55 @@ Karabo_bridge:
       source: SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES
       action: check_if_constant
 
-      config0_valve_group_name:
+      sample_delivery_manifold_valves_config0_valve_group_name:
         key: valvesConfigTable.value[0].valveGroupName
         type: str
-      config0_valve_indices:
+      sample_delivery_manifold_valves_config0_valve_indices:
         key: valvesConfigTable.value[0].valveIds
         type: list[str]
         action_axis: 0
-      config0_positions:
+      sample_delivery_manifold_valves_config0_positions:
         key: valvesConfigTable.value[0].nPositions
         type: int
-      config0_labels:
+      sample_delivery_manifold_valves_config0_labels:
         key: valvesConfigTable.value[0].labels
         type: list[str]
 
-      config1_valve_group_name:
+      sample_delivery_manifold_valves_config1_valve_group_name:
         key: valvesConfigTable.value[1].valveGroupName
         type: str
-      config1_valve_indices:
+      sample_delivery_manifold_valves_config1_valve_indices:
         key: valvesConfigTable.value[1].valveIds
         type: list[str]
         action_axis: 0
-      config1_positions:
+      sample_delivery_manifold_valves_config1_positions:
         key: valvesConfigTable.value[1].nPositions
         type: int
-      config1_labels:
+      sample_delivery_manifold_valves_config1_labels:
         key: valvesConfigTable.value[1].labels
         type: list[str]
 
-      config2_valve_group_name:
+      sample_delivery_manifold_valves_config2_valve_group_name:
         key: valvesConfigTable.value[2].valveGroupName
         type: str
-      config2_valve_indices:
+      sample_delivery_manifold_valves_config2_valve_indices:
         key: valvesConfigTable.value[2].valveIds
         type: list[str]
         action_axis: 0
-      config2_positions:
+      sample_delivery_manifold_valves_config2_positions:
         key: valvesConfigTable.value[2].nPositions
         type: int
-      config2_labels:
+      sample_delivery_manifold_valves_config2_labels:
         key: valvesConfigTable.value[2].labels
         type: list[str]
 
-      groupA_position:
+      sample_delivery_manifold_valves_groupA_position:
         key: GROUPA.currentPosition.value
         type: int
-      sample1_position:
+      sample_delivery_manifold_valves_sample1_position:
         key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.value
         type: int
-      sample2_position:
+      sample_delivery_manifold_valves_sample2_position:
         key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.value
         type: int
 
@@ -487,37 +487,37 @@ Karabo_bridge:
       action: compute_arithmetic_mean
       action_axis:
 
-      pump_a_flow_value:
+      sample_delivery_rate_pump_a_flow_value:
         key: a.flow.value
         type: decimal
         unit: microliter/minute
-      pump_a_value:
+      sample_delivery_rate_pump_a_value:
         key: a.volume.value
         unit: unknown
 
-      pump_b_flow_value:
+      sample_delivery_rate_pump_b_flow_value:
         key: b.volume.value
         type: decimal
         unit: microliter/minute
-      pump_b_value:
+      sample_delivery_rate_pump_b_value:
         key: b.flow.value
         type: decimal
         unit: unknown
 
-      pump_c_flow_value:
+      sample_delivery_rate_pump_c_flow_value:
         key: c.flow.value
         type: decimal
         unit: microliter/minute
-      pump_c_value:
+      sample_delivery_rate_pump_c_value:
         key: c.volume.value
         type: decimal
         unit: unknown
 
-      pump_d_flow_value:
+      sample_delivery_rate_pump_d_flow_value:
         key: d.flow.value
         type: decimal
         unit: microliter/minute
-      pump_d_value:
+      sample_delivery_rate_pump_d_value:
         key: d.volume.value
         type: decimal
         unit: unknown
@@ -526,7 +526,7 @@ Karabo_bridge:
       source: SPB_IRU_INJMOV/MOTOR/Z
       action: check_if_constant
 
-      position_z:
+      sample_delivery_injector_sample_delivery_injector_position_z:
         description: Injector position z [mm]
         key: actualPosition.value
         type: decimal
