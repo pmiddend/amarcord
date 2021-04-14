@@ -24,6 +24,7 @@ from PyQt5.QtWidgets import QWidget
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import pretty_print_attributo
 from amarcord.db.attributi import sortable_attributo
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeDuration
@@ -231,6 +232,13 @@ class OverviewTable(QWidget):
             column_delegates={},
         )
 
+    def _change_sample_for(self, run_id: int, sample_id: Optional[int]) -> None:
+        with self._db.connect() as conn:
+            self._db.update_run_attributo(
+                conn, run_id, AttributoId("sample_id"), sample_id
+            )
+        self._slot_refresh(force=True)
+
     def _right_click(self, c: OverviewAttributi, p: QPoint) -> None:
         menu = QMenu(self)
         deleteAction = menu.addAction(
@@ -239,6 +247,16 @@ class OverviewTable(QWidget):
         )
         run_id = c[AssociatedTable.RUN].select_int_unsafe(
             self._db.tables.attributo_run_id
+        )
+        change_sample_menu = menu.addMenu("Change sample")
+        for s in self._samples:
+            sample_action = change_sample_menu.addAction(s.sample_name)
+            sample_action.triggered.connect(
+                partial(self._change_sample_for, run_id, s.sample_id)
+            )
+        sample_none_action = change_sample_menu.addAction("None")
+        sample_none_action.triggered.connect(
+            partial(self._change_sample_for, run_id, None)
         )
         action = menu.exec_(p)
         if action == deleteAction:
