@@ -512,8 +512,17 @@ class KaraboBridgeSlicer:
                         return_index=True,
                     )
 
+                    # printsource, key, cached_data, unique_value)
+
                     # np.unique([[], []], return_index=True)[1].size -> unique_index.size > 1
                     if unique_index.size > 1:
+                        # print
+                        #    source,
+                        #    key,
+                        #    cached_data,
+                        #    unique_index,
+                        #    unique_value[0] if unique_value.size == 1 else unique_value,
+                        # )
                         logging.warning(
                             "{}//{}: not constant over run {}".format(
                                 source, key, self._current_run
@@ -525,6 +534,8 @@ class KaraboBridgeSlicer:
                         unique_value[0] if unique_value.size == 1 else unique_value
                     )
 
+                    # printsource, key, reduced_value)
+
                     # TO BE FIXED: LUT needed for self._attributi
                     _group = self.attributi[source][key]["group"]
                     _index = [
@@ -533,6 +544,8 @@ class KaraboBridgeSlicer:
 
                     self.attributi[source][key]["value"] = reduced_value
                     self._attributi[_group][_index]["value"] = reduced_value
+
+                    # printsource, key, self._attributi[_group][_index])
 
                     logging.debug(
                         "{} on {}//{}: reduced value: {}".format(
@@ -660,6 +673,8 @@ class KaraboBridgeSlicer:
 
                     self._attributi["run"][_index]["value"] = train_content[key]
 
+                # print"\n\n\n\nreturn\n\n\n", source, key, self._attributi)
+
                 return [
                     KaraboRunStartOrUpdate(
                         self._current_run, copy.deepcopy(self._attributi)
@@ -671,6 +686,18 @@ class KaraboBridgeSlicer:
 
             # update the average and send results to AMARCORD
             self._compute_statistics()
+
+            # populate run attributi
+            # TO BE FIXED: LUT needed for self._attributi
+            for key in train_content.keys():
+                if key == "timestamp_UTC_initial":
+                    continue
+
+                _index = [
+                    entry["identifier"] for entry in self._attributi["run"]
+                ].index(key)
+
+                self._attributi["run"][_index]["value"] = train_content[key]
 
             return [
                 KaraboAttributiUpdate(self._current_run, copy.deepcopy(self._attributi))
