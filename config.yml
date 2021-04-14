@@ -228,132 +228,132 @@ Karabo_bridge:
       source: SA1_XTD2_ATT/MDL/MAIN
       action: check_if_constant
 
-      attenuator1_inserted:
-        key: actual.value.isInsertedAct1
-        type: int
-      attenuator1_thickness:
-        key: actual.value.thicknessAct1
-        type: decimal
-        unit: micrometer
-      attenuator1_material:
-        key: actual.value.materialAct1
-        type: str
-      attenuator1_absorption:
-        key: actual.value.absorptionAct1
-        type: decimal
-        unit: percent
+      # attenuator1_inserted:
+      #   key: actual.value.isInsertedAct1
+      #   type: int
+      # attenuator1_thickness:
+      #   key: actual.value.thicknessAct1
+      #   type: decimal
+      #   unit: micrometer
+      # attenuator1_material:
+      #   key: actual.value.materialAct1
+      #   type: str
+      # attenuator1_absorption:
+      #   key: actual.value.absorptionAct1
+      #   type: decimal
+      #   unit: percent
 
-      attenuator2_inserted:
-        key: actual.value.isInsertedAct2
-        type: int
-      attenuator2_thickness:
-        key: actual.value.thicknessAct2
-        type: decimal
-      attenuator2_material:
-        key: actual.value.materialAct2
-        type: str
-      attenuator2_absorption:
-        key: actual.value.absorptionAct2
-        type: decimal
-        unit: percent
+      # attenuator2_inserted:
+      #   key: actual.value.isInsertedAct2
+      #   type: int
+      # attenuator2_thickness:
+      #   key: actual.value.thicknessAct2
+      #   type: decimal
+      # attenuator2_material:
+      #   key: actual.value.materialAct2
+      #   type: str
+      # attenuator2_absorption:
+      #   key: actual.value.absorptionAct2
+      #   type: decimal
+      #   unit: percent
 
-      attenuator3_inserted:
-        key: actual.value.isInsertedAct3
-        type: int
-      attenuator3_thickness:
-        key: actual.value.thicknessAct3
-        type: decimal
-      attenuator3_material:
-        key: actual.value.materialAct3
-        type: str
-      attenuator3_absorption:
-        key: actual.value.absorptionAct3
-        type: decimal
-        unit: percent
+      # attenuator3_inserted:
+      #   key: actual.value.isInsertedAct3
+      #   type: int
+      # attenuator3_thickness:
+      #   key: actual.value.thicknessAct3
+      #   type: decimal
+      # attenuator3_material:
+      #   key: actual.value.materialAct3
+      #   type: str
+      # attenuator3_absorption:
+      #   key: actual.value.absorptionAct3
+      #   type: decimal
+      #   unit: percent
 
-      attenuator4_inserted:
-        key: actual.value.isInsertedAct4
-        type: int
-      attenuator4_thickness:
-        key: actual.value.thicknessAct4
-        type: decimal
-      attenuator4_material:
-        key: actual.value.materialAct4
-        type: str
-      attenuator4_absorption:
-        key: actual.value.absorptionAct4
-        type: decimal
-        unit: percent
+      # attenuator4_inserted:
+      #   key: actual.value.isInsertedAct4
+      #   type: int
+      # attenuator4_thickness:
+      #   key: actual.value.thicknessAct4
+      #   type: decimal
+      # attenuator4_material:
+      #   key: actual.value.materialAct4
+      #   type: str
+      # attenuator4_absorption:
+      #   key: actual.value.absorptionAct4
+      #   type: decimal
+      #   unit: percent
 
-      attenuator5_inserted:
-        key: actual.value.isInsertedAct5
-        type: int
-      attenuator5_thickness:
-        key: actual.value.thicknessAct5
-        type: decimal
-      attenuator5_material:
-        key: actual.value.materialAct5
-        type: str
-      attenuator5_absorption:
-        key: actual.value.absorptionAct5
-        type: decimal
-        unit: percent
+      # attenuator5_inserted:
+      #   key: actual.value.isInsertedAct5
+      #   type: int
+      # attenuator5_thickness:
+      #   key: actual.value.thicknessAct5
+      #   type: decimal
+      # attenuator5_material:
+      #   key: actual.value.materialAct5
+      #   type: str
+      # attenuator5_absorption:
+      #   key: actual.value.absorptionAct5
+      #   type: decimal
+      #   unit: percent
 
-      attenuator6_inserted:
-        key: actual.value.isInsertedAct6
-        type: int
-      attenuator6_thickness:
-        key: actual.value.thicknessAct6
-        type: decimal
-      attenuator6_material:
-        key: actual.value.materialAct6
-        type: str
-      attenuator6_absorption:
-        key: actual.value.absorptionAct6
-        type: decimal
-        unit: percent
+      # attenuator6_inserted:
+      #   key: actual.value.isInsertedAct6
+      #   type: int
+      # attenuator6_thickness:
+      #   key: actual.value.thicknessAct6
+      #   type: decimal
+      # attenuator6_material:
+      #   key: actual.value.materialAct6
+      #   type: str
+      # attenuator6_absorption:
+      #   key: actual.value.absorptionAct6
+      #   type: decimal
+      #   unit: percent
 
-      attenuator7_inserted:
-        key: actual.value.isInsertedAct7
-        type: int
-      attenuator7_thickness:
-        key: actual.value.thicknessAct7
-        type: decimal
-      attenuator7_material:
-        key: actual.value.materialAct7
-        type: str
-      attenuator7_absorption:
-        key: actual.value.absorptionAct7
-        type: decimal
-        unit: percent
+      # attenuator7_inserted:
+      #   key: actual.value.isInsertedAct7
+      #   type: int
+      # attenuator7_thickness:
+      #   key: actual.value.thicknessAct7
+      #   type: decimal
+      # attenuator7_material:
+      #   key: actual.value.materialAct7
+      #   type: str
+      # attenuator7_absorption:
+      #   key: actual.value.absorptionAct7
+      #   type: decimal
+      #   unit: percent
 
-      attenuator8_inserted:
-        key: actual.value.isInsertedAct8
-        type: int
-      attenuator8_thickness:
-        key: actual.value.thicknessAct8
-        type: decimal
-      attenuator8_material:
-        key: actual.value.materialAct8
-        type: str
-      attenuator8_absorption:
-        key: actual.value.absorptionAct8
-        type: decimal
-        unit: percent
+      # attenuator8_inserted:
+      #   key: actual.value.isInsertedAct8
+      #   type: int
+      # attenuator8_thickness:
+      #   key: actual.value.thicknessAct8
+      #   type: decimal
+      # attenuator8_material:
+      #   key: actual.value.materialAct8
+      #   type: str
+      # attenuator8_absorption:
+      #   key: actual.value.absorptionAct8
+      #   type: decimal
+      #   unit: percent
 
-      attenuator9_inserted:
-        key: actual.value.isInsertedAct9
-        type: int
-      attenuator9_thickness:
-        key: actual.value.thicknessAct9
-        type: decimal
-      attenuator9_material:
-        key: actual.value.materialAct9
-        type: str
-      attenuator9_absorption:
-        key: actual.value.absorptionAct9
-        type: decimal
-        unit: percent
+      # attenuator9_inserted:
+      #   key: actual.value.isInsertedAct9
+      #   type: int
+      # attenuator9_thickness:
+      #   key: actual.value.thicknessAct9
+      #   type: decimal
+      # attenuator9_material:
+      #   key: actual.value.materialAct9
+      #   type: str
+      # attenuator9_absorption:
+      #   key: actual.value.absorptionAct9
+      #   type: decimal
+      #   unit: percent
 
       transmission:
         description: XTD2 transmission
@@ -366,59 +366,59 @@ Karabo_bridge:
       source: SPB_XTD9_ATT/MDL/MAIN
       action: check_if_constant
 
-      attenuator1_increment:
-        key: actual.value.incrementRod1
-        type: int
-      attenuator1_thickness:
-        key: actual.value.thicknessRod1
-        type: decimal
-        unit: micrometer
-      attenuator1_material:
-        key: actual.value.materialRod1
-        type: str
-      attenuator1_absorption:
-        key: actual.value.absorptionRod1
-        type: decimal
-        unit: percent
+      # attenuator1_increment:
+      #   key: actual.value.incrementRod1
+      #   type: int
+      # attenuator1_thickness:
+      #   key: actual.value.thicknessRod1
+      #   type: decimal
+      #   unit: micrometer
+      # attenuator1_material:
+      #   key: actual.value.materialRod1
+      #   type: str
+      # attenuator1_absorption:
+      #   key: actual.value.absorptionRod1
+      #   type: decimal
+      #   unit: percent
 
-      attenuator2_increment:
-        key: actual.value.incrementRod2
-        type: int
-      attenuator2_thickness:
-        key: actual.value.thicknessRod2
-      attenuator2_material:
-        key: actual.value.materialRod2
-        type: str
-      attenuator2_absorption:
-        key: actual.value.absorptionRod2
-        type: decimal
-        unit: percent
+      # attenuator2_increment:
+      #   key: actual.value.incrementRod2
+      #   type: int
+      # attenuator2_thickness:
+      #   key: actual.value.thicknessRod2
+      # attenuator2_material:
+      #   key: actual.value.materialRod2
+      #   type: str
+      # attenuator2_absorption:
+      #   key: actual.value.absorptionRod2
+      #   type: decimal
+      #   unit: percent
 
-      attenuator3_increment:
-        key: actual.value.incrementRod3
-        type: int
-      attenuator3_thickness:
-        key: actual.value.thicknessRod3
-      attenuator3_material:
-        key: actual.value.materialRod3
-        type: str
-      attenuator3_absorption:
-        key: actual.value.absorptionRod3
-        type: decimal
-        unit: percent
+      # attenuator3_increment:
+      #   key: actual.value.incrementRod3
+      #   type: int
+      # attenuator3_thickness:
+      #   key: actual.value.thicknessRod3
+      # attenuator3_material:
+      #   key: actual.value.materialRod3
+      #   type: str
+      # attenuator3_absorption:
+      #   key: actual.value.absorptionRod3
+      #   type: decimal
+      #   unit: percent
 
-      attenuator4_increment:
-        key: actual.value.incrementRod4
-        type: int
-      attenuator4_thickness:
-        key: actual.value.thicknessRod4
-      attenuator4_material:
-        key: actual.value.materialRod4
-        type: str
-      attenuator4_absorption:
-        key: actual.value.absorptionRod4
-        type: decimal
-        unit: percent
+      # attenuator4_increment:
+      #   key: actual.value.incrementRod4
+      #   type: int
+      # attenuator4_thickness:
+      #   key: actual.value.thicknessRod4
+      # attenuator4_material:
+      #   key: actual.value.materialRod4
+      #   type: str
+      # attenuator4_absorption:
+      #   key: actual.value.absorptionRod4
+      #   type: decimal
+      #   unit: percent
 
       transmission:
         description: XTD9 transmission
