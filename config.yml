@@ -138,15 +138,15 @@ Karabo_bridge:
       comment: X-ray detector
       action: check_if_constant
 
-      dark_run_type:
-        source: SPB_DA_USR/MDL/AMARCORD_INFO
-        key: darkExperiment.value
-        type: str
+      # dark_run_type:
+      #   source: SPB_DA_USR/MDL/AMARCORD_INFO
+      #   key: darkExperiment.value
+      #   type: str
 
-      dark_run_index:
-        source: SPB_DA_USR/MDL/AMARCORD_INFO
-        key: darkRunNumber.value
-        type: int
+      # dark_run_index:
+      #   source: SPB_DA_USR/MDL/AMARCORD_INFO
+      #   key: darkRunNumber.value
+      #   type: int
 
       gain_setting:
         source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
