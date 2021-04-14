@@ -100,8 +100,8 @@ if __name__ == "__main__":
     dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
     db = DB(dbcontext, tables,)
-    # with db.connect() as conn:
-    #    db.add_proposal(conn, PROPOSAL_ID)
+    with db.connect() as conn:
+        db.add_proposal(conn, PROPOSAL_ID)
 
     ingest_attributi(db, karabo_data.get_attributi())
 
