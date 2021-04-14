@@ -94,17 +94,14 @@ if __name__ == "__main__":
     print("The complete data set...")
     karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
 
-    dbcontext = DBContext("sqlite://")
+    dbcontext = DBContext("sqlite:////tmp/testdatabase.sqlite")
     tables = create_tables(dbcontext)
 
     dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
-    db = DB(
-        dbcontext,
-        tables,
-    )
-    with db.connect() as conn:
-        db.add_proposal(conn, PROPOSAL_ID)
+    db = DB(dbcontext, tables,)
+    # with db.connect() as conn:
+    #    db.add_proposal(conn, PROPOSAL_ID)
 
     ingest_attributi(db, karabo_data.get_attributi())
 
