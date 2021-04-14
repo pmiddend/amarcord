@@ -8,11 +8,13 @@ from typing import List
 from typing import Optional
 
 import msgpack
+import numpy as np
 import yaml
 import zmq
 from karabo_bridge import deserialize
 from zmq.asyncio import Context
 
+from amarcord.amici.karabo_online import KaraboAction
 from amarcord.amici.karabo_online import KaraboAttributi  # type: ignore
 from amarcord.amici.karabo_online import KaraboBridgeSlicer  # type: ignore
 from amarcord.db.associated_table import AssociatedTable
@@ -24,6 +26,7 @@ from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.constants import ONLINE_SOURCE_NAME
+from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.db import RunNotFound
 from amarcord.db.proposal_id import ProposalId
@@ -41,25 +44,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-parser = ArgumentParser(description="Daemon to ingest XFEL data from multiple sources")
-parser.add_argument(
-    "--proposal-id",
-    type=int,
-    required=True,
-    help="Proposal ID (integer, no leading digits)",
-)
-parser.add_argument("--database-url", required=True, help="Database url")
-parser.add_argument(
-    "--karabo-config-file",
-    required=True,
-    help="File for the Karabo Bridge YAML configuration (optional)",
-)
-parser.add_argument(
-    "--onda-url", required=False, help="URL for the OnDA ZeroMQ interface (optional)"
-)
-
-args = parser.parse_args()
 
 
 @dataclass
@@ -88,7 +72,7 @@ def _unit_to_type(type_str: str, unit_str: Optional[str]) -> AttributoType:
     raise Exception(f"invalid attributo type {type_str} (unit {unit_str})")
 
 
-def _ingest_attributi(db: DB, attributi: KaraboAttributi) -> None:
+def ingest_attributi(db: DB, attributi: KaraboAttributi) -> None:
     with db.connect() as conn:
         run_attributi = db.retrieve_table_attributi(conn, AssociatedTable.RUN)
 
@@ -112,12 +96,13 @@ def _ingest_attributi(db: DB, attributi: KaraboAttributi) -> None:
             a = find_by(unsourced_attributi, lambda x: x["identifier"] == n)
             assert a is not None
 
+            type_ = _unit_to_type(a["type"], a.get("unit", None))
             db.add_attributo(
                 conn,
                 n,
                 a.get("description", ""),
                 AssociatedTable.RUN,
-                _unit_to_type(a["type"], a.get("unit", None)),
+                type_,
             )
 
 
@@ -142,7 +127,33 @@ def _karabo_attributi_to_attributi_map(
 ) -> RawAttributiMap:
     new_attributi = attributi.copy()
     for a in (i for k in karabo_attributi.values() for i in k):
-        new_attributi.append_to_source(ONLINE_SOURCE_NAME, a["value"])
+        if "value" not in a:
+            continue
+            # raise ValueError(f"attributo {a['identifier']} has no value attributo")
+        value = a.get("value", None)
+        if value is not None:
+            if isinstance(value, np.integer):
+                value = int(value)
+            if isinstance(value, np.str_):
+                value = str(value)
+            if isinstance(value, np.bool_):
+                value = int(value)
+            if isinstance(value, np.ndarray):
+                if np.issubdtype(value.dtype, np.integer):
+                    value = [int(f) for f in value]
+                elif np.issubdtype(value.dtype, np.floating):
+                    value = [float(f) for f in value]
+                elif np.issubdtype(value.dtype, np.string_):
+                    value = [str(f) for f in value]
+                else:
+                    logger.debug(
+                        f"invalid numpy array type {value.dtype} in attributo {a['identifier']}"
+                    )
+                    # raise ValueError(
+                    #     f"invalid numpy array type {value.dtype} in attributo {a['identifier']}"
+                    # )
+                    continue
+            new_attributi.append_to_source(ONLINE_SOURCE_NAME, {a["identifier"]: value})
     return new_attributi
 
 
@@ -183,7 +194,7 @@ async def karabo_loop(
 
     slicer = KaraboBridgeSlicer(**karabo_configuration["Karabo_bridge"])
 
-    _ingest_attributi(db, slicer.get_attributi())
+    ingest_attributi(db, slicer.get_attributi())
 
     while True:
         # noinspection PyUnresolvedReferences
@@ -199,25 +210,7 @@ async def karabo_loop(
             with db.connect() as conn:
                 with conn.begin():
                     for action in slicer.run_definer(data, metadata):
-                        try:
-                            run_attributi = db.retrieve_run(
-                                conn, action.run_id
-                            ).attributi
-                            new_attributi = _karabo_attributi_to_attributi_map(
-                                run_attributi, action.attributi
-                            )
-                            db.update_run_attributi(conn, action.run_id, new_attributi)
-                        except RunNotFound:
-                            run_attributi = _karabo_attributi_to_attributi_map(
-                                RawAttributiMap({}), action.attributi
-                            )
-                            db.add_run(
-                                conn,
-                                proposal_id,
-                                action.run_id,
-                                None,
-                                run_attributi,
-                            )
+                        ingest_karabo_action(action, conn, db, proposal_id)
 
             for run_id, run_metadata in slicer.run_history.items():
                 karabo_export.runs[RunId(run_id)] = TrainRange(
@@ -228,6 +221,28 @@ async def karabo_loop(
             # Do something with data
         except zmq.error.Again:
             logger.error("No data received in time")
+
+
+def ingest_karabo_action(
+    action: KaraboAction, conn: Connection, db: DB, proposal_id: ProposalId
+) -> None:
+    try:
+        run_attributi = db.retrieve_run(conn, action.run_id).attributi
+        new_attributi = _karabo_attributi_to_attributi_map(
+            run_attributi, action.attributi
+        )
+        db.update_run_attributi(conn, action.run_id, new_attributi)
+    except RunNotFound:
+        run_attributi = _karabo_attributi_to_attributi_map(
+            RawAttributiMap({}), action.attributi
+        )
+        db.add_run(
+            conn,
+            proposal_id,
+            action.run_id,
+            None,
+            run_attributi,
+        )
 
 
 async def onda_loop(
@@ -272,13 +287,30 @@ def write_hit_rate_to_db(db: DB, result: float, run_id: int) -> None:
         )
 
 
-def main(
-    database_url: str,
-    proposal_id: ProposalId,
-    karabo_config_file: Optional[str],
-    onda_url: Optional[str],
-) -> None:
-    dbcontext = DBContext(database_url)
+def main() -> None:
+    parser = ArgumentParser(
+        description="Daemon to ingest XFEL data from multiple sources"
+    )
+    parser.add_argument(
+        "--proposal-id",
+        type=int,
+        required=True,
+        help="Proposal ID (integer, no leading digits)",
+    )
+    parser.add_argument("--database-url", required=True, help="Database url")
+    parser.add_argument(
+        "--karabo-config-file",
+        required=True,
+        help="File for the Karabo Bridge YAML configuration (optional)",
+    )
+    parser.add_argument(
+        "--onda-url",
+        required=False,
+        help="URL for the OnDA ZeroMQ interface (optional)",
+    )
+
+    args = parser.parse_args()
+    dbcontext = DBContext(args.database_url)
 
     tables = create_tables(dbcontext)
 
@@ -290,9 +322,13 @@ def main(
 
     # Just for testing!
     with db.dbcontext.connect() as local_conn:
-        db.add_proposal(local_conn, proposal_id)
+        db.add_proposal(local_conn, args.proposal_id)
 
-    asyncio.run(async_main(db, proposal_id, karabo_config_file, onda_url, zmq_ctx))
+    asyncio.run(
+        async_main(
+            db, args.proposal_id, args.karabo_config_file, args.onda_url, zmq_ctx
+        )
+    )
 
 
 async def async_main(
@@ -311,9 +347,4 @@ async def async_main(
 
 
 if __name__ == "__main__":
-    main(
-        args.database_url,
-        ProposalId(args.proposal_id),
-        args.karabo_config_file,
-        args.onda_url,
-    )
+    main()
