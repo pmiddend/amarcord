@@ -1,4 +1,4 @@
-# pylint: disable=redefined-outer-name,logging-format-interpolation,consider-using-set-comprehension
+# pylint: disable=redefined-outer-name,logging-format-interpolation,consider-using-set-comprehension,no-else-return
 import copy
 import logging
 import os
