@@ -527,7 +527,7 @@ Karabo_bridge:
       action: check_if_constant
 
       position_z:
-        description: injector position z [mm]
+        description: Injector position z [mm]
         key: actualPosition.value
         type: decimal
         unit: mm
