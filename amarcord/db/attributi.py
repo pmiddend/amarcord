@@ -218,7 +218,7 @@ def sortable_attributo(attributo_metadata: Optional[DBAttributo], value: Any) ->
         return len(value)
     if isinstance(value, list):
         return len(value)
-    return value if value is not None else ""
+    return value
 
 
 def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:

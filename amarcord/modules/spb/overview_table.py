@@ -309,13 +309,18 @@ class OverviewTable(QWidget):
             if needs_update or force:
                 self._table_view.set_data(self._create_declarative_data())
 
-    def _sort_key(self, k: OverviewAttributi) -> Any:
+    def _sort_key(self, k: OverviewAttributi) -> Tuple[bool, Any]:
         sort_column = self._sort_data[0]
         table_data = k[sort_column.table]
         if table_data is None:
-            return None
+            return True, None
         v = table_data.select_value(sort_column.attributo.name)
-        return sortable_attributo(sort_column.attributo, v)
+        result = sortable_attributo(sort_column.attributo, v)
+        # We have to account for unset values while sorting.
+        # This nifty solution I found on SO (where else):
+        #
+        # https://stackoverflow.com/questions/18411560/sort-list-while-pushing-none-values-to-the-end
+        return result is None, result
 
     def _sort_clicked(self, column: TabledAttributo) -> None:
         self._sort_data = (
