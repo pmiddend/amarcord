@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+from pathlib import Path
 from time import sleep
 
 from amarcord.amici.analysis import ingest_cheetah_internal
@@ -30,26 +31,43 @@ def main() -> int:
         required=True,
         help="Path to Cheetah's crawler.config file",
     )
+    parser.add_argument(
+        "--proposal-id",
+        type=int,
+        required=True,
+        help="Proposal ID",
+    )
+    parser.add_argument(
+        "--force-run-creation",
+        action="store_true",
+        help="Create new runs if they don't exist in the DB yet",
+    )
 
     args = parser.parse_args()
 
     dbcontext = DBContext(args.connection_url)
 
     tables = create_tables(dbcontext)
-    if args.database_url.startswith("sqlite://"):
+    if args.connection_url.startswith("sqlite://"):
         dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
     db = DB(dbcontext, tables)
 
-    if args.database_url.startswith("sqlite://"):
+    if args.connection_url.startswith("sqlite://"):
         # Just for testing!
         with db.dbcontext.connect() as local_conn:
-            if db.have_proposals(local_conn):
+            if not db.have_proposals(local_conn):
                 db.add_proposal(local_conn, args.proposal_id)
 
     logger.info("Starting to ingest Cheetah config data")
     while True:
         with db.connect() as conn:
-            results = ingest_cheetah_internal(args.cheetah_config_path, db, conn)
+            results = ingest_cheetah_internal(
+                Path(args.cheetah_config_path),
+                db,
+                conn,
+                args.proposal_id,
+                args.force_run_creation,
+            )
             if results.number_of_ingested_data_sources:
                 logger.info(
                     "Ingested %s new data source(s)",

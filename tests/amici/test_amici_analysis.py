@@ -149,6 +149,8 @@ def test_ingest_cheetah_idempotent(db: DB) -> None:
             Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config",
             db,
             conn,
+            ProposalId(1),
+            force_run_creation=False,
         )
         assert first_ingest.number_of_ingested_data_sources == 2
         analysis_results = db.retrieve_sample_based_analysis(conn)
@@ -160,6 +162,8 @@ def test_ingest_cheetah_idempotent(db: DB) -> None:
             Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config",
             db,
             conn,
+            ProposalId(1),
+            force_run_creation=False,
         )
         assert second_ingest.number_of_ingested_data_sources == 0
 
@@ -194,6 +198,8 @@ def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
             Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config",
             db,
             conn,
+            ProposalId(1),
+            force_run_creation=False,
         )
         assert first_ingest.number_of_ingested_data_sources == 2
 
@@ -203,5 +209,7 @@ def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
             Path(__file__).parent.parent / "cheetah-update" / "gui" / "crawler.config",
             db,
             conn,
+            ProposalId(1),
+            force_run_creation=False,
         )
         assert second_ingest.number_of_ingested_data_sources == 2

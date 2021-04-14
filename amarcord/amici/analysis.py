@@ -11,6 +11,8 @@ from typing import Generator
 
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBDataSource
 from amarcord.db.table_classes import DBHitFindingParameters
 from amarcord.db.table_classes import DBHitFindingResult
@@ -52,6 +54,10 @@ def cheetah_to_database(config_file: Path) -> Generator[DBLinkedDataSource, None
             logger.debug("Line has no HDF5 directory or no ini file, skipping")
             continue
 
+        if line.cheetah_status == "Not finished":
+            logger.debug("Line is not finished yet")
+            continue
+
         # noinspection SpellCheckingInspection
         line_hdf_dir = hdf5_base_dir / line.hdf5_directory
         agipdfiles = line_hdf_dir / "agipdfiles.txt"
@@ -82,7 +88,13 @@ def cheetah_to_database(config_file: Path) -> Generator[DBLinkedDataSource, None
             hit_finding_results=[],
         )
 
-        recipe = cheetah_read_recipe(line_hdf_dir / line.recipe)
+        recipe_path = line_hdf_dir / line.recipe
+
+        if not recipe_path.exists():
+            logger.debug(f"Recipe path {recipe_path} doesn't exist, skipping")
+            continue
+
+        recipe = cheetah_read_recipe(recipe_path)
 
         peak_search_params = DBPeakSearchParameters(
             id=None,
@@ -133,8 +145,10 @@ def cheetah_to_database(config_file: Path) -> Generator[DBLinkedDataSource, None
                 hit_rate=line.hit_rate,
                 tag=None,
                 comment=None,
-                average_resolution=None,
-                average_peaks_event=None,
+                # This cannot be 0 but I don't know where to get it from in Cheetah
+                average_resolution=0,
+                # This cannot be 0 but I don't know where to get it from in Cheetah
+                average_peaks_event=0,
                 result_type="txt",
             ),
             peak_search_parameters=peak_search_params,
@@ -241,7 +255,11 @@ class CheetahIngestResults:
 
 
 def ingest_cheetah_internal(
-    config_file: Path, db: DB, conn: Connection
+    config_file: Path,
+    db: DB,
+    conn: Connection,
+    proposal_id: ProposalId,
+    force_run_creation: bool,
 ) -> CheetahIngestResults:
     """
     Ingest cheetah "testable" with custom DB object and connection. Not to be used from a script, since there,
@@ -249,22 +267,40 @@ def ingest_cheetah_internal(
     """
     number_of_ingested_data_sources = 0
     existing_indexings = db.retrieve_analysis_data_sources(conn)
+    run_ids = set(db.retrieve_run_ids(conn, proposal_id))
     for ds in cheetah_to_database(config_file):
+        run_id = ds.data_source.run_id
+        if run_id not in run_ids:
+            if not force_run_creation:
+                continue
+            logger.info(f"Creating run {run_id}")
+            db.add_run(conn, proposal_id, run_id, None, RawAttributiMap({}))
+            run_ids.add(run_id)
+
         already_ingested = False
         for existing_ds in existing_indexings:
             comparison = deep_compare_data_source(ds, existing_ds)
             if comparison == DeepComparisonResult.NO_DIFFERENCE:
+                logger.debug(
+                    f"Data source {existing_ds.data_source.id}: already ingested and is same"
+                )
                 already_ingested = True
                 break
             if comparison in (
                 DeepComparisonResult.INDEXING_DIFFERS,
                 DeepComparisonResult.HIT_FINDING_DIFFERS,
             ):
+                logger.info(
+                    f"Data source {existing_ds.data_source.id}: difference: {comparison}"
+                )
                 shallow_ingest_data_source(ds, existing_ds, db, conn)
                 number_of_ingested_data_sources += 1
                 already_ingested = True
                 break
         if not already_ingested:
+            logger.info(
+                f"Run {run_id}: new DS, deep ingest; data source: {ds.data_source}"
+            )
             deep_ingest_data_source(ds, db, conn)
             number_of_ingested_data_sources += 1
     return CheetahIngestResults(
@@ -272,7 +308,7 @@ def ingest_cheetah_internal(
     )
 
 
-def ingest_cheetah(config_file: Path) -> CheetahIngestResults:
+def ingest_cheetah(config_file: Path, proposal_id: ProposalId) -> CheetahIngestResults:
     env_var = os.environ.get(AMARCORD_DB_ENV_VAR, None)
     if env_var is None:
         sys.stderr.write(
@@ -305,4 +341,4 @@ def ingest_cheetah(config_file: Path) -> CheetahIngestResults:
     tables = create_tables(dbcontext)
     db = DB(dbcontext, tables)
     with db.connect() as conn:
-        return ingest_cheetah_internal(config_file, db, conn)
+        return ingest_cheetah_internal(config_file, db, conn, proposal_id, False)

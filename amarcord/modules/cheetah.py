@@ -59,7 +59,7 @@ class CheetahRecipe:
     local_bg_radius: Optional[int]
     min_res: int
     max_res: int
-    bad_pixel_map: Path
+    bad_pixel_map: Optional[Path]
 
 
 def cheetah_read_recipe(file_path: Path) -> CheetahRecipe:
@@ -92,7 +92,7 @@ def cheetah_read_recipe(file_path: Path) -> CheetahRecipe:
         local_bg_radius=int_or_none("hitfinderLocalBgRadius"),
         min_res=int(result["hitfinderMinRes"]),
         max_res=int(result["hitfinderMaxRes"]),
-        bad_pixel_map=Path(result["badpixelmap"]),
+        bad_pixel_map=Path(result["badpixelmap"]) if "badpixelmap" in result else None,
     )
 
 
@@ -117,17 +117,19 @@ def cheetah_read_crawler_config_file(file_path: Path) -> CheetahCrawlerConfigFil
 
 
 def cheetah_read_crawler_runs_table(file_path: Path) -> List[CheetahCrawlerLine]:
+    # If you're wondering about the --- and "" stuff: Cheetah sometimes sees --- as "unset value",
+    # and sometimes an empty string.
     def parse_invalid(x: str) -> Optional[str]:
-        return None if x == "---" else x
+        return None if x in ("---", "") else x
 
     def parse_invalid_path(x: str) -> Optional[Path]:
-        return None if x == "---" else Path(x)
+        return None if x in ("---", "") else Path(x)
 
     def parse_invalid_int(x: str) -> Optional[int]:
-        return None if x == "---" else int(x)
+        return None if x in ("---", "") else int(x)
 
     def parse_invalid_float(x: str) -> Optional[float]:
-        return None if x == "---" else float(x)
+        return None if x in ("---", "") else float(x)
 
     lines: List[CheetahCrawlerLine] = []
     with file_path.open() as f:

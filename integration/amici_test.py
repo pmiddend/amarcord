@@ -44,7 +44,7 @@ with db.connect() as conn:
 
 os.environ[AMARCORD_DB_ENV_VAR] = f"sqlite:///{test_db_filename}?proposal_id=1"
 config_path = Path("integration") / "gui" / "crawler.config"
-result = ingest_cheetah(config_path)
+result = ingest_cheetah(config_path, ProposalId(1))
 print(f"Ingested {result.number_of_ingested_data_sources} data source(s)")
-result = ingest_cheetah(config_path)
+result = ingest_cheetah(config_path, ProposalId(1))
 print(f"Ingested {result.number_of_ingested_data_sources} data source(s)")
