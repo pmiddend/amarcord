@@ -251,6 +251,18 @@ async def onda_loop(
     if onda_url is None:
         return
 
+    with db.connect() as conn:
+        attributi = db.retrieve_table_attributi(conn, AssociatedTable.RUN)
+
+        if AttributoId("hit_rate") not in attributi:
+            db.add_attributo(
+                conn,
+                "hit_rate",
+                "Hit rate",
+                AssociatedTable.RUN,
+                AttributoTypeDouble(suffix="%"),
+            )
+
     socket = zmq_context.socket(zmq.SUB)
     socket.connect(onda_url)
     # noinspection PyUnresolvedReferences
@@ -266,6 +278,8 @@ async def onda_loop(
             karabo_export.runs, msgpack.unpackb(full_msg[1])
         ):
             write_hit_rate_to_db(db, hit_rate, run_id)
+
+        await asyncio.sleep(10)
 
 
 def write_hit_rate_to_db(db: DB, result: float, run_id: int) -> None:
