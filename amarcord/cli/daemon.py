@@ -314,15 +314,17 @@ def main() -> None:
 
     tables = create_tables(dbcontext)
 
-    dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+    if args.database_url.startswith("sqlite://"):
+        dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
     db = DB(dbcontext, tables)
 
     zmq_ctx = Context.instance()
 
-    # Just for testing!
-    with db.dbcontext.connect() as local_conn:
-        db.add_proposal(local_conn, args.proposal_id)
+    if args.database_url.startswith("sqlite://"):
+        # Just for testing!
+        with db.dbcontext.connect() as local_conn:
+            db.add_proposal(local_conn, args.proposal_id)
 
     asyncio.run(
         async_main(
