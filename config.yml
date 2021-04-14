@@ -101,23 +101,23 @@ Karabo_bridge:
         type: decimal
         unit: millimeter # ?
 
-      XGM_XTD9_SASE3_pulse_energy:
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.intensitySa3TD
-        type: decimal
-        unit: microJoules
+      # XGM_XTD9_SASE3_pulse_energy:
+      #   source: SPB_XTD9_XGM/XGM/DOOCS:output
+      #   key: data.intensitySa3TD
+      #   type: decimal
+      #   unit: microJoules
 
-      XGM_XTD9_SASE3_beam_position_x:
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.xSa3TD
-        type: decimal
-        unit: mm # ?
+      # XGM_XTD9_SASE3_beam_position_x:
+      #   source: SPB_XTD9_XGM/XGM/DOOCS:output
+      #   key: data.xSa3TD
+      #   type: decimal
+      #   unit: mm # ?
 
-      XGM_XTD9_SASE3_beam_position_y:
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.ySa3TD
-        type: decimal
-        unit: mm # ?
+      # XGM_XTD9_SASE3_beam_position_y:
+      #   source: SPB_XTD9_XGM/XGM/DOOCS:output
+      #   key: data.ySa3TD
+      #   type: decimal
+      #   unit: mm # ?
 
       XGM_XTD9_Xray_wavelength_set:
         description: X-ray wavelength [Å]
