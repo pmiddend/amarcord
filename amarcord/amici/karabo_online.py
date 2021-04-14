@@ -19,7 +19,7 @@ import yaml
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.DEBUG,
+    level=logging.INFO,
 )
 
 
@@ -648,6 +648,18 @@ class KaraboBridgeSlicer:
                     )
                 )
 
+                # populate run attributi
+                # TO BE FIXED: LUT needed for self._attributi
+                for key in train_content.keys():
+                    if key == "timestamp_UTC_initial":
+                        continue
+
+                    _index = [
+                        entry["identifier"] for entry in self._attributi["run"]
+                    ].index(key)
+
+                    self._attributi["run"][_index]["value"] = train_content[key]
+
                 return [
                     KaraboRunStartOrUpdate(
                         self._current_run, copy.deepcopy(self._attributi)
@@ -696,6 +708,18 @@ class KaraboBridgeSlicer:
 
                 # reset the cache
                 self._initialize_cache()
+
+                # populate run attributi
+                # TO BE FIXED: LUT needed for self._attributi
+                for key in train_content.keys():
+                    if key == "timestamp_UTC_initial":
+                        continue
+
+                    _index = [
+                        entry["identifier"] for entry in self._attributi["run"]
+                    ].index(key)
+
+                    self._attributi["run"][_index]["value"] = train_content[key]
 
                 return [KaraboRunEnd(self._current_run, copy.deepcopy(self._attributi))]
 
