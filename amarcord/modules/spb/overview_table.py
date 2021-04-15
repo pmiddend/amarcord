@@ -303,6 +303,7 @@ class OverviewTable(QWidget):
 
     def _slot_refresh(self, force: bool = False) -> None:
         with self._db.connect() as conn:
+            self._samples = self._db.retrieve_mini_samples(conn)
             self._attributi_metadata = self._retrieve_attributi_metadata(conn)
             if self._completer_model.stringList() != self._filter_query_completions():
                 self._completer_model.setStringList(self._filter_query_completions())
