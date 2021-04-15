@@ -66,7 +66,7 @@ def test_process_singleton_batch() -> None:
     results = list(
         p.process_batch(
             {RunId(1): TrainRange(TrainId(1), TrainId(999))},
-            [{"event_id": 1, "hit_rate_for_frame": 0.5, "timestamp": 0}],
+            [{"event_id": 1, "hit_rate_of_frame": 0.5, "timestamp": 0}],
         )
     )
 
@@ -82,7 +82,7 @@ def test_process_singleton_batch() -> None:
     results = list(
         p.process_batch(
             {RunId(1): TrainRange(TrainId(1), TrainId(999))},
-            [{"event_id": 1, "hit_rate_for_frame": 0.5, "timestamp": 0}],
+            [{"event_id": 1, "hit_rate_of_frame": 0.5, "timestamp": 0}],
         )
     )
 
@@ -99,8 +99,8 @@ def test_process_two_items_in_batch() -> None:
         p.process_batch(
             {RunId(1): TrainRange(TrainId(1), TrainId(999))},
             [
-                {"event_id": 1, "hit_rate_for_frame": 0.5, "timestamp": 0},
-                {"event_id": 2, "hit_rate_for_frame": 1.0, "timestamp": 0},
+                {"event_id": 1, "hit_rate_of_frame": 0.5, "timestamp": 0},
+                {"event_id": 2, "hit_rate_of_frame": 1.0, "timestamp": 0},
             ],
         )
     )
@@ -117,8 +117,8 @@ def test_process_batch_with_dangling_run_id() -> None:
         p.process_batch(
             {RunId(1): TrainRange(TrainId(1), TrainId(999))},
             [
-                {"event_id": 1, "hit_rate_for_frame": 0.5, "timestamp": 0},
-                {"event_id": 10000, "hit_rate_for_frame": 1.0, "timestamp": 0},
+                {"event_id": 1, "hit_rate_of_frame": 0.5, "timestamp": 0},
+                {"event_id": 10000, "hit_rate_of_frame": 1.0, "timestamp": 0},
             ],
         )
     )

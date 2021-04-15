@@ -56,9 +56,9 @@ def validate_onda_zeromq_entry(d: Any) -> Optional[OnDAZeroMQData]:
         logger.error('received invalid data from OnDA, no "event_id": %s', d)
         return None
 
-    hit_rate_for_frame = d.get("hit_rate_for_frame", None)
-    if hit_rate_for_frame is None:
-        logger.error('received invalid data from OnDA, no "hit_rate_for_frame": %s', d)
+    hit_rate_of_frame = d.get("hit_rate_of_frame", None)
+    if hit_rate_of_frame is None:
+        logger.error('received invalid data from OnDA, no "hit_rate_of_frame": %s', d)
         return None
 
     timestamp = d.get("timestamp", None)
@@ -80,14 +80,14 @@ def validate_onda_zeromq_entry(d: Any) -> Optional[OnDAZeroMQData]:
         )
         return None
 
-    if not isinstance(hit_rate_for_frame, (int, float)):
+    if not isinstance(hit_rate_of_frame, (int, float)):
         logger.error(
-            'received invalid data from OnDA, "hit_rate_for_frame" not a number but %s',
-            type(hit_rate_for_frame),
+            'received invalid data from OnDA, "hit_rate_of_frame" not a number but %s',
+            type(hit_rate_of_frame),
         )
         return None
 
-    return OnDAZeroMQData(TrainId(event_id), HitRate(hit_rate_for_frame), timestamp)
+    return OnDAZeroMQData(TrainId(event_id), HitRate(hit_rate_of_frame), timestamp)
 
 
 def validate_onda_zeromq_data(d: Any) -> Optional[List[OnDAZeroMQData]]:
