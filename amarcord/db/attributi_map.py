@@ -24,6 +24,7 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.attributo_value_with_source import AttributoValueWithSource
 from amarcord.db.comment import DBComment
 from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.constants import OFFLINE_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.raw_attributi_map import RawAttributiMap
@@ -211,6 +212,13 @@ class AttributiMap:
             manual_attributo = manual_attributi.get(attributo_id, None)
             if manual_attributo:
                 return AttributoValueWithSource(manual_attributo, MANUAL_SOURCE_NAME)
+
+        offline_attributi = self._attributi.get(OFFLINE_SOURCE_NAME, None)
+
+        if offline_attributi is not None:
+            offline_attributo = offline_attributi.get(attributo_id, None)
+            if offline_attributo:
+                return AttributoValueWithSource(offline_attributo, OFFLINE_SOURCE_NAME)
 
         for source, values in self._attributi.items():
             assert isinstance(values, dict)

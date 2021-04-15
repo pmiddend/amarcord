@@ -10,7 +10,6 @@ from typing import List
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeDuration
@@ -139,9 +138,7 @@ def create_sample_data(db: DB) -> None:
             "status",
             description="Status",
             associated_table=AssociatedTable.RUN,
-            prop_type=AttributoTypeChoice(
-                [("running", "running"), ("running", "finished")]
-            ),
+            prop_type=AttributoTypeString(),
         )
         db.add_attributo(
             conn,
@@ -186,7 +183,7 @@ def create_sample_data(db: DB) -> None:
         )
 
         # Create runs
-        base_date = datetime.datetime.utcnow()
+        _base_date = datetime.datetime.utcnow()
         # To always get the same sample data, yet somewhat random values
         seed(1337)
         run_ids: List[int] = []
@@ -197,13 +194,34 @@ def create_sample_data(db: DB) -> None:
             attributi.append_to_source(
                 "online",
                 {
-                    AttributoId("status"): "running",
+                    AttributoId("status"): "running_online",
                     AttributoId("repetition_rate"): [randrange(0, 20)],
                     AttributoId("hit_rate"): random() * 100,
                     AttributoId("first_train"): current_train + 1,
                     AttributoId("last_train"): current_train + train_count,
                 },
             )
+            attributi.append_to_source(
+                "offline",
+                {
+                    AttributoId("status"): "running_offline",
+                    AttributoId("repetition_rate"): [randrange(0, 20)],
+                    AttributoId("hit_rate"): random() * 100,
+                    AttributoId("first_train"): current_train * 10000 + 1,
+                    AttributoId("last_train"): current_train * 10000 + train_count,
+                },
+            )
+            # If we want manual attributi as well
+            # attributi.append_to_source(
+            #     "manual",
+            #     {
+            #         AttributoId("status"): "running_manual",
+            #         AttributoId("repetition_rate"): [randrange(0, 20)],
+            #         AttributoId("hit_rate"): random() * 100,
+            #         AttributoId("first_train"): current_train * (-10000) + 1,
+            #         AttributoId("last_train"): current_train * (-10000) + train_count,
+            #     },
+            # )
             db.add_run(
                 conn,
                 ProposalId(proposal_id),
