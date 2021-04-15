@@ -314,7 +314,7 @@ def main() -> None:
     parser.add_argument("--database-url", required=True, help="Database url")
     parser.add_argument(
         "--karabo-config-file",
-        required=True,
+        required=False,
         help="File for the Karabo Bridge YAML configuration (optional)",
     )
     parser.add_argument(
