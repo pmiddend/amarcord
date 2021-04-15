@@ -11,6 +11,7 @@ from typing import cast
 
 from amarcord.run_id import RunId
 from amarcord.train_id import TrainId
+from amarcord.util import str_to_int
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +52,25 @@ def validate_onda_zeromq_entry(d: Any) -> Optional[OnDAZeroMQData]:
         )
         return None
 
-    event_id = d.get("event_id", None)
-    if event_id is None:
+    event_id_str = d.get("event_id", None)
+    if event_id_str is None:
         logger.error('received invalid data from OnDA, no "event_id": %s', d)
+        return None
+
+    if not isinstance(event_id_str, str):
+        logger.error(
+            'received invalid data from OnDA, "event_id" is not a string but {%s}: %s',
+            type(event_id_str),
+            d,
+        )
+        return None
+
+    event_id = str_to_int(event_id_str)
+    if event_id is None:
+        logger.error(
+            'received invalid data from OnDA, "event_id" is not a proper integer (train ID): %s',
+            d,
+        )
         return None
 
     hit_rate_of_frame = d.get("hit_rate_of_frame", None)
@@ -64,13 +81,6 @@ def validate_onda_zeromq_entry(d: Any) -> Optional[OnDAZeroMQData]:
     timestamp = d.get("timestamp", None)
     if timestamp is None:
         logger.error('received invalid data from OnDA, no "timestamp": %s', d)
-        return None
-
-    if not isinstance(event_id, int):
-        logger.error(
-            'received invalid data from OnDA, "event_id" not integer but %s',
-            type(event_id),
-        )
         return None
 
     if not isinstance(timestamp, (int, float)):

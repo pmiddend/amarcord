@@ -270,7 +270,7 @@ async def onda_loop(
 
     processor = OnDAZeroMQProcessor()
     while True:
-        logger.info("Waiting for OnDA data")
+        logger.debug("Waiting for OnDA data")
         # noinspection PyUnresolvedReferences
         full_msg = await socket.recv_multipart()
 
@@ -279,7 +279,7 @@ async def onda_loop(
         ):
             write_hit_rate_to_db(db, hit_rate, run_id)
 
-        await asyncio.sleep(10)
+        await asyncio.sleep(1)
 
 
 def write_hit_rate_to_db(db: DB, result: float, run_id: int) -> None:
