@@ -1,10 +1,13 @@
 module App.Utils where
 
 import Data.Array (find, head, uncons)
+import Data.Boolean (otherwise)
 import Data.Foldable (foldMap)
 import Data.Functor (class Functor)
 import Data.Maybe (Maybe(..))
 import Data.Monoid (class Monoid)
+import Data.Ord (class Ord)
+import Data.Set (Set, delete, insert, member)
 import Data.Tuple (Tuple(..))
 import Prelude (class Apply, class Eq, eq, map, (<$>), (<*>), (>>>))
 
@@ -25,3 +28,8 @@ findCascade xs f bs = case uncons bs of
 
 mapTuple :: forall a b f. Functor f => (a -> b) -> f a -> f (Tuple a b)
 mapTuple f = map (\x -> Tuple x (f x))
+
+toggleSetElement :: forall a. Ord a => a -> Set a -> Set a
+toggleSetElement v x
+  | member v x = delete v x
+  | otherwise = insert v x

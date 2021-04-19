@@ -50,6 +50,9 @@ attributoSuffix = _typeSchema <<< _JSONNumber <<< _suffix <<< traversed
 qualifiedAttributoName :: Attributo -> QualifiedAttributoName
 qualifiedAttributoName a = Tuple a.table a.name
 
+descriptiveAttributoText :: Attributo -> String
+descriptiveAttributoText a = if a.description == "" then a.name else a.description
+
 type AttributiResponse
   = { attributi :: Array Attributo
     }
