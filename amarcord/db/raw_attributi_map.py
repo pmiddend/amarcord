@@ -7,6 +7,7 @@ from typing import Optional
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.modules.json import JSONArray
 from amarcord.modules.json import JSONDict
 from amarcord.modules.json import JSONValue
 
@@ -114,6 +115,18 @@ class RawAttributiMap:
 
     def to_json(self) -> JSONDict:
         return self._sources  # type: ignore
+
+    def to_json_array(self, table: str) -> JSONArray:
+        return [
+            {
+                "table": table,
+                "source": source,
+                "name": attributo_id,
+                "value": attributo_value,
+            }
+            for source, values in self._sources.items()
+            for attributo_id, attributo_value in values.items()
+        ]
 
     def remove_attributo(
         self, attributo_id: AttributoId, source: Optional[str]

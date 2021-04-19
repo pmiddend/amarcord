@@ -1,0 +1,260 @@
+module App.Components.Overview where
+
+-- import Prelude hiding (comparing)
+-- import App.API (RunPropertiesResponse, RunsResponse, retrieveRunProperties, retrieveRuns)
+-- import App.AppMonad (AppMonad)
+-- import App.Autocomplete as Autocomplete
+-- import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, plainTh_, table)
+-- import App.Comment (Comment)
+-- import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
+-- import App.HalogenUtils (classList, faIcon, scope, singleClass)
+-- import App.Route (Route(..), RunsRouteInput, createLink)
+-- import App.Run (Run, runId, runLookup, runScalarProperty)
+-- import App.RunProperty (RunProperty, _description, _name, rpDescription, rpIsSortable, rpName)
+-- import App.RunScalar (RunScalar(..))
+-- import App.RunValue (RunValue(..))
+-- import App.SortOrder (SortOrder(..), comparing, invertOrder)
+-- import DOM.HTML.Indexed.ScopeValue (ScopeValue(ScopeCol))
+-- import Data.Array (filter, sortBy, (:))
+-- import Data.Either (Either)
+-- import Data.Foldable (foldMap)
+-- import Data.Lens (over, set, view, (^.))
+-- import Data.Lens.At (at)
+-- import Data.Lens.Record (prop)
+-- import Data.Maybe (Maybe(..), maybe)
+-- import Data.Number.Format (precision, toStringWith)
+-- import Data.Set (Set, delete, insert, member, singleton)
+-- import Data.Symbol (SProxy(..))
+-- import Data.Tuple (Tuple(..))
+import App.API (AttributiResponse, Attributo, OverviewResponse, OverviewRow, OverviewCell, retrieveAttributi, retrieveOverview)
+import App.AppMonad (AppMonad(..))
+import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
+import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
+import App.HalogenUtils (scope)
+import App.Route (OverviewRouteInput)
+import App.TabledAttributo (TabledAttributo)
+import App.Utils (fanoutApplicative)
+import Control.Applicative (class Applicative, pure)
+import Control.Apply ((<*>))
+import Data.Argonaut (Json, caseJson)
+import Data.Array (filter, head, mapMaybe)
+import Data.Eq ((==))
+import Data.Foldable (null)
+import Data.Function (const, identity)
+import Data.Functor ((<$>))
+import Data.HeytingAlgebra ((&&))
+import Data.Maybe (Maybe(..), maybe)
+import Data.Monoid (mempty)
+import Data.Set (Set)
+import Data.Show (show)
+import Data.Traversable (find)
+import Data.Tuple (Tuple(..))
+import Data.Unit (Unit, unit)
+import Data.Void (absurd)
+import Halogen as H
+import Halogen.HTML as HH
+import Halogen.HTML.Properties (ScopeValue(..))
+import Network.RemoteData (RemoteData, fromEither)
+
+-- import Halogen.HTML.Events as HE
+-- import Halogen.HTML.Properties as HP
+-- import Network.RemoteData (RemoteData, fromEither)
+type State
+  = { overviewRows :: Array OverviewRow
+    , attributi :: Array Attributo
+    , selectedAttributi :: Set TabledAttributo
+    , overviewSorting :: OverviewRouteInput
+    }
+
+-- _selectedRunProperties = prop (SProxy :: SProxy "selectedRunProperties")
+data Action
+
+-- data Action
+--   = Resort RunsRouteInput
+--   | ToggleProperty String
+initialState :: ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse) -> State
+initialState { input: overviewSorting, remoteData: Tuple overviewResponse attributiResponse } =
+  { overviewRows: overviewResponse.overviewRows
+  , selectedAttributi: mempty
+  --  , selectedRunProperties: (foldMap (view _name >>> singleton) runPropertiesResponse.metadata)
+  , attributi: attributiResponse.attributi
+  , overviewSorting
+  --  , runs: resort runSorting runsResponse.runs
+  }
+
+-- component :: forall output query. H.Component HH.HTML query RunsRouteInput output AppMonad
+component = parentComponent fetchInitialData childComponent
+
+-- component = H.mkComponent { initialState: \_ -> 0, render: \_ -> HH.text "todo", eval: H.mkEval H.defaultEval }
+childComponent :: forall q. H.Component HH.HTML q (ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse)) ParentError AppMonad
+childComponent =
+  H.mkComponent
+    { initialState
+    , render
+    , eval:
+        H.mkEval
+          H.defaultEval
+            { handleAction = handleAction
+            }
+    }
+
+handleAction :: forall t94 t95. Applicative t95 => t94 -> t95 Unit
+handleAction _ = pure unit
+
+fetchInitialData :: OverviewRouteInput -> AppMonad (RemoteData String (Tuple OverviewResponse AttributiResponse))
+fetchInitialData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
+
+render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
+render state =
+  let
+    makeHeader :: forall w. Attributo -> HH.HTML w Action
+    makeHeader t = HH.th [ scope ScopeCol ] [ HH.text (if t.description == "" then t.name else t.description) ]
+
+    -- let --   isSortProp = rpName t == state.runSorting.sort --   afterSort = resortParams (rpName t) (state.runSorting) -- in HH.th [ scope ScopeCol ] (if null t.description then t.description else t.name)
+    -- ( if rpIsSortable t then
+    --     [ HH.a
+    --         [ HP.href (createLink (Runs afterSort)), HE.onClick \_ -> Just (Resort afterSort) ]
+    --         ([ HH.text (rpDescription t) ] <> (if isSortProp then [ orderingToIcon state.runSorting.sortOrder ] else []))
+    --     ]
+    --   else
+    --     [ HH.text (rpDescription t) ]
+    -- )
+    -- makeComment :: forall w. Comment -> HH.HTML w Action
+    -- makeComment c = HH.li_ [ HH.text (c.author <> ": " <> c.text) ]
+    -- makeProperty :: forall w. RunProperty -> Maybe RunValue -> HH.HTML w Action
+    -- makeProperty rp value = case value of
+    --   Nothing -> HH.td_ []
+    --   Just (Comments cs) -> HH.td_ [ HH.ul_ (makeComment <$> cs) ]
+    --   Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
+    --   _ -> HH.td_ [ HH.text (maybe "" show value) ]
+    wholeSelectedProps = state.attributi
+
+    -- Given a list of cells with source, select the "best" source
+    selectProperSource :: Array OverviewCell -> Maybe OverviewCell
+    selectProperSource [] = Nothing
+
+    selectProperSource xs =
+      let
+        sourceOrder :: Array String
+        sourceOrder = [ "manual", "offline", "online" ]
+
+        sources :: Array OverviewCell
+        sources = mapMaybe (\source -> find (\x -> x.source == source) xs) sourceOrder
+      in
+        head (if null sources then xs else sources)
+
+    -- Given a row in the overview and a certain attributo, find the correct attributo cell (proper source and stuff)
+    findCell :: OverviewRow -> Attributo -> Maybe OverviewCell
+    findCell cells attributo =
+      let
+        foundCells = filter (\cell -> cell.table == attributo.table && cell.name == attributo.name) cells
+      in
+        selectProperSource foundCells
+
+    cellToHtml :: forall w. Attributo -> OverviewCell -> HH.HTML w Action
+    cellToHtml attributo cell = HH.td_ [ HH.text (caseJson (const "") show show identity (const "array") (const "object") cell.value) ]
+
+    makeCell :: forall w. OverviewRow -> Attributo -> HH.HTML w Action
+    makeCell overviewRow attributo = maybe (HH.th_ []) (cellToHtml attributo) (findCell overviewRow attributo)
+
+    --wholeSelectedProps = filter (\x -> member (x ^. _name) state.selectedRunProperties) state.runProperties
+    --makeRow run = HH.tr_ (HH.td_ [ HH.a [ HP.href (createLink (EditRun (runId run))) ] [ faIcon "edit" ] ] : ((\rp -> makeProperty rp (runLookup run (rpName rp))) <$> wholeSelectedProps))
+    makeRow overviewRow = HH.tr_ (makeCell overviewRow <$> wholeSelectedProps)
+  in
+    fluidContainer
+      [ plainH1_ "Experiment Overview"
+      -- , selectedColumnChooser state
+      , table
+          [ TableStriped ]
+          -- (plainTh_ "Actions" : (makeHeader <$> wholeSelectedProps))
+          (makeHeader <$> wholeSelectedProps)
+          (makeRow <$> state.overviewRows)
+      ]
+
+-- resort :: RunsRouteInput -> Array Run -> Array Run
+-- resort by = sortBy (comparing (by.sortOrder) (runScalarProperty by.sort))
+-- toggleSetElement :: forall a. Ord a => a -> Set a -> Set a
+-- toggleSetElement v x
+--   | member v x = delete v x
+--   | otherwise = insert v x
+-- handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
+-- handleAction = case _ of
+--   ToggleProperty p -> H.modify_ (over _selectedRunProperties (toggleSetElement p))
+--   Resort by ->
+--     H.modify_ \state ->
+--       state
+--         { runSorting = by
+--         , runs = resort by (state.runs)
+--         }
+-- orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
+-- orderingToIcon Ascending = faIcon "sort-up"
+-- orderingToIcon Descending = faIcon "sort-down"
+-- resortParams :: String -> RunsRouteInput -> RunsRouteInput
+-- resortParams x { sort, sortOrder }
+--   | x == sort = { sort, sortOrder: invertOrder sortOrder }
+--   | otherwise = { sort: x, sortOrder: Ascending }
+-- selectedColumnChooser :: forall w. State -> HH.HTML w Action
+-- selectedColumnChooser state =
+--   let
+--     makeRow :: RunProperty -> HH.HTML w Action
+--     makeRow property =
+--       HH.button
+--         [ HP.type_ HP.ButtonButton
+--         , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if member (property ^. _name) state.selectedRunProperties then [ "active" ] else []))
+--         , HE.onClick \_ -> Just (ToggleProperty (property ^. _name))
+--         ]
+--         [ HH.text (property ^. _description) ]
+--   in
+--     HH.div_
+--       [ HH.p_
+--           [ HH.button
+--               [ classList [ "btn", "btn-secondary" ]
+--               , HP.type_ HP.ButtonButton
+--               , HP.attr (HH.AttrName "data-toggle") "collapse"
+--               , HP.attr (HH.AttrName "data-target") "#columnChooser"
+--               ]
+--               [ HH.text "Choose columns" ]
+--           ]
+--       , HH.div [ singleClass "collapse", HP.id_ "columnChooser" ]
+--           [ HH.div [ singleClass "list-group " ]
+--               ( makeRow <$> state.runProperties
+--               )
+--           ]
+--       ]
+-- render :: State -> H.ComponentHTML Action ( refinementComplete :: forall query. H.Slot query Autocomplete.Output Int ) AppMonad
+-- render state =
+--   let
+--     makeHeader :: forall w. RunProperty -> HH.HTML w Action
+--     makeHeader t =
+--       let
+--         isSortProp = rpName t == state.runSorting.sort
+--         afterSort = resortParams (rpName t) (state.runSorting)
+--       in
+--         HH.th [ scope ScopeCol ]
+--           ( if rpIsSortable t then
+--               [ HH.a
+--                   [ HP.href (createLink (Runs afterSort)), HE.onClick \_ -> Just (Resort afterSort) ]
+--                   ([ HH.text (rpDescription t) ] <> (if isSortProp then [ orderingToIcon state.runSorting.sortOrder ] else []))
+--               ]
+--             else
+--               [ HH.text (rpDescription t) ]
+--           )
+--     makeComment :: forall w. Comment -> HH.HTML w Action
+--     makeComment c = HH.li_ [ HH.text (c.author <> ": " <> c.text) ]
+--     makeProperty :: forall w. RunProperty -> Maybe RunValue -> HH.HTML w Action
+--     makeProperty rp value = case value of
+--       Nothing -> HH.td_ []
+--       Just (Comments cs) -> HH.td_ [ HH.ul_ (makeComment <$> cs) ]
+--       Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
+--       _ -> HH.td_ [ HH.text (maybe "" show value) ]
+--     wholeSelectedProps = filter (\x -> member (x ^. _name) state.selectedRunProperties) state.runProperties
+--     makeRow run = HH.tr_ (HH.td_ [ HH.a [ HP.href (createLink (EditRun (runId run))) ] [ faIcon "edit" ] ] : ((\rp -> makeProperty rp (runLookup run (rpName rp))) <$> wholeSelectedProps))
+--   in
+--     fluidContainer
+--       [ plainH1_ "Runs"
+--       , selectedColumnChooser state
+--       , table
+--           [ TableStriped ]
+--           (plainTh_ "Actions" : (makeHeader <$> wholeSelectedProps))
+--           (makeRow <$> state.runs)
+--       ]

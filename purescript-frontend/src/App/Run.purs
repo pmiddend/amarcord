@@ -1,37 +1,37 @@
 module App.Run where
 
-import Prelude
+-- import Prelude
 
-import App.Comment (Comment)
-import App.ScalarAttributo (ScalarAttributo(..), scalarAttributoInt)
-import App.AttributoValue (AttributoValue, _Comments)
-import Data.Argonaut (class DecodeJson, Json, JsonDecodeError, decodeJson)
-import Data.Array (mapMaybe)
-import Data.Either (Either)
-import Data.Lens (Traversal', Lens', traversed)
-import Data.Lens.Index (ix)
-import Data.Lens.Iso.Newtype (_Newtype)
-import Data.Lens.Record (prop)
-import Data.Maybe (Maybe, fromMaybe)
-import Data.Newtype (class Newtype)
-import Data.Symbol (SProxy(..))
-import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..))
-import Foreign.Object (Object, foldM, foldMap, lookup, toUnfoldable)
+-- import App.Comment (Comment)
+-- import App.ScalarAttributo (ScalarAttributo(..), scalarAttributoInt)
+-- import App.AttributoValue (AttributoValue, _Comments)
+-- import Data.Argonaut (class DecodeJson, Json, JsonDecodeError, decodeJson)
+-- import Data.Array (mapMaybe)
+-- import Data.Either (Either)
+-- import Data.Lens (Traversal', Lens', traversed)
+-- import Data.Lens.Index (ix)
+-- import Data.Lens.Iso.Newtype (_Newtype)
+-- import Data.Lens.Record (prop)
+-- import Data.Maybe (Maybe, fromMaybe)
+-- import Data.Newtype (class Newtype)
+-- import Data.Symbol (SProxy(..))
+-- import Data.Traversable (traverse)
+-- import Data.Tuple (Tuple(..))
+-- import Foreign.Object (Object, foldM, foldMap, lookup, toUnfoldable)
 
 
-type Run
-  = { id :: Int
-    , sample_id :: Maybe Int
-    , modified :: String
-    , comments :: Array Comment
-    , attributi :: Attributi
-    }
+-- type Run
+--   = { id :: Int
+--     , sample_id :: Maybe Int
+--     , modified :: String
+--     , comments :: Array Comment
+--     , attributi :: Attributi
+--     }
 
-_attributi :: Lens' Run Attributi
-_attributi = prop (SProxy :: SProxy "attributi")
+-- _attributi :: Lens' Run Attributi
+-- _attributi = prop (SProxy :: SProxy "attributi")
 
-type Source = String
+-- type Source = String
 
 
 

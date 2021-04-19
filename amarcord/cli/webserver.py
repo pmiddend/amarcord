@@ -8,6 +8,7 @@ from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
 from amarcord.config import load_user_config
+from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     attributo_type_to_schema,
 )
@@ -19,6 +20,7 @@ from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.json import JSONArray
 from amarcord.modules.json import JSONDict
 
 logging.basicConfig(
@@ -50,8 +52,13 @@ if isinstance(config["create_sample_data"], bool) and config["create_sample_data
     create_sample_data(db)
 
 
-def _convert_overview(r: OverviewAttributi) -> JSONDict:
-    return {table.value: attributi.to_raw().to_json() for table, attributi in r.items()}
+def _convert_overview(r: OverviewAttributi) -> JSONArray:
+    return [
+        v
+        for table, attributi in r.items()
+        for v in attributi.to_raw().to_json_array(table.value)
+    ]
+    # return {table.value: attributi.to_raw().to_json() for table, attributi in r.items()}
 
 
 @app.route("/<int:proposal_id>/overview")
@@ -72,11 +79,12 @@ def retrieve_overview(proposal_id: int) -> JSONDict:
         }
 
 
-def _convert_metadata(v: DBAttributo) -> JSONDict:
+def _convert_metadata(table: AssociatedTable, v: DBAttributo) -> JSONDict:
     return {
+        "table": table.value,
         "name": v.name,
         "description": v.description,
-        "type_schema": attributo_type_to_schema(v.attributo_type)
+        "typeSchema": attributo_type_to_schema(v.attributo_type)
         if v.attributo_type is not None
         else None,
     }
@@ -88,8 +96,11 @@ def retrieve_attributi() -> JSONDict:
     global db
     with db.connect() as conn:
         return {
-            table.value: [_convert_metadata(a) for a in attributi.values()]
-            for table, attributi in db.retrieve_attributi(conn).items()
+            "attributi": [
+                _convert_metadata(table, a)
+                for table, attributi in db.retrieve_attributi(conn).items()
+                for a in attributi.values()
+            ]
         }
 
 

@@ -13,6 +13,5 @@
     "serve": "http-server dist & parcel serve dev/index.html",
     "build-prod": "mkdir -p prod && cp -R dev/index.html dev/webfonts dev/css dev/favicon.png static/* prod/ && rm -rf dist && spago --no-color bundle-app --to prod/index.js && parcel build prod/index.html"
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }
