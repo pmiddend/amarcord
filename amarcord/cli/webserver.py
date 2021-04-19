@@ -1,24 +1,21 @@
-import datetime
 import json
 import logging
+import sys
 
 from flask import Flask
 from flask import request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
-from amarcord.config import load_config
-from amarcord.db.associated_table import AssociatedTable
+from amarcord.config import load_user_config
 from amarcord.db.attributi import (
     attributo_type_to_schema,
 )
-from amarcord.db.attributo_id import AttributoId
-from amarcord.db.comment import DBComment
 from amarcord.db.db import DB
+from amarcord.db.db import OverviewAttributi
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
-from amarcord.db.table_classes import DBRun
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -32,9 +29,14 @@ logging.basicConfig(
 app = Flask(__name__)
 CORS(app)
 
-config = load_config()
+config = load_user_config()
 
-dbcontext = DBContext(config["db"]["url"])
+db_url = config["db_url"]
+if db_url is None:
+    sys.stderr.write('Couldn\'t find "db_url" in configuration!')
+    sys.exit(1)
+
+dbcontext = DBContext(db_url)
 tables = create_tables(dbcontext)
 
 dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
@@ -44,46 +46,27 @@ db = DB(
     tables,
 )
 
-if (
-    isinstance(config["db"]["create_sample_data"], bool)
-    and config["db"]["create_sample_data"]
-):
+if isinstance(config["create_sample_data"], bool) and config["create_sample_data"]:
     create_sample_data(db)
 
 
-def _convert_run(r: DBRun) -> JSONDict:
-    def convert_comment(value: DBComment) -> JSONDict:
-        return {
-            "id": value.id,
-            "text": value.text,
-            "author": value.author,
-            "created": value.created.isoformat(),
-        }
-
-    return {
-        "id": r.id,
-        "sample_id": r.sample_id,
-        "modified": r.modified.isoformat(),
-        "comments": [convert_comment(c) for c in r.comments],
-        "attributi": r.attributi.to_json(),
-    }
+def _convert_overview(r: OverviewAttributi) -> JSONDict:
+    return {table.value: attributi.to_raw().to_json() for table, attributi in r.items()}
 
 
-@app.route("/<int:proposal_id>/runs")
-def retrieve_runs(proposal_id: int) -> JSONDict:
+@app.route("/<int:proposal_id>/overview")
+def retrieve_overview(proposal_id: int) -> JSONDict:
     # pylint: disable=global-statement
     global db
     with db.connect() as conn:
-        since = request.args.get("since", None)
+        # since = request.args.get("since", None)
+        # if since is not None:
+        #     since = datetime.datetime.fromisoformat(since)
         return {
-            "runs": [
-                _convert_run(r)
-                for r in db.retrieve_runs(
-                    conn,
-                    ProposalId(proposal_id),
-                    datetime.datetime.fromisoformat(since)
-                    if since is not None
-                    else None,
+            "overviewRows": [
+                _convert_overview(r)
+                for r in db.retrieve_overview(
+                    conn, ProposalId(proposal_id), db.retrieve_attributi(conn)
                 )
             ]
         }
@@ -99,25 +82,23 @@ def _convert_metadata(v: DBAttributo) -> JSONDict:
     }
 
 
-@app.route("/run_properties")
-def retrieve_run_properties() -> JSONDict:
+@app.route("/attributi")
+def retrieve_attributi() -> JSONDict:
     # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         return {
-            "attributi": [
-                _convert_metadata(v)
-                for v in db.retrieve_table_attributi(conn, AssociatedTable.RUN).values()
-            ]
+            table.value: [_convert_metadata(a) for a in attributi.values()]
+            for table, attributi in db.retrieve_attributi(conn).items()
         }
 
 
-@app.route("/run/<int:run_id>")
-def retrieve_run(run_id: int) -> JSONDict:
-    # pylint: disable=global-statement
-    global db
-    with db.connect() as conn:
-        return _convert_run(db.retrieve_run(conn, run_id))
+# @app.route("/run/<int:run_id>")
+# def retrieve_run(run_id: int) -> JSONDict:
+#     # pylint: disable=global-statement
+#     global db
+#     with db.connect() as conn:
+#         return _convert_run(db.retrieve_run(conn, run_id))
 
 
 @app.route("/run/<int:run_id>/comment", methods=["POST"])
@@ -131,22 +112,6 @@ def add_comment(
         assert "author" in request.json
         assert "text" in request.json
         db.add_comment(conn, run_id, request.json["author"], request.json["text"])
-        return {}
-
-
-@app.route("/run/<int:run_id>/attributo/<attributo_name>", methods=["POST"])
-def update_run_attributo(
-    run_id: int,
-    attributo_name: str,
-) -> JSONDict:
-    # pylint: disable=global-statement
-    global db
-    with db.connect() as conn:
-        assert isinstance(request.json, dict)
-        assert "value" in request.json
-        db.update_run_attributo(
-            conn, run_id, AttributoId(attributo_name), request.json["value"]
-        )
         return {}
 
 
