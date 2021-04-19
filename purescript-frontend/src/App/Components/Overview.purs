@@ -2,7 +2,7 @@ module App.Components.Overview where
 
 import App.API (AttributiResponse, OverviewCell, OverviewResponse, OverviewRow, retrieveAttributi, retrieveOverview)
 import App.AppMonad (AppMonad)
-import App.AssociatedTable (AssociatedTable)
+import App.AssociatedTable (AssociatedTable(..))
 import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
@@ -15,7 +15,7 @@ import App.Utils (fanoutApplicative, toggleSetElement)
 import Control.Apply ((<*>))
 import Data.Argonaut (caseJson)
 import Data.Array (filter, head, mapMaybe, sortBy)
-import Data.Eq ((==))
+import Data.Eq ((/=), (==))
 import Data.Foldable (foldMap, null)
 import Data.Function (const, (<<<))
 import Data.Functor (map, (<$>))
@@ -25,10 +25,10 @@ import Data.Lens (to, toArrayOf)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Number.Format (fixed, toStringWith)
 import Data.Semigroup ((<>))
-import Data.Set (Set, member, singleton)
+import Data.Set as Set
 import Data.Show (show)
 import Data.Traversable (find)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst)
 import Data.Unit (Unit)
 import Halogen as H
 import Halogen.HTML as HH
@@ -40,18 +40,19 @@ import Network.RemoteData (RemoteData, fromEither)
 type State
   = { overviewRows :: Array OverviewRow
     , attributi :: Array Attributo
-    , selectedAttributi :: Set QualifiedAttributoName
+    , selectedAttributi :: Set.Set QualifiedAttributoName
     , overviewSorting :: OverviewRouteInput
     }
 
 data Action
   = Resort OverviewRouteInput
   | ToggleAttributo QualifiedAttributoName
+  | ToggleTable AssociatedTable
 
 initialState :: ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse) -> State
 initialState { input: overviewSorting, remoteData: Tuple overviewResponse attributiResponse } =
   { overviewRows: resort overviewSorting overviewResponse.overviewRows
-  , selectedAttributi: foldMap (singleton <<< qualifiedAttributoName) attributiResponse.attributi
+  , selectedAttributi: foldMap (Set.singleton <<< qualifiedAttributoName) attributiResponse.attributi
   , attributi: attributiResponse.attributi
   , overviewSorting
   }
@@ -86,6 +87,8 @@ handleAction = case _ of
   Resort newInput -> H.modify_ \state -> state { overviewSorting = newInput, overviewRows = resort newInput state.overviewRows }
   ToggleAttributo x -> do
     H.modify_ \state -> state { selectedAttributi = toggleSetElement x state.selectedAttributi }
+  ToggleTable t -> do
+    H.modify_ \state -> state { selectedAttributi = Set.filter (\x -> fst x /= t) state.selectedAttributi }
 
 fetchInitialData :: OverviewRouteInput -> AppMonad (RemoteData String (Tuple OverviewResponse AttributiResponse))
 fetchInitialData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
@@ -178,7 +181,7 @@ render state =
     --   Just (Comments cs) -> HH.td_ [ HH.ul_ (makeComment <$> cs) ]
     --   Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
     --   _ -> HH.td_ [ HH.text (maybe "" show value) ]
-    wholeSelectedProps = filter (\a -> qualifiedAttributoName a `member` state.selectedAttributi) state.attributi
+    wholeSelectedProps = filter (\a -> qualifiedAttributoName a `Set.member` state.selectedAttributi) state.attributi
 
     numberToHtml :: forall w. Attributo -> Number -> HH.HTML w Action
     numberToHtml attributo n = case attributo.typeSchema of
@@ -228,10 +231,19 @@ selectedColumnChooser state =
       in
         HH.button
           [ HP.type_ HP.ButtonButton
-          , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if qan `member` state.selectedAttributi then [ "active" ] else []))
+          , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if qan `Set.member` state.selectedAttributi then [ "active" ] else []))
           , HE.onClick \_ -> Just (ToggleAttributo qan)
           ]
           [ HH.text (show a.table <> "." <> descriptiveAttributoText a) ]
+
+    disableRow t =
+      HH.p_
+        [ HH.button
+            [ classList [ "btn", "btn-secondary" ]
+            , HE.onClick \_ -> Just (ToggleTable t)
+            ]
+            [ HH.text "Disable all" ]
+        ]
   in
     HH.div_
       [ HH.p_
@@ -244,8 +256,19 @@ selectedColumnChooser state =
               [ faIcon "columns", HH.text " Choose columns" ]
           ]
       , HH.div [ singleClass "collapse", HP.id_ "columnChooser" ]
-          [ HH.div [ singleClass "list-group " ]
-              ( makeRow <$> state.attributi
-              )
+          [ HH.div [ singleClass "row" ]
+              [ HH.div [ singleClass "col" ]
+                  [ HH.h3_ [ HH.text "Sample" ]
+                  , disableRow Sample
+                  , HH.div [ singleClass "list-group " ]
+                      (makeRow <$> (filter (\a -> a.table == Sample) state.attributi))
+                  ]
+              , HH.div [ singleClass "col" ]
+                  [ HH.h3_ [ HH.text "Run" ]
+                  , disableRow Run
+                  , HH.div [ singleClass "list-group " ]
+                      (makeRow <$> (filter (\a -> a.table == Run) state.attributi))
+                  ]
+              ]
           ]
       ]

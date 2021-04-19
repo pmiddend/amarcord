@@ -91,6 +91,7 @@ def create_sample_data(db: DB) -> None:
             attributi.set_single_manual(
                 AttributoId("crystal_buffer"), "foo crystal buffer bar"
             )
+            attributi.set_single_manual(AttributoId("creator"), "pmidden")
             attributi.set_single_manual(AttributoId("shaking_time"), "P2D")
             sample_ids.append(
                 db.add_sample(
