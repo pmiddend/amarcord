@@ -1,9 +1,16 @@
 stages:
+  - pretest
   - test
   - integration
   - deploy
   - test-deploy
   - upload-docker
+
+check-shell-scripts:
+  stage: pretest
+  image: koalaman/shellcheck-alpine:latest
+  script:
+    - shellcheck ci/*.sh
 
 variables:
   AMARCORD_PYTHON_DOCKER: python:3.8
@@ -75,6 +82,33 @@ deploy-pypi:
     - python setup.py sdist bdist_wheel
     - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
 
+build-web-prod:
+  image: ubuntu:groovy
+  script:
+    - ci/build-web-on-debian.sh
+  artifacts:
+    paths:
+      - purescript-frontend/prod/
+
+upload-webserver:
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  stage: upload-docker
+  variables:
+    # To deploy this to master, we need a slug, not a SHA actually. Need to fix that.
+    IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    IMAGE_COMMIT_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  only:
+    - tags
+    - master
+    - purescript-overview
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile-web --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
 #integration-amici:
 #  image: $AMARCORD_PYTHON_DOCKER
 #  stage: test-deploy

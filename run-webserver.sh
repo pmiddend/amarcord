@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 
-rm -f /tmp/newnewtest.db && FLASK_APP=amarcord/xfel_webserver.py AMARCORD_CREATE_SAMPLE_DATA="y" flask run
+set -ex
+
+gunicorn --bind 0.0.0.0:5000 amarcord.cli.webserver:app

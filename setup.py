@@ -31,6 +31,11 @@ setuptools.setup(
         "bcrypt==3.2.*",
         # to pretty-print attributi (yeah, it's a bit overkill)
         "lark-parser==0.11.*",
+        # For the config file
+        "PyYAML==5.4.*",
+        # For the config file
+        # (for accessing XDG_CONFIG_HOME)
+        "xdg==5.0.*",
     ],
     extras_require={
         "daemon": [
@@ -57,13 +62,8 @@ setuptools.setup(
             "matplotlib==3.3.*",
             # For validating units
             "pint==0.16.*",
-            # For accessing XDG_CONFIG_HOME
-            "xdg==5.0.*",
         ],
-        "webserver": [
-            "Flask==1.1.*",
-            "Flask-Cors==3.0.*",
-        ],
+        "webserver": ["Flask==1.1.*", "Flask-Cors==3.0.*", "gunicorn==20.1.*"],
     },
     python_requires=">=3.8",
 )

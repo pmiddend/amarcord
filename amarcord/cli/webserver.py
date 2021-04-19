@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import sys
 
 from flask import Flask
@@ -28,27 +29,41 @@ logging.basicConfig(
 )
 
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    static_folder=os.environ.get("AMARCORD_STATIC_FOLDER", "purescript-frontend/prod"),
+    static_url_path="/",
+)
 CORS(app)
 
-config = load_user_config()
+db_url: str
+is_create_sample_data: bool
+if "AMARCORD_DB_URL" in os.environ:
+    db_url = os.environ["AMARCORD_DB_URL"]
+    csd = os.environ.get("AMARCORD_CREATE_SAMPLE_DATA", "false")
+    is_create_sample_data = csd == "true"
+else:
+    config = load_user_config()
+    db_url_ = config.get("db_url", None)
+    if db_url_ is None:
+        sys.stderr.write('Couldn\'t find "db_url" in configuration!')
+        sys.exit(1)
+    db_url = db_url_
+    is_create_sample_data = bool(config["create_sample_data"])
 
-db_url = config["db_url"]
-if db_url is None:
-    sys.stderr.write('Couldn\'t find "db_url" in configuration!')
-    sys.exit(1)
 
 dbcontext = DBContext(db_url)
 tables = create_tables(dbcontext)
 
-dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+if db_url.startswith("sqlite://"):
+    dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
 db = DB(
     dbcontext,
     tables,
 )
 
-if isinstance(config["create_sample_data"], bool) and config["create_sample_data"]:
+if is_create_sample_data:
     create_sample_data(db)
 
 

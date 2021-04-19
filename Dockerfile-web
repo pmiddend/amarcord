@@ -1,0 +1,11 @@
+FROM python:3.8-slim
+
+RUN mkdir /app
+COPY . /app
+WORKDIR /app
+
+RUN pip install '.[webserver]'
+EXPOSE 5000
+
+ENV AMARCORD_STATIC_FOLDER=/app/purescript-frontend/prod
+CMD ["./run-webserver.sh"]
