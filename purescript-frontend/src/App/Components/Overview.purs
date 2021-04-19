@@ -26,11 +26,12 @@ module App.Components.Overview where
 -- import Data.Set (Set, delete, insert, member, singleton)
 -- import Data.Symbol (SProxy(..))
 -- import Data.Tuple (Tuple(..))
-import App.API (AttributiResponse, Attributo, OverviewResponse, OverviewRow, OverviewCell, retrieveAttributi, retrieveOverview)
+import App.API (AttributiResponse, Attributo, OverviewCell, OverviewResponse, OverviewRow, _typeSchema, retrieveAttributi, retrieveOverview)
 import App.AppMonad (AppMonad(..))
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
-import App.HalogenUtils (scope)
+import App.HalogenUtils (scope, singleClass)
+import App.JSONSchemaType (JSONNumberData, JSONSchemaType(..), _JSONNumber, _suffix)
 import App.Route (OverviewRouteInput)
 import App.TabledAttributo (TabledAttributo)
 import App.Utils (fanoutApplicative)
@@ -40,11 +41,15 @@ import Data.Argonaut (Json, caseJson)
 import Data.Array (filter, head, mapMaybe)
 import Data.Eq ((==))
 import Data.Foldable (null)
-import Data.Function (const, identity)
+import Data.Function (const, identity, (<<<), (>>>))
 import Data.Functor ((<$>))
 import Data.HeytingAlgebra ((&&))
+import Data.Int (round)
+import Data.Lens (Fold', Traversal', to, toArrayOf, toListOf, traversed, (^?))
 import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid (mempty)
+import Data.Number.Format (fixed, toStringWith)
+import Data.Semigroup ((<>))
 import Data.Set (Set)
 import Data.Show (show)
 import Data.Traversable (find)
@@ -108,7 +113,15 @@ render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 render state =
   let
     makeHeader :: forall w. Attributo -> HH.HTML w Action
-    makeHeader t = HH.th [ scope ScopeCol ] [ HH.text (if t.description == "" then t.name else t.description) ]
+    makeHeader t =
+      let
+        attributoSuffix :: Traversal' Attributo String
+        attributoSuffix = _typeSchema <<< _JSONNumber <<< _suffix <<< traversed
+
+        maybeSuffix :: Array (HH.HTML w Action)
+        maybeSuffix = toArrayOf (attributoSuffix <<< to (\x -> HH.text (" [" <> x <> "]"))) t
+      in
+        HH.th [ scope ScopeCol, singleClass "text-nowrap" ] ([ HH.span [ singleClass "text-muted" ] [ HH.text (show t.table <> ".") ], HH.text (if t.description == "" then t.name else t.description) ] <> maybeSuffix)
 
     -- let --   isSortProp = rpName t == state.runSorting.sort --   afterSort = resortParams (rpName t) (state.runSorting) -- in HH.th [ scope ScopeCol ] (if null t.description then t.description else t.name)
     -- ( if rpIsSortable t then
@@ -151,8 +164,24 @@ render state =
       in
         selectProperSource foundCells
 
+    numberToHtml :: forall w. Attributo -> Number -> HH.HTML w Action
+    numberToHtml attributo n = case attributo.typeSchema of
+      JSONInteger -> HH.text (show (round n))
+      JSONNumber nd -> HH.text (toStringWith (fixed 2) n)
+      _ -> HH.text "invalid"
+
     cellToHtml :: forall w. Attributo -> OverviewCell -> HH.HTML w Action
-    cellToHtml attributo cell = HH.td_ [ HH.text (caseJson (const "") show show identity (const "array") (const "object") cell.value) ]
+    cellToHtml attributo cell =
+      HH.td_
+        [ caseJson
+            (const (HH.text ""))
+            (HH.text <<< show)
+            (numberToHtml attributo)
+            HH.text
+            (const (HH.text "array"))
+            (const (HH.text "object"))
+            cell.value
+        ]
 
     makeCell :: forall w. OverviewRow -> Attributo -> HH.HTML w Action
     makeCell overviewRow attributo = maybe (HH.th_ []) (cellToHtml attributo) (findCell overviewRow attributo)

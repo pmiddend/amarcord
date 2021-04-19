@@ -7,11 +7,15 @@ import Affjax.ResponseFormat as ResponseFormat
 import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
 import App.AssociatedTable (AssociatedTable)
+import App.JSONSchemaType (JSONSchemaType)
 import Control.Monad.Reader (asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError)
 import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
+import Data.Lens (Lens')
+import Data.Lens.Record (prop)
+import Data.Symbol (SProxy(..))
 import Foreign.Object (Object)
 import Halogen (liftAff)
 
@@ -32,9 +36,12 @@ type OverviewResponse
 type Attributo
   = { name :: String
     , description :: String
-    , typeSchema :: Object Json
+    , typeSchema :: JSONSchemaType
     , table :: AssociatedTable
     }
+
+_typeSchema :: Lens' Attributo JSONSchemaType
+_typeSchema = prop (SProxy :: SProxy "typeSchema")
 
 type AttributiResponse
   = { attributi :: Array Attributo

@@ -11,6 +11,7 @@ data NumericBorder a
   | Infinity
 
 derive instance eqNumericBorder :: Eq a => Eq (NumericBorder a)
+derive instance ordNumericBorder :: Ord a => Ord (NumericBorder a)
 
 type NumericRange a
   = { left :: NumericBorder a

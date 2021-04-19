@@ -1,12 +1,14 @@
 module App.JSONSchemaType where
 
 import Prelude
+
 import App.NumericRange (NumericRange, fromMaybes)
 import Data.Argonaut (class DecodeJson, JsonDecodeError(..), decodeJson, (.:), (.:?))
 import Data.Either (Either(..))
 import Data.Lens (Lens')
+import Data.Lens.Prism (Prism', prism')
 import Data.Lens.Record (prop)
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 
 type JSONNumberData
@@ -26,7 +28,13 @@ data JSONSchemaType
   | JSONArray
   | JSONInteger
 
+_JSONNumber :: Prism' JSONSchemaType JSONNumberData
+_JSONNumber = prism' JSONNumber case _ of
+  JSONNumber x -> Just x
+  _ -> Nothing
+
 derive instance eqJSONSchemaType :: Eq JSONSchemaType
+derive instance ordJSONSchemaType :: Ord JSONSchemaType
 
 instance showJsonSchema :: Show JSONSchemaType where
   show JSONString = "string"
