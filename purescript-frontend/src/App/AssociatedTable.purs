@@ -15,8 +15,8 @@ derive instance eqAssociatedTable :: Eq AssociatedTable
 derive instance ordAssociatedTable :: Ord AssociatedTable
 
 instance showAssociatedTable :: Show AssociatedTable where
-  show Run = "Run"
-  show Sample = "Sample"
+  show Run = "run"
+  show Sample = "sample"
 
 associatedTableFromString :: String -> Maybe AssociatedTable
 associatedTableFromString "run" = Just Run

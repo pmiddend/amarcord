@@ -1,51 +1,26 @@
 module App.Components.Overview where
 
--- import Prelude hiding (comparing)
--- import App.API (RunPropertiesResponse, RunsResponse, retrieveRunProperties, retrieveRuns)
--- import App.AppMonad (AppMonad)
--- import App.Autocomplete as Autocomplete
--- import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, plainTh_, table)
--- import App.Comment (Comment)
--- import App.Components.ParentComponent (ParentError, ChildInput, parentComponent)
--- import App.HalogenUtils (classList, faIcon, scope, singleClass)
--- import App.Route (Route(..), RunsRouteInput, createLink)
--- import App.Run (Run, runId, runLookup, runScalarProperty)
--- import App.RunProperty (RunProperty, _description, _name, rpDescription, rpIsSortable, rpName)
--- import App.RunScalar (RunScalar(..))
--- import App.RunValue (RunValue(..))
--- import App.SortOrder (SortOrder(..), comparing, invertOrder)
--- import DOM.HTML.Indexed.ScopeValue (ScopeValue(ScopeCol))
--- import Data.Array (filter, sortBy, (:))
--- import Data.Either (Either)
--- import Data.Foldable (foldMap)
--- import Data.Lens (over, set, view, (^.))
--- import Data.Lens.At (at)
--- import Data.Lens.Record (prop)
--- import Data.Maybe (Maybe(..), maybe)
--- import Data.Number.Format (precision, toStringWith)
--- import Data.Set (Set, delete, insert, member, singleton)
--- import Data.Symbol (SProxy(..))
--- import Data.Tuple (Tuple(..))
-import App.API (AttributiResponse, Attributo, OverviewCell, OverviewResponse, OverviewRow, _typeSchema, retrieveAttributi, retrieveOverview)
-import App.AppMonad (AppMonad(..))
+import App.API (AttributiResponse, Attributo, OverviewCell, OverviewResponse, OverviewRow, attributoSuffix, qualifiedAttributoName, retrieveAttributi, retrieveOverview)
+import App.AppMonad (AppMonad)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
-import App.HalogenUtils (scope, singleClass)
-import App.JSONSchemaType (JSONNumberData, JSONSchemaType(..), _JSONNumber, _suffix)
-import App.Route (OverviewRouteInput)
+import App.HalogenUtils (faIcon, scope, singleClass)
+import App.JSONSchemaType (JSONSchemaType(..))
+import App.QualifiedAttributoName (QualifiedAttributoName)
+import App.Route (Route(..), OverviewRouteInput, createLink)
+import App.SortOrder (SortOrder(..), comparing, invertOrder)
 import App.TabledAttributo (TabledAttributo)
 import App.Utils (fanoutApplicative)
-import Control.Applicative (class Applicative, pure)
 import Control.Apply ((<*>))
-import Data.Argonaut (Json, caseJson)
-import Data.Array (filter, head, mapMaybe)
+import Data.Argonaut (caseJson)
+import Data.Array (filter, head, mapMaybe, sortBy)
 import Data.Eq ((==))
 import Data.Foldable (null)
-import Data.Function (const, identity, (<<<), (>>>))
-import Data.Functor ((<$>))
+import Data.Function (const, (<<<))
+import Data.Functor (map, (<$>))
 import Data.HeytingAlgebra ((&&))
 import Data.Int (round)
-import Data.Lens (Fold', Traversal', to, toArrayOf, toListOf, traversed, (^?))
+import Data.Lens (to, toArrayOf)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid (mempty)
 import Data.Number.Format (fixed, toStringWith)
@@ -54,15 +29,14 @@ import Data.Set (Set)
 import Data.Show (show)
 import Data.Traversable (find)
 import Data.Tuple (Tuple(..))
-import Data.Unit (Unit, unit)
-import Data.Void (absurd)
+import Data.Unit (Unit)
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties (ScopeValue(..))
+import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData, fromEither)
 
--- import Halogen.HTML.Events as HE
--- import Halogen.HTML.Properties as HP
 -- import Network.RemoteData (RemoteData, fromEither)
 type State
   = { overviewRows :: Array OverviewRow
@@ -73,13 +47,12 @@ type State
 
 -- _selectedRunProperties = prop (SProxy :: SProxy "selectedRunProperties")
 data Action
+  = Resort OverviewRouteInput
 
--- data Action
---   = Resort RunsRouteInput
 --   | ToggleProperty String
 initialState :: ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse) -> State
 initialState { input: overviewSorting, remoteData: Tuple overviewResponse attributiResponse } =
-  { overviewRows: overviewResponse.overviewRows
+  { overviewRows: resort overviewSorting overviewResponse.overviewRows
   , selectedAttributi: mempty
   --  , selectedRunProperties: (foldMap (view _name >>> singleton) runPropertiesResponse.metadata)
   , attributi: attributiResponse.attributi
@@ -103,11 +76,62 @@ childComponent =
             }
     }
 
-handleAction :: forall t94 t95. Applicative t95 => t94 -> t95 Unit
-handleAction _ = pure unit
+resort :: OverviewRouteInput -> Array OverviewRow -> Array OverviewRow
+resort by = sortBy (comparing (by.sortOrder) ((map _.value) <<< findCellInRow by.sort))
+
+handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
+handleAction = case _ of
+  Resort newInput ->
+    H.modify_ \state -> do
+      state { overviewSorting = newInput, overviewRows = resort newInput state.overviewRows }
 
 fetchInitialData :: OverviewRouteInput -> AppMonad (RemoteData String (Tuple OverviewResponse AttributiResponse))
 fetchInitialData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
+
+schemaTypeSortable :: JSONSchemaType -> Boolean
+schemaTypeSortable (JSONNumber _) = true
+
+schemaTypeSortable JSONInteger = true
+
+schemaTypeSortable _ = false
+
+attributoSortable :: Attributo -> Boolean
+attributoSortable a = schemaTypeSortable a.typeSchema
+
+createUpdatedSortInput :: Boolean -> Attributo -> OverviewRouteInput -> OverviewRouteInput
+createUpdatedSortInput doInvertOrder a { sort, sortOrder } =
+  let
+    qualifiedA = qualifiedAttributoName a
+  in
+    if qualifiedA == sort then
+      { sortOrder: if doInvertOrder then invertOrder sortOrder else sortOrder, sort }
+    else
+      { sort: qualifiedA, sortOrder: Ascending }
+
+isSortedBy :: State -> Attributo -> Boolean
+isSortedBy state a = state.overviewSorting.sort == qualifiedAttributoName a
+
+-- Given a list of cells with source, select the "best" source
+selectProperSource :: Array OverviewCell -> Maybe OverviewCell
+selectProperSource [] = Nothing
+
+selectProperSource xs =
+  let
+    sourceOrder :: Array String
+    sourceOrder = [ "manual", "offline", "online" ]
+
+    sources :: Array OverviewCell
+    sources = mapMaybe (\source -> find (\x -> x.source == source) xs) sourceOrder
+  in
+    head (if null sources then xs else sources)
+
+-- Given a row in the overview and a certain attributo, find the correct attributo cell (proper source and stuff)
+findCellInRow :: QualifiedAttributoName -> OverviewRow -> Maybe OverviewCell
+findCellInRow (Tuple table name) cells =
+  let
+    foundCells = filter (\cell -> cell.table == table && cell.name == name) cells
+  in
+    selectProperSource foundCells
 
 render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 render state =
@@ -115,13 +139,25 @@ render state =
     makeHeader :: forall w. Attributo -> HH.HTML w Action
     makeHeader t =
       let
-        attributoSuffix :: Traversal' Attributo String
-        attributoSuffix = _typeSchema <<< _JSONNumber <<< _suffix <<< traversed
-
         maybeSuffix :: Array (HH.HTML w Action)
         maybeSuffix = toArrayOf (attributoSuffix <<< to (\x -> HH.text (" [" <> x <> "]"))) t
+
+        maybeOrderIcon = if isSortedBy state t then [ orderingToIcon state.overviewSorting.sortOrder, HH.text " " ] else []
+
+        headerElements :: Array (HH.HTML w Action)
+        headerElements = ([ HH.span [ singleClass "text-muted" ] [ HH.text (show t.table <> ".") ], HH.text (if t.description == "" then t.name else t.description) ] <> maybeSuffix)
+
+        updatedSortInput doInvertOrder = createUpdatedSortInput doInvertOrder t (state.overviewSorting)
+
+        cellContent =
+          if attributoSortable t then
+            maybeOrderIcon <> [ HH.a [ HP.href (createLink (Overview (updatedSortInput false))), HE.onClick \_ -> Just (Resort (updatedSortInput true)) ] headerElements ]
+          else
+            headerElements
       in
-        HH.th [ scope ScopeCol, singleClass "text-nowrap" ] ([ HH.span [ singleClass "text-muted" ] [ HH.text (show t.table <> ".") ], HH.text (if t.description == "" then t.name else t.description) ] <> maybeSuffix)
+        HH.th
+          [ scope ScopeCol, singleClass "text-nowrap" ]
+          cellContent
 
     -- let --   isSortProp = rpName t == state.runSorting.sort --   afterSort = resortParams (rpName t) (state.runSorting) -- in HH.th [ scope ScopeCol ] (if null t.description then t.description else t.name)
     -- ( if rpIsSortable t then
@@ -141,28 +177,6 @@ render state =
     --   Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
     --   _ -> HH.td_ [ HH.text (maybe "" show value) ]
     wholeSelectedProps = state.attributi
-
-    -- Given a list of cells with source, select the "best" source
-    selectProperSource :: Array OverviewCell -> Maybe OverviewCell
-    selectProperSource [] = Nothing
-
-    selectProperSource xs =
-      let
-        sourceOrder :: Array String
-        sourceOrder = [ "manual", "offline", "online" ]
-
-        sources :: Array OverviewCell
-        sources = mapMaybe (\source -> find (\x -> x.source == source) xs) sourceOrder
-      in
-        head (if null sources then xs else sources)
-
-    -- Given a row in the overview and a certain attributo, find the correct attributo cell (proper source and stuff)
-    findCell :: OverviewRow -> Attributo -> Maybe OverviewCell
-    findCell cells attributo =
-      let
-        foundCells = filter (\cell -> cell.table == attributo.table && cell.name == attributo.name) cells
-      in
-        selectProperSource foundCells
 
     numberToHtml :: forall w. Attributo -> Number -> HH.HTML w Action
     numberToHtml attributo n = case attributo.typeSchema of
@@ -184,7 +198,7 @@ render state =
         ]
 
     makeCell :: forall w. OverviewRow -> Attributo -> HH.HTML w Action
-    makeCell overviewRow attributo = maybe (HH.th_ []) (cellToHtml attributo) (findCell overviewRow attributo)
+    makeCell overviewRow attributo = maybe (HH.th_ []) (cellToHtml attributo) (findCellInRow (qualifiedAttributoName attributo) overviewRow)
 
     --wholeSelectedProps = filter (\x -> member (x ^. _name) state.selectedRunProperties) state.runProperties
     --makeRow run = HH.tr_ (HH.td_ [ HH.a [ HP.href (createLink (EditRun (runId run))) ] [ faIcon "edit" ] ] : ((\rp -> makeProperty rp (runLookup run (rpName rp))) <$> wholeSelectedProps))
@@ -215,9 +229,11 @@ render state =
 --         { runSorting = by
 --         , runs = resort by (state.runs)
 --         }
--- orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
--- orderingToIcon Ascending = faIcon "sort-up"
--- orderingToIcon Descending = faIcon "sort-down"
+orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
+orderingToIcon Ascending = faIcon "sort-up"
+
+orderingToIcon Descending = faIcon "sort-down"
+
 -- resortParams :: String -> RunsRouteInput -> RunsRouteInput
 -- resortParams x { sort, sortOrder }
 --   | x == sort = { sort, sortOrder: invertOrder sortOrder }

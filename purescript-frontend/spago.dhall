@@ -4,6 +4,7 @@
   , "affjax"
   , "argonaut"
   , "console"
+  , "debug"
   , "effect"
   , "formatters"
   , "halogen"

@@ -7,16 +7,17 @@ import Affjax.ResponseFormat as ResponseFormat
 import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
 import App.AssociatedTable (AssociatedTable)
-import App.JSONSchemaType (JSONSchemaType)
+import App.JSONSchemaType (JSONSchemaType, _JSONNumber, _suffix)
+import App.QualifiedAttributoName (QualifiedAttributoName)
 import Control.Monad.Reader (asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError)
 import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
-import Data.Lens (Lens')
+import Data.Lens (Lens', Traversal', traversed)
 import Data.Lens.Record (prop)
 import Data.Symbol (SProxy(..))
-import Foreign.Object (Object)
+import Data.Tuple (Tuple(..))
 import Halogen (liftAff)
 
 type OverviewCell
@@ -42,6 +43,12 @@ type Attributo
 
 _typeSchema :: Lens' Attributo JSONSchemaType
 _typeSchema = prop (SProxy :: SProxy "typeSchema")
+
+attributoSuffix :: Traversal' Attributo String
+attributoSuffix = _typeSchema <<< _JSONNumber <<< _suffix <<< traversed
+
+qualifiedAttributoName :: Attributo -> QualifiedAttributoName
+qualifiedAttributoName a = Tuple a.table a.name
 
 type AttributiResponse
   = { attributi :: Array Attributo

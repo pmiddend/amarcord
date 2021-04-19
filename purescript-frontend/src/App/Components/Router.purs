@@ -3,8 +3,9 @@ module App.Components.Router where
 import Prelude
 
 import App.AppMonad (AppMonad)
+import App.AssociatedTable (AssociatedTable(..))
+import App.AssociatedTable as AssociatedTable
 import App.Components.Overview as Overview
---import App.Components.EditRun as EditRun
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
 import App.Root as Root
@@ -13,6 +14,7 @@ import App.SortOrder (SortOrder(..))
 import Data.Either (hush)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
+import Data.Tuple (Tuple(..))
 import Effect.Class (class MonadEffect, liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
@@ -106,7 +108,7 @@ navItems ::
     , title :: String
     }
 navItems = [
-    { title: "Runs", link: (Overview { sort: "id", sortOrder: Ascending }), fa: "running" }
+    { title: "Runs", link: (Overview { sort: (Tuple Run "id"), sortOrder: Ascending }), fa: "running" }
   ]
 
 makeNavItem ::
