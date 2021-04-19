@@ -1,8 +1,9 @@
 module App.Components.Overview where
 
-import App.API (AttributiResponse, Attributo, OverviewCell, OverviewResponse, OverviewRow, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName, retrieveAttributi, retrieveOverview)
+import App.API (AttributiResponse, OverviewCell, OverviewResponse, OverviewRow, retrieveAttributi, retrieveOverview)
 import App.AppMonad (AppMonad)
 import App.AssociatedTable (AssociatedTable)
+import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, faIcon, scope, singleClass)
@@ -65,7 +66,6 @@ component ::
     AppMonad
 component = parentComponent fetchInitialData childComponent
 
--- component = H.mkComponent { initialState: \_ -> 0, render: \_ -> HH.text "todo", eval: H.mkEval H.defaultEval }
 childComponent :: forall q. H.Component HH.HTML q (ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse)) ParentError AppMonad
 childComponent =
   H.mkComponent
