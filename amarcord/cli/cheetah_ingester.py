@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from time import sleep
 
-from amarcord.amici.analysis import ingest_cheetah_internal
+from amarcord.amici.analysis import ingest_cheetah
 from amarcord.db.db import DB
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
@@ -61,7 +61,7 @@ def main() -> int:
     logger.info("Starting to ingest Cheetah config data")
     while True:
         with db.connect() as conn:
-            results = ingest_cheetah_internal(
+            results = ingest_cheetah(
                 Path(args.cheetah_config_path),
                 db,
                 conn,

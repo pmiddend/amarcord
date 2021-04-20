@@ -5,7 +5,7 @@ from pathlib import Path
 from amarcord.amici.analysis import DeepComparisonResult
 from amarcord.amici.analysis import cheetah_to_database
 from amarcord.amici.analysis import deep_compare_data_source
-from amarcord.amici.analysis import ingest_cheetah_internal
+from amarcord.amici.analysis import ingest_cheetah
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
@@ -145,7 +145,7 @@ def test_ingest_cheetah_idempotent(db: DB) -> None:
             sample_id=sample_id,
             attributi=RawAttributiMap({}),
         )
-        first_ingest = ingest_cheetah_internal(
+        first_ingest = ingest_cheetah(
             Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config",
             db,
             conn,
@@ -158,7 +158,7 @@ def test_ingest_cheetah_idempotent(db: DB) -> None:
         assert len(analysis_results[0].data_sources) == 2
         assert analysis_results[0].data_sources[0].hit_finding_results
 
-        second_ingest = ingest_cheetah_internal(
+        second_ingest = ingest_cheetah(
             Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config",
             db,
             conn,
@@ -194,7 +194,7 @@ def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
             sample_id=sample_id,
             attributi=RawAttributiMap({}),
         )
-        first_ingest = ingest_cheetah_internal(
+        first_ingest = ingest_cheetah(
             Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config",
             db,
             conn,
@@ -205,7 +205,7 @@ def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
 
         # The updated directory is the same as the normal one, but has a different "min SNR" value.
         # Doesn't matter which value you change, as long as the data source (i.e. the source files) stay the same.
-        second_ingest = ingest_cheetah_internal(
+        second_ingest = ingest_cheetah(
             Path(__file__).parent.parent / "cheetah-update" / "gui" / "crawler.config",
             db,
             conn,

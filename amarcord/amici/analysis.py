@@ -1,7 +1,4 @@
 import logging
-import os
-import re
-import sys
 from dataclasses import dataclass
 from dataclasses import replace
 from enum import Enum
@@ -9,6 +6,9 @@ from enum import auto
 from pathlib import Path
 from typing import Generator
 
+from amarcord.amici.cheetah import cheetah_read_crawler_config_file
+from amarcord.amici.cheetah import cheetah_read_crawler_runs_table
+from amarcord.amici.cheetah import cheetah_read_recipe
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
@@ -19,11 +19,6 @@ from amarcord.db.table_classes import DBHitFindingResult
 from amarcord.db.table_classes import DBLinkedDataSource
 from amarcord.db.table_classes import DBLinkedHitFindingResult
 from amarcord.db.table_classes import DBPeakSearchParameters
-from amarcord.db.tables import create_tables
-from amarcord.modules.cheetah import cheetah_read_crawler_config_file
-from amarcord.modules.cheetah import cheetah_read_crawler_runs_table
-from amarcord.modules.cheetah import cheetah_read_recipe
-from amarcord.modules.dbcontext import DBContext
 
 SOFTWARE_VERSION = None
 
@@ -254,7 +249,7 @@ class CheetahIngestResults:
     number_of_ingested_data_sources: int
 
 
-def ingest_cheetah_internal(
+def ingest_cheetah(
     config_file: Path,
     db: DB,
     conn: Connection,
@@ -306,39 +301,3 @@ def ingest_cheetah_internal(
     return CheetahIngestResults(
         number_of_ingested_data_sources=number_of_ingested_data_sources
     )
-
-
-def ingest_cheetah(config_file: Path, proposal_id: ProposalId) -> CheetahIngestResults:
-    env_var = os.environ.get(AMARCORD_DB_ENV_VAR, None)
-    if env_var is None:
-        sys.stderr.write(
-            f'Didn\'t find the environment variable "{AMARCORD_DB_ENV_VAR}".\n'
-            f"Please specify it so we have a connection to AMARCORD.\n"
-            f"The format is:\n\n"
-            f"mysql+pymysql://$username:$password@$host/$dbname?proposal_id=$proposal_id\n\n"
-            f"Important variables are:\n"
-            f"$username => the user name for the database connection\n"
-            f"$password => the password for the database connection\n"
-            f"$host => the host for the database connection\n"
-            f"$dbname => name of the database to connect to\n"
-            f"$proposal_id => proposal ID\n"
-        )
-        sys.exit(1)
-
-    proposal_match = re.search(r"\?proposal_id=(\d+)$", env_var)
-    if not proposal_match:
-        sys.stderr.write(
-            f'The environment variable "{AMARCORD_DB_ENV_VAR}" doesn\'t have a proposal ID in it.\n'
-            f"The format for the DB connection URL is:\n\n"
-            f"mysql+pymysql://$username:$password@$host/$dbname?proposal_id=$proposal_id\n"
-        )
-        sys.exit(1)
-
-    url_match = env_var[0 : proposal_match.start()]
-
-    dbcontext = DBContext(url_match)
-
-    tables = create_tables(dbcontext)
-    db = DB(dbcontext, tables)
-    with db.connect() as conn:
-        return ingest_cheetah_internal(config_file, db, conn, proposal_id, False)

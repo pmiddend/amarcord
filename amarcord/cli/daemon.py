@@ -17,6 +17,8 @@ from zmq.asyncio import Context
 from amarcord.amici.karabo_online import KaraboAction
 from amarcord.amici.karabo_online import KaraboAttributi  # type: ignore
 from amarcord.amici.karabo_online import KaraboBridgeSlicer  # type: ignore
+from amarcord.amici.onda.zeromq import OnDAZeroMQProcessor
+from amarcord.amici.onda.zeromq import TrainRange
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
@@ -34,8 +36,6 @@ from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.onda.zeromq import OnDAZeroMQProcessor
-from amarcord.modules.onda.zeromq import TrainRange
 from amarcord.run_id import RunId
 from amarcord.util import find_by
 

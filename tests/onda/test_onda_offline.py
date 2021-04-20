@@ -1,7 +1,7 @@
-from amarcord.modules.onda.zeromq import HitRate
-from amarcord.modules.onda.zeromq import OnDAZeroMQData
-from amarcord.modules.onda.zeromq import OnDAZeroMQProcessor
-from amarcord.modules.onda.zeromq import TrainRange
+from amarcord.amici.onda.zeromq import HitRate
+from amarcord.amici.onda.zeromq import OnDAZeroMQData
+from amarcord.amici.onda.zeromq import OnDAZeroMQProcessor
+from amarcord.amici.onda.zeromq import TrainRange
 from amarcord.run_id import RunId
 from amarcord.train_id import TrainId
 
