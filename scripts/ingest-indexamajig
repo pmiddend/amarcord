@@ -10,9 +10,9 @@
 #    2021 Thomas White <taw@physics.org>
 
 
-from argparse import ArgumentParser
-import json
 import glob
+import json
+from argparse import ArgumentParser
 from os import path
 
 
