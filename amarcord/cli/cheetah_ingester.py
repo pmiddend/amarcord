@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from time import sleep
 
-from amarcord.amici.analysis import ingest_cheetah
+from amarcord.amici.cheetah.analysis import ingest_cheetah
 from amarcord.db.db import DB
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode

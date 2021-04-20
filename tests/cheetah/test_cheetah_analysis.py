@@ -2,10 +2,10 @@ import logging
 from dataclasses import replace
 from pathlib import Path
 
-from amarcord.amici.analysis import DeepComparisonResult
-from amarcord.amici.analysis import cheetah_to_database
-from amarcord.amici.analysis import deep_compare_data_source
-from amarcord.amici.analysis import ingest_cheetah
+from amarcord.amici.cheetah.analysis import DeepComparisonResult
+from amarcord.amici.cheetah.analysis import cheetah_to_database
+from amarcord.amici.cheetah.analysis import deep_compare_data_source
+from amarcord.amici.cheetah.analysis import ingest_cheetah
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap

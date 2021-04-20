@@ -6,9 +6,9 @@ from enum import auto
 from pathlib import Path
 from typing import Generator
 
-from amarcord.amici.cheetah import cheetah_read_crawler_config_file
-from amarcord.amici.cheetah import cheetah_read_crawler_runs_table
-from amarcord.amici.cheetah import cheetah_read_recipe
+from amarcord.amici.cheetah.parser import cheetah_read_crawler_config_file
+from amarcord.amici.cheetah.parser import cheetah_read_crawler_runs_table
+from amarcord.amici.cheetah.parser import cheetah_read_recipe
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId

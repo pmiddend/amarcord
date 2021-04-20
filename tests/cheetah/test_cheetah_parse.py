@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from amarcord.amici.cheetah import cheetah_read_crawler_config_file
-from amarcord.amici.cheetah import cheetah_read_crawler_runs_table
-from amarcord.amici.cheetah import cheetah_read_recipe
+from amarcord.amici.cheetah.parser import cheetah_read_crawler_config_file
+from amarcord.amici.cheetah.parser import cheetah_read_crawler_runs_table
+from amarcord.amici.cheetah.parser import cheetah_read_recipe
 
 
 def _read_test_file(p: Path) -> Path:
