@@ -149,7 +149,7 @@ navbar route =
         ]
   in
     HH.nav
-      [ classList [ "col-md-3", "col-lg-3", "d-md-block", "sidebar", "collapse" ]
+      [ classList [ "col-md-2", "col-lg-1", "d-md-block", "sidebar", "collapse" ]
       ]
       [ HH.div [ classList [ "position-sticky" ] ]
           [ header, navMenu ]
@@ -157,7 +157,7 @@ navbar route =
 
 contentView :: forall t150 t151. HH.HTML t151 t150 -> HH.HTML t151 t150
 contentView html =
-  HH.main [ HPA.role "main", classList [ "col-md-9", "ml-sm-auto", "col-lg-9", "px-md-4", "pt-3" ] ]
+  HH.main [ HPA.role "main", classList [ "col-md-10", "ml-sm-auto", "col-lg-11", "px-md-4", "pt-3" ] ]
     [ html ]
 
 skeleton :: forall a. Maybe Route -> HH.HTML a Action -> HH.HTML a Action

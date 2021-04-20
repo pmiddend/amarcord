@@ -9,6 +9,7 @@
   , "formatters"
   , "halogen"
   , "halogen-css"
+  , "js-timers"
   , "numbers"
   , "psci-support"
   , "remotedata"

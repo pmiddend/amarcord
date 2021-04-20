@@ -1,18 +1,21 @@
 module App.Components.Overview where
 
 import App.API (AttributiResponse, OverviewCell, OverviewResponse, OverviewRow, retrieveAttributi, retrieveOverview)
-import App.AppMonad (AppMonad)
+import App.AppMonad (AppMonad, log)
 import App.AssociatedTable (AssociatedTable(..))
 import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, faIcon, scope, singleClass)
 import App.JSONSchemaType (JSONSchemaType(..))
+import App.Logging (LogLevel(..))
 import App.QualifiedAttributoName (QualifiedAttributoName)
 import App.Route (Route(..), OverviewRouteInput, createLink)
 import App.SortOrder (SortOrder(..), comparing, invertOrder)
 import App.Utils (fanoutApplicative, toggleSetElement)
+import Control.Applicative (pure)
 import Control.Apply ((<*>))
+import Control.Bind (bind, discard)
 import Data.Argonaut (caseJson)
 import Data.Array (filter, head, mapMaybe, sortBy)
 import Data.Eq ((/=), (==))
@@ -29,13 +32,16 @@ import Data.Set as Set
 import Data.Show (show)
 import Data.Traversable (find)
 import Data.Tuple (Tuple(..), fst)
-import Data.Unit (Unit)
+import Data.Unit (Unit, unit)
+import Effect.Aff.Class (class MonadAff)
+import Effect.Timer (clearTimeout, setTimeout)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties (ScopeValue(..))
 import Halogen.HTML.Properties as HP
-import Network.RemoteData (RemoteData, fromEither)
+import Halogen.Query.EventSource (EventSource, Finalizer(..), effectEventSource, emit)
+import Network.RemoteData (RemoteData(..), fromEither)
 
 type State
   = { overviewRows :: Array OverviewRow
@@ -45,9 +51,11 @@ type State
     }
 
 data Action
-  = Resort OverviewRouteInput
+  = Initialize
+  | Resort OverviewRouteInput
   | ToggleAttributo QualifiedAttributoName
   | ToggleTable AssociatedTable
+  | RefreshTimeout
 
 initialState :: ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse) -> State
 initialState { input: overviewSorting, remoteData: Tuple overviewResponse attributiResponse } =
@@ -65,7 +73,7 @@ component ::
     }
     output
     AppMonad
-component = parentComponent fetchInitialData childComponent
+component = parentComponent fetchData childComponent
 
 childComponent :: forall q. H.Component HH.HTML q (ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse)) ParentError AppMonad
 childComponent =
@@ -76,22 +84,51 @@ childComponent =
         H.mkEval
           H.defaultEval
             { handleAction = handleAction
+            , initialize = Just Initialize
             }
     }
 
 resort :: OverviewRouteInput -> Array OverviewRow -> Array OverviewRow
 resort by = sortBy (comparing (by.sortOrder) ((map _.value) <<< findCellInRow by.sort))
 
+timerEventSource :: forall m. MonadAff m => EventSource m Action
+timerEventSource =
+  effectEventSource \emitter -> do
+    timerId <- setTimeout 5000 (emit emitter RefreshTimeout)
+    pure (Finalizer (clearTimeout timerId))
+
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
-  Resort newInput -> H.modify_ \state -> state { overviewSorting = newInput, overviewRows = resort newInput state.overviewRows }
+  Initialize -> do
+    _ <- H.subscribe timerEventSource
+    pure unit
+  RefreshTimeout -> do
+    H.lift (log Info "Refreshing...")
+    s <- H.get
+    remoteData <- H.lift (fetchData s.overviewSorting)
+    case remoteData of
+      Success (Tuple newOverviewRows newAttributi) ->
+        H.modify_ \state ->
+          state
+            { overviewRows = resort s.overviewSorting newOverviewRows.overviewRows
+            , attributi = newAttributi.attributi
+            }
+      _ -> pure unit
+    _ <- H.subscribe timerEventSource
+    pure unit
+  Resort newInput ->
+    H.modify_ \state ->
+      state
+        { overviewSorting = newInput
+        , overviewRows = resort newInput state.overviewRows
+        }
   ToggleAttributo x -> do
     H.modify_ \state -> state { selectedAttributi = toggleSetElement x state.selectedAttributi }
   ToggleTable t -> do
     H.modify_ \state -> state { selectedAttributi = Set.filter (\x -> fst x /= t) state.selectedAttributi }
 
-fetchInitialData :: OverviewRouteInput -> AppMonad (RemoteData String (Tuple OverviewResponse AttributiResponse))
-fetchInitialData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
+fetchData :: OverviewRouteInput -> AppMonad (RemoteData String (Tuple OverviewResponse AttributiResponse))
+fetchData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
 
 schemaTypeSortable :: JSONSchemaType -> Boolean
 schemaTypeSortable (JSONNumber _) = true
