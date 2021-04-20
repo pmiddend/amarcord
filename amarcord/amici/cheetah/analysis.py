@@ -135,7 +135,8 @@ def cheetah_to_database(config_file: Path) -> Generator[DBLinkedDataSource, None
                 peak_search_parameters_id=None,  # type: ignore
                 hit_finding_parameters_id=None,  # type: ignore
                 data_source_id=None,
-                result_filename=str(peaks_results_file),
+                result_filename=",".join(str(s) for s in line_hdf_dir.glob("*cxi")),
+                peaks_filename=str(peaks_results_file),
                 number_of_hits=line.nhits,
                 hit_rate=line.hit_rate,
                 tag=None,
@@ -144,7 +145,7 @@ def cheetah_to_database(config_file: Path) -> Generator[DBLinkedDataSource, None
                 average_resolution=0,
                 # This cannot be 0 but I don't know where to get it from in Cheetah
                 average_peaks_event=0,
-                result_type="txt",
+                result_type="application/x-hdf",
             ),
             peak_search_parameters=peak_search_params,
             hit_finding_parameters=hit_finding_parameters,

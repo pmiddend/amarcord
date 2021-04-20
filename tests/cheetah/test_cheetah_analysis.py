@@ -23,14 +23,16 @@ logging.basicConfig(
 
 
 def test_cheetah_to_database() -> None:
-    data_sources = list(
-        cheetah_to_database(
-            Path(__file__).parent.parent / "cheetah" / "gui" / "crawler.config"
-        )
-    )
+    parent_path = Path(__file__).parent.parent / "cheetah"
+    data_sources = list(cheetah_to_database(parent_path / "gui" / "crawler.config"))
 
     assert len(data_sources) == 2
     assert len(data_sources[0].hit_finding_results) == 1
+    assert data_sources[0].hit_finding_results[
+        0
+    ].hit_finding_result.result_filename == str(
+        parent_path / "hdf5" / "r0213-cry41" / "test.cxi"
+    )
     assert len(data_sources[0].hit_finding_results[0].indexing_results) == 0
 
 
@@ -80,6 +82,7 @@ def test_deep_compare_datasource_deep() -> None:
             peak_search_parameters_id=1,
             hit_finding_parameters_id=2,
             result_filename="a",
+            peaks_filename="b",
             result_type="",
             average_resolution=0,
             average_peaks_event=0,

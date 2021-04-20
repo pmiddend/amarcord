@@ -85,7 +85,7 @@ def lookup_hitfinding_result(
                 Path(x).resolve()
                 for x in hfr.hit_finding_result.result_filename.split(",")
             )
-            == set(input_file_list)
+            == set(x.resolve() for x in input_file_list)
         ),
         None,
     )
@@ -133,14 +133,18 @@ def lookup_hitfinding_result(
 #     software-specific.  In this case, I would reduce the list to just these:
 #       software,software_version,geometry,method,adc_threshold,minimum_snr
 def lookup_peaksearch_params(
-    p: Dict[str, Any], program: str, program_version: str, geometry: str
+    p: Dict[str, Any],
+    program: str,
+    program_version: str,
+    geometry: str,
+    tag: Optional[str],
 ) -> DBPeakSearchParameters:
     # FIXME: pmidden: add actual lookup instead of new creation here (too lazy right now)
     return DBPeakSearchParameters(
         id=None,
         method=p["method"],
         software=program,
-        tag=None,
+        tag=tag,
         comment=None,
         software_version=program_version,
         max_num_peaks=p.get("max_num_peaks", None),
@@ -170,7 +174,7 @@ def lookup_peaksearch_params(
 #  1. DO add a new HitFindingParameters if nothing is found.
 #  2. When adding a new entry, git_repository and git_SHA = NULL.
 def lookup_hitfinding_params(
-    param_json: Dict[str, Any], program: str, program_version: str
+    param_json: Dict[str, Any], program: str, program_version: str, tag: Optional[str]
 ) -> DBHitFindingParameters:
     logger.info(
         "Looking up HitFindingParameters for {}/{}/{}".format(
@@ -181,7 +185,7 @@ def lookup_hitfinding_params(
     return DBHitFindingParameters(
         id=None,
         min_peaks=param_json["min_num_peaks"],
-        tag=None,
+        tag=tag,
         comment=None,
         software=program,
         software_version=program_version,
@@ -248,12 +252,16 @@ def lookup_datasource_id(
 #  3. Might add a command-line option for tag and comment.  Set them to
 #     NULL until then.
 def lookup_indexing_params(
-    param_json: JSONDict, program: str, program_version: str, geometry: str
+    param_json: JSONDict,
+    program: str,
+    program_version: str,
+    geometry: str,
+    tag: Optional[str],
 ) -> Optional[DBIndexingParameters]:
     # FIXME: Add lookup instead of plain add
     return DBIndexingParameters(
         id=None,
-        tag=None,
+        tag=tag,
         comment=None,
         software=program,
         software_version=program_version,
@@ -278,12 +286,12 @@ def lookup_indexing_params(
 #  3. Might add a command-line option for tag and comment.  Set them to
 #     NULL until then.
 def lookup_integration_params(
-    param_json: JSONDict, program: str, program_version: str
+    param_json: JSONDict, program: str, program_version: str, tag: Optional[str]
 ) -> Optional[DBIntegrationParameters]:
     # FIXME: add insert if not exists
     return DBIntegrationParameters(
         id=None,
-        tag=None,
+        tag=tag,
         comment=None,
         software=program,
         software_version=program_version,
@@ -327,8 +335,9 @@ def insert_hitfinding_result(
     average_peaks_event: float,
     average_resolution: float,
     stream_list: List[Path],
+    tag: Optional[str],
 ) -> DBLinkedHitFindingResult:
-    logger.info("Mock insert of HitFindingResults:")
+    logger.info("Inserting HitFindingResult:")
     logger.info("              Data source: {}".format(data_source.data_source.id))
     logger.info("   Peak search parameters: {}".format(peaksearch_params))
     logger.info("   Hit finding parameters: {}".format(hitfinding_params))
@@ -337,6 +346,7 @@ def insert_hitfinding_result(
     logger.info("  Average {} peaks/frame".format(average_peaks_event))
     logger.info("  Average resolution {} m^-1".format(average_resolution))
     logger.info("                Timestamp: {}".format(timestamp))
+    logger.info("                Tag: {}".format(tag))
 
     return DBLinkedHitFindingResult(
         DBHitFindingResult(
@@ -346,12 +356,13 @@ def insert_hitfinding_result(
             data_source_id=data_source.data_source.id,
             # FIXME: This should be an array in SQL
             result_filename=",".join(str(s) for s in stream_list),
+            peaks_filename=None,
             result_type="stream",
             average_peaks_event=average_peaks_event,
             average_resolution=average_resolution,
             number_of_hits=num_hits,
             hit_rate=hit_rate,
-            tag=None,
+            tag=tag,
             comment=None,
         ),
         peaksearch_params,
@@ -381,13 +392,14 @@ def insert_hitfinding_result(
 #  4. Command-line option for tag/comment possibly to be added in future.
 #  5. 'timestamp' is as returned from os.path.getmtime()
 def insert_indexing_results(
-    peaksearch_params,
-    indexing_params,
-    integration_params,
-    stream_list,
-    num_indexed,
-    num_crystals,
-    timestamp,
+    peaksearch_params: DBPeakSearchParameters,
+    indexing_params: DBIndexingParameters,
+    integration_params: DBIntegrationParameters,
+    stream_list: List[Path],
+    num_indexed: int,
+    num_crystals: int,
+    timestamp: Optional[float],
+    tag: Optional[str],
 ) -> DBLinkedIndexingResult:
     logger.info("Mock insert of IndexingResults:")
     logger.info("   Peak search parameters: {}".format(peaksearch_params))
@@ -406,7 +418,7 @@ def insert_indexing_results(
             integration_parameters_id=None,  # type: ignore
             num_indexed=num_indexed,
             num_crystals=num_crystals,
-            tag=None,
+            tag=tag,
             comment=None,
             result_filename=",".join(str(s) for s in stream_list),
         ),
@@ -426,11 +438,18 @@ def harvest_folder(
     folder: Path,
     run_id: int,
     stream_patt: str,
-    harvest_fn: str,
+    harvest_fn: Path,
+    tag: Optional[str],
 ) -> List[DBLinkedDataSource]:
     logger.debug("Harvesting {} ({}, {})".format(folder, stream_patt, harvest_fn))
 
     stream_list = list(folder.glob(stream_patt))
+
+    # No streams found? Fine, return nothing
+    if not stream_list:
+        logger.info("No streams found with glob %s in folder %s", stream_patt, folder)
+        return []
+
     if lookup_indexing_id(data_sources, stream_list) is not None:
         logger.debug(
             "Stopping because {} is already in IndexingResults.".format(stream_list)
@@ -449,7 +468,7 @@ def harvest_folder(
     #     return []
 
     # Read harvest file
-    harvest_json = read_json(folder / harvest_fn)
+    harvest_json = read_json(harvest_fn)
     if not harvest_json:
         logger.error("Couldn't read harvest file {}".format(harvest_fn))
         return []
@@ -467,17 +486,20 @@ def harvest_folder(
                 "but I couldn't find the HitFindingResults entry."
             )
             return []
+        logger.info("Using peak search parameters from existing result")
         peaksearch_params = data_source_and_hitfinding_result[1].peak_search_parameters
     else:
+        logger.info("Adding new peak search parameters")
         peaksearch_params = lookup_peaksearch_params(
             harvest_json["peaksearch"],
             "CrystFEL,indexamajig",
             stream_stuff.version if stream_stuff.version is not None else "1.0",
             stream_stuff.geometry,
+            tag,
         )
 
     if data_source_and_hitfinding_result is None:
-        logger.info("HitFindingResults not found - adding my own")
+        logger.info("HitFindingResult not found - adding my own")
 
         data_source = lookup_datasource_id(
             data_sources, stream_stuff.n_frames, run_id, stream_stuff.input_files
@@ -490,6 +512,7 @@ def harvest_folder(
             harvest_json["hitfinding"],
             "CrystFEL,indexamajig",
             stream_stuff.version if stream_stuff.version is not None else "1.0",
+            tag,
         )
 
         hitfinding_result = insert_hitfinding_result(
@@ -502,34 +525,43 @@ def harvest_folder(
             stream_stuff.average_peaks_event,
             stream_stuff.average_resolution,
             stream_list,
+            tag,
         )
 
         data_source.hit_finding_results.append(hitfinding_result)
 
         data_source_and_hitfinding_result = data_source, hitfinding_result
+    else:
+        logger.info(
+            "Found existing HitFindingResult, psp ID: ",
+            data_source_and_hitfinding_result[1].peak_search_parameters.id,
+        )
 
     indexing_params = lookup_indexing_params(
         harvest_json["indexing"],
         "CrystFEL,indexamajig",
         stream_stuff.version if stream_stuff.version is not None else "1.0",
         stream_stuff.geometry,
+        tag,
     )
 
     integration_params = lookup_integration_params(
         harvest_json["integration"],
         "CrystFEL,indexamajig",
         stream_stuff.version if stream_stuff.version is not None else "1.0",
+        tag,
     )
 
     # Create IndexingResults in database
     indexing_result = insert_indexing_results(
         peaksearch_params,
-        indexing_params,
-        integration_params,
+        indexing_params,  # type: ignore
+        integration_params,  # type: ignore
         stream_list,
         stream_stuff.num_indexed,
         stream_stuff.num_crystals,
         stream_stuff.timestamp,
+        tag,
     )
 
     data_source_and_hitfinding_result[1].indexing_results.append(indexing_result)

@@ -143,7 +143,10 @@ def _item_to_prop_dict(item: TreeItem) -> Dict[str, str]:
         return {
             "Hit Finding.Comment": item.hit_finding_result.comment,  # type: ignore
             "Hit Finding.Number of hits": item.hit_finding_result.number_of_hits,  # type: ignore
-            "Hit Finding.Result filename": item.hit_finding_result.result_filename,
+            "Hit Finding.Result filename": item.hit_finding_result.result_filename.replace(
+                ",", "\n"
+            ),
+            "Hit Finding.Result peaks file": item.hit_finding_result.peaks_filename,  # type: ignore
             "Hit Finding.Minimum peaks": str(item.hit_finding_parameters.min_peaks),
             "Peak Search.Tag": _empty_if_none(psp.tag),
             "Peak Search.Comment": _empty_if_none(psp.comment),

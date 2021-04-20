@@ -862,6 +862,7 @@ class DB:
                     result_type=ds.result_type,
                     average_peaks_event=ds.average_peaks_event,
                     average_resolution=ds.average_resolution,
+                    peaks_filename=ds.peaks_filename,
                     number_of_hits=ds.number_of_hits,
                     hit_rate=ds.hit_rate,
                     tag=ds.tag,
@@ -992,6 +993,7 @@ class DB:
                     self.tables.hit_finding_results.c.hit_rate,
                     self.tables.hit_finding_results.c.average_peaks_event,
                     self.tables.hit_finding_results.c.average_resolution,
+                    self.tables.hit_finding_results.c.peaks_filename,
                     self.tables.hit_finding_results.c.result_filename,
                     self.tables.hit_finding_results.c.result_type,
                     self.tables.hit_finding_results.c.tag,
@@ -1046,6 +1048,7 @@ class DB:
                 average_resolution=r["average_resolution"],
                 number_of_hits=r["number_of_hits"],
                 hit_rate=r["hit_rate"],
+                peaks_filename=r["peaks_filename"],
                 tag=r["tag"],
                 comment=r["comment"],
             )

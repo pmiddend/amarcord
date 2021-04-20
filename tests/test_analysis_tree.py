@@ -37,6 +37,7 @@ def hit_finding_result_mock(
             hit_finding_parameters_id=1,
             data_source_id=ds_id,
             result_filename="",
+            peaks_filename=None,
             result_type="",
             average_peaks_event=0,
             average_resolution=0,

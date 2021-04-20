@@ -18,7 +18,9 @@ def test_harvest_folder_without_cxi(tmp_path) -> None:
             with (tmp_path / "test001.stream").open("wb") as write_file:
                 copyfileobj(read_file_gzip, write_file)
 
-    resulting_ds = harvest_folder([], tmp_path, 1, "*stream*", "parameters.json")
+    resulting_ds = harvest_folder(
+        [], tmp_path, 1, "*stream*", tmp_path / "parameters.json"
+    )
 
     assert len(resulting_ds) == 1
 
@@ -40,7 +42,9 @@ def test_harvest_folder_cxi(tmp_path) -> None:
             with (tmp_path / "test001.stream").open("wb") as write_file:
                 copyfileobj(read_file_gzip, write_file)
 
-    resulting_ds = harvest_folder([], tmp_path, 1, "*stream*", "parameters.json")
+    resulting_ds = harvest_folder(
+        [], tmp_path, 1, "*stream*", tmp_path / "parameters.json"
+    )
 
     assert len(resulting_ds) == 0
 
@@ -63,9 +67,10 @@ def test_harvest_folder_cxi(tmp_path) -> None:
                             hit_finding_parameters_id=1,
                             data_source_id=1,
                             result_filename="/run/media/taw/Data SSD 2020/2021/CPV/cxis0613-r0003.cxi",
+                            peaks_filename=None,
                             result_type="stream",
-                            average_peaks_event=None,
-                            average_resolution=None,
+                            average_peaks_event=1,
+                            average_resolution=2,
                             number_of_hits=1,
                             hit_rate=1,
                             tag=None,
@@ -83,7 +88,7 @@ def test_harvest_folder_cxi(tmp_path) -> None:
         tmp_path,
         1,
         "*stream*",
-        "parameters.json",
+        tmp_path / "parameters.json",
     )
 
     assert resulting_ds

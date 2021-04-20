@@ -209,6 +209,7 @@ def _table_hit_finding_result(metadata: sa.MetaData) -> sa.Table:
         sa.Column("average_resolution", sa.Float, nullable=True),
         sa.Column("result_filename", sa.Text, nullable=False),
         sa.Column("result_type", sa.String(length=255), nullable=False),
+        sa.Column("peaks_filename", sa.Text, nullable=True),
     )
 
 

@@ -346,6 +346,7 @@ def generate_hit_finding_result(
         comment=generate_random_string(),
         average_resolution=0,
         average_peaks_event=0,
+        peaks_filename=generate_random_string(),
     )
 
 

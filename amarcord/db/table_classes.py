@@ -138,9 +138,10 @@ class DBHitFindingResult:
     hit_finding_parameters_id: int = field(compare=False)
     data_source_id: Optional[int] = field(compare=False)
     result_filename: str
+    peaks_filename: Optional[str]
     result_type: str
-    average_peaks_event: Optional[float]
-    average_resolution: Optional[float]
+    average_peaks_event: float
+    average_resolution: float
     number_of_hits: int
     hit_rate: float
     tag: Optional[str] = None
