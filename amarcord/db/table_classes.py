@@ -13,7 +13,7 @@ from amarcord.modules.json import JSONDict
 
 @dataclass(frozen=True)
 class DBEvent:
-    id: int
+    id: Optional[int]
     created: datetime.datetime
     level: EventLogLevel
     source: str

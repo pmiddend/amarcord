@@ -101,14 +101,21 @@ def main() -> int:
                         args.tag,
                     )
                     for ds in updated_data_sources:
-                        run_ids = ingest_data_source(
+                        for event in ingest_data_source(
                             db,
                             conn,
                             args.force_create_run,
                             ProposalId(args.proposal_id),
                             run_ids,
                             ds,
-                        )
+                        ):
+                            db.add_event(
+                                conn,
+                                event.level,
+                                event.source,
+                                event.text,
+                                event.created,
+                            )
                     logger.info(f"updated data sources: {updated_data_sources}")
                     if args.dry_run:
                         raise DryRunException()

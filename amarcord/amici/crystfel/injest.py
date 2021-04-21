@@ -1,6 +1,7 @@
 import json
 import logging
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from typing import Dict
@@ -13,9 +14,11 @@ from typing import cast
 from amarcord.amici.crystfel.parser import read_crystfel_streams
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBDataSource
+from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBHitFindingParameters
 from amarcord.db.table_classes import DBHitFindingResult
 from amarcord.db.table_classes import DBIndexingParameters
@@ -534,7 +537,7 @@ def harvest_folder(
         data_source_and_hitfinding_result = data_source, hitfinding_result
     else:
         logger.info(
-            "Found existing HitFindingResult, psp ID: ",
+            "Found existing HitFindingResult, psp ID: %s",
             data_source_and_hitfinding_result[1].peak_search_parameters.id,
         )
 
@@ -578,8 +581,7 @@ def ingest_data_source(
     proposal_id: ProposalId,
     run_ids: Set[int],
     ds: DBLinkedDataSource,
-) -> Set[int]:
-    result_run_ids = run_ids.copy()
+) -> List[DBEvent]:
     if ds.data_source.run_id not in run_ids:
         if not force_create_run:
             raise ValueError(
@@ -592,21 +594,37 @@ def ingest_data_source(
             sample_id=None,
             attributi=RawAttributiMap({}),
         )
-        result_run_ids.add(ds.data_source.run_id)
+        run_ids.add(ds.data_source.run_id)
 
+    things_added: List[str] = []
     data_source_id: int
     if ds.data_source.id is None:
         data_source_id = db.add_data_source(conn, ds.data_source)
+        things_added.append(f"Data source {data_source_id}")
     else:
         data_source_id = ds.data_source.id
 
     for hfr in ds.hit_finding_results:
         hfr_id = ingest_hit_finding_result(db, conn, data_source_id, hfr)
+        things_added.append(f"Hit finding result {hfr_id}")
 
         for ir in hfr.indexing_results:
-            ingest_indexing_result(db, conn, data_source_id, hfr_id, ir)
+            ir_id = ingest_indexing_result(db, conn, data_source_id, hfr_id, ir)
+            things_added.append(f"Indexing result {ir_id}")
 
-    return result_run_ids
+    return (
+        []
+        if not things_added
+        else [
+            DBEvent(
+                None,
+                datetime.utcnow(),
+                EventLogLevel.INFO,
+                "CrystFEL ingester",
+                "Added: " + ", ".join(things_added),
+            )
+        ]
+    )
 
 
 def ingest_indexing_result(
