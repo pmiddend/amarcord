@@ -156,6 +156,7 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
     if isinstance(rp, AttributoTypeComments):
         return {
             "type": "array",
+            "format": "comments",
             "items": {
                 "type": "object",
                 "properties": {

@@ -237,7 +237,16 @@ def create_sample_data(db: DB) -> None:
 
             for _ in range(randrange(0, 10)):
                 db.add_comment(
-                    conn, run_id, "testauthor", choice(["foo", "bar", "baz"])
+                    conn,
+                    run_id,
+                    "testauthor",
+                    choice(
+                        [
+                            "this is unstable",
+                            "we changed the nozzles here",
+                            "automatic message foo bar",
+                        ]
+                    ),
                 )
 
         # Insert analysis results

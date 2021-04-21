@@ -77,7 +77,8 @@ def _convert_single_attributo_value_from_json(
             and not attributo_type.attributo_type.range.value_is_inside(v)
         ):
             raise ValueError(
-                f'value for attributo "{i}" is out of range; range is {attributo_type.attributo_type.range}, value is {v}'
+                f'value for attributo "{i}" is out of range; range is {attributo_type.attributo_type.range}, '
+                f"value is {v}"
             )
         return float(v)
     if isinstance(attributo_type.attributo_type, AttributoTypeComments):
@@ -271,6 +272,16 @@ class AttributiMap:
                     else:
                         if isinstance(value[0], (str, int, float)):
                             source_dict[attributo_id] = value
+                        elif isinstance(value[0], DBComment):
+                            source_dict[attributo_id] = [
+                                {
+                                    "id": c.id,
+                                    "author": c.author,
+                                    "text": c.text,
+                                    "created": c.created.isoformat(),
+                                }
+                                for c in cast(List[DBComment], value)
+                            ]
             json_dict[source] = source_dict
         return RawAttributiMap(json_dict)
 

@@ -6,7 +6,7 @@ import App.AssociatedTable (AssociatedTable(..))
 import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
-import App.HalogenUtils (classList, faIcon, scope, singleClass)
+import App.HalogenUtils (classList, errorText, faIcon, scope, singleClass)
 import App.JSONSchemaType (JSONSchemaType(..))
 import App.Logging (LogLevel(..))
 import App.QualifiedAttributoName (QualifiedAttributoName)
@@ -16,8 +16,9 @@ import App.Utils (fanoutApplicative, toggleSetElement)
 import Control.Applicative (pure)
 import Control.Apply ((<*>))
 import Control.Bind (bind, discard)
-import Data.Argonaut (caseJson)
-import Data.Array (filter, head, mapMaybe, sortBy)
+import Data.Argonaut (Json, JsonDecodeError, caseJson, decodeJson, printJsonDecodeError)
+import Data.Array (filter, head, length, mapMaybe, sortBy)
+import Data.Either (Either(..))
 import Data.Eq ((/=), (==))
 import Data.Foldable (foldMap, null)
 import Data.Function (const, (<<<))
@@ -30,7 +31,7 @@ import Data.Number.Format (fixed, toStringWith)
 import Data.Semigroup ((<>))
 import Data.Set as Set
 import Data.Show (show)
-import Data.Traversable (find)
+import Data.Traversable (find, traverse)
 import Data.Tuple (Tuple(..), fst)
 import Data.Unit (Unit, unit)
 import Effect.Aff.Class (class MonadAff)
@@ -150,6 +151,7 @@ createUpdatedSortInput doInvertOrder a { sort, sortOrder } =
     else
       { sort: qualifiedA, sortOrder: Ascending }
 
+-- Check if the current state is sorted by the given attributo
 isSortedBy :: State -> Attributo -> Boolean
 isSortedBy state a = state.overviewSorting.sort == qualifiedAttributoName a
 
@@ -174,6 +176,69 @@ findCellInRow (Tuple table name) cells =
     foundCells = filter (\cell -> cell.table == table && cell.name == name) cells
   in
     selectProperSource foundCells
+
+numberToHtml :: forall w. Attributo -> Number -> HH.HTML w Action
+numberToHtml attributo n = case attributo.typeSchema of
+  JSONInteger -> HH.text (show (round n))
+  JSONNumber nd -> HH.text (toStringWith (fixed 2) n)
+  _ -> HH.text "invalid"
+
+type Comment
+  = { author :: String
+    , created :: String
+    , text :: String
+    , id :: Int
+    }
+
+listToHtml :: forall w. Attributo -> Array Json -> HH.HTML w Action
+listToHtml attributo list = case attributo.typeSchema of
+  JSONComments ->
+    let
+      decodedComments' :: Either JsonDecodeError (Array Comment)
+      decodedComments' = traverse decodeJson list
+    in
+      case decodedComments' of
+        Left e -> errorText ("invalid comment: " <> printJsonDecodeError e)
+        Right decodedComments ->
+          let
+            sorted = sortBy (comparing Descending _.created) decodedComments
+
+            firstComment = head sorted
+
+            numberOfComments = length sorted
+          in
+            case firstComment of
+              Nothing -> HH.text ""
+              Just c ->
+                let
+                  prefix = [ HH.em_ [ HH.text c.author ], HH.text (": " <> c.text) ]
+                in
+                  if numberOfComments == 1 then
+                    HH.p_ prefix
+                  else
+                    HH.p_ (prefix <> [ HH.span [ singleClass "text-muted" ] [ HH.text (" [+" <> show numberOfComments <> " more]") ] ])
+  JSONArray _ -> HH.text "array"
+  _ -> errorText "list which is not an array"
+
+cellToHtml :: forall w. Attributo -> OverviewCell -> HH.HTML w Action
+cellToHtml attributo cell =
+  HH.td [ singleClass "text-nowrap" ]
+    [ caseJson
+        (const (HH.text ""))
+        (HH.text <<< show)
+        (numberToHtml attributo)
+        HH.text
+        (listToHtml attributo)
+        (const (HH.text "object"))
+        cell.value
+    ]
+
+makeCell :: forall w. OverviewRow -> Attributo -> HH.HTML w Action
+makeCell overviewRow attributo =
+  maybe
+    (HH.td_ [])
+    (cellToHtml attributo)
+    (findCellInRow (qualifiedAttributoName attributo) overviewRow)
 
 render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 render state =
@@ -201,15 +266,6 @@ render state =
           [ scope ScopeCol, singleClass "text-nowrap" ]
           cellContent
 
-    -- let --   isSortProp = rpName t == state.runSorting.sort --   afterSort = resortParams (rpName t) (state.runSorting) -- in HH.th [ scope ScopeCol ] (if null t.description then t.description else t.name)
-    -- ( if rpIsSortable t then
-    --     [ HH.a
-    --         [ HP.href (createLink (Runs afterSort)), HE.onClick \_ -> Just (Resort afterSort) ]
-    --         ([ HH.text (rpDescription t) ] <> (if isSortProp then [ orderingToIcon state.runSorting.sortOrder ] else []))
-    --     ]
-    --   else
-    --     [ HH.text (rpDescription t) ]
-    -- )
     -- makeComment :: forall w. Comment -> HH.HTML w Action
     -- makeComment c = HH.li_ [ HH.text (c.author <> ": " <> c.text) ]
     -- makeProperty :: forall w. RunProperty -> Maybe RunValue -> HH.HTML w Action
@@ -219,28 +275,6 @@ render state =
     --   Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
     --   _ -> HH.td_ [ HH.text (maybe "" show value) ]
     wholeSelectedProps = filter (\a -> qualifiedAttributoName a `Set.member` state.selectedAttributi) state.attributi
-
-    numberToHtml :: forall w. Attributo -> Number -> HH.HTML w Action
-    numberToHtml attributo n = case attributo.typeSchema of
-      JSONInteger -> HH.text (show (round n))
-      JSONNumber nd -> HH.text (toStringWith (fixed 2) n)
-      _ -> HH.text "invalid"
-
-    cellToHtml :: forall w. Attributo -> OverviewCell -> HH.HTML w Action
-    cellToHtml attributo cell =
-      HH.td_
-        [ caseJson
-            (const (HH.text ""))
-            (HH.text <<< show)
-            (numberToHtml attributo)
-            HH.text
-            (const (HH.text "array"))
-            (const (HH.text "object"))
-            cell.value
-        ]
-
-    makeCell :: forall w. OverviewRow -> Attributo -> HH.HTML w Action
-    makeCell overviewRow attributo = maybe (HH.th_ []) (cellToHtml attributo) (findCellInRow (qualifiedAttributoName attributo) overviewRow)
 
     makeRow overviewRow = HH.tr_ (makeCell overviewRow <$> wholeSelectedProps)
   in

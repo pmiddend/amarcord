@@ -1,14 +1,12 @@
 module App.HalogenUtils where
 
 import Prelude
-
 import DOM.HTML.Indexed.ScopeValue (ScopeValue)
 import Halogen.HTML (IProp)
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Properties.ARIA as HPA
 import Network.RemoteData (RemoteData(..))
-
 
 classList ::
   forall t144 t145.
@@ -20,13 +18,14 @@ classList ::
     t144
 classList = HP.classes <<< map HH.ClassName
 
-singleClass :: forall t53 t54.         
-  String                
-  -> IProp              
-       ( class :: String
-       | t53            
-       )                
-       t54              
+singleClass ::
+  forall t53 t54.
+  String ->
+  IProp
+    ( class :: String
+    | t53
+    )
+    t54
 singleClass s = classList [ s ]
 
 plainTh :: forall w i. String -> HH.HTML w i
@@ -41,16 +40,36 @@ scope = HH.prop (HH.PropName "scope")
 dismiss :: forall t5 t6. String -> HH.IProp t6 t5
 dismiss = HP.attr (HH.AttrName "data-dismiss")
 
-makeAlert :: forall w i. String -> String -> HH.HTML w i
+data AlertType
+  = AlertPrimary
+  | AlertSecondary
+  | AlertSuccess
+  | AlertDanger
+  | AlertWarning
+  | AlertInfo
+  | AlertLight
+  | AlertDark
+
+instance showAlertType :: Show AlertType where
+  show AlertPrimary = "alert-primary"
+  show AlertSecondary = "alert-secondary"
+  show AlertSuccess = "alert-success"
+  show AlertDanger = "alert-danger"
+  show AlertWarning = "alert-warning"
+  show AlertInfo = "alert-info"
+  show AlertLight = "alert-light"
+  show AlertDark = "alert-dark"
+
+makeAlert :: forall w i. AlertType -> String -> HH.HTML w i
 makeAlert alertType content =
   HH.div
-    [ HP.classes [ HH.ClassName ("alert " <> alertType ) ], HPA.role "alert" ]
+    [ HP.classes [ HH.ClassName ("alert " <> show alertType) ], HPA.role "alert" ]
     [ HH.text content ]
 
 makeRequestResult :: forall w i. (RemoteData String String) -> HH.HTML w i
-makeRequestResult (Failure e) = makeAlert "alert-danger" e
+makeRequestResult (Failure e) = makeAlert AlertDanger e
 
-makeRequestResult (Success e) = makeAlert "alert-primary" e
+makeRequestResult (Success e) = makeAlert AlertPrimary e
 
 makeRequestResult _ = HH.text ""
 
@@ -64,7 +83,8 @@ makeRequestResult _ = HH.text ""
 --       Right Nothing -> successMessage
 --       Right (Just { errorMessage: Just errorMessage' }) -> Failure errorMessage'
 --       Right (Just { errorMessage: Nothing }) -> successMessage
-
 faIcon :: forall w i. String -> HH.HTML w i
 faIcon name = HH.i [ HP.classes [ HH.ClassName "fa", HH.ClassName ("fa-" <> name) ] ] []
 
+errorText :: forall w i. String -> HH.HTML w i
+errorText text = makeAlert AlertDanger text

@@ -22,10 +22,17 @@ _suffix = prop (SProxy :: SProxy "suffix")
 _range :: Lens' JSONNumberData (Maybe (NumericRange Number))
 _range = prop (SProxy :: SProxy "range")
 
+type JSONArrayData = {
+    minItems :: Maybe Int
+  , maxItems :: Maybe Int
+  , items :: JSONSchemaType
+  }
+
 data JSONSchemaType
   = JSONNumber JSONNumberData
   | JSONString
-  | JSONArray
+  | JSONArray JSONArrayData
+  | JSONComments
   | JSONInteger
 
 _JSONNumber :: Prism' JSONSchemaType JSONNumberData
@@ -38,8 +45,9 @@ derive instance ordJSONSchemaType :: Ord JSONSchemaType
 
 instance showJsonSchema :: Show JSONSchemaType where
   show JSONString = "string"
-  show JSONArray = "array"
+  show (JSONArray ad) = "array"
   show JSONInteger = "int"
+  show JSONComments = "comments"
   show (JSONNumber _) = "number"
 
 instance jsonSchemaTypeDecode :: DecodeJson JSONSchemaType where
@@ -61,5 +69,13 @@ instance jsonSchemaTypeDecode :: DecodeJson JSONSchemaType where
           )
       "integer" -> pure JSONInteger
       "string" -> pure JSONString
-      "array" -> pure JSONArray
+      "array" -> do
+        minItems <- obj .:? "minItems"
+        maxItems <- obj .:? "maxItems"
+        format <- obj .:? "format"
+        case format of
+          Just "comments" -> pure JSONComments
+          _ -> do
+            items <- obj .: "items"
+            pure (JSONArray { minItems, maxItems, items })
       _ -> Left (TypeMismatch $ "invalid \"type\" property: " <> type_)
