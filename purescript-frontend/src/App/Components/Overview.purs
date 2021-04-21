@@ -1,6 +1,6 @@
 module App.Components.Overview where
 
-import App.API (AttributiResponse, OverviewCell, OverviewResponse, OverviewRow, retrieveAttributi, retrieveOverview)
+import App.API (AttributiResponse, OverviewResponse, retrieveAttributi, retrieveOverview)
 import App.AppMonad (AppMonad, log)
 import App.AssociatedTable (AssociatedTable(..))
 import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
@@ -10,6 +10,7 @@ import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, errorText, faIcon, scope, singleClass)
 import App.JSONSchemaType (JSONSchemaType(..))
 import App.Logging (LogLevel(..))
+import App.Overview (OverviewRow, OverviewCell, findCellInRow)
 import App.QualifiedAttributoName (QualifiedAttributoName)
 import App.Route (Route(..), OverviewRouteInput, createLink)
 import App.SortOrder (SortOrder(..), comparing, invertOrder)
@@ -18,13 +19,13 @@ import Control.Applicative (pure)
 import Control.Apply ((<*>))
 import Control.Bind (bind, discard)
 import Data.Argonaut (Json, JsonDecodeError, caseJson, decodeJson, printJsonDecodeError)
-import Data.Array (filter, head, length, mapMaybe, singleton, sortBy)
+import Data.Array (filter, head, length, singleton, sortBy)
 import Data.Either (Either(..))
 import Data.Eq ((/=), (==))
-import Data.Foldable (foldMap, intercalate, null)
+import Data.Foldable (foldMap, intercalate)
 import Data.Function (const, identity, (<<<), (>>>))
 import Data.Functor (map, (<$>))
-import Data.HeytingAlgebra ((&&), (||))
+import Data.HeytingAlgebra ((||))
 import Data.Int (round)
 import Data.Lens (to, toArrayOf)
 import Data.Maybe (Maybe(..), maybe)
@@ -32,7 +33,7 @@ import Data.Number.Format (fixed, toStringWith)
 import Data.Semigroup ((<>))
 import Data.Set as Set
 import Data.Show (show)
-import Data.Traversable (find, traverse)
+import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst)
 import Data.Unit (Unit, unit)
 import Effect.Aff.Class (class MonadAff)
@@ -161,28 +162,6 @@ createUpdatedSortInput doInvertOrder a { sort, sortOrder } =
 -- Check if the current state is sorted by the given attributo
 isSortedBy :: State -> Attributo -> Boolean
 isSortedBy state a = state.overviewSorting.sort == qualifiedAttributoName a
-
--- Given a list of cells with source, select the "best" source
-selectProperSource :: Array OverviewCell -> Maybe OverviewCell
-selectProperSource [] = Nothing
-
-selectProperSource xs =
-  let
-    sourceOrder :: Array String
-    sourceOrder = [ "manual", "offline", "online" ]
-
-    sources :: Array OverviewCell
-    sources = mapMaybe (\source -> find (\x -> x.source == source) xs) sourceOrder
-  in
-    head (if null sources then xs else sources)
-
--- Given a row in the overview and a certain attributo, find the correct attributo cell (proper source and stuff)
-findCellInRow :: QualifiedAttributoName -> OverviewRow -> Maybe OverviewCell
-findCellInRow (Tuple table name) cells =
-  let
-    foundCells = filter (\cell -> cell.table == table && cell.name == name) cells
-  in
-    selectProperSource foundCells
 
 -- Convert a number (not an integer) to a string with precision
 numberToString :: Number -> String

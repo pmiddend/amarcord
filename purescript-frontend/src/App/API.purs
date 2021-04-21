@@ -1,29 +1,20 @@
 module App.API where
 
 import Prelude
+
 import Affjax (Error, Response, printError)
 import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
-import App.AssociatedTable (AssociatedTable)
 import App.Attributo (Attributo)
+import App.Overview (OverviewRow)
 import Control.Monad.Reader (asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError)
 import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
 import Halogen (liftAff)
-
-type OverviewCell
-  = { table :: AssociatedTable
-    , source :: String
-    , name :: String
-    , value :: Json
-    }
-
-type OverviewRow
-  = Array OverviewCell
 
 type OverviewResponse
   = { overviewRows :: Array OverviewRow

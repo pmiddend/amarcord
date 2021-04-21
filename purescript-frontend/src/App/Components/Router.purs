@@ -1,10 +1,9 @@
 module App.Components.Router where
 
 import Prelude
-
 import App.AppMonad (AppMonad)
 import App.AssociatedTable (AssociatedTable(..))
-import App.AssociatedTable as AssociatedTable
+import App.Components.Graphs as GraphsComp
 import App.Components.Overview as Overview
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
@@ -16,6 +15,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
 import Effect.Class (class MonadEffect, liftEffect)
+import Effect.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -28,7 +28,6 @@ import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
 amarcordProgramVersion :: String
 amarcordProgramVersion = "latest"
-
 
 type State
   = { route :: Maybe Route
@@ -47,7 +46,7 @@ type OpaqueSlot slot
 type ChildSlots
   = ( root :: OpaqueSlot Unit
     , overview :: OpaqueSlot Unit
---    , editRun :: OpaqueSlot Unit
+    , graphs :: OpaqueSlot Unit
     )
 
 component ::
@@ -88,7 +87,10 @@ handleAction = case _ of
   GoTo route e -> do
     liftEffect $ preventDefault (toEvent e)
     mRoute <- H.gets _.route
-    when (mRoute /= Just route) $ navigate route
+    when (mRoute /= Just route)
+      $ do
+          liftEffect $ log ("new route" <> print routeCodec route)
+          navigate route
 
 -- Renders a page component depending on which route is matched.
 render :: State -> H.ComponentHTML Action ChildSlots AppMonad
@@ -99,16 +101,24 @@ render st =
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
           Overview sort -> HH.slot (SProxy :: _ "overview") unit Overview.component sort absurd
-          --EditRun runId -> HH.slot (SProxy :: _ "editRun") unit EditRun.component runId absurd
+          Graphs -> HH.slot (SProxy :: _ "graphs") unit GraphsComp.component {} absurd
 
+--EditRun runId -> HH.slot (SProxy :: _ "editRun") unit EditRun.component runId absurd
 navItems ::
   Array
     { fa :: String
     , link :: Route
     , title :: String
     }
-navItems = [
-    { title: "Runs", link: (Overview { sort: (Tuple Run "id"), sortOrder: Ascending }), fa: "running" }
+navItems =
+  [ { title: "Runs"
+    , link: (Overview { sort: (Tuple Run "id"), sortOrder: Ascending })
+    , fa: "running"
+    }
+  , { title: "Graphs"
+    , link: Graphs
+    , fa: "chart-area"
+    }
   ]
 
 makeNavItem ::
@@ -124,7 +134,12 @@ makeNavItem route ({ title, link, fa }) =
   let
     isActive = if route == Just link then [ "active" ] else []
   in
-    HH.li [ classList [ "nav-item" ] ] [ HH.a [ HP.href "#", HE.onClick (Just <<< GoTo link), classList ([ "nav-link" ] <> isActive) ] [ icon { name: fa, size: Nothing, spin: false }, HH.text (" " <> title) ] ]
+    HH.li
+      [ classList [ "nav-item" ] ]
+      [ HH.a
+          [ HP.href "#", HE.onClick (Just <<< GoTo link), classList ([ "nav-link" ] <> isActive) ]
+          [ icon { name: fa, size: Nothing, spin: false }, HH.text (" " <> title) ]
+      ]
 
 navbar :: forall t222. Maybe Route -> HH.HTML t222 Action
 navbar route =
@@ -143,9 +158,6 @@ navbar route =
       HH.div [ classList [ "sidebar-sticky", "pt-3" ] ]
         [ HH.ul [ classList [ "nav", "flex-column" ] ]
             (makeNavItem route <$> navItems)
-        -- [ HH.li [ classList [ "nav-item" ] ] [ HH.a [ HP.href "#", HE.onClick (Just <<< GoTo Dewar), classList [ "nav-link" ] ] [ HH.i [ classList [ "fas fa-user" ] ] [], HH.text " Dewar Table" ] ]
-        -- , HH.li [ classList [ "nav-item" ] ] [ HH.a [ HP.href "#", HE.onClick (Just <<< GoTo Pucks), classList [ "nav-link" ] ] [ HH.text "Pucks" ] ]
-        -- ]
         ]
   in
     HH.nav
