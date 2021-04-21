@@ -24,7 +24,7 @@ import Data.Eq ((/=), (==))
 import Data.Foldable (foldMap, intercalate, null)
 import Data.Function (const, identity, (<<<), (>>>))
 import Data.Functor (map, (<$>))
-import Data.HeytingAlgebra ((&&))
+import Data.HeytingAlgebra ((&&), (||))
 import Data.Int (round)
 import Data.Lens (to, toArrayOf)
 import Data.Maybe (Maybe(..), maybe)
@@ -294,15 +294,9 @@ render state =
           [ scope ScopeCol, singleClass "text-nowrap" ]
           cellContent
 
-    -- makeComment :: forall w. Comment -> HH.HTML w Action
-    -- makeComment c = HH.li_ [ HH.text (c.author <> ": " <> c.text) ]
-    -- makeProperty :: forall w. RunProperty -> Maybe RunValue -> HH.HTML w Action
-    -- makeProperty rp value = case value of
-    --   Nothing -> HH.td_ []
-    --   Just (Comments cs) -> HH.td_ [ HH.ul_ (makeComment <$> cs) ]
-    --   Just (Scalar (RunScalarNumber n)) -> HH.td_ [ HH.text (toStringWith (precision 2) n) ]
-    --   _ -> HH.td_ [ HH.text (maybe "" show value) ]
-    wholeSelectedProps = filter (\a -> qualifiedAttributoName a `Set.member` state.selectedAttributi) state.attributi
+    attributoSortFunction attributo = Tuple (attributo.name /= "id" || attributo.table /= Run) (Tuple attributo.table attributo.name)
+
+    wholeSelectedProps = sortBy (comparing Ascending attributoSortFunction) (filter (\a -> qualifiedAttributoName a `Set.member` state.selectedAttributi) state.attributi)
 
     makeRow overviewRow = HH.tr_ (makeCell overviewRow <$> wholeSelectedProps)
   in
