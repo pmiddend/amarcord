@@ -17,11 +17,11 @@ import Control.Applicative (pure)
 import Control.Apply ((<*>))
 import Control.Bind (bind, discard)
 import Data.Argonaut (Json, JsonDecodeError, caseJson, decodeJson, printJsonDecodeError)
-import Data.Array (filter, head, length, mapMaybe, sortBy)
+import Data.Array (filter, head, length, mapMaybe, singleton, sortBy)
 import Data.Either (Either(..))
 import Data.Eq ((/=), (==))
-import Data.Foldable (foldMap, null)
-import Data.Function (const, (<<<))
+import Data.Foldable (foldMap, intercalate, null)
+import Data.Function (const, identity, (<<<), (>>>))
 import Data.Functor (map, (<$>))
 import Data.HeytingAlgebra ((&&))
 import Data.Int (round)
@@ -177,10 +177,13 @@ findCellInRow (Tuple table name) cells =
   in
     selectProperSource foundCells
 
-numberToHtml :: forall w. Attributo -> Number -> HH.HTML w Action
-numberToHtml attributo n = case attributo.typeSchema of
+numberToString :: Number -> String
+numberToString = toStringWith (fixed 2)
+
+numberToHtml :: forall w. JSONSchemaType -> Number -> HH.HTML w Action
+numberToHtml typeSchema n = case typeSchema of
   JSONInteger -> HH.text (show (round n))
-  JSONNumber nd -> HH.text (toStringWith (fixed 2) n)
+  JSONNumber nd -> HH.text (numberToString n)
   _ -> HH.text "invalid"
 
 type Comment
@@ -190,48 +193,66 @@ type Comment
     , id :: Int
     }
 
+commentsToHtml :: forall w. Array Json -> HH.HTML w Action
+commentsToHtml comments =
+  let
+    decodedComments' :: Either JsonDecodeError (Array Comment)
+    decodedComments' = traverse decodeJson comments
+  in
+    case decodedComments' of
+      Left e -> errorText ("invalid comment: " <> printJsonDecodeError e)
+      Right decodedComments ->
+        let
+          sorted = sortBy (comparing Descending _.created) decodedComments
+
+          firstComment = head sorted
+
+          numberOfComments = length sorted
+        in
+          case firstComment of
+            Nothing -> HH.text ""
+            Just c ->
+              let
+                prefix = [ HH.em_ [ HH.text c.author ], HH.text (": " <> c.text) ]
+              in
+                if numberOfComments == 1 then
+                  HH.p_ prefix
+                else
+                  HH.p_ (prefix <> [ HH.span [ singleClass "text-muted" ] [ HH.text (" [+" <> show numberOfComments <> " more]") ] ])
+
 listToHtml :: forall w. Attributo -> Array Json -> HH.HTML w Action
 listToHtml attributo list = case attributo.typeSchema of
-  JSONComments ->
+  JSONComments -> commentsToHtml list
+  JSONArray items ->
     let
-      decodedComments' :: Either JsonDecodeError (Array Comment)
-      decodedComments' = traverse decodeJson list
+      subItemToHtml :: Json -> HH.HTML w Action
+      subItemToHtml i =
+        HH.text
+          ( caseJson
+              (const "")
+              show
+              numberToString
+              identity
+              (const "nested lists not supported")
+              (const "objects not supported")
+              i
+          )
     in
-      case decodedComments' of
-        Left e -> errorText ("invalid comment: " <> printJsonDecodeError e)
-        Right decodedComments ->
-          let
-            sorted = sortBy (comparing Descending _.created) decodedComments
-
-            firstComment = head sorted
-
-            numberOfComments = length sorted
-          in
-            case firstComment of
-              Nothing -> HH.text ""
-              Just c ->
-                let
-                  prefix = [ HH.em_ [ HH.text c.author ], HH.text (": " <> c.text) ]
-                in
-                  if numberOfComments == 1 then
-                    HH.p_ prefix
-                  else
-                    HH.p_ (prefix <> [ HH.span [ singleClass "text-muted" ] [ HH.text (" [+" <> show numberOfComments <> " more]") ] ])
-  JSONArray _ -> HH.text "array"
+      HH.div_ (intercalate [ HH.text "," ] ((subItemToHtml >>> singleton) <$> list))
   _ -> errorText "list which is not an array"
 
+jsonToHtml :: forall w. Attributo -> Json -> HH.HTML w Action
+jsonToHtml attributo =
+  caseJson
+    (const (HH.text ""))
+    (HH.text <<< show)
+    (numberToHtml attributo.typeSchema)
+    HH.text
+    (listToHtml attributo)
+    (const (HH.text "object"))
+
 cellToHtml :: forall w. Attributo -> OverviewCell -> HH.HTML w Action
-cellToHtml attributo cell =
-  HH.td [ singleClass "text-nowrap" ]
-    [ caseJson
-        (const (HH.text ""))
-        (HH.text <<< show)
-        (numberToHtml attributo)
-        HH.text
-        (listToHtml attributo)
-        (const (HH.text "object"))
-        cell.value
-    ]
+cellToHtml attributo cell = HH.td [ singleClass "text-nowrap" ] [ jsonToHtml attributo cell.value ]
 
 makeCell :: forall w. OverviewRow -> Attributo -> HH.HTML w Action
 makeCell overviewRow attributo =
