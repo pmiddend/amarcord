@@ -75,7 +75,7 @@ class DBPeakSearchParameters:
     min_snr_peak_pix: Optional[float] = None
     min_sig: Optional[float] = None
     min_squared_gradient: Optional[float] = None
-    geometry: Optional[str] = None
+    geometry: Optional[str] = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, eq=True)
@@ -98,7 +98,7 @@ class DBIndexingParameters:
     command_line: str
     parameters: JSONDict
     methods: List[str]
-    geometry: Optional[str]
+    geometry: Optional[str] = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, eq=True)
