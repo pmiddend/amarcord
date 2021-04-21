@@ -5,6 +5,7 @@ import App.AppMonad (AppMonad, log)
 import App.AssociatedTable (AssociatedTable(..))
 import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
+import App.Comment (Comment)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, errorText, faIcon, scope, singleClass)
 import App.JSONSchemaType (JSONSchemaType(..))
@@ -89,9 +90,11 @@ childComponent =
             }
     }
 
+-- Given a sorting input and an array, resort it
 resort :: OverviewRouteInput -> Array OverviewRow -> Array OverviewRow
 resort by = sortBy (comparing (by.sortOrder) ((map _.value) <<< findCellInRow by.sort))
 
+-- Event source for a simple timer
 timerEventSource :: forall m. MonadAff m => EventSource m Action
 timerEventSource =
   effectEventSource \emitter -> do
@@ -128,9 +131,11 @@ handleAction = case _ of
   ToggleTable t -> do
     H.modify_ \state -> state { selectedAttributi = Set.filter (\x -> fst x /= t) state.selectedAttributi }
 
+-- Fetch runs and attributi
 fetchData :: OverviewRouteInput -> AppMonad (RemoteData String (Tuple OverviewResponse AttributiResponse))
 fetchData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
 
+-- Determine if we have a sortable schema type
 schemaTypeSortable :: JSONSchemaType -> Boolean
 schemaTypeSortable (JSONNumber _) = true
 
@@ -138,9 +143,11 @@ schemaTypeSortable JSONInteger = true
 
 schemaTypeSortable _ = false
 
+-- Determine if the attributo is sortable
 attributoSortable :: Attributo -> Boolean
 attributoSortable a = schemaTypeSortable a.typeSchema
 
+-- When a column is clicked, create new route
 createUpdatedSortInput :: Boolean -> Attributo -> OverviewRouteInput -> OverviewRouteInput
 createUpdatedSortInput doInvertOrder a { sort, sortOrder } =
   let
@@ -177,22 +184,18 @@ findCellInRow (Tuple table name) cells =
   in
     selectProperSource foundCells
 
+-- Convert a number (not an integer) to a string with precision
 numberToString :: Number -> String
 numberToString = toStringWith (fixed 2)
 
+-- Convert a number (int and string) to HTML
 numberToHtml :: forall w. JSONSchemaType -> Number -> HH.HTML w Action
 numberToHtml typeSchema n = case typeSchema of
   JSONInteger -> HH.text (show (round n))
   JSONNumber nd -> HH.text (numberToString n)
-  _ -> HH.text "invalid"
+  _ -> errorText "Cannot convert from non-number type to HTML"
 
-type Comment
-  = { author :: String
-    , created :: String
-    , text :: String
-    , id :: Int
-    }
-
+-- Convert a list of comments (as JSON) to HTML
 commentsToHtml :: forall w. Array Json -> HH.HTML w Action
 commentsToHtml comments =
   let
@@ -220,6 +223,7 @@ commentsToHtml comments =
                 else
                   HH.p_ (prefix <> [ HH.span [ singleClass "text-muted" ] [ HH.text (" [+" <> show numberOfComments <> " more]") ] ])
 
+-- Convert a list type (comments, list of int, ...) to HTML
 listToHtml :: forall w. Attributo -> Array Json -> HH.HTML w Action
 listToHtml attributo list = case attributo.typeSchema of
   JSONComments -> commentsToHtml list
@@ -241,6 +245,7 @@ listToHtml attributo list = case attributo.typeSchema of
       HH.div_ (intercalate [ HH.text "," ] ((subItemToHtml >>> singleton) <$> list))
   _ -> errorText "list which is not an array"
 
+-- Convert a general attributo cell as JSON (number, comments, ...) to HTML
 jsonToHtml :: forall w. Attributo -> Json -> HH.HTML w Action
 jsonToHtml attributo =
   caseJson
@@ -251,9 +256,11 @@ jsonToHtml attributo =
     (listToHtml attributo)
     (const (HH.text "object"))
 
+-- Convert an attributo cell to a HTML table cell
 cellToHtml :: forall w. Attributo -> OverviewCell -> HH.HTML w Action
 cellToHtml attributo cell = HH.td [ singleClass "text-nowrap" ] [ jsonToHtml attributo cell.value ]
 
+-- Convert an attributo inside a whole row to HTML
 makeCell :: forall w. OverviewRow -> Attributo -> HH.HTML w Action
 makeCell overviewRow attributo =
   maybe
@@ -308,6 +315,7 @@ render state =
           (makeRow <$> state.overviewRows)
       ]
 
+-- Convert a sort order to an icon
 orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
 orderingToIcon Ascending = faIcon "sort-up"
 
