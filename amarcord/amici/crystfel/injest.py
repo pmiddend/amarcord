@@ -10,7 +10,7 @@ from typing import Set
 from typing import Tuple
 from typing import cast
 
-from amarcord.amici.crystfel.parser import read_streams
+from amarcord.amici.crystfel.parser import read_crystfel_streams
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
@@ -256,6 +256,7 @@ def lookup_indexing_params(
     program: str,
     program_version: str,
     geometry: str,
+    command_line: Optional[str],
     tag: Optional[str],
 ) -> Optional[DBIndexingParameters]:
     # FIXME: Add lookup instead of plain add
@@ -265,7 +266,7 @@ def lookup_indexing_params(
         comment=None,
         software=program,
         software_version=program_version,
-        command_line="",
+        command_line=command_line if command_line is not None else "",
         parameters=param_json,
         methods=cast(list, param_json["methods"]),
         geometry=geometry,
@@ -456,7 +457,7 @@ def harvest_folder(
         )
         return []
 
-    stream_stuff = read_streams(stream_list)
+    stream_stuff = read_crystfel_streams(stream_list)
 
     # See note #1 for lookup_hitfinding_results
     # This check we planned at first but it doesn't work with multi turbo Cheetah(tm)
@@ -542,6 +543,7 @@ def harvest_folder(
         "CrystFEL,indexamajig",
         stream_stuff.version if stream_stuff.version is not None else "1.0",
         stream_stuff.geometry,
+        stream_stuff.command_line,
         tag,
     )
 
