@@ -305,15 +305,9 @@ def lookup_integration_params(
         center_boxes=param_json.center_boxes,
         overpredict=param_json.overpredict,
         push_res=param_json.push_res,
-        radius_inner=int(param_json.radius_inner)
-        if param_json.radius_inner is not None
-        else None,
-        radius_middle=int(param_json.radius_middle)
-        if param_json.radius_middle is not None
-        else None,
-        radius_outer=int(param_json.radius_outer)
-        if param_json.radius_outer is not None
-        else None,
+        radius_inner=param_json.radius_inner,
+        radius_middle=param_json.radius_middle,
+        radius_outer=param_json.radius_outer,
     )
 
 

@@ -112,9 +112,9 @@ class DBIntegrationParameters:
     center_boxes: Optional[bool]
     overpredict: Optional[bool]
     push_res: Optional[float]
-    radius_inner: Optional[int]
-    radius_middle: Optional[int]
-    radius_outer: Optional[int]
+    radius_inner: Optional[float]
+    radius_middle: Optional[float]
+    radius_outer: Optional[float]
 
 
 @dataclass(frozen=True, eq=True)

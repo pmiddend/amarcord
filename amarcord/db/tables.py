@@ -242,9 +242,9 @@ def _table_integration_parameters(metadata: sa.MetaData) -> sa.Table:
         sa.Column("center_boxes", sa.Boolean, nullable=True),
         sa.Column("overpredict", sa.Boolean, nullable=True),
         sa.Column("push_res", sa.Float, nullable=True),
-        sa.Column("radius_inner", sa.Integer, nullable=True),
-        sa.Column("radius_middle", sa.Integer, nullable=True),
-        sa.Column("radius_outer", sa.Integer, nullable=True),
+        sa.Column("radius_inner", sa.Float, nullable=True),
+        sa.Column("radius_middle", sa.Float, nullable=True),
+        sa.Column("radius_outer", sa.Float, nullable=True),
     )
 
 
