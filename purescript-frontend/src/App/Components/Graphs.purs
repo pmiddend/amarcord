@@ -11,14 +11,15 @@ import App.Logging (LogLevel(..))
 import App.Overview (OverviewRow, OverviewCell, findCellInRow)
 import App.Utils (fanoutApplicative)
 import Control.Applicative (pure, (<*>))
-import Control.Bind ((>>=))
 import Data.Argonaut (toNumber)
 import Data.Array (filter, mapMaybe)
-import Data.Eq ((==))
+import Data.Eq (class Eq, (==))
 import Data.Foldable (find)
+import Data.Function (const, (<<<))
 import Data.Functor ((<$>))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Semigroup ((<>))
+import Data.Show (class Show, show)
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
@@ -26,6 +27,7 @@ import Data.Void (Void, absurd)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData, fromEither)
 import Prelude (discard, bind)
@@ -35,6 +37,7 @@ type State
     , yAxis :: Maybe Attributo
     , overviewRows :: Array OverviewRow
     , attributi :: Array Attributo
+    , plotType :: PlotType
     }
 
 type OpaqueSlot slot
@@ -71,49 +74,36 @@ render state =
 
     generateYAxisChange attributoName = YAxisChange <$> find (\a -> a.name == attributoName) state.attributi
 
-    mockData =
-      { width: 600.0
-      , height: 400.0
-      , options:
-          { title: { text: "My chart" }
-          , xAxis: {}
-          , yAxis: {}
-          , series:
-              [ { name: "MySeries"
-                , "type": "line"
-                , "data": [ [ 0.0, 5.0 ], [ 10.0, 20.0 ], [ 100.0, 36.0 ], [ 101.0, 10.0 ], [ 102.0, 10.0 ], [ 1000.0, 20.0 ] ]
-                }
-              ]
-          }
-      }
-
-    chartData = case state.xAxis of
-      Nothing -> mockData
-      Just xaxis -> case state.yAxis of
-        Nothing -> mockData
-        Just yaxis ->
-          let
-            dataPoints :: Array (Array Number)
-            dataPoints = mapMaybe (extractPairFromRow xaxis yaxis) state.overviewRows
-          in
-            { width: 600.0
-            , height: 400.0
-            , options:
-                { title: { text: xaxis.description <> " vs. " <> yaxis.description }
-                , xAxis: {}
-                , yAxis: {}
-                , series:
-                    [ { name: xaxis.description <> " vs. " <> yaxis.description
-                      , "type": "line"
-                      , "data": dataPoints
-                      }
-                    ]
-                }
+    chartData = do
+      xaxis <- state.xAxis
+      yaxis <- state.yAxis
+      let
+        dataPoints :: Array (Array Number)
+        dataPoints = mapMaybe (extractPairFromRow xaxis yaxis) state.overviewRows
+      pure
+        { width: 600.0
+        , height: 400.0
+        , options:
+            { title: { text: xaxis.description <> " vs. " <> yaxis.description }
+            , xAxis: {}
+            , yAxis: {}
+            , series:
+                [ { name: xaxis.description <> " vs. " <> yaxis.description
+                  , "type": show state.plotType
+                  , "data": dataPoints
+                  }
+                ]
             }
+        }
+
+    disabledAttribute axis =
+      [ HH.option
+          [ HP.value "", HP.disabled true, HP.selected true ]
+          [ HH.text ("Select " <> axis <> " axis") ]
+      ]
   in
     HH.div_
       [ HH.h1_ [ HH.text "Graph Dashboard" ]
-      , HH.p_ [ HH.text "Select the axes to plot!" ]
       , HH.form_
           [ HH.div [ singleClass "mb-3" ]
               [ HH.label [ HP.for "x-axis", singleClass "form-label" ] [ HH.text "X Axis" ]
@@ -122,7 +112,7 @@ render state =
                   , HP.id_ "x-axis"
                   , HE.onValueChange generateXAxisChange
                   ]
-                  (makeAttributoOption <$> plottableAttributi)
+                  (disabledAttribute "X" <> (makeAttributoOption <$> plottableAttributi))
               ]
           , HH.div
               [ singleClass "mb-3" ]
@@ -132,15 +122,59 @@ render state =
                   , HP.id_ "y-axis"
                   , HE.onValueChange generateYAxisChange
                   ]
-                  (makeAttributoOption <$> plottableAttributi)
+                  (disabledAttribute "Y" <> (makeAttributoOption <$> plottableAttributi))
               ]
+          , HH.div
+              [ singleClass "mb-3" ]
+              [ HH.label [ HP.for "plot-type", singleClass "form-label" ] [ HH.text "Plot Type: " ]
+              , HH.select
+                  [ classList [ "form-select", "form-control" ]
+                  , HP.id_ "plot-type"
+                  , HE.onValueChange (\x -> Just (if x == "line" then PlotTypeChange Line else PlotTypeChange Scatter))
+                  ]
+                  [ HH.option [ HP.value (show Line) ] [ HH.text "Line" ]
+                  , HH.option [ HP.value (show Scatter) ] [ HH.text "Scatter" ]
+                  ]
+              ]
+          -- This is the much nicer radio button, but it doesn't work for some reason
+          -- , HH.div [ classList [ "btn-group", "btn-group-toggle" ], HP.attr (HH.AttrName "data-toggle") "buttons" ]
+          --     [ HH.label [ classList [ "btn", "btn-secondary", "active" ] ]
+          --         [ HH.input
+          --             [ HP.type_ InputRadio
+          --             , HP.name "plot-type"
+          --             , HP.id_ "line-plot"
+          --             , HP.checked (state.plotType == Line)
+          --             , HP.value "line"
+          --             , HE.onChange (const (Just (PlotTypeChange Line)))
+          --             --, HE.onValueInput (const (Just (PlotTypeChange Line)))
+          --             ]
+          --         , HH.text "Line plot"
+          --         ]
+          --     , HH.label [ classList [ "btn", "btn-secondary" ] ]
+          --         [ HH.input
+          --             [ HP.type_ InputRadio
+          --             , HP.name "plot-type"
+          --             , HP.id_ "scatter-plot"
+          --             , HP.checked (state.plotType == Scatter)
+          --             , HP.value "scatter"
+          --             , HE.onChange (const (Just (PlotTypeChange Scatter)))
+          --             --, HE.onValueInput (const (Just (PlotTypeChange Scatter)))
+          --             ]
+          --         , HH.text "Scatter plot"
+          --         ]
+          --     ]
+          -- ]
           ]
-      , HH.slot
-          (SProxy :: _ "graphSlot")
-          unit
-          (echartsComponent chartData)
+      , maybe (HH.text "Select both axes to plot!")
+          ( \chartData' ->
+              HH.slot
+                (SProxy :: _ "graphSlot")
+                unit
+                (echartsComponent chartData')
+                chartData'
+                absurd
+          )
           chartData
-          absurd
       ]
 
 childComponent :: forall q. H.Component HH.HTML q (ChildInput RoutingInput ParentOutput) ParentError AppMonad
@@ -151,18 +185,28 @@ childComponent =
     , eval: H.mkEval H.defaultEval { handleAction = handleAction }
     }
 
+data PlotType
+  = Line
+  | Scatter
+
+derive instance eqPlotType :: Eq PlotType
+
+instance showPlotType :: Show PlotType where
+  show Line = "line"
+  show Scatter = "scatter"
+
 data Action
   = XAxisChange Attributo
   | YAxisChange Attributo
+  | PlotTypeChange PlotType
 
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
-  XAxisChange a -> do
-    H.lift (log Info "x axis changed!")
-    H.modify_ \state -> state { xAxis = Just a }
-  YAxisChange a -> do
-    H.lift (log Info "y axis changed!")
-    H.modify_ \state -> state { yAxis = Just a }
+  XAxisChange a -> H.modify_ \state -> state { xAxis = Just a }
+  YAxisChange a -> H.modify_ \state -> state { yAxis = Just a }
+  PlotTypeChange newType -> do
+    H.lift (log Info "plot type changed")
+    H.modify_ \state -> state { plotType = newType }
 
 initialState :: ChildInput RoutingInput (Tuple OverviewResponse AttributiResponse) -> State
 initialState { input: _, remoteData: Tuple overviewResponse attributiResponse } =
@@ -170,6 +214,7 @@ initialState { input: _, remoteData: Tuple overviewResponse attributiResponse } 
   , attributi: attributiResponse.attributi
   , xAxis: Nothing
   , yAxis: Nothing
+  , plotType: Line
   }
 
 type RoutingInput
