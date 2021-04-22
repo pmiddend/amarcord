@@ -2,7 +2,6 @@ module App.Root where
 
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.HTML.Properties as HP
 import App.AppMonad (AppMonad)
 
 render :: forall a m slots. {} -> H.ComponentHTML a slots m

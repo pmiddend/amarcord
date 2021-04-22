@@ -9,17 +9,20 @@ import App.HalogenUtils (classList, singleClass)
 import App.JSONSchemaType (JSONSchemaType(..))
 import App.Logging (LogLevel(..))
 import App.Overview (OverviewRow, OverviewCell, findCellInRow)
+import App.PlotType (PlotType(..))
+import App.QualifiedAttributoName (QualifiedAttributoName)
+import App.Route (GraphsRouteInput, Route(..), createLink)
 import App.Utils (fanoutApplicative)
 import Control.Applicative (pure, (<*>))
+import Control.Bind ((>>=))
 import Data.Argonaut (toNumber)
 import Data.Array (filter, mapMaybe)
-import Data.Eq (class Eq, (==))
+import Data.Eq ((==))
 import Data.Foldable (find)
-import Data.Function (const, (<<<))
 import Data.Functor ((<$>))
 import Data.Maybe (Maybe(..), maybe)
 import Data.Semigroup ((<>))
-import Data.Show (class Show, show)
+import Data.Show (show)
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
@@ -27,10 +30,10 @@ import Data.Void (Void, absurd)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData, fromEither)
 import Prelude (discard, bind)
+import Routing.Hash (setHash)
 
 type State
   = { xAxis :: Maybe Attributo
@@ -67,8 +70,8 @@ render state =
 
     plottableAttributi = filter isPlottable state.attributi
 
-    makeAttributoOption :: forall w. Attributo -> HH.HTML w Action
-    makeAttributoOption a = HH.option [ HP.value a.name ] [ HH.text a.description ]
+    makeAttributoOption :: forall w. (State -> Maybe Attributo) -> Attributo -> HH.HTML w Action
+    makeAttributoOption getter a = HH.option [ HP.value a.name, HP.selected ((qualifiedAttributoName <$> (getter state)) == Just (qualifiedAttributoName a)) ] [ HH.text a.description ]
 
     generateXAxisChange attributoName = XAxisChange <$> find (\a -> a.name == attributoName) state.attributi
 
@@ -112,7 +115,7 @@ render state =
                   , HP.id_ "x-axis"
                   , HE.onValueChange generateXAxisChange
                   ]
-                  (disabledAttribute "X" <> (makeAttributoOption <$> plottableAttributi))
+                  (disabledAttribute "X" <> (makeAttributoOption (\s -> s.xAxis) <$> plottableAttributi))
               ]
           , HH.div
               [ singleClass "mb-3" ]
@@ -122,7 +125,7 @@ render state =
                   , HP.id_ "y-axis"
                   , HE.onValueChange generateYAxisChange
                   ]
-                  (disabledAttribute "Y" <> (makeAttributoOption <$> plottableAttributi))
+                  (disabledAttribute "Y" <> (makeAttributoOption (\s -> s.yAxis) <$> plottableAttributi))
               ]
           , HH.div
               [ singleClass "mb-3" ]
@@ -132,8 +135,8 @@ render state =
                   , HP.id_ "plot-type"
                   , HE.onValueChange (\x -> Just (if x == "line" then PlotTypeChange Line else PlotTypeChange Scatter))
                   ]
-                  [ HH.option [ HP.value (show Line) ] [ HH.text "Line" ]
-                  , HH.option [ HP.value (show Scatter) ] [ HH.text "Scatter" ]
+                  [ HH.option [ HP.value (show Line), HP.selected (state.plotType == Line) ] [ HH.text "Line" ]
+                  , HH.option [ HP.value (show Scatter), HP.selected (state.plotType == Scatter) ] [ HH.text "Scatter" ]
                   ]
               ]
           -- This is the much nicer radio button, but it doesn't work for some reason
@@ -177,7 +180,7 @@ render state =
           chartData
       ]
 
-childComponent :: forall q. H.Component HH.HTML q (ChildInput RoutingInput ParentOutput) ParentError AppMonad
+childComponent :: forall q. H.Component HH.HTML q (ChildInput GraphsRouteInput ParentOutput) ParentError AppMonad
 childComponent =
   H.mkComponent
     { initialState
@@ -185,20 +188,25 @@ childComponent =
     , eval: H.mkEval H.defaultEval { handleAction = handleAction }
     }
 
-data PlotType
-  = Line
-  | Scatter
-
-derive instance eqPlotType :: Eq PlotType
-
-instance showPlotType :: Show PlotType where
-  show Line = "line"
-  show Scatter = "scatter"
-
 data Action
   = XAxisChange Attributo
   | YAxisChange Attributo
   | PlotTypeChange PlotType
+
+updateHash :: forall slots. H.HalogenM State Action slots ParentError AppMonad Unit
+updateHash = do
+  oldState <- H.get
+  H.liftEffect
+    ( setHash
+        ( createLink
+            ( Graphs
+                { xAxis: qualifiedAttributoName <$> oldState.xAxis
+                , yAxis: qualifiedAttributoName <$> oldState.yAxis
+                , plotType: oldState.plotType
+                }
+            )
+        )
+    )
 
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
@@ -208,29 +216,26 @@ handleAction = case _ of
     H.lift (log Info "plot type changed")
     H.modify_ \state -> state { plotType = newType }
 
-initialState :: ChildInput RoutingInput (Tuple OverviewResponse AttributiResponse) -> State
-initialState { input: _, remoteData: Tuple overviewResponse attributiResponse } =
+initialState :: ChildInput GraphsRouteInput (Tuple OverviewResponse AttributiResponse) -> State
+initialState { input: { xAxis, yAxis, plotType }, remoteData: Tuple overviewResponse attributiResponse } =
   { overviewRows: overviewResponse.overviewRows
   , attributi: attributiResponse.attributi
-  , xAxis: Nothing
-  , yAxis: Nothing
-  , plotType: Line
+  , xAxis: xAxis >>= \axis -> find (\a -> qualifiedAttributoName a == axis) attributiResponse.attributi
+  , yAxis: yAxis >>= \axis -> find (\a -> qualifiedAttributoName a == axis) attributiResponse.attributi
+  , plotType
   }
-
-type RoutingInput
-  = {}
 
 type ParentOutput
   = Tuple OverviewResponse AttributiResponse
 
 -- Fetch runs and attributi
-fetchData :: RoutingInput -> AppMonad (RemoteData String ParentOutput)
+fetchData :: GraphsRouteInput -> AppMonad (RemoteData String ParentOutput)
 fetchData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
 
 component ::
   forall query output.
   H.Component HH.HTML query
-    RoutingInput
+    GraphsRouteInput
     output
     AppMonad
 component = parentComponent fetchData childComponent

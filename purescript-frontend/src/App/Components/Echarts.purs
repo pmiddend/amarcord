@@ -1,11 +1,10 @@
 module App.Components.Echarts where
 
-import Control.Applicative (pure)
 import Control.Monad (bind)
 import Data.Function (($), (<<<))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
-import Data.Unit (Unit, unit)
+import Data.Unit (Unit)
 import Effect (Effect)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Console (log)

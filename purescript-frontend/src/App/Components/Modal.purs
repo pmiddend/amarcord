@@ -13,14 +13,13 @@ import Data.Ring (negate)
 import Data.Unit (Unit, unit)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
-import Effect.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties (ButtonType(..))
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Properties.ARIA as HPA
-import Halogen.Query.EventSource (EventSource(..), Finalizer(..), effectEventSource, emit)
+import Halogen.Query.EventSource (EventSource, Finalizer(..), effectEventSource, emit)
 
 foreign import hide :: String -> Effect Unit
 

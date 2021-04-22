@@ -1,12 +1,14 @@
 module App.Components.Router where
 
 import Prelude
+
 import App.AppMonad (AppMonad)
 import App.AssociatedTable (AssociatedTable(..))
 import App.Components.Graphs as GraphsComp
 import App.Components.Overview as Overview
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
+import App.PlotType (PlotType(..))
 import App.Root as Root
 import App.Route (Route(..), routeCodec)
 import App.SortOrder (SortOrder(..))
@@ -101,7 +103,7 @@ render st =
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
           Overview sort -> HH.slot (SProxy :: _ "overview") unit Overview.component sort absurd
-          Graphs -> HH.slot (SProxy :: _ "graphs") unit GraphsComp.component {} absurd
+          Graphs input -> HH.slot (SProxy :: _ "graphs") unit GraphsComp.component input absurd
 
 --EditRun runId -> HH.slot (SProxy :: _ "editRun") unit EditRun.component runId absurd
 navItems ::
@@ -116,7 +118,7 @@ navItems =
     , fa: "running"
     }
   , { title: "Graphs"
-    , link: Graphs
+    , link: (Graphs { xAxis: Nothing, yAxis: Nothing, plotType: Line })
     , fa: "chart-area"
     }
   ]
