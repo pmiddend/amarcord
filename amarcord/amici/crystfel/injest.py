@@ -1,17 +1,18 @@
-import json
 import logging
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
-from typing import cast
 
+from amarcord.amici.crystfel.parser import HarvestHitfinding
+from amarcord.amici.crystfel.parser import HarvestIndexing
+from amarcord.amici.crystfel.parser import HarvestIntegration
+from amarcord.amici.crystfel.parser import HarvestPeaksearch
 from amarcord.amici.crystfel.parser import read_crystfel_streams
+from amarcord.amici.crystfel.parser import read_harvest_json
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.event_log_level import EventLogLevel
@@ -28,11 +29,6 @@ from amarcord.db.table_classes import DBLinkedDataSource
 from amarcord.db.table_classes import DBLinkedHitFindingResult
 from amarcord.db.table_classes import DBLinkedIndexingResult
 from amarcord.db.table_classes import DBPeakSearchParameters
-from amarcord.modules.json import JSONDict
-
-logging.basicConfig(
-    format="%(asctime)-15s %(levelname)s %(message)s", level=logging.DEBUG
-)
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +132,7 @@ def lookup_hitfinding_result(
 #     software-specific.  In this case, I would reduce the list to just these:
 #       software,software_version,geometry,method,adc_threshold,minimum_snr
 def lookup_peaksearch_params(
-    p: Dict[str, Any],
+    p: HarvestPeaksearch,
     program: str,
     program_version: str,
     geometry: str,
@@ -145,26 +141,26 @@ def lookup_peaksearch_params(
     # FIXME: pmidden: add actual lookup instead of new creation here (too lazy right now)
     return DBPeakSearchParameters(
         id=None,
-        method=p["method"],
+        method=p.method,
         software=program,
         tag=tag,
         comment=None,
         software_version=program_version,
-        max_num_peaks=p.get("max_num_peaks", None),
-        adc_threshold=p.get("adc_threshold", None),
-        minimum_snr=p.get("minimum_snr"),
-        min_pixel_count=p.get("min_pixel_count"),
-        max_pixel_count=p.get("max_pixel_count"),
-        min_res=p.get("min_res"),
-        max_res=p.get("max_res"),
+        max_num_peaks=p.max_num_peaks,
+        adc_threshold=p.adc_threshold,
+        minimum_snr=p.minimum_snr,
+        min_pixel_count=p.min_pixel_count,
+        max_pixel_count=p.max_pixel_count,
+        min_res=p.min_res,
+        max_res=p.max_res,
         bad_pixel_map_filename=None,
         bad_pixel_map_hdf5_path=None,
-        local_bg_radius=p.get("local_bg_radius"),
-        min_peak_over_neighbor=p.get("min_peak_over_neighbor"),
-        min_snr_biggest_pix=p.get("min_snr_biggest_pix"),
-        min_snr_peak_pix=p.get("min_snr_peak_pix"),
-        min_sig=p.get("min_sig"),
-        min_squared_gradient=p.get("min_squared_gradient"),
+        local_bg_radius=p.local_bg_radius,
+        min_peak_over_neighbor=p.min_peak_over_neighbor,
+        min_snr_biggest_pix=p.min_snr_biggest_pix,
+        min_snr_peak_pix=p.min_snr_peak_pix,
+        min_sig=p.min_sig,
+        min_squared_gradient=p.min_squared_gradient,
         geometry=geometry,
     )
 
@@ -177,17 +173,20 @@ def lookup_peaksearch_params(
 #  1. DO add a new HitFindingParameters if nothing is found.
 #  2. When adding a new entry, git_repository and git_SHA = NULL.
 def lookup_hitfinding_params(
-    param_json: Dict[str, Any], program: str, program_version: str, tag: Optional[str]
+    param_json: HarvestHitfinding,
+    program: str,
+    program_version: str,
+    tag: Optional[str],
 ) -> DBHitFindingParameters:
     logger.info(
         "Looking up HitFindingParameters for {}/{}/{}".format(
-            program, program_version, param_json["min_num_peaks"]
+            program, program_version, param_json.min_num_peaks
         )
     )
     # FIXME: Search and use existing one here
     return DBHitFindingParameters(
         id=None,
-        min_peaks=param_json["min_num_peaks"],
+        min_peaks=param_json.min_num_peaks,
         tag=tag,
         comment=None,
         software=program,
@@ -255,7 +254,7 @@ def lookup_datasource_id(
 #  3. Might add a command-line option for tag and comment.  Set them to
 #     NULL until then.
 def lookup_indexing_params(
-    param_json: JSONDict,
+    param_json: HarvestIndexing,
     program: str,
     program_version: str,
     geometry: str,
@@ -270,8 +269,8 @@ def lookup_indexing_params(
         software=program,
         software_version=program_version,
         command_line=command_line if command_line is not None else "",
-        parameters=param_json,
-        methods=cast(list, param_json["methods"]),
+        parameters=param_json.parameters,
+        methods=param_json.methods,
         geometry=geometry,
     )
 
@@ -290,7 +289,10 @@ def lookup_indexing_params(
 #  3. Might add a command-line option for tag and comment.  Set them to
 #     NULL until then.
 def lookup_integration_params(
-    param_json: JSONDict, program: str, program_version: str, tag: Optional[str]
+    param_json: HarvestIntegration,
+    program: str,
+    program_version: str,
+    tag: Optional[str],
 ) -> Optional[DBIntegrationParameters]:
     # FIXME: add insert if not exists
     return DBIntegrationParameters(
@@ -299,13 +301,19 @@ def lookup_integration_params(
         comment=None,
         software=program,
         software_version=program_version,
-        method=param_json.get("method"),  # type: ignore
-        center_boxes=param_json.get("center_boxes"),  # type: ignore
-        overpredict=param_json.get("overpredict"),  # type: ignore
-        push_res=param_json.get("push_res"),  # type: ignore
-        radius_inner=param_json.get("radius_inner"),  # type: ignore
-        radius_middle=param_json.get("radius_middle"),  # type: ignore
-        radius_outer=param_json.get("radius_outer"),  # type: ignore
+        method=param_json.method,
+        center_boxes=param_json.center_boxes,
+        overpredict=param_json.overpredict,
+        push_res=param_json.push_res,
+        radius_inner=int(param_json.radius_inner)
+        if param_json.radius_inner is not None
+        else None,
+        radius_middle=int(param_json.radius_middle)
+        if param_json.radius_middle is not None
+        else None,
+        radius_outer=int(param_json.radius_outer)
+        if param_json.radius_outer is not None
+        else None,
     )
 
 
@@ -432,11 +440,6 @@ def insert_indexing_results(
     )
 
 
-def read_json(fn: Path) -> Dict[str, Any]:
-    with fn.open("r") as f:
-        return json.load(f)
-
-
 def harvest_folder(
     data_sources: List[DBLinkedDataSource],
     folder: Path,
@@ -472,8 +475,8 @@ def harvest_folder(
     #     return []
 
     # Read harvest file
-    harvest_json = read_json(harvest_fn)
-    if not harvest_json:
+    harvest_json = read_harvest_json(harvest_fn)
+    if harvest_json is None:
         logger.error("Couldn't read harvest file {}".format(harvest_fn))
         return []
 
@@ -483,7 +486,7 @@ def harvest_folder(
 
     # If using hdf5/cxi peaks, link to already-existing hitfinding ID.
     # Otherwise, find the parameters matching ours, creating if necessary.
-    if harvest_json["peaksearch"]["method"] in ("hdf5", "cxi"):
+    if harvest_json.peaksearch.method in ("hdf5", "cxi"):
         if data_source_and_hitfinding_result is None:
             logger.warning(
                 "Indexing was performed using peaks from hit finding, "
@@ -495,7 +498,7 @@ def harvest_folder(
     else:
         logger.info("Adding new peak search parameters")
         peaksearch_params = lookup_peaksearch_params(
-            harvest_json["peaksearch"],
+            harvest_json.peaksearch,
             "CrystFEL,indexamajig",
             stream_stuff.version if stream_stuff.version is not None else "1.0",
             stream_stuff.geometry,
@@ -513,7 +516,7 @@ def harvest_folder(
             return []
 
         hitfinding_params = lookup_hitfinding_params(
-            harvest_json["hitfinding"],
+            harvest_json.hitfinding,
             "CrystFEL,indexamajig",
             stream_stuff.version if stream_stuff.version is not None else "1.0",
             tag,
@@ -541,8 +544,12 @@ def harvest_folder(
             data_source_and_hitfinding_result[1].peak_search_parameters.id,
         )
 
+    if harvest_json.integration is None or harvest_json.indexing is None:
+        logger.warning("integration or indexing are none, not proceeding")
+        return []
+
     indexing_params = lookup_indexing_params(
-        harvest_json["indexing"],
+        harvest_json.indexing,
         "CrystFEL,indexamajig",
         stream_stuff.version if stream_stuff.version is not None else "1.0",
         stream_stuff.geometry,
@@ -551,7 +558,7 @@ def harvest_folder(
     )
 
     integration_params = lookup_integration_params(
-        harvest_json["integration"],
+        harvest_json.integration,
         "CrystFEL,indexamajig",
         stream_stuff.version if stream_stuff.version is not None else "1.0",
         tag,

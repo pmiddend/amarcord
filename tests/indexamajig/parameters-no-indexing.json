@@ -1,0 +1,35 @@
+{
+  "input": {
+    "highres": null
+  },
+  "peaksearch": {
+    "method": "",
+    "radius_inner_px": 4.000000,
+    "radius_middle_px": 5.000000,
+    "radius_outer_px": 7.000000,
+    "noise_filter": false,
+    "median_filter": 0,
+    "threshold_adu": 800.000000,
+    "min_squared_gradient_adu2": 100000.000000,
+    "min_snr": 5.000000,
+    "check_hdf5_snr": false,
+    "half_pixel_shift": true,
+    "min_res_px": 0,
+    "max_res_px": 1200,
+    "max_num_peaks": 32734,
+    "min_pixel_count": 2,
+    "max_pixel_count": 200,
+    "local_bg_radius_px": 3,
+    "use_saturated": true,
+    "revalidate_hdf5": true,
+    "min_snr_of_biggest_pixel": 7.000000,
+    "min_snr_of_peak_pixel": 6.000000,
+    "min_sig_adu": 11.000000,
+    "min_peak_over_neighbour_adu": null
+  },
+  "hitfinding": {
+    "min_num_peaks": 20
+  },
+  "indexing": null,
+  "integration":null
+}

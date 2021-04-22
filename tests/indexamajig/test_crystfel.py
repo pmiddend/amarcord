@@ -5,6 +5,7 @@ from shutil import copyfileobj
 
 from amarcord.amici.crystfel.injest import harvest_folder
 from amarcord.amici.crystfel.parser import read_crystfel_streams
+from amarcord.amici.crystfel.parser import read_harvest_json
 from amarcord.db.table_classes import DBDataSource
 from amarcord.db.table_classes import DBHitFindingResult
 from amarcord.db.table_classes import DBLinkedDataSource
@@ -18,6 +19,19 @@ def _extract_file(tmp_path: Path, source: str) -> Path:
             with (tmp_path / source[0:-3]).open("wb") as write_file:
                 copyfileobj(read_file_gzip, write_file)
                 return tmp_path / source[0:-3]
+
+
+def test_parse_nonexisting_harvest_json() -> None:
+    params = read_harvest_json(Path(__file__).parent / "parameters.json2")
+
+    assert params is None
+
+
+def test_parse_harvest_json() -> None:
+    params = read_harvest_json(Path(__file__).parent / "parameters.json")
+
+    assert params is not None
+    assert params.integration is not None
 
 
 def test_parser(tmp_path: Path) -> None:
@@ -48,6 +62,21 @@ def test_harvest_folder_without_cxi(tmp_path: Path) -> None:
     assert len(ds.hit_finding_results) == 1
     hfr = ds.hit_finding_results[0]
     assert len(hfr.indexing_results) == 1
+
+
+def test_harvest_folder_without_indexing(tmp_path: Path) -> None:
+    copyfile(
+        Path(__file__).parent / "parameters-no-indexing.json",
+        tmp_path / "parameters.json",
+    )
+
+    _extract_file(tmp_path, "test001.stream.gz")
+
+    resulting_ds = harvest_folder(
+        [], tmp_path, 1, "*stream*", tmp_path / "parameters.json", tag=None
+    )
+
+    assert not resulting_ds
 
 
 def test_harvest_folder_cxi(tmp_path: Path) -> None:
