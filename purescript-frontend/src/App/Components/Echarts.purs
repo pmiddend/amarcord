@@ -96,11 +96,11 @@ handleAction = case _ of
       liftEffect (setEchartsOptions chart input.options)
       H.modify_ \state -> state { chartObject = Just chart }
   Receive newInput -> do
-    H.liftEffect (log "RECEIVED NEW INPUT")
+--    H.liftEffect (log "RECEIVED NEW INPUT")
     chart <- H.gets _.chartObject
-    case chart of
-      Nothing -> H.liftEffect (log "no chart object")
-      Just _ -> H.liftEffect (log "chart object")
+    -- case chart of
+    --   Nothing -> H.liftEffect (log "no chart object")
+    --   Just _ -> H.liftEffect (log "chart object")
     for_ chart \chart' -> liftEffect (setEchartsOptions chart' newInput.options)
     H.modify_ \state -> state { input = newInput }
   Finalize -> do
