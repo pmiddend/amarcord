@@ -10,8 +10,7 @@ import App.JSONSchemaType (JSONSchemaType(..))
 import App.Logging (LogLevel(..))
 import App.Overview (OverviewRow, OverviewCell, findCellInRow)
 import App.PlotType (PlotType(..))
-import App.QualifiedAttributoName (QualifiedAttributoName)
-import App.Route (GraphsRouteInput, Route(..), createLink)
+import App.Route (Route(..), GraphsRouteInput, createLink)
 import App.Utils (fanoutApplicative)
 import Control.Applicative (pure, (<*>))
 import Control.Bind ((>>=))
@@ -27,13 +26,23 @@ import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
 import Data.Void (Void, absurd)
+import Effect.Aff.Class (class MonadAff)
+import Effect.Timer (clearTimeout, setTimeout)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Network.RemoteData (RemoteData, fromEither)
+import Halogen.Query.EventSource (EventSource, Finalizer(..), effectEventSource, emit)
+import Network.RemoteData (RemoteData(..), fromEither)
 import Prelude (discard, bind)
 import Routing.Hash (setHash)
+
+-- Event source for a simple timer
+timerEventSource :: forall m. MonadAff m => EventSource m Action
+timerEventSource =
+  effectEventSource \emitter -> do
+    timerId <- setTimeout 5000 (emit emitter RefreshTimeout)
+    pure (Finalizer (clearTimeout timerId))
 
 type State
   = { xAxis :: Maybe Attributo
@@ -185,36 +194,57 @@ childComponent =
   H.mkComponent
     { initialState
     , render
-    , eval: H.mkEval H.defaultEval { handleAction = handleAction }
+    , eval:
+        H.mkEval
+          H.defaultEval
+            { initialize = Just Initialize
+            , handleAction = handleAction
+            }
     }
 
 data Action
   = XAxisChange Attributo
   | YAxisChange Attributo
   | PlotTypeChange PlotType
+  | Initialize
+  | RefreshTimeout
+
+routeInputFromState :: State -> GraphsRouteInput
+routeInputFromState oldState =
+  { xAxis: qualifiedAttributoName <$> oldState.xAxis
+  , yAxis: qualifiedAttributoName <$> oldState.yAxis
+  , plotType: oldState.plotType
+  }
 
 updateHash :: forall slots. H.HalogenM State Action slots ParentError AppMonad Unit
 updateHash = do
   oldState <- H.get
-  H.liftEffect
-    ( setHash
-        ( createLink
-            ( Graphs
-                { xAxis: qualifiedAttributoName <$> oldState.xAxis
-                , yAxis: qualifiedAttributoName <$> oldState.yAxis
-                , plotType: oldState.plotType
-                }
-            )
-        )
-    )
+  H.liftEffect (setHash (createLink (Graphs (routeInputFromState oldState))))
 
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
+  Initialize -> do
+    _ <- H.subscribe timerEventSource
+    pure unit
   XAxisChange a -> H.modify_ \state -> state { xAxis = Just a }
   YAxisChange a -> H.modify_ \state -> state { yAxis = Just a }
   PlotTypeChange newType -> do
     H.lift (log Info "plot type changed")
     H.modify_ \state -> state { plotType = newType }
+  RefreshTimeout -> do
+    H.lift (log Info "Refreshing...")
+    s <- H.get
+    remoteData <- H.lift (fetchData (routeInputFromState s))
+    case remoteData of
+      Success (Tuple newOverviewRows newAttributi) ->
+        H.modify_ \state ->
+          state
+            { overviewRows = newOverviewRows.overviewRows
+            , attributi = newAttributi.attributi
+            }
+      _ -> pure unit
+    _ <- H.subscribe timerEventSource
+    pure unit
 
 initialState :: ChildInput GraphsRouteInput (Tuple OverviewResponse AttributiResponse) -> State
 initialState { input: { xAxis, yAxis, plotType }, remoteData: Tuple overviewResponse attributiResponse } =
