@@ -57,9 +57,9 @@ class _Worker(QObject):
         self._last_update = last_update
 
     def run(self) -> None:
-        with self._db.connect() as conn:
-            while True:
-                sleep(TIMER_INTERVAL_MSEC / 1000)
+        while True:
+            sleep(TIMER_INTERVAL_MSEC / 1000)
+            with self._db.connect() as conn:
                 update_time = self._db.overview_update_time(conn)
                 if (
                     update_time is None

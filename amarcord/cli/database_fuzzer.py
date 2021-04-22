@@ -88,7 +88,20 @@ def action_change_run_property() -> None:
         random_run_id = random.choice(run_ids)
 
         attributi = db.retrieve_table_attributi(conn, AssociatedTable.RUN)
-        random_attributo = random.choice(list(attributi.values()))
+        attributi_filtered = [
+            a
+            for a in attributi.values()
+            if a.name
+            not in [
+                AttributoId("id"),
+                AttributoId("proposal_id"),
+                AttributoId("comments"),
+                AttributoId("modified"),
+                AttributoId("first_train"),
+                AttributoId("last_train"),
+            ]
+        ]
+        random_attributo = random.choice(attributi_filtered)
         if (
             random_attributo.name == AttributoId("id")
             or random_attributo.name == AttributoId("proposal_id")

@@ -188,7 +188,7 @@ def create_sample_data(db: DB) -> None:
         seed(1337)
         run_ids: List[int] = []
         current_train = 0
-        for run_id in range(100):
+        for run_id in range(1, 100):
             train_count = randint(600, 3000)
             attributi = RawAttributiMap({})
             attributi.append_to_source(
