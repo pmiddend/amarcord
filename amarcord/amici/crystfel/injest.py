@@ -367,7 +367,7 @@ def insert_hitfinding_result(
             average_peaks_event=average_peaks_event,
             average_resolution=average_resolution,
             number_of_hits=num_hits,
-            hit_rate=hit_rate,
+            hit_rate=hit_rate * 100,
             tag=tag,
             comment=None,
         ),

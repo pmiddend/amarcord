@@ -93,14 +93,14 @@ def test_add_set_delete_run_attributo(db: DB) -> None:
         )
 
         # Retrieve the run, check if the attributo is there and has the correct value
-        run = db.retrieve_run(conn, RUN_ID)
+        run = db.retrieve_run(conn, PROPOSAL_ID, RUN_ID)
 
         assert run.attributi.select_int(AttributoId(aid)) == ATTRIBUTO_VALUE
 
         # Then delete the attributo, re-retrieve run, check that attributo is not there.
         db.delete_attributo(conn, table, AttributoId(aid))
 
-        run = db.retrieve_run(conn, RUN_ID)
+        run = db.retrieve_run(conn, PROPOSAL_ID, RUN_ID)
         assert run.attributi.select_int(AttributoId(aid)) is None
 
 
@@ -193,6 +193,8 @@ def test_update_run_attributo(db: DB) -> None:
         db.update_run_attributo(conn, RUN_ID, AttributoId(aid), NEW_ATTRIBUTO_VALUE)
 
         assert (
-            db.retrieve_run(conn, RUN_ID).attributi.select_int(AttributoId(aid))
+            db.retrieve_run(conn, PROPOSAL_ID, RUN_ID).attributi.select_int(
+                AttributoId(aid)
+            )
             == NEW_ATTRIBUTO_VALUE
         )

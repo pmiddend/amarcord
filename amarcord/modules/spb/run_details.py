@@ -103,7 +103,9 @@ class RunDetails(QWidget):
                     tables=self._db.tables,
                     run_ids=new_run_ids,
                     samples=self._db.retrieve_mini_samples(conn, self._proposal_id),
-                    run=self._db.retrieve_run(conn, max(new_run_ids)),
+                    run=self._db.retrieve_run(
+                        conn, self._proposal_id, max(new_run_ids)
+                    ),
                     karabo=self._db.retrieve_karabo(conn, max(new_run_ids)),
                     runs_metadata=self._build_runs_metadata(conn),
                 )
@@ -212,7 +214,7 @@ class RunDetails(QWidget):
         )
         ids = self._db.retrieve_run_ids(conn, self._proposal_id)
         try:
-            r = self._db.retrieve_run(conn, new_run_id)
+            r = self._db.retrieve_run(conn, self._proposal_id, new_run_id)
             cast(RunDetailsInner, self._inner).run_changed(
                 r,
                 selected_karabo

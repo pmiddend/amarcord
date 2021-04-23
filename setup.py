@@ -11,6 +11,8 @@ setuptools.setup(
             "amarcord-daemon = amarcord.cli.daemon:main",
             "amarcord-db-cli = amarcord.cli.admin:main",
             "amarcord-database-fuzzer = amarcord.cli.database_fuzzer:main",
+            "amarcord-xfel-filesystem-ingester = amarcord.cli.xfel_filesystem_ingester:main",
+            "amarcord-karabo-online-ingester = amarcord.cli.karabo_online_ingester:main",
         ]
     },
     # see https://github.com/dolfinus/setuptools-git-versioning
@@ -44,6 +46,7 @@ setuptools.setup(
             "numpy==1.19.*",
             "msgpack==1.0.*",
             "msgpack-types==0.1.*",
+            "extra_data==1.5.*",
         ],
         "gui": [
             "PyQt5==5.15.*",

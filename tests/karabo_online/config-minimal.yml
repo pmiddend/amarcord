@@ -1,0 +1,48 @@
+# D. We should have 'filling values' in case a device disappears from the stream
+Karabo_bridge:
+  #! configuration for the Karabo bridge.
+  #    identifier (str): `attributo` identifier
+  #    source (str): EuXFEL source
+  #    key (str): Value to extract
+  #    description (str, optional): `attributo` description. Defaults to None.
+  #    type (str, optional): The AMARCORD data type. Defaults to "decimal".
+  #    store (bool, optional): Whether to store the value. Defaults to True.
+  #    action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to None.
+  #    unit (str, optional): Unit of measurement. Defaults to None.
+  #    filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
+  version: 1
+  client_endpoint: tcp://10.253.0.51:41014
+
+  ignore_entry: {}
+
+  attributi_definition:
+    run:
+      # required to slice data from the bridge
+      source: SPB_DAQ_DATA/DM/RUN_CONTROL
+
+      index:
+        description: Run index
+        key: runDetails.runId.value
+        type: int
+        role: run_id
+
+      number:
+        description: Run number
+        key: runNumber.value
+        type: int
+        role: run_number
+
+      timestamp_UTC_initial:
+        description: Started at
+        key: runDetails.beginAt.value
+        type: datetime
+
+      train_index_initial:
+        description: Initial train
+        key: runDetails.firstTrainId.value
+        type: int
+
+      trains_in_run:
+        description: Number of trains
+        key: runDetails.length.value
+        type: int

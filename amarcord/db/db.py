@@ -267,7 +267,9 @@ class DB:
             .values(modified=datetime.datetime.utcnow())
         )
 
-    def retrieve_run(self, conn: Connection, run_id: int) -> DBRun:
+    def retrieve_run(
+        self, conn: Connection, proposal_id: ProposalId, run_id: int
+    ) -> DBRun:
         run = self.tables.run
         run_c = run.c
         comment = self.tables.run_comment
@@ -286,7 +288,7 @@ class DB:
                 ]
             )
             .select_from(run.outerjoin(comment))
-            .where(run_c.id == run_id)
+            .where(and_(run_c.id == run_id, run_c.proposal_id == proposal_id))
         )
         run_rows = conn.execute(select_statement).fetchall()
         if not run_rows:

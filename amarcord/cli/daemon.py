@@ -2,42 +2,31 @@ import asyncio
 import logging
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 
 import msgpack
-import numpy as np
 import yaml
 import zmq
 from karabo_bridge import deserialize
 from zmq.asyncio import Context
 
-from amarcord.amici.karabo_online import KaraboAction
-from amarcord.amici.karabo_online import KaraboAttributi  # type: ignore
-from amarcord.amici.karabo_online import KaraboBridgeSlicer  # type: ignore
 from amarcord.amici.onda.zeromq import OnDAZeroMQProcessor
 from amarcord.amici.onda.zeromq import TrainRange
+from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
+from amarcord.amici.xfel.karabo_general import ingest_attributi
+from amarcord.amici.xfel.karabo_general import ingest_karabo_action
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoType
-from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
-from amarcord.db.attributo_type import AttributoTypeInt
-from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.constants import ONLINE_SOURCE_NAME
-from amarcord.db.db import Connection
 from amarcord.db.db import DB
-from amarcord.db.db import RunNotFound
 from amarcord.db.proposal_id import ProposalId
-from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.run_id import RunId
-from amarcord.util import find_by
+from amarcord.train_id import TrainId
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -49,124 +38,6 @@ logger = logging.getLogger(__name__)
 @dataclass
 class KaraboExport:
     runs: Dict[RunId, TrainRange]
-
-
-def _unit_to_type(type_str: str, unit_str: Optional[str]) -> AttributoType:
-    if type_str == "str":
-        return AttributoTypeString()
-    if type_str == "datetime":
-        return AttributoTypeDateTime()
-    if type_str == "int":
-        return AttributoTypeInt()
-    if type_str == "decimal":
-        return AttributoTypeDouble(suffix=unit_str)
-    if type_str == "unit_type":
-        return AttributoTypeDouble(suffix=unit_str, standard_unit=True)
-    if type_str.startswith("list["):
-        list_type = type_str[5:-1]
-        return AttributoTypeList(
-            sub_type=_unit_to_type(list_type, unit_str),
-            max_length=None,
-            min_length=None,
-        )
-    raise Exception(f"invalid attributo type {type_str} (unit {unit_str})")
-
-
-def ingest_attributi(db: DB, attributi: KaraboAttributi) -> None:
-    with db.connect() as conn:
-        run_attributi = db.retrieve_table_attributi(conn, AssociatedTable.RUN)
-
-        # Remove source from list of attributi (we don't need it)
-        unsourced_attributi: List[Dict[str, Any]] = [
-            i for k in attributi.values() for i in k
-        ]
-
-        attributi_ids = [k["identifier"] for k in unsourced_attributi]
-
-        old_attributi = run_attributi.keys()
-
-        new_attributi_ids = attributi_ids - old_attributi
-        not_present_attributi_ids = old_attributi - attributi_ids
-
-        logger.info("new attributi: %s", new_attributi_ids)
-        logger.info("attributi in run, not in Karabo: %s", not_present_attributi_ids)
-
-        for n in new_attributi_ids:
-            # pylint: disable=cell-var-from-loop
-            a = find_by(unsourced_attributi, lambda x: x["identifier"] == n)
-            assert a is not None
-
-            type_ = _unit_to_type(a["type"], a.get("unit", None))
-            db.add_attributo(
-                conn,
-                n,
-                a.get("description", ""),
-                AssociatedTable.RUN,
-                type_,
-            )
-
-
-def _new_run(
-    db: DB,
-    proposal_id: ProposalId,
-    new_run_id: int,
-    karabo_attributi: KaraboAttributi,
-) -> None:
-    with db.connect() as conn:
-        db.add_run(
-            conn,
-            proposal_id,
-            new_run_id,
-            None,
-            _karabo_attributi_to_attributi_map(RawAttributiMap({}), karabo_attributi),
-        )
-
-
-def _karabo_attributi_to_attributi_map(
-    attributi: RawAttributiMap, karabo_attributi: KaraboAttributi
-) -> RawAttributiMap:
-    new_attributi = attributi.copy()
-    for a in (i for k in karabo_attributi.values() for i in k):
-        if "value" not in a:
-            continue
-            # raise ValueError(f"attributo {a['identifier']} has no value attributo")
-        value = a.get("value", None)
-        if value is not None:
-            if isinstance(value, np.integer):
-                value = int(value)
-            if isinstance(value, np.str_):
-                value = str(value)
-            if isinstance(value, np.bool_):
-                value = int(value)
-            if isinstance(value, np.ndarray):
-                if np.issubdtype(value.dtype, np.integer):
-                    value = [int(f) for f in value]
-                elif np.issubdtype(value.dtype, np.floating):
-                    value = [float(f) for f in value]
-                elif np.issubdtype(value.dtype, np.string_):
-                    value = [str(f) for f in value]
-                else:
-                    logger.debug(
-                        f"invalid numpy array type {value.dtype} in attributo {a['identifier']}"
-                    )
-                    # raise ValueError(
-                    #     f"invalid numpy array type {value.dtype} in attributo {a['identifier']}"
-                    # )
-                    continue
-            new_attributi.append_to_source(ONLINE_SOURCE_NAME, {a["identifier"]: value})
-    return new_attributi
-
-
-def _update_run_per_karabo_attributi(
-    db: DB, run_id: int, karabo_attributi: KaraboAttributi
-) -> None:
-    with db.connect() as conn:
-        run = db.retrieve_run(conn, run_id)
-        db.update_run_attributi(
-            conn,
-            run_id,
-            _karabo_attributi_to_attributi_map(run.attributi, karabo_attributi),
-        )
 
 
 async def karabo_loop(
@@ -196,6 +67,8 @@ async def karabo_loop(
 
     ingest_attributi(db, slicer.get_attributi())
 
+    logger.info("Attributi are set up, waiting for first Karabo data frame")
+    debug_counter = 0
     while True:
         # noinspection PyUnresolvedReferences
         await socket.send(b"next")
@@ -203,46 +76,33 @@ async def karabo_loop(
             # noinspection PyUnresolvedReferences
             raw_data = await socket.recv_multipart(copy=False)
 
-            logger.info("karabo: new data received")
+            logger.debug("karabo: new data received")
+
+            if debug_counter != 0 and debug_counter % 1000 == 0:
+                logger.info("still receiving data (counter %s)...", debug_counter)
+            debug_counter += 1
 
             data, metadata = deserialize(raw_data)
 
             with db.connect() as conn:
                 with conn.begin():
                     for action in slicer.run_definer(data, metadata):
-                        ingest_karabo_action(action, conn, db, proposal_id)
+                        ingest_karabo_action(
+                            action, ONLINE_SOURCE_NAME, conn, db, proposal_id
+                        )
 
             for run_id, run_metadata in slicer.run_history.items():
                 karabo_export.runs[RunId(run_id)] = TrainRange(
-                    run_metadata["train_index_initial"],
-                    run_metadata["train_index_initial"] + run_metadata["trains_in_run"],
+                    TrainId(run_metadata["train_index_initial"].value),
+                    TrainId(
+                        run_metadata["train_index_initial"].value
+                        + run_metadata["trains_in_run"].value
+                    ),
                 )
 
             # Do something with data
         except zmq.error.Again:
             logger.error("No data received in time")
-
-
-def ingest_karabo_action(
-    action: KaraboAction, conn: Connection, db: DB, proposal_id: ProposalId
-) -> None:
-    try:
-        run_attributi = db.retrieve_run(conn, action.run_id).attributi
-        new_attributi = _karabo_attributi_to_attributi_map(
-            run_attributi, action.attributi
-        )
-        db.update_run_attributi(conn, action.run_id, new_attributi)
-    except RunNotFound:
-        run_attributi = _karabo_attributi_to_attributi_map(
-            RawAttributiMap({}), action.attributi
-        )
-        db.add_run(
-            conn,
-            proposal_id,
-            action.run_id,
-            None,
-            run_attributi,
-        )
 
 
 async def onda_loop(

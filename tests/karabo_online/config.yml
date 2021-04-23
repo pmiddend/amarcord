@@ -29,13 +29,11 @@ Karabo_bridge:
       index:
         description: Run index
         key: runDetails.runId.value
-        role: run_id
         type: int
 
       number:
         description: Run number
         key: runNumber.value
-        role: run_number
         type: int
 
       timestamp_UTC_initial:
@@ -57,7 +55,6 @@ Karabo_bridge:
         description: proposal ID
         key: proposalNumber.value
         type: int
-        role: proposal_id
 
       # duration:
       #   # doesn't really have a source nor a key. but they are both mandatory. maybe some special key?
@@ -147,6 +144,7 @@ Karabo_bridge:
       ZYLA_injector_image:
         key: data.image.data
         action: store_last
+        type: image
 
     detector.AGIPD:
       comment: X-ray detector
@@ -242,48 +240,48 @@ Karabo_bridge:
       source: SA1_XTD2_ATT/MDL/MAIN
       action: check_if_constant
 
-      # attenuator1_inserted:
-      #   key: actual.value.isInsertedAct1
-      #   type: int
-      # attenuator1_thickness:
-      #   key: actual.value.thicknessAct1
-      #   type: decimal
-      #   unit: micrometer
-      # attenuator1_material:
-      #   key: actual.value.materialAct1
-      #   type: str
-      # attenuator1_absorption:
-      #   key: actual.value.absorptionAct1
-      #   type: decimal
-      #   unit: percent
+      attenuator1_inserted:
+        key: actual.value.isInsertedAct1
+        type: int
+      attenuator1_thickness:
+        key: actual.value.thicknessAct1
+        type: decimal
+        unit: micrometer
+      attenuator1_material:
+        key: actual.value.materialAct1
+        type: str
+      attenuator1_absorption:
+        key: actual.value.absorptionAct1
+        type: decimal
+        unit: percent
 
-      # attenuator2_inserted:
-      #   key: actual.value.isInsertedAct2
-      #   type: int
-      # attenuator2_thickness:
-      #   key: actual.value.thicknessAct2
-      #   type: decimal
-      # attenuator2_material:
-      #   key: actual.value.materialAct2
-      #   type: str
-      # attenuator2_absorption:
-      #   key: actual.value.absorptionAct2
-      #   type: decimal
-      #   unit: percent
+      attenuator2_inserted:
+        key: actual.value.isInsertedAct2
+        type: int
+      attenuator2_thickness:
+        key: actual.value.thicknessAct2
+        type: decimal
+      attenuator2_material:
+        key: actual.value.materialAct2
+        type: str
+      attenuator2_absorption:
+        key: actual.value.absorptionAct2
+        type: decimal
+        unit: percent
 
-      # attenuator3_inserted:
-      #   key: actual.value.isInsertedAct3
-      #   type: int
-      # attenuator3_thickness:
-      #   key: actual.value.thicknessAct3
-      #   type: decimal
-      # attenuator3_material:
-      #   key: actual.value.materialAct3
-      #   type: str
-      # attenuator3_absorption:
-      #   key: actual.value.absorptionAct3
-      #   type: decimal
-      #   unit: percent
+      attenuator3_inserted:
+        key: actual.value.isInsertedAct3
+        type: int
+      attenuator3_thickness:
+        key: actual.value.thicknessAct3
+        type: decimal
+      attenuator3_material:
+        key: actual.value.materialAct3
+        type: str
+      attenuator3_absorption:
+        key: actual.value.absorptionAct3
+        type: decimal
+        unit: percent
 
       # attenuator4_inserted:
       #   key: actual.value.isInsertedAct4
@@ -548,6 +546,9 @@ Karabo_bridge:
 
   # explicitly ignore the following entries
   ignore_entry:
+    SA1_XTD2_ATT/MDL/MAIN:
+      - IGNOREALL
+
     SPB_EXP_ZYLA/CAM/1:output:
       - data.image.type
       - data.image.dimensions
@@ -585,8 +586,6 @@ Karabo_bridge:
     SPB_DAQ_DATA/DM/RUN_CONTROL:
       - runNumber.timestamp.tid
       - runNumber.timestamp.timestamp
-      - proposalNumber.timestamp.tid
-      - proposalNumber.timestamp.timestamp
       - runDetails.runId.timestamp.tid
       - runDetails.runId.timestamp.timestamp
       - runDetails.beginAt.timestamp.tid
@@ -606,37 +605,10 @@ Karabo_bridge:
       - sase1.charge.timestamp.timestamp
       - sase1.pulseIds.timestamp.tid
       - sase1.pulseIds.timestamp.timestamp
-      # FIXME: not sure about that here
-      - sase1.pulseIds.value
-
-#    SA1_XTD2_ATT/MDL/MAIN:
-#      - actual.timestamp.tid
-#      - actual.timestamp.timestamp
-    SA1_XTD2_ATT/MDL/MAIN:
-      - IGNOREALL
 
     SPB_XTD9_ATT/MDL/MAIN:
-      - IGNOREALL
-#    SPB_XTD9_ATT/MDL/MAIN:
-#      - actual.timestamp.tid
-#      - actual.timestamp.timestamp
-
-    SPB_IRU_AGIPD1M/MOTOR/Q1M1:
-      - IGNOREALL
-    SPB_IRU_AGIPD1M/MOTOR/Q1M2:
-      - IGNOREALL
-    SPB_IRU_AGIPD1M/MOTOR/Q2M1:
-      - IGNOREALL
-    SPB_IRU_AGIPD1M/MOTOR/Q2M2:
-      - IGNOREALL
-    SPB_IRU_AGIPD1M/MOTOR/Q3M1:
-      - IGNOREALL
-    SPB_IRU_AGIPD1M/MOTOR/Q3M2:
-      - IGNOREALL
-    SPB_IRU_AGIPD1M/MOTOR/Q4M1:
-      - IGNOREALL
-    SPB_IRU_AGIPD1M/MOTOR/Q4M2:
-      - IGNOREALL
+      - actual.timestamp.tid
+      - actual.timestamp.timestamp
 
     SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER:
       - actualPosition.timestamp.tid

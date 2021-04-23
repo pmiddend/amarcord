@@ -3,6 +3,8 @@ from pathlib import Path
 from shutil import copyfile
 from shutil import copyfileobj
 
+import pytest
+
 from amarcord.amici.crystfel.injest import harvest_folder
 from amarcord.amici.crystfel.parser import read_crystfel_streams
 from amarcord.amici.crystfel.parser import read_harvest_json
@@ -22,9 +24,8 @@ def _extract_file(tmp_path: Path, source: str) -> Path:
 
 
 def test_parse_nonexisting_harvest_json() -> None:
-    params = read_harvest_json(Path(__file__).parent / "parameters.json2")
-
-    assert params is None
+    with pytest.raises(Exception):
+        read_harvest_json(Path(__file__).parent / "parameters.json2")
 
 
 def test_parse_harvest_json() -> None:

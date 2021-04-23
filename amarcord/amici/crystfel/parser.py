@@ -157,59 +157,52 @@ def _get_opt_float(j: Dict[str, Any], s: str) -> Optional[float]:
     return result
 
 
-def read_harvest_json(fn: Path) -> Optional[HarvestJson]:
-    try:
-        with fn.open("r") as f:
-            pf = json.load(f)
-            ps = pf["peaksearch"]
-            hf = pf["hitfinding"]
-            indexing = pf["indexing"]
-            integration = pf["integration"]
-            return HarvestJson(
-                HarvestPeaksearch(
-                    method=_get_string(ps, "method"),
-                    max_num_peaks=_get_opt_float(ps, "max_num_peaks"),
-                    adc_threshold=_get_opt_float(ps, "adc_threshold"),
-                    minimum_snr=_get_float(ps, "min_snr"),
-                    min_pixel_count=_get_int(ps, "min_pixel_count"),
-                    max_pixel_count=_get_int(ps, "max_pixel_count"),
-                    min_res=_get_int(ps, "min_res_px"),
-                    max_res=_get_int(ps, "max_res_px"),
-                    bad_pixel_map_filename=_get_opt_path(ps, "bad_pixel_map_filename"),
-                    bad_pixel_map_hdf5_path=_get_opt_path(ps, "bad_pixel_hdf5_path"),
-                    local_bg_radius=_get_opt_float(ps, "local_bg_radius_px"),
-                    min_peak_over_neighbor=_get_opt_float(
-                        ps, "min_peak_over_neighbor_adu"
-                    ),
-                    min_snr_biggest_pix=_get_opt_float(ps, "min_snr_of_biggest_pixel"),
-                    min_snr_peak_pix=_get_opt_float(ps, "min_snr_of_peak_pixel"),
-                    min_sig=_get_opt_float(ps, "min_sig_adu"),
-                    min_squared_gradient=_get_opt_float(
-                        ps, "min_squared_gradient_adu2"
-                    ),
-                    geometry="",
-                ),
-                HarvestHitfinding(min_num_peaks=_get_int(hf, "min_num_peaks")),
-                HarvestIndexing(
-                    parameters=indexing,
-                    methods=_get_str_list(indexing, "methods"),
-                )
-                if indexing is not None
-                else None,
-                HarvestIntegration(
-                    method=_get_string(integration, "method"),
-                    center_boxes=_get_opt_bool(integration, "center_boxes"),
-                    overpredict=_get_opt_bool(integration, "overpredict"),
-                    push_res=_get_opt_float(integration, "push_res_invm"),
-                    radius_inner=_get_opt_float(integration, "radius_inner_px"),
-                    radius_middle=_get_opt_float(integration, "radius_middle_px"),
-                    radius_outer=_get_opt_float(integration, "radius_outer_px"),
-                )
-                if integration is not None
-                else None,
+def read_harvest_json(fn: Path) -> HarvestJson:
+    with fn.open("r") as f:
+        pf = json.load(f)
+        ps = pf["peaksearch"]
+        hf = pf["hitfinding"]
+        indexing = pf["indexing"]
+        integration = pf["integration"]
+        return HarvestJson(
+            HarvestPeaksearch(
+                method=_get_string(ps, "method"),
+                max_num_peaks=_get_opt_float(ps, "max_num_peaks"),
+                adc_threshold=_get_opt_float(ps, "adc_threshold"),
+                minimum_snr=_get_float(ps, "min_snr"),
+                min_pixel_count=_get_int(ps, "min_pixel_count"),
+                max_pixel_count=_get_int(ps, "max_pixel_count"),
+                min_res=_get_int(ps, "min_res_px"),
+                max_res=_get_int(ps, "max_res_px"),
+                bad_pixel_map_filename=_get_opt_path(ps, "bad_pixel_map_filename"),
+                bad_pixel_map_hdf5_path=_get_opt_path(ps, "bad_pixel_hdf5_path"),
+                local_bg_radius=_get_opt_float(ps, "local_bg_radius_px"),
+                min_peak_over_neighbor=_get_opt_float(ps, "min_peak_over_neighbor_adu"),
+                min_snr_biggest_pix=_get_opt_float(ps, "min_snr_of_biggest_pixel"),
+                min_snr_peak_pix=_get_opt_float(ps, "min_snr_of_peak_pixel"),
+                min_sig=_get_opt_float(ps, "min_sig_adu"),
+                min_squared_gradient=_get_opt_float(ps, "min_squared_gradient_adu2"),
+                geometry="",
+            ),
+            HarvestHitfinding(min_num_peaks=_get_int(hf, "min_num_peaks")),
+            HarvestIndexing(
+                parameters=indexing,
+                methods=_get_str_list(indexing, "methods"),
             )
-    except:
-        return None
+            if indexing is not None
+            else None,
+            HarvestIntegration(
+                method=_get_string(integration, "method"),
+                center_boxes=_get_opt_bool(integration, "center_boxes"),
+                overpredict=_get_opt_bool(integration, "overpredict"),
+                push_res=_get_opt_float(integration, "push_res_invm"),
+                radius_inner=_get_opt_float(integration, "radius_inner_px"),
+                radius_middle=_get_opt_float(integration, "radius_middle_px"),
+                radius_outer=_get_opt_float(integration, "radius_outer_px"),
+            )
+            if integration is not None
+            else None,
+        )
 
 
 @dataclass(frozen=True)
@@ -244,16 +237,12 @@ def read_crystfel_streams(stream_list: Iterable[Path]) -> StreamMetadata:
     command_line: Optional[str] = None
     timestamp: Optional[float] = None
 
-    debug_counter = 0
     for fn in stream_list:
         timestamp = fn.stat().st_mtime
+        logger.debug("reading stream file %s", fn)
         with fn.open("r") as f:
             while True:
                 fline = f.readline()
-
-                debug_counter += 1
-                if debug_counter % 10000 == 0:
-                    logger.debug("At line %s...", debug_counter)
 
                 if not fline:
                     break

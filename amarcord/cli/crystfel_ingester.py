@@ -73,6 +73,11 @@ def main() -> int:
         required=False,
     )
     args = parser.parse_args()
+
+    if not Path(args.harvest_filename).exists():
+        sys.stderr.write(f"harvest filename {args.harvest_filename} doesn't exist!\n")
+        sys.exit(1)
+
     dbcontext = DBContext(args.connection_url, echo=bool(args.dry_run))
     tables = create_tables(dbcontext)
     if args.connection_url.startswith("sqlite://"):
