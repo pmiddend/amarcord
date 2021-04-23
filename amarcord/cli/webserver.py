@@ -71,7 +71,7 @@ def _convert_overview(r: OverviewAttributi) -> JSONArray:
     return [
         v
         for table, attributi in r.items()
-        for v in attributi.to_raw().to_json_array(table.value)
+        for v in attributi.to_raw(ignore_comments=False).to_json_array(table.value)
     ]
     # return {table.value: attributi.to_raw().to_json() for table, attributi in r.items()}
 

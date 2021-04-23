@@ -255,7 +255,7 @@ class AttributiMap:
         # TODO: check proper types here
         self.append_single_to_source(MANUAL_SOURCE_NAME, attributo, value)
 
-    def to_raw(self) -> RawAttributiMap:
+    def to_raw(self, ignore_comments: bool = True) -> RawAttributiMap:
         json_dict: JSONDict = {}
         for source, values in self._attributi.items():
             source_dict: JSONDict = {}
@@ -272,7 +272,7 @@ class AttributiMap:
                     else:
                         if isinstance(value[0], (str, int, float)):
                             source_dict[attributo_id] = value
-                        elif isinstance(value[0], DBComment):
+                        elif isinstance(value[0], DBComment) and not ignore_comments:
                             source_dict[attributo_id] = [
                                 {
                                     "id": c.id,
