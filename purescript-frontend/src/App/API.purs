@@ -46,7 +46,7 @@ retrieveOverview = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
-    url = (baseUrl' <> "/1/overview")
+    url = (baseUrl' <> "/api/overview")
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
@@ -55,6 +55,6 @@ retrieveAttributi = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
-    url = (baseUrl' <> "/attributi")
+    url = (baseUrl' <> "/api/attributi")
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse (response)

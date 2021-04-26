@@ -76,8 +76,9 @@ def _convert_overview(r: OverviewAttributi) -> JSONArray:
     # return {table.value: attributi.to_raw().to_json() for table, attributi in r.items()}
 
 
-@app.route("/<int:proposal_id>/overview")
-def retrieve_overview(proposal_id: int) -> JSONDict:
+@app.route("/api/overview")
+def retrieve_overview() -> JSONDict:
+    proposal_id = int(os.environ["AMARCORD_PROPOSAL_ID"])
     # pylint: disable=global-statement
     global db
     with db.connect() as conn:
@@ -105,7 +106,7 @@ def _convert_metadata(table: AssociatedTable, v: DBAttributo) -> JSONDict:
     }
 
 
-@app.route("/attributi")
+@app.route("/api/attributi")
 def retrieve_attributi() -> JSONDict:
     # pylint: disable=global-statement
     global db
@@ -127,7 +128,7 @@ def retrieve_attributi() -> JSONDict:
 #         return _convert_run(db.retrieve_run(conn, run_id))
 
 
-@app.route("/run/<int:run_id>/comment", methods=["POST"])
+@app.route("/api/run/<int:run_id>/comment", methods=["POST"])
 def add_comment(
     run_id: int,
 ) -> JSONDict:
@@ -141,7 +142,7 @@ def add_comment(
         return {}
 
 
-@app.route("/run/<int:run_id>/comment/<int:comment_id>", methods=["DELETE"])
+@app.route("/api/run/<int:run_id>/comment/<int:comment_id>", methods=["DELETE"])
 def delete_comment(run_id: int, comment_id: int) -> JSONDict:
     # pylint: disable=global-statement
     global db
