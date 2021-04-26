@@ -8,6 +8,7 @@ import Affjax.ResponseFormat as ResponseFormat
 import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
 import App.Attributo (Attributo)
+import App.Event (Event)
 import App.Overview (OverviewRow)
 import Control.Monad.Reader (asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError)
@@ -22,6 +23,10 @@ type OverviewResponse
 
 type AttributiResponse
   = { attributi :: Array Attributo
+    }
+
+type EventsResponse
+  = { events :: Array Event
     }
 
 handleResponse :: forall a m. Monad m => DecodeJson a => Either Error (Response Json) -> m (Either String a)
@@ -57,4 +62,13 @@ retrieveAttributi = do
     url :: String
     url = (baseUrl' <> "/api/attributi")
   response <- liftAff $ AX.get ResponseFormat.json url
-  handleResponse (response)
+  handleResponse response
+
+retrieveEvents :: AppMonad (Either String EventsResponse)
+retrieveEvents = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/events")
+  response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response

@@ -1,3 +1,4 @@
+# pylint: disable=global-statement
 import json
 import logging
 import os
@@ -18,6 +19,7 @@ from amarcord.db.db import OverviewAttributi
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
+from amarcord.db.table_classes import DBEvent
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -79,7 +81,6 @@ def _convert_overview(r: OverviewAttributi) -> JSONArray:
 @app.route("/api/overview")
 def retrieve_overview() -> JSONDict:
     proposal_id = int(os.environ["AMARCORD_PROPOSAL_ID"])
-    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         # since = request.args.get("since", None)
@@ -106,9 +107,25 @@ def _convert_metadata(table: AssociatedTable, v: DBAttributo) -> JSONDict:
     }
 
 
+def _convert_event(e: DBEvent) -> JSONDict:
+    return {
+        "id": e.id,
+        "source": e.source,
+        "created": e.created,
+        "level": e.level.value,
+        "text": e.text,
+    }
+
+
+@app.route("/api/events")
+def retrieve_events() -> JSONDict:
+    global db
+    with db.connect() as conn:
+        return {"events": [_convert_event(a) for a in db.retrieve_events(conn)]}
+
+
 @app.route("/api/attributi")
 def retrieve_attributi() -> JSONDict:
-    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         return {
@@ -122,7 +139,6 @@ def retrieve_attributi() -> JSONDict:
 
 # @app.route("/run/<int:run_id>")
 # def retrieve_run(run_id: int) -> JSONDict:
-#     # pylint: disable=global-statement
 #     global db
 #     with db.connect() as conn:
 #         return _convert_run(db.retrieve_run(conn, run_id))
@@ -132,7 +148,6 @@ def retrieve_attributi() -> JSONDict:
 def add_comment(
     run_id: int,
 ) -> JSONDict:
-    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         assert isinstance(request.json, dict)
@@ -144,7 +159,6 @@ def add_comment(
 
 @app.route("/api/run/<int:run_id>/comment/<int:comment_id>", methods=["DELETE"])
 def delete_comment(run_id: int, comment_id: int) -> JSONDict:
-    # pylint: disable=global-statement
     global db
     with db.connect() as conn:
         db.delete_comment(conn, run_id, comment_id)

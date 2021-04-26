@@ -6,6 +6,7 @@ import App.AppMonad (AppMonad)
 import App.AssociatedTable (AssociatedTable(..))
 import App.Components.Graphs as GraphsComp
 import App.Components.Overview as Overview
+import App.Components.Events as EventsComp
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
 import App.PlotType (PlotType(..))
@@ -49,6 +50,7 @@ type ChildSlots
   = ( root :: OpaqueSlot Unit
     , overview :: OpaqueSlot Unit
     , graphs :: OpaqueSlot Unit
+    , events :: OpaqueSlot Unit
     )
 
 component ::
@@ -104,6 +106,7 @@ render st =
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
           Overview sort -> HH.slot (SProxy :: _ "overview") unit Overview.component sort absurd
           Graphs input -> HH.slot (SProxy :: _ "graphs") unit GraphsComp.component input absurd
+          Events -> HH.slot (SProxy :: _ "events") unit EventsComp.component unit absurd
 
 --EditRun runId -> HH.slot (SProxy :: _ "editRun") unit EditRun.component runId absurd
 navItems ::
@@ -120,6 +123,10 @@ navItems =
   , { title: "Graphs"
     , link: (Graphs { xAxis: Nothing, yAxis: Nothing, plotType: Line })
     , fa: "chart-area"
+    }
+  , { title: "Events"
+    , link: Events
+    , fa: "calendar-alt"
     }
   ]
 
