@@ -16,6 +16,10 @@ type JSONNumberData
     , range :: Maybe (NumericRange Number)
     }
 
+type JSONIntegerData
+  = { format :: Maybe String
+    }
+
 _suffix :: Lens' JSONNumberData (Maybe String)
 _suffix = prop (SProxy :: SProxy "suffix")
 
@@ -33,7 +37,7 @@ data JSONSchemaType
   | JSONString
   | JSONArray JSONArrayData
   | JSONComments
-  | JSONInteger
+  | JSONInteger JSONIntegerData
 
 _JSONNumber :: Prism' JSONSchemaType JSONNumberData
 _JSONNumber = prism' JSONNumber case _ of
@@ -46,7 +50,7 @@ derive instance ordJSONSchemaType :: Ord JSONSchemaType
 instance showJsonSchema :: Show JSONSchemaType where
   show JSONString = "string"
   show (JSONArray ad) = "array"
-  show JSONInteger = "int"
+  show (JSONInteger _) = "int"
   show JSONComments = "comments"
   show (JSONNumber _) = "number"
 
@@ -67,7 +71,9 @@ instance jsonSchemaTypeDecode :: DecodeJson JSONSchemaType where
               , range: fromMaybes minimum exclusiveMinimum maximum exclusiveMaximum
               }
           )
-      "integer" -> pure JSONInteger
+      "integer" -> do
+        format <- obj .:? "format"
+        pure (JSONInteger { format })
       "string" -> pure JSONString
       "array" -> do
         minItems <- obj .:? "minItems"

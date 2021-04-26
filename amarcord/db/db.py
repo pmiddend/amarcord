@@ -236,13 +236,15 @@ class DB:
             ).fetchall()
         ]
 
-    def retrieve_mini_samples(self, conn: Connection) -> List[DBMiniSample]:
+    def retrieve_mini_samples(
+        self, conn: Connection, proposal_id: ProposalId
+    ) -> List[DBMiniSample]:
         return [
             DBMiniSample(row[0], row[1])
             for row in conn.execute(
-                sa.select(
-                    [self.tables.sample.c.id, self.tables.sample.c.name]
-                ).order_by(self.tables.sample.c.name)
+                sa.select([self.tables.sample.c.id, self.tables.sample.c.name])
+                .order_by(self.tables.sample.c.name)
+                .where(self.tables.sample.c.proposal_id == proposal_id)
             ).fetchall()
         ]
 

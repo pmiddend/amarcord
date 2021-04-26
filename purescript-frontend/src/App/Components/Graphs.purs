@@ -74,7 +74,7 @@ render state =
   let
     isPlottable attributo = case attributo.typeSchema of
       JSONNumber _ -> true
-      JSONInteger -> true
+      JSONInteger _ -> true
       _ -> false
 
     plottableAttributi = filter isPlottable state.attributi

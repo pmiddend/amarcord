@@ -102,7 +102,7 @@ class RunDetails(QWidget):
                 self._inner = RunDetailsInner(
                     tables=self._db.tables,
                     run_ids=new_run_ids,
-                    samples=self._db.retrieve_mini_samples(conn),
+                    samples=self._db.retrieve_mini_samples(conn, self._proposal_id),
                     run=self._db.retrieve_run(conn, max(new_run_ids)),
                     karabo=self._db.retrieve_karabo(conn, max(new_run_ids)),
                     runs_metadata=self._build_runs_metadata(conn),
@@ -219,7 +219,7 @@ class RunDetails(QWidget):
                 if selected_karabo is not None
                 else self._db.retrieve_karabo(conn, new_run_id),
                 ids,
-                self._db.retrieve_mini_samples(conn),
+                self._db.retrieve_mini_samples(conn, self._proposal_id),
                 self._build_runs_metadata(conn),
             )
         except RunNotFound:
@@ -246,7 +246,7 @@ class RunDetails(QWidget):
                 highest_id=max(
                     self._db.retrieve_run_ids(conn, self._proposal_id), default=None
                 ),
-                samples=self._db.retrieve_mini_samples(conn),
+                samples=self._db.retrieve_mini_samples(conn, self._proposal_id),
             )
             attributi = RawAttributiMap({})
             # attributi.append_single_to_source(

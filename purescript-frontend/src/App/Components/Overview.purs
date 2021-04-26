@@ -1,6 +1,6 @@
 module App.Components.Overview where
 
-import App.API (AttributiResponse, OverviewResponse, retrieveAttributi, retrieveOverview)
+import App.API (AttributiResponse, MiniSamplesResponse, OverviewResponse, changeRunSample, retrieveAttributi, retrieveMiniSamples, retrieveOverview)
 import App.AppMonad (AppMonad, log)
 import App.AssociatedTable (AssociatedTable(..))
 import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
@@ -10,26 +10,28 @@ import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, errorText, faIcon, scope, singleClass)
 import App.JSONSchemaType (JSONSchemaType(..))
 import App.Logging (LogLevel(..))
+import App.MiniSample (MiniSample)
 import App.Overview (OverviewRow, OverviewCell, findCellInRow)
 import App.QualifiedAttributoName (QualifiedAttributoName)
 import App.Route (Route(..), OverviewRouteInput, createLink)
 import App.SortOrder (SortOrder(..), comparing, invertOrder)
-import App.Utils (fanoutApplicative, toggleSetElement)
+import App.Utils (toggleSetElement)
 import Control.Applicative (pure)
 import Control.Apply ((<*>))
-import Control.Bind (bind, discard)
-import Data.Argonaut (Json, JsonDecodeError, caseJson, decodeJson, printJsonDecodeError)
-import Data.Array (filter, head, length, singleton, sortBy)
+import Control.Bind (bind, discard, (>>=))
+import Data.Argonaut (Json, JsonDecodeError, caseJson, decodeJson, printJsonDecodeError, toNumber)
+import Data.Array (filter, find, head, length, singleton, sortBy)
 import Data.Either (Either(..))
-import Data.Eq ((/=), (==))
+import Data.Eq ((/=), (==), class Eq)
 import Data.Foldable (foldMap, intercalate)
 import Data.Function (const, identity, (<<<), (>>>))
 import Data.Functor (map, (<$>))
-import Data.HeytingAlgebra ((||))
-import Data.Int (round)
+import Data.HeytingAlgebra ((&&), (||))
+import Data.Int (fromString, round)
 import Data.Lens (to, toArrayOf)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Number.Format (fixed, toStringWith)
+import Data.Ord (class Ord)
 import Data.Semigroup ((<>))
 import Data.Set as Set
 import Data.Show (show)
@@ -49,9 +51,17 @@ import Network.RemoteData (RemoteData(..), fromEither)
 type State
   = { overviewRows :: Array OverviewRow
     , attributi :: Array Attributo
+    , miniSamples :: Array MiniSample
     , selectedAttributi :: Set.Set QualifiedAttributoName
     , overviewSorting :: OverviewRouteInput
     }
+
+data OverviewData
+  = OverviewData OverviewResponse AttributiResponse MiniSamplesResponse
+
+derive instance eqAssociatedTable :: Eq OverviewData
+
+derive instance ordAssociatedTable :: Ord OverviewData
 
 data Action
   = Initialize
@@ -59,12 +69,14 @@ data Action
   | ToggleAttributo QualifiedAttributoName
   | ToggleTable AssociatedTable
   | RefreshTimeout
+  | SampleChange Int Int
 
-initialState :: ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse) -> State
-initialState { input: overviewSorting, remoteData: Tuple overviewResponse attributiResponse } =
+initialState :: ChildInput OverviewRouteInput OverviewData -> State
+initialState { input: overviewSorting, remoteData: OverviewData overviewResponse attributiResponse miniSampleResponse } =
   { overviewRows: resort overviewSorting overviewResponse.overviewRows
   , selectedAttributi: foldMap (Set.singleton <<< qualifiedAttributoName) attributiResponse.attributi
   , attributi: attributiResponse.attributi
+  , miniSamples: miniSampleResponse.samples
   , overviewSorting
   }
 
@@ -78,7 +90,7 @@ component ::
     AppMonad
 component = parentComponent fetchData childComponent
 
-childComponent :: forall q. H.Component HH.HTML q (ChildInput OverviewRouteInput (Tuple OverviewResponse AttributiResponse)) ParentError AppMonad
+childComponent :: forall q. H.Component HH.HTML q (ChildInput OverviewRouteInput OverviewData) ParentError AppMonad
 childComponent =
   H.mkComponent
     { initialState
@@ -107,16 +119,20 @@ handleAction = case _ of
   Initialize -> do
     _ <- H.subscribe timerEventSource
     pure unit
+  SampleChange runId newSampleId -> do
+    result <- H.lift (changeRunSample runId newSampleId)
+    pure unit
   RefreshTimeout -> do
     H.lift (log Info "Refreshing...")
     s <- H.get
     remoteData <- H.lift (fetchData s.overviewSorting)
     case remoteData of
-      Success (Tuple newOverviewRows newAttributi) ->
+      Success (OverviewData newOverviewRows newAttributi newMiniSamples) ->
         H.modify_ \state ->
           state
             { overviewRows = resort s.overviewSorting newOverviewRows.overviewRows
             , attributi = newAttributi.attributi
+            , miniSamples = newMiniSamples.samples
             }
       _ -> pure unit
     _ <- H.subscribe timerEventSource
@@ -133,14 +149,21 @@ handleAction = case _ of
     H.modify_ \state -> state { selectedAttributi = Set.filter (\x -> fst x /= t) state.selectedAttributi }
 
 -- Fetch runs and attributi
-fetchData :: OverviewRouteInput -> AppMonad (RemoteData String (Tuple OverviewResponse AttributiResponse))
-fetchData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
+fetchData :: OverviewRouteInput -> AppMonad (RemoteData String OverviewData)
+fetchData _ = do
+  overview <- retrieveOverview
+  attributi <- retrieveAttributi
+  samples <- retrieveMiniSamples
+  let
+    result :: Either String OverviewData
+    result = OverviewData <$> overview <*> attributi <*> samples
+  pure (fromEither result)
 
 -- Determine if we have a sortable schema type
 schemaTypeSortable :: JSONSchemaType -> Boolean
 schemaTypeSortable (JSONNumber _) = true
 
-schemaTypeSortable JSONInteger = true
+schemaTypeSortable (JSONInteger _) = true
 
 schemaTypeSortable _ = false
 
@@ -167,10 +190,29 @@ isSortedBy state a = state.overviewSorting.sort == qualifiedAttributoName a
 numberToString :: Number -> String
 numberToString = toStringWith (fixed 2)
 
+sampleSelect :: forall w. Array MiniSample -> Int -> Int -> HH.HTML w Action
+sampleSelect samples runId sampleSelectedId =
+  let
+    makeOption sample =
+      HH.option
+        [ HP.value (show sample.id), HP.selected (sample.id == sampleSelectedId) ]
+        [ HH.text sample.name ]
+  in
+    HH.select
+      [ classList [ "form-select", "form-control" ], HE.onValueChange (fromString >>> map (SampleChange runId)) ]
+      (makeOption <$> samples)
+
+type TableRowContext
+  = { samples :: Array MiniSample
+    , runId :: Int
+    }
+
 -- Convert a number (int and string) to HTML
-numberToHtml :: forall w. JSONSchemaType -> Number -> HH.HTML w Action
-numberToHtml typeSchema n = case typeSchema of
-  JSONInteger -> HH.text (show (round n))
+numberToHtml :: forall w. TableRowContext -> JSONSchemaType -> Number -> HH.HTML w Action
+numberToHtml trc typeSchema n = case typeSchema of
+  JSONInteger id -> case id.format of
+    Just "sample-id" -> sampleSelect trc.samples trc.runId (round n)
+    _ -> HH.text (show (round n))
   JSONNumber nd -> HH.text (numberToString n)
   _ -> errorText "Cannot convert from non-number type to HTML"
 
@@ -225,26 +267,34 @@ listToHtml attributo list = case attributo.typeSchema of
   _ -> errorText "list which is not an array"
 
 -- Convert a general attributo cell as JSON (number, comments, ...) to HTML
-jsonToHtml :: forall w. Attributo -> Json -> HH.HTML w Action
-jsonToHtml attributo =
+jsonToHtml :: forall w. TableRowContext -> Attributo -> Json -> HH.HTML w Action
+jsonToHtml trc attributo =
   caseJson
     (const (HH.text ""))
     (HH.text <<< show)
-    (numberToHtml attributo.typeSchema)
+    (numberToHtml trc attributo.typeSchema)
     HH.text
     (listToHtml attributo)
     (const (HH.text "object"))
 
 -- Convert an attributo cell to a HTML table cell
-cellToHtml :: forall w. Attributo -> OverviewCell -> HH.HTML w Action
-cellToHtml attributo cell = HH.td [ singleClass "text-nowrap" ] [ jsonToHtml attributo cell.value ]
+cellToHtml :: forall w. TableRowContext -> Attributo -> OverviewCell -> HH.HTML w Action
+cellToHtml trc attributo cell = HH.td [ singleClass "text-nowrap" ] [ jsonToHtml trc attributo cell.value ]
+
+runIdFromOverview :: OverviewRow -> Int
+runIdFromOverview or =
+  let
+    valueAsInt :: Json -> Maybe Int
+    valueAsInt x = round <$> toNumber x
+  in
+    fromMaybe 1 (find (\r -> r.table == Run && r.name == "id") or >>= ((\x -> x.value) >>> valueAsInt))
 
 -- Convert an attributo inside a whole row to HTML
-makeCell :: forall w. OverviewRow -> Attributo -> HH.HTML w Action
-makeCell overviewRow attributo =
+makeCell :: forall w. Array MiniSample -> OverviewRow -> Attributo -> HH.HTML w Action
+makeCell samples overviewRow attributo =
   maybe
     (HH.td_ [])
-    (cellToHtml attributo)
+    (cellToHtml { samples, runId: runIdFromOverview overviewRow } attributo)
     (findCellInRow (qualifiedAttributoName attributo) overviewRow)
 
 render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
@@ -277,7 +327,7 @@ render state =
 
     wholeSelectedProps = sortBy (comparing Ascending attributoSortFunction) (filter (\a -> qualifiedAttributoName a `Set.member` state.selectedAttributi) state.attributi)
 
-    makeRow overviewRow = HH.tr_ (makeCell overviewRow <$> wholeSelectedProps)
+    makeRow overviewRow = HH.tr_ (makeCell state.miniSamples overviewRow <$> wholeSelectedProps)
   in
     fluidContainer
       [ plainH1_ "Experiment Overview"

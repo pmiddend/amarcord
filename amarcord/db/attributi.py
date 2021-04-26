@@ -134,7 +134,7 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
     if isinstance(rp, AttributoTypeUserName):
         return {"type": "string", "format": "user-name"}
     if isinstance(rp, AttributoTypeSample):
-        return {"type": "integer"}
+        return {"type": "integer", "format": "sample-id"}
     if isinstance(rp, AttributoTypeChoice):
         return {"type": "string", "enum": [v[1] for v in rp.values]}
     if isinstance(rp, AttributoTypeDateTime):

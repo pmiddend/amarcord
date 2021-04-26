@@ -14,9 +14,11 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     attributo_type_to_schema,
 )
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import DB
 from amarcord.db.db import OverviewAttributi
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.table_classes import DBEvent
@@ -75,7 +77,32 @@ def _convert_overview(r: OverviewAttributi) -> JSONArray:
         for table, attributi in r.items()
         for v in attributi.to_raw(ignore_comments=False).to_json_array(table.value)
     ]
-    # return {table.value: attributi.to_raw().to_json() for table, attributi in r.items()}
+
+
+def _convert_mini_sample(r: DBMiniSample) -> JSONDict:
+    return {"id": r.sample_id, "name": r.sample_name}
+
+
+@app.route("/api/minisamples")
+def retrieve_mini_samples() -> JSONDict:
+    proposal_id = int(os.environ["AMARCORD_PROPOSAL_ID"])
+    global db
+    with db.connect() as conn:
+        return {
+            "samples": [
+                _convert_mini_sample(r)
+                for r in db.retrieve_mini_samples(conn, ProposalId(proposal_id))
+            ]
+        }
+
+
+@app.route("/api/change_run_sample/<int:run_id>/<int:sample_id>")
+def change_run_sample(run_id: int, sample_id: int) -> JSONDict:
+    _proposal_id = int(os.environ["AMARCORD_PROPOSAL_ID"])
+    global db
+    with db.connect() as conn:
+        db.update_run_attributo(conn, run_id, AttributoId("sample_id"), sample_id)
+        return {}
 
 
 @app.route("/api/overview")

@@ -9,6 +9,7 @@ import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
 import App.Attributo (Attributo)
 import App.Event (Event)
+import App.MiniSample (MiniSample)
 import App.Overview (OverviewRow)
 import Control.Monad.Reader (asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError)
@@ -27,6 +28,10 @@ type AttributiResponse
 
 type EventsResponse
   = { events :: Array Event
+    }
+
+type MiniSamplesResponse
+  = { samples :: Array MiniSample
     }
 
 handleResponse :: forall a m. Monad m => DecodeJson a => Either Error (Response Json) -> m (Either String a)
@@ -70,5 +75,23 @@ retrieveEvents = do
   let
     url :: String
     url = (baseUrl' <> "/api/events")
+  response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response
+
+retrieveMiniSamples :: AppMonad (Either String MiniSamplesResponse)
+retrieveMiniSamples = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/minisamples")
+  response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response
+
+changeRunSample :: Int -> Int -> AppMonad (Either String {})
+changeRunSample runId sampleId = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> ("/api/change_run_sample/" <> show runId <> "/" <> show sampleId))
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response

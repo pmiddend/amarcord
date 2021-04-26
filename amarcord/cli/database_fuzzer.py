@@ -112,7 +112,9 @@ def action_change_run_property() -> None:
         ):
             print(f"skipping because special attributo: {random_attributo.name}")
             return
-        new_value = generate_attributo(db.retrieve_mini_samples(conn), random_attributo)
+        new_value = generate_attributo(
+            db.retrieve_mini_samples(conn, PROPOSAL_ID), random_attributo
+        )
 
         print(
             f"changing run {random_run_id}'s attributo {random_attributo.name} to {new_value}"
@@ -129,7 +131,7 @@ def action_add_run() -> None:
         rid = max(prior_run_ids, default=0) + 1
         print(f"adding run {rid}")
         run_attributi = generate_attributi(
-            db.retrieve_mini_samples(conn),
+            db.retrieve_mini_samples(conn, PROPOSAL_ID),
             db.retrieve_table_attributi(conn, AssociatedTable.RUN),
         )
         run_attributi.set_single_manual(AttributoId("first_train"), 0)
@@ -268,7 +270,7 @@ def action_add_sample() -> None:
                 micrograph=None,
                 protocol=None,
                 attributi=generate_attributi(
-                    db.retrieve_mini_samples(conn),
+                    db.retrieve_mini_samples(conn, PROPOSAL_ID),
                     db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
                 ),
             ),
@@ -285,7 +287,7 @@ def action_modify_sample() -> None:
                 attributi.pop(AttributoId(aid), None)
             random_attributo = random.choice(list(attributi.values()))
             new_value = generate_attributo(
-                db.retrieve_mini_samples(conn), random_attributo
+                db.retrieve_mini_samples(conn, PROPOSAL_ID), random_attributo
             )
             print(f"sample {s.id}: setting {random_attributo.name} to {new_value}")
             db.update_sample_attributo(

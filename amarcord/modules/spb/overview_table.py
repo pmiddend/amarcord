@@ -96,7 +96,7 @@ class OverviewTable(QWidget):
             ] = self._retrieve_attributi_metadata(conn)
             self._attributi_metadata.sort(key=_attributo_sort_key)
             self._visible_columns = self._attributi_metadata.copy()
-            self._samples = self._db.retrieve_mini_samples(conn)
+            self._samples = self._db.retrieve_mini_samples(conn, self._proposal_id)
             self._last_refresh: Optional[datetime.datetime] = datetime.datetime.utcnow()
             self._last_run_count = self._db.run_count(conn)
             self._rows: List[OverviewAttributi] = self._db.retrieve_overview(
@@ -303,7 +303,7 @@ class OverviewTable(QWidget):
 
     def _slot_refresh(self, force: bool = False) -> None:
         with self._db.connect() as conn:
-            self._samples = self._db.retrieve_mini_samples(conn)
+            self._samples = self._db.retrieve_mini_samples(conn, self._proposal_id)
             self._attributi_metadata = self._retrieve_attributi_metadata(conn)
             if self._completer_model.stringList() != self._filter_query_completions():
                 self._completer_model.setStringList(self._filter_query_completions())
