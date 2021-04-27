@@ -1,7 +1,10 @@
 import asyncio
 import logging
+import pickle
 from argparse import ArgumentParser
 from dataclasses import dataclass
+from pathlib import Path
+from time import time
 from typing import Dict
 from typing import Optional
 
@@ -84,12 +87,30 @@ async def karabo_loop(
 
             data, metadata = deserialize(raw_data)
 
-            with db.connect() as conn:
-                with conn.begin():
-                    for action in slicer.run_definer(data, metadata):
-                        ingest_karabo_action(
-                            action, ONLINE_SOURCE_NAME, conn, db, proposal_id
-                        )
+            try:
+                with db.connect() as conn:
+                    with conn.begin():
+                        for action in slicer.run_definer(data, metadata):
+                            ingest_karabo_action(
+                                action, ONLINE_SOURCE_NAME, conn, db, proposal_id
+                            )
+            except:
+                error_index = time()
+                pickled_fn = Path(f"error-data-frame-{error_index}.pickle")
+                pickled_bridge_fn = Path(
+                    f"error-data-frame-{error_index}-bridge.pickle"
+                )
+                logger.exception(
+                    "received an exception, dumping pickled data frame to %s",
+                    pickled_fn,
+                )
+                with pickled_fn.open("wb") as error_file:
+                    pickle.dump(
+                        (data, metadata), error_file, protocol=pickle.HIGHEST_PROTOCOL
+                    )
+                with pickled_bridge_fn.open("wb") as error_file:
+                    pickle.dump(slicer, error_file, protocol=pickle.HIGHEST_PROTOCOL)
+                continue
 
             for run_id, run_metadata in slicer.run_history.items():
                 karabo_export.runs[RunId(run_id)] = TrainRange(
