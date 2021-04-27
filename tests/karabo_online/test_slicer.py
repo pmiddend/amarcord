@@ -478,7 +478,7 @@ def test_start_with_run_in_progress_but_not_too_long() -> None:
         data[RUN_CONTROL]["proposalNumber.value"] = 1
 
     # The run just started, this frame. We expect an event here
-    data[RUN_CONTROL]["runDetails.firstTrainId.value"] = train_id
+    data[RUN_CONTROL]["runDetails.firstTrainId.value"] = train_id - 1
     data[RUN_CONTROL]["runDetails.length.value"] = 0
     data[RUN_CONTROL]["runNumber.value"] = 1337
 

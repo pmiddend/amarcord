@@ -4,6 +4,7 @@ import pickle
 from pathlib import Path
 
 from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
+from amarcord.amici.xfel.karabo_general import ingest_attributi
 from amarcord.amici.xfel.karabo_general import ingest_karabo_action
 from amarcord.amici.xfel.karabo_online import load_configuration
 from amarcord.db.constants import ONLINE_SOURCE_NAME
@@ -13,6 +14,8 @@ from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.util import natural_key
+
+PROPOSAL_ID = ProposalId(900188)
 
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
@@ -55,11 +58,13 @@ def main() -> None:
 
     db = DB(dbcontext, tables)
 
+    karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
+
     with db.connect() as conn:
         if args.database_url.startswith("sqlite://") and not db.have_proposals(conn):
-            db.add_proposal(conn, ProposalId(1))
+            db.add_proposal(conn, PROPOSAL_ID)
 
-    karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
+    ingest_attributi(db, karabo_data.get_attributi())
 
     files = list(Path(args.dump_path).iterdir())
 
@@ -82,7 +87,7 @@ def main() -> None:
 
                 with db.connect() as conn:
                     ingest_karabo_action(
-                        action, ONLINE_SOURCE_NAME, conn, db, ProposalId(1)
+                        action, ONLINE_SOURCE_NAME, conn, db, PROPOSAL_ID
                     )
 
     logger.info("finished ingesting")

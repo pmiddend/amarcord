@@ -1,4 +1,3 @@
-import datetime
 import logging
 import os
 import re
@@ -273,11 +272,11 @@ def compute_statistics(
 
                 if unique_index.size > 1:
                     logger.warning(
-                        "%s//%s: %s not constant over run %s",
+                        "%s//%s run %s: not constant over run; values are: %s",
                         source,
                         key,
-                        unique_value,
                         current_run,
+                        unique_value,
                     )
 
                 # the if thing handles empty lists
@@ -423,6 +422,7 @@ def generate_train_content(
             status=RunStatus.RUNNING,
         )
     except ValueError:
+        logger.exception("error extracting train content")
         return None
 
 
@@ -467,10 +467,6 @@ def compare_extraneous_attributi(
                             result.append(f"{source}//{key}: not requested")
                     else:
                         result.append(f"{source}//{key}: not requested")
-
-
-def parse_weird_karabo_datetime(s: str) -> datetime.datetime:
-    return datetime.datetime.strptime(s, "%Y%m%dT%H%M%S.%fZ")
 
 
 def compare_missing_expected_attributi(

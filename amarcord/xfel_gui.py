@@ -103,7 +103,7 @@ class XFELGui:
                 QMessageBox.critical(
                     None,
                     "Proposal not found",
-                    "I have a prior proposal with ID {self._proposal_Id}, but I cannot find it in the current DB. I "
+                    f"I have a prior proposal with ID {self._proposal_id}, but I cannot find it in the current DB. I "
                     "will delete your user configuration and you have to restart AMARCORD.",
                 )
                 remove_user_config()

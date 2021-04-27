@@ -7,6 +7,7 @@ from typing import Union
 from amarcord.amici.xfel.karabo_attributo_action import KaraboAttributoAction
 from amarcord.amici.xfel.karabo_data import KaraboData
 from amarcord.amici.xfel.karabo_expected_attributi import KaraboExpectedAttributi
+from amarcord.amici.xfel.karabo_general import parse_weird_karabo_datetime
 from amarcord.amici.xfel.karabo_key import KaraboKey
 from amarcord.amici.xfel.karabo_source import KaraboSource
 from amarcord.amici.xfel.karabo_stream_keys import KaraboStreamKeys
@@ -60,6 +61,12 @@ class KaraboCache:
                         type(value),
                     )
                     continue
+
+                # Do any sort of type conversion here
+                if expected["attributo"].type_ == "datetime":
+                    assert isinstance(value, str)
+                    # It's a bit weird here, only works for datetime currently
+                    value = parse_weird_karabo_datetime(value)  # type: ignore
 
                 action = expected["attributo"].action
                 if action == KaraboAttributoAction.STORE_LAST:

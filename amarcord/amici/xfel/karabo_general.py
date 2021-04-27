@@ -91,7 +91,7 @@ def ingest_karabo_action(
         )
         return
     try:
-        run_attributi = db.retrieve_run(conn, ProposalId(1), action.run_id).attributi
+        run_attributi = db.retrieve_run(conn, proposal_id, action.run_id).attributi
         new_attributi, _images = karabo_attributi_to_attributi_map(
             source, run_attributi, action.attributi
         )
@@ -120,13 +120,19 @@ def _unit_to_type(type_str: str, unit_str: Optional[str]) -> AttributoType:
         return AttributoTypeDouble(suffix=unit_str)
     if type_str == "unit_type":
         return AttributoTypeDouble(suffix=unit_str, standard_unit=True)
+    if type_str == "list[str]":
+        return AttributoTypeList(
+            AttributoTypeString(), min_length=None, max_length=None
+        )
     if type_str.startswith("list["):
         list_type = type_str[5:-1]
-        return AttributoTypeList(
-            sub_type=_unit_to_type(list_type, unit_str),
-            max_length=None,
-            min_length=None,
-        )
+        return _unit_to_type(list_type, unit_str)
+        # FIXME: WTF
+        # return AttributoTypeList(
+        #     sub_type=_unit_to_type(list_type, unit_str),
+        #     max_length=None,
+        #     min_length=None,
+        # )
     raise Exception(f"invalid attributo type {type_str} (unit {unit_str})")
 
 
@@ -175,3 +181,7 @@ def ingest_attributi(db: DB, attributi: KaraboExpectedAttributi) -> None:
                 AssociatedTable.RUN,
                 type_,
             )
+
+
+def parse_weird_karabo_datetime(s: str) -> datetime.datetime:
+    return datetime.datetime.strptime(s, "%Y%m%dT%H%M%S.%fZ")

@@ -76,7 +76,7 @@ Karabo_bridge:
         # -- this might be "description" + we add header
         description: Bunch charge [nC]
         key: sase1.charge.value
-        type: decimal
+        type: list[decimal]
         unit: nC
 
       # bunch_pattern:
@@ -98,21 +98,21 @@ Karabo_bridge:
         description: SASE1 pulse energy [μJ]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa1TD
-        type: decimal
+        type: list[decimal]
         unit: microJoules
 
       XGM_XTD9_SASE1_beam_position_x:
         description: SASE1 beam position x [mm]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.xSa1TD
-        type: decimal
+        type: list[decimal]
         unit: millimeter # ?
 
       XGM_XTD9_SASE1_beam_position_y:
         description: SASE1 beam position y [mm]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.ySa1TD
-        type: decimal
+        type: list[decimal]
         unit: millimeter # ?
 
       # XGM_XTD9_SASE3_pulse_energy:
@@ -143,10 +143,11 @@ Karabo_bridge:
     detector.ZYLA:
       comment: Optical imager
       source: SPB_EXP_ZYLA/CAM/1:output
-
-      ZYLA_injector_image:
-        key: data.image.data
-        action: store_last
+#
+#      ZYLA_injector_image:
+#        key: data.image.data
+#        action: store_last
+#        type: image
 
     detector.AGIPD:
       comment: X-ray detector
@@ -488,13 +489,13 @@ Karabo_bridge:
 
       sample_delivery_groupA_position:
         key: GROUPA.currentPosition.value
-        type: int
+        type: list[int]
       sample_delivery_sample1_position:
         key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.value
-        type: int
+        type: list[int]
       sample_delivery_sample2_position:
         key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.value
-        type: int
+        type: list[int]
 
     device.sample_delivery_rate:
       source: SPB_BIO_SYS/PUMP/HPLC
@@ -550,6 +551,7 @@ Karabo_bridge:
   ignore_entry:
     SPB_EXP_ZYLA/CAM/1:output:
       - data.image.type
+      - data.image.data
       - data.image.dimensions
       - data.image.dimensionTypes
       - data.image.rOIOffsets

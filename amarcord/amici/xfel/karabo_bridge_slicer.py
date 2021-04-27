@@ -16,6 +16,7 @@ from amarcord.amici.xfel.karabo_action import KaraboRunStart
 from amarcord.amici.xfel.karabo_cache import KaraboCache
 from amarcord.amici.xfel.karabo_data import KaraboData
 from amarcord.amici.xfel.karabo_expected_attributi import KaraboExpectedAttributi
+from amarcord.amici.xfel.karabo_general import parse_weird_karabo_datetime
 from amarcord.amici.xfel.karabo_online import KaraboAttributoWithValue
 from amarcord.amici.xfel.karabo_online import RunStatus
 from amarcord.amici.xfel.karabo_online import TrainContentDict
@@ -24,7 +25,6 @@ from amarcord.amici.xfel.karabo_online import compare_metadata_trains
 from amarcord.amici.xfel.karabo_online import compute_statistics
 from amarcord.amici.xfel.karabo_online import generate_train_content
 from amarcord.amici.xfel.karabo_online import parse_configuration
-from amarcord.amici.xfel.karabo_online import parse_weird_karabo_datetime
 from amarcord.amici.xfel.karabo_source import KaraboSource
 from amarcord.amici.xfel.karabo_stream_keys import KaraboStreamKeys
 from amarcord.amici.xfel.karabo_stream_keys import karabo_stream_keys
@@ -77,7 +77,7 @@ class KaraboBridgeSlicer:
         self._train_history.append(trainId)
         self._train_history.popleft()
 
-        logger.debug("Train %s", trainId)
+        # logger.debug("Train %s", trainId)
 
         # inspect the run
         train_content = generate_train_content(self._attributi, data)
@@ -100,9 +100,19 @@ class KaraboBridgeSlicer:
         if train_content["trains_in_run"].value == 0:
             if is_first_train:
                 logger.info("Daemon is starting in the middle of a run...")
-            # The run is too long gone, we discard it.
-            if train_content["train_index_initial"].value < trainId - train_cache_size:
-                logger.info("Run is out of our time window, ignoring it...")
+            # We don't know the run yet, but it's too long gone
+            if (
+                self._current_run not in self.run_history
+                and train_content["train_index_initial"].value
+                < trainId - train_cache_size
+            ):
+                logger.info(
+                    "Run is out of our time window (train id %s, train cache size %s, initial train index: %s), "
+                    "ignoring it...",
+                    trainId,
+                    train_cache_size,
+                    train_content["train_index_initial"].value,
+                )
                 return []
 
             logger.debug("Caching train %s", trainId)
@@ -122,9 +132,10 @@ class KaraboBridgeSlicer:
                 self.run_history[self._current_run] = train_content.copy()
 
                 logger.info(
-                    "Run %s started at %s",
-                    train_content["number"],
-                    train_content["timestamp_UTC_initial"],
+                    "Run %s started with train %s at %s",
+                    train_content["number"].value,
+                    trainId,
+                    train_content["timestamp_UTC_initial"].value,
                 )
 
                 # populate run attributi
@@ -140,6 +151,14 @@ class KaraboBridgeSlicer:
                         item.attributo.identifier
                     ].value = result_value
 
+                # logger.info(
+                #     "start attributi: %s",
+                #     "\n".join(
+                #         f"{x.identifier}"
+                #         for v in self._attributi.values()
+                #         for x in v.values()
+                #     ),
+                # )
                 return [
                     KaraboRunStart(
                         run_id=self._current_run,
@@ -194,9 +213,9 @@ class KaraboBridgeSlicer:
 
         logger.info(
             "Run %s closed at %s: %s train(s)",
-            train_content["number"],
+            train_content["number"].value,
             trainId,
-            train_content["trains_in_run"],
+            train_content["trains_in_run"].value,
         )
 
         # update the average one more time and send results to AMARCORD
@@ -212,13 +231,14 @@ class KaraboBridgeSlicer:
 
         # populate run attributi
         for item_ in train_content.values():
-            if (
-                not isinstance(item_, KaraboAttributoWithValue)
-                or item_.attributo.key == "timestamp_UTC_initial"
-            ):
+            if not isinstance(item_, KaraboAttributoWithValue):
                 continue
             item = cast(KaraboAttributoWithValue[Any], item_)
-            self._attributi["run"][item.attributo.identifier].value = item.value
+            if item.attributo.type_ == "datetime":
+                result_value = parse_weird_karabo_datetime(item.value)
+            else:
+                result_value = item.value
+            self._attributi["run"][item.attributo.identifier].value = result_value
 
         return [
             KaraboRunEnd(
