@@ -67,8 +67,11 @@ def main() -> None:
         logger.warning("No files matching glob %s", args.file_glob)
         return
 
+    i = 0
     for fn in sorted(files, key=lambda x: natural_key(x.name)):
-        logger.info("ingesting %s", fn)
+        if i % 1000 == 0:
+            logger.info("still ingesting, current frame %s", fn)
+        i += 1
 
         with fn.open("rb") as f:
             data, metadata = pickle.load(f)
