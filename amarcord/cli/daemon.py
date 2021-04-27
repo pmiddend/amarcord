@@ -219,7 +219,8 @@ def main() -> None:
     if args.database_url.startswith("sqlite://"):
         # Just for testing!
         with db.dbcontext.connect() as local_conn:
-            db.add_proposal(local_conn, args.proposal_id)
+            if not db.have_proposals(local_conn):
+                db.add_proposal(local_conn, args.proposal_id)
 
     asyncio.run(
         async_main(
