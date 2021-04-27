@@ -13,6 +13,7 @@ setuptools.setup(
             "amarcord-database-fuzzer = amarcord.cli.database_fuzzer:main",
             "amarcord-xfel-filesystem-ingester = amarcord.cli.xfel_filesystem_ingester:main",
             "amarcord-karabo-online-ingester = amarcord.cli.karabo_online_ingester:main",
+            "amarcord-karabo-bridge-dumper = amarcord.cli.karabo_bridge_dumper:main",
         ]
     },
     # see https://github.com/dolfinus/setuptools-git-versioning

@@ -1,9 +1,18 @@
+import argparse
 import logging
-
-import karabo_bridge
+import pickle
+from pathlib import Path
 
 from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
+from amarcord.amici.xfel.karabo_general import ingest_karabo_action
 from amarcord.amici.xfel.karabo_online import load_configuration
+from amarcord.db.constants import ONLINE_SOURCE_NAME
+from amarcord.db.db import DB
+from amarcord.db.proposal_id import ProposalId
+from amarcord.db.tables import create_tables
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
+from amarcord.util import natural_key
 
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
@@ -11,21 +20,70 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
+logger = logging.getLogger(__name__)
 
-if __name__ == "__main__":
 
-    config = load_configuration("./config.yml")
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Read pickled Karabo client frames and ingest them into a database"
+    )
+    parser.add_argument(
+        "--file-glob",
+        help="Glob for the pickled files (they will be sorted naturally)",
+        required=True,
+    )
+    parser.add_argument(
+        "--karabo-configuration",
+        help="Karabo configuration file",
+        default="./config.yml",
+        required=True,
+    )
+    parser.add_argument(
+        "--database-url", type=str, help="URL to the database", required=True
+    )
 
-    # instantiate the Karabo bridge client
-    client_endpoint = config["Karabo_bridge"]["client_endpoint"]
-    client = karabo_bridge.Client(client_endpoint)
+    args = parser.parse_args()
 
-    logging.info("Connected to the Karabo bridge at {}\n".format(client_endpoint))
+    config = load_configuration(args.karabo_configuration)
+
+    dbcontext = DBContext(args.database_url)
+
+    tables = create_tables(dbcontext)
+
+    if args.database_url.startswith("sqlite://"):
+        dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+
+    db = DB(dbcontext, tables)
+
+    with db.connect() as conn:
+        if args.database_url.startswith("sqlite://") and not db.have_proposals(conn):
+            db.add_proposal(conn, ProposalId(1))
 
     karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
 
-    while True:
-        # pylint: disable=not-callable
-        data, metadata = client.next()
+    files = list(Path(".").glob(args.file_glob))
 
-        karabo_data.run_definer(data, metadata)
+    if not files:
+        logger.warning("No files matching glob %s", args.file_glob)
+        return
+
+    for fn in sorted(files, key=lambda x: natural_key(x.name)):
+        logger.info("ingesting %s", fn)
+
+        with fn.open("rb") as f:
+            data, metadata = pickle.load(f)
+
+            for action in karabo_data.run_definer(data, metadata):
+                logger.info("%s, Karabo action type %s", fn, type(action))
+                logger.debug("action data: %s", action)
+
+                with db.connect() as conn:
+                    ingest_karabo_action(
+                        action, ONLINE_SOURCE_NAME, conn, db, ProposalId(1)
+                    )
+
+    logger.info("finished ingesting")
+
+
+if __name__ == "__main__":
+    main()

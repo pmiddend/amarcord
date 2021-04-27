@@ -218,3 +218,8 @@ def contains(xs: List[T], by: Callable[[T], bool]) -> bool:
         if by(x):
             return True
     return False
+
+
+def natural_key(string_: str) -> List[Union[int, str]]:
+    """See https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/"""
+    return [int(s) if s.isdigit() else s for s in re.split(r"(\d+)", string_)]
