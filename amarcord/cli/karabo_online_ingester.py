@@ -28,8 +28,8 @@ def main() -> None:
         description="Read pickled Karabo client frames and ingest them into a database"
     )
     parser.add_argument(
-        "--file-glob",
-        help="Glob for the pickled files (they will be sorted naturally)",
+        "--dump-path",
+        help="Path with the dump files",
         required=True,
     )
     parser.add_argument(
@@ -61,7 +61,7 @@ def main() -> None:
 
     karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
 
-    files = list(Path(".").glob(args.file_glob))
+    files = list(Path(args.dump_path).iterdir())
 
     if not files:
         logger.warning("No files matching glob %s", args.file_glob)
