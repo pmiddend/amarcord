@@ -2,7 +2,7 @@ module App.Components.Graphs where
 
 import App.API (AttributiResponse, OverviewResponse, retrieveAttributi, retrieveOverview)
 import App.AppMonad (AppMonad, log)
-import App.Attributo (Attributo, qualifiedAttributoName)
+import App.Attributo (Attributo, descriptiveAttributoText, qualifiedAttributoName)
 import App.Components.Echarts (echartsComponent)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, singleClass)
@@ -80,7 +80,7 @@ render state =
     plottableAttributi = filter isPlottable state.attributi
 
     makeAttributoOption :: forall w. (State -> Maybe Attributo) -> Attributo -> HH.HTML w Action
-    makeAttributoOption getter a = HH.option [ HP.value a.name, HP.selected ((qualifiedAttributoName <$> (getter state)) == Just (qualifiedAttributoName a)) ] [ HH.text a.description ]
+    makeAttributoOption getter a = HH.option [ HP.value a.name, HP.selected ((qualifiedAttributoName <$> (getter state)) == Just (qualifiedAttributoName a)) ] [ HH.text (descriptiveAttributoText a) ]
 
     generateXAxisChange attributoName = XAxisChange <$> find (\a -> a.name == attributoName) state.attributi
 
@@ -92,15 +92,16 @@ render state =
       let
         dataPoints :: Array (Array Number)
         dataPoints = mapMaybe (extractPairFromRow xaxis yaxis) state.overviewRows
+        headline = descriptiveAttributoText xaxis <> " vs. " <> descriptiveAttributoText yaxis
       pure
         { width: 600.0
         , height: 400.0
         , options:
-            { title: { text: xaxis.description <> " vs. " <> yaxis.description }
+            { title: { text: headline }
             , xAxis: {}
             , yAxis: {}
             , series:
-                [ { name: xaxis.description <> " vs. " <> yaxis.description
+                [ { name: headline
                   , "type": show state.plotType
                   , "data": dataPoints
                   }

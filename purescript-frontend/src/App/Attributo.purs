@@ -3,16 +3,16 @@ module App.Attributo where
 import App.AssociatedTable (AssociatedTable)
 import App.JSONSchemaType (JSONSchemaType, _JSONNumber, _suffix)
 import App.QualifiedAttributoName (QualifiedAttributoName)
-import Data.Eq ((==))
 import Data.Function ((<<<))
 import Data.Lens (Lens', Traversal', traversed)
 import Data.Lens.Record (prop)
+import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
 
 type Attributo
   = { name :: String
-    , description :: String
+    , description :: Maybe String
     , typeSchema :: JSONSchemaType
     , table :: AssociatedTable
     }
@@ -27,4 +27,8 @@ qualifiedAttributoName :: Attributo -> QualifiedAttributoName
 qualifiedAttributoName a = Tuple a.table a.name
 
 descriptiveAttributoText :: Attributo -> String
-descriptiveAttributoText a = if a.description == "" then a.name else a.description
+descriptiveAttributoText a =
+  case a.description of
+    Nothing -> a.name
+    Just "" -> a.name
+    Just d -> d
