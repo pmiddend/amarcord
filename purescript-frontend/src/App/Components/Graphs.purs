@@ -227,8 +227,12 @@ handleAction = case _ of
   Initialize -> do
     _ <- H.subscribe timerEventSource
     pure unit
-  XAxisChange a -> H.modify_ \state -> state { xAxis = Just a }
-  YAxisChange a -> H.modify_ \state -> state { yAxis = Just a }
+  XAxisChange a -> do
+    H.modify_ \state -> state { xAxis = Just a }
+    updateHash
+  YAxisChange a -> do
+    H.modify_ \state -> state { yAxis = Just a }
+    updateHash
   PlotTypeChange newType -> do
     H.lift (log Info "plot type changed")
     H.modify_ \state -> state { plotType = newType }
