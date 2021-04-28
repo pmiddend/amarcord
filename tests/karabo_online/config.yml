@@ -95,7 +95,7 @@ Karabo_bridge:
         description: SASE1 pulse energy [μJ]
         source: SPB_XTD9_XGM/XGM/DOOCS:output
         key: data.intensitySa1TD
-        type: decimal
+        type: list[decimal]
         unit: microJoules
 
       XGM_XTD9_SASE1_beam_position_x:

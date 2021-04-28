@@ -539,7 +539,7 @@ Karabo_bridge:
 
     device.sample_delivery_injector:
       source: SPB_IRU_INJMOV/MOTOR/Z
-      action: check_if_constant
+      action: compute_arithmetic_mean
 
       sample_delivery_injector_position_z:
         description: Injector position z [mm]

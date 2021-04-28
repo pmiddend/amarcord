@@ -26,6 +26,10 @@ class KaraboStatistics:
     # pylint: disable=unused-argument
     def arithmetic_mean(data, axis=0, source=None, key=None, **kwargs):
         try:
+            if not data:
+                return 0
+            if axis is None:
+                return np.mean(np.hstack(data))
             return np.mean(data, axis=axis)
         except TypeError as err:
             logger.warning(

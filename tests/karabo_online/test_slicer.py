@@ -1084,3 +1084,42 @@ def test_ingest_all_pickles() -> None:
             result = karabo_data.run_definer(data, metadata)
 
             print(result)
+
+
+def test_averaging_with_empty_rows() -> None:
+    """
+    This is a special case: we might have a matrix of rows, some of which will be empty (so...it's not a
+    matrix anymore). Here, we still want the averaging to work.
+    """
+    karabo_data = create_standard_slicer()
+
+    # Load a basic file (could be middle of a run)
+    with (Path(__file__).parent / "events" / "1035758364.pickle").open("rb") as handle:
+        dataset_content = pickle.load(handle)
+        data = dataset_content["data"]
+        metadata = dataset_content["metadata"]
+        train_id = compare_metadata_trains(metadata)
+        data[RUN_CONTROL]["proposalNumber.value"] = 1
+
+    # The run just started, this frame. We expect an event here
+    data[RUN_CONTROL]["runDetails.firstTrainId.value"] = train_id
+    data[RUN_CONTROL]["runDetails.length.value"] = 0
+    data[RUN_CONTROL]["runNumber.value"] = 1337
+
+    # Assume start
+    result = karabo_data.run_definer(data, metadata, train_cache_size=5)
+    assert len(result) == 1
+    assert isinstance(result[0], KaraboRunStart)
+
+    data["SPB_XTD9_XGM/XGM/DOOCS:output"]["data.intensitySa1TD"] = []
+
+    result = karabo_data.run_definer(
+        data, metadata, train_cache_size=5, averaging_interval=0
+    )
+    assert len(result) == 1
+    assert isinstance(result[0], KaraboAttributiUpdate)
+
+    assert (
+        result[0].attributi["detector.XGM_XTD9"]["XGM_XTD9_SASE1_pulse_energy"].value
+        > 900
+    )
