@@ -1,40 +1,14 @@
 module App.Components.Overview where
 
-import App.API
-  ( AttributiResponse
-  , MiniSamplesResponse
-  , OverviewResponse
-  , changeRunSample
-  , retrieveAttributi
-  , retrieveMiniSamples
-  , retrieveOverview
-  )
+import App.API (AttributiResponse, MiniSamplesResponse, OverviewResponse, changeRunSample, retrieveAttributi, retrieveMiniSamples, retrieveOverview)
 import App.AppMonad (AppMonad, log)
 import App.AssociatedTable (AssociatedTable(..))
-import App.Attributo
-  ( Attributo
-  , attributoSuffix
-  , descriptiveAttributoText
-  , qualifiedAttributoName
-  )
+import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Comment (Comment)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
-import App.Formatting
-  ( floatNumberToString
-  , intToString
-  , parseExternalDate
-  , prettyPrintExternalDate
-  )
-import App.HalogenUtils
-  ( AlertType(..)
-  , classList
-  , errorText
-  , faIcon
-  , makeAlert
-  , scope
-  , singleClass
-  )
+import App.Formatting (floatNumberToString, intToString, parseExternalDate, prettyPrintExternalDate)
+import App.HalogenUtils (AlertType(..), classList, errorText, faIcon, makeAlert, scope, singleClass)
 import App.JSONSchemaType (JSONSchemaStringFormat(..), JSONSchemaType(..))
 import App.Logging (LogLevel(..))
 import App.MiniSample (MiniSample)
@@ -46,16 +20,9 @@ import App.Utils (toggleSetElement)
 import Control.Applicative (pure)
 import Control.Apply ((<*>))
 import Control.Bind (bind, discard, (>>=))
-import Data.Argonaut
-  ( Json
-  , JsonDecodeError
-  , caseJson
-  , decodeJson
-  , printJsonDecodeError
-  , toNumber
-  )
+import Data.Argonaut (class EncodeJson, Json, JsonDecodeError, caseJson, decodeJson, encodeJson, parseJson, printJsonDecodeError, stringify, toNumber)
 import Data.Array (filter, find, head, length, singleton, sortBy)
-import Data.Either (Either(..))
+import Data.Either (Either(..), hush)
 import Data.Eq ((/=), (==), class Eq)
 import Data.Foldable (foldMap, intercalate)
 import Data.Function (const, identity, (<<<), (>>>))
@@ -71,6 +38,7 @@ import Data.Show (show)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst)
 import Data.Unit (Unit, unit)
+import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Timer (clearTimeout, setTimeout)
 import Halogen as H
@@ -80,6 +48,9 @@ import Halogen.HTML.Properties (ScopeValue(..))
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource (EventSource, Finalizer(..), effectEventSource, emit)
 import Network.RemoteData (RemoteData(..), fromEither)
+import Web.HTML (window)
+import Web.HTML.Window (localStorage)
+import Web.Storage.Storage (getItem, setItem)
 
 type State
   = { overviewRows :: Array OverviewRow
@@ -147,11 +118,31 @@ timerEventSource =
     timerId <- setTimeout 5000 (emit emitter RefreshTimeout)
     pure (Finalizer (clearTimeout timerId))
 
+type OverviewLocalStorage
+  = { selectedAttributi :: Set.Set QualifiedAttributoName
+    }
+
+parseLocalStorage :: String -> Maybe OverviewLocalStorage
+parseLocalStorage x = hush (parseJson x >>= decodeJson)
+
+writeLocalStorage :: forall t8. EncodeJson t8 => t8 -> Effect Unit
+writeLocalStorage ls = do
+  w <- window
+  s <- localStorage w
+  setItem "overview-selected-columns" (stringify (encodeJson ls)) s
+
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
   Initialize -> do
     _ <- H.subscribe timerEventSource
-    pure unit
+    w <- H.liftEffect window
+    s <- H.liftEffect (localStorage w)
+    stored <- H.liftEffect (getItem "overview-selected-columns" s)
+    case stored >>= parseLocalStorage of
+      Nothing -> H.lift (log Info "no local storage")
+      Just { selectedAttributi } -> do
+        H.lift (log Info "got something in local storage now")
+        H.modify_ \state -> state { selectedAttributi = selectedAttributi }
   SampleChange runId newSampleId -> do
     result <- H.lift (changeRunSample runId newSampleId)
     pure unit
@@ -177,9 +168,17 @@ handleAction = case _ of
         , overviewRows = resort newInput state.overviewRows
         }
   ToggleAttributo x -> do
-    H.modify_ \state -> state { selectedAttributi = toggleSetElement x state.selectedAttributi }
+    currentState <- H.get
+    let
+      newSelected = toggleSetElement x currentState.selectedAttributi
+    H.liftEffect (writeLocalStorage { selectedAttributi: newSelected })
+    H.modify_ \state -> state { selectedAttributi = newSelected }
   ToggleTable t -> do
-    H.modify_ \state -> state { selectedAttributi = Set.filter (\x -> fst x /= t) state.selectedAttributi }
+    currentState <- H.get
+    let
+      newSelected = Set.filter (\x -> fst x /= t) currentState.selectedAttributi
+    H.liftEffect (writeLocalStorage { selectedAttributi: newSelected })
+    H.modify_ \state -> state { selectedAttributi = newSelected }
 
 -- Fetch runs and attributi
 fetchData :: OverviewRouteInput -> AppMonad (RemoteData String OverviewData)
