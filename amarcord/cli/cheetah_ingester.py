@@ -6,6 +6,7 @@ from time import sleep
 
 from amarcord.amici.cheetah.analysis import ingest_cheetah
 from amarcord.db.db import DB
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -68,10 +69,23 @@ def main() -> int:
                 args.proposal_id,
                 args.force_run_creation,
             )
-            if results.number_of_ingested_data_sources:
+            if results.new_data_source_and_run_ids:
                 logger.info(
-                    "Ingested %s new data source(s)",
-                    results.number_of_ingested_data_sources,
+                    "Ingested %s new data source(s) and run id(s): %s",
+                    len(results.new_data_source_and_run_ids),
+                    ", ".join(
+                        f"DS {ds_id}, run {run_id}"
+                        for ds_id, run_id in results.new_data_source_and_run_ids
+                    ),
+                )
+                db.add_event(
+                    conn,
+                    EventLogLevel.INFO,
+                    "Cheetah",
+                    "Cheetah results for runs: "
+                    + ", ".join(
+                        str(run_id) for _, run_id in results.new_data_source_and_run_ids
+                    ),
                 )
             sleep(15)
 

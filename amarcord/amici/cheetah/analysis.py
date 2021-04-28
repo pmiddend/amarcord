@@ -5,6 +5,8 @@ from enum import Enum
 from enum import auto
 from pathlib import Path
 from typing import Generator
+from typing import List
+from typing import Tuple
 
 from amarcord.amici.cheetah.parser import cheetah_read_crawler_config_file
 from amarcord.amici.cheetah.parser import cheetah_read_crawler_runs_table
@@ -214,7 +216,7 @@ def shallow_ingest_data_source(
                 )
 
 
-def deep_ingest_data_source(ds: DBLinkedDataSource, db: DB, conn: Connection) -> None:
+def deep_ingest_data_source(ds: DBLinkedDataSource, db: DB, conn: Connection) -> int:
     with conn.begin():
         ds_id = db.add_data_source(conn, ds.data_source)
         for hfr in ds.hit_finding_results:
@@ -243,11 +245,12 @@ def deep_ingest_data_source(ds: DBLinkedDataSource, db: DB, conn: Connection) ->
                         integration_parameters_id=intp_id,
                     ),
                 )
+        return ds_id
 
 
 @dataclass(frozen=True)
 class CheetahIngestResults:
-    number_of_ingested_data_sources: int
+    new_data_source_and_run_ids: List[Tuple[int, int]]
 
 
 def ingest_cheetah(
@@ -261,9 +264,9 @@ def ingest_cheetah(
     Ingest cheetah "testable" with custom DB object and connection. Not to be used from a script, since there,
     we want something simpler.
     """
-    number_of_ingested_data_sources = 0
     existing_indexings = db.retrieve_analysis_data_sources(conn)
     run_ids = set(db.retrieve_run_ids(conn, proposal_id))
+    result: List[Tuple[int, int]] = []
     for ds in cheetah_to_database(config_file):
         run_id = ds.data_source.run_id
         if run_id not in run_ids:
@@ -290,15 +293,13 @@ def ingest_cheetah(
                     f"Data source {existing_ds.data_source.id}: difference: {comparison}"
                 )
                 shallow_ingest_data_source(ds, existing_ds, db, conn)
-                number_of_ingested_data_sources += 1
+                result.append((existing_ds.data_source.id, existing_ds.data_source.run_id))  # type: ignore
                 already_ingested = True
                 break
         if not already_ingested:
             logger.info(
                 f"Run {run_id}: new DS, deep ingest; data source: {ds.data_source}"
             )
-            deep_ingest_data_source(ds, db, conn)
-            number_of_ingested_data_sources += 1
-    return CheetahIngestResults(
-        number_of_ingested_data_sources=number_of_ingested_data_sources
-    )
+            ds_id = deep_ingest_data_source(ds, db, conn)
+            result.append((ds_id, ds.data_source.run_id))  # type: ignore
+    return CheetahIngestResults(new_data_source_and_run_ids=result)

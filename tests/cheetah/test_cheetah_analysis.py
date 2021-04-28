@@ -155,7 +155,7 @@ def test_ingest_cheetah_idempotent(db: DB) -> None:
             ProposalId(1),
             force_run_creation=False,
         )
-        assert first_ingest.number_of_ingested_data_sources == 2
+        assert len(first_ingest.new_data_source_and_run_ids) == 2
         analysis_results = db.retrieve_sample_based_analysis(conn)
         assert len(analysis_results) == 1
         assert len(analysis_results[0].data_sources) == 2
@@ -168,7 +168,7 @@ def test_ingest_cheetah_idempotent(db: DB) -> None:
             ProposalId(1),
             force_run_creation=False,
         )
-        assert second_ingest.number_of_ingested_data_sources == 0
+        assert not second_ingest.new_data_source_and_run_ids
 
 
 def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
@@ -204,7 +204,7 @@ def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
             ProposalId(1),
             force_run_creation=False,
         )
-        assert first_ingest.number_of_ingested_data_sources == 2
+        assert len(first_ingest.new_data_source_and_run_ids) == 2
 
         # The updated directory is the same as the normal one, but has a different "min SNR" value.
         # Doesn't matter which value you change, as long as the data source (i.e. the source files) stay the same.
@@ -215,4 +215,4 @@ def test_ingest_cheetah_dont_create_new_data_source(db: DB) -> None:
             ProposalId(1),
             force_run_creation=False,
         )
-        assert second_ingest.number_of_ingested_data_sources == 2
+        assert len(second_ingest.new_data_source_and_run_ids) == 2
