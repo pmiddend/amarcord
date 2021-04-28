@@ -94,7 +94,7 @@ async def karabo_loop(
                             ingest_karabo_action(
                                 action, ONLINE_SOURCE_NAME, conn, db, proposal_id
                             )
-            except:
+            except Exception as e:
                 error_index = time()
                 pickled_fn = Path(f"error-data-frame-{error_index}.pickle")
                 pickled_bridge_fn = Path(
@@ -110,7 +110,7 @@ async def karabo_loop(
                     )
                 with pickled_bridge_fn.open("wb") as error_file:
                     pickle.dump(slicer, error_file, protocol=pickle.HIGHEST_PROTOCOL)
-                continue
+                raise e
 
             for run_id, run_metadata in slicer.run_history.items():
                 karabo_export.runs[RunId(run_id)] = TrainRange(
