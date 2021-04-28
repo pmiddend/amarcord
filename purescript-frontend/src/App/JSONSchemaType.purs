@@ -32,9 +32,17 @@ type JSONArrayData = {
   , items :: JSONSchemaType
   }
 
+data JSONSchemaStringFormat = JSONStringDateTime
+                            | JSONStringDuration
+                            | JSONStringUserName
+                            | JSONStringTag
+
+derive instance eqJSONSchemaStringFormat :: Eq JSONSchemaStringFormat
+derive instance ordJSONSchemaStringFormat :: Ord JSONSchemaStringFormat
+
 data JSONSchemaType
   = JSONNumber JSONNumberData
-  | JSONString
+  | JSONString (Maybe JSONSchemaStringFormat)
   | JSONArray JSONArrayData
   | JSONComments
   | JSONInteger JSONIntegerData
@@ -48,7 +56,7 @@ derive instance eqJSONSchemaType :: Eq JSONSchemaType
 derive instance ordJSONSchemaType :: Ord JSONSchemaType
 
 instance showJsonSchema :: Show JSONSchemaType where
-  show JSONString = "string"
+  show (JSONString _) = "string"
   show (JSONArray ad) = "array"
   show (JSONInteger _) = "int"
   show JSONComments = "comments"
@@ -74,7 +82,14 @@ instance jsonSchemaTypeDecode :: DecodeJson JSONSchemaType where
       "integer" -> do
         format <- obj .:? "format"
         pure (JSONInteger { format })
-      "string" -> pure JSONString
+      "string" -> do
+        format <- obj .:? "format"
+        pure case format of
+          Just "date-time" -> JSONString (Just JSONStringDateTime)
+          Just "duration" -> JSONString (Just JSONStringDuration)
+          Just "user-name" -> JSONString (Just JSONStringUserName)
+          Just "tag" -> JSONString (Just JSONStringTag)
+          _ -> (JSONString Nothing)
       "array" -> do
         minItems <- obj .:? "minItems"
         maxItems <- obj .:? "maxItems"

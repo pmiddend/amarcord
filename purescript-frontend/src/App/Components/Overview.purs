@@ -1,14 +1,41 @@
 module App.Components.Overview where
 
-import App.API (AttributiResponse, MiniSamplesResponse, OverviewResponse, changeRunSample, retrieveAttributi, retrieveMiniSamples, retrieveOverview)
+import App.API
+  ( AttributiResponse
+  , MiniSamplesResponse
+  , OverviewResponse
+  , changeRunSample
+  , retrieveAttributi
+  , retrieveMiniSamples
+  , retrieveOverview
+  )
 import App.AppMonad (AppMonad, log)
 import App.AssociatedTable (AssociatedTable(..))
-import App.Attributo (Attributo, attributoSuffix, descriptiveAttributoText, qualifiedAttributoName)
+import App.Attributo
+  ( Attributo
+  , attributoSuffix
+  , descriptiveAttributoText
+  , qualifiedAttributoName
+  )
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Comment (Comment)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
-import App.HalogenUtils (classList, errorText, faIcon, scope, singleClass)
-import App.JSONSchemaType (JSONSchemaType(..))
+import App.Formatting
+  ( floatNumberToString
+  , intToString
+  , parseExternalDate
+  , prettyPrintExternalDate
+  )
+import App.HalogenUtils
+  ( AlertType(..)
+  , classList
+  , errorText
+  , faIcon
+  , makeAlert
+  , scope
+  , singleClass
+  )
+import App.JSONSchemaType (JSONSchemaStringFormat(..), JSONSchemaType(..))
 import App.Logging (LogLevel(..))
 import App.MiniSample (MiniSample)
 import App.Overview (OverviewRow, OverviewCell, findCellInRow)
@@ -19,19 +46,24 @@ import App.Utils (toggleSetElement)
 import Control.Applicative (pure)
 import Control.Apply ((<*>))
 import Control.Bind (bind, discard, (>>=))
-import Data.Argonaut (Json, JsonDecodeError, caseJson, decodeJson, printJsonDecodeError, toNumber)
+import Data.Argonaut
+  ( Json
+  , JsonDecodeError
+  , caseJson
+  , decodeJson
+  , printJsonDecodeError
+  , toNumber
+  )
 import Data.Array (filter, find, head, length, singleton, sortBy)
 import Data.Either (Either(..))
 import Data.Eq ((/=), (==), class Eq)
 import Data.Foldable (foldMap, intercalate)
-import Data.Formatter.Number (Formatter(..), format)
 import Data.Function (const, identity, (<<<), (>>>))
 import Data.Functor (map, (<$>))
 import Data.HeytingAlgebra ((&&), (||))
 import Data.Int (fromString, round)
 import Data.Lens (to, toArrayOf)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Number.Format (fixed, toStringWith)
 import Data.Ord (class Ord)
 import Data.Semigroup ((<>))
 import Data.Set as Set
@@ -187,10 +219,6 @@ createUpdatedSortInput doInvertOrder a { sort, sortOrder } =
 isSortedBy :: State -> Attributo -> Boolean
 isSortedBy state a = state.overviewSorting.sort == qualifiedAttributoName a
 
--- Convert a number (not an integer) to a string with precision
-numberToString :: Number -> String
-numberToString = toStringWith (fixed 2)
-
 sampleSelect :: forall w. Array MiniSample -> Int -> Int -> HH.HTML w Action
 sampleSelect samples runId sampleSelectedId =
   let
@@ -213,8 +241,8 @@ numberToHtml :: forall w. TableRowContext -> JSONSchemaType -> Number -> HH.HTML
 numberToHtml trc typeSchema n = case typeSchema of
   JSONInteger id -> case id.format of
     Just "sample-id" -> sampleSelect trc.samples trc.runId (round n)
-    _ -> HH.text (format (Formatter { abbreviations: false, after: 0, before: 0, comma: true, sign: false }) n)
-  JSONNumber nd -> HH.text (numberToString n)
+    _ -> HH.text (intToString n)
+  JSONNumber nd -> HH.text (floatNumberToString n)
   _ -> errorText "Cannot convert from non-number type to HTML"
 
 -- Convert a list of comments (as JSON) to HTML
@@ -257,7 +285,7 @@ listToHtml attributo list = case attributo.typeSchema of
           ( caseJson
               (const "")
               show
-              numberToString
+              floatNumberToString
               identity
               (const "nested lists not supported")
               (const "objects not supported")
@@ -267,6 +295,14 @@ listToHtml attributo list = case attributo.typeSchema of
       HH.div_ (intercalate [ HH.text "," ] ((subItemToHtml >>> singleton) <$> list))
   _ -> errorText "list which is not an array"
 
+stringAttributoToHtml :: forall w. Attributo -> String -> HH.HTML w Action
+stringAttributoToHtml a s = case a.typeSchema of
+  JSONString (Just JSONStringDateTime) -> case parseExternalDate s of
+    Left e -> makeAlert AlertDanger ("invalid date time \"" <> s <> "\", not the right format: " <> e)
+    Right v -> HH.text (prettyPrintExternalDate v)
+  JSONString Nothing -> HH.text s
+  _ -> HH.text s
+
 -- Convert a general attributo cell as JSON (number, comments, ...) to HTML
 jsonToHtml :: forall w. TableRowContext -> Attributo -> Json -> HH.HTML w Action
 jsonToHtml trc attributo =
@@ -274,7 +310,7 @@ jsonToHtml trc attributo =
     (const (HH.text ""))
     (HH.text <<< show)
     (numberToHtml trc attributo.typeSchema)
-    HH.text
+    (stringAttributoToHtml attributo)
     (listToHtml attributo)
     (const (HH.text "object"))
 
@@ -310,7 +346,7 @@ render state =
         maybeOrderIcon = if isSortedBy state t then [ orderingToIcon state.overviewSorting.sortOrder, HH.text " " ] else []
 
         headerElements :: Array (HH.HTML w Action)
-        headerElements = ([ HH.span [ singleClass "text-muted" ] [ HH.text (show t.table <> ".") ], HH.text (descriptiveAttributoText t) ] )-- <> maybeSuffix)
+        headerElements = ([ HH.span [ singleClass "text-muted" ] [ HH.text (show t.table <> ".") ], HH.text (descriptiveAttributoText t) ]) -- <> maybeSuffix)
 
         updatedSortInput doInvertOrder = createUpdatedSortInput doInvertOrder t (state.overviewSorting)
 
