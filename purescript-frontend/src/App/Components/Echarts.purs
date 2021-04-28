@@ -7,7 +7,7 @@ import Data.Traversable (for_)
 import Data.Unit (Unit)
 import Effect (Effect)
 import Effect.Class (class MonadEffect, liftEffect)
-import Effect.Console (log)
+
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
@@ -20,6 +20,7 @@ import Web.DOM (Element)
 type ChartSeries
   = { name :: String
     , "type" :: String
+    , "symbol" :: String
     , "data" :: Array (Array Number)
     }
 

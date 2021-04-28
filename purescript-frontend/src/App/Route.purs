@@ -38,6 +38,12 @@ sortOrder = as sortToString sortFromString
 qualifiedAttributoName :: RouteDuplex String String -> RouteDuplex QualifiedAttributoName QualifiedAttributoName
 qualifiedAttributoName = as qanToString qanFromString
 
+sameRoute :: Route -> Route -> Boolean
+sameRoute Events Events = true
+sameRoute (Graphs _) (Graphs _) = true
+sameRoute (Overview _) (Overview _) = true
+sameRoute _ _ = false
+
 plotType :: RouteDuplex String String -> RouteDuplex PlotType PlotType
 plotType = as show plotTypeFromString
 

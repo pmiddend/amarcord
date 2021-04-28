@@ -104,6 +104,7 @@ render state =
                 [ { name: headline
                   , "type": show state.plotType
                   , "data": dataPoints
+                  , "symbol": if state.plotType == Line then "none" else "circle"
                   }
                 ]
             }
@@ -234,8 +235,8 @@ handleAction = case _ of
     H.modify_ \state -> state { yAxis = Just a }
     updateHash
   PlotTypeChange newType -> do
-    H.lift (log Info "plot type changed")
     H.modify_ \state -> state { plotType = newType }
+    updateHash
   RefreshTimeout -> do
     H.lift (log Info "Refreshing...")
     s <- H.get

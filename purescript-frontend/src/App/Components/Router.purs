@@ -4,14 +4,14 @@ import Prelude
 
 import App.AppMonad (AppMonad)
 import App.AssociatedTable (AssociatedTable(..))
+import App.Components.Events as EventsComp
 import App.Components.Graphs as GraphsComp
 import App.Components.Overview as Overview
-import App.Components.Events as EventsComp
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
 import App.PlotType (PlotType(..))
 import App.Root as Root
-import App.Route (Route(..), routeCodec)
+import App.Route (Route(..), routeCodec, sameRoute)
 import App.SortOrder (SortOrder(..))
 import Data.Either (hush)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -141,7 +141,7 @@ makeNavItem ::
   HH.HTML t163 Action
 makeNavItem route ({ title, link, fa }) =
   let
-    isActive = if route == Just link then [ "active" ] else []
+    isActive = if fromMaybe false (sameRoute link <$> route) then [ "active" ] else []
   in
     HH.li
       [ classList [ "nav-item" ] ]
