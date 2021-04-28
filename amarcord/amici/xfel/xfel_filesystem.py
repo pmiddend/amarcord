@@ -10,6 +10,8 @@ from amarcord.amici.xfel.karabo_expected_attributi import KaraboExpectedAttribut
 from amarcord.amici.xfel.karabo_online import compute_statistics
 from amarcord.amici.xfel.karabo_online import parse_configuration
 
+logger = logging.getLogger(__name__)
+
 
 class FileSystem2Attributo:
     def __init__(
@@ -74,8 +76,10 @@ class FileSystem2Attributo:
                         )
 
                         if unique_number_of_bunches.size > 1:
-                            raise ValueError(
-                                f"not implemented yet: number of bunches is {unique_number_of_bunches.size}"
+                            logger.warning(
+                                "number of bunches is %s: %s, taking the first one",
+                                unique_number_of_bunches.size,
+                                unique_number_of_bunches,
                             )
 
                         number_of_bunches = unique_number_of_bunches[0]
