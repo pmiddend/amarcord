@@ -143,7 +143,8 @@ class DBHitFindingResult:
     average_peaks_event: float
     average_resolution: float
     number_of_hits: int
-    hit_rate: float
+    # Very tricky: this led to infinitely ingested  hit rate results from Cheetah when we compared it.
+    hit_rate: float = field(compare=False)
     tag: Optional[str] = None
     comment: Optional[str] = None
 

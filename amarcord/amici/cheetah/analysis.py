@@ -1,12 +1,11 @@
 import logging
 from dataclasses import dataclass
 from dataclasses import replace
-from enum import Enum
-from enum import auto
 from pathlib import Path
 from typing import Generator
 from typing import List
 from typing import Tuple
+from typing import cast
 
 from amarcord.amici.cheetah.parser import cheetah_read_crawler_config_file
 from amarcord.amici.cheetah.parser import cheetah_read_crawler_runs_table
@@ -21,6 +20,7 @@ from amarcord.db.table_classes import DBHitFindingResult
 from amarcord.db.table_classes import DBLinkedDataSource
 from amarcord.db.table_classes import DBLinkedHitFindingResult
 from amarcord.db.table_classes import DBPeakSearchParameters
+from amarcord.util import find_by
 
 SOFTWARE_VERSION = None
 
@@ -158,64 +158,6 @@ def cheetah_to_database(config_file: Path) -> Generator[DBLinkedDataSource, None
         yield ds
 
 
-class DeepComparisonResult(Enum):
-    DATA_SOURCE_DIFFERS = auto()
-    HIT_FINDING_DIFFERS = auto()
-    INDEXING_DIFFERS = auto()
-    NO_DIFFERENCE = auto()
-
-
-def deep_compare_data_source(
-    left: DBLinkedDataSource, right: DBLinkedDataSource
-) -> DeepComparisonResult:
-    if left.data_source != right.data_source:
-        return DeepComparisonResult.DATA_SOURCE_DIFFERS
-    if len(left.hit_finding_results) != len(right.hit_finding_results):
-        return DeepComparisonResult.HIT_FINDING_DIFFERS
-    for left_hfr, right_hfr in zip(left.hit_finding_results, right.hit_finding_results):
-        if (
-            left_hfr.hit_finding_result != right_hfr.hit_finding_result
-            or left_hfr.hit_finding_parameters != right_hfr.hit_finding_parameters
-            or left_hfr.peak_search_parameters != right_hfr.peak_search_parameters
-        ):
-            return DeepComparisonResult.HIT_FINDING_DIFFERS
-        if left_hfr.indexing_results != right_hfr.indexing_results:
-            return DeepComparisonResult.INDEXING_DIFFERS
-    return DeepComparisonResult.NO_DIFFERENCE
-
-
-def shallow_ingest_data_source(
-    ds: DBLinkedDataSource, existing_ds: DBLinkedDataSource, db: DB, conn: Connection
-) -> None:
-    with conn.begin():
-        for hfr in ds.hit_finding_results:
-            psp_id = db.add_peak_search_parameters(conn, hfr.peak_search_parameters)
-            hfp_id = db.add_hit_finding_parameters(conn, hfr.hit_finding_parameters)
-            hfr_id = db.add_hit_finding_result(
-                conn,
-                replace(
-                    hfr.hit_finding_result,
-                    data_source_id=existing_ds.data_source.id,
-                    peak_search_parameters_id=psp_id,
-                    hit_finding_parameters_id=hfp_id,
-                ),
-            )
-
-            for ir in hfr.indexing_results:
-                ip_id = db.add_indexing_parameters(conn, ir.indexing_parameters)
-                intp_id = db.add_integration_parameters(conn, ir.integration_parameters)
-                db.add_indexing_result(
-                    conn,
-                    replace(
-                        ir.indexing_result,
-                        hit_finding_result_id=hfr_id,
-                        peak_search_parameters_id=psp_id,
-                        indexing_parameters_id=ip_id,
-                        integration_parameters_id=intp_id,
-                    ),
-                )
-
-
 def deep_ingest_data_source(ds: DBLinkedDataSource, db: DB, conn: Connection) -> int:
     with conn.begin():
         ds_id = db.add_data_source(conn, ds.data_source)
@@ -276,30 +218,49 @@ def ingest_cheetah(
             db.add_run(conn, proposal_id, run_id, None, RawAttributiMap({}))
             run_ids.add(run_id)
 
-        already_ingested = False
-        for existing_ds in existing_indexings:
-            comparison = deep_compare_data_source(ds, existing_ds)
-            if comparison == DeepComparisonResult.NO_DIFFERENCE:
-                logger.debug(
-                    f"Data source {existing_ds.data_source.id}: already ingested and is same"
-                )
-                already_ingested = True
-                break
-            if comparison in (
-                DeepComparisonResult.INDEXING_DIFFERS,
-                DeepComparisonResult.HIT_FINDING_DIFFERS,
-            ):
-                logger.info(
-                    f"Data source {existing_ds.data_source.id}: difference: {comparison}"
-                )
-                shallow_ingest_data_source(ds, existing_ds, db, conn)
-                result.append((existing_ds.data_source.id, existing_ds.data_source.run_id))  # type: ignore
-                already_ingested = True
-                break
-        if not already_ingested:
-            logger.info(
-                f"Run {run_id}: new DS, deep ingest; data source: {ds.data_source}"
-            )
+        existing_ds = find_by(
+            # pylint: disable=cell-var-from-loop
+            existing_indexings,
+            lambda eds: eds.data_source == ds.data_source,
+        )
+
+        # We haven't found the matching data source? So ingest everything
+        if existing_ds is None:
             ds_id = deep_ingest_data_source(ds, db, conn)
             result.append((ds_id, ds.data_source.run_id))  # type: ignore
+        else:
+            # We have found a matching data source, now ingest all hit finding results
+            for hfr in ds.hit_finding_results:
+                existing_hfr = find_by(
+                    existing_ds.hit_finding_results,
+                    # pylint: disable=cell-var-from-loop
+                    lambda ehfr: hfr.hit_finding_result == ehfr.hit_finding_result
+                    and hfr.hit_finding_parameters == ehfr.hit_finding_parameters
+                    and hfr.peak_search_parameters == ehfr.peak_search_parameters,
+                )
+
+                if existing_hfr is None:
+                    with conn.begin():
+                        # We haven't found the hit finding result, so ingest it
+                        psp_id = db.add_peak_search_parameters(
+                            conn, hfr.peak_search_parameters
+                        )
+                        hfp_id = db.add_hit_finding_parameters(
+                            conn, hfr.hit_finding_parameters
+                        )
+                        _hfr_id = db.add_hit_finding_result(
+                            conn,
+                            replace(
+                                hfr.hit_finding_result,
+                                peak_search_parameters_id=psp_id,
+                                hit_finding_parameters_id=hfp_id,
+                                data_source_id=existing_ds.data_source.id,
+                            ),
+                        )
+                        result.append(
+                            (
+                                cast(int, existing_ds.data_source.id),
+                                existing_ds.data_source.run_id,
+                            )
+                        )
     return CheetahIngestResults(new_data_source_and_run_ids=result)

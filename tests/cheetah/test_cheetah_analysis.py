@@ -1,20 +1,11 @@
 import logging
-from dataclasses import replace
 from pathlib import Path
 
-from amarcord.amici.cheetah.analysis import DeepComparisonResult
 from amarcord.amici.cheetah.analysis import cheetah_to_database
-from amarcord.amici.cheetah.analysis import deep_compare_data_source
 from amarcord.amici.cheetah.analysis import ingest_cheetah
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.table_classes import DBDataSource
-from amarcord.db.table_classes import DBHitFindingParameters
-from amarcord.db.table_classes import DBHitFindingResult
-from amarcord.db.table_classes import DBLinkedDataSource
-from amarcord.db.table_classes import DBLinkedHitFindingResult
-from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSample
 
 logging.basicConfig(
@@ -23,6 +14,7 @@ logging.basicConfig(
 
 
 def test_cheetah_to_database() -> None:
+    """Simply test if converting a cheetah configuration structure converts to our DB structures"""
     parent_path = Path(__file__).parent.parent / "cheetah"
     data_sources = list(cheetah_to_database(parent_path / "gui" / "crawler.config"))
 
@@ -34,89 +26,6 @@ def test_cheetah_to_database() -> None:
         parent_path / "hdf5" / "r0213-cry41" / "test.cxi"
     )
     assert len(data_sources[0].hit_finding_results[0].indexing_results) == 0
-
-
-def test_deep_compare_datasource_shallow() -> None:
-    """
-    Check if comparing two trees and a differing data source, our test really shows that it differs.
-    """
-    left = DBLinkedDataSource(
-        DBDataSource(
-            id=None,
-            run_id=1,
-            number_of_frames=1,
-            source=None,
-            tag=None,
-            comment=None,
-        ),
-        hit_finding_results=[],
-    )
-    right = replace(left, data_source=replace(left.data_source, number_of_frames=2))
-
-    # Simple compare (shallow) works
-    assert (
-        deep_compare_data_source(left, right)
-        == DeepComparisonResult.DATA_SOURCE_DIFFERS
-    )
-    # Comparing doesn't care about IDs
-    assert (
-        deep_compare_data_source(
-            left, replace(left, data_source=replace(left.data_source, id=1))
-        )
-        == DeepComparisonResult.NO_DIFFERENCE
-    )
-
-
-def test_deep_compare_datasource_deep() -> None:
-    """
-    This test has one data source and two hit finding results and we check if this is caught by our comparison function.
-    """
-    psp = DBPeakSearchParameters(id=None, method="method1", software="software1")
-    hfp = DBHitFindingParameters(
-        id=None, min_peaks=1, tag=None, comment=None, software=""
-    )
-    left_hfr = DBLinkedHitFindingResult(
-        DBHitFindingResult(
-            id=None,
-            data_source_id=None,
-            peak_search_parameters_id=1,
-            hit_finding_parameters_id=2,
-            result_filename="a",
-            peaks_filename="b",
-            result_type="",
-            average_resolution=0,
-            average_peaks_event=0,
-            number_of_hits=1,
-            hit_rate=0.2,
-            tag=None,
-            comment=None,
-        ),
-        peak_search_parameters=psp,
-        hit_finding_parameters=hfp,
-        indexing_results=[],
-    )
-    right_hfr = replace(
-        left_hfr,
-        hit_finding_result=replace(left_hfr.hit_finding_result, result_filename="b"),
-    )
-    left = DBLinkedDataSource(
-        DBDataSource(
-            id=None,
-            run_id=1,
-            number_of_frames=1,
-            source=None,
-            tag=None,
-            comment=None,
-        ),
-        hit_finding_results=[left_hfr],
-    )
-    right = replace(left, hit_finding_results=[right_hfr])
-
-    # Simple compare (shallow) works
-    assert (
-        deep_compare_data_source(left, right)
-        == DeepComparisonResult.HIT_FINDING_DIFFERS
-    )
 
 
 def test_ingest_cheetah_idempotent(db: DB) -> None:
