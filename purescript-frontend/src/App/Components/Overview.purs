@@ -24,6 +24,7 @@ import Data.Array (filter, find, head, length, singleton, sortBy)
 import Data.Either (Either(..))
 import Data.Eq ((/=), (==), class Eq)
 import Data.Foldable (foldMap, intercalate)
+import Data.Formatter.Number (Formatter(..), format)
 import Data.Function (const, identity, (<<<), (>>>))
 import Data.Functor (map, (<$>))
 import Data.HeytingAlgebra ((&&), (||))
@@ -212,7 +213,7 @@ numberToHtml :: forall w. TableRowContext -> JSONSchemaType -> Number -> HH.HTML
 numberToHtml trc typeSchema n = case typeSchema of
   JSONInteger id -> case id.format of
     Just "sample-id" -> sampleSelect trc.samples trc.runId (round n)
-    _ -> HH.text (show (round n))
+    _ -> HH.text (format (Formatter { abbreviations: false, after: 0, before: 0, comma: true, sign: false }) n)
   JSONNumber nd -> HH.text (numberToString n)
   _ -> errorText "Cannot convert from non-number type to HTML"
 
@@ -309,7 +310,7 @@ render state =
         maybeOrderIcon = if isSortedBy state t then [ orderingToIcon state.overviewSorting.sortOrder, HH.text " " ] else []
 
         headerElements :: Array (HH.HTML w Action)
-        headerElements = ([ HH.span [ singleClass "text-muted" ] [ HH.text (show t.table <> ".") ], HH.text (descriptiveAttributoText t) ] <> maybeSuffix)
+        headerElements = ([ HH.span [ singleClass "text-muted" ] [ HH.text (show t.table <> ".") ], HH.text (descriptiveAttributoText t) ] )-- <> maybeSuffix)
 
         updatedSortInput doInvertOrder = createUpdatedSortInput doInvertOrder t (state.overviewSorting)
 
