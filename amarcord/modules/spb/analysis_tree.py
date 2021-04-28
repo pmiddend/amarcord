@@ -85,19 +85,8 @@ def hfr_num_indexed(hfr: DBLinkedHitFindingResult) -> Optional[float]:
 
 
 def run_no_trains(r: DBRun) -> int:
-    first_train = r.attributi.select_value(AttributoId("first_train"))
-    last_train = r.attributi.select_value(AttributoId("last_train"))
-    assert first_train is None or isinstance(
-        first_train, int
-    ), f'Got {type(first_train)} instead of integer for "first_train"'
-    assert last_train is None or isinstance(
-        last_train, int
-    ), f'Got {type(last_train)} instead of integer for "last_train"'
-    return (
-        last_train - first_train
-        if first_train is not None and last_train is not None
-        else 0
-    )
+    tir = r.attributi.select_int(AttributoId("trains_in_run"))
+    return tir if tir is not None else 0
 
 
 def sample_train_count(runs: Dict[int, DBRun], k: DBSampleAnalysisResult) -> int:
