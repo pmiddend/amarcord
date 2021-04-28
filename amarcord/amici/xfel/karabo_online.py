@@ -265,7 +265,7 @@ def compute_statistics(
             elif attributo.action == KaraboAttributoAction.CHECK_IF_CONSTANT:
                 # noinspection PyArgumentList
                 unique_value, unique_index = np.unique(  # type: ignore
-                    cached_data,
+                    np.hstack(cached_data) if cached_data != [] else cached_data,
                     axis=attributo.action_axis,
                     return_index=True,
                 )
