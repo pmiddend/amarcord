@@ -35,7 +35,12 @@ logging.basicConfig(
 
 app = Flask(
     __name__,
-    static_folder=os.environ.get("AMARCORD_STATIC_FOLDER", "purescript-frontend/prod"),
+    static_folder=os.environ.get(
+        "AMARCORD_STATIC_FOLDER",
+        os.getcwd()
+        + "/purescript-frontend/"
+        + ("dist" if "AMARCORD_USE_DIST" in os.environ else "prod"),
+    ),
     static_url_path="/",
 )
 CORS(app)
