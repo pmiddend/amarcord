@@ -23,7 +23,6 @@ from amarcord.db.attributo_id import (
     AttributoId,
 )
 from amarcord.db.attributo_type import AttributoType
-from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
@@ -57,6 +56,7 @@ from amarcord.db.tables import (
 )
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.analysis_tree import compute_hit_rate_per_run
+from amarcord.modules.spb.analysis_tree import compute_indexing_rate_per_run
 from amarcord.query_parser import Row as QueryRow
 from amarcord.util import dict_union
 from amarcord.util import remove_duplicates_stable
@@ -149,8 +149,10 @@ class DB:
         }
         runs: List[DBRun] = self.retrieve_runs(conn, proposal_id, None)
 
-        hit_rate_per_run: Dict[int, float] = compute_hit_rate_per_run(
-            self.retrieve_analysis_data_sources(conn)
+        analysis = self.retrieve_analysis_data_sources(conn)
+        hit_rate_per_run: Dict[int, float] = compute_hit_rate_per_run(analysis)
+        indexing_rate_per_run: Dict[int, float] = compute_indexing_rate_per_run(
+            analysis
         )
 
         run_types = types[AssociatedTable.RUN]
@@ -158,11 +160,16 @@ class DB:
         for r in runs:
             sample_id = r.sample_id
             sample = samples.get(sample_id, None) if sample_id is not None else None
-            analysis_attributi = AttributiMap(types[AssociatedTable.ANALYSIS])
+            analysis_attributi = AttributiMap(types.get(AssociatedTable.ANALYSIS, {}))
             if r.id in hit_rate_per_run:
                 analysis_attributi.append_to_source(
                     OFFLINE_SOURCE_NAME,
                     {AttributoId("hit_rate"): hit_rate_per_run[r.id]},
+                )
+            if r.id in indexing_rate_per_run:
+                analysis_attributi.append_to_source(
+                    OFFLINE_SOURCE_NAME,
+                    {AttributoId("indexing_rate"): indexing_rate_per_run[r.id]},
                 )
             result.append(
                 {
@@ -483,14 +490,6 @@ class DB:
                     result[table] = attributi
                 else:
                     result[table].update(attributi)
-            result[AssociatedTable.ANALYSIS] = {
-                AttributoId("hit_rate"): DBAttributo(
-                    AttributoId("hit_rate"),
-                    "Hit rate",
-                    AssociatedTable.ANALYSIS,
-                    AttributoTypeDouble(suffix="%"),
-                )
-            }
         return result
 
     def retrieve_table_attributi(

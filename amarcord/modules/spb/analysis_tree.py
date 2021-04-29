@@ -245,3 +245,40 @@ def compute_hit_rate_per_run(dss: List[DBLinkedDataSource]) -> Dict[int, float]:
             x[0] for x in items
         )
     return hit_rate_per_run
+
+
+def compute_indexing_rate_per_run(dss: List[DBLinkedDataSource]) -> Dict[int, float]:
+    indexing_rate_per_run_accumulated: Dict[int, List[Tuple[int, float]]] = {}
+    for ds in dss:
+        run_id = ds.data_source.run_id
+        if not ds.hit_finding_results:
+            continue
+        last_hfr = sorted(
+            ds.hit_finding_results,
+            key=lambda hfr: cast(int, hfr.hit_finding_result.id),
+            reverse=True,
+        )[0]
+        if not last_hfr.indexing_results:
+            continue
+        last_ir = sorted(
+            last_hfr.indexing_results,
+            key=lambda ir: cast(int, ir.indexing_result.id),
+            reverse=True,
+        )[0]
+        if run_id not in indexing_rate_per_run_accumulated:
+            indexing_rate_per_run_accumulated[run_id] = []
+        indexing_rate_per_run_accumulated[run_id].append(
+            (
+                ds.data_source.number_of_frames,
+                last_ir.indexing_result.num_indexed
+                / ds.data_source.number_of_frames
+                * 100,
+            )
+        )
+
+    indexing_rate_per_run: Dict[int, float] = {}
+    for run_id, items in indexing_rate_per_run_accumulated.items():
+        indexing_rate_per_run[run_id] = sum(x[0] * x[1] for x in items) / sum(
+            x[0] for x in items
+        )
+    return indexing_rate_per_run

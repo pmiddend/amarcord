@@ -9,6 +9,7 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
@@ -405,6 +406,20 @@ class DBTables:
                     description="Proposal",
                     associated_table=AssociatedTable.RUN,
                     attributo_type=AttributoTypeInt(),
+                ),
+            },
+            AssociatedTable.ANALYSIS: {
+                AttributoId("hit_rate"): DBAttributo(
+                    AttributoId("hit_rate"),
+                    "Hit rate",
+                    AssociatedTable.ANALYSIS,
+                    AttributoTypeDouble(suffix="%"),
+                ),
+                AttributoId("indexing_rate"): DBAttributo(
+                    AttributoId("indexing_rate"),
+                    "Indexing rate",
+                    AssociatedTable.ANALYSIS,
+                    AttributoTypeDouble(suffix="%"),
                 ),
             },
         }
