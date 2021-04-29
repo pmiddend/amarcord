@@ -11,6 +11,7 @@ from amarcord.db.table_classes import DBLinkedIndexingResult
 from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSampleAnalysisResult
 from amarcord.modules.spb.analysis_tree import build_analysis_tree
+from amarcord.modules.spb.analysis_tree import compute_hit_rate_per_run
 from amarcord.modules.spb.analysis_tree import ds_hit_rate
 from amarcord.modules.spb.analysis_tree import ds_indexing_rate
 
@@ -311,3 +312,142 @@ def test_datasource_indexing_rate_multiple_hit_findings() -> None:
     )
 
     assert ir == 100
+
+
+def test_compute_hit_rate_per_run_empty() -> None:
+    assert not compute_hit_rate_per_run([])
+
+
+def test_compute_hit_rate_per_run_ds_without_hfr() -> None:
+    assert not compute_hit_rate_per_run(
+        [
+            DBLinkedDataSource(
+                DBDataSource(id=None, run_id=1, number_of_frames=100),
+                hit_finding_results=[],
+            )
+        ]
+    )
+
+
+def _mock_hit_finding_result(id_: int, hit_rate: float) -> DBLinkedHitFindingResult:
+    return DBLinkedHitFindingResult(
+        hit_finding_result=DBHitFindingResult(
+            id=id_,
+            peak_search_parameters_id=1,
+            hit_finding_parameters_id=1,
+            data_source_id=1,
+            result_type="",
+            average_resolution=0,
+            average_peaks_event=0,
+            number_of_hits=0,
+            hit_rate=hit_rate,
+            peaks_filename="",
+            result_filename="",
+        ),
+        peak_search_parameters=None,  # type: ignore
+        hit_finding_parameters=None,  # type: ignore
+        indexing_results=None,  # type: ignore
+    )
+
+
+def test_compute_hit_rate_per_run_ds_with_single_hfr() -> None:
+    """
+    Here we test:
+
+    - 1 run
+    - 1 data source
+    - 1 hit finding result
+    """
+    assert (
+        compute_hit_rate_per_run(
+            [
+                DBLinkedDataSource(
+                    DBDataSource(id=None, run_id=1, number_of_frames=100),
+                    hit_finding_results=[_mock_hit_finding_result(1, 5)],
+                )
+            ]
+        )
+        == {1: 5}
+    )
+
+
+def test_compute_hit_rate_per_run_ds_with_two_hfr() -> None:
+    """
+    Here we test:
+
+    - 1 run
+    - 1 data source
+    - 2 hit finding results
+
+    The last hit finding result should be taken
+    """
+    assert (
+        compute_hit_rate_per_run(
+            [
+                DBLinkedDataSource(
+                    DBDataSource(id=None, run_id=1, number_of_frames=100),
+                    hit_finding_results=[
+                        _mock_hit_finding_result(1, 5),
+                        _mock_hit_finding_result(2, 10),
+                    ],
+                )
+            ]
+        )
+        == {1: 10}
+    )
+
+
+def test_compute_hit_rate_per_run_two_ds_one_run_one_hfr() -> None:
+    """
+    Here we test:
+
+    - 1 run
+    - 2 data sources
+    - 1 hit finding result (for one of the DS)
+    """
+    assert (
+        compute_hit_rate_per_run(
+            [
+                DBLinkedDataSource(
+                    DBDataSource(id=None, run_id=1, number_of_frames=100),
+                    hit_finding_results=[
+                        _mock_hit_finding_result(1, 5),
+                    ],
+                ),
+                DBLinkedDataSource(
+                    DBDataSource(id=None, run_id=1, number_of_frames=200),
+                    hit_finding_results=[],
+                ),
+            ]
+        )
+        == {1: 5}
+    )
+
+
+def test_compute_hit_rate_per_run_two_ds_one_run_two_hfr() -> None:
+    """
+    Here we test:
+
+    - 1 run
+    - 2 data sources
+    - 2 hit finding results
+    """
+    assert (
+        compute_hit_rate_per_run(
+            [
+                DBLinkedDataSource(
+                    DBDataSource(id=None, run_id=1, number_of_frames=100),
+                    hit_finding_results=[
+                        _mock_hit_finding_result(1, 5),
+                    ],
+                ),
+                DBLinkedDataSource(
+                    DBDataSource(id=None, run_id=1, number_of_frames=200),
+                    hit_finding_results=[
+                        _mock_hit_finding_result(1, 10),
+                    ],
+                ),
+            ]
+        )
+        == {1: (5 * 100 + 10 * 200) / 300}
+    )

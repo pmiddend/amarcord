@@ -194,6 +194,9 @@ class PlotDialog(QDialog):
             if self._filter_query(
                 overview_row_to_query_row(r, self._attributi_metadata)
             )
+            and r[self._x_axis.table].select_value(self._x_axis.attributo.name)
+            is not None
+            and r[self._y_axis.table].select_value(self._y_axis.attributo.name)
         ]
         if self._type == _PlotType.LINE:
             return pd.DataFrame(

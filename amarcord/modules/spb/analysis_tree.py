@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 from typing import cast
 
@@ -219,3 +220,28 @@ def build_analysis_tree(
         )
         for k in analysis
     ]
+
+
+def compute_hit_rate_per_run(dss: List[DBLinkedDataSource]) -> Dict[int, float]:
+    hit_rate_per_run_accumulated: Dict[int, List[Tuple[int, float]]] = {}
+    for ds in dss:
+        run_id = ds.data_source.run_id
+        if not ds.hit_finding_results:
+            continue
+        if run_id not in hit_rate_per_run_accumulated:
+            hit_rate_per_run_accumulated[run_id] = []
+        last_hfr = sorted(
+            ds.hit_finding_results,
+            key=lambda hfr: cast(int, hfr.hit_finding_result.id),
+            reverse=True,
+        )[0]
+        hit_rate_per_run_accumulated[run_id].append(
+            (ds.data_source.number_of_frames, last_hfr.hit_finding_result.hit_rate)
+        )
+
+    hit_rate_per_run: Dict[int, float] = {}
+    for run_id, items in hit_rate_per_run_accumulated.items():
+        hit_rate_per_run[run_id] = sum(x[0] * x[1] for x in items) / sum(
+            x[0] for x in items
+        )
+    return hit_rate_per_run

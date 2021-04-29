@@ -458,6 +458,12 @@ selectedColumnChooser state =
                   , HH.div [ singleClass "list-group " ]
                       (makeRow <$> (filter (\a -> a.table == Run) state.attributi))
                   ]
+              , HH.div [ singleClass "col" ]
+                  [ HH.h3_ [ HH.text "Analysis" ]
+                  , disableRow Analysis
+                  , HH.div [ singleClass "list-group " ]
+                      (makeRow <$> (filter (\a -> a.table == Analysis) state.attributi))
+                  ]
               ]
           ]
       ]

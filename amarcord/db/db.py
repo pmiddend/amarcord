@@ -23,11 +23,13 @@ from amarcord.db.attributo_id import (
     AttributoId,
 )
 from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.constants import OFFLINE_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.karabo import Karabo
@@ -54,6 +56,7 @@ from amarcord.db.tables import (
     DBTables,
 )
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.spb.analysis_tree import compute_hit_rate_per_run
 from amarcord.query_parser import Row as QueryRow
 from amarcord.util import dict_union
 from amarcord.util import remove_duplicates_stable
@@ -110,11 +113,12 @@ class DB:
         self.tables = tables
 
     def overview_update_time(self, conn: Connection) -> Optional[datetime.datetime]:
-        max_run, max_sample = conn.execute(
+        max_run, max_sample, max_hfr = conn.execute(
             sa.select(
                 [
                     sa.func.max(self.tables.run.c.modified),
                     sa.func.max(self.tables.sample.c.modified),
+                    sa.func.max(self.tables.hit_finding_results.c.created),
                 ]
             ).select_from(self.tables.run.outerjoin(self.tables.sample))
         ).fetchone()
@@ -122,7 +126,7 @@ class DB:
         # which downstream should handle as "list
         # needs update!"
         return (
-            max(max_run, max_sample)
+            max(max_run, max_sample, max_hfr)
             if max_run is not None and max_sample is not None
             else None
         )
@@ -145,17 +149,28 @@ class DB:
         }
         runs: List[DBRun] = self.retrieve_runs(conn, proposal_id, None)
 
+        hit_rate_per_run: Dict[int, float] = compute_hit_rate_per_run(
+            self.retrieve_analysis_data_sources(conn)
+        )
+
         run_types = types[AssociatedTable.RUN]
         result: List[OverviewAttributi] = []
         for r in runs:
             sample_id = r.sample_id
             sample = samples.get(sample_id, None) if sample_id is not None else None
+            analysis_attributi = AttributiMap(types[AssociatedTable.ANALYSIS])
+            if r.id in hit_rate_per_run:
+                analysis_attributi.append_to_source(
+                    OFFLINE_SOURCE_NAME,
+                    {AttributoId("hit_rate"): hit_rate_per_run[r.id]},
+                )
             result.append(
                 {
                     AssociatedTable.SAMPLE: sample
                     if sample is not None
                     else AttributiMap(sample_types, None),
                     AssociatedTable.RUN: _run_to_attributi(r, run_types),
+                    AssociatedTable.ANALYSIS: analysis_attributi,
                 }
             )
         return result
@@ -468,6 +483,14 @@ class DB:
                     result[table] = attributi
                 else:
                     result[table].update(attributi)
+            result[AssociatedTable.ANALYSIS] = {
+                AttributoId("hit_rate"): DBAttributo(
+                    AttributoId("hit_rate"),
+                    "Hit rate",
+                    AssociatedTable.ANALYSIS,
+                    AttributoTypeDouble(suffix="%"),
+                )
+            }
         return result
 
     def retrieve_table_attributi(

@@ -61,8 +61,8 @@ def _plottable_attributo_type(t: AttributoType) -> bool:
     return isinstance(t, (AttributoTypeDouble, AttributoTypeInt, AttributoTypeDuration))
 
 
-def _attributo_sort_key(t: TabledAttributo) -> Tuple[str, bool, str]:
-    return t.table.name, t.attributo.name != "id", t.attributo.name
+def _attributo_sort_key(t: TabledAttributo) -> Tuple[int, bool, str]:
+    return t.table.sort_key(), t.attributo.name != "id", t.attributo.name
 
 
 class OverviewTable(QWidget):

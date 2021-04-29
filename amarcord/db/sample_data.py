@@ -1,7 +1,6 @@
 import datetime
 from random import choice
 from random import randint
-from random import random
 from random import randrange
 from random import seed
 from random import uniform
@@ -143,19 +142,6 @@ def create_sample_data(db: DB) -> None:
         )
         db.add_attributo(
             conn,
-            "hit_rate",
-            description="Hit Rate",
-            associated_table=AssociatedTable.RUN,
-            prop_type=AttributoTypeDouble(
-                range=NumericRange(
-                    0, minimum_inclusive=True, maximum=100, maximum_inclusive=True
-                ),
-                suffix="%",
-                standard_unit=False,
-            ),
-        )
-        db.add_attributo(
-            conn,
             "first_train",
             description="First Train",
             associated_table=AssociatedTable.RUN,
@@ -197,7 +183,6 @@ def create_sample_data(db: DB) -> None:
                 {
                     AttributoId("status"): "running_online",
                     AttributoId("repetition_rate"): [randrange(0, 20)],
-                    AttributoId("hit_rate"): random() * 100,
                     AttributoId("first_train"): current_train + 1,
                     AttributoId("last_train"): current_train + train_count,
                 },
@@ -207,7 +192,6 @@ def create_sample_data(db: DB) -> None:
                 {
                     AttributoId("status"): "running_offline",
                     AttributoId("repetition_rate"): [randrange(0, 20)],
-                    AttributoId("hit_rate"): random() * 100,
                     AttributoId("first_train"): current_train * 10000 + 1,
                     AttributoId("last_train"): current_train * 10000 + train_count,
                 },
@@ -218,7 +202,6 @@ def create_sample_data(db: DB) -> None:
             #     {
             #         AttributoId("status"): "running_manual",
             #         AttributoId("repetition_rate"): [randrange(0, 20)],
-            #         AttributoId("hit_rate"): random() * 100,
             #         AttributoId("first_train"): current_train * (-10000) + 1,
             #         AttributoId("last_train"): current_train * (-10000) + train_count,
             #     },
@@ -326,7 +309,7 @@ def create_sample_data(db: DB) -> None:
                             average_resolution=1,
                             number_of_hits=1000,
                             average_peaks_event=0,
-                            hit_rate=30,
+                            hit_rate=uniform(0, 100),
                             tag=None,
                             comment=None,
                         ),
