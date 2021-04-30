@@ -4,6 +4,7 @@ import Prelude
 
 import Affjax (Error, Response, printError)
 import Affjax as AX
+import Affjax.RequestBody (RequestBody(..))
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.StatusCode (StatusCode(..))
 import App.AppMonad (AppMonad)
@@ -16,6 +17,9 @@ import Data.Argonaut (class DecodeJson, JsonDecodeError)
 import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
+import Data.FormURLEncoded (fromArray)
+import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 import Halogen (liftAff)
 
 type OverviewResponse
@@ -51,13 +55,13 @@ handleResponse response = do
           Right jsonResult -> pure (Right jsonResult)
         StatusCode sc -> pure (Left ("Status code: " <> show sc <> "\n\nJSON response:\n" <> stringifyWithIndent 2 httpResult.body))
 
-retrieveOverview :: AppMonad (Either String OverviewResponse)
-retrieveOverview = do
+retrieveOverview :: Maybe String -> AppMonad (Either String OverviewResponse)
+retrieveOverview query = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
     url = (baseUrl' <> "/api/overview")
-  response <- liftAff $ AX.get ResponseFormat.json url
+  response <- liftAff $ AX.post ResponseFormat.json url (Just (FormURLEncoded (fromArray ([Tuple "query" query]))))
   handleResponse response
 
 retrieveAttributi :: AppMonad (Either String AttributiResponse)

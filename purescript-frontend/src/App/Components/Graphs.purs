@@ -266,7 +266,7 @@ type ParentOutput
 
 -- Fetch runs and attributi
 fetchData :: GraphsRouteInput -> AppMonad (RemoteData String ParentOutput)
-fetchData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview <*> retrieveAttributi)
+fetchData _ = fromEither <$> (fanoutApplicative <$> retrieveOverview Nothing <*> retrieveAttributi)
 
 component ::
   forall query output.

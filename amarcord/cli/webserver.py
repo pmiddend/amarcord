@@ -8,6 +8,7 @@ from flask import Flask
 from flask import request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
+from werkzeug.utils import redirect
 
 from amarcord.config import load_user_config
 from amarcord.db.associated_table import AssociatedTable
@@ -17,16 +18,19 @@ from amarcord.db.attributi import (
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.db import DB
 from amarcord.db.db import OverviewAttributi
+from amarcord.db.db import overview_row_to_query_row
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import create_sample_data
 from amarcord.db.table_classes import DBEvent
+from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.json import JSONArray
 from amarcord.modules.json import JSONDict
+from amarcord.query_parser import parse_query
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -88,6 +92,11 @@ def _convert_mini_sample(r: DBMiniSample) -> JSONDict:
     return {"id": r.sample_id, "name": r.sample_name}
 
 
+@app.route("/")
+def hello():
+    return redirect("/index.html")
+
+
 @app.route("/api/minisamples")
 def retrieve_mini_samples() -> JSONDict:
     proposal_id = int(os.environ["AMARCORD_PROPOSAL_ID"])
@@ -110,7 +119,7 @@ def change_run_sample(run_id: int, sample_id: int) -> JSONDict:
         return {}
 
 
-@app.route("/api/overview")
+@app.route("/api/overview", methods=["POST"])
 def retrieve_overview() -> JSONDict:
     proposal_id = int(os.environ["AMARCORD_PROPOSAL_ID"])
     global db
@@ -118,14 +127,23 @@ def retrieve_overview() -> JSONDict:
         # since = request.args.get("since", None)
         # if since is not None:
         #     since = datetime.datetime.fromisoformat(since)
-        return {
-            "overviewRows": [
-                _convert_overview(r)
-                for r in db.retrieve_overview(
-                    conn, ProposalId(proposal_id), db.retrieve_attributi(conn)
-                )
+        overview_rows = db.retrieve_overview(
+            conn, ProposalId(proposal_id), db.retrieve_attributi(conn)
+        )
+        query = request.form.get("query")
+        if query is not None and query != "":
+            metadata = [
+                TabledAttributo(k, attributo)
+                for k, attributi in db.retrieve_attributi(conn).items()
+                for attributo in attributi.values()
             ]
-        }
+            filter_query = parse_query(query, set(k.technical_id() for k in metadata))
+            overview_rows = [
+                row
+                for row in overview_rows
+                if filter_query(overview_row_to_query_row(row, metadata))
+            ]
+        return {"overviewRows": [_convert_overview(r) for r in overview_rows]}
 
 
 def _convert_metadata(table: AssociatedTable, v: DBAttributo) -> JSONDict:

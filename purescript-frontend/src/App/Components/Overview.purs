@@ -44,7 +44,7 @@ import Effect.Timer (clearTimeout, setTimeout)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.HTML.Properties (ScopeValue(..))
+import Halogen.HTML.Properties (InputType(..), ScopeValue(..))
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource (EventSource, Finalizer(..), effectEventSource, emit)
 import Network.RemoteData (RemoteData(..), fromEither)
@@ -58,6 +58,8 @@ type State
     , miniSamples :: Array MiniSample
     , selectedAttributi :: Set.Set QualifiedAttributoName
     , overviewSorting :: OverviewRouteInput
+    , previousFilterQuery :: String
+    , nextFilterQuery :: String
     }
 
 data OverviewData
@@ -74,6 +76,8 @@ data Action
   | ToggleTable AssociatedTable
   | RefreshTimeout
   | SampleChange Int Int
+  | QueryChange String
+  | QuerySubmit
 
 initialState :: ChildInput OverviewRouteInput OverviewData -> State
 initialState { input: overviewSorting, remoteData: OverviewData overviewResponse attributiResponse miniSampleResponse } =
@@ -82,6 +86,8 @@ initialState { input: overviewSorting, remoteData: OverviewData overviewResponse
   , attributi: attributiResponse.attributi
   , miniSamples: miniSampleResponse.samples
   , overviewSorting
+  , nextFilterQuery: ""
+  , previousFilterQuery: ""
   }
 
 component ::
@@ -92,7 +98,7 @@ component ::
     }
     output
     AppMonad
-component = parentComponent fetchData childComponent
+component = parentComponent (fetchData Nothing) childComponent
 
 childComponent :: forall q. H.Component HH.HTML q (ChildInput OverviewRouteInput OverviewData) ParentError AppMonad
 childComponent =
@@ -131,6 +137,21 @@ writeLocalStorage ls = do
   s <- localStorage w
   setItem "overview-selected-columns" (stringify (encodeJson ls)) s
 
+refresh :: forall slots. H.HalogenM State Action slots ParentError AppMonad Unit
+refresh = do
+  s <- H.get
+  remoteData <- H.lift (fetchData (Just s.previousFilterQuery) s.overviewSorting)
+  case remoteData of
+    Success (OverviewData newOverviewRows newAttributi newMiniSamples) ->
+      H.modify_ \state ->
+      state
+      { overviewRows = resort s.overviewSorting newOverviewRows.overviewRows
+      , attributi = newAttributi.attributi
+      , miniSamples = newMiniSamples.samples
+      }
+    _ -> pure unit
+
+
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
   Initialize -> do
@@ -143,22 +164,16 @@ handleAction = case _ of
       Just { selectedAttributi } -> do
         H.lift (log Info "got something in local storage now")
         H.modify_ \state -> state { selectedAttributi = selectedAttributi }
+  QuerySubmit -> do
+    H.modify_ \state -> state { previousFilterQuery = state.nextFilterQuery }
+    refresh
+  QueryChange newQuery -> H.modify_ \state -> state { nextFilterQuery = newQuery }
   SampleChange runId newSampleId -> do
     result <- H.lift (changeRunSample runId newSampleId)
     pure unit
   RefreshTimeout -> do
     H.lift (log Info "Refreshing...")
-    s <- H.get
-    remoteData <- H.lift (fetchData s.overviewSorting)
-    case remoteData of
-      Success (OverviewData newOverviewRows newAttributi newMiniSamples) ->
-        H.modify_ \state ->
-          state
-            { overviewRows = resort s.overviewSorting newOverviewRows.overviewRows
-            , attributi = newAttributi.attributi
-            , miniSamples = newMiniSamples.samples
-            }
-      _ -> pure unit
+    refresh
     _ <- H.subscribe timerEventSource
     pure unit
   Resort newInput ->
@@ -181,9 +196,9 @@ handleAction = case _ of
     H.modify_ \state -> state { selectedAttributi = newSelected }
 
 -- Fetch runs and attributi
-fetchData :: OverviewRouteInput -> AppMonad (RemoteData String OverviewData)
-fetchData _ = do
-  overview <- retrieveOverview
+fetchData :: Maybe String -> OverviewRouteInput -> AppMonad (RemoteData String OverviewData)
+fetchData q _ = do
+  overview <- retrieveOverview q
   attributi <- retrieveAttributi
   samples <- retrieveMiniSamples
   let
@@ -405,15 +420,30 @@ selectedColumnChooser state =
         ]
   in
     HH.div_
-      [ HH.p_
-          [ HH.button
-              [ classList [ "btn", "btn-secondary" ]
-              , HP.type_ HP.ButtonButton
-              , HP.attr (HH.AttrName "data-toggle") "collapse"
-              , HP.attr (HH.AttrName "data-target") "#columnChooser"
-              ]
-              [ faIcon "columns", HH.text " Choose columns" ]
+      [ HH.div [ singleClass "row" ] [
+          HH.div [ singleClass "col" ] [
+            HH.p_
+            [ HH.button
+                [ classList [ "btn", "btn-secondary" ]
+                , HP.type_ HP.ButtonButton
+                , HP.attr (HH.AttrName "data-toggle") "collapse"
+                , HP.attr (HH.AttrName "data-target") "#columnChooser"
+                ]
+                [ faIcon "columns", HH.text " Choose columns" ]
+            ]
           ]
+        , HH.div [ singleClass "col" ] [
+            HH.div [ classList [ "input-group", "mb-3" ] ] [
+              HH.input [
+                   HP.type_ InputText
+                 , HE.onValueChange (Just <<< QueryChange)
+                 , HP.placeholder "Filter query", singleClass "form-control" ]
+            , HH.div [ classList [ "input-group-append" ] ] [
+                HH.button [ classList [ "btn" ], HE.onClick (const (Just QuerySubmit)) ] [ HH.text "Apply" ]
+            ]
+          ]
+        ]
+      ] 
       , HH.div [ singleClass "collapse", HP.id_ "columnChooser" ]
           [ HH.div [ singleClass "row" ]
               [ HH.div [ singleClass "col" ]
