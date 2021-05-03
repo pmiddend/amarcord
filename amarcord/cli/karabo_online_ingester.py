@@ -1,13 +1,14 @@
 import logging
 import pickle
 from pathlib import Path
+from typing import Optional
 
 from tap import Tap
 
 from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
+from amarcord.amici.xfel.karabo_configuration import parse_karabo_configuration_file
 from amarcord.amici.xfel.karabo_general import ingest_attributi
 from amarcord.amici.xfel.karabo_general import ingest_karabo_action
-from amarcord.amici.xfel.karabo_online import load_configuration
 from amarcord.db.constants import ONLINE_SOURCE_NAME
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class Arguments(Tap):
     dump_path: str  # Path with the dumped files from Karabo
+    maximum_files: Optional[int] = None  # Number of maximum files to ingest
     karabo_config_file: str = "./config.yml"  # Karabo configuration file
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
 
@@ -36,7 +38,7 @@ class Arguments(Tap):
 def main() -> None:
     args = Arguments(underscores_to_dashes=True).parse_args()
 
-    config = load_configuration(args.karabo_config_file)
+    config = parse_karabo_configuration_file(Path(args.karabo_config_file))
 
     dbcontext = DBContext(args.db_connection_url)
 
@@ -47,7 +49,7 @@ def main() -> None:
 
     db = DB(dbcontext, tables)
 
-    karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
+    karabo_data = KaraboBridgeSlicer(config)
 
     with db.connect() as conn:
         if args.db_connection_url.startswith("sqlite://") and not db.have_proposals(
@@ -65,6 +67,8 @@ def main() -> None:
 
     i = 0
     for fn in sorted(files, key=lambda x: natural_key(x.name)):
+        if args.maximum_files is not None and i >= args.maximum_files:
+            break
         if i % 1000 == 0:
             logger.info("still ingesting, current frame %s", fn)
         i += 1

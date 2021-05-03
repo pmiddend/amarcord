@@ -6,7 +6,6 @@ import numpy as np
 from amarcord.amici.xfel.karabo_attributo import KaraboAttributo
 from amarcord.amici.xfel.karabo_attributo_action import KaraboAttributoAction
 from amarcord.amici.xfel.karabo_general import karabo_attributi_to_attributi_map
-from amarcord.amici.xfel.karabo_special_role import KaraboSpecialRole
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 
@@ -22,14 +21,15 @@ def test_karabo_attributi_to_attributi_map_simple_int() -> None:
         {
             "ignore": {
                 "ignore": KaraboAttributo(
-                    ATTRIBUTO_ID,
-                    "source",
-                    "key",
-                    "description",
-                    "int",
+                    identifier=ATTRIBUTO_ID,
+                    source="source",
+                    key="key",
+                    description="description",
+                    type_="int",
+                    karabo_type=None,
                     store=True,
                     action=KaraboAttributoAction.COMPUTE_ARITHMETIC_MEAN,
-                    action_axis=None,
+                    processor=None,
                     unit="",
                     filling_value=None,
                     value=VALUE,
@@ -37,14 +37,15 @@ def test_karabo_attributi_to_attributi_map_simple_int() -> None:
                 )
             }
         },
+        existing_db_attributi={AttributoId(ATTRIBUTO_ID)},
     )
 
     assert amap.select_int(AttributoId(ATTRIBUTO_ID)) == VALUE
 
 
-def test_karabo_attributi_to_attributi_map_special_role_is_not_in_map() -> None:
+def test_karabo_attributi_to_attributi_map_nonexisting_attributo() -> None:
     """
-    A special role is not supposed to be stored in the attributi map, but separately (or not stored at all, depending)
+    It might be that we get an attributi map with attributi in them that are not in the DB; those should be filtered out
     """
     VALUE: Final = 1
     amap, _images = karabo_attributi_to_attributi_map(
@@ -53,21 +54,55 @@ def test_karabo_attributi_to_attributi_map_special_role_is_not_in_map() -> None:
         {
             "ignore": {
                 "ignore": KaraboAttributo(
-                    ATTRIBUTO_ID,
-                    "source",
-                    "key",
-                    "description",
-                    "int",
+                    identifier=ATTRIBUTO_ID,
+                    source="source",
+                    key="key",
+                    description="description",
+                    type_="int",
+                    karabo_type=None,
                     store=True,
                     action=KaraboAttributoAction.COMPUTE_ARITHMETIC_MEAN,
-                    action_axis=None,
+                    processor=None,
                     unit="",
                     filling_value=None,
                     value=VALUE,
-                    role=KaraboSpecialRole.RUN_ID,
+                    role=None,
                 )
             }
         },
+        # Note: empty!
+        existing_db_attributi={},
+    )
+
+    assert amap.select_int(AttributoId(ATTRIBUTO_ID)) is None
+
+
+def test_karabo_attributi_to_attributi_map_simple_int_no_store() -> None:
+    """Test if the "store" attribute works"""
+    VALUE: Final = 1
+    amap, _images = karabo_attributi_to_attributi_map(
+        "online",
+        RawAttributiMap({}),
+        {
+            "ignore": {
+                "ignore": KaraboAttributo(
+                    identifier=ATTRIBUTO_ID,
+                    source="source",
+                    key="key",
+                    description="description",
+                    type_="int",
+                    karabo_type=None,
+                    store=False,
+                    action=KaraboAttributoAction.COMPUTE_ARITHMETIC_MEAN,
+                    processor=None,
+                    unit="",
+                    filling_value=None,
+                    value=VALUE,
+                    role=None,
+                )
+            }
+        },
+        existing_db_attributi={AttributoId(ATTRIBUTO_ID)},
     )
 
     assert amap.select_int(AttributoId(ATTRIBUTO_ID)) is None
@@ -91,14 +126,16 @@ def test_karabo_attributi_to_attributi_map_datetime() -> None:
                     "datetime",
                     store=True,
                     action=KaraboAttributoAction.COMPUTE_ARITHMETIC_MEAN,
-                    action_axis=None,
+                    processor=None,
                     unit="",
                     filling_value=None,
+                    karabo_type=None,
                     value=VALUE,
                     role=None,
                 )
             }
         },
+        existing_db_attributi={AttributoId(ATTRIBUTO_ID)},
     )
 
     assert amap.select_value(AttributoId(ATTRIBUTO_ID)) == VALUE.isoformat()
@@ -121,14 +158,16 @@ def test_karabo_attributi_to_attributi_map_image() -> None:
                     "image",
                     store=True,
                     action=KaraboAttributoAction.COMPUTE_ARITHMETIC_MEAN,
-                    action_axis=None,
                     unit="",
+                    processor=None,
                     filling_value=None,
                     value=np.empty([2, 2]),
+                    karabo_type=None,
                     role=None,
                 )
             }
         },
+        existing_db_attributi={AttributoId(ATTRIBUTO_ID)},
     )
 
     assert not amap.items()

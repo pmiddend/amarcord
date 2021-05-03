@@ -1,684 +1,711 @@
-AMARCORD:
+#! configuration for the Karabo bridge.
+#    identifier (str): `attributo` identifier
+#    source (str): EuXFEL source
+#    key (str): Value to extract
+#    description (str, optional): `attributo` description. Defaults to None.
+#    type (str, optional): The AMARCORD data type. Defaults to "decimal".
+#    store (bool, optional): Whether to store the value. Defaults to True.
+#    action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to None.
+#    unit (str, optional): Unit of measurement. Defaults to None.
+#    filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
+config_version: 2
 
-myMdC:
-  #! configuration for myMdC
-  user_id: 0000000000000000000000000000000000000000000
-  user_secret: 0000000000000000000000000000000000000000000
-  user_email: foo@cfel.de
+attributi_definition:
+  run:
+    # required to slice data from the bridge
+    source: SPB_DAQ_DATA/DM/RUN_CONTROL
 
-# D. We should have 'filling values' in case a device disappears from the stream
-Karabo_bridge:
-  #! configuration for the Karabo bridge.
-  #    identifier (str): `attributo` identifier
-  #    source (str): EuXFEL source
-  #    key (str): Value to extract
-  #    description (str, optional): `attributo` description. Defaults to None.
-  #    type (str, optional): The AMARCORD data type. Defaults to "decimal".
-  #    store (bool, optional): Whether to store the value. Defaults to True.
-  #    action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to None.
-  #    unit (str, optional): Unit of measurement. Defaults to None.
-  #    filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
-  version: 1
-  client_endpoint: tcp://10.253.0.51:41014
+    index:
+      description: Run index
+      key: runDetails.runId.value
+      role: run_id
+      type: int
+      store: false
 
-  attributi_definition:
-    run:
-      # required to slice data from the bridge
-      source: SPB_DAQ_DATA/DM/RUN_CONTROL
+    number:
+      description: Run number
+      key: runNumber.value
+      role: run_number
+      type: int
+      store: false
 
-      index:
-        description: Run index
-        key: runDetails.runId.value
-        type: int
+    timestamp_UTC_initial:
+      description: Started at
+      key: runDetails.beginAt.value
+      type: datetime
 
-      number:
-        description: Run number
-        key: runNumber.value
-        type: int
+    train_index_initial:
+      description: Initial train
+      key: runDetails.firstTrainId.value
+      type: int
+      role: train_index_initial
 
-      timestamp_UTC_initial:
-        description: Started at
-        key: runDetails.beginAt.value
-        type: datetime
+    trains_in_run:
+      description: Number of trains
+      key: runDetails.length.value
+      type: int
+      role: trains_in_run
 
-      train_index_initial:
-        description: Initial train
-        key: runDetails.firstTrainId.value
-        type: int
+    proposal_id:
+      description: proposal ID
+      key: proposalNumber.value
+      type: int
+      role: proposal_id
+      store: false
 
-      trains_in_run:
-        description: Number of trains
-        key: runDetails.length.value
-        type: int
+    # duration:
+    #   # doesn't really have a source nor a key. but they are both mandatory. maybe some special key?
+    #   # or, source && key not required if build_attributo: is not None
+    #  build_attributo: trains_in_run/10
+    #  type: float
 
-      proposal_id:
-        description: proposal ID
-        key: proposalNumber.value
-        type: int
+  source:
+    # data from the source
+    # http://hdrmx.medsbio.org/manual/build/html/classes/base_classes/NXsource.html#nxsource
+    source: SPB_RR_SYS/MDL/BUNCH_PATTERN
+    action: check_if_constant
 
-      # duration:
-      #   # doesn't really have a source nor a key. but they are both mandatory. maybe some special key?
-      #   # or, source && key not required if build_attributo: is not None
-      #  build_attributo: trains_in_run/10
-      #  type: float
-
-    source:
-      # data from the source
-      # http://hdrmx.medsbio.org/manual/build/html/classes/base_classes/NXsource.html#nxsource
-      source: SPB_RR_SYS/MDL/BUNCH_PATTERN
+    source_bunch_charge:
+      # D. Should AMARCORD key == Karabo key? If not, where do we store it?
+      # -- this might be "description" + we add header
+      description: Bunch charge [nC]
+      key: sase1.charge.value
+      karabo_type: list[decimal]
+      type: decimal
+      processor: to_constant
       action: check_if_constant
-
-      source_bunch_charge:
-        # D. Should AMARCORD key == Karabo key? If not, where do we store it?
-        # -- this might be "description" + we add header
-        description: Bunch charge [nC]
-        key: sase1.charge.value
-        type: decimal
-        unit: nC
-
-      # bunch_pattern:
-      #   key: sase1.pulseIds.value
-
-      source_number_of_bunches:
-        description: Number of bunches
-        key: sase1.nPulses.value
-        type: int
-
-    # any detector
-    # D. How to model detectors in the database?
-    detector.XGM_XTD9:
-      comment: X-ray intensity monitor
-      action: compute_arithmetic_mean
-      action_axis:
-
-      XGM_XTD9_SASE1_pulse_energy:
-        description: SASE1 pulse energy [μJ]
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.intensitySa1TD
-        type: list[decimal]
-        unit: microJoules
-
-      XGM_XTD9_SASE1_beam_position_x:
-        description: SASE1 beam position x [mm]
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.xSa1TD
-        type: decimal
-        unit: millimeter # ?
-
-      XGM_XTD9_SASE1_beam_position_y:
-        description: SASE1 beam position y [mm]
-        source: SPB_XTD9_XGM/XGM/DOOCS:output
-        key: data.ySa1TD
-        type: decimal
-        unit: millimeter # ?
-
-      # XGM_XTD9_SASE3_pulse_energy:
-      #   source: SPB_XTD9_XGM/XGM/DOOCS:output
-      #   key: data.intensitySa3TD
-      #   type: decimal
-      #   unit: microJoules
-
-      # XGM_XTD9_SASE3_beam_position_x:
-      #   source: SPB_XTD9_XGM/XGM/DOOCS:output
-      #   key: data.xSa3TD
-      #   type: decimal
-      #   unit: mm # ?
-
-      # XGM_XTD9_SASE3_beam_position_y:
-      #   source: SPB_XTD9_XGM/XGM/DOOCS:output
-      #   key: data.ySa3TD
-      #   type: decimal
-      #   unit: mm # ?
-
-      XGM_XTD9_Xray_wavelength_set:
-        description: X-ray wavelength [Å]
-        source: SPB_XTD9_XGM/XGM/DOOCS
-        key: pulseEnergy.wavelengthUsed.value
-        type: decimal
-        unit: angstrom
-
-    detector.ZYLA:
-      comment: Optical imager
-      source: SPB_EXP_ZYLA/CAM/1:output
-
-      ZYLA_injector_image:
-        key: data.image.data
-        action: store_last
-        type: image
-
-    detector.AGIPD:
-      comment: X-ray detector
-      action: check_if_constant
-
-      AGIPD_dark_run_type:
-        source: SPB_DA_USR/MDL/AMARCORD_INFO
-        key: darkExperiment.value
-        type: str
-
-      AGIPD_dark_run_index:
-        source: SPB_DA_USR/MDL/AMARCORD_INFO
-        key: darkRunNumber.value
-        type: int
-
-      AGIPD_gain_setting:
-        source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
-        key: gainMode.value
-        type: str
-
-      AGIPD_position_z:
-        description: AGIPD z [mm]
-        source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
-        key: actualPosition.value
-        type: decimal
-        unit: mm
-
-      AGIPD_position_quadrant1_x:
-        description: AGIPD Q1.x [mm]
-        source: SPB_IRU_AGIPD1M/MDL/MOVER
-        key: q1.x.value
-        type: decimal
-        unit: mm
-
-      AGIPD_position_quadrant1_y:
-        description: AGIPD Q1.y [mm]
-        source: SPB_IRU_AGIPD1M/MDL/MOVER
-        key: q1.y.value
-        type: decimal
-        unit: mm
-
-      AGIPD_position_quadrant2_x:
-        description: AGIPD Q2.x [mm]
-        source: SPB_IRU_AGIPD1M/MDL/MOVER
-        key: q2.x.value
-        type: decimal
-        unit: mm
-
-      AGIPD_position_quadrant2_y:
-        description: AGIPD Q2.y [mm]
-        source: SPB_IRU_AGIPD1M/MDL/MOVER
-        key: q2.y.value
-        type: decimal
-        unit: mm
-
-      AGIPD_position_quadrant3_x:
-        description: AGIPD Q3.x [mm]
-        source: SPB_IRU_AGIPD1M/MDL/MOVER
-        key: q3.x.value
-        type: decimal
-        unit: mm
-
-      AGIPD_position_quadrant3_y:
-        description: AGIPD Q3.y [mm]
-        source: SPB_IRU_AGIPD1M/MDL/MOVER
-        key: q3.y.value
-        type: decimal
-        unit: mm
-
-      AGIPD_position_quadrant4_x:
-        description: AGIPD Q4.x [mm]
-        source: SPB_IRU_AGIPD1M/MDL/MOVER
-        key: q4.x.value
-        type: decimal
-        unit: mm
-
-      AGIPD_position_quadrant4_y:
-        description: AGIPD Q4.y [mm]
-        source: SPB_IRU_AGIPD1M/MDL/MOVER
-        key: q4.y.value
-        type: decimal
-        unit: mm
-
-      # position_quadrant1_xy:
-      #   build_attributo: (position_quadrant1_x, position_quadrant1_y)
-      #   unit: mm
-      #   action: check_if_constant
-
-    # any device
-    # D. How to model this in the database?
-    device.attenuator_SASE1_XTD2:
-      comment: attenuator
-      source: SA1_XTD2_ATT/MDL/MAIN
-      action: check_if_constant
-
-      attenuator1_inserted:
-        key: actual.value.isInsertedAct1
-        type: int
-      attenuator1_thickness:
-        key: actual.value.thicknessAct1
-        type: decimal
-        unit: micrometer
-      attenuator1_material:
-        key: actual.value.materialAct1
-        type: str
-      attenuator1_absorption:
-        key: actual.value.absorptionAct1
-        type: decimal
-        unit: percent
-
-      attenuator2_inserted:
-        key: actual.value.isInsertedAct2
-        type: int
-      attenuator2_thickness:
-        key: actual.value.thicknessAct2
-        type: decimal
-      attenuator2_material:
-        key: actual.value.materialAct2
-        type: str
-      attenuator2_absorption:
-        key: actual.value.absorptionAct2
-        type: decimal
-        unit: percent
-
-      attenuator3_inserted:
-        key: actual.value.isInsertedAct3
-        type: int
-      attenuator3_thickness:
-        key: actual.value.thicknessAct3
-        type: decimal
-      attenuator3_material:
-        key: actual.value.materialAct3
-        type: str
-      attenuator3_absorption:
-        key: actual.value.absorptionAct3
-        type: decimal
-        unit: percent
-
-      # attenuator4_inserted:
-      #   key: actual.value.isInsertedAct4
-      #   type: int
-      # attenuator4_thickness:
-      #   key: actual.value.thicknessAct4
-      #   type: decimal
-      # attenuator4_material:
-      #   key: actual.value.materialAct4
-      #   type: str
-      # attenuator4_absorption:
-      #   key: actual.value.absorptionAct4
-      #   type: decimal
-      #   unit: percent
-
-      # attenuator5_inserted:
-      #   key: actual.value.isInsertedAct5
-      #   type: int
-      # attenuator5_thickness:
-      #   key: actual.value.thicknessAct5
-      #   type: decimal
-      # attenuator5_material:
-      #   key: actual.value.materialAct5
-      #   type: str
-      # attenuator5_absorption:
-      #   key: actual.value.absorptionAct5
-      #   type: decimal
-      #   unit: percent
-
-      # attenuator6_inserted:
-      #   key: actual.value.isInsertedAct6
-      #   type: int
-      # attenuator6_thickness:
-      #   key: actual.value.thicknessAct6
-      #   type: decimal
-      # attenuator6_material:
-      #   key: actual.value.materialAct6
-      #   type: str
-      # attenuator6_absorption:
-      #   key: actual.value.absorptionAct6
-      #   type: decimal
-      #   unit: percent
-
-      # attenuator7_inserted:
-      #   key: actual.value.isInsertedAct7
-      #   type: int
-      # attenuator7_thickness:
-      #   key: actual.value.thicknessAct7
-      #   type: decimal
-      # attenuator7_material:
-      #   key: actual.value.materialAct7
-      #   type: str
-      # attenuator7_absorption:
-      #   key: actual.value.absorptionAct7
-      #   type: decimal
-      #   unit: percent
-
-      # attenuator8_inserted:
-      #   key: actual.value.isInsertedAct8
-      #   type: int
-      # attenuator8_thickness:
-      #   key: actual.value.thicknessAct8
-      #   type: decimal
-      # attenuator8_material:
-      #   key: actual.value.materialAct8
-      #   type: str
-      # attenuator8_absorption:
-      #   key: actual.value.absorptionAct8
-      #   type: decimal
-      #   unit: percent
-
-      # attenuator9_inserted:
-      #   key: actual.value.isInsertedAct9
-      #   type: int
-      # attenuator9_thickness:
-      #   key: actual.value.thicknessAct9
-      #   type: decimal
-      # attenuator9_material:
-      #   key: actual.value.materialAct9
-      #   type: str
-      # attenuator9_absorption:
-      #   key: actual.value.absorptionAct9
-      #   type: decimal
-      #   unit: percent
-
-      SASE1_XTD2_transmission:
-        description: XTD2 transmission
-        key: actual.value.transmission
-        type: decimal
-        unit: percent
-
-    device.attenuator_SPB_XTD9:
-      comment: attenuator
-      source: SPB_XTD9_ATT/MDL/MAIN
-      action: check_if_constant
-
-      # attenuator1_increment:
-      #   key: actual.value.incrementRod1
-      #   type: int
-      # attenuator1_thickness:
-      #   key: actual.value.thicknessRod1
-      #   type: decimal
-      #   unit: micrometer
-      # attenuator1_material:
-      #   key: actual.value.materialRod1
-      #   type: str
-      # attenuator1_absorption:
-      #   key: actual.value.absorptionRod1
-      #   type: decimal
-      #   unit: percent
-
-      # attenuator2_increment:
-      #   key: actual.value.incrementRod2
-      #   type: int
-      # attenuator2_thickness:
-      #   key: actual.value.thicknessRod2
-      # attenuator2_material:
-      #   key: actual.value.materialRod2
-      #   type: str
-      # attenuator2_absorption:
-      #   key: actual.value.absorptionRod2
-      #   type: decimal
-      #   unit: percent
-
-      # attenuator3_increment:
-      #   key: actual.value.incrementRod3
-      #   type: int
-      # attenuator3_thickness:
-      #   key: actual.value.thicknessRod3
-      # attenuator3_material:
-      #   key: actual.value.materialRod3
-      #   type: str
-      # attenuator3_absorption:
-      #   key: actual.value.absorptionRod3
-      #   type: decimal
-      #   unit: percent
-
-      # attenuator4_increment:
-      #   key: actual.value.incrementRod4
-      #   type: int
-      # attenuator4_thickness:
-      #   key: actual.value.thicknessRod4
-      # attenuator4_material:
-      #   key: actual.value.materialRod4
-      #   type: str
-      # attenuator4_absorption:
-      #   key: actual.value.absorptionRod4
-      #   type: decimal
-      #   unit: percent
-
-      attenuator_SPB_XTD9_transmission:
-        description: XTD9 transmission
-        key: actual.value.transmission
-        type: decimal
-        unit: percent
-
-    device.sample_delivery_manifold_valves:
-      source: SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES
-      action: check_if_constant
-
-      sample_delivery_config0_valve_group_name:
-        key: valvesConfigTable.value[0].valveGroupName
-        type: str
-      sample_delivery_config0_valve_indices:
-        key: valvesConfigTable.value[0].valveIds
-        type: list[str]
-        action_axis: 0
-      sample_delivery_config0_positions:
-        key: valvesConfigTable.value[0].nPositions
-        type: int
-      sample_delivery_config0_labels:
-        key: valvesConfigTable.value[0].labels
-        type: list[str]
-
-      sample_delivery_config1_valve_group_name:
-        key: valvesConfigTable.value[1].valveGroupName
-        type: str
-      sample_delivery_config1_valve_indices:
-        key: valvesConfigTable.value[1].valveIds
-        type: list[str]
-        action_axis: 0
-      sample_delivery_config1_positions:
-        key: valvesConfigTable.value[1].nPositions
-        type: int
-      sample_delivery_config1_labels:
-        key: valvesConfigTable.value[1].labels
-        type: list[str]
-
-      sample_delivery_config2_valve_group_name:
-        key: valvesConfigTable.value[2].valveGroupName
-        type: str
-      sample_delivery_config2_valve_indices:
-        key: valvesConfigTable.value[2].valveIds
-        type: list[str]
-        action_axis: 0
-      sample_delivery_config2_positions:
-        key: valvesConfigTable.value[2].nPositions
-        type: int
-      sample_delivery_config2_labels:
-        key: valvesConfigTable.value[2].labels
-        type: list[str]
-
-      sample_delivery_groupA_position:
-        key: GROUPA.currentPosition.value
-        type: int
-      sample_delivery_sample1_position:
-        key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.value
-        type: int
-      sample_delivery_sample2_position:
-        key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.value
-        type: int
-
-    device.sample_delivery_rate:
-      source: SPB_BIO_SYS/PUMP/HPLC
-      action: compute_arithmetic_mean
-      action_axis:
-
-      sample_delivery_rate_pump_a_flow_value:
-        key: a.flow.value
-        type: decimal
-        unit: microliter/minute
-      sample_delivery_rate_pump_a_value:
-        key: a.volume.value
-        unit: unknown
-
-      sample_delivery_rate_pump_b_flow_value:
-        key: b.volume.value
-        type: decimal
-        unit: microliter/minute
-      sample_delivery_rate_pump_b_value:
-        key: b.flow.value
-        type: decimal
-        unit: unknown
-
-      sample_delivery_rate_pump_c_flow_value:
-        key: c.flow.value
-        type: decimal
-        unit: microliter/minute
-      sample_delivery_rate_pump_c_value:
-        key: c.volume.value
-        type: decimal
-        unit: unknown
-
-      sample_delivery_rate_pump_d_flow_value:
-        key: d.flow.value
-        type: decimal
-        unit: microliter/minute
-      sample_delivery_rate_pump_d_value:
-        key: d.volume.value
-        type: decimal
-        unit: unknown
-
-    device.sample_delivery_injector:
-      source: SPB_IRU_INJMOV/MOTOR/Z
-      action: check_if_constant
-
-      sample_delivery_injector_position_z:
-        description: Injector position z [mm]
-        key: actualPosition.value
-        type: decimal
-        unit: mm
-
-  # explicitly ignore the following entries
-  ignore_entry:
-    SA1_XTD2_ATT/MDL/MAIN:
-      - IGNOREALL
-
-    SPB_EXP_ZYLA/CAM/1:output:
-      - data.image.type
-      - data.image.dimensions
-      - data.image.dimensionTypes
-      - data.image.rOIOffsets
-      - data.image.binning
-      - data.image.rotation
-      - data.image.flipX
-      - data.image.flipY
-      - data.image.bitsPerPixel
-      - data.image.encoding
-      - data.image.dimensionScales
-      - data.image.geometry.alignment.offsets
-      - data.image.geometry.alignment.rotations
-      - data.image.geometry.tileId
-      - data.image.header
-
-    SPB_XTD9_XGM/XGM/DOOCS:output:
-      - data.intensitySigmaTD
-      - data.intensityAUXTD
-      - data.xTD
-      - data.xSigmaTD
-      - data.yTD
-      - data.ySigmaTD
-      - data.intensitySa1SigmaTD
-      - data.intensityAUXSa1TD
-      - data.xSa1SigmaTD
-      - data.ySa1SigmaTD
-      - data.intensitySa3SigmaTD
-      - data.intensityAUXSa3TD
-      - data.xSa3SigmaTD
-      - data.ySa3SigmaTD
-      - data.intensityTD
-
-    SPB_DAQ_DATA/DM/RUN_CONTROL:
-      - runNumber.timestamp.tid
-      - runNumber.timestamp.timestamp
-      - runDetails.runId.timestamp.tid
-      - runDetails.runId.timestamp.timestamp
-      - runDetails.beginAt.timestamp.tid
-      - runDetails.beginAt.timestamp.timestamp
-      - runDetails.lastTrainId.value
-      - runDetails.lastTrainId.timestamp.tid
-      - runDetails.lastTrainId.timestamp.timestamp
-      - runDetails.length.timestamp.tid
-      - runDetails.length.timestamp.timestamp
-      - runDetails.firstTrainId.timestamp.tid
-      - runDetails.firstTrainId.timestamp.timestamp
-
-    SPB_RR_SYS/MDL/BUNCH_PATTERN:
-      - sase1.nPulses.timestamp.tid
-      - sase1.nPulses.timestamp.timestamp
-      - sase1.charge.timestamp.tid
-      - sase1.charge.timestamp.timestamp
-      - sase1.pulseIds.timestamp.tid
-      - sase1.pulseIds.timestamp.timestamp
-
-    SPB_XTD9_ATT/MDL/MAIN:
-      - actual.timestamp.tid
-      - actual.timestamp.timestamp
-
-    SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER:
-      - actualPosition.timestamp.tid
-      - actualPosition.timestamp.timestamp
-
-    SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
-      - gain.value
-      - gain.timestamp.tid
-      - gain.timestamp.timestamp
-      - gainMode.timestamp.tid
-      - gainMode.timestamp.timestamp
-
-    SPB_IRU_INJMOV/MOTOR/Z:
-      - actualPosition.timestamp.tid
-      - actualPosition.timestamp.timestamp
-
-    SPB_BIO_SYS/PUMP/HPLC:
-      - c.flow.timestamp.tid
-      - c.flow.timestamp.timestamp
-      - c.volume.timestamp.tid
-      - c.volume.timestamp.timestamp
-      - a.volume.timestamp.tid
-      - a.volume.timestamp.timestamp
-      - a.flow.timestamp.tid
-      - a.flow.timestamp.timestamp
-      - b.flow.timestamp.tid
-      - b.flow.timestamp.timestamp
-      - b.volume.timestamp.tid
-      - b.volume.timestamp.timestamp
-      - d.flow.timestamp.tid
-      - d.flow.timestamp.timestamp
-      - d.volume.timestamp.tid
-      - d.volume.timestamp.timestamp
-
-    SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES:
-      - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.timestamp.tid
-      - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.timestamp.timestamp
-      - valvesConfigTable.timestamp.tid
-      - valvesConfigTable.timestamp.timestamp
-      - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.timestamp.tid
-      - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.timestamp.timestamp
-      - GROUPA.currentPosition.timestamp.tid
-      - GROUPA.currentPosition.timestamp.timestamp
-
-    SPB_XTD9_XGM/XGM/DOOCS:
-      - pulseEnergy.wavelengthUsed.timestamp.tid
-      - pulseEnergy.wavelengthUsed.timestamp.timestamp
-
-    SPB_IRU_AGIPD1M/MDL/MOVER:
-      - q4.x.timestamp.tid
-      - q4.x.timestamp.timestamp
-      - q4.y.timestamp.tid
-      - q4.y.timestamp.timestamp
-      - q1.y.timestamp.tid
-      - q1.y.timestamp.timestamp
-      - q1.x.timestamp.tid
-      - q1.x.timestamp.timestamp
-      - q2.y.timestamp.tid
-      - q2.y.timestamp.timestamp
-      - q2.x.timestamp.tid
-      - q2.x.timestamp.timestamp
-      - q3.y.timestamp.tid
-      - q3.y.timestamp.timestamp
-      - q3.x.timestamp.tid
-      - q3.x.timestamp.timestamp
-
-    SPB_DA_USR/MDL/AMARCORD_INFO:
-      - darkExperiment.timestamp.tid
-      - darkExperiment.timestamp.timestamp
-      - darkRunNumber.timestamp.tid
-      - darkRunNumber.timestamp.timestamp
-
-OnDA:
+      unit: nC
+
+    # bunch_pattern:
+    #   key: sase1.pulseIds.value
+
+    source_number_of_bunches:
+      description: Number of bunches
+      key: sase1.nPulses.value
+      type: int
+
+  # any detector
+  # D. How to model detectors in the database?
+  detector.XGM_XTD9:
+    comment: X-ray intensity monitor
+    action: compute_arithmetic_mean
+
+    XGM_XTD9_SASE1_pulse_energy:
+      description: SASE1 pulse energy [μJ]
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.intensitySa1TD
+      karabo_type: list[decimal]
+      type: decimal
+      unit: microJoules
+      processor: to_constant
+
+    XGM_XTD9_SASE1_beam_position_x:
+      description: SASE1 beam position x [mm]
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.xSa1TD
+      karabo_type: list[decimal]
+      type: decimal
+      processor: to_constant
+      unit: millimeter # ?
+
+    XGM_XTD9_SASE1_beam_position_y:
+      description: SASE1 beam position y [mm]
+      source: SPB_XTD9_XGM/XGM/DOOCS:output
+      key: data.ySa1TD
+      karabo_type: list[decimal]
+      processor: to_constant
+      type: decimal
+      unit: millimeter # ?
+
+    # XGM_XTD9_SASE3_pulse_energy:
+    #   source: SPB_XTD9_XGM/XGM/DOOCS:output
+    #   key: data.intensitySa3TD
+    #   type: decimal
+    #   unit: microJoules
+
+    # XGM_XTD9_SASE3_beam_position_x:
+    #   source: SPB_XTD9_XGM/XGM/DOOCS:output
+    #   key: data.xSa3TD
+    #   type: decimal
+    #   unit: mm # ?
+
+    # XGM_XTD9_SASE3_beam_position_y:
+    #   source: SPB_XTD9_XGM/XGM/DOOCS:output
+    #   key: data.ySa3TD
+    #   type: decimal
+    #   unit: mm # ?
+
+    XGM_XTD9_Xray_wavelength_set:
+      description: X-ray wavelength [Å]
+      source: SPB_XTD9_XGM/XGM/DOOCS
+      key: pulseEnergy.wavelengthUsed.value
+      type: decimal
+      unit: angstrom
+
+  detector.ZYLA:
+    comment: Optical imager
+    source: SPB_EXP_ZYLA/CAM/1:output
+#
+#      ZYLA_injector_image:
+#        key: data.image.data
+#        action: store_last
+#        type: image
+
+  detector.AGIPD:
+    comment: X-ray detector
+    action: check_if_constant
+
+    AGIPD_dark_run_type:
+      source: SPB_DA_USR/MDL/AMARCORD_INFO
+      key: darkExperiment.value
+      type: str
+
+    AGIPD_dark_run_index:
+      source: SPB_DA_USR/MDL/AMARCORD_INFO
+      key: darkRunNumber.value
+      type: int
+
+    AGIPD_gain_setting:
+      source: SPB_IRU_AGIPD1M1/MDL/FPGA_COMP
+      key: gainMode.value
+      type: str
+
+    AGIPD_position_z:
+      description: AGIPD z [mm]
+      source: SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER
+      key: actualPosition.value
+      type: decimal
+      unit: mm
+
+    AGIPD_position_quadrant1_x:
+      description: AGIPD Q1.x [mm]
+      source: SPB_IRU_AGIPD1M/MDL/MOVER
+      key: q1.x.value
+      type: decimal
+      unit: mm
+
+    AGIPD_position_quadrant1_y:
+      description: AGIPD Q1.y [mm]
+      source: SPB_IRU_AGIPD1M/MDL/MOVER
+      key: q1.y.value
+      type: decimal
+      unit: mm
+
+    AGIPD_position_quadrant2_x:
+      description: AGIPD Q2.x [mm]
+      source: SPB_IRU_AGIPD1M/MDL/MOVER
+      key: q2.x.value
+      type: decimal
+      unit: mm
+
+    AGIPD_position_quadrant2_y:
+      description: AGIPD Q2.y [mm]
+      source: SPB_IRU_AGIPD1M/MDL/MOVER
+      key: q2.y.value
+      type: decimal
+      unit: mm
+
+    AGIPD_position_quadrant3_x:
+      description: AGIPD Q3.x [mm]
+      source: SPB_IRU_AGIPD1M/MDL/MOVER
+      key: q3.x.value
+      type: decimal
+      unit: mm
+
+    AGIPD_position_quadrant3_y:
+      description: AGIPD Q3.y [mm]
+      source: SPB_IRU_AGIPD1M/MDL/MOVER
+      key: q3.y.value
+      type: decimal
+      unit: mm
+
+    AGIPD_position_quadrant4_x:
+      description: AGIPD Q4.x [mm]
+      source: SPB_IRU_AGIPD1M/MDL/MOVER
+      key: q4.x.value
+      type: decimal
+      unit: mm
+
+    AGIPD_position_quadrant4_y:
+      description: AGIPD Q4.y [mm]
+      source: SPB_IRU_AGIPD1M/MDL/MOVER
+      key: q4.y.value
+      type: decimal
+      unit: mm
+
+    # position_quadrant1_xy:
+    #   build_attributo: (position_quadrant1_x, position_quadrant1_y)
+    #   unit: mm
+    #   action: check_if_constant
+
+  # any device
+  # D. How to model this in the database?
+  device.attenuator_SASE1_XTD2:
+    comment: attenuator
+    source: SA1_XTD2_ATT/MDL/MAIN
+    action: check_if_constant
+
+    # attenuator1_inserted:
+    #   key: actual.value.isInsertedAct1
+    #   type: int
+    # attenuator1_thickness:
+    #   key: actual.value.thicknessAct1
+    #   type: decimal
+    #   unit: micrometer
+    # attenuator1_material:
+    #   key: actual.value.materialAct1
+    #   type: str
+    # attenuator1_absorption:
+    #   key: actual.value.absorptionAct1
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator2_inserted:
+    #   key: actual.value.isInsertedAct2
+    #   type: int
+    # attenuator2_thickness:
+    #   key: actual.value.thicknessAct2
+    #   type: decimal
+    # attenuator2_material:
+    #   key: actual.value.materialAct2
+    #   type: str
+    # attenuator2_absorption:
+    #   key: actual.value.absorptionAct2
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator3_inserted:
+    #   key: actual.value.isInsertedAct3
+    #   type: int
+    # attenuator3_thickness:
+    #   key: actual.value.thicknessAct3
+    #   type: decimal
+    # attenuator3_material:
+    #   key: actual.value.materialAct3
+    #   type: str
+    # attenuator3_absorption:
+    #   key: actual.value.absorptionAct3
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator4_inserted:
+    #   key: actual.value.isInsertedAct4
+    #   type: int
+    # attenuator4_thickness:
+    #   key: actual.value.thicknessAct4
+    #   type: decimal
+    # attenuator4_material:
+    #   key: actual.value.materialAct4
+    #   type: str
+    # attenuator4_absorption:
+    #   key: actual.value.absorptionAct4
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator5_inserted:
+    #   key: actual.value.isInsertedAct5
+    #   type: int
+    # attenuator5_thickness:
+    #   key: actual.value.thicknessAct5
+    #   type: decimal
+    # attenuator5_material:
+    #   key: actual.value.materialAct5
+    #   type: str
+    # attenuator5_absorption:
+    #   key: actual.value.absorptionAct5
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator6_inserted:
+    #   key: actual.value.isInsertedAct6
+    #   type: int
+    # attenuator6_thickness:
+    #   key: actual.value.thicknessAct6
+    #   type: decimal
+    # attenuator6_material:
+    #   key: actual.value.materialAct6
+    #   type: str
+    # attenuator6_absorption:
+    #   key: actual.value.absorptionAct6
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator7_inserted:
+    #   key: actual.value.isInsertedAct7
+    #   type: int
+    # attenuator7_thickness:
+    #   key: actual.value.thicknessAct7
+    #   type: decimal
+    # attenuator7_material:
+    #   key: actual.value.materialAct7
+    #   type: str
+    # attenuator7_absorption:
+    #   key: actual.value.absorptionAct7
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator8_inserted:
+    #   key: actual.value.isInsertedAct8
+    #   type: int
+    # attenuator8_thickness:
+    #   key: actual.value.thicknessAct8
+    #   type: decimal
+    # attenuator8_material:
+    #   key: actual.value.materialAct8
+    #   type: str
+    # attenuator8_absorption:
+    #   key: actual.value.absorptionAct8
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator9_inserted:
+    #   key: actual.value.isInsertedAct9
+    #   type: int
+    # attenuator9_thickness:
+    #   key: actual.value.thicknessAct9
+    #   type: decimal
+    # attenuator9_material:
+    #   key: actual.value.materialAct9
+    #   type: str
+    # attenuator9_absorption:
+    #   key: actual.value.absorptionAct9
+    #   type: decimal
+    #   unit: percent
+
+    SASE1_XTD2_transmission:
+      description: XTD2 transmission
+      key: actual.value.transmission
+      type: decimal
+      unit: percent
+
+  device.attenuator_SPB_XTD9:
+    comment: attenuator
+    source: SPB_XTD9_ATT/MDL/MAIN
+    action: check_if_constant
+
+    # attenuator1_increment:
+    #   key: actual.value.incrementRod1
+    #   type: int
+    # attenuator1_thickness:
+    #   key: actual.value.thicknessRod1
+    #   type: decimal
+    #   unit: micrometer
+    # attenuator1_material:
+    #   key: actual.value.materialRod1
+    #   type: str
+    # attenuator1_absorption:
+    #   key: actual.value.absorptionRod1
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator2_increment:
+    #   key: actual.value.incrementRod2
+    #   type: int
+    # attenuator2_thickness:
+    #   key: actual.value.thicknessRod2
+    # attenuator2_material:
+    #   key: actual.value.materialRod2
+    #   type: str
+    # attenuator2_absorption:
+    #   key: actual.value.absorptionRod2
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator3_increment:
+    #   key: actual.value.incrementRod3
+    #   type: int
+    # attenuator3_thickness:
+    #   key: actual.value.thicknessRod3
+    # attenuator3_material:
+    #   key: actual.value.materialRod3
+    #   type: str
+    # attenuator3_absorption:
+    #   key: actual.value.absorptionRod3
+    #   type: decimal
+    #   unit: percent
+
+    # attenuator4_increment:
+    #   key: actual.value.incrementRod4
+    #   type: int
+    # attenuator4_thickness:
+    #   key: actual.value.thicknessRod4
+    # attenuator4_material:
+    #   key: actual.value.materialRod4
+    #   type: str
+    # attenuator4_absorption:
+    #   key: actual.value.absorptionRod4
+    #   type: decimal
+    #   unit: percent
+
+    attenuator_SPB_XTD9_transmission:
+      description: XTD9 transmission
+      key: actual.value.transmission
+      type: decimal
+      unit: percent
+
+  device.sample_delivery_manifold_valves:
+    source: SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES
+    action: check_if_constant
+
+    sample_delivery_config0_valve_group_name:
+      key: valvesConfigTable.value[0].valveGroupName
+      type: str
+#      sample_delivery_config0_valve_indices:
+#        key: valvesConfigTable.value[0].valveIds
+#        type: list[str]
+    sample_delivery_config0_positions:
+      key: valvesConfigTable.value[0].nPositions
+      type: int
+    sample_delivery_config0_labels:
+      key: valvesConfigTable.value[0].labels
+      type: list[str]
+
+    sample_delivery_config1_valve_group_name:
+      key: valvesConfigTable.value[1].valveGroupName
+      type: str
+#      sample_delivery_config1_valve_indices:
+#        key: valvesConfigTable.value[1].valveIds
+#        type: list[str]
+    sample_delivery_config1_positions:
+      key: valvesConfigTable.value[1].nPositions
+      type: int
+    sample_delivery_config1_labels:
+      key: valvesConfigTable.value[1].labels
+      type: list[str]
+
+    sample_delivery_config2_valve_group_name:
+      key: valvesConfigTable.value[2].valveGroupName
+      type: str
+#      sample_delivery_config2_valve_indices:
+#        key: valvesConfigTable.value[2].valveIds
+#        type: list[str]
+    sample_delivery_config2_positions:
+      key: valvesConfigTable.value[2].nPositions
+      type: int
+    sample_delivery_config2_labels:
+      key: valvesConfigTable.value[2].labels
+      type: list[str]
+
+    sample_delivery_groupA_position:
+      key: GROUPA.currentPosition.value
+      type: list[int]
+    sample_delivery_sample1_position:
+      key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.value
+      type: list[int]
+    sample_delivery_sample2_position:
+      key: SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.value
+      type: list[int]
+
+  device.sample_delivery_rate:
+    source: SPB_BIO_SYS/PUMP/HPLC
+    action: compute_arithmetic_mean
+
+    sample_delivery_rate_pump_a_flow_value:
+      key: a.flow.value
+      type: decimal
+      unit: microliter/minute
+    sample_delivery_rate_pump_a_value:
+      key: a.volume.value
+      unit: unknown
+      type: decimal
+
+    sample_delivery_rate_pump_b_flow_value:
+      key: b.volume.value
+      type: decimal
+      unit: microliter/minute
+    sample_delivery_rate_pump_b_value:
+      key: b.flow.value
+      type: decimal
+      unit: unknown
+
+    sample_delivery_rate_pump_c_flow_value:
+      key: c.flow.value
+      type: decimal
+      unit: microliter/minute
+    sample_delivery_rate_pump_c_value:
+      key: c.volume.value
+      type: decimal
+      unit: unknown
+
+    sample_delivery_rate_pump_d_flow_value:
+      key: d.flow.value
+      type: decimal
+      unit: microliter/minute
+    sample_delivery_rate_pump_d_value:
+      key: d.volume.value
+      type: decimal
+      unit: unknown
+
+  device.sample_delivery_injector:
+    source: SPB_IRU_INJMOV/MOTOR/Z
+    action: compute_arithmetic_mean
+
+    sample_delivery_injector_position_z:
+      description: Injector position z [mm]
+      key: actualPosition.value
+      type: decimal
+      unit: mm
+
+# explicitly ignore the following entries
+ignore_entry:
+  SPB_EXP_ZYLA/CAM/1:output:
+    - data.image.type
+    - data.image.data
+    - data.image.dimensions
+    - data.image.dimensionTypes
+    - data.image.rOIOffsets
+    - data.image.binning
+    - data.image.rotation
+    - data.image.flipX
+    - data.image.flipY
+    - data.image.bitsPerPixel
+    - data.image.encoding
+    - data.image.dimensionScales
+    - data.image.geometry.alignment.offsets
+    - data.image.geometry.alignment.rotations
+    - data.image.geometry.tileId
+    - data.image.header
+
+  SPB_XTD9_XGM/XGM/DOOCS:output:
+    - data.intensitySigmaTD
+    - data.intensityAUXTD
+    - data.xTD
+    - data.xSigmaTD
+    - data.yTD
+    - data.ySigmaTD
+    - data.intensitySa1SigmaTD
+    - data.intensityAUXSa1TD
+    - data.xSa1SigmaTD
+    - data.ySa1SigmaTD
+    - data.intensitySa3SigmaTD
+    - data.intensityAUXSa3TD
+    - data.xSa3SigmaTD
+    - data.ySa3SigmaTD
+    - data.intensityTD
+
+  SPB_DAQ_DATA/DM/RUN_CONTROL:
+    - runNumber.timestamp.tid
+    - runNumber.timestamp.timestamp
+    - proposalNumber.timestamp.tid
+    - proposalNumber.timestamp.timestamp
+    - runDetails.runId.timestamp.tid
+    - runDetails.runId.timestamp.timestamp
+    - runDetails.beginAt.timestamp.tid
+    - runDetails.beginAt.timestamp.timestamp
+    - runDetails.lastTrainId.value
+    - runDetails.lastTrainId.timestamp.tid
+    - runDetails.lastTrainId.timestamp.timestamp
+    - runDetails.length.timestamp.tid
+    - runDetails.length.timestamp.timestamp
+    - runDetails.firstTrainId.timestamp.tid
+    - runDetails.firstTrainId.timestamp.timestamp
+
+  SPB_RR_SYS/MDL/BUNCH_PATTERN:
+    - sase1.nPulses.timestamp.tid
+    - sase1.nPulses.timestamp.timestamp
+    - sase1.charge.timestamp.tid
+    - sase1.charge.timestamp.timestamp
+    - sase1.pulseIds.timestamp.tid
+    - sase1.pulseIds.timestamp.timestamp
+    # FIXME: not sure about that here
+    - sase1.pulseIds.value
+
+#    SA1_XTD2_ATT/MDL/MAIN:
+#      - actual.timestamp.tid
+#      - actual.timestamp.timestamp
+  SA1_XTD2_ATT/MDL/MAIN:
+    - IGNOREALL
+
+  SPB_XTD9_ATT/MDL/MAIN:
+    - IGNOREALL
+#    SPB_XTD9_ATT/MDL/MAIN:
+#      - actual.timestamp.tid
+#      - actual.timestamp.timestamp
+
+  SPB_IRU_AGIPD1M/MOTOR/Q1M1:
+    - IGNOREALL
+  SPB_IRU_AGIPD1M/MOTOR/Q1M2:
+    - IGNOREALL
+  SPB_IRU_AGIPD1M/MOTOR/Q2M1:
+    - IGNOREALL
+  SPB_IRU_AGIPD1M/MOTOR/Q2M2:
+    - IGNOREALL
+  SPB_IRU_AGIPD1M/MOTOR/Q3M1:
+    - IGNOREALL
+  SPB_IRU_AGIPD1M/MOTOR/Q3M2:
+    - IGNOREALL
+  SPB_IRU_AGIPD1M/MOTOR/Q4M1:
+    - IGNOREALL
+  SPB_IRU_AGIPD1M/MOTOR/Q4M2:
+    - IGNOREALL
+
+  SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER:
+    - actualPosition.timestamp.tid
+    - actualPosition.timestamp.timestamp
+
+  SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
+    - gain.value
+    - gain.timestamp.tid
+    - gain.timestamp.timestamp
+    - gainMode.timestamp.tid
+    - gainMode.timestamp.timestamp
+
+  SPB_IRU_INJMOV/MOTOR/Z:
+    - actualPosition.timestamp.tid
+    - actualPosition.timestamp.timestamp
+
+  SPB_BIO_SYS/PUMP/HPLC:
+    - c.flow.timestamp.tid
+    - c.flow.timestamp.timestamp
+    - c.volume.timestamp.tid
+    - c.volume.timestamp.timestamp
+    - a.volume.timestamp.tid
+    - a.volume.timestamp.timestamp
+    - a.flow.timestamp.tid
+    - a.flow.timestamp.timestamp
+    - b.flow.timestamp.tid
+    - b.flow.timestamp.timestamp
+    - b.volume.timestamp.tid
+    - b.volume.timestamp.timestamp
+    - d.flow.timestamp.tid
+    - d.flow.timestamp.timestamp
+    - d.volume.timestamp.tid
+    - d.volume.timestamp.timestamp
+
+  SPB_IRU_LIQUIDJET/MDL/MANIFOLD_VALVES:
+    - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.timestamp.tid
+    - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_1.currentPosition.timestamp.timestamp
+    - valvesConfigTable.timestamp.tid
+    - valvesConfigTable.timestamp.timestamp
+    - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.timestamp.tid
+    - SPB_IRU_LIQUIDJETVALVEVALVE_SAMPLE_2.currentPosition.timestamp.timestamp
+    - GROUPA.currentPosition.timestamp.tid
+    - GROUPA.currentPosition.timestamp.timestamp
+
+  SPB_XTD9_XGM/XGM/DOOCS:
+    - pulseEnergy.wavelengthUsed.timestamp.tid
+    - pulseEnergy.wavelengthUsed.timestamp.timestamp
+
+  SPB_IRU_AGIPD1M/MDL/MOVER:
+    - q4.x.timestamp.tid
+    - q4.x.timestamp.timestamp
+    - q4.y.timestamp.tid
+    - q4.y.timestamp.timestamp
+    - q1.y.timestamp.tid
+    - q1.y.timestamp.timestamp
+    - q1.x.timestamp.tid
+    - q1.x.timestamp.timestamp
+    - q2.y.timestamp.tid
+    - q2.y.timestamp.timestamp
+    - q2.x.timestamp.tid
+    - q2.x.timestamp.timestamp
+    - q3.y.timestamp.tid
+    - q3.y.timestamp.timestamp
+    - q3.x.timestamp.tid
+    - q3.x.timestamp.timestamp
+
+  SPB_DA_USR/MDL/AMARCORD_INFO:
+    - darkExperiment.timestamp.tid
+    - darkExperiment.timestamp.timestamp
+    - darkRunNumber.timestamp.tid
+    - darkRunNumber.timestamp.timestamp

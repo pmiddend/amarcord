@@ -1,13 +1,14 @@
 import logging
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 from tap import Tap
 
 from amarcord.amici.xfel.karabo_action import KaraboRunStart
+from amarcord.amici.xfel.karabo_configuration import parse_karabo_configuration_file
 from amarcord.amici.xfel.karabo_general import ingest_attributi
 from amarcord.amici.xfel.karabo_general import ingest_karabo_action
-from amarcord.amici.xfel.karabo_online import load_configuration
 from amarcord.amici.xfel.xfel_filesystem import FileSystem2Attributo
 from amarcord.db.constants import OFFLINE_SOURCE_NAME
 from amarcord.db.db import DB
@@ -34,10 +35,8 @@ class Arguments(Tap):
 if __name__ == "__main__":
     args = Arguments(underscores_to_dashes=True).parse_args()
 
-    config = load_configuration(args.karabo_config_file)
-    data = FileSystem2Attributo(
-        args.proposal_id, args.run_id, **config["Karabo_bridge"]
-    )
+    config = parse_karabo_configuration_file(Path(args.karabo_config_file))
+    data = FileSystem2Attributo(args.proposal_id, args.run_id, config)
     data.extract_data(args.number_of_bunches)
     attributi_definition = data.compute_statistics()
 

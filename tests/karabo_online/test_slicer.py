@@ -14,16 +14,18 @@ from amarcord.amici.xfel.karabo_attributo import KaraboAttributo
 from amarcord.amici.xfel.karabo_attributo_action import KaraboAttributoAction
 from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
 from amarcord.amici.xfel.karabo_cache import KaraboCache
+from amarcord.amici.xfel.karabo_configuration import KaraboConfiguration
+from amarcord.amici.xfel.karabo_configuration import parse_karabo_configuration
+from amarcord.amici.xfel.karabo_configuration import parse_karabo_configuration_file
 from amarcord.amici.xfel.karabo_expected_attributi import KaraboExpectedAttributi
 from amarcord.amici.xfel.karabo_online import KaraboValue
 from amarcord.amici.xfel.karabo_online import compare_attributi_and_karabo_data
 from amarcord.amici.xfel.karabo_online import compare_metadata_trains
 from amarcord.amici.xfel.karabo_online import compute_statistics
 from amarcord.amici.xfel.karabo_online import generate_train_content
-from amarcord.amici.xfel.karabo_online import load_configuration
-from amarcord.amici.xfel.karabo_online import parse_configuration
 from amarcord.amici.xfel.karabo_stream_keys import KaraboStreamKeys
 from amarcord.amici.xfel.karabo_stream_keys import karabo_stream_keys
+from amarcord.amici.xfel.proposed_run import ProposedRun
 
 RUN_CONTROL_KEYS = [
     "runDetails.runId.value",
@@ -31,6 +33,7 @@ RUN_CONTROL_KEYS = [
     "runDetails.beginAt.value",
     "runDetails.firstTrainId.value",
     "runDetails.length.value",
+    "proposalNumber.value",
 ]
 
 KEY = "newkey"
@@ -40,16 +43,8 @@ SOURCE = "newsource"
 RUN_CONTROL = "SPB_DAQ_DATA/DM/RUN_CONTROL"
 
 
-def load_minimal_config() -> Dict[str, Any]:
-    config_path = Path(__file__).parent / "config-minimal.yml"
-    config = load_configuration(str(config_path))
-    return config["Karabo_bridge"]["attributi_definition"]
-
-
-def load_standard_config() -> Dict[str, Any]:
-    config_path = Path(__file__).parent / "config.yml"
-    config = load_configuration(str(config_path))
-    return config["Karabo_bridge"]["attributi_definition"]
+def load_minimal_config() -> KaraboConfiguration:
+    return parse_karabo_configuration_file(Path(__file__).parent / "config-minimal.yml")
 
 
 def test_stream_content() -> None:
@@ -75,7 +70,9 @@ def test_compare_attributi_and_karabo_data_one_extraneous_attributo_with_ignore(
     Assume a standard config, but add another source with two keys. Specify one key to be ignored. Nothing should be
     returned, as the new key should be properly ignored.
     """
-    attributi, expected_attributi = parse_configuration(load_minimal_config())
+    config = load_minimal_config()
+
+    expected_attributi = config.expected_attributi
 
     expected_attributi["newsource"] = {}
     expected_attributi["newsource"]["newkey"] = {
@@ -108,9 +105,10 @@ def create_random_attributo(
         "description",
         "int",
         store=True,
+        karabo_type=None,
         action=action,
-        action_axis=None,
         unit="",
+        processor=None,
         filling_value=filling_value,
         value=None,
         role=None,
@@ -233,10 +231,10 @@ def test_compare_attributi_and_karabo_data_ignore_whole_source() -> None:
     """
     Here we completely ignore the source and pass extra attributo from there. Shouldn't matter.
     """
-    attributi, expected_attributi = parse_configuration(load_minimal_config())
+    config = load_minimal_config()
 
     result = compare_attributi_and_karabo_data(
-        expected_attributi,
+        config.expected_attributi,
         KaraboStreamKeys(
             data={
                 RUN_CONTROL: RUN_CONTROL_KEYS,
@@ -256,7 +254,9 @@ def test_compare_attributi_and_karabo_data_one_extraneous_attributo() -> None:
     """
     Here we pass in exactly one extra attributo ("newkey") an expect a message about that from the comparison function.
     """
-    attributi, expected_attributi = parse_configuration(load_minimal_config())
+    config = load_minimal_config()
+
+    expected_attributi = config.expected_attributi
 
     expected_attributi["newsource"] = {}
     expected_attributi["newsource"]["newkey"] = {
@@ -268,7 +268,8 @@ def test_compare_attributi_and_karabo_data_one_extraneous_attributo() -> None:
             "int",
             store=True,
             action=KaraboAttributoAction.STORE_LAST,
-            action_axis=None,
+            karabo_type=None,
+            processor=None,
             unit="",
             filling_value=None,
             value=None,
@@ -297,10 +298,10 @@ def test_compare_attributi_and_karabo_data_one_extraneous_source() -> None:
     """
     Here we have one extraneous source we didn't specify in the expected attributi. It should be shown as such.
     """
-    attributi, expected_attributi = parse_configuration(load_minimal_config())
+    config = load_minimal_config()
 
     result = compare_attributi_and_karabo_data(
-        expected_attributi,
+        config.expected_attributi,
         KaraboStreamKeys(
             data={
                 RUN_CONTROL: RUN_CONTROL_KEYS,
@@ -319,16 +320,16 @@ def test_compare_attributi_and_karabo_data_one_attributo_not_available() -> None
     """
     We specify one expected attributo and then assume we get a message if it's missing in the stream.
     """
-    attributi, expected_attributi = parse_configuration(load_minimal_config())
+    config = load_minimal_config()
 
-    expected_attributi["newsource"] = {}
-    expected_attributi["newsource"]["newkey"] = {
+    config.expected_attributi["newsource"] = {}
+    config.expected_attributi["newsource"]["newkey"] = {
         "attributo": create_random_attributo(),
         "group": "newgroup",
     }
 
     result = compare_attributi_and_karabo_data(
-        expected_attributi,
+        config.expected_attributi,
         KaraboStreamKeys(
             data={RUN_CONTROL: RUN_CONTROL_KEYS},
             metadata={},
@@ -344,7 +345,7 @@ def test_generate_train_content() -> None:
     """
     This tests the basic function of the train config parser (which contains the most important values for the train)
     """
-    attributi, _ = parse_configuration(load_standard_config())
+    attributi = load_minimal_config().attributi
 
     result = generate_train_content(
         attributi,
@@ -413,7 +414,7 @@ def test_start_with_run_in_progress() -> None:
     # We set the run to have "just started" (train ID equal to the train ID in the data frame)
     data[RUN_CONTROL]["runDetails.firstTrainId.value"] = train_id
     data[RUN_CONTROL]["runDetails.length.value"] = 0
-    run_start_time = datetime.datetime(1987, 8, 21, 15, 0, 0, 0)
+    _run_start_time = datetime.datetime(1987, 8, 21, 15, 0, 0, 0)
     data[RUN_CONTROL]["runDetails.beginAt.value"] = "19870821T150000.0Z"
     data[RUN_CONTROL]["runNumber.value"] = 1337
 
@@ -425,17 +426,15 @@ def test_start_with_run_in_progress() -> None:
 
 
 def create_standard_slicer() -> KaraboBridgeSlicer:
-    config_path = Path(__file__).parent / "config.yml"
-    config = load_configuration(str(config_path))
-    karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
-    return karabo_data
+    return KaraboBridgeSlicer(
+        parse_karabo_configuration_file(Path(__file__).parent / "config.yml")
+    )
 
 
 def create_minimal_slicer() -> KaraboBridgeSlicer:
-    config_path = Path(__file__).parent / "config-minimal.yml"
-    config = load_configuration(str(config_path))
-    karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
-    return karabo_data
+    return KaraboBridgeSlicer(
+        parse_karabo_configuration_file(Path(__file__).parent / "config-minimal.yml")
+    )
 
 
 def test_start_with_run_in_progress_for_too_long() -> None:
@@ -605,11 +604,7 @@ def test_receive_ended_run() -> None:
     In this case, we expect no message, since we cannot generate correct averages and also don't get
     the final results from Karabo.
     """
-    config_path = Path(__file__).parent / "config.yml"
-
-    config = load_configuration(str(config_path))
-
-    karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
+    karabo_data = create_standard_slicer()
 
     # Load a basic file (could be middle of a run)
     with (Path(__file__).parent / "events" / "1035758364.pickle").open("rb") as handle:
@@ -635,7 +630,7 @@ def test_intermittently_missing_source_without_filling_value_and_store_last() ->
     one.
     """
     attributi = create_minimal_attributi_definition()
-    attributi["newgroup"] = {
+    attributi["attributi_definition"]["newgroup"] = {
         "testattributo": {
             "key": "testattributo",
             "type": "decimal",
@@ -644,10 +639,7 @@ def test_intermittently_missing_source_without_filling_value_and_store_last() ->
         }
     }
 
-    karabo_data = KaraboBridgeSlicer(
-        attributi_definition=attributi,
-        ignore_entry={},
-    )
+    karabo_data = KaraboBridgeSlicer(parse_karabo_configuration(attributi))
 
     # initial ingest
     result = karabo_data.run_definer(
@@ -720,7 +712,7 @@ def test_intermittently_missing_source_with_filling_value_and_store_last() -> No
     one.
     """
     attributi = create_minimal_attributi_definition()
-    attributi["newgroup"] = {
+    attributi["attributi_definition"]["newgroup"] = {
         "testattributo": {
             "key": "testattributo",
             "type": "decimal",
@@ -730,10 +722,7 @@ def test_intermittently_missing_source_with_filling_value_and_store_last() -> No
         }
     }
 
-    karabo_data = KaraboBridgeSlicer(
-        attributi_definition=attributi,
-        ignore_entry={},
-    )
+    karabo_data = KaraboBridgeSlicer(parse_karabo_configuration(attributi))
 
     # initial ingest
     result = karabo_data.run_definer(
@@ -806,7 +795,7 @@ def test_intermittently_missing_source_without_filling_value_averaging() -> None
     one.
     """
     attributi = create_minimal_attributi_definition()
-    attributi["newgroup"] = {
+    attributi["attributi_definition"]["newgroup"] = {
         "testattributo": {
             "key": "testattributo",
             "type": "decimal",
@@ -815,10 +804,7 @@ def test_intermittently_missing_source_without_filling_value_averaging() -> None
         }
     }
 
-    karabo_data = KaraboBridgeSlicer(
-        attributi_definition=attributi,
-        ignore_entry={},
-    )
+    karabo_data = KaraboBridgeSlicer(parse_karabo_configuration(attributi))
 
     # initial ingest
     result = karabo_data.run_definer(
@@ -891,7 +877,7 @@ def test_intermittently_missing_source_with_filling_value() -> None:
     one.
     """
     attributi = create_minimal_attributi_definition()
-    attributi["newgroup"] = {
+    attributi["attributi_definition"]["newgroup"] = {
         "testattributo": {
             "key": "testattributo",
             "type": "decimal",
@@ -901,10 +887,7 @@ def test_intermittently_missing_source_with_filling_value() -> None:
         }
     }
 
-    karabo_data = KaraboBridgeSlicer(
-        attributi_definition=attributi,
-        ignore_entry={},
-    )
+    karabo_data = KaraboBridgeSlicer(parse_karabo_configuration(attributi))
 
     # initial ingest
     result = karabo_data.run_definer(
@@ -973,36 +956,41 @@ def test_intermittently_missing_source_with_filling_value() -> None:
 
 def create_minimal_attributi_definition() -> Dict[str, Any]:
     return {
-        "run": {
-            "source": "run",
-            "index": {
-                "key": "run_idx",
-                "type": "int",
-                "role": "run_id",
-            },
-            "number": {
-                "key": "run_number",
-                "type": "int",
-                "role": "run_number",
-            },
-            "timestamp_UTC_initial": {
-                "key": "timestamp_initial",
-                "type": "datetime",
-            },
-            "train_index_initial": {
-                "key": "initial",
-                "type": "int",
-            },
-            "proposal_id": {
-                "key": "proposal_id",
-                "type": "int",
-                "role": "proposal_id",
-            },
-            "trains_in_run": {
-                "key": "trains_in_run",
-                "type": "int",
-            },
-        }
+        "config_version": 2,
+        "attributi_definition": {
+            "run": {
+                "source": "run",
+                "index": {
+                    "key": "run_idx",
+                    "type": "int",
+                    "role": "run_id",
+                },
+                "number": {
+                    "key": "run_number",
+                    "type": "int",
+                    "role": "run_number",
+                },
+                "timestamp_UTC_initial": {
+                    "key": "timestamp_initial",
+                    "type": "datetime",
+                },
+                "train_index_initial": {
+                    "key": "initial",
+                    "type": "int",
+                    "role": "train_index_initial",
+                },
+                "proposal_id": {
+                    "key": "proposal_id",
+                    "type": "int",
+                    "role": "proposal_id",
+                },
+                "trains_in_run": {
+                    "key": "trains_in_run",
+                    "type": "int",
+                    "role": "trains_in_run",
+                },
+            }
+        },
     }
 
 
@@ -1024,7 +1012,9 @@ def test_compute_statistics_arithmetic_mean() -> None:
     attributi = {"run": {"newidentifier": attributo}}
     cache = KaraboCache(expected)
     cache.content[SOURCE][KEY] = [3, 4, 5]
-    compute_statistics(cache.content, expected, attributi, current_run=1)
+    compute_statistics(
+        cache.content, expected, attributi, current_run=ProposedRun(1, 1)
+    )
     assert attributo.value == 4
 
 
@@ -1046,7 +1036,9 @@ def test_compute_statistics_arithmetic_mean_ignore_filling_values() -> None:
     attributi = {"run": {"newidentifier": attributo}}
     cache = KaraboCache(expected)
     cache.content[SOURCE][KEY] = [0, 3, 0, 4, 0, 5]
-    compute_statistics(cache.content, expected, attributi, current_run=1)
+    compute_statistics(
+        cache.content, expected, attributi, current_run=ProposedRun(1, 1)
+    )
     assert attributo.value == 4
 
 
@@ -1063,7 +1055,9 @@ def test_compute_statistics_check_if_constant() -> None:
     attributi = {"run": {"newidentifier": attributo}}
     cache = KaraboCache(expected)
     cache.content[SOURCE][KEY] = [3, 4, 5]
-    compute_statistics(cache.content, expected, attributi, current_run=1)
+    compute_statistics(
+        cache.content, expected, attributi, current_run=ProposedRun(1, 1)
+    )
     # Take the first one if not constant
     assert attributo.value == 3
 
@@ -1121,5 +1115,5 @@ def test_averaging_with_empty_rows() -> None:
 
     assert (
         result[0].attributi["detector.XGM_XTD9"]["XGM_XTD9_SASE1_pulse_energy"].value
-        > 900
+        > 600
     )

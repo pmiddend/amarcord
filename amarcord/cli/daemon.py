@@ -8,7 +8,6 @@ from typing import Dict
 from typing import Optional
 
 import msgpack
-import yaml
 import zmq
 from karabo_bridge import deserialize
 from tap import Tap
@@ -17,6 +16,7 @@ from zmq.asyncio import Context
 from amarcord.amici.onda.zeromq import OnDAZeroMQProcessor
 from amarcord.amici.onda.zeromq import TrainRange
 from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
+from amarcord.amici.xfel.karabo_configuration import parse_karabo_configuration_file
 from amarcord.amici.xfel.karabo_general import ingest_attributi
 from amarcord.amici.xfel.karabo_general import ingest_karabo_action
 from amarcord.db.associated_table import AssociatedTable
@@ -29,7 +29,6 @@ from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.run_id import RunId
-from amarcord.train_id import TrainId
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -47,26 +46,21 @@ async def karabo_loop(
     db: DB,
     zmq_context: Context,
     proposal_id: ProposalId,
+    karabo_endpoint: Optional[str],
     karabo_config_file: Optional[str],
-    karabo_export: KaraboExport,
+    _karabo_export: KaraboExport,
 ) -> None:
-    if karabo_config_file is None:
-        return
-
-    with open(karabo_config_file) as fh:
-        karabo_configuration = yaml.load(fh, Loader=yaml.SafeLoader)
-
-    client_endpoint = karabo_configuration["Karabo_bridge"].get("client_endpoint", None)
-
-    if client_endpoint is None:
+    if karabo_config_file is None or karabo_endpoint is None:
         return
 
     # pylint: disable=no-member
     socket = zmq_context.socket(zmq.REQ)
 
-    socket.connect(client_endpoint)
+    socket.connect(karabo_endpoint)
 
-    slicer = KaraboBridgeSlicer(**karabo_configuration["Karabo_bridge"])
+    slicer = KaraboBridgeSlicer(
+        parse_karabo_configuration_file(Path(karabo_config_file))
+    )
 
     ingest_attributi(db, slicer.get_attributi())
 
@@ -112,14 +106,15 @@ async def karabo_loop(
                     pickle.dump(slicer, error_file, protocol=pickle.HIGHEST_PROTOCOL)
                 raise e
 
-            for run_id, run_metadata in slicer.run_history.items():
-                karabo_export.runs[RunId(run_id)] = TrainRange(
-                    TrainId(run_metadata["train_index_initial"].value),
-                    TrainId(
-                        run_metadata["train_index_initial"].value
-                        + run_metadata["trains_in_run"].value
-                    ),
-                )
+            # This has to be fixed later
+            # for run_id, run_metadata in slicer._run_history.items():
+            #     karabo_export.runs[RunId(run_id)] = TrainRange(
+            #         TrainId(run_metadata["train_index_initial"].value),
+            #         TrainId(
+            #             run_metadata["train_index_initial"].value
+            #             + run_metadata["trains_in_run"].value
+            #         ),
+            #     )
 
             # Do something with data
         except zmq.error.Again:
@@ -188,6 +183,9 @@ class Arguments(Tap):
     karabo_config_file: Optional[
         str
     ] = None  # Karabo configuration file; if given, will enable the Karabo daemon
+    karabo_endpoint: Optional[
+        str
+    ] = None  # Endpoint for the Karabo bridge (for example, tcp://localhost:4545)
     onda_url: Optional[
         str
     ] = None  # URL for the OnDA ZeroMQ endpoint; if given, will enable the OnDA client
@@ -217,21 +215,31 @@ def main() -> None:
                 db.add_proposal(local_conn, proposal_id)
 
     asyncio.run(
-        async_main(db, proposal_id, args.karabo_config_file, args.onda_url, zmq_ctx)
+        async_main(
+            db,
+            proposal_id,
+            args.karabo_endpoint,
+            args.karabo_config_file,
+            args.onda_url,
+            zmq_ctx,
+        )
     )
 
 
 async def async_main(
     db: DB,
     proposal_id: ProposalId,
-    karabo_url: Optional[str],
+    karabo_endpoint: Optional[str],
+    karabo_config_file: Optional[str],
     onda_url: Optional[str],
     zmq_ctx: Context,
 ) -> None:
     karabo_export = KaraboExport(runs={})
 
     await asyncio.gather(
-        karabo_loop(db, zmq_ctx, proposal_id, karabo_url, karabo_export),
+        karabo_loop(
+            db, zmq_ctx, proposal_id, karabo_endpoint, karabo_config_file, karabo_export
+        ),
         onda_loop(db, zmq_ctx, onda_url, karabo_export),
     )
 

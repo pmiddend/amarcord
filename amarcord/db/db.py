@@ -428,7 +428,10 @@ class DB:
         )
 
     def retrieve_attributi(
-        self, conn: Connection, filter_table: Optional[AssociatedTable] = None
+        self,
+        conn: Connection,
+        filter_table: Optional[AssociatedTable] = None,
+        inherent: bool = True,
     ) -> Dict[AssociatedTable, Dict[AttributoId, DBAttributo]]:
         select_stmt = sa.select(
             [
@@ -459,17 +462,18 @@ class DB:
                 lambda x: x[3],
             )
         }
-        for table, attributi in self.tables.additional_attributi.items():
-            if table not in result:
-                result[table] = attributi
-            else:
-                result[table].update(attributi)
+        if inherent:
+            for table, attributi in self.tables.additional_attributi.items():
+                if table not in result:
+                    result[table] = attributi
+                else:
+                    result[table].update(attributi)
         return result
 
     def retrieve_table_attributi(
-        self, conn: Connection, table: AssociatedTable
+        self, conn: Connection, table: AssociatedTable, inherent: bool = True
     ) -> Dict[AttributoId, DBAttributo]:
-        return self.retrieve_attributi(conn, table)[table]
+        return self.retrieve_attributi(conn, table, inherent).get(table, {})
 
     def run_attributi(self, conn: Connection) -> Dict[AttributoId, DBAttributo]:
         return self.retrieve_table_attributi(conn, AssociatedTable.RUN)

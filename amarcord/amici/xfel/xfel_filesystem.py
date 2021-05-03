@@ -1,37 +1,27 @@
 import logging
-from typing import Any
-from typing import Dict
 
 import extra_data
 import numpy as np
 
 from amarcord.amici.xfel.karabo_cache import KaraboCacheContent
+from amarcord.amici.xfel.karabo_configuration import KaraboConfiguration
 from amarcord.amici.xfel.karabo_expected_attributi import KaraboExpectedAttributi
 from amarcord.amici.xfel.karabo_online import compute_statistics
-from amarcord.amici.xfel.karabo_online import parse_configuration
+from amarcord.amici.xfel.proposed_run import ProposedRun
 
 logger = logging.getLogger(__name__)
 
 
 class FileSystem2Attributo:
     def __init__(
-        self,
-        proposal_id: int,
-        run_id: int,
-        attributi_definition: Dict[str, Any],
-        # pylint: disable=unused-argument
-        **kwargs: Dict[str, Any],
+        self, proposal_id: int, run_id: int, config: KaraboConfiguration
     ) -> None:
 
         self.proposal_id = proposal_id
         self.run_id = run_id
 
-        self._attributi_definition = attributi_definition
-
-        # generate attributi
-        self.attributi, self.expected_attributi = parse_configuration(
-            self._attributi_definition
-        )
+        self.attributi = config.attributi
+        self.expected_attributi = config.expected_attributi
 
         # TO BE FIXED: hardcoded attributo
         # self.attributi["run"].append(
@@ -164,7 +154,7 @@ class FileSystem2Attributo:
             self.cache,
             _attributi,
             self.attributi,
-            current_run=self.run_id,
+            current_run=ProposedRun(self.run_id, self.proposal_id),
         )
 
         return _attributi

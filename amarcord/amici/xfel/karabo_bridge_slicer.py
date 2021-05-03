@@ -1,58 +1,75 @@
 import copy
 import logging
-from collections import deque
 from typing import Any
-from typing import Deque
 from typing import Dict
 from typing import FrozenSet
 from typing import List
 from typing import Optional
-from typing import cast
+from typing import Set
 
 from amarcord.amici.xfel.karabo_action import KaraboAction
 from amarcord.amici.xfel.karabo_action import KaraboAttributiUpdate
 from amarcord.amici.xfel.karabo_action import KaraboRunEnd
 from amarcord.amici.xfel.karabo_action import KaraboRunStart
 from amarcord.amici.xfel.karabo_cache import KaraboCache
+from amarcord.amici.xfel.karabo_configuration import KaraboConfiguration
 from amarcord.amici.xfel.karabo_data import KaraboData
 from amarcord.amici.xfel.karabo_expected_attributi import KaraboExpectedAttributi
-from amarcord.amici.xfel.karabo_general import parse_weird_karabo_datetime
-from amarcord.amici.xfel.karabo_online import KaraboAttributoWithValue
-from amarcord.amici.xfel.karabo_online import RunStatus
-from amarcord.amici.xfel.karabo_online import TrainContentDict
 from amarcord.amici.xfel.karabo_online import compare_attributi_and_karabo_data
 from amarcord.amici.xfel.karabo_online import compare_metadata_trains
 from amarcord.amici.xfel.karabo_online import compute_statistics
-from amarcord.amici.xfel.karabo_online import generate_train_content
-from amarcord.amici.xfel.karabo_online import parse_configuration
 from amarcord.amici.xfel.karabo_source import KaraboSource
+from amarcord.amici.xfel.karabo_special_role import KaraboSpecialRole
 from amarcord.amici.xfel.karabo_stream_keys import KaraboStreamKeys
 from amarcord.amici.xfel.karabo_stream_keys import karabo_stream_keys
+from amarcord.amici.xfel.proposed_run import ProposedRun
 
 logger = logging.getLogger(__name__)
 
 
+def retrieve_int_attributo_with_role(
+    expected_attributi: KaraboExpectedAttributi,
+    data: KaraboData,
+    role: KaraboSpecialRole,
+) -> int:
+    attributo = next(
+        iter(
+            y["attributo"]
+            for x in expected_attributi.values()
+            for y in x.values()
+            if y["attributo"].role == role
+        ),
+        None,
+    )
+    if attributo is None:
+        raise ValueError(f"couldn't find attributo for special role {role}")
+    result = data[attributo.source].get(attributo.key, None)
+    if result is None:
+        raise ValueError(
+            f"couldn't find value for special role {role}, attributo id {attributo.identifier}"
+        )
+    if not isinstance(result, int):
+        raise ValueError(
+            f"special value attributo {attributo.identifier} with role {role} is not int but {type(result)}: {result}"
+        )
+    return result
+
+
 class KaraboBridgeSlicer:
-    def __init__(
-        self,
-        attributi_definition: Dict[str, Any],
-        ignore_entry: Dict[KaraboSource, List[str]],
-        **_kwargs: Dict[str, Any],
-    ) -> None:
+    def __init__(self, configuration: KaraboConfiguration) -> None:
 
         # build the attributi dictionary
         self.initial_bridge_content: Optional[KaraboStreamKeys] = None
         self._ignore_entry: Dict[KaraboSource, FrozenSet[str]] = {
-            k: frozenset(v) for k, v in ignore_entry.items()
+            k: frozenset(v) for k, v in configuration.ignore_entry.items()
         }
 
-        self._attributi, self.expected_attributi = parse_configuration(
-            attributi_definition
-        )
+        self._attributi = configuration.attributi
+        self.expected_attributi = configuration.expected_attributi
 
-        self._train_history: Deque[int] = deque()
-        self.run_history: Dict[int, TrainContentDict] = {}
-        self._current_run: Optional[int] = None
+        self._last_train: Optional[int] = None
+        self._run_history: Set[ProposedRun] = set()
+        self._last_closed_run: Optional[ProposedRun] = None
 
         # populate the cache
         self._cache = KaraboCache(self.expected_attributi)
@@ -69,21 +86,8 @@ class KaraboBridgeSlicer:
     ) -> List[KaraboAction]:
         trainId = compare_metadata_trains(metadata)
 
-        if self._train_history and trainId - 1 != self._train_history[-1]:
-            logger.info(
-                "missed train; last %s, current %s", self._train_history[-1], trainId
-            )
-
-        self._train_history.append(trainId)
-        self._train_history.popleft()
-
-        # logger.debug("Train %s", trainId)
-
-        # inspect the run
-        train_content = generate_train_content(self._attributi, data)
-
-        if train_content is None:
-            return []
+        if self._last_train is not None and trainId - 1 != self._last_train:
+            logger.info("missed train; last %s, current %s", self._last_train, trainId)
 
         is_first_train = self.initial_bridge_content is None
         if self.initial_bridge_content is None:
@@ -93,29 +97,43 @@ class KaraboBridgeSlicer:
             ):
                 logger.warning(message)
 
-        # run index
-        self._current_run = train_content["number"].value
+        current_run = ProposedRun(
+            run_id=retrieve_int_attributo_with_role(
+                self.expected_attributi, data, KaraboSpecialRole.RUN_NUMBER
+            ),
+            proposal_id=retrieve_int_attributo_with_role(
+                self.expected_attributi, data, KaraboSpecialRole.PROPOSAL_ID
+            ),
+        )
+
+        trains_in_run = retrieve_int_attributo_with_role(
+            self.expected_attributi, data, KaraboSpecialRole.TRAINS_IN_RUN
+        )
 
         # run is running
-        if train_content["trains_in_run"].value == 0:
+        if trains_in_run == 0:
             if is_first_train:
-                logger.info("Daemon is starting in the middle of a run...")
+                logger.info(
+                    "Daemon is starting in the middle of run %s...", current_run
+                )
+
+            initial_train = retrieve_int_attributo_with_role(
+                self.expected_attributi, data, KaraboSpecialRole.TRAIN_INDEX_INITIAL
+            )
             # We don't know the run yet, but it's too long gone
             if (
-                self._current_run not in self.run_history
-                and train_content["train_index_initial"].value
-                < trainId - train_cache_size
+                current_run not in self._run_history
+                and initial_train < trainId - train_cache_size
             ):
                 logger.info(
-                    "Run is out of our time window (train id %s, train cache size %s, initial train index: %s), "
+                    "Run %s is out of our time window (train id %s, train cache size %s, initial train index: %s), "
                     "ignoring it...",
+                    current_run,
                     trainId,
                     train_cache_size,
-                    train_content["train_index_initial"].value,
+                    initial_train,
                 )
                 return []
-
-            logger.debug("Caching train %s", trainId)
 
             # cache the data
             self._cache.cache_train(
@@ -123,46 +141,16 @@ class KaraboBridgeSlicer:
             )
 
             # starting a new run...
-            if self._current_run not in self.run_history:
-                # We don't know if all previous runs have been closed. Better do that now.
-                for v in self.run_history.values():
-                    v["status"] = RunStatus.CLOSED
-
+            if current_run not in self._run_history:
                 # Add our new run (which will be running by construction above)
-                self.run_history[self._current_run] = train_content.copy()
+                self._run_history.add(current_run)
 
-                logger.info(
-                    "Run %s started with train %s at %s",
-                    train_content["number"].value,
-                    trainId,
-                    train_content["timestamp_UTC_initial"].value,
-                )
+                logger.info("Run %s started with train %s", current_run, trainId)
 
-                # populate run attributi
-                for item_ in train_content.values():
-                    if not isinstance(item_, KaraboAttributoWithValue):
-                        continue
-                    item = cast(KaraboAttributoWithValue[Any], item_)
-                    if item.attributo.type_ == "datetime":
-                        result_value = parse_weird_karabo_datetime(item.value)
-                    else:
-                        result_value = item.value
-                    self._attributi["run"][
-                        item.attributo.identifier
-                    ].value = result_value
-
-                # logger.info(
-                #     "start attributi: %s",
-                #     "\n".join(
-                #         f"{x.identifier}"
-                #         for v in self._attributi.values()
-                #         for x in v.values()
-                #     ),
-                # )
                 return [
                     KaraboRunStart(
-                        run_id=self._current_run,
-                        proposal_id=self._attributi["run"]["proposal_id"].value,
+                        run_id=current_run.run_id,
+                        proposal_id=current_run.proposal_id,
                         attributi=copy.deepcopy(self._attributi),
                     )
                 ]
@@ -176,46 +164,44 @@ class KaraboBridgeSlicer:
 
             # Run still running, averages make sense now
             # update the average and send results to AMARCORD
+            # This uses the cache to set values inside _attributi (and doesn't update the cache)
             compute_statistics(
                 self._cache.content,
                 self.expected_attributi,
                 self._attributi,
-                self._current_run,
+                current_run,
             )
 
             return [
                 KaraboAttributiUpdate(
-                    self._current_run,
-                    proposal_id=self._attributi["run"]["proposal_id"].value,
+                    run_id=current_run.run_id,
+                    proposal_id=current_run.proposal_id,
                     attributi=copy.deepcopy(self._attributi),
                 )
             ]
 
         # run is over or in progress when we start
         # run is in progress when we start
-        if train_content["number"].value not in self.run_history:
+        if current_run not in self._run_history:
             if is_first_train:
                 logger.info(
                     "Daemon is starting with an already finished run %s, waiting for new run",
-                    train_content["number"].value,
+                    current_run,
                 )
             return []
 
         # Run is over and we already know that.
-        if self.run_history[self._current_run]["status"] == RunStatus.CLOSED:
+        if self._last_closed_run == current_run:
             return []
 
         # Run is over and that's news to us, then note final run state
-        self.run_history[self._current_run]["trains_in_run"] = train_content[
-            "trains_in_run"
-        ]
-        self.run_history[self._current_run]["status"] = RunStatus.CLOSED
+        self._last_closed_run = current_run
 
         logger.info(
             "Run %s closed at %s: %s train(s)",
-            train_content["number"].value,
+            current_run,
             trainId,
-            train_content["trains_in_run"].value,
+            trains_in_run,
         )
 
         # update the average one more time and send results to AMARCORD
@@ -223,27 +209,16 @@ class KaraboBridgeSlicer:
             self._cache.content,
             self.expected_attributi,
             self._attributi,
-            self._current_run,
+            current_run,
         )
 
         # reset the cache
         self._cache = KaraboCache(self.expected_attributi)
 
-        # populate run attributi
-        for item_ in train_content.values():
-            if not isinstance(item_, KaraboAttributoWithValue):
-                continue
-            item = cast(KaraboAttributoWithValue[Any], item_)
-            if item.attributo.type_ == "datetime":
-                result_value = parse_weird_karabo_datetime(item.value)
-            else:
-                result_value = item.value
-            self._attributi["run"][item.attributo.identifier].value = result_value
-
         return [
             KaraboRunEnd(
-                self._current_run,
-                proposal_id=self._attributi["run"]["proposal_id"].value,
+                run_id=current_run.run_id,
+                proposal_id=current_run.proposal_id,
                 attributi=copy.deepcopy(self._attributi),
             )
         ]

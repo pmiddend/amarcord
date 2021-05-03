@@ -1,6 +1,4 @@
 import logging
-import os
-import re
 from dataclasses import dataclass
 from enum import Enum
 from enum import auto
@@ -18,7 +16,6 @@ from typing import Union
 from typing import cast
 
 import numpy as np
-import yaml
 
 from amarcord.amici.xfel.karabo_attributi import KaraboAttributi
 from amarcord.amici.xfel.karabo_attributo import KaraboAttributo
@@ -27,165 +24,14 @@ from amarcord.amici.xfel.karabo_cache import KaraboCacheContent
 from amarcord.amici.xfel.karabo_data import KaraboData
 from amarcord.amici.xfel.karabo_expected_attributi import KaraboExpectedAttributi
 from amarcord.amici.xfel.karabo_source import KaraboSource
-from amarcord.amici.xfel.karabo_special_role import KaraboSpecialRole
 from amarcord.amici.xfel.karabo_statistics import KaraboStatistics
 from amarcord.amici.xfel.karabo_stream_keys import KaraboStreamKeys
 from amarcord.amici.xfel.karabo_value import KaraboValue
+from amarcord.amici.xfel.proposed_run import ProposedRun
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-
-
-# TO BE FIXED: to be moved to another module
-def load_configuration(descriptor: str) -> Dict[str, Any]:
-    """Load the configuration file
-
-    Args:
-        descriptor (str): The YAML file
-
-    Raises:
-        FileNotFoundError: Self explaining
-
-    Returns:
-            Dict[str, Any]: The configuration
-    """
-
-    if os.path.exists(descriptor):
-        with open(descriptor) as fh:
-            configuration = yaml.load(fh, Loader=yaml.Loader)
-
-    else:
-        raise FileNotFoundError("{} not found...".format(descriptor))
-
-    return configuration
-
-
-def parse_attributo(
-    identifier: str,
-    global_source: Optional[str],
-    global_action: Optional[str],
-    action_axis: Optional[int],
-    ai_content: Dict[str, Any],
-) -> KaraboAttributo:
-    type_ = ai_content.get("type", "decimal")
-
-    list_re = re.fullmatch(
-        r"image|int|decimal|str|datetime|list\[(int|decimal|str)]", type_
-    )
-    if not list_re:
-        raise ValueError(
-            f"Attributo type must be str, int, decimal, datetime or a list of int or decimal, is {type}"
-        )
-
-    action = ai_content.get("action", global_action)
-    if action is not None and action not in [x.value for x in KaraboAttributoAction]:
-        raise ValueError(
-            "Action must be either '{}', is {}".format(
-                "' or '".join(s.value for s in KaraboAttributoAction), action
-            )
-        )
-    if action is not None:
-        action = KaraboAttributoAction(action)
-    else:
-        action = KaraboAttributoAction.STORE_LAST
-
-    source = ai_content.get("source", global_source)
-
-    if source is None:
-        raise ValueError(
-            f"Attributo {identifier} has no source and no global source given!"
-        )
-
-    role = ai_content.get("role", None)
-    if role is not None and role not in [x.value for x in KaraboSpecialRole]:
-        raise ValueError(
-            "Role must be either '{}', is {}".format(
-                "' or '".join(s.value for s in KaraboSpecialRole), role
-            )
-        )
-    if role is not None:
-        role = KaraboSpecialRole(role)
-
-    return KaraboAttributo(
-        identifier=identifier,
-        source=source,
-        key=ai_content["key"],
-        description=ai_content.get("description", None),
-        type_=type_,
-        store=ai_content.get("store", True),
-        action=action,
-        action_axis=ai_content.get("action_axis", action_axis),
-        unit=ai_content.get("unit", None),
-        filling_value=ai_content.get("filling_value", None),
-        value=None,
-        role=role,
-    )
-
-
-def parse_configuration(
-    configuration: Dict[str, Any]
-) -> Tuple[KaraboAttributi, KaraboExpectedAttributi]:
-    """Parse the configuration file
-
-    Args:
-        configuration (Dict[str, Any]): The configuration
-
-    Raises:
-        TypeError: If the attributo syntax is wrong
-
-    Returns:
-        Dict[str, List[Dict[str, Any]]], Dict[str, List[str]]: A dictionary of attributi and one with expected Karabo
-        keywords
-    """
-    entry: KaraboAttributi = {}
-    karabo_expected_entry: KaraboExpectedAttributi = {}
-
-    for (
-        gi,
-        gi_content,
-    ) in configuration.items():
-        source, action, action_axis = None, None, None
-
-        for (
-            ai,
-            ai_content,
-        ) in gi_content.items():
-
-            # source and action can be set globally, for the entire group
-            if ai == "source":
-                source = ai_content
-            elif ai == "action":
-                action = ai_content
-            elif ai == "action_axis":
-                action_axis = ai_content
-
-            if isinstance(ai_content, dict):
-                if gi not in entry.keys():
-                    entry[gi] = {}
-
-                if ai in entry[gi]:
-                    logger.warning(
-                        "duplicate attributo for source %s and key %s", gi, ai
-                    )
-                    continue
-                entry[gi][ai] = parse_attributo(
-                    ai, source, action, action_axis, ai_content
-                )
-
-    # build the corresponding Karabo bridge expected entry
-    for group_name, group in entry.items():
-        for attributo in group.values():
-            if attributo.source not in karabo_expected_entry:
-                karabo_expected_entry[attributo.source] = {
-                    attributo.key: {"attributo": attributo, "group": group_name}
-                }
-            else:
-                karabo_expected_entry[attributo.source].update(
-                    {attributo.key: {"attributo": attributo, "group": group_name}}
-                )
-
-    return entry, karabo_expected_entry
 
 
 # TO BE FIXED: to be moved to another module
@@ -198,27 +44,8 @@ def compute_statistics(
     cache: KaraboCacheContent,
     expected_attributi: KaraboExpectedAttributi,
     attributi: KaraboAttributi,
-    current_run: int,
+    current_run: ProposedRun,
 ) -> None:
-    def remove_filling_values(
-        data: Union[KaraboValue, List[KaraboValue]], filling_value: KaraboValue
-    ) -> Tuple[List[KaraboValue], int]:
-        if not isinstance(data, list):
-            return [data], 0
-        container: List[KaraboValue] = []
-        removed_ = 0
-
-        for entry in data:
-            if not hasattr(entry, "__len__"):
-                # remove filling value, which must be a scalar
-                if entry == filling_value:
-                    removed_ += 1
-                    continue
-
-            container.append(entry)
-
-        return container, removed_
-
     for source, source_content in cache.items():
         for key in source_content:
 
@@ -226,7 +53,7 @@ def compute_statistics(
 
             # remove filling values
             cached_value = cache[source][key]
-            cached_data, removed = remove_filling_values(
+            cached_data, removed = _remove_filling_values(
                 cached_value,
                 attributo.filling_value,
             )
@@ -244,7 +71,6 @@ def compute_statistics(
                 reduced_value = KaraboStatistics.call(
                     attributo.action,
                     cached_data,
-                    axis=attributo.action_axis,
                     source=source,
                     key=key,
                 )
@@ -266,7 +92,6 @@ def compute_statistics(
                 # noinspection PyArgumentList
                 unique_value, unique_index = np.unique(  # type: ignore
                     np.hstack(cached_data) if cached_data != [] else cached_data,
-                    axis=attributo.action_axis,
                     return_index=True,
                 )
 
@@ -302,6 +127,26 @@ def compute_statistics(
                 # that's the better choice)
                 if cached_value is not None:
                     attributo.value = cached_value
+
+
+def _remove_filling_values(
+    data: Union[KaraboValue, List[KaraboValue]], filling_value: KaraboValue
+) -> Tuple[List[KaraboValue], int]:
+    if not isinstance(data, list):
+        return [data], 0
+    container: List[KaraboValue] = []
+    removed_ = 0
+
+    for entry in data:
+        if not hasattr(entry, "__len__"):
+            # remove filling value, which must be a scalar
+            if entry == filling_value:
+                removed_ += 1
+                continue
+
+        container.append(entry)
+
+    return container, removed_
 
 
 def compare_metadata_trains(metadata: Dict[str, Any]) -> int:

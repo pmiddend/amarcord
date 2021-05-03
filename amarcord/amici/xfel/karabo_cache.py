@@ -4,11 +4,14 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+import numpy as np
+
 from amarcord.amici.xfel.karabo_attributo_action import KaraboAttributoAction
 from amarcord.amici.xfel.karabo_data import KaraboData
 from amarcord.amici.xfel.karabo_expected_attributi import KaraboExpectedAttributi
 from amarcord.amici.xfel.karabo_general import parse_weird_karabo_datetime
 from amarcord.amici.xfel.karabo_key import KaraboKey
+from amarcord.amici.xfel.karabo_processor import KaraboProcessor
 from amarcord.amici.xfel.karabo_source import KaraboSource
 from amarcord.amici.xfel.karabo_stream_keys import KaraboStreamKeys
 from amarcord.amici.xfel.karabo_value import KaraboValue
@@ -45,30 +48,78 @@ class KaraboCache:
                     continue
 
                 expected = expected_attributi[source][key]
+                attributo = expected["attributo"]
 
                 try:
                     value = data[source][key]
                 except KeyError:
-                    value = expected["attributo"].filling_value
+                    value = attributo.filling_value
 
-                if not match_type(expected["attributo"].type_, value):
+                expected_type = (
+                    attributo.karabo_type
+                    if attributo.karabo_type is not None
+                    else attributo.type_
+                )
+                if not match_type(expected_type, value):
                     logger.warning(
                         '%s//%s: expected value of type %s, got "%s" (type %s)',
                         source,
                         key,
-                        expected["attributo"].type_,
+                        expected_type,
                         value,
                         type(value),
                     )
                     continue
 
+                if attributo.processor == KaraboProcessor.TO_CONSTANT:
+                    if not isinstance(value, list) and (
+                        not isinstance(value, np.ndarray) or len(value.shape) != 1
+                    ):
+                        logger.warning(
+                            '%s//%s: cannot apply processor "%s" on attributo of type %s, not implemented yet',
+                            source,
+                            key,
+                            attributo.processor,
+                            type(value),
+                        )
+                        continue
+                    unique_values = set(value)  # type: ignore
+                    if not unique_values:
+                        logger.warning(
+                            '%s//%s: cannot apply processor "to constant" to empty list, not defined',
+                            source,
+                            key,
+                        )
+                        continue
+                    if len(unique_values) > 1:
+                        logger.warning(
+                            "%s//%s: expected constant values in list, got (exerpt) %s",
+                            source,
+                            key,
+                            list(unique_values)[0:5],
+                        )
+                    value = value[0]  # type: ignore
+                elif attributo.processor == KaraboProcessor.ARITHMETIC_MEAN:
+                    if not isinstance(value, list) and (
+                        not isinstance(value, np.ndarray) or len(value.shape) != 1
+                    ):
+                        logger.warning(
+                            '%s//%s: cannot apply processor "%s" on attributo of type %s, not implemented yet',
+                            source,
+                            key,
+                            attributo.processor,
+                            type(value),
+                        )
+                        continue
+                    value = np.mean(value)
+
                 # Do any sort of type conversion here
-                if expected["attributo"].type_ == "datetime":
+                if attributo.type_ == "datetime":
                     assert isinstance(value, str)
                     # It's a bit weird here, only works for datetime currently
                     value = parse_weird_karabo_datetime(value)  # type: ignore
 
-                action = expected["attributo"].action
+                action = attributo.action
                 if action == KaraboAttributoAction.STORE_LAST:
                     self.content[source][key] = value
                 else:

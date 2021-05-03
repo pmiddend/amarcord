@@ -34,14 +34,15 @@ def karabo_attributi_to_attributi_map(
     source: str,
     attributi: RawAttributiMap,
     karabo_attributi: KaraboAttributi,
+    existing_db_attributi: Iterable[AttributoId],
 ) -> Tuple[RawAttributiMap, List[KaraboImage]]:
     new_attributi = attributi.copy()
     images: List[KaraboImage] = []
     for _group, group_items in karabo_attributi.items():
-        # Special attributi are in this group and will be stored in the DB columns instead
         for a in group_items.values():
-            # Special roles are stored in DB columns, not attributi
-            if a.role is not None:
+            if AttributoId(a.identifier) not in existing_db_attributi:
+                continue
+            if not a.store:
                 continue
             if a.type_ == "image":
                 images.append(KaraboImage(a.value, a))
@@ -90,15 +91,16 @@ def ingest_karabo_action(
             proposal_id,
         )
         return
+    attributi = db.retrieve_table_attributi(conn, AssociatedTable.RUN, inherent=False)
     try:
         run_attributi = db.retrieve_run(conn, proposal_id, action.run_id).attributi
         new_attributi, _images = karabo_attributi_to_attributi_map(
-            source, run_attributi, action.attributi
+            source, run_attributi, action.attributi, attributi.keys()
         )
         db.update_run_attributi(conn, action.run_id, new_attributi)
     except RunNotFound:
         run_attributi, _images = karabo_attributi_to_attributi_map(
-            source, RawAttributiMap({}), action.attributi
+            source, RawAttributiMap({}), action.attributi, attributi.keys()
         )
         db.add_run(
             conn,
@@ -142,7 +144,9 @@ def _join_list(l: Iterable[str]) -> str:
 
 def ingest_attributi(db: DB, attributi: KaraboExpectedAttributi) -> None:
     with db.connect() as conn:
-        run_attributi = db.retrieve_table_attributi(conn, AssociatedTable.RUN)
+        run_attributi = db.retrieve_table_attributi(
+            conn, AssociatedTable.RUN, inherent=True
+        )
 
         # Peel off the source, key and group layers, leaving the attributi
         unsourced_attributi: List[KaraboAttributo] = [
