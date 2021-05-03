@@ -1,8 +1,9 @@
-import argparse
 import logging
 import pickle
+from typing import Optional
 
 import karabo_bridge
+from tap import Tap
 
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",
@@ -13,23 +14,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class Arguments(Tap):
+    karabo_client_url: str  # URL of the Karabo client
+    events: Optional[int] = None  # Number of events to record at most
+    prefix: str  # Filename prefix for the pickled files
+
+    """Dump the stream from the Karabo bridge"""
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Dump the stream from the Karabo bridge."
-    )
-    parser.add_argument(
-        "karabo_client_URL",
-        metavar="URL",
-        help="URL of the Karabo client",
-    )
-    parser.add_argument(
-        "--events", metavar="N", type=int, help="events to record", required=False
-    )
-    parser.add_argument("--prefix", type=str, help="filename prefix", required=True)
+    args = Arguments(underscores_to_dashes=True).parse_args()
 
-    args = parser.parse_args()
-
-    karabo_client = karabo_bridge.Client(args.karabo_client_URL)
+    karabo_client = karabo_bridge.Client(args.karabo_client_url)
 
     logger.info(f"Logging events to {args.prefix}_$i.pickle")
     i = 0

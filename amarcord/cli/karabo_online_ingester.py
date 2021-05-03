@@ -1,7 +1,8 @@
-import argparse
 import logging
 import pickle
 from pathlib import Path
+
+from tap import Tap
 
 from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
 from amarcord.amici.xfel.karabo_general import ingest_attributi
@@ -26,34 +27,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class Arguments(Tap):
+    dump_path: str  # Path with the dumped files from Karabo
+    karabo_config_file: str = "./config.yml"  # Karabo configuration file
+    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Read pickled Karabo client frames and ingest them into a database"
-    )
-    parser.add_argument(
-        "--dump-path",
-        help="Path with the dump files",
-        required=True,
-    )
-    parser.add_argument(
-        "--karabo-configuration",
-        help="Karabo configuration file",
-        default="./config.yml",
-        required=True,
-    )
-    parser.add_argument(
-        "--database-url", type=str, help="URL to the database", required=True
-    )
+    args = Arguments(underscores_to_dashes=True).parse_args()
 
-    args = parser.parse_args()
+    config = load_configuration(args.karabo_config_file)
 
-    config = load_configuration(args.karabo_configuration)
-
-    dbcontext = DBContext(args.database_url)
+    dbcontext = DBContext(args.db_connection_url)
 
     tables = create_tables(dbcontext)
 
-    if args.database_url.startswith("sqlite://"):
+    if args.db_connection_url.startswith("sqlite://"):
         dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
     db = DB(dbcontext, tables)
@@ -61,7 +50,9 @@ def main() -> None:
     karabo_data = KaraboBridgeSlicer(**config["Karabo_bridge"])
 
     with db.connect() as conn:
-        if args.database_url.startswith("sqlite://") and not db.have_proposals(conn):
+        if args.db_connection_url.startswith("sqlite://") and not db.have_proposals(
+            conn
+        ):
             db.add_proposal(conn, PROPOSAL_ID)
 
     ingest_attributi(db, karabo_data.get_attributi())
@@ -69,7 +60,7 @@ def main() -> None:
     files = list(Path(args.dump_path).iterdir())
 
     if not files:
-        logger.warning("No files matching glob %s", args.file_glob)
+        logger.warning("No files in directory %s", args.dump_path)
         return
 
     i = 0

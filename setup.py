@@ -39,6 +39,8 @@ setuptools.setup(
         # For the config file
         # (for accessing XDG_CONFIG_HOME)
         "xdg==5.0.*",
+        # For parsing the arguments for programs (always required basically)
+        "typed-argument-parser==1.6.*",
     ],
     extras_require={
         "daemon": [

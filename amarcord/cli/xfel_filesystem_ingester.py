@@ -1,8 +1,8 @@
-import argparse
 import logging
 from typing import Optional
 
 import numpy as np
+from tap import Tap
 
 from amarcord.amici.xfel.karabo_action import KaraboRunStart
 from amarcord.amici.xfel.karabo_general import ingest_attributi
@@ -22,36 +22,19 @@ logging.basicConfig(
     level=logging.DEBUG,
 )
 
+
+class Arguments(Tap):
+    proposal_id: int  # ID of the proposal to ingest data for
+    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    run_id: int  # Run ID to ingest for
+    karabo_config_file: str = "./config.yml"  # Karabo configuration file
+    number_of_bunches: int = 0  # Number of bunches, of not available
+
+
 if __name__ == "__main__":
+    args = Arguments(underscores_to_dashes=True).parse_args()
 
-    parser = argparse.ArgumentParser(
-        description="Read data offline, compute statistics and send results to AMARCORD."
-    )
-    parser.add_argument(
-        "--proposal-id",
-        metavar="proposalId",
-        type=int,
-        help="Proposal ID",
-    )
-    parser.add_argument("--run-id", metavar="RunId", type=int, help="Run ID")
-    parser.add_argument(
-        "--config",
-        metavar="YAML",
-        default="config.yml",
-        help="Config file (default: %(default)s)",
-    )
-    parser.add_argument("--database-url", metavar="URL", help="Database url")
-    parser.add_argument(
-        "--number-of-bunches",
-        metavar="N",
-        type=int,
-        default=0,
-        help="Number of bunches, of not available",
-    )
-
-    args = parser.parse_args()
-
-    config = load_configuration(args.config)
+    config = load_configuration(args.karabo_config_file)
     data = FileSystem2Attributo(
         args.proposal_id, args.run_id, **config["Karabo_bridge"]
     )
@@ -83,18 +66,18 @@ if __name__ == "__main__":
                 attributo.type_,
             )
 
-    if args.database_url:
-        dbcontext = DBContext(args.database_url, echo=True)
+    if args.db_connection_url:
+        dbcontext = DBContext(args.db_connection_url, echo=True)
 
         tables = create_tables(dbcontext)
 
-        if args.database_url.startswith("sqlite://"):
+        if args.db_connection_url.startswith("sqlite://"):
             dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
         db = DB(dbcontext, tables)
 
         with db.connect() as conn:
-            if args.database_url.startswith("sqlite://"):
+            if args.db_connection_url.startswith("sqlite://"):
                 if not db.have_proposals(conn):
                     db.add_proposal(conn, ProposalId(args.proposal_id))
 

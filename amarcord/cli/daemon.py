@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import pickle
-from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
 from time import time
@@ -12,6 +11,7 @@ import msgpack
 import yaml
 import zmq
 from karabo_bridge import deserialize
+from tap import Tap
 from zmq.asyncio import Context
 
 from amarcord.amici.onda.zeromq import OnDAZeroMQProcessor
@@ -182,50 +182,42 @@ def write_hit_rate_to_db(db: DB, result: float, run_id: int) -> None:
         )
 
 
-def main() -> None:
-    parser = ArgumentParser(
-        description="Daemon to ingest XFEL data from multiple sources"
-    )
-    parser.add_argument(
-        "--proposal-id",
-        type=int,
-        required=True,
-        help="Proposal ID (integer, no leading digits)",
-    )
-    parser.add_argument("--database-url", required=True, help="Database url")
-    parser.add_argument(
-        "--karabo-config-file",
-        required=False,
-        help="File for the Karabo Bridge YAML configuration (optional)",
-    )
-    parser.add_argument(
-        "--onda-url",
-        required=False,
-        help="URL for the OnDA ZeroMQ interface (optional)",
-    )
+class Arguments(Tap):
+    proposal_id: int  # Proposal ID (integer, no leading digits)
+    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    karabo_config_file: Optional[
+        str
+    ] = None  # Karabo configuration file; if given, will enable the Karabo daemon
+    onda_url: Optional[
+        str
+    ] = None  # URL for the OnDA ZeroMQ endpoint; if given, will enable the OnDA client
 
-    args = parser.parse_args()
-    dbcontext = DBContext(args.database_url)
+    """AMARCORD XFEL ingest daemon"""
+
+
+def main() -> None:
+    args = Arguments(underscores_to_dashes=True).parse_args()
+
+    dbcontext = DBContext(args.db_connection_url)
 
     tables = create_tables(dbcontext)
 
-    if args.database_url.startswith("sqlite://"):
+    if args.db_connection_url.startswith("sqlite://"):
         dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
 
     db = DB(dbcontext, tables)
 
     zmq_ctx = Context.instance()
 
-    if args.database_url.startswith("sqlite://"):
+    proposal_id = ProposalId(args.proposal_id)
+    if args.db_connection_url.startswith("sqlite://"):
         # Just for testing!
         with db.dbcontext.connect() as local_conn:
             if not db.have_proposals(local_conn):
-                db.add_proposal(local_conn, args.proposal_id)
+                db.add_proposal(local_conn, proposal_id)
 
     asyncio.run(
-        async_main(
-            db, args.proposal_id, args.karabo_config_file, args.onda_url, zmq_ctx
-        )
+        async_main(db, proposal_id, args.karabo_config_file, args.onda_url, zmq_ctx)
     )
 
 

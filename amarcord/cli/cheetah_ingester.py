@@ -1,12 +1,14 @@
-import argparse
 import logging
 import sys
 from pathlib import Path
 from time import sleep
 
+from tap import Tap
+
 from amarcord.amici.cheetah.analysis import ingest_cheetah
 from amarcord.db.db import DB
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -18,46 +20,32 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class Arguments(Tap):
+    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    cheetah_config_path: str  # Path to Cheetah's crawler.config file
+    proposal_id: int  # ID of the proposal to ingest data for
+    force_run_creation: bool = (
+        False  # Create new runs if they don't exist in the DB yet
+    )
+
+    """Cheetah output to AMARCORD DB ingester"""
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="AMARCORD Cheetah ingester")
-    parser.add_argument(
-        "--connection-url",
-        type=str,
-        required=True,
-        help="Connection URL to the database",
-    )
-    parser.add_argument(
-        "--cheetah-config-path",
-        type=str,
-        required=True,
-        help="Path to Cheetah's crawler.config file",
-    )
-    parser.add_argument(
-        "--proposal-id",
-        type=int,
-        required=True,
-        help="Proposal ID",
-    )
-    parser.add_argument(
-        "--force-run-creation",
-        action="store_true",
-        help="Create new runs if they don't exist in the DB yet",
-    )
+    args = Arguments(underscores_to_dashes=True).parse_args()
 
-    args = parser.parse_args()
-
-    dbcontext = DBContext(args.connection_url)
+    dbcontext = DBContext(args.db_connection_url)
 
     tables = create_tables(dbcontext)
-    if args.connection_url.startswith("sqlite://"):
+    if args.db_connection_url.startswith("sqlite://"):
         dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
     db = DB(dbcontext, tables)
 
-    if args.connection_url.startswith("sqlite://"):
+    if args.db_connection_url.startswith("sqlite://"):
         # Just for testing!
         with db.dbcontext.connect() as local_conn:
             if not db.have_proposals(local_conn):
-                db.add_proposal(local_conn, args.proposal_id)
+                db.add_proposal(local_conn, ProposalId(args.proposal_id))
 
     logger.info("Starting to ingest Cheetah config data")
     while True:
@@ -66,7 +54,7 @@ def main() -> int:
                 Path(args.cheetah_config_path),
                 db,
                 conn,
-                args.proposal_id,
+                ProposalId(args.proposal_id),
                 args.force_run_creation,
             )
             if results.new_data_source_and_run_ids:

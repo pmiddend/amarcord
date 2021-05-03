@@ -1,7 +1,10 @@
 import logging
 import sys
-from argparse import ArgumentParser
 from pathlib import Path
+from typing import List
+from typing import Optional
+
+from tap import Tap
 
 from amarcord.amici.crystfel.injest import harvest_folder
 from amarcord.amici.crystfel.injest import ingest_data_source
@@ -22,81 +25,52 @@ class DryRunException(Exception):
     pass
 
 
-def main() -> int:
-    parser = ArgumentParser(description="Ingest indexing data for AMARCORD")
+class Arguments(Tap):
+    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    folders: List[
+        str
+    ]  # Folders to process (have to contain stream files and a parameters.json file)
+    run_id: int  # Run ID to ingest for
+    stream_pattern: str = "*.stream*"  # "Pattern for matching stream filenames"
+    harvest_filename: str = "parameters.json"
+    proposal_id: int  # ID of the proposal to ingest data for
+    force_run_creation: bool = (
+        False  # Create new runs if they don't exist in the DB yet
+    )
+    dry_run: bool = False
+    tag: Optional[str] = None
 
-    parser.add_argument(
-        metavar="folder",
-        nargs="*",
-        type=str,
-        default=".",
-        help="Folder to process",
-        dest="folder",
-    )
-    parser.add_argument(
-        "--stream-pattern",
-        type=str,
-        default="*.stream*",
-        help="Pattern for matching stream filenames",
-    )
-    parser.add_argument(
-        "--harvest-filename",
-        type=str,
-        default="parameters.json",
-        help="Name of harvest file",
-    )
-    parser.add_argument(
-        "--connection-url", type=str, help="Database URL", required=True
-    )
-    parser.add_argument(
-        "--proposal-id",
-        type=int,
-        help="Proposal ID to search for analysis results in",
-    )
-    parser.add_argument("--run-id", type=int, help="Run ID", required=True)
-    parser.add_argument(
-        "--force-create-run",
-        action="store_true",
-        help="Should we create runs that don't exist?",
-        required=False,
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Don't change the DB, output statements",
-        required=False,
-    )
-    parser.add_argument(
-        "--tag",
-        type=str,
-        help="Tag the results",
-        required=False,
-    )
-    args = parser.parse_args()
+    """Cheetah output to AMARCORD DB ingester"""
+
+
+def main() -> int:
+    args = Arguments(underscores_to_dashes=True).parse_args()
 
     if not Path(args.harvest_filename).exists():
         sys.stderr.write(f"harvest filename {args.harvest_filename} doesn't exist!\n")
         sys.exit(1)
 
-    dbcontext = DBContext(args.connection_url, echo=bool(args.dry_run))
+    dbcontext = DBContext(args.db_connection_url, echo=bool(args.dry_run))
     tables = create_tables(dbcontext)
-    if args.connection_url.startswith("sqlite://"):
+    if args.db_connection_url.startswith("sqlite://"):
         dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
     db = DB(dbcontext, tables)
 
-    if args.connection_url.startswith("sqlite://"):
+    proposal_id = ProposalId(args.proposal_id)
+
+    if args.db_connection_url.startswith("sqlite://"):
         # Just for testing!
         with db.dbcontext.connect() as local_conn:
             if not db.have_proposals(local_conn):
-                db.add_proposal(local_conn, args.proposal_id)
-    for folder in args.folder:
+                db.add_proposal(local_conn, proposal_id)
+    for folder in args.folders:
         if not Path(folder).is_dir():
             logger.error("The directory %s is not a directory", folder)
             sys.exit(1)
         try:
             with db.connect() as conn:
                 with conn.begin():
-                    run_ids = set(db.retrieve_run_ids(conn, args.proposal_id))
+                    run_ids = set(db.retrieve_run_ids(conn, proposal_id))
                     updated_data_sources = harvest_folder(
                         db.retrieve_analysis_data_sources(conn),
                         Path(folder),
@@ -109,7 +83,7 @@ def main() -> int:
                         for event in ingest_data_source(
                             db,
                             conn,
-                            args.force_create_run,
+                            args.force_run_creation,
                             ProposalId(args.proposal_id),
                             run_ids,
                             ds,
