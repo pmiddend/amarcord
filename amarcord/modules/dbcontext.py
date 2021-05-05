@@ -16,6 +16,9 @@ class CreationMode(Enum):
     DONT_CHECK = auto()
 
 
+Connection = Any
+
+
 class DBContext:
     def __init__(self, connection_url: str, echo: bool = False) -> None:
         # For the sqlite in-memory stuff, see here:
@@ -76,5 +79,5 @@ class DBContext:
         v[0] = engine
         self.metadata.create_all(engine)
 
-    def connect(self) -> Any:
+    def connect(self) -> Connection:
         return self.engine.connect()

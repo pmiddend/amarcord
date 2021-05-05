@@ -19,6 +19,13 @@ setuptools.setup(
     # see https://github.com/dolfinus/setuptools-git-versioning
     setup_requires=["setuptools-git-versioning"],
     version_config=True,
+    tests_require=[
+        "pyfakefs==4.4.*",
+        "pytest==6.2.*",
+        "pytest-qt==3.3.*",
+        "hypothesis==6.3.*",
+        "pytest-cov==2.11.*",
+    ],
     install_requires=[
         # for general DB access
         "SQLAlchemy==1.3.*",
@@ -43,6 +50,7 @@ setuptools.setup(
         "typed-argument-parser==1.6.*",
     ],
     extras_require={
+        "p11": ["pint==0.16.*"],
         "daemon": [
             "pyzmq==22.0.*",
             "karabo-bridge==0.6.*",

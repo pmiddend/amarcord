@@ -54,6 +54,7 @@ from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import (
     DBTables,
 )
+from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.analysis_tree import compute_hit_rate_per_run
 from amarcord.modules.spb.analysis_tree import compute_indexing_rate_per_run
@@ -64,8 +65,6 @@ from amarcord.util import remove_duplicates_stable
 logger = logging.getLogger(__name__)
 
 VALIDATE_ATTRIBUTI: Final = True
-
-Connection = Any
 
 
 OverviewAttributi = Dict[AssociatedTable, AttributiMap]

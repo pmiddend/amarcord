@@ -1,5 +1,4 @@
 alembic==1.5.8
--e git+git@gitlab.desy.de:cfel-sc/amarcord-parent/amarcord-xfel.git@57259e8ebf7c19694985d7fe803c909de31e1302#egg=amarcord
 appdirs==1.4.4
 astroid==2.5.3
 bcrypt==3.2.0
@@ -43,6 +42,7 @@ Pint==0.16.1
 psutil==5.8.0
 PubChemPy==1.0.4
 pycparser==2.20
+pyfakefs==4.4.0
 pylint==2.7.4
 PyMySQL==1.0.2
 pyparsing==2.4.7

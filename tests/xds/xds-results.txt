@@ -1,0 +1,102 @@
+
+-------------------------------------------------------------------
+
+Processing summary for data set bmx001_pos06_001
+ 2021-05-03 11:01:55
+Image path: /gpfs/current/raw/Mpro/bmx001_pos06/bmx001_pos06_001/bmx001_pos06_001_master.h5
+Results in: /gpfs/current/processed/Mpro/bmx001_pos06/bmx001_pos06_001/full
+-------------------------------------------------------------------
+
+Things you may want to check:
+
+ Indexing (large integer offset)
+
+
+Images in /gpfs/current/raw/Mpro/bmx001_pos06/bmx001_pos06_001
+
+
+Table 1 like summary 
+-------------------------------------------------------------------
+
+    Space group                            C2 (5)                                
+    Unit cell parameters [A]               113.93 53.73 44.67 90.0 101.84 90.0   
+    Resolution limit [A]                   48.4-1.35 (1.44-1.35)                 
+    No. of reflections                     155959 (10644)                        
+    No. of uniques                         49511 (6026)                          
+    Multiplicity                           3.15 (1.77)                           
+    I/sigI                                 6.27 (0.00)                           
+    R_meas [%]                             7.8 (23657.3)                         
+    Completeness [%]                       85.9 (65.1)                           
+    B(Wilson) [A^2]                        38.53                                 
+    Mosaicity [deg]                        0.826                                 
+    CC(1/2)                                99.9 (-0.8)                           
+    ISa                                    28.96                                 
+
+
+Result files generated for CCP4, CNS, SHELX
+-------------------------------------------------------------------
+                                                                                 
+    bmx001_pos06_001_5_I.mtz                                                     
+    bmx001_pos06_001_5_F.mtz                                                     
+    bmx001_pos06_001.hkl                                                         
+    bmx001_pos06_001.cv                                                          
+
+
+Intensity checks
+-------------------------------------------------------------------
+
+    SFCHECK                                                                      
+     Perfect twinning test                 2.4889                                
+     Pseudo translation                    not detected                          
+    Phenix.xtriage                                                               
+     <I^2>/<I>                             2.205 (untwinned 2.000, perfect twin 1.500)
+     <F>^2/<F^2>                           0.764 (untwinned 0.785, perfect twin 0.885)
+     <|E^2-1|>                             0.788 (untwinned 0.736, perfect twin 0.541)
+    Pointless                                                                    
+     |L|-test                              0.475 (untwinned 0.500, perfect twin 0.375)
+     L^2-test                              0.305 (untwinned 0.333, perfect twin 0.200)
+
+
+Space group determination by Pointless
+-------------------------------------------------------------------
+
+    Selected space group                   C 1 2 1 (5)                           
+    Total probability                      0.893                                 
+    Systematic absences probability        1.000                                 
+    Next probable space group              none (-)                              
+    Total probability                      -                                     
+    Systematic absences probability        -                                     
+
+
+Indexing summary
+-------------------------------------------------------------------
+
+    No. of subtrees                        14                                    
+    No. of strong spots in root subtree    1607                                  
+    No. of strong spots in subtree 2       16                                    
+    Quality value                          1.6                                   
+    Delta                                  0.2                                   
+    DH, DK, DL                             0.01, 0.10, 0.11                      
+    Selected origin                        0 0 0                                 
+    Computed (given) beam position         2128.6, 2186.0 (2120.9, 2187.0)       
+    Std. of spot position (refined)        2.30 (1.09)                           
+    Std. of spindle position (refined)     1.53 (0.93)                           
+    Detector distance (refined)            155.43 (155.43)                       
+    No. of spots indexed (total)           1119 (1661) (=67.4 %)                 
+
+
+Experimental settings
+-------------------------------------------------------------------
+
+    Detector used                          Dectris EIGER2 Si 16M                 
+    Images processed                       1-1000                                
+    Detector distance [mm]                 155.43                                
+    Oscillation increment [deg]            0.2                                   
+    Wavelength [A]                         1.0332                                
+    Friedels law                           TRUE                                  
+    Detector X axis                        1.0  0.0  0.0                         
+    Detector Y axis                        0.0  1.0  0.0                         
+    Rotation axis                          1 0 0                                 
+    Polarization plane normal              0.0  1.0  0.0                         
+
+
