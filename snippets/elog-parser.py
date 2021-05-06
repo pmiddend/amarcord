@@ -62,12 +62,13 @@ if __name__ == "__main__":
     from tap import Tap
 
     class Parser(Tap):
-        html: str  # File containing the html source (view-source:https://in.xfel.eu/elog/SPB-SFX+Proposal+2696/page?mode=full)
-        entry: str = "all"  # Message index or 'all' to get an overview
-        run: int = 0  # Column containg the run index
-        run_index: int = 0  # Extract this run
-        comment: int = 1  # Column containing the comment
         """Parse the ELOG"""
+
+        html: str  # File containing the html source (view-source:https://in.xfel.eu/elog/SPB-SFX+Proposal+2696/page?mode=full)
+        elog_entry: str = "all"  # Message index or 'all' to get an overview
+        run_column: int = 0  # Column containg the run index
+        comment_column: int = 1  # Column containing the comment
+        run_index: int = 0  # Extract this run
 
     args = Parser().parse_args()
 
@@ -80,16 +81,16 @@ if __name__ == "__main__":
 
     message = ELOGParser(soup)
 
-    if args.entry == "all":
+    if args.elog_entry == "all":
         for ki, vi in message.items():
             if vi["type"] == "table":
                 pprint(ki, vi)
 
     else:
-        table = message[int(args.entry)]
+        table = message[int(args.elog_entry)]
 
-        run = table["content"][0][args.run]
-        comment = table["content"][0][args.comment]
+        run = table["content"][0][args.run_column]
+        comment = table["content"][0][args.comment_column]
 
         index = -1
         for index in range(1, run.size):
@@ -107,4 +108,8 @@ if __name__ == "__main__":
                 if int(args.run_index) == int(run[index]):
                     break
 
-        print("Found run {}\n{}".format(args.run_index, comment[index]))
+        if not pd.isna(comment[index]):
+            print("Found run {}: {}\n".format(args.run_index, comment[index]))
+            # send comment to AMARCORD
+
+        pprint(index, table)
