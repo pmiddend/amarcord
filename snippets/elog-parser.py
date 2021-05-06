@@ -1,7 +1,15 @@
-from typing import Dict, Any
 import copy
-from bs4 import BeautifulSoup
+from typing import Any
+from typing import Dict
+from typing import Optional
+
 import pandas as pd
+from bs4 import BeautifulSoup
+
+from amarcord.db.db import DB
+from amarcord.db.tables import create_tables
+from amarcord.modules.dbcontext import CreationMode
+from amarcord.modules.dbcontext import DBContext
 
 
 def ELOGParser(soup) -> Dict[int, Any]:
@@ -64,13 +72,16 @@ if __name__ == "__main__":
     class Parser(Tap):
         """Parse the ELOG"""
 
+        db_connection_url: Optional[
+            str
+        ] = None  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
         html: str  # File containing the html source (view-source:https://in.xfel.eu/elog/SPB-SFX+Proposal+2696/page?mode=full)
         elog_entry: str = "all"  # Message index or 'all' to get an overview
         run_column: int = 0  # Column containg the run index
         comment_column: int = 1  # Column containing the comment
         run_index: int = 0  # Extract this run
 
-    args = Parser().parse_args()
+    args = Parser(underscores_to_dashes=True).parse_args()
 
     try:
         with open(args.html, "rb") as fh:
@@ -113,3 +124,14 @@ if __name__ == "__main__":
             # send comment to AMARCORD
 
         pprint(index, table)
+
+        if args.db_connection_url is not None:
+            dbcontext = DBContext(args.db_connection_url)
+
+            tables = create_tables(dbcontext)
+            if args.db_connection_url.startswith("sqlite://"):
+                dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+            db = DB(dbcontext, tables)
+
+            with db.connect() as conn:
+                db.add_comment(conn, args.run_index, "AMARCORD", comment[index])
