@@ -121,17 +121,16 @@ if __name__ == "__main__":
 
         if not pd.isna(comment[index]):
             print("Found run {}: {}\n".format(args.run_index, comment[index]))
-            # send comment to AMARCORD
+
+            if args.db_connection_url is not None:
+                dbcontext = DBContext(args.db_connection_url)
+
+                tables = create_tables(dbcontext)
+                if args.db_connection_url.startswith("sqlite://"):
+                    dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+                db = DB(dbcontext, tables)
+
+                with db.connect() as conn:
+                    db.add_comment(conn, args.run_index, "AMARCORD", comment[index])
 
         pprint(index, table)
-
-        if args.db_connection_url is not None:
-            dbcontext = DBContext(args.db_connection_url)
-
-            tables = create_tables(dbcontext)
-            if args.db_connection_url.startswith("sqlite://"):
-                dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
-            db = DB(dbcontext, tables)
-
-            with db.connect() as conn:
-                db.add_comment(conn, args.run_index, "AMARCORD", comment[index])
