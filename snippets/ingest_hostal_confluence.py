@@ -1,4 +1,5 @@
 import logging
+import re
 import sys
 from dataclasses import dataclass
 from typing import List
@@ -11,7 +12,12 @@ from bs4 import BeautifulSoup
 from bs4 import Tag
 from tap import Tap
 
+from amarcord.amici.p11.db import PuckType
 from amarcord.amici.p11.db import table_crystals
+from amarcord.amici.p11.db import table_data_reduction
+from amarcord.amici.p11.db import table_dewar_lut
+from amarcord.amici.p11.db import table_diffractions
+from amarcord.amici.p11.db import table_pucks
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -92,9 +98,10 @@ def parse_pucks(soup: Tag) -> Tuple[List[Puck], bool]:
     has_warnings = False
     for headline in soup.find_all("h1"):
         headline_text = "".join(headline.strings)
-        if not headline_text.startswith("Puck ID: "):
+        headline_match = re.match(r".*Puck ID:\s*(.+)", headline_text)
+        if not headline_match:
             continue
-        puck_id = headline_text[len("Puck ID: ") :]
+        puck_id = headline_match.group(1)
         if not puck_id:
             logger.warning('Found "Puck ID:", but nothing after that in %s', puck_id)
             has_warnings = True
@@ -145,13 +152,31 @@ class Arguments(Tap):
     ignore_warnings: bool = False
     confluence_username: str
     confluence_password: str
+    confluence_page_id: int
     confluence_url: str = "https://confluence.desy.de"
     db_echo: bool = False  # output SQL statements?
 
 
 def ingest_puck(
-    conn: Connection, crystals: sa.Table, puck: Puck, max_crystal_id: int
+    conn: Connection,
+    pucks: sa.Table,
+    crystals: sa.Table,
+    puck: Puck,
+    max_crystal_id: int,
 ) -> int:
+    if (
+        conn.execute(
+            sa.select([sa.func.count(pucks.c.puck_id)]).where(
+                pucks.c.puck_id == puck.puck_id
+            )
+        ).fetchone()[0]
+        == 0
+    ):
+        conn.execute(
+            sa.insert(pucks).values(
+                puck_id=puck.puck_id, puck_type=PuckType.UNI, owner="Janina"
+            )
+        )
     for crystal in puck.crystals:
         conn.execute(
             sa.insert(crystals).values(
@@ -175,9 +200,9 @@ def main() -> int:
 
     pucks, has_warnings = parse_pucks(
         BeautifulSoup(
-            confluence.get_page_by_id("202387176", expand="body.storage")["body"][
-                "storage"
-            ]["value"],
+            confluence.get_page_by_id(args.confluence_page_id, expand="body.storage")[
+                "body"
+            ]["storage"]["value"],
             features="lxml",
         )
     )
@@ -190,21 +215,26 @@ def main() -> int:
 
     if args.db_connection_url is not None:
         dbcontext = DBContext(args.db_connection_url, echo=args.db_echo)
-        crystals = table_crystals(dbcontext.metadata)
+        crystals_table = table_crystals(dbcontext.metadata)
+        pucks_table = table_pucks(dbcontext.metadata)
+        # Currently unused, but stated here so it gets created also
+        table_dewar_lut(dbcontext.metadata)
+        table_diffractions(dbcontext.metadata)
+        table_data_reduction(dbcontext.metadata)
 
         dbcontext.create_all(CreationMode.CHECK_FIRST)
 
         with dbcontext.connect() as conn:
             with conn.begin():
                 max_crystal_id_row = conn.execute(
-                    sa.select([sa.func.count(crystals.c.crystal_id)])
+                    sa.select([sa.func.count(crystals_table.c.crystal_id)])
                 ).fetchone()
                 max_crystal_id = (
                     1 if max_crystal_id_row is None else max_crystal_id_row[0]
                 )
                 for puck in pucks:
                     max_crystal_id = ingest_puck(
-                        conn, crystals, puck, max_crystal_id + 1
+                        conn, pucks_table, crystals_table, puck, max_crystal_id + 1
                     )
     else:
         for puck in pucks:
