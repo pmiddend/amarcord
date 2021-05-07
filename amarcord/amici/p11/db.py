@@ -41,12 +41,45 @@ class ReductionMethod(enum.Enum):
     OTHER = "other"
 
 
+class PuckType(enum.Enum):
+    UNI = "UNI"
+    SPINE = "SPINE"
+
+
+def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
+    return Table(
+        "Pucks",
+        metadata,
+        Column("puck_id", String(length=255), nullable=False, primary_key=True),
+        Column("created", DateTime, server_default=func.now()),
+        Column("puck_type", Enum(PuckType)),
+        Column("owner", String(length=255)),
+        schema=schema,
+    )
+
+
+def table_dewar_lut(metadata: MetaData, schema: Optional[str] = None) -> Table:
+    return Table(
+        "Dewar_LUT",
+        metadata,
+        Column(
+            "puck_id",
+            String(length=255),
+            ForeignKey("Pucks.puck_id", ondelete="CASCADE", onupdate="CASCADE"),
+            nullable=False,
+            primary_key=True,
+        ),
+        Column("dewar_position", Integer, nullable=False, primary_key=True),
+        schema=schema,
+    )
+
+
 def table_crystals(metadata: MetaData, schema: Optional[str] = None) -> Table:
     return Table(
         "Crystals",
         metadata,
         Column("crystal_id", String(length=255), primary_key=True, nullable=False),
-        Column("puck_id", String(length=255), index=True),
+        Column("puck_id", String(length=255), ForeignKey("Pucks.puck_id"), index=True),
         Column("puck_position_id", SmallInteger),
         schema=schema,
     )
@@ -57,7 +90,12 @@ def table_data_reduction(metadata: MetaData, schema: Optional[str] = None) -> Ta
         "Data_Reduction",
         metadata,
         Column("data_reduction_id", Integer, nullable=False, primary_key=True),
-        Column("crystal_id", String(length=255), nullable=False),
+        Column(
+            "crystal_id",
+            String(length=255),
+            ForeignKey("Crystals.crystal_id"),
+            nullable=False,
+        ),
         Column("run_id", Integer, nullable=False),
         Column("analysis_time", DateTime, nullable=False),
         Column("folder_path", String(length=255), nullable=False, unique=True),

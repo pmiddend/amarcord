@@ -6,9 +6,10 @@ from pint import UnitRegistry
 from amarcord.amici.p11.analyze_filesystem import P11Puck
 from amarcord.amici.p11.analyze_filesystem import P11Run
 from amarcord.amici.p11.analyze_filesystem import P11Target
+from amarcord.amici.p11.db import PuckType
 from amarcord.amici.p11.db import table_crystals
-from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_diffractions
+from amarcord.amici.p11.db import table_pucks
 from amarcord.amici.p11.db_ingest import ingest_diffractions_for_targets
 from amarcord.amici.p11.parser import parse_p11_info_file
 from amarcord.modules.dbcontext import CreationMode
@@ -19,11 +20,12 @@ def test_db_ingest_diffractions(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
     diffs = table_diffractions(dbcontext.metadata)
     crystals = table_crystals(dbcontext.metadata)
-    data_reduction = table_data_reduction(dbcontext.metadata)
+    pucks = table_pucks(dbcontext.metadata)
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:
         crystal_id = "c1"
+        conn.execute(sa.insert(pucks).values(puck_id="p1", puck_type=PuckType.UNI))
         conn.execute(
             sa.insert(crystals).values(
                 crystal_id=crystal_id, puck_id="p1", puck_position_id=1
@@ -71,11 +73,12 @@ def test_db_ingest_diffractions_idempotent(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
     diffs = table_diffractions(dbcontext.metadata)
     crystals = table_crystals(dbcontext.metadata)
-    data_reduction = table_data_reduction(dbcontext.metadata)
+    pucks = table_pucks(dbcontext.metadata)
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:
         crystal_id = "c1"
+        conn.execute(sa.insert(pucks).values(puck_id="p1", puck_type=PuckType.UNI))
         conn.execute(
             sa.insert(crystals).values(
                 crystal_id=crystal_id, puck_id="p1", puck_position_id=1
