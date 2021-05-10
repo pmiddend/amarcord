@@ -352,7 +352,7 @@ class DB:
                 run_id=run_id,
                 author=author.strip(),
                 comment_text=text.strip(),
-                created=datetime.datetime.utcnow() if time is not None else time,
+                created=datetime.datetime.utcnow() if time is None else time,
             )
         )
         return result.inserted_primary_key[0]
