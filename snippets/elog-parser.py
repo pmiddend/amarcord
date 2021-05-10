@@ -75,11 +75,11 @@ if __name__ == "__main__":
         db_connection_url: Optional[
             str
         ] = None  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
-        html: str  # File containing the html source (view-source:https://in.xfel.eu/elog/SPB-SFX+Proposal+2696/page?mode=full)
+        html: str  # File containing the html source (view-source:https://in.xfel.emessage["time"]u/elog/SPB-SFX+Proposal+2696/page?mode=full)
         elog_entry: str = "all"  # Message index or 'all' to get an overview
         run_column: int = 0  # Column containg the run index
-        comment_column: int = 1  # Column containing the comment
-        run_index: int = 0  # Extract this run
+        ingest_column: int = 1  # Column containing the string to ingest
+        run_index: str = "all"  # Extract this run, or 'all'
 
     args = Parser(underscores_to_dashes=True).parse_args()
 
@@ -101,36 +101,42 @@ if __name__ == "__main__":
         table = message[int(args.elog_entry)]
 
         run = table["content"][0][args.run_column]
-        comment = table["content"][0][args.comment_column]
+        comment = table["content"][0][args.ingest_column]
 
-        index = -1
-        for index in range(1, run.size):
+        for ri in [args.run_index] if args.run_index != "all" else run[1:]:
+            index = -1
+            for index in range(1, run.size):
 
-            if pd.isna(run[index]):
-                continue
+                if pd.isna(run[index]):
+                    continue
 
-            # run can be expressed as range
-            if run[index].find("-") > 0:
-                if int(args.run_index) in range(
-                    *[int(ri) for ri in run[index].split("-")]
-                ):
-                    break
-            else:
-                if int(args.run_index) == int(run[index]):
-                    break
+                # run can be expressed as range
+                if run[index].find("-") > 0:
+                    if int(ri) in range(*[int(ri) for ri in run[index].split("-")]):
+                        break
+                else:
+                    if int(ri) == int(run[index]):
+                        break
 
-        if not pd.isna(comment[index]):
-            print("Found run {}: {}\n".format(args.run_index, comment[index]))
+            if not pd.isna(comment[index]):
+                print("Run {}: {}".format(ri, comment[index],))
 
-            if args.db_connection_url is not None:
-                dbcontext = DBContext(args.db_connection_url)
+                if args.db_connection_url is not None:
+                    dbcontext = DBContext(args.db_connection_url)
 
-                tables = create_tables(dbcontext)
-                if args.db_connection_url.startswith("sqlite://"):
-                    dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
-                db = DB(dbcontext, tables)
+                    tables = create_tables(dbcontext)
+                    if args.db_connection_url.startswith("sqlite://"):
+                        dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+                    db = DB(dbcontext, tables)
 
-                with db.connect() as conn:
-                    db.add_comment(conn, args.run_index, "AMARCORD", comment[index])
+                    with db.connect() as conn:
+                        db.add_comment(
+                            conn,
+                            ri,
+                            message[int(args.elog_entry)]["author"],
+                            "[elog-{}] ".format(int(args.elog_entry),) + comment[index],
+                            time=message[int(args.elog_entry)]["time"].split(",")[0],
+                        )
 
+        print("".join(["*" for _ in range(80)]))
         pprint(index, table)
