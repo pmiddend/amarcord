@@ -19,9 +19,7 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_json_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.attributo_id import (
-    AttributoId,
-)
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
@@ -51,9 +49,7 @@ from amarcord.db.table_classes import DBSample
 from amarcord.db.table_classes import DBSampleAnalysisResult
 from amarcord.db.table_classes import DBTarget
 from amarcord.db.tabled_attributo import TabledAttributo
-from amarcord.db.tables import (
-    DBTables,
-)
+from amarcord.db.tables import DBTables
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.analysis_tree import compute_hit_rate_per_run
@@ -334,7 +330,14 @@ class DB:
             ),
         )
 
-    def add_comment(self, conn: Connection, run_id: int, author: str, text: str) -> int:
+    def add_comment(
+        self,
+        conn: Connection,
+        run_id: int,
+        author: str,
+        text: str,
+        time: Optional[str] = None,
+    ) -> int:
         if not text.strip():
             raise ValueError("Text (after white-space stripping) is empty")
         if not author.strip():
@@ -349,7 +352,7 @@ class DB:
                 run_id=run_id,
                 author=author.strip(),
                 comment_text=text.strip(),
-                created=datetime.datetime.utcnow(),
+                created=datetime.datetime.utcnow() if time is not None else time,
             )
         )
         return result.inserted_primary_key[0]
