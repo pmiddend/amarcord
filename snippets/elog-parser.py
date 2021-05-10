@@ -90,6 +90,10 @@ if __name__ == "__main__":
     except FileNotFoundError:
         raise FileNotFoundError("{} is not accessible.".format(args.html))
 
+    title = soup.find("title").get_text()
+    proposal_id = int(title.split()[-1])
+
+    # parse the html
     message = ELOGParser(soup)
 
     if args.elog_entry == "all":
@@ -130,13 +134,24 @@ if __name__ == "__main__":
                     db = DB(dbcontext, tables)
 
                     with db.connect() as conn:
-                        db.add_comment(
-                            conn,
-                            ri,
-                            message[int(args.elog_entry)]["author"],
-                            "[elog-{}] ".format(int(args.elog_entry),) + comment[index],
-                            time=message[int(args.elog_entry)]["time"].split(",")[0],
-                        )
+                        run_id_list = db.retrieve_run_ids(conn, proposal_id=proposal_id)
+
+                        if ri in run_id_list:
+                            db.add_comment(
+                                conn,
+                                ri,
+                                message[int(args.elog_entry)]["author"],
+                                "[elog-{}] ".format(int(args.elog_entry),)
+                                + comment[index],
+                                time=message[int(args.elog_entry)]["time"].split(",")[
+                                    0
+                                ],
+                            )
+
+                        else:
+                            print(
+                                "Proposal {}: Run {} not found".format(proposal_id, ri)
+                            )
 
         print("".join(["*" for _ in range(80)]))
         pprint(index, table)
