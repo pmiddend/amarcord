@@ -1,9 +1,10 @@
-import copy
 from typing import Any
 from typing import Dict
 from typing import Optional
-
+import copy
+import datetime
 import pandas as pd
+import tabulate
 from bs4 import BeautifulSoup
 
 from amarcord.db.db import DB
@@ -29,6 +30,12 @@ def ELOGParser(soup) -> Dict[int, Any]:
     last_index = 0
 
     for td in data_cell:
+        try:
+            href = "https://{}".format(td.find("a").attrs["href"].split("https://")[1])[
+                :-1
+            ]
+        except AttributeError:
+            pass
 
         if "class" in td.attrs:
 
@@ -49,11 +56,16 @@ def ELOGParser(soup) -> Dict[int, Any]:
 
             # content
             elif td.attrs["class"][0] == "messagelist":
-                for ei in td.find_all():
 
+                for ei in td.find_all():
                     if ei.name == "table":
+                        df = pd.read_html(ei.prettify())
+                        content = df[0]
+                        content.columns = content.iloc[0].tolist()
+
+                        message[index]["href"] = href
                         message[index]["type"] = ei.name
-                        message[index]["content"] = pd.read_html(ei.prettify())
+                        message[index]["content"] = content[1:]
 
     return message
 
@@ -63,7 +75,12 @@ def pprint(index: int, message: Dict[str, Any]):
     print("Author: {}".format(message["author"]))
     print("Tag: {}".format(message["tag"]))
     print("Title: {}".format(message["title"]))
-    print(message["content"], "\n")
+    print(
+        tabulate.tabulate(
+            message["content"], headers="keys", tablefmt="simple", showindex="never",
+        ),
+        "\n",
+    )
 
 
 if __name__ == "__main__":
@@ -77,9 +94,10 @@ if __name__ == "__main__":
         ] = None  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
         html: str  # File containing the html source (view-source:https://in.xfel.emessage["time"]u/elog/SPB-SFX+Proposal+2696/page?mode=full)
         elog_entry: str = "all"  # Message index or 'all' to get an overview
-        run_column: int = 0  # Column containg the run index
-        ingest_column: int = 1  # Column containing the string to ingest
+        run_header: str = "run"  # Column containg the run index
+        ingest_header: str = "comment"  # Column containing the string to ingest
         run_index: str = "all"  # Extract this run, or 'all'
+        echo: bool = False  # Echo AMARCORD commands
 
     args = Parser(underscores_to_dashes=True).parse_args()
 
@@ -92,9 +110,11 @@ if __name__ == "__main__":
 
     title = soup.find("title").get_text()
     proposal_id = int(title.split()[-1])
+    print("{}\n".format(title))
 
     # parse the html
     message = ELOGParser(soup)
+    missing_run = []
 
     if args.elog_entry == "all":
         for ki, vi in message.items():
@@ -104,8 +124,8 @@ if __name__ == "__main__":
     else:
         table = message[int(args.elog_entry)]
 
-        run = table["content"][0][args.run_column]
-        comment = table["content"][0][args.ingest_column]
+        run = table["content"][args.run_header]
+        comment = table["content"][args.ingest_header]
 
         for ri in [args.run_index] if args.run_index != "all" else run[1:]:
             index = -1
@@ -123,10 +143,10 @@ if __name__ == "__main__":
                         break
 
             if not pd.isna(comment[index]):
-                print("Run {}: {}".format(ri, comment[index],))
+                print("INFO. Run {}: {}".format(ri, comment[index],))
 
                 if args.db_connection_url is not None:
-                    dbcontext = DBContext(args.db_connection_url)
+                    dbcontext = DBContext(args.db_connection_url, echo=args.echo)
 
                     tables = create_tables(dbcontext)
                     if args.db_connection_url.startswith("sqlite://"):
@@ -136,22 +156,22 @@ if __name__ == "__main__":
                     with db.connect() as conn:
                         run_id_list = db.retrieve_run_ids(conn, proposal_id=proposal_id)
 
-                        if ri in run_id_list:
+                        if int(ri) in run_id_list:
                             db.add_comment(
                                 conn,
                                 ri,
                                 message[int(args.elog_entry)]["author"],
-                                "[elog-{}] ".format(int(args.elog_entry),)
+                                "[{}] ".format(message[int(args.elog_entry)]["href"])
                                 + comment[index],
-                                time=message[int(args.elog_entry)]["time"].split(",")[
-                                    0
-                                ],
+                                time=datetime.datetime.strptime(
+                                    message[int(args.elog_entry)]["time"],
+                                    "%d %b %Y, %H:%M",
+                                ),
                             )
 
                         else:
-                            print(
-                                "Proposal {}: Run {} not found".format(proposal_id, ri)
-                            )
+                            print("WARN. Run {} not found".format(ri))
+                            missing_run.append(int(ri))
 
-        print("".join(["*" for _ in range(80)]))
+        print("\n", " ".join(["*" for _ in range(50)]))
         pprint(index, table)
