@@ -8,6 +8,7 @@ from flask import Flask
 from flask import request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
+from werkzeug.utils import redirect
 
 from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.db import table_crystals
@@ -34,6 +35,11 @@ app = Flask(
     static_url_path="/",
 )
 CORS(app)
+
+
+@app.route("/")
+def hello():
+    return redirect("/index.html")
 
 
 def _retrieve_dewar_table(conn: Connection, dewar_lut: sa.Table) -> JSONDict:
@@ -95,8 +101,9 @@ def _retrieve_diffractions(
                 .where(
                     sa.and_(
                         crystals.c.puck_id == puck_id,
-                        True
-                        if not only_undiffracted
+                        True if not only_undiffracted
+                        # Not sure if sqlalchemy can take this
+                        # pylint: disable=singleton-comparison
                         else diffractions.c.diffraction != None,
                     )
                 )

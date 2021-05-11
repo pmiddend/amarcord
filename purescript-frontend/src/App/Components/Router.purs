@@ -1,20 +1,15 @@
 module App.Components.Router where
 
 import Prelude
-
 import App.AppMonad (AppMonad)
-import App.AssociatedTable (AssociatedTable(..))
 import App.Components.Beamline as Beamline
 import App.Halogen.FontAwesome (icon)
-import App.HalogenUtils (classList)
-import App.PlotType (PlotType(..))
+import App.HalogenUtils (classList, singleClass)
 import App.Root as Root
 import App.Route (Route(..), routeCodec, sameRoute)
-import App.SortOrder (SortOrder(..))
 import Data.Either (hush)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
-import Data.Tuple (Tuple(..))
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Console (log)
 import Halogen as H
@@ -167,9 +162,24 @@ contentView html =
 
 skeleton :: forall a. Maybe Route -> HH.HTML a Action -> HH.HTML a Action
 skeleton route html =
-  HH.div [ classList [ "container-fluid" ] ]
-    [ HH.div [ classList [ "row" ] ]
-        [ navbar route
-        , contentView html
+  HH.main_
+    [ HH.div [ classList [ "container" ] ]
+        [ HH.header [ classList [ "d-flex", "flex-wrap", "justify-content-center", "py-3", "mb-4", "border-bottom" ] ]
+            [ HH.img [ HP.src "desy-cfel.png", HP.alt "DESY and CFEL logo combined", classList [ "img-fluid", "amarcord-logo" ] ]
+            , HH.a
+                [ singleClass "d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none" ]
+                [ HH.span [ singleClass "fs-4" ] [ HH.text "AMARCORD" ] ]
+            , HH.ul [ singleClass "nav nav-pills" ] (makeNavItem route <$> navItems)
+            ]
+        ]
+    , HH.div [ singleClass "container" ]
+        [ contentView html
         ]
     ]
+
+-- HH.div [ classList [ "container-fluid" ] ]
+--   [ HH.div [ classList [ "row" ] ]
+--       [ navbar route
+--       , contentView html
+--       ]
+--   ]

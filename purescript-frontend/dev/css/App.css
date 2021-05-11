@@ -78,4 +78,7 @@ body {
     background-color: rgb(242, 248, 253);
 }
 
-.amarcord-selected-row { background-color: red; }
+.amarcord-logo {
+    height: 2.5em;
+    margin-right: 1em;
+}
