@@ -2,7 +2,7 @@ module App.Components.Beamline where
 
 import App.API (DewarEntry, DewarResponse, DiffractionEntry, DiffractionResponse, Puck, PucksResponse, addDiffraction, addPuckToTable, removeSingleDewarEntry, removeWholeTable, retrieveDewarTable, retrieveDiffractions, retrievePucks)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, plainH2_, plainH3_, table)
+import App.Bootstrap (TableFlag(..), fluidContainer, plainH2_, plainH3_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), classList, makeAlert, singleClass)
@@ -10,7 +10,7 @@ import App.Route (BeamlineRouteInput, Route(..), createLink)
 import Control.Applicative (pure)
 import Control.Apply ((<*>))
 import Control.Bind (bind)
-import Data.Array (cons, elem, filter, head, mapMaybe, notElem, null, elemIndex, (!!))
+import Data.Array (cons, elem, elemIndex, filter, head, mapMaybe, mapWithIndex, notElem, null, (!!))
 import Data.Either (Either(..))
 import Data.Eq (class Eq, (/=), (==))
 import Data.Foldable (maximum)
@@ -22,6 +22,7 @@ import Data.List (List(..), fromFoldable)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Ord (class Ord)
 import Data.Ring ((+))
+import Data.Semigroup ((<>))
 import Data.Show (show)
 import Data.Unit (Unit, unit)
 import Halogen as H
@@ -446,6 +447,21 @@ diffractionForm state =
         ]
         (makeCrystalOption <$> (_.crystalId <$> state.diffractions))
 
+    makeRadio idx option =
+      HH.div [ singleClass "form-check" ]
+        [ HH.input
+            [ singleClass "form-check-input"
+            , HP.type_ InputRadio
+            , HP.name "diffraction-outcome"
+            , HP.id_ ("diffraction-outcome" <> show idx)
+            , HP.checked (state.diffractionOutcome == option)
+            , HE.onValueChange (\_ -> Just (DiffractionStateChange (\state' -> state' { diffractionOutcome = option })))
+            ]
+        , HH.label [ HP.for ("diffraction-outcome" <> show idx), singleClass "form-check-label" ] [ HH.text option ]
+        ]
+
+    makeRadios options = mapWithIndex makeRadio options
+
     addDiffractionForm =
       HH.form_
         [ HH.div [ singleClass "form-group" ]
@@ -463,13 +479,7 @@ diffractionForm state =
                 ]
             ]
         , HH.div [ singleClass "form-group" ]
-            [ HH.label [ HP.for "diffraction-outcome", singleClass "form-label" ] [ HH.text "Diffraction" ]
-            , HH.select
-                [ classList [ "form-select", "form-control" ]
-                , HE.onValueChange (\v -> Just (DiffractionStateChange (\state' -> state' { diffractionOutcome = v })))
-                ]
-                (makeOutcomeOption <$> [ "success", "no diffraction", "no crystal", "ice / salt" ])
-            ]
+            ([ HH.label [ HP.for "diffraction-outcome", singleClass "form-label" ] [ HH.text "Outcome" ] ] <> makeRadios [ "success", "no diffraction", "no crystal", "ice / salt" ])
         , HH.div [ singleClass "form-group" ]
             [ HH.label [ HP.for "diffraction-beam-intensity", singleClass "form-label" ] [ HH.text "Beam intensity" ]
             , HH.input
