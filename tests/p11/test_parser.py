@@ -24,3 +24,7 @@ def test_parse_info_file() -> None:
     assert info_file.start_angle == 0.0 * ureg("degree")
     assert info_file.wavelength == 1.033 * ureg("angstrom")
     assert info_file.ring_current == 99.046 * ureg("milliampere")
+    assert len(info_file.flux_rows) == 9
+    assert info_file.flux_rows[0].focus == "Flat"
+    assert info_file.flux_rows[0].beam_area == "200 x 200"
+    assert info_file.flux_rows[0].flux == "2e12"

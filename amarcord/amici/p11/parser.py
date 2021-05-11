@@ -3,11 +3,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Set
 from typing import Union
 
 from pint import UnitRegistry
 from pint.quantity import Quantity
+
+
+@dataclass(frozen=True)
+class FluxRow:
+    focus: str
+    beam_area: str
+    flux: str
 
 
 @dataclass(frozen=True)
@@ -27,6 +35,7 @@ class P11InfoFile:
     filter_transmission_percent: float
     filter_thickness: Quantity
     ring_current: Quantity
+    flux_rows: List[FluxRow]
 
 
 def parse_p11_info_file(fn: Path, ureg: UnitRegistry) -> P11InfoFile:
@@ -80,6 +89,43 @@ def parse_p11_info_file(fn: Path, ureg: UnitRegistry) -> P11InfoFile:
                         f'"{fn}":{line_no}: {key} should be numeric quantity, is: {value}'
                     )
 
+        description_line = f.readline()
+        if not description_line.startswith("For exact flux reading"):
+            raise Exception(
+                f'"{fn}": after the key-value pairs, we expect one empty line and then a line starting with "For exact '
+                'flux reading ..."; this line is missing. Maybe the format of info.txt changed?'
+            )
+        empty_line_after_description = f.readline()
+
+        if empty_line_after_description.strip():
+            raise Exception(
+                f'"{fn}": after the key-value pairs, we expect one empty line and then a line starting with "For exact '
+                'flux reading ..." and then an empty line again; this last empty line is missing. '
+                "Maybe the format of info.txt changed?"
+            )
+
+        table_header = f.readline()
+
+        try:
+            _focus_start_index = table_header.index("Focus")
+            beam_area_index = table_header.index("Beam area (um)")
+            flux_index = table_header.index("Flux (ph/s)")
+        except:
+            raise Exception(
+                f'"{fn}": we did\'t find the necessary headers in the flux table; there should be columns "Focus", '
+                f'"Beam area" and "Flux", got {table_header}'
+            )
+
+        rows: List[FluxRow] = []
+        for line in f:
+            rows.append(
+                FluxRow(
+                    focus=line[0:beam_area_index].strip(),
+                    beam_area=line[beam_area_index:flux_index].strip(),
+                    flux=line[flux_index:].strip(),
+                )
+            )
+
     def get_safely(result: Dict[str, Union[str, int, Quantity]], v: str) -> Any:
         if v not in result:
             raise Exception(f"{fn}: couldn't find {v}")
@@ -101,4 +147,5 @@ def parse_p11_info_file(fn: Path, ureg: UnitRegistry) -> P11InfoFile:
         filter_transmission_percent=get_safely(result, "filter transmission"),
         filter_thickness=get_safely(result, "filter thickness"),
         ring_current=get_safely(result, "ring current"),
+        flux_rows=rows,
     )
