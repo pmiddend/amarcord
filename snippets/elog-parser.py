@@ -154,20 +154,34 @@ if __name__ == "__main__":
                     db = DB(dbcontext, tables)
 
                     with db.connect() as conn:
+                        # get all the runs collected
                         run_id_list = db.retrieve_run_ids(conn, proposal_id=proposal_id)
 
                         if int(ri) in run_id_list:
-                            db.add_comment(
-                                conn,
-                                ri,
-                                message[int(args.elog_entry)]["author"],
-                                "[{}] ".format(message[int(args.elog_entry)]["href"])
-                                + comment[index],
-                                time=datetime.datetime.strptime(
-                                    message[int(args.elog_entry)]["time"],
-                                    "%d %b %Y, %H:%M",
-                                ),
+                            comment_content = "|ELOG-{}/{}| {}".format(
+                                proposal_id, args.elog_entry, comment[index]
                             )
+
+                            # is there a comment already?
+                            comment_is_there = False
+                            run_data = db.retrieve_run(conn, proposal_id, ri)
+
+                            for ci in run_data.comments:
+                                if ci.text == comment_content:
+                                    comment_is_there = True
+
+                            # add the comment
+                            if not comment_is_there:
+                                db.add_comment(
+                                    conn,
+                                    ri,
+                                    message[int(args.elog_entry)]["author"],
+                                    comment_content,
+                                    time=datetime.datetime.strptime(
+                                        message[int(args.elog_entry)]["time"],
+                                        "%d %b %Y, %H:%M",
+                                    ),
+                                )
 
                         else:
                             print("WARN. Run {} not found".format(ri))
