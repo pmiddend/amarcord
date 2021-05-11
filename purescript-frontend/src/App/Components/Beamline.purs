@@ -10,7 +10,7 @@ import App.Route (BeamlineRouteInput, Route(..), createLink)
 import Control.Applicative (pure)
 import Control.Apply ((<*>))
 import Control.Bind (bind)
-import Data.Array (cons, elem, elemIndex, filter, head, mapMaybe, mapWithIndex, notElem, null, (!!))
+import Data.Array (elem, elemIndex, filter, head, mapMaybe, mapWithIndex, notElem, null, (!!))
 import Data.Either (Either(..))
 import Data.Eq (class Eq, (/=), (==))
 import Data.Foldable (maximum)
@@ -150,6 +150,7 @@ handleDewarResponse = case _ of
       state
         { dewarTable = newTable.dewarTable
         , dewarEdit = chooseDewarEdit state.pucks newTable.dewarTable
+        , diffractionPuckId = if state.diffractionPuckId `elem` (_.puckId <$> newTable.dewarTable) then state.diffractionPuckId else ""
         }
   Left e -> H.modify_ \state -> state { errorMessage = Just e }
 
@@ -245,6 +246,7 @@ handleAction = case _ of
     if confirmResult then do
       result <- H.lift removeWholeTable
       handleDewarResponse result
+      updateHash
     else
       pure unit
   DewarPositionChange newDewarPosition ->
@@ -259,6 +261,7 @@ handleAction = case _ of
   RemoveDewar dewarPosition puckId -> do
     result <- H.lift (removeSingleDewarEntry dewarPosition)
     handleDewarResponse result
+    updateHash
 
 fetchData :: BeamlineRouteInput -> AppMonad (RemoteData String BeamlineData)
 fetchData { puckId } = do
@@ -285,13 +288,13 @@ dewarTable state =
         [ HH.td_
             [ HH.button
                 [ HP.type_ ButtonButton
-                , classList [ "btn", "btn-warning", "btn-sm" ]
+                , classList [ "btn", "btn-danger", "btn-sm" ]
                 , HE.onClick \_ -> Just (RemoveDewar dewarPosition puckId)
                 ]
                 [ icon { name: "trash", size: Nothing, spin: false }, HH.text " Remove" ]
             ]
         , HH.td_ [ HH.text (show dewarPosition) ]
-        , HH.td_ [ HH.text puckId ]
+        , HH.td_ [ HH.a [ HP.href (createLink (Beamline { puckId: Just puckId })), HE.onClick \_ -> Just (DiffractionPuckIdChange puckId) ] [ HH.text puckId ] ]
         ]
   in
     table [ TableStriped ]
@@ -323,8 +326,9 @@ dewarForm state =
 
     puckSelector =
       HH.select
-        [ classList [ "form-control" ]
+        [ classList [ "form-select" ]
         , HE.onValueChange (Just <<< PuckIdChange)
+        , HP.id_ "puck-id"
         ]
         (makeOption <$> availablePucks)
   in
@@ -362,33 +366,10 @@ dewarForm state =
 diffractionForm :: forall w. State -> HH.HTML w Action
 diffractionForm state =
   let
-    makePuckOption :: String -> HH.HTML w Action
-    makePuckOption puckId =
-      HH.option
-        [ HP.value puckId
-        , HP.selected (state.diffractionPuckId == puckId)
-        ]
-        [ HH.text puckId ]
-
     pucksInDewar :: Array String
     pucksInDewar = _.puckId <$> state.dewarTable
 
     pucksAvailable = not (null pucksInDewar)
-
-    emptyOption = HH.option [ HP.enabled false, HP.selected (state.diffractionPuckId == ""), HP.value "" ] [ HH.text "Select puck" ]
-
-    puckSelector =
-      HH.select
-        [ classList [ "form-select" ]
-        , HE.onValueChange (Just <<< DiffractionPuckIdChange)
-        ]
-        (cons emptyOption (makePuckOption <$> pucksInDewar))
-
-    inputForm =
-      HH.form [ classList [ "form-floating" ] ]
-        [ puckSelector
-        , HH.label [ HP.for "diffraction-puck-id" ] [ HH.text "Puck ID" ]
-        ]
 
     formatOutcome (Just "success") = HH.span [ singleClass "badge rounded-pill bg-success" ] [ HH.text "success" ]
 
@@ -442,8 +423,9 @@ diffractionForm state =
 
     crystalIdSelect =
       HH.select
-        [ classList [ "form-select", "form-control" ]
+        [ classList [ "form-select" ]
         , HE.onValueChange (Just <<< DiffractionCrystalIdChange)
+        , HP.id_ "diffraction-crystal-id"
         ]
         (makeCrystalOption <$> (_.crystalId <$> state.diffractions))
 
@@ -493,8 +475,9 @@ diffractionForm state =
         , HH.div [ singleClass "form-group" ]
             [ HH.label [ HP.for "diffraction-pinhole", singleClass "form-label" ] [ HH.text "Pinhole" ]
             , HH.select
-                [ classList [ "form-select", "form-control" ]
+                [ classList [ "form-select" ]
                 , HE.onValueChange (\v -> Just (DiffractionStateChange (\state' -> state' { diffractionPinhole = v })))
+                , HP.id_ "diffraction-pinhole"
                 ]
                 (makeOutcomeOption <$> [ "undefined", "20 um", "50 um", "100 um", "200 um" ])
             ]
@@ -528,8 +511,7 @@ diffractionForm state =
   in
     if pucksAvailable then
       HH.div_
-        [ inputForm
-        , if state.diffractionPuckId /= "" then
+        [ if state.diffractionPuckId /= "" then
             HH.div [ singleClass "row mt-3" ]
               [ HH.div [ singleClass "col" ] [ diffractionTable ]
               , HH.div [ singleClass "col" ]
@@ -559,7 +541,7 @@ render state =
         ]
     , dewarTable state
     , dewarForm state
-    , HH.h2 [ singleClass "mt-4" ] [ HH.text "Diffractions" ]
+    , HH.h2 [ singleClass "mt-4" ] [ if state.diffractionPuckId == "" then HH.text "Diffractions" else HH.text ("Diffractions — Puck " <> state.diffractionPuckId) ]
     , HH.hr_
     , diffractionForm state
     ]
