@@ -2,68 +2,35 @@ module App.Route where
 
 import Prelude
 
-import App.PlotType (PlotType, plotTypeFromString)
-import App.QualifiedAttributoName (QualifiedAttributoName, qanFromString, qanToString)
-import App.SortOrder (SortOrder, sortFromString, sortToString)
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
 import Effect (Effect)
-import Routing.Duplex (RouteDuplex, RouteDuplex', as, optional, parse, path, print, root)
+import Routing.Duplex (RouteDuplex', optional, parse, print, root, string)
 import Routing.Duplex.Generic as G
 import Routing.Duplex.Generic.Syntax ((?))
 import Routing.Hash (matchesWith)
 
-type OverviewRouteInput
-  = { sort :: QualifiedAttributoName, sortOrder :: SortOrder }
-
-type GraphsRouteInput
-  = { xAxis :: Maybe QualifiedAttributoName
-    , yAxis :: Maybe QualifiedAttributoName
-    , plotType :: PlotType
-    }
-
-data Route
-  = Root
-  | Overview OverviewRouteInput
-  | Graphs GraphsRouteInput
-  | Events
+data Route = Root | Beamline BeamlineRouteInput
 
 derive instance genericRoute :: Generic Route _
 
 derive instance eqRoute :: Eq Route
 
-sortOrder :: RouteDuplex String String -> RouteDuplex SortOrder SortOrder
-sortOrder = as sortToString sortFromString
-
-qualifiedAttributoName :: RouteDuplex String String -> RouteDuplex QualifiedAttributoName QualifiedAttributoName
-qualifiedAttributoName = as qanToString qanFromString
-
 sameRoute :: Route -> Route -> Boolean
-sameRoute Events Events = true
-sameRoute (Graphs _) (Graphs _) = true
-sameRoute (Overview _) (Overview _) = true
+sameRoute Root Root = true
+sameRoute (Beamline _) (Beamline _) = true
 sameRoute _ _ = false
 
-plotType :: RouteDuplex String String -> RouteDuplex PlotType PlotType
-plotType = as show plotTypeFromString
+type BeamlineRouteInput = {
+   puckId :: Maybe String
+  }
 
 routeCodec :: RouteDuplex' Route
 routeCodec =
   root
     $ G.sum
         { "Root": G.noArgs
-        , "Events": path "events" G.noArgs
-        , "Graphs":
-            "graphs"
-              ? { xAxis: optional <<< qualifiedAttributoName
-                , yAxis: optional <<< qualifiedAttributoName
-                , plotType: plotType
-                }
-        , "Overview":
-            "overview"
-              ? { sort: qualifiedAttributoName
-                , sortOrder: sortOrder
-                }
+        , "Beamline": "beamline" ? { puckId: optional <<< string }
         }
 
 matchRoute :: (Maybe Route -> Route -> Effect Unit) -> Effect (Effect Unit)

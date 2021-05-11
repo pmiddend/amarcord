@@ -1,7 +1,6 @@
 module App.API where
 
 import Prelude
-
 import Affjax (Error, Response, printError)
 import Affjax as AX
 import Affjax.RequestBody (RequestBody(..))
@@ -38,6 +37,32 @@ type MiniSamplesResponse
   = { samples :: Array MiniSample
     }
 
+type Puck
+  = { puckId :: String }
+
+type PucksResponse
+  = { pucks :: Array Puck
+    }
+
+type DewarEntry
+  = { puckId :: String, dewarPosition :: Int }
+
+type DewarResponse
+  = { dewarTable :: Array DewarEntry
+    }
+
+type DiffractionEntry
+  = { crystalId :: String
+    , runId :: Maybe Int
+    , dewarPosition :: Maybe Int
+    , diffraction :: Maybe String
+    , comment :: Maybe String
+    , puckPositionId :: Int
+    }
+
+type DiffractionResponse
+  = { diffractions :: Array DiffractionEntry }
+
 handleResponse :: forall a m. Monad m => DecodeJson a => Either Error (Response Json) -> m (Either String a)
 handleResponse response = do
   case response of
@@ -61,7 +86,98 @@ retrieveOverview query = do
   let
     url :: String
     url = (baseUrl' <> "/api/overview")
-  response <- liftAff $ AX.post ResponseFormat.json url (Just (FormURLEncoded (fromArray ([Tuple "query" query]))))
+  response <- liftAff $ AX.post ResponseFormat.json url (Just (FormURLEncoded (fromArray ([ Tuple "query" query ]))))
+  handleResponse response
+
+retrievePucks :: AppMonad (Either String PucksResponse)
+retrievePucks = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/pucks")
+  --  response <- liftAff $ AX.post ResponseFormat.json url (Just (FormURLEncoded (fromArray ([Tuple "query" query]))))
+  response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response
+
+retrieveDewarTable :: AppMonad (Either String DewarResponse)
+retrieveDewarTable = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/dewar")
+  response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response
+
+retrieveDiffractions :: String -> AppMonad (Either String DiffractionResponse)
+retrieveDiffractions puckId = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/diffraction/" <> puckId)
+  response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response
+
+addPuckToTable :: Int -> String -> AppMonad (Either String DewarResponse)
+addPuckToTable dewarPosition puckId = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/dewar/" <> show dewarPosition <> "/" <> puckId)
+  response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response
+
+removeSingleDewarEntry :: Int -> AppMonad (Either String DewarResponse)
+removeSingleDewarEntry dewarPosition = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/dewar/" <> show dewarPosition)
+  response <- liftAff $ AX.delete ResponseFormat.json url
+  handleResponse response
+
+removeWholeTable :: AppMonad (Either String DewarResponse)
+removeWholeTable = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/dewar")
+  response <- liftAff $ AX.delete ResponseFormat.json url
+  handleResponse response
+
+addDiffraction ::
+  { crystalId :: String
+  , runId :: Int
+  , diffraction :: String
+  , beamIntensity :: String
+  , pinhole :: String
+  , focusing :: String
+  , comment :: String
+  } ->
+  String ->
+  AppMonad (Either String DiffractionResponse)
+addDiffraction { crystalId, runId, diffraction, beamIntensity, pinhole, focusing, comment } puckId = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/diffraction/" <> puckId)
+  response <-
+    liftAff
+      $ AX.post ResponseFormat.json url
+          ( Just
+              ( FormURLEncoded
+                  ( fromArray
+                      ( [ Tuple "crystalId" (Just crystalId)
+                        , Tuple "runId" (Just (show runId))
+                        , Tuple "diffraction" (Just diffraction)
+                        , Tuple "beamIntensity" (Just beamIntensity)
+                        , Tuple "pinhole" (Just pinhole)
+                        , Tuple "focusing" (Just focusing)
+                        , Tuple "comment" (Just comment)
+                        ]
+                      )
+                  )
+              )
+          )
   handleResponse response
 
 retrieveAttributi :: AppMonad (Either String AttributiResponse)

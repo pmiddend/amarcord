@@ -77,3 +77,5 @@ body {
 .manual-edit {
     background-color: rgb(242, 248, 253);
 }
+
+.amarcord-selected-row { background-color: red; }

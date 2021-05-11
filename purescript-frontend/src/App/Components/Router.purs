@@ -4,9 +4,7 @@ import Prelude
 
 import App.AppMonad (AppMonad)
 import App.AssociatedTable (AssociatedTable(..))
-import App.Components.Events as EventsComp
-import App.Components.Graphs as GraphsComp
-import App.Components.Overview as Overview
+import App.Components.Beamline as Beamline
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList)
 import App.PlotType (PlotType(..))
@@ -48,14 +46,10 @@ type OpaqueSlot slot
 
 type ChildSlots
   = ( root :: OpaqueSlot Unit
-    , overview :: OpaqueSlot Unit
-    , graphs :: OpaqueSlot Unit
-    , events :: OpaqueSlot Unit
+    , beamline :: OpaqueSlot Unit
     )
 
-component ::
-  forall i o.
-  H.Component HH.HTML Query i o AppMonad
+component :: forall i o. H.Component HH.HTML Query i o AppMonad
 component =
   H.mkComponent
     { initialState: const { route: Nothing }
@@ -104,9 +98,7 @@ render st =
         Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found!" ]
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
-          Overview sort -> HH.slot (SProxy :: _ "overview") unit Overview.component sort absurd
-          Graphs input -> HH.slot (SProxy :: _ "graphs") unit GraphsComp.component input absurd
-          Events -> HH.slot (SProxy :: _ "events") unit EventsComp.component unit absurd
+          Beamline input -> HH.slot (SProxy :: _ "beamline") unit Beamline.component input absurd
 
 --EditRun runId -> HH.slot (SProxy :: _ "editRun") unit EditRun.component runId absurd
 navItems ::
@@ -116,17 +108,9 @@ navItems ::
     , title :: String
     }
 navItems =
-  [ { title: "Runs"
-    , link: (Overview { sort: (Tuple Run "id"), sortOrder: Ascending })
-    , fa: "running"
-    }
-  , { title: "Graphs"
-    , link: (Graphs { xAxis: Nothing, yAxis: Nothing, plotType: Line })
-    , fa: "chart-area"
-    }
-  , { title: "Events"
-    , link: Events
-    , fa: "calendar-alt"
+  [ { title: "P11"
+    , link: Beamline { puckId: Nothing }
+    , fa: "radiation"
     }
   ]
 
