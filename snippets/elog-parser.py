@@ -128,10 +128,14 @@ if __name__ == "__main__":
 
         run, run_lut = [], []
         for position in range(1, len(run_identifier) + 1):
-            if pd.isna(run_identifier[position]) or pd.isna(comment[position]):
+            if (
+                pd.isna(run_identifier[position])
+                or pd.isna(comment[position])
+                or run_identifier[position] in ["-", "*"]
+            ):
                 continue
 
-            if run_identifier[position].find("-") > -1:
+            if run_identifier[position].replace(" ", "").find("-") > -1:
                 inner = list(
                     range(
                         int(run_identifier[position].split("-")[0]),
