@@ -123,69 +123,81 @@ if __name__ == "__main__":
 
     else:
         table = message[int(args.elog_entry)]
-
-        run = table["content"][args.run_header]
+        run_identifier = table["content"][args.run_header]
         comment = table["content"][args.ingest_header]
 
-        for ri in [args.run_index] if args.run_index != "all" else run[1:]:
-            index = -1
-            for index in range(1, run.size):
+        run, run_lut = [], []
+        for position in range(1, len(run_identifier) + 1):
+            if pd.isna(run_identifier[position]) or pd.isna(comment[position]):
+                continue
 
-                if pd.isna(run[index]):
-                    continue
+            if run_identifier[position].find("-") > -1:
+                inner = list(
+                    range(
+                        int(run_identifier[position].split("-")[0]),
+                        int(run_identifier[position].split("-")[1]) + 1,
+                    )
+                )
+            else:
+                inner = [int(run_identifier[position])]
 
-                # run can be expressed as range
-                if run[index].find("-") > 0:
-                    if int(ri) in range(*[int(ri) for ri in run[index].split("-")]):
-                        break
-                else:
-                    if int(ri) == int(run[index]):
-                        break
+            for value in inner:
+                run.append(value)
+                run_lut.append(position)
 
-            if not pd.isna(comment[index]):
-                print("INFO. Run {}: {}".format(ri, comment[index],))
+        for ri in [args.run_index] if args.run_index != "all" else run:
+            index = 0
 
-                if args.db_connection_url is not None:
-                    dbcontext = DBContext(args.db_connection_url, echo=args.echo)
+            for index in range(0, len(run)):
+                if int(ri) == int(run[index]):
+                    index = run_lut[index]
 
-                    tables = create_tables(dbcontext)
-                    if args.db_connection_url.startswith("sqlite://"):
-                        dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
-                    db = DB(dbcontext, tables)
+                    break
 
-                    with db.connect() as conn:
-                        # get all the runs collected
-                        run_id_list = db.retrieve_run_ids(conn, proposal_id=proposal_id)
+            print("INFO. Run {}: {}".format(ri, comment[index],))
 
-                        if int(ri) in run_id_list:
-                            comment_content = "|ELOG-{}/{}| {}".format(
-                                proposal_id, args.elog_entry, comment[index]
+            if args.db_connection_url is not None:
+                dbcontext = DBContext(args.db_connection_url, echo=args.echo)
+
+                tables = create_tables(dbcontext)
+                if args.db_connection_url.startswith("sqlite://"):
+                    dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+                db = DB(dbcontext, tables)
+
+                with db.connect() as conn:
+
+                    # get all the runs collected
+                    run_id_list = db.retrieve_run_ids(conn, proposal_id=proposal_id)
+
+                    if int(ri) in run_id_list:
+                        comment_content = "|ELOG-{}/{}| {}".format(
+                            proposal_id, args.elog_entry, comment[index]
+                        )
+
+                        # is there a comment already?
+                        comment_is_there = False
+                        run_data = db.retrieve_run(conn, proposal_id, ri)
+
+                        for ci in run_data.comments:
+                            if ci.text == comment_content:
+                                comment_is_there = True
+
+                        # add the comment
+                        if not comment_is_there:
+                            db.add_comment(
+                                conn,
+                                ri,
+                                message[int(args.elog_entry)]["author"],
+                                comment_content,
+                                time=datetime.datetime.strptime(
+                                    message[int(args.elog_entry)]["time"],
+                                    "%d %b %Y, %H:%M",
+                                ),
                             )
 
-                            # is there a comment already?
-                            comment_is_there = False
-                            run_data = db.retrieve_run(conn, proposal_id, ri)
-
-                            for ci in run_data.comments:
-                                if ci.text == comment_content:
-                                    comment_is_there = True
-
-                            # add the comment
-                            if not comment_is_there:
-                                db.add_comment(
-                                    conn,
-                                    ri,
-                                    message[int(args.elog_entry)]["author"],
-                                    comment_content,
-                                    time=datetime.datetime.strptime(
-                                        message[int(args.elog_entry)]["time"],
-                                        "%d %b %Y, %H:%M",
-                                    ),
-                                )
-
-                        else:
-                            print("WARN. Run {} not found".format(ri))
-                            missing_run.append(int(ri))
+                    else:
+                        print("WARN. Run {} not found".format(ri))
+                        missing_run.append(int(ri))
 
         print("\n", " ".join(["*" for _ in range(50)]))
         pprint(index, table)
