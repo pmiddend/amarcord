@@ -3,6 +3,7 @@ module App.Components.Router where
 import Prelude
 import App.AppMonad (AppMonad)
 import App.Components.Beamline as Beamline
+import App.Components.Analysis as Analysis
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList, singleClass)
 import App.Root as Root
@@ -42,6 +43,7 @@ type OpaqueSlot slot
 type ChildSlots
   = ( root :: OpaqueSlot Unit
     , beamline :: OpaqueSlot Unit
+    , analysis :: OpaqueSlot Unit
     )
 
 component :: forall i o. H.Component HH.HTML Query i o AppMonad
@@ -93,9 +95,9 @@ render st =
         Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found!" ]
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
+          Analysis -> HH.slot (SProxy :: _ "analysis") unit Analysis.component unit absurd
           Beamline input -> HH.slot (SProxy :: _ "beamline") unit Beamline.component input absurd
 
---EditRun runId -> HH.slot (SProxy :: _ "editRun") unit EditRun.component runId absurd
 navItems ::
   Array
     { fa :: String
@@ -106,6 +108,10 @@ navItems =
   [ { title: "P11"
     , link: Beamline { puckId: Nothing }
     , fa: "radiation"
+    }
+  , { title: "Analysis"
+    , link: Analysis
+    , fa: "table"
     }
   ]
 
@@ -176,10 +182,3 @@ skeleton route html =
         [ contentView html
         ]
     ]
-
--- HH.div [ classList [ "container-fluid" ] ]
---   [ HH.div [ classList [ "row" ] ]
---       [ navbar route
---       , contentView html
---       ]
---   ]

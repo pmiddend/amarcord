@@ -12,6 +12,7 @@ from werkzeug.utils import redirect
 
 from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.db import table_crystals
+from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_dewar_lut
 from amarcord.amici.p11.db import table_diffractions
 from amarcord.amici.p11.db import table_pucks
@@ -177,6 +178,67 @@ def remove_dewar_lut() -> JSONDict:
     with dbcontext.connect() as conn:
         conn.execute(sa.delete(dewar_lut))
         return _retrieve_dewar_table(conn, dewar_lut)
+
+
+@app.route("/api/analysis")
+def retrieve_analysis() -> JSONDict:
+    dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
+    with dbcontext.connect() as conn:
+        crystals = table_crystals(dbcontext.metadata, schema=None)
+        diffractions = table_diffractions(dbcontext.metadata, schema=None)
+        data_reductions = table_data_reduction(dbcontext.metadata, schema=None)
+        results = conn.execute(
+            sa.select(
+                [
+                    crystals.c.crystal_id,
+                    crystals.c.puck_id,
+                    crystals.c.puck_position_id,
+                    diffractions.c.run_id,
+                    diffractions.c.comment,
+                    data_reductions.c.data_reduction_id,
+                    data_reductions.c.resolution_cc,
+                    data_reductions.c.resolution_isigma,
+                    data_reductions.c.a,
+                    data_reductions.c.b,
+                    data_reductions.c.c,
+                    data_reductions.c.alpha,
+                    data_reductions.c.beta,
+                    data_reductions.c.gamma,
+                ]
+            )
+            .select_from(
+                crystals.join(diffractions).join(
+                    data_reductions,
+                    onclause=sa.and_(
+                        data_reductions.c.run_id == diffractions.c.run_id,
+                        diffractions.c.crystal_id == data_reductions.c.crystal_id,
+                    ),
+                )
+            )
+            .where(diffractions.c.diffraction == DiffractionType.success)
+            .order_by(crystals.c.crystal_id)
+        ).fetchall()
+        return {
+            "analysis": [
+                {
+                    "crystalId": row[0],
+                    "puckId": row[1],
+                    "puckPositionId": row[2],
+                    "runId": row[3],
+                    "comment": row[4],
+                    "dataReductionId": row[5],
+                    "resolutionCc": row[6],
+                    "resolutionIsigma": row[7],
+                    "a": row[8],
+                    "b": row[9],
+                    "c": row[10],
+                    "alpha": row[11],
+                    "beta": row[12],
+                    "gamma": row[13],
+                }
+                for row in results
+            ]
+        }
 
 
 @app.errorhandler(HTTPException)

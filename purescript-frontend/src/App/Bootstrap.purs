@@ -18,9 +18,13 @@ plainH2_ t = HH.h2_ [ HH.text t ]
 plainH3_ t = HH.h3_ [ HH.text t ]
 
 data TableFlag = TableStriped
+               | TableSmall
+               | TableBordered
 
 table flags header body =
   let flagToClasses TableStriped = [ "table-striped" ]
+      flagToClasses TableSmall = [ "table-sm" ]
+      flagToClasses TableBordered = [ "table-bordered" ]
   in HH.table [ classList ("table" : concatMap flagToClasses flags) ] [ HH.thead_ [ HH.tr_ header ],  HH.tbody_ body ]
 
 plainTh_ x = HH.th_ [ HH.text x ]

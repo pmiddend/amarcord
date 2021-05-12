@@ -25,6 +25,27 @@ type OverviewResponse
   = { overviewRows :: Array OverviewRow
     }
 
+type AnalysisRow = {
+    crystalId :: String
+  , puckId :: String
+  , puckPositionId :: Int
+  , runId :: Int
+  , comment :: Maybe String
+  , dataReductionId :: Int
+  , resolutionCc :: Maybe Number
+  , resolutionIsigma :: Maybe Number
+  , a :: Number
+  , b :: Number
+  , c :: Number
+  , alpha :: Number
+  , beta :: Number
+  , gamma :: Number
+  }
+
+type AnalysisResponse
+  = { analysis :: Array AnalysisRow
+    }
+
 type AttributiResponse
   = { attributi :: Array Attributo
     }
@@ -204,6 +225,15 @@ retrieveMiniSamples = do
   let
     url :: String
     url = (baseUrl' <> "/api/minisamples")
+  response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response
+
+retrieveAnalysis :: AppMonad (Either String AnalysisResponse)
+retrieveAnalysis = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = (baseUrl' <> "/api/analysis")
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
