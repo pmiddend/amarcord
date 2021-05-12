@@ -77,7 +77,10 @@ def pprint(index: int, message: Dict[str, Any]):
     print("Title: {}".format(message["title"]))
     print(
         tabulate.tabulate(
-            message["content"], headers="keys", tablefmt="simple", showindex="never",
+            message["content"],
+            headers="keys",
+            tablefmt="simple",
+            showindex="never",
         ),
         "\n",
     )
@@ -158,7 +161,12 @@ if __name__ == "__main__":
 
                     break
 
-            print("INFO. Run {}: {}".format(ri, comment[index],))
+            print(
+                "INFO. Run {}: {}".format(
+                    ri,
+                    comment[index],
+                )
+            )
 
             if args.db_connection_url is not None:
                 dbcontext = DBContext(args.db_connection_url, echo=args.echo)
