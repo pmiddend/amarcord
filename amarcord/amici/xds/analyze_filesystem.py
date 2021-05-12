@@ -54,10 +54,8 @@ def analyze_xds_filesystem(
     results_file = parse_resultsfile(results_files[0])
 
     mtz_files = list(full_path.glob("*_F.mtz"))
-    if len(mtz_files) > 1:
-        return XDSFilesystemError(
-            f"found more than one MTZ file: {mtz_files}", log_file=log_path
-        )
+    # Sort by mtime, take the first (so the latest) one below
+    mtz_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
 
     analysis_time = datetime.datetime.fromtimestamp(
         processed_path.stat().st_mtime, tz=datetime.timezone.utc

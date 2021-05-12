@@ -179,7 +179,7 @@ def ingest_puck(
         ).fetchone()[0]
         == 0
     ):
-        logger.info("Inserting puck", puck.puck_id)
+        logger.info("Inserting puck %s", puck.puck_id)
         conn.execute(
             sa.insert(pucks).values(
                 puck_id=puck.puck_id, puck_type=PuckType.UNI, owner="Janina"

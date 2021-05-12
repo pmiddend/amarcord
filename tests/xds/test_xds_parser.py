@@ -16,8 +16,8 @@ def test_parse_correct_lp() -> None:
     assert info_file.beta.magnitude == 101.837
     assert info_file.gamma.magnitude == 90
     assert info_file.space_group == 5
-    assert info_file.resolution_isigma.magnitude == 1.88
-    assert info_file.resolution_cc.magnitude == 1.58
+    assert info_file.resolution_isigma.magnitude == 1.92
+    assert info_file.resolution_cc.magnitude == 1.7
     assert info_file.isigi == 6.27
     assert info_file.rfactor == 6.7
     assert info_file.rmeas == 7.8

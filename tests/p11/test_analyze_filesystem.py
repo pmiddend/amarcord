@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from amarcord.amici.p11.analyze_filesystem import parse_p11_crystals
 from amarcord.amici.p11.analyze_filesystem import parse_p11_targets
 
 
@@ -125,3 +126,20 @@ def test_parse_p11_targets_target_with_puck_with_valid_run_and_valid_info_and_va
     assert targets[0].pucks[0].runs[0].data_raw_filename_pattern is not None
     assert targets[0].pucks[0].runs[0].processed_path is not None
     assert not has_warnings
+
+
+def test_parse_p11_crystals(fs) -> None:
+    base_path = "/proposal/raw/crystal_id/crystal_id_001"
+    fs.add_real_file(
+        Path(__file__).parent / "info.txt",
+        target_path=f"{base_path}/info.txt",
+    )
+
+    crystals, has_warnings = parse_p11_crystals(Path("/proposal"))
+
+    assert not has_warnings
+    assert len(crystals) == 1
+    assert crystals[0].crystal_id == "crystal_id"
+    assert len(crystals[0].runs) == 1
+    assert crystals[0].runs[0].run_id == 1
+    assert crystals[0].runs[0].info_file.run_type == "regular"
