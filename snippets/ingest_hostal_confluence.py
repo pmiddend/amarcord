@@ -157,6 +157,12 @@ class Arguments(Tap):
     db_echo: bool = False  # output SQL statements?
 
 
+def create_crystal_id(crystal: Crystal, max_crystal_id: int) -> str:
+    # Strip away characters that cause trouble on filesystems
+    modified_name = re.sub(r"[^A-Za-z0-9_-]", "", crystal.name)
+    return f"{modified_name}_pos{crystal.position}_{max_crystal_id}"
+
+
 def ingest_puck(
     conn: Connection,
     pucks: sa.Table,
@@ -180,7 +186,7 @@ def ingest_puck(
     for crystal in puck.crystals:
         conn.execute(
             sa.insert(crystals).values(
-                crystal_id=f"{crystal.name}_pos{crystal.position}_{max_crystal_id}",
+                create_crystal_id(crystal, max_crystal_id),
                 puck_id=puck.puck_id,
                 puck_position_id=crystal.position,
             )
