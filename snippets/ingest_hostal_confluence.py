@@ -170,6 +170,7 @@ def ingest_puck(
     puck: Puck,
     max_crystal_id: int,
 ) -> int:
+    # Only ingest if it's not already there (checkin the puck ID here)
     if (
         conn.execute(
             sa.select([sa.func.count(pucks.c.puck_id)]).where(
@@ -178,20 +179,42 @@ def ingest_puck(
         ).fetchone()[0]
         == 0
     ):
+        logger.info("Inserting puck", puck.puck_id)
         conn.execute(
             sa.insert(pucks).values(
                 puck_id=puck.puck_id, puck_type=PuckType.UNI, owner="Janina"
             )
         )
+    else:
+        logger.info("Skipping puck %s creation, already there", puck.puck_id)
     for crystal in puck.crystals:
-        conn.execute(
-            sa.insert(crystals).values(
-                create_crystal_id(crystal, max_crystal_id),
-                puck_id=puck.puck_id,
-                puck_position_id=crystal.position,
+        if (
+            conn.execute(
+                sa.select([sa.func.count(crystals.c.crystal_id)]).where(
+                    sa.and_(
+                        crystals.c.puck_id == puck.puck_id,
+                        crystals.c.puck_position_id == crystal.position,
+                    )
+                )
+            ).fetchone()[0]
+            == 0
+        ):
+            crystal_id = create_crystal_id(crystal, max_crystal_id)
+            logger.info("Inserting crystal %s", crystal_id)
+            conn.execute(
+                sa.insert(crystals).values(
+                    crystal_id=crystal_id,
+                    puck_id=puck.puck_id,
+                    puck_position_id=crystal.position,
+                )
             )
-        )
-        max_crystal_id += 1
+            max_crystal_id += 1
+        else:
+            logger.info(
+                "Skipping crystal creation for puck %s, position %s, already there",
+                puck.puck_id,
+                crystal.position,
+            )
     return max_crystal_id
 
 
