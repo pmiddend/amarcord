@@ -170,13 +170,11 @@ addDiffraction ::
   , runId :: Int
   , diffraction :: String
   , beamIntensity :: String
-  , pinhole :: String
-  , focusing :: String
   , comment :: String
   } ->
   String ->
   AppMonad (Either String DiffractionResponse)
-addDiffraction { crystalId, runId, diffraction, beamIntensity, pinhole, focusing, comment } puckId = do
+addDiffraction { crystalId, runId, diffraction, beamIntensity, comment } puckId = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
@@ -191,8 +189,6 @@ addDiffraction { crystalId, runId, diffraction, beamIntensity, pinhole, focusing
                         , Tuple "runId" (Just (show runId))
                         , Tuple "diffraction" (Just diffraction)
                         , Tuple "beamIntensity" (Just beamIntensity)
-                        , Tuple "pinhole" (Just pinhole)
-                        , Tuple "focusing" (Just focusing)
                         , Tuple "comment" (Just comment)
                         ]
                       )

@@ -135,8 +135,6 @@ def add_diffraction(puck_id: str) -> JSONDict:
                 run_id=int(request.form["runId"]),
                 diffraction=DiffractionType(request.form["diffraction"]),
                 beam_intensity=request.form["beamIntensity"],
-                pinhole=request.form["pinhole"],
-                focusing=request.form["focusing"],
                 comment=request.form["comment"],
             )
         )

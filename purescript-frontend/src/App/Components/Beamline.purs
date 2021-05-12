@@ -10,7 +10,7 @@ import App.Route (BeamlineRouteInput, Route(..), createLink)
 import Control.Applicative (pure)
 import Control.Apply ((<*>))
 import Control.Bind (bind)
-import Data.Array (elem, elemIndex, filter, head, mapMaybe, mapWithIndex, notElem, null, (!!))
+import Data.Array (elem, elemIndex, filter, head, mapMaybe, mapWithIndex, notElem, nub, null, (!!))
 import Data.Either (Either(..))
 import Data.Eq (class Eq, (/=), (==))
 import Data.Foldable (maximum)
@@ -52,8 +52,6 @@ type State
     , diffractionRunId :: Int
     , diffractionOutcome :: String
     , diffractionBeamIntensity :: String
-    , diffractionPinhole :: String
-    , diffractionFocusing :: String
     , diffractionComment :: String
     }
 
@@ -119,8 +117,6 @@ initialState { input: { puckId }
   , diffractionRunId: 1
   , diffractionOutcome: "success"
   , diffractionBeamIntensity: ""
-  , diffractionPinhole: ""
-  , diffractionFocusing: ""
   , diffractionComment: ""
   , diffractionPuckId:
       case puckId of
@@ -172,7 +168,7 @@ selectRunId crystalId diffs = maybe 1 (\x -> x + 1) (maximum (mapMaybe _.runId (
 
 nextCrystalId currentId diffractions =
   let
-    crystalIds = _.crystalId <$> diffractions
+    crystalIds = nub (_.crystalId <$> diffractions)
 
     currentIndex = elemIndex currentId crystalIds
   in
@@ -203,8 +199,6 @@ handleAction = case _ of
           , runId: s.diffractionRunId
           , diffraction: s.diffractionOutcome
           , beamIntensity: s.diffractionBeamIntensity
-          , pinhole: s.diffractionPinhole
-          , focusing: s.diffractionFocusing
           , comment: s.diffractionComment
           }
       diffs <- H.lift (addDiffraction newDiffraction s.diffractionPuckId)
@@ -218,6 +212,7 @@ handleAction = case _ of
                 { diffractions = newDiffractions.diffractions
                 , diffractionRunId = selectRunId newCrystalId newDiffractions.diffractions
                 , diffractionCrystalId = newCrystalId
+                , diffractionComment = ""
                 }
         Left e -> H.modify_ \state -> state { errorMessage = Just e }
     else
@@ -470,25 +465,6 @@ diffractionForm state =
                 , classList [ "form-control", "mr-2" ]
                 , HP.value state.diffractionBeamIntensity
                 , HE.onValueChange (\x -> Just (DiffractionStateChange (\state' -> state' { diffractionBeamIntensity = x })))
-                ]
-            ]
-        , HH.div [ singleClass "form-group" ]
-            [ HH.label [ HP.for "diffraction-pinhole", singleClass "form-label" ] [ HH.text "Pinhole" ]
-            , HH.select
-                [ classList [ "form-select" ]
-                , HE.onValueChange (\v -> Just (DiffractionStateChange (\state' -> state' { diffractionPinhole = v })))
-                , HP.id_ "diffraction-pinhole"
-                ]
-                (makeOutcomeOption <$> [ "undefined", "20 um", "50 um", "100 um", "200 um" ])
-            ]
-        , HH.div [ singleClass "form-group" ]
-            [ HH.label [ HP.for "diffraction-focusing", singleClass "form-label" ] [ HH.text "Focusing" ]
-            , HH.input
-                [ HP.type_ InputText
-                , HP.id_ "diffraction-focusing"
-                , classList [ "form-control", "mr-2" ]
-                , HP.value state.diffractionFocusing
-                , HE.onValueChange (\x -> Just (DiffractionStateChange (\state' -> state' { diffractionFocusing = x })))
                 ]
             ]
         , HH.div [ singleClass "form-group", singleClass "form-label" ]
