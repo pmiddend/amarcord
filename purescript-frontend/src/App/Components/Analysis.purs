@@ -5,7 +5,7 @@ import App.AppMonad (AppMonad)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (singleClass)
-import Control.Applicative (pure)
+import Control.Applicative (pure, (<*>))
 import Control.Bind (bind)
 import Data.Eq (class Eq)
 import Data.Functor ((<$>))
@@ -13,6 +13,7 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Ord (class Ord)
 import Data.Semigroup ((<>))
 import Data.Show (show)
+import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
 import Halogen as H
 import Halogen.HTML as HH
@@ -105,7 +106,7 @@ render state =
     } =
       HH.tr_
         [ HH.td_ [ HH.text crystalId ]
-        , HH.td_ [ HH.text (puckId <> ", " <> show puckPositionId) ]
+        , HH.td_ [ HH.text (fromMaybe "-" ((\pid ppid -> pid <> " " <> ppid) <$> puckId <*> (show <$> puckPositionId))) ]
         , HH.td_ [ HH.text (show runId) ]
         , HH.td_ [ HH.text (show dataReductionId) ]
         , HH.td_ [ HH.text (maybe "" show resolutionCc) ]

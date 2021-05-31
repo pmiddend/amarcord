@@ -161,7 +161,7 @@ def parse_crystal(crystal_path: Path) -> Tuple[Optional[P11Crystal], bool]:
         has_warnings = run_has_warnings or has_warnings
 
     if not runs:
-        logger.warning("Crystal %s has no runs!", crystal_path)
+        logger.warning("crystal %s has no (valid) runs!", crystal_path)
         has_warnings = True
 
     return P11Crystal(crystal_path.name, runs), has_warnings
@@ -208,6 +208,7 @@ def parse_target(target_path: Path) -> Tuple[Optional[P11Target], bool]:
 
 
 def parse_p11_crystals(proposal_path: Path) -> Tuple[List[P11Crystal], bool]:
+    """Parses all paths below the proposal path, assuming there are crystals directly below that"""
     if not proposal_path.is_dir():
         raise Exception(f"proposal path {proposal_path} is not a directory!")
     raw_path = proposal_path / "raw"
@@ -230,6 +231,10 @@ def parse_p11_crystals(proposal_path: Path) -> Tuple[List[P11Crystal], bool]:
 
 
 def parse_p11_targets(proposal_path: Path) -> Tuple[List[P11Target], bool]:
+    """
+    Parses directories below the proposal path, assuming directly below that
+    are directories for the different targets.
+    """
     if not proposal_path.is_dir():
         raise Exception(f"proposal path {proposal_path} is not a directory!")
     raw_path = proposal_path / "raw"

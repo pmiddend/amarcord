@@ -58,7 +58,9 @@ def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
     )
 
 
-def table_dewar_lut(metadata: MetaData, schema: Optional[str] = None) -> Table:
+def table_dewar_lut(
+    metadata: MetaData, _pucks: Table, schema: Optional[str] = None
+) -> Table:
     return Table(
         "Dewar_LUT",
         metadata,
@@ -74,7 +76,9 @@ def table_dewar_lut(metadata: MetaData, schema: Optional[str] = None) -> Table:
     )
 
 
-def table_crystals(metadata: MetaData, schema: Optional[str] = None) -> Table:
+def table_crystals(
+    metadata: MetaData, _pucks: Table, schema: Optional[str] = None
+) -> Table:
     return Table(
         "Crystals",
         metadata,
@@ -128,7 +132,9 @@ def table_data_reduction(metadata: MetaData, schema: Optional[str] = None) -> Ta
     )
 
 
-def table_diffractions(metadata: MetaData, schema: Optional[str] = None) -> Table:
+def table_diffractions(
+    metadata: MetaData, _crystals: Table, schema: Optional[str] = None
+) -> Table:
     return Table(
         "Diffractions",
         metadata,

@@ -20,7 +20,7 @@ pylint-and-mypy:
   stage: test
   script:
     - pip install -e .[gui,webserver,daemon]
-    - pip install mypy pylint sqlalchemy-stubs
+    - pip install 'mypy==0.812' 'pylint==2.8.*' sqlalchemy-stubs
     - mypy amarcord
     - apt-get update -y && apt-get install -y qt5-default
     - pylint amarcord

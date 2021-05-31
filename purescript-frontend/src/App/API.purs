@@ -27,8 +27,8 @@ type OverviewResponse
 
 type AnalysisRow = {
     crystalId :: String
-  , puckId :: String
-  , puckPositionId :: Int
+  , puckId :: Maybe String
+  , puckPositionId :: Maybe Int
   , runId :: Int
   , comment :: Maybe String
   , dataReductionId :: Int

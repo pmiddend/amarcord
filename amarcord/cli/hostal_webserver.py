@@ -117,8 +117,8 @@ def _retrieve_diffractions(
 @app.route("/api/diffraction/<puck_id>")
 def retrieve_diffractions(puck_id: str) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
-    diffractions = table_diffractions(dbcontext.metadata)
-    crystals = table_crystals(dbcontext.metadata)
+    crystals = table_crystals(dbcontext.metadata, table_pucks(dbcontext.metadata))
+    diffractions = table_diffractions(dbcontext.metadata, crystals)
     with dbcontext.connect() as conn:
         return _retrieve_diffractions(conn, diffractions, crystals, puck_id, False)
 
@@ -126,8 +126,8 @@ def retrieve_diffractions(puck_id: str) -> JSONDict:
 @app.route("/api/diffraction/<puck_id>", methods=["POST"])
 def add_diffraction(puck_id: str) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
-    diffractions = table_diffractions(dbcontext.metadata)
-    crystals = table_crystals(dbcontext.metadata)
+    crystals = table_crystals(dbcontext.metadata, table_pucks(dbcontext.metadata))
+    diffractions = table_diffractions(dbcontext.metadata, crystals)
     with dbcontext.connect() as conn:
         conn.execute(
             sa.insert(diffractions).values(
@@ -144,7 +144,7 @@ def add_diffraction(puck_id: str) -> JSONDict:
 @app.route("/api/dewar/<int:dewarPosition>/<puckId>", methods=["GET"])
 def add_puck_to_table(dewarPosition: int, puckId: str) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
-    dewar_lut = table_dewar_lut(dbcontext.metadata)
+    dewar_lut = table_dewar_lut(dbcontext.metadata, table_pucks(dbcontext.metadata))
     with dbcontext.connect() as conn:
         conn.execute(
             sa.insert(dewar_lut).values(dewar_position=dewarPosition, puck_id=puckId)
@@ -155,7 +155,7 @@ def add_puck_to_table(dewarPosition: int, puckId: str) -> JSONDict:
 @app.route("/api/dewar")
 def retrieve_dewar_table() -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
-    dewar_lut = table_dewar_lut(dbcontext.metadata)
+    dewar_lut = table_dewar_lut(dbcontext.metadata, table_pucks(dbcontext.metadata))
     with dbcontext.connect() as conn:
         return _retrieve_dewar_table(conn, dewar_lut)
 
@@ -163,7 +163,7 @@ def retrieve_dewar_table() -> JSONDict:
 @app.route("/api/dewar/<int:position>", methods=["DELETE"])
 def remove_single_dewar_entry(position: int) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
-    dewar_lut = table_dewar_lut(dbcontext.metadata)
+    dewar_lut = table_dewar_lut(dbcontext.metadata, table_pucks(dbcontext.metadata))
     with dbcontext.connect() as conn:
         conn.execute(sa.delete(dewar_lut).where(dewar_lut.c.dewar_position == position))
         return _retrieve_dewar_table(conn, dewar_lut)
@@ -172,7 +172,7 @@ def remove_single_dewar_entry(position: int) -> JSONDict:
 @app.route("/api/dewar", methods=["DELETE"])
 def remove_dewar_lut() -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
-    dewar_lut = table_dewar_lut(dbcontext.metadata)
+    dewar_lut = table_dewar_lut(dbcontext.metadata, table_pucks(dbcontext.metadata))
     with dbcontext.connect() as conn:
         conn.execute(sa.delete(dewar_lut))
         return _retrieve_dewar_table(conn, dewar_lut)
@@ -182,8 +182,10 @@ def remove_dewar_lut() -> JSONDict:
 def retrieve_analysis() -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
     with dbcontext.connect() as conn:
-        crystals = table_crystals(dbcontext.metadata, schema=None)
-        diffractions = table_diffractions(dbcontext.metadata, schema=None)
+        crystals = table_crystals(
+            dbcontext.metadata, table_pucks(dbcontext.metadata), schema=None
+        )
+        diffractions = table_diffractions(dbcontext.metadata, crystals, schema=None)
         data_reductions = table_data_reduction(dbcontext.metadata, schema=None)
         results = conn.execute(
             sa.select(

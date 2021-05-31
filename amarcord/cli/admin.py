@@ -80,6 +80,7 @@ def main() -> int:
 
     dbcontext = DBContext(args.connection_url)
     db = DB(dbcontext, create_tables(dbcontext))
+    # pylint: disable=no-member
     subparser_name = args.subparser_name  # type: ignore
     if subparser_name == "migrate":
         upgrade_to_head(args.connection_url)
@@ -92,7 +93,10 @@ def main() -> int:
         subargs_remove = cast(RemoveAdminPassword, args)
         with db.connect() as conn:
             db.change_proposal_password(
-                conn, ProposalId(subargs_remove.proposal_id), None
+                conn,
+                # pylint: disable=no-member
+                ProposalId(subargs_remove.proposal_id),
+                None,
             )
             logger.info("Password successfully removed!")
     elif subparser_name == "switch-admin-password":
@@ -100,14 +104,20 @@ def main() -> int:
         new_password = getpass()
         with db.connect() as conn:
             db.change_proposal_password(
-                conn, ProposalId(subargs_switch.proposal_id), new_password
+                conn,
+                # pylint: disable=no-member
+                ProposalId(subargs_switch.proposal_id),
+                new_password,
             )
             logger.info("Password successfully switched!")
     elif subparser_name == "add-proposal":
         subargs_add = cast(AddProposal, args)
         with db.connect() as conn:
             db.add_proposal(
-                conn, ProposalId(subargs_add.proposal_id), subargs_add.password
+                conn,
+                # pylint: disable=no-member
+                ProposalId(subargs_add.proposal_id),
+                subargs_add.password,
             )
             logger.info("Proposal added!")
     else:

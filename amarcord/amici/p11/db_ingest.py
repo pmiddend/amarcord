@@ -1,4 +1,8 @@
 import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+from typing import Dict
 from typing import List
 from typing import Optional
 
@@ -9,14 +13,28 @@ from sqlalchemy import Table
 from amarcord.amici.p11.analyze_filesystem import P11Crystal
 from amarcord.amici.p11.analyze_filesystem import P11Run
 from amarcord.amici.p11.analyze_filesystem import P11Target
+from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.db import ReductionMethod
 from amarcord.amici.xds.analyze_filesystem import XDSFilesystem
 from amarcord.amici.xds.analyze_filesystem import analyze_xds_filesystem
 from amarcord.modules.dbcontext import Connection
 
-DETECTOR_NAME = "DECTRIS EIGER 16M"
+EIGER_16_M_DETECTOR_NAME = "DECTRIS EIGER 16M"
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class MetadataRetriever:
+    diffraction: Callable[[str, int], DiffractionType]
+    comment: Callable[[str, int], str]
+    detector_name: str
+
+
+def empty_metadata_retriever(detector_name: str) -> MetadataRetriever:
+    return MetadataRetriever(
+        lambda cid, rid: DiffractionType.success, lambda cid, rid: "", detector_name
+    )
 
 
 def _find_crystal(
@@ -39,35 +57,21 @@ def _ingest_diffractions_for_crystal(
     diffs: sa.Table,
     crystals: sa.Table,
     crystal: P11Crystal,
-    dummy_puck: Optional[str],
+    insert_diffraction_if_not_exists: bool,
+    metadata_retriever: MetadataRetriever,
 ) -> bool:
     if (
         conn.execute(
-            sa.select([diffs.c.crystal_id]).where(
-                diffs.c.crystal_id == crystal.crystal_id,
+            sa.select([crystals.c.crystal_id]).where(
+                crystals.c.crystal_id == crystal.crystal_id
             )
         ).fetchone()
         is None
     ):
-        if dummy_puck is not None:
-            logger.info(
-                "Creating nonexisting crystal %s with dummy puck %s",
-                crystal.crystal_id,
-                dummy_puck,
-            )
-            conn.execute(
-                sa.insert(crystals).values(
-                    crystal_id=crystal.crystal_id,
-                    puck_id=dummy_puck,
-                    puck_position_id=1,
-                )
-            )
-        else:
-            logger.warning(
-                "Crystal %s found in file system but not in database",
-                crystal.crystal_id,
-            )
-            return True
+        logger.warning(
+            "crystal %s found in filesystem, but not in database", crystal.crystal_id
+        )
+        return True
 
     for run in crystal.runs:
         if (
@@ -80,7 +84,7 @@ def _ingest_diffractions_for_crystal(
                 )
             ).fetchone()
             is None
-            and dummy_puck is None
+            and not insert_diffraction_if_not_exists
         ):
             logger.info(
                 "Diffraction for crystal ID %s, run ID %s does not exist, not adding it",
@@ -89,13 +93,20 @@ def _ingest_diffractions_for_crystal(
             )
             continue
         logger.info(
-            "Crystal ID %s, run %s, updating existing diffraction...",
+            "Crystal ID %s, run %s, ingesting diffraction...",
             crystal.crystal_id,
             run.run_id,
         )
-        _ingest_diffraction(conn, crystal.crystal_id, diffs, run)
+        _ingest_diffraction(
+            conn,
+            crystal.crystal_id,
+            diffs,
+            run,
+            insert_diffraction_if_not_exists,
+            metadata_retriever,
+        )
 
-    return True
+    return False
 
 
 def _ingest_diffractions_for_target(
@@ -103,6 +114,8 @@ def _ingest_diffractions_for_target(
     diffs: sa.Table,
     crystals: sa.Table,
     target: P11Target,
+    insert_diffraction_if_not_exists: bool,
+    metadata_retriever: MetadataRetriever,
 ) -> bool:
     has_warnings = False
     for puck in target.pucks:
@@ -135,12 +148,81 @@ def _ingest_diffractions_for_target(
                     run.run_id,
                 )
                 continue
-            _ingest_diffraction(conn, crystal_id, diffs, run)
+            _ingest_diffraction(
+                conn,
+                crystal_id,
+                diffs,
+                run,
+                insert_diffraction_if_not_exists,
+                metadata_retriever,
+            )
 
     return has_warnings
 
 
 def _ingest_diffraction(
+    conn: Connection,
+    crystal_id: str,
+    diffs: sa.Table,
+    run: P11Run,
+    insert_diffraction_if_not_exists: bool,
+    metadata_retriever: MetadataRetriever,
+) -> None:
+    if not insert_diffraction_if_not_exists:
+        update_diffraction(conn, crystal_id, diffs, run)
+    else:
+        exists = conn.execute(
+            sa.select([diffs.c.run_id]).where(
+                sa.and_(diffs.c.run_id == run.run_id, diffs.c.crystal_id == crystal_id)
+            )
+        ).fetchall()
+
+        if exists:
+            update_diffraction(conn, crystal_id, diffs, run)
+        else:
+            insert_diffraction(conn, crystal_id, diffs, run, metadata_retriever)
+
+
+def insert_diffraction(
+    conn: Connection,
+    crystal_id: str,
+    diffs: sa.Table,
+    run: P11Run,
+    metadata_retriever: MetadataRetriever,
+) -> None:
+    conn.execute(
+        sa.insert(diffs).values(
+            crystal_id=crystal_id,
+            run_id=run.run_id,
+            # Don't know how to fill this. Important?
+            # beam_intensity=
+            # Don't know how to fill this. Important?
+            pinhole=run.info_file.aperture.magnitude,
+            # Don't know how to fill this. Important?
+            focusing=run.info_file.focus,
+            metadata=crystal_id,
+            diffraction=metadata_retriever.diffraction(crystal_id, run.run_id),  # type: ignore
+            comment=metadata_retriever.comment(crystal_id, run.run_id),  # type: ignore
+            angle_start=run.info_file.start_angle.to("deg").magnitude,
+            number_of_frames=run.info_file.frames,
+            angle_step=run.info_file.degrees_per_frame.to("deg").magnitude,
+            exposure_time=run.info_file.exposure_time.to("millisecond").magnitude,
+            xray_wavelength=run.info_file.wavelength.to("angstrom").magnitude,
+            detector_distance=run.info_file.detector_distance.to(
+                "millimeter"
+            ).magnitude,
+            detector_edge_resolution=run.info_file.resolution.to("angstrom").magnitude,
+            detector_name=metadata_retriever.detector_name,
+            aperture_radius=run.info_file.aperture.to("micrometer").magnitude,
+            filter_transmission=run.info_file.filter_transmission_percent,
+            ring_current=run.info_file.ring_current.to("milliampere").magnitude,
+            data_raw_filename_pattern=run.data_raw_filename_pattern,
+            microscope_image_filename_pattern=run.microscope_image_filename_pattern,
+        )
+    )
+
+
+def update_diffraction(
     conn: Connection, crystal_id: str, diffs: sa.Table, run: P11Run
 ) -> None:
     conn.execute(
@@ -164,7 +246,7 @@ def _ingest_diffraction(
                 "millimeter"
             ).magnitude,
             detector_edge_resolution=run.info_file.resolution.to("angstrom").magnitude,
-            detector_name=DETECTOR_NAME,
+            detector_name=EIGER_16_M_DETECTOR_NAME,
             aperture_radius=run.info_file.aperture.to("micrometer").magnitude,
             filter_transmission=run.info_file.filter_transmission_percent,
             ring_current=run.info_file.ring_current.to("milliampere").magnitude,
@@ -180,7 +262,8 @@ def ingest_diffractions_for_crystals(
     table_diffs: Table,
     table_crystals: Table,
     crystals: List[P11Crystal],
-    dummy_puck: Optional[str],
+    insert_diffraction_if_not_exists: bool,
+    metadata_retriever: MetadataRetriever,
 ) -> bool:
     has_warnings = False
     for crystal in crystals:
@@ -190,7 +273,12 @@ def ingest_diffractions_for_crystals(
             len(crystal.runs),
         )
         this_has_warnings = _ingest_diffractions_for_crystal(
-            conn, table_diffs, table_crystals, crystal, dummy_puck
+            conn,
+            table_diffs,
+            table_crystals,
+            crystal,
+            insert_diffraction_if_not_exists,
+            metadata_retriever,
         )
         has_warnings = has_warnings or this_has_warnings
     return has_warnings
@@ -201,11 +289,18 @@ def ingest_diffractions_for_targets(
     diffs: Table,
     crystals: Table,
     targets: List[P11Target],
+    insert_diffraction_if_not_exists: bool,
+    metadata_retriever: MetadataRetriever,
 ) -> bool:
     has_warnings = False
     for target in targets:
         this_has_warnings = _ingest_diffractions_for_target(
-            conn, diffs, crystals, target
+            conn,
+            diffs,
+            crystals,
+            target,
+            insert_diffraction_if_not_exists,
+            metadata_retriever,
         )
         has_warnings = has_warnings or this_has_warnings
     return has_warnings
@@ -307,7 +402,7 @@ def ingest_reductions_for_crystals(
     conn: Connection,
     table_data_reduction: sa.Table,
     crystals: List[P11Crystal],
-    ureg: UnitRegistry,
+    processed_results: Dict[Path, XDSFilesystem],
 ) -> bool:
     has_warnings = False
     for crystal in crystals:
@@ -335,12 +430,13 @@ def ingest_reductions_for_crystals(
                 )
                 continue
 
-            xds_processed = analyze_xds_filesystem(run.processed_path, ureg)
-            if isinstance(xds_processed, XDSFilesystem):
+            xds_processed = processed_results.get(run.processed_path, None)
+            if xds_processed is not None:
                 logger.info(
-                    "Crystal %s, run %s: ingesting XDS result",
+                    "Crystal %s, run %s, processed path %s: ingesting XDS result",
                     crystal.crystal_id,
                     run.run_id,
+                    run.processed_path,
                 )
                 ingest_xds_result(
                     conn, crystal.crystal_id, table_data_reduction, run, xds_processed

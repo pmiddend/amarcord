@@ -1,5 +1,5 @@
 module App.Config where
 
 baseUrl :: String
-baseUrl = ""
+baseUrl = "http://localhost:5000"
 
