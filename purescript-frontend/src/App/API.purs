@@ -11,6 +11,7 @@ import App.Attributo (Attributo)
 import App.Event (Event)
 import App.MiniSample (MiniSample)
 import App.Overview (OverviewRow)
+import App.SortOrder (SortOrder, sortToString)
 import Control.Monad.Reader (asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError)
 import Data.Argonaut.Core (Json, stringifyWithIndent)
@@ -25,23 +26,103 @@ type OverviewResponse
   = { overviewRows :: Array OverviewRow
     }
 
-type AnalysisRow = {
-    crystalId :: String
-  , analysisTime :: String
-  , puckId :: Maybe String
-  , puckPositionId :: Maybe Int
-  , runId :: Int
-  , comment :: Maybe String
-  , dataReductionId :: Int
-  , resolutionCc :: Maybe Number
-  , resolutionIsigma :: Maybe Number
-  , a :: Number
-  , b :: Number
-  , c :: Number
-  , alpha :: Number
-  , beta :: Number
-  , gamma :: Number
-  }
+data AnalysisColumn
+  = CrystalID
+  | AnalysisTime
+  | Puck
+  | RunID
+  | Comment
+  | DataReductionID
+  | ResolutionCC
+  | ResolutionIsigI
+  | CellA
+  | CellB
+  | CellC
+  | CellAlpha
+  | CellBeta
+  | CellGamma
+
+derive instance eqRoute :: Eq AnalysisColumn
+
+derive instance ordRoute :: Ord AnalysisColumn
+
+analysisColumnToString :: AnalysisColumn -> String
+analysisColumnToString CrystalID = "crystalId"
+
+analysisColumnToString AnalysisTime = "analysisTime"
+
+analysisColumnToString Puck = "puck"
+
+analysisColumnToString RunID = "runId"
+
+analysisColumnToString Comment = "comment"
+
+analysisColumnToString DataReductionID = "drid"
+
+analysisColumnToString ResolutionCC = "resCC"
+
+analysisColumnToString ResolutionIsigI = "resI"
+
+analysisColumnToString CellA = "a"
+
+analysisColumnToString CellB = "b"
+
+analysisColumnToString CellC = "c"
+
+analysisColumnToString CellAlpha = "alpha"
+
+analysisColumnToString CellBeta = "beta"
+
+analysisColumnToString CellGamma = "gamma"
+
+stringToAnalysisColumn :: String -> Either String AnalysisColumn
+stringToAnalysisColumn "crystalId" = Right CrystalID
+
+stringToAnalysisColumn "analysisTime" = Right AnalysisTime
+
+stringToAnalysisColumn "puck" = Right Puck
+
+stringToAnalysisColumn "runId" = Right RunID
+
+stringToAnalysisColumn "comment" = Right Comment
+
+stringToAnalysisColumn "drid" = Right DataReductionID
+
+stringToAnalysisColumn "resCC" = Right ResolutionCC
+
+stringToAnalysisColumn "resI" = Right ResolutionIsigI
+
+stringToAnalysisColumn "a" = Right CellA
+
+stringToAnalysisColumn "b" = Right CellB
+
+stringToAnalysisColumn "c" = Right CellC
+
+stringToAnalysisColumn "alpha" = Right CellAlpha
+
+stringToAnalysisColumn "beta" = Right CellBeta
+
+stringToAnalysisColumn "gamma" = Right CellGamma
+
+stringToAnalysisColumn val = Left ("not a valid column: " <> val)
+
+type AnalysisRow
+  = { crystalId :: String
+    , analysisTime :: String
+    , puckId :: Maybe String
+    , puckPositionId :: Maybe Int
+    , runId :: Int
+    , comment :: Maybe String
+    , dataReductionId :: Int
+    , resolutionCc :: Maybe Number
+    , resolutionIsigma :: Maybe Number
+    , a :: Number
+    , b :: Number
+    , c :: Number
+    , alpha :: Number
+    , beta :: Number
+    , gamma :: Number
+    }
 
 type AnalysisResponse
   = { analysis :: Array AnalysisRow
@@ -225,12 +306,12 @@ retrieveMiniSamples = do
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
-retrieveAnalysis :: AppMonad (Either String AnalysisResponse)
-retrieveAnalysis = do
+retrieveAnalysis :: AnalysisColumn -> SortOrder -> AppMonad (Either String AnalysisResponse)
+retrieveAnalysis col order = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
-    url = (baseUrl' <> "/api/analysis")
+    url = (baseUrl' <> "/api/analysis?sortColumn=" <> analysisColumnToString col <> "&sortOrder=" <> sortToString order)
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 

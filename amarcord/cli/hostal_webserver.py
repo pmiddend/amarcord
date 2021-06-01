@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from flask import Flask
 from flask import request
 from flask_cors import CORS
+from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import redirect
 
@@ -178,6 +179,32 @@ def remove_dewar_lut() -> JSONDict:
         return _retrieve_dewar_table(conn, dewar_lut)
 
 
+def sort_column_to_real_column(
+    crystals: sa.Table,
+    data_reductions: sa.Table,
+    sort_column: str,
+) -> sa.Column:
+    if sort_column == "crystalId":
+        return crystals.c.crystal_id
+    if sort_column == "analysisTime":
+        return data_reductions.c.analysis_time
+    if sort_column == "drid":
+        return data_reductions.c.data_reduction_id
+    if sort_column == "resCC":
+        return data_reductions.c.resolution_cc
+    if sort_column == "resI":
+        return data_reductions.c.resolution_isigma
+    raise BadRequest(f'invalid sort column "{sort_column}"')
+
+
+def sort_order_to_descending(so: str) -> bool:
+    if so == "asc":
+        return False
+    if so == "desc":
+        return True
+    raise BadRequest(f'invalid sort order "{so}"')
+
+
 @app.route("/api/analysis")
 def retrieve_analysis() -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
@@ -187,6 +214,11 @@ def retrieve_analysis() -> JSONDict:
         )
         diffractions = table_diffractions(dbcontext.metadata, crystals, schema=None)
         data_reductions = table_data_reduction(dbcontext.metadata, schema=None)
+        sort_column_str = request.args.get("sortColumn", "crystalId")
+        sort_column = sort_column_to_real_column(
+            crystals, data_reductions, sort_column_str
+        )
+        sort_order_desc = sort_order_to_descending(request.args.get("sortOrder", "asc"))
         results = conn.execute(
             sa.select(
                 [
@@ -217,7 +249,7 @@ def retrieve_analysis() -> JSONDict:
                 )
             )
             .where(diffractions.c.diffraction == DiffractionType.success)
-            .order_by(crystals.c.crystal_id)
+            .order_by(sort_column.desc() if sort_order_desc else sort_column)
         ).fetchall()
         return {
             "analysis": [

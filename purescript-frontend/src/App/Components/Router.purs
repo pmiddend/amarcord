@@ -1,13 +1,16 @@
 module App.Components.Router where
 
 import Prelude
+
+import App.API (AnalysisColumn(..))
 import App.AppMonad (AppMonad)
-import App.Components.Beamline as Beamline
 import App.Components.Analysis as Analysis
+import App.Components.Beamline as Beamline
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList, singleClass)
 import App.Root as Root
 import App.Route (Route(..), routeCodec, sameRoute)
+import App.SortOrder (SortOrder(..))
 import Data.Either (hush)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
@@ -95,7 +98,7 @@ render st =
         Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found!" ]
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
-          Analysis -> HH.slot (SProxy :: _ "analysis") unit Analysis.component unit absurd
+          Analysis input -> HH.slot (SProxy :: _ "analysis") unit Analysis.component input absurd
           Beamline input -> HH.slot (SProxy :: _ "beamline") unit Beamline.component input absurd
 
 navItems ::
@@ -110,7 +113,7 @@ navItems =
     , fa: "radiation"
     }
   , { title: "Analysis"
-    , link: Analysis
+    , link: Analysis { sortOrder: Descending, sortColumn: AnalysisTime }
     , fa: "table"
     }
   ]
