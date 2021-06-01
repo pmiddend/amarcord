@@ -204,6 +204,7 @@ def retrieve_analysis() -> JSONDict:
                     data_reductions.c.alpha,
                     data_reductions.c.beta,
                     data_reductions.c.gamma,
+                    data_reductions.c.analysis_time,
                 ]
             )
             .select_from(
@@ -235,6 +236,7 @@ def retrieve_analysis() -> JSONDict:
                     "alpha": row[11],
                     "beta": row[12],
                     "gamma": row[13],
+                    "analysisTime": row[14],
                 }
                 for row in results
             ]

@@ -76,20 +76,24 @@ render state =
   let
     headers =
       [ "Crystal ID"
+      , "Analysis time"
       , "Puck"
       , "Run"
       , "Red. ID"
       , "Res. CC"
-      , "Res. I/ΣI"
+      , "Res. I/σ(I)"
       , "a"
       , "b"
       , "c"
-      , "α, β, γ"
+      , "α"
+      , "β"
+      , "γ"
       , "Comment"
       ]
 
     makeRow :: forall w. AnalysisRow -> HH.HTML w Action
     makeRow { crystalId
+    , analysisTime
     , puckId
     , puckPositionId
     , runId
@@ -106,6 +110,7 @@ render state =
     } =
       HH.tr_
         [ HH.td_ [ HH.text crystalId ]
+        , HH.td_ [ HH.text analysisTime ]
         , HH.td_ [ HH.text (fromMaybe "-" ((\pid ppid -> pid <> " " <> ppid) <$> puckId <*> (show <$> puckPositionId))) ]
         , HH.td_ [ HH.text (show runId) ]
         , HH.td_ [ HH.text (show dataReductionId) ]
@@ -114,7 +119,9 @@ render state =
         , HH.td_ [ HH.text (show a) ]
         , HH.td_ [ HH.text (show b) ]
         , HH.td_ [ HH.text (show c) ]
-        , HH.td_ [ HH.text (show alpha <> ", " <> show beta <> ", " <> show gamma) ]
+        , HH.td_ [ HH.text (show alpha) ]
+        , HH.td_ [ HH.text (show beta) ]
+        , HH.td_ [ HH.text (show gamma) ]
         , HH.td_ [ HH.text (fromMaybe "" comment) ]
         ]
   in
