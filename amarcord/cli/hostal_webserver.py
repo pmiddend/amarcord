@@ -12,6 +12,7 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.utils import redirect
 
 from amarcord.amici.p11.db import DiffractionType
+from amarcord.amici.p11.db import PuckType
 from amarcord.amici.p11.db import table_crystals
 from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_dewar_lut
@@ -57,17 +58,22 @@ def _retrieve_dewar_table(conn: Connection, dewar_lut: sa.Table) -> JSONDict:
     }
 
 
+def _retrieve_pucks(conn: Connection, pucks: sa.Table) -> JSONDict:
+    return {
+        "pucks": [
+            {"puckId": row[0], "puckType": row[1].value}
+            for row in conn.execute(
+                sa.select([pucks.c.puck_id, pucks.c.puck_type])
+            ).fetchall()
+        ]
+    }
+
+
 @app.route("/api/pucks")
 def retrieve_pucks() -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
-    pucks = table_pucks(dbcontext.metadata)
     with dbcontext.connect() as conn:
-        return {
-            "pucks": [
-                {"puckId": row[0]}
-                for row in conn.execute(sa.select([pucks.c.puck_id])).fetchall()
-            ]
-        }
+        return _retrieve_pucks(conn, table_pucks(dbcontext.metadata))
 
 
 def _retrieve_diffractions(
@@ -203,6 +209,54 @@ def sort_order_to_descending(so: str) -> bool:
     if so == "desc":
         return True
     raise BadRequest(f'invalid sort order "{so}"')
+
+
+@app.route("/api/pucks", methods=["POST"])
+def add_puck() -> JSONDict:
+    dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
+    with dbcontext.connect() as conn:
+        pucks = table_pucks(dbcontext.metadata)
+        conn.execute(
+            sa.insert(pucks).values(
+                puck_id=request.form["puckId"], puck_type=PuckType.UNI, owner="gui"
+            )
+        )
+        return _retrieve_pucks(conn, pucks)
+
+
+@app.route("/api/sample")
+def retrieve_sample() -> JSONDict:
+    dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
+    with dbcontext.connect() as conn:
+        pucks = table_pucks(dbcontext.metadata)
+        crystals = table_crystals(dbcontext.metadata, pucks, schema=None)
+
+        return {
+            "pucks": [
+                {"puckId": row[0], "puckType": row[1].value}
+                for row in conn.execute(
+                    sa.select([pucks.c.puck_id, pucks.c.puck_type]).order_by(
+                        pucks.c.puck_id
+                    )
+                ).fetchall()
+            ],
+            "crystals": [
+                {"crystalId": row[0], "puckId": row[1], "puckPosition": row[2]}
+                for row in conn.execute(
+                    sa.select(
+                        [
+                            crystals.c.crystal_id,
+                            crystals.c.puck_id,
+                            crystals.c.puck_position_id,
+                        ]
+                    ).order_by(
+                        crystals.c.puck_id,
+                        crystals.c.puck_position_id,
+                        crystals.c.crystal_id,
+                    )
+                ).fetchall()
+            ],
+        }
 
 
 @app.route("/api/analysis")

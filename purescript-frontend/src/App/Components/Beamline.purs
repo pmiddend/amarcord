@@ -101,7 +101,7 @@ choosePuck pucks dt =
 chooseDewarEdit :: Array Puck -> Array DewarEntry -> DewarEdit
 chooseDewarEdit pucks dt =
   { editDewarPosition: firstMissing (_.dewarPosition <$> (fromFoldable dt))
-  , editPuckId: (fromMaybe { puckId: "" } (choosePuck pucks dt)).puckId
+  , editPuckId: (fromMaybe { puckId: "", puckType: "UNI" } (choosePuck pucks dt)).puckId
   }
 
 initialState :: ChildInput BeamlineRouteInput BeamlineData -> State

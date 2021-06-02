@@ -4,6 +4,7 @@ import App.API (AnalysisColumn(..), AnalysisResponse, AnalysisRow, retrieveAnaly
 import App.AppMonad (AppMonad)
 import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
+import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), faIcon, makeAlert, singleClass)
 import App.Route (AnalysisRouteInput, Route(..), createLink)
 import App.SortOrder (SortOrder(..), invertOrder)
@@ -165,7 +166,7 @@ render state =
         ]
   in
     fluidContainer
-      [ plainH1_ "Analysis Results"
+      [ HH.h2_ [ icon { name: "table", size: Nothing, spin: false }, HH.text " Analysis Results" ]
       , HH.hr_
       , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
       , table

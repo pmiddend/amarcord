@@ -1,10 +1,10 @@
 module App.Components.Router where
 
 import Prelude
-
 import App.API (AnalysisColumn(..))
 import App.AppMonad (AppMonad)
 import App.Components.Analysis as Analysis
+import App.Components.Sample as Sample
 import App.Components.Beamline as Beamline
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList, singleClass)
@@ -45,6 +45,7 @@ type OpaqueSlot slot
 
 type ChildSlots
   = ( root :: OpaqueSlot Unit
+    , sample :: OpaqueSlot Unit
     , beamline :: OpaqueSlot Unit
     , analysis :: OpaqueSlot Unit
     )
@@ -98,6 +99,7 @@ render st =
         Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found!" ]
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
+          Sample -> HH.slot (SProxy :: _ "sample") unit Sample.component unit absurd
           Analysis input -> HH.slot (SProxy :: _ "analysis") unit Analysis.component input absurd
           Beamline input -> HH.slot (SProxy :: _ "beamline") unit Beamline.component input absurd
 
@@ -108,7 +110,11 @@ navItems ::
     , title :: String
     }
 navItems =
-  [ { title: "P11"
+  [ { title: "Sample"
+    , link: Sample
+    , fa: "vial"
+    }
+  , { title: "Beamline"
     , link: Beamline { puckId: Nothing }
     , fa: "radiation"
     }

@@ -141,10 +141,18 @@ type MiniSamplesResponse
     }
 
 type Puck
-  = { puckId :: String }
+  = { puckId :: String, puckType :: String }
+
+type Crystal
+  = { crystalId :: String, puckId :: Maybe String, puckPosition :: Maybe Int }
 
 type PucksResponse
   = { pucks :: Array Puck
+    }
+
+type SampleResponse
+  = { pucks :: Array Puck
+    , crystals :: Array Crystal
     }
 
 type DewarEntry
@@ -195,11 +203,13 @@ retrieveOverview query = do
 retrievePucks :: AppMonad (Either String PucksResponse)
 retrievePucks = do
   baseUrl' <- asks (_.baseUrl)
-  let
-    url :: String
-    url = (baseUrl' <> "/api/pucks")
-  --  response <- liftAff $ AX.post ResponseFormat.json url (Just (FormURLEncoded (fromArray ([Tuple "query" query]))))
-  response <- liftAff $ AX.get ResponseFormat.json url
+  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/pucks")
+  handleResponse response
+
+retrieveSample :: AppMonad (Either String SampleResponse)
+retrieveSample = do
+  baseUrl' <- asks (_.baseUrl)
+  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/sample")
   handleResponse response
 
 retrieveDewarTable :: AppMonad (Either String DewarResponse)
@@ -218,6 +228,23 @@ retrieveDiffractions puckId = do
     url :: String
     url = (baseUrl' <> "/api/diffraction/" <> puckId)
   response <- liftAff $ AX.get ResponseFormat.json url
+  handleResponse response
+
+addPuck :: String -> AppMonad (Either String PucksResponse)
+addPuck puckId = do
+  baseUrl' <- asks (_.baseUrl)
+  response <-
+    liftAff
+      $ AX.post ResponseFormat.json (baseUrl' <> "/api/pucks")
+          ( Just
+              ( FormURLEncoded
+                  ( fromArray
+                      ( [ Tuple "puckId" (Just puckId)
+                        ]
+                      )
+                  )
+              )
+          )
   handleResponse response
 
 addPuckToTable :: Int -> String -> AppMonad (Either String DewarResponse)
