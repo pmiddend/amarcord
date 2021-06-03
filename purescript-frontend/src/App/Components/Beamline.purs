@@ -7,7 +7,7 @@ import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), classList, makeAlert, singleClass)
 import App.Route (BeamlineRouteInput, Route(..), createLink)
-import Control.Applicative (pure)
+import Control.Applicative (pure, when)
 import Control.Apply ((<*>))
 import Control.Bind (bind)
 import Data.Array (elem, elemIndex, filter, head, mapMaybe, mapWithIndex, notElem, nub, null, (!!))
@@ -238,12 +238,10 @@ handleAction = case _ of
   WipeDewarTable -> do
     w <- H.liftEffect window
     confirmResult <- H.liftEffect (confirm "Really delete all entries?" w)
-    if confirmResult then do
+    when confirmResult do
       result <- H.lift removeWholeTable
       handleDewarResponse result
       updateHash
-    else
-      pure unit
   DewarPositionChange newDewarPosition ->
     H.modify_ \state ->
       state

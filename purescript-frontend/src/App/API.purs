@@ -265,6 +265,12 @@ removeSingleDewarEntry dewarPosition = do
   response <- liftAff $ AX.delete ResponseFormat.json url
   handleResponse response
 
+removePuck :: String -> AppMonad (Either String SampleResponse)
+removePuck puckId = do
+  baseUrl' <- asks (_.baseUrl)
+  response <- liftAff $ AX.delete ResponseFormat.json (baseUrl' <> "/api/pucks/" <> puckId)
+  handleResponse response
+
 removeWholeTable :: AppMonad (Either String DewarResponse)
 removeWholeTable = do
   baseUrl' <- asks (_.baseUrl)

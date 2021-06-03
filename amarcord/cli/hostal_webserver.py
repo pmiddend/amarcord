@@ -167,6 +167,16 @@ def retrieve_dewar_table() -> JSONDict:
         return _retrieve_dewar_table(conn, dewar_lut)
 
 
+@app.route("/api/pucks/<puck_id>", methods=["DELETE"])
+def remove_puck(puck_id: str) -> JSONDict:
+    dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
+    pucks = table_pucks(dbcontext.metadata)
+    crystals = table_crystals(dbcontext.metadata, pucks)
+    with dbcontext.connect() as conn:
+        conn.execute(sa.delete(pucks).where(pucks.c.puck_id == puck_id))
+        return _retrieve_sample(conn, pucks, crystals)
+
+
 @app.route("/api/dewar/<int:position>", methods=["DELETE"])
 def remove_single_dewar_entry(position: int) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
@@ -224,39 +234,42 @@ def add_puck() -> JSONDict:
         return _retrieve_pucks(conn, pucks)
 
 
+def _retrieve_sample(conn: Connection, pucks: sa.Table, crystals: sa.Table) -> JSONDict:
+    return {
+        "pucks": [
+            {"puckId": row[0], "puckType": row[1].value}
+            for row in conn.execute(
+                sa.select([pucks.c.puck_id, pucks.c.puck_type]).order_by(
+                    pucks.c.puck_id
+                )
+            ).fetchall()
+        ],
+        "crystals": [
+            {"crystalId": row[0], "puckId": row[1], "puckPosition": row[2]}
+            for row in conn.execute(
+                sa.select(
+                    [
+                        crystals.c.crystal_id,
+                        crystals.c.puck_id,
+                        crystals.c.puck_position_id,
+                    ]
+                ).order_by(
+                    crystals.c.puck_id,
+                    crystals.c.puck_position_id,
+                    crystals.c.crystal_id,
+                )
+            ).fetchall()
+        ],
+    }
+
+
 @app.route("/api/sample")
 def retrieve_sample() -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
     with dbcontext.connect() as conn:
         pucks = table_pucks(dbcontext.metadata)
         crystals = table_crystals(dbcontext.metadata, pucks, schema=None)
-
-        return {
-            "pucks": [
-                {"puckId": row[0], "puckType": row[1].value}
-                for row in conn.execute(
-                    sa.select([pucks.c.puck_id, pucks.c.puck_type]).order_by(
-                        pucks.c.puck_id
-                    )
-                ).fetchall()
-            ],
-            "crystals": [
-                {"crystalId": row[0], "puckId": row[1], "puckPosition": row[2]}
-                for row in conn.execute(
-                    sa.select(
-                        [
-                            crystals.c.crystal_id,
-                            crystals.c.puck_id,
-                            crystals.c.puck_position_id,
-                        ]
-                    ).order_by(
-                        crystals.c.puck_id,
-                        crystals.c.puck_position_id,
-                        crystals.c.crystal_id,
-                    )
-                ).fetchall()
-            ],
-        }
+        return _retrieve_sample(conn, pucks, crystals)
 
 
 @app.route("/api/analysis")
