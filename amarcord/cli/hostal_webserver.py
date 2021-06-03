@@ -130,7 +130,7 @@ def retrieve_diffractions(puck_id: str) -> JSONDict:
         return _retrieve_diffractions(conn, diffractions, crystals, puck_id, False)
 
 
-@app.route("/api/diffraction/<puck_id>", methods=["POST"])
+@app.post("/api/diffraction/<puck_id>")
 def add_diffraction(puck_id: str) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
     crystals = table_crystals(dbcontext.metadata, table_pucks(dbcontext.metadata))
@@ -148,7 +148,7 @@ def add_diffraction(puck_id: str) -> JSONDict:
         return _retrieve_diffractions(conn, diffractions, crystals, puck_id, False)
 
 
-@app.route("/api/dewar/<int:dewarPosition>/<puckId>", methods=["GET"])
+@app.get("/api/dewar/<int:dewarPosition>/<puckId>")
 def add_puck_to_table(dewarPosition: int, puckId: str) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
     dewar_lut = table_dewar_lut(dbcontext.metadata, table_pucks(dbcontext.metadata))
@@ -167,7 +167,7 @@ def retrieve_dewar_table() -> JSONDict:
         return _retrieve_dewar_table(conn, dewar_lut)
 
 
-@app.route("/api/pucks/<puck_id>", methods=["DELETE"])
+@app.delete("/api/pucks/<puck_id>")
 def remove_puck(puck_id: str) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
     pucks = table_pucks(dbcontext.metadata)
@@ -177,7 +177,7 @@ def remove_puck(puck_id: str) -> JSONDict:
         return _retrieve_sample(conn, pucks, crystals)
 
 
-@app.route("/api/dewar/<int:position>", methods=["DELETE"])
+@app.delete("/api/dewar/<int:position>")
 def remove_single_dewar_entry(position: int) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
     dewar_lut = table_dewar_lut(dbcontext.metadata, table_pucks(dbcontext.metadata))
@@ -186,7 +186,7 @@ def remove_single_dewar_entry(position: int) -> JSONDict:
         return _retrieve_dewar_table(conn, dewar_lut)
 
 
-@app.route("/api/dewar", methods=["DELETE"])
+@app.delete("/api/dewar")
 def remove_dewar_lut() -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
     dewar_lut = table_dewar_lut(dbcontext.metadata, table_pucks(dbcontext.metadata))
@@ -221,7 +221,7 @@ def sort_order_to_descending(so: str) -> bool:
     raise BadRequest(f'invalid sort order "{so}"')
 
 
-@app.route("/api/pucks", methods=["POST"])
+@app.post("/api/pucks")
 def add_puck() -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
     with dbcontext.connect() as conn:

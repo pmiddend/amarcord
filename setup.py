@@ -77,7 +77,7 @@ setuptools.setup(
             # For validating units
             "pint==0.16.*",
         ],
-        "webserver": ["Flask==1.1.*", "Flask-Cors==3.0.*", "gunicorn==20.1.*"],
+        "webserver": ["Flask==2.0.*", "Flask-Cors==3.0.*", "gunicorn==20.1.*"],
     },
     python_requires=">=3.8",
 )
