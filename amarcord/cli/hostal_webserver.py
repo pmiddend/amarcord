@@ -177,6 +177,16 @@ def remove_puck(puck_id: str) -> JSONDict:
         return _retrieve_sample(conn, pucks, crystals)
 
 
+@app.delete("/api/crystals/<crystal_id>")
+def remove_crystal(crystal_id: str) -> JSONDict:
+    dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
+    pucks = table_pucks(dbcontext.metadata)
+    crystals = table_crystals(dbcontext.metadata, pucks)
+    with dbcontext.connect() as conn:
+        conn.execute(sa.delete(crystals).where(crystals.c.crystal_id == crystal_id))
+        return _retrieve_sample(conn, pucks, crystals)
+
+
 @app.delete("/api/dewar/<int:position>")
 def remove_single_dewar_entry(position: int) -> JSONDict:
     dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
@@ -219,6 +229,25 @@ def sort_order_to_descending(so: str) -> bool:
     if so == "desc":
         return True
     raise BadRequest(f'invalid sort order "{so}"')
+
+
+@app.post("/api/crystals")
+def add_crystal() -> JSONDict:
+    dbcontext = DBContext(os.environ["AMARCORD_DB_URL"])
+    with dbcontext.connect() as conn:
+        pucks = table_pucks(dbcontext.metadata)
+        crystals = table_crystals(dbcontext.metadata, pucks)
+        has_puck_id = request.form["puckId"] != ""
+        conn.execute(
+            sa.insert(crystals).values(
+                crystal_id=request.form["crystalId"],
+                puck_id=request.form["puckId"] if has_puck_id else None,
+                puck_position_id=int(request.form["puckPosition"])
+                if has_puck_id
+                else None,
+            )
+        )
+        return _retrieve_sample(conn, pucks, crystals)
 
 
 @app.post("/api/pucks")

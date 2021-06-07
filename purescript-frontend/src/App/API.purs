@@ -1,6 +1,7 @@
 module App.API where
 
 import Prelude
+
 import Affjax (Error, Response, printError)
 import Affjax as AX
 import Affjax.RequestBody (RequestBody(..))
@@ -18,8 +19,8 @@ import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
 import Data.FormURLEncoded (fromArray)
-import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
+import Data.Maybe (Maybe(..), maybe)
+import Data.Tuple (Tuple(..), fst, snd)
 import Halogen (liftAff)
 
 type OverviewResponse
@@ -230,6 +231,26 @@ retrieveDiffractions puckId = do
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
+addCrystal :: String -> Maybe (Tuple String Int) -> AppMonad (Either String SampleResponse)
+addCrystal crystalId puckIdAndPosition = do
+  baseUrl' <- asks (_.baseUrl)
+  response <-
+    liftAff
+      $ AX.post ResponseFormat.json (baseUrl' <> "/api/crystals")
+          ( Just
+              ( FormURLEncoded
+                  ( fromArray
+                      ( [ Tuple "puckId" (Just (maybe "" fst puckIdAndPosition))
+                        , Tuple "crystalId" (Just crystalId)
+                        , Tuple "puckPosition" (Just (maybe "0" (show <<< snd) puckIdAndPosition))
+                        ]
+                      )
+                  )
+              )
+          )
+  handleResponse response
+  
+
 addPuck :: String -> AppMonad (Either String PucksResponse)
 addPuck puckId = do
   baseUrl' <- asks (_.baseUrl)
@@ -269,6 +290,12 @@ removePuck :: String -> AppMonad (Either String SampleResponse)
 removePuck puckId = do
   baseUrl' <- asks (_.baseUrl)
   response <- liftAff $ AX.delete ResponseFormat.json (baseUrl' <> "/api/pucks/" <> puckId)
+  handleResponse response
+
+removeCrystal :: String -> AppMonad (Either String SampleResponse)
+removeCrystal crystalId = do
+  baseUrl' <- asks (_.baseUrl)
+  response <- liftAff $ AX.delete ResponseFormat.json (baseUrl' <> "/api/crystals/" <> crystalId)
   handleResponse response
 
 removeWholeTable :: AppMonad (Either String DewarResponse)
