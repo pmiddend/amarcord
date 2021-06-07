@@ -26,12 +26,22 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class MetadataRetriever:
+    """
+    This "Metadata Retriever" solves the problem that the diffractions we have on the filesystem do not have "user
+    metadata" attached to them, like "diffraction outcome" or "comment". If we want to ingest that sort of data after
+    the fact (i.e. not during the experiment), we need a way to "back-fill" these values. This is what the metadata
+    retriever does.
+    """
+
     diffraction: Callable[[str, int], DiffractionType]
     comment: Callable[[str, int], str]
     detector_name: str
 
 
 def empty_metadata_retriever(detector_name: str) -> MetadataRetriever:
+    """
+    An empty metadata retriever, which assumes every diffraction is a success and has no comment.
+    """
     return MetadataRetriever(
         lambda cid, rid: DiffractionType.success, lambda cid, rid: "", detector_name
     )
@@ -401,6 +411,7 @@ def ingest_xds_result(
 def ingest_reductions_for_crystals(
     conn: Connection,
     table_data_reduction: sa.Table,
+    table_diffractions: sa.Table,
     crystals: List[P11Crystal],
     processed_results: Dict[Path, XDSFilesystem],
 ) -> bool:
@@ -413,6 +424,22 @@ def ingest_reductions_for_crystals(
                     "Crystal %s, skipping run %s, no processed_path",
                     crystal.crystal_id,
                     run.run_id,
+                )
+                continue
+
+            if (
+                conn.execute(
+                    sa.select([table_diffractions.c.crystal_id]).where(
+                        sa.and_(
+                            table_diffractions.c.crystal_id == crystal.crystal_id,
+                            table_diffractions.c.run_id == run.run_id,
+                        )
+                    )
+                ).fetchone()
+                is None
+            ):
+                logger.warning(
+                    "Cannot ingest data reduction: got no corresponding diffraction image"
                 )
                 continue
 

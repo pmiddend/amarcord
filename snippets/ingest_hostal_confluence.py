@@ -244,12 +244,12 @@ def main() -> int:
 
     if args.db_connection_url is not None:
         dbcontext = DBContext(args.db_connection_url, echo=args.db_echo)
-        crystals_table = table_crystals(dbcontext.metadata)
         pucks_table = table_pucks(dbcontext.metadata)
+        crystals_table = table_crystals(dbcontext.metadata, pucks_table)
         # Currently unused, but stated here so it gets created also
-        table_dewar_lut(dbcontext.metadata)
-        table_diffractions(dbcontext.metadata)
-        table_data_reduction(dbcontext.metadata)
+        table_dewar_lut(dbcontext.metadata, pucks_table)
+        table_diffractions(dbcontext.metadata, crystals_table)
+        table_data_reduction(dbcontext.metadata, crystals_table)
 
         dbcontext.create_all(CreationMode.CHECK_FIRST)
 

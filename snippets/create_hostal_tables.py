@@ -21,11 +21,11 @@ class Arguments(Tap):
 def main() -> int:
     args = Arguments(underscores_to_dashes=True).parse_args()
     dbcontext = DBContext(args.db_connection_url, args.db_echo)
-    table_pucks(dbcontext.metadata)
-    table_crystals(dbcontext.metadata)
-    table_dewar_lut(dbcontext.metadata)
-    table_diffractions(dbcontext.metadata)
-    table_data_reduction(dbcontext.metadata)
+    pucks = table_pucks(dbcontext.metadata)
+    crystals = table_crystals(dbcontext.metadata, pucks)
+    table_dewar_lut(dbcontext.metadata, pucks)
+    table_diffractions(dbcontext.metadata, crystals)
+    table_data_reduction(dbcontext.metadata, crystals)
     dbcontext.create_all(CreationMode.CHECK_FIRST)
     with dbcontext.connect() as conn:
         conn.execute(

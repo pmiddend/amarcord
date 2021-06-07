@@ -89,7 +89,9 @@ def table_crystals(
     )
 
 
-def table_data_reduction(metadata: MetaData, schema: Optional[str] = None) -> Table:
+def table_data_reduction(
+    metadata: MetaData, _crystals: Table, schema: Optional[str] = None
+) -> Table:
     return Table(
         "Data_Reduction",
         metadata,

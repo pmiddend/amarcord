@@ -517,5 +517,5 @@ render state =
     , dewarForm state
     , HH.h2 [ singleClass "mt-4" ] [ if state.diffractionPuckId == "" then HH.text "Diffractions" else HH.text ("Diffractions — Puck " <> state.diffractionPuckId) ]
     , HH.hr_
-    , diffractionForm state
+    , if state.diffractionPuckId == "" then HH.p [ singleClass "text-muted" ] [ HH.text "Please select a puck from the table above." ] else diffractionForm state
     ]

@@ -309,7 +309,9 @@ def retrieve_analysis() -> JSONDict:
             dbcontext.metadata, table_pucks(dbcontext.metadata), schema=None
         )
         diffractions = table_diffractions(dbcontext.metadata, crystals, schema=None)
-        data_reductions = table_data_reduction(dbcontext.metadata, schema=None)
+        data_reductions = table_data_reduction(
+            dbcontext.metadata, crystals, schema=None
+        )
         sort_column_str = request.args.get("sortColumn", "crystalId")
         sort_column = sort_column_to_real_column(
             crystals, data_reductions, sort_column_str

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 
 import sqlalchemy as sa
@@ -28,6 +29,7 @@ from amarcord.amici.p11.spreadsheet_reader import read_crystal_spreadsheet
 from amarcord.amici.xds.analyze_filesystem import XDSFilesystem
 from amarcord.amici.xds.analyze_filesystem import XDSFilesystemError
 from amarcord.amici.xds.analyze_filesystem import analyze_xds_filesystem
+from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.util import find_by
@@ -160,6 +162,19 @@ def process_and_validate_with_spreadsheet(
     return new_crystals, spreadsheet_warnings
 
 
+def _crystal_exists(
+    conn: Connection, table_crystals_: sa.Table, crystal_id: str
+) -> bool:
+    return (
+        conn.execute(
+            sa.select([table_crystals_.c.crystal_id]).where(
+                table_crystals_.c.crystal_id == crystal_id
+            )
+        ).fetchone()
+        is not None
+    )
+
+
 def main() -> int:
     args = Arguments(underscores_to_dashes=True).parse_args()
 
@@ -174,7 +189,7 @@ def main() -> int:
         dbcontext.metadata, table_crystals_, schema=args.main_schema
     )
     table_data_reduction_ = table_data_reduction(
-        dbcontext.metadata, schema=args.analysis_schema
+        dbcontext.metadata, table_crystals_, schema=args.analysis_schema
     )
 
     if args.db_connection_url.startswith("sqlite"):
@@ -235,24 +250,27 @@ def main() -> int:
         try:
             with conn.begin():
                 logger.info("Ingesting into DB...")
-                if args.create_crystals:
-                    logger.info("Creating the crystals (without puck information)...")
-                    for crystal in crystals:
-                        if (
-                            conn.execute(
-                                sa.select([table_crystals_.c.crystal_id]).where(
-                                    table_crystals_.c.crystal_id == crystal.crystal_id
-                                )
-                            ).fetchone()
-                            is None
-                        ):
+                to_remove_crystal_ids: Set[str] = set()
+                for crystal in crystals:
+                    if not _crystal_exists(conn, table_crystals_, crystal.crystal_id):
+                        if args.create_crystals:
                             logger.info("Creating crystal %s...", crystal.crystal_id)
                             conn.execute(
                                 sa.insert(table_crystals_).values(
                                     crystal_id=crystal.crystal_id
                                 )
                             )
-                    logger.info("Creating the crystals...Done!")
+                        else:
+                            to_remove_crystal_ids.add(crystal.crystal_id)
+
+                if to_remove_crystal_ids:
+                    logger.info(
+                        "Removing %s crystal(s) which are not in the DB...",
+                        len(to_remove_crystal_ids),
+                    )
+                    crystals = [
+                        c for c in crystals if c.crystal_id not in to_remove_crystal_ids
+                    ]
 
                 logger.info("Ingesting diffractions...")
                 has_warnings = ingest_diffractions_for_crystals(
@@ -279,7 +297,11 @@ def main() -> int:
                 )
                 logger.info("Ingesting reductions...")
                 has_reduction_warnings = ingest_reductions_for_crystals(
-                    conn, table_data_reduction_, crystals, processed_results
+                    conn,
+                    table_data_reduction_,
+                    table_diffs_,
+                    crystals,
+                    processed_results,
                 )
                 if has_reduction_warnings and not args.ignore_db_warnings:
                     logger.warning(
