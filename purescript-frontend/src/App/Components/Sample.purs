@@ -171,7 +171,11 @@ pucksTable state =
         , HH.td_ [ HH.text puck.puckType ]
         ]
   in
-    table [ TableStriped ] ((HH.th_ <<< singleton <<< HH.text) <$> [ "Actions", "Puck ID", "Puck Type" ]) (makeRow <$> state.pucks)
+    table
+      "pucks-table"
+      [ TableStriped ]
+      ((HH.th_ <<< singleton <<< HH.text) <$> [ "Actions", "Puck ID", "Puck Type" ])
+      (makeRow <$> state.pucks)
 
 crystalsTable :: forall w. State -> HH.HTML w Action
 crystalsTable state =
@@ -192,7 +196,11 @@ crystalsTable state =
         , HH.td_ [ HH.text (maybe "" show crystal.puckPosition) ]
         ]
   in
-    table [ TableStriped ] ((HH.th_ <<< singleton <<< HH.text) <$> [ "Actions", "Crystal ID", "Puck ID", "Puck Position" ]) (makeRow <$> state.crystals)
+    table
+      "crystals-table"
+      [ TableStriped ]
+      ((HH.th_ <<< singleton <<< HH.text) <$> [ "Actions", "Crystal ID", "Puck ID", "Puck Position" ])
+      (makeRow <$> state.crystals)
 
 puckIdTaken :: State -> Boolean
 puckIdTaken state = state.puckEdit.puckId `elem` (_.puckId <$> state.pucks)
@@ -253,9 +261,10 @@ crystalAddForm state =
           [ HP.disabled (not (crystalInputValid state))
           , HP.type_ ButtonButton
           , singleClass "btn btn-primary"
+          , HP.id_ "crystal-add-button"
           , HE.onClick \_ -> Just AddCrystal
           ]
-          [ HH.text "Add" ]
+          [ icon { name: "plus", size: Nothing, spin: false }, HH.text " Add" ]
       ]
 
 puckAddForm :: forall w. State -> HH.HTML w Action
@@ -269,14 +278,16 @@ puckAddForm state =
                 , singleClass "form-control"
                 , HP.value state.puckEdit.puckId
                 , HE.onValueInput (Just <<< PuckIdChange)
+                , HP.id_ "puck-add-puck-id"
                 ]
             , HH.button
                 [ HP.disabled (puckIdTaken state)
                 , HP.type_ ButtonButton
+                , HP.id_ "puck-add-add-button"
                 , singleClass "btn btn-primary"
                 , HE.onClick \_ -> Just AddPuck
                 ]
-                [ HH.text "Add" ]
+                [ icon { name: "plus", size: Nothing, spin: false }, HH.text " Add" ]
             ]
         ]
     ]

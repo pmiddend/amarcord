@@ -290,7 +290,7 @@ dewarTable state =
         , HH.td_ [ HH.a [ HP.href (createLink (Beamline { puckId: Just puckId })), HE.onClick \_ -> Just (DiffractionPuckIdChange puckId) ] [ HH.text puckId ] ]
         ]
   in
-    table [ TableStriped ]
+    table "dewar-table" [ TableStriped ]
       [ HH.th_ [ HH.text "Actions" ]
       , HH.th_ [ HH.text "Position" ]
       , HH.th_ [ HH.text "Puck ID" ]
@@ -325,6 +325,8 @@ dewarForm state =
         ]
         (makeOption <$> availablePucks)
   in
+   if pucksAvailable
+   then 
     HH.form [ singleClass "row align-items-center" ]
       [ HH.div [ singleClass "col-auto" ]
           [ HH.div [ singleClass "form-floating" ]
@@ -340,21 +342,21 @@ dewarForm state =
               ]
           ]
       , HH.div [ singleClass "col-auto" ]
-          [ HH.div [ singleClass "form-floating" ]
-              [ if pucksAvailable then puckSelector else HH.p_ [ HH.em_ [ HH.text "all taken" ] ]
-              , HH.label [ HP.for "puck-id" ] [ HH.text "Puck ID" ]
-              ]
+          [ HH.div [ singleClass "form-floating" ] [ puckSelector, HH.label [ HP.for "puck-id" ] [ HH.text "Puck ID" ] ]
           ]
       , HH.div [ singleClass "col-auto" ]
           [ HH.button
               [ HP.type_ ButtonButton
               , classList [ "btn", "btn-primary", "ml-2" ]
               , HE.onClick \_ -> Just AddDewar
+              , HP.id_ "add-dewar-button"
               , HP.enabled addEnabled
               ]
               [ icon { name: "plus", size: Nothing, spin: false }, HH.text " Add" ]
           ]
       ]
+   else
+     HH.p [ singleClass "text-muted"] [ HH.text "No pucks/positions available to add to the table." ]
 
 diffractionForm :: forall w. State -> HH.HTML w Action
 diffractionForm state =
@@ -396,6 +398,7 @@ diffractionForm state =
 
     diffractionTable =
       table
+        "diffractions-table"
         [ TableStriped ]
         ((\x -> HH.th [ singleClass "text-nowrap" ] [ HH.text x ]) <$> headers)
         (makeRow <$> state.diffractions)
@@ -479,6 +482,7 @@ diffractionForm state =
             [ HP.type_ ButtonButton
             , classList [ "btn", "btn-primary", "mt-2", "mb-2" ]
             , HE.onClick \_ -> Just AddDiffraction
+            , HP.id_ "diffraction-add-button"
             ]
             [ icon { name: "plus", size: Nothing, spin: false }, HH.text " Add diffraction run" ]
         ]

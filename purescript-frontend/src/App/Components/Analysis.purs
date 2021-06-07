@@ -2,7 +2,7 @@ module App.Components.Analysis where
 
 import App.API (AnalysisColumn(..), AnalysisResponse, AnalysisRow, retrieveAnalysis)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), fluidContainer, plainH1_, table)
+import App.Bootstrap (TableFlag(..), fluidContainer, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), faIcon, makeAlert, singleClass)
@@ -170,6 +170,7 @@ render state =
       , HH.hr_
       , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
       , table
+          "analysis-table"
           [ TableStriped, TableSmall ]
           (makeHeader <$> headers)
           (makeRow <$> state.rows)
