@@ -277,7 +277,7 @@ dewarTable :: forall w. State -> HH.HTML w Action
 dewarTable state =
   let
     makeRow { puckId, dewarPosition } =
-      HH.tr_
+      HH.tr [ classList (if puckId == state.diffractionPuckId then ["table-info"] else []) ]
         [ HH.td_
             [ HH.button
                 [ HP.type_ ButtonButton
