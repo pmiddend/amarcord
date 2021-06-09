@@ -23,6 +23,7 @@ duration=$SECONDS
 echo "$(($duration / 60)) minutes and $(($duration % 60)) seconds elapsed for spago install."
 
 SECONDS=0
+sed -i -e 's/baseUrl = .*/baseUrl = ""/' src/App/Config.purs
 npm run build-prod
 duration=$SECONDS
 # shellcheck disable=SC2004
