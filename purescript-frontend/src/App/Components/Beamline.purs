@@ -277,7 +277,7 @@ dewarTable :: forall w. State -> HH.HTML w Action
 dewarTable state =
   let
     makeRow { puckId, dewarPosition } =
-      HH.tr [ classList (if puckId == state.diffractionPuckId then ["table-info"] else []) ]
+      HH.tr [ classList (if puckId == state.diffractionPuckId then [ "table-info" ] else []) ]
         [ HH.td_
             [ HH.button
                 [ HP.type_ ButtonButton
@@ -325,38 +325,37 @@ dewarForm state =
         ]
         (makeOption <$> availablePucks)
   in
-   if pucksAvailable
-   then 
-    HH.form [ singleClass "row align-items-center" ]
-      [ HH.div [ singleClass "col-auto" ]
-          [ HH.div [ singleClass "form-floating" ]
-              [ HH.input
-                  [ HP.type_ InputNumber
-                  , HP.id_ "dewar-position"
-                  , HP.placeholder "Dewar position"
-                  , classList [ "form-control" ]
-                  , HP.value (show state.dewarEdit.editDewarPosition)
-                  , HE.onValueChange (\x -> DewarPositionChange <$> fromString x)
-                  ]
-              , HH.label [ HP.for "dewar-position" ] [ HH.text "Dewar position" ]
-              ]
-          ]
-      , HH.div [ singleClass "col-auto" ]
-          [ HH.div [ singleClass "form-floating" ] [ puckSelector, HH.label [ HP.for "puck-id" ] [ HH.text "Puck ID" ] ]
-          ]
-      , HH.div [ singleClass "col-auto" ]
-          [ HH.button
-              [ HP.type_ ButtonButton
-              , classList [ "btn", "btn-primary", "ml-2" ]
-              , HE.onClick \_ -> Just AddDewar
-              , HP.id_ "add-dewar-button"
-              , HP.enabled addEnabled
-              ]
-              [ icon { name: "plus", size: Nothing, spin: false }, HH.text " Add" ]
-          ]
-      ]
-   else
-     HH.p [ singleClass "text-muted"] [ HH.text "No pucks/positions available to add to the table." ]
+    if pucksAvailable then
+      HH.form [ singleClass "row align-items-center" ]
+        [ HH.div [ singleClass "col-auto" ]
+            [ HH.div [ singleClass "form-floating" ]
+                [ HH.input
+                    [ HP.type_ InputNumber
+                    , HP.id_ "dewar-position"
+                    , HP.placeholder "Dewar position"
+                    , classList [ "form-control" ]
+                    , HP.value (show state.dewarEdit.editDewarPosition)
+                    , HE.onValueChange (\x -> DewarPositionChange <$> fromString x)
+                    ]
+                , HH.label [ HP.for "dewar-position" ] [ HH.text "Dewar position" ]
+                ]
+            ]
+        , HH.div [ singleClass "col-auto" ]
+            [ HH.div [ singleClass "form-floating" ] [ puckSelector, HH.label [ HP.for "puck-id" ] [ HH.text "Puck ID" ] ]
+            ]
+        , HH.div [ singleClass "col-auto" ]
+            [ HH.button
+                [ HP.type_ ButtonButton
+                , classList [ "btn", "btn-primary", "ml-2" ]
+                , HE.onClick \_ -> Just AddDewar
+                , HP.id_ "add-dewar-button"
+                , HP.enabled addEnabled
+                ]
+                [ icon { name: "plus", size: Nothing, spin: false }, HH.text " Add" ]
+            ]
+        ]
+    else
+      HH.p [ singleClass "text-muted" ] [ HH.text "No pucks/positions available to add to the table." ]
 
 diffractionForm :: forall w. State -> HH.HTML w Action
 diffractionForm state =
@@ -493,8 +492,10 @@ diffractionForm state =
             HH.div [ singleClass "row mt-3" ]
               [ HH.div [ singleClass "col" ] [ diffractionTable ]
               , HH.div [ singleClass "col" ]
-                  [ plainH3_ "Add diffraction"
-                  , addDiffractionForm
+                  [ HH.div [ singleClass "sticky-top" ]
+                      [ plainH3_ "Add diffraction"
+                      , addDiffractionForm
+                      ]
                   ]
               ]
           else

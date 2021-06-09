@@ -210,7 +210,6 @@ crystalInputValid s =
   s.crystalEdit.crystalId /= ""
     && s.crystalEdit.crystalId `notElem` (_.crystalId <$> s.crystals)
     && (s.crystalEdit.puckId == "" || s.crystalEdit.puckId `elem` (_.puckId <$> s.pucks))
-    && (Tuple (Just s.crystalEdit.puckId) (Just s.crystalEdit.puckPosition)) `notElem` ((\x -> Tuple x.puckId x.puckPosition) <$> s.crystals)
 
 crystalAddForm :: forall w. State -> HH.HTML w Action
 crystalAddForm state =

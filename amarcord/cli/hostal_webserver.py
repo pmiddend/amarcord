@@ -81,9 +81,31 @@ def _retrieve_diffractions(
     diffractions: sa.Table,
     crystals: sa.Table,
     puck_id: str,
-    only_undiffracted: bool,
 ) -> JSONDict:
+    c1 = crystals.alias()
+    c2 = crystals.alias()
+    # Why this rather complicated SQL statement? The thing is, for each puck ID and position, we have multiple crystals.
+    # However, for the beamline GUI, we are only interested in the latest (via date) crystal for each position.
+    # And since SQL is a bit iffy w.r.t. selecting the latest value from a group, we have this rather complicated
+    # statement. It selects the latest crystal IDs (for each crystal) and returns those, so we can use them in the
+    # diffractions table.
+    # solution comes from here:
+    # https://stackoverflow.com/questions/1313120/retrieving-the-last-record-in-each-group-mysql
     # noinspection PyComparisonWithNone
+    latest_crystals = (
+        sa.select([c1.c.crystal_id]).select_from(
+            c1.outerjoin(
+                c2,
+                sa.and_(
+                    c1.c.puck_id == c2.c.puck_id,
+                    c1.c.puck_position_id == c2.c.puck_position_id,
+                    c1.c.created < c2.c.created,
+                ),
+            )
+        )
+        # pylint: disable=singleton-comparison
+        .where(sa.and_(c1.c.puck_id == puck_id, c2.c.created == None))
+    ).alias()
     return {
         "diffractions": [
             {
@@ -106,16 +128,8 @@ def _retrieve_diffractions(
                     ]
                 )
                 .select_from(crystals.outerjoin(diffractions))
-                .where(
-                    sa.and_(
-                        crystals.c.puck_id == puck_id,
-                        True if not only_undiffracted
-                        # Not sure if sqlalchemy can take this
-                        # pylint: disable=singleton-comparison
-                        else diffractions.c.diffraction != None,
-                    )
-                )
-                .order_by(crystals.c.puck_position_id)
+                .where(crystals.c.crystal_id.in_(latest_crystals))
+                .order_by(crystals.c.puck_position_id, diffractions.c.run_id)
             ).fetchall()
         ]
     }
@@ -127,7 +141,7 @@ def retrieve_diffractions(puck_id: str) -> JSONDict:
     crystals = table_crystals(dbcontext.metadata, table_pucks(dbcontext.metadata))
     diffractions = table_diffractions(dbcontext.metadata, crystals)
     with dbcontext.connect() as conn:
-        return _retrieve_diffractions(conn, diffractions, crystals, puck_id, False)
+        return _retrieve_diffractions(conn, diffractions, crystals, puck_id)
 
 
 @app.post("/api/diffraction/<puck_id>")
@@ -145,7 +159,7 @@ def add_diffraction(puck_id: str) -> JSONDict:
                 comment=request.form["comment"],
             )
         )
-        return _retrieve_diffractions(conn, diffractions, crystals, puck_id, False)
+        return _retrieve_diffractions(conn, diffractions, crystals, puck_id)
 
 
 @app.get("/api/dewar/<int:dewarPosition>/<puckId>")

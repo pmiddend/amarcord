@@ -83,6 +83,7 @@ def table_crystals(
         "Crystals",
         metadata,
         Column("crystal_id", String(length=255), primary_key=True, nullable=False),
+        Column("created", DateTime, server_default=func.now()),
         Column("puck_id", String(length=255), ForeignKey("Pucks.puck_id"), index=True),
         Column("puck_position_id", SmallInteger),
         schema=schema,
