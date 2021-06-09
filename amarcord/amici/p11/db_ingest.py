@@ -69,7 +69,7 @@ def _ingest_diffractions_for_crystal(
     crystal: P11Crystal,
     insert_diffraction_if_not_exists: bool,
     metadata_retriever: MetadataRetriever,
-) -> bool:
+) -> List[str]:
     if (
         conn.execute(
             sa.select([crystals.c.crystal_id]).where(
@@ -78,11 +78,11 @@ def _ingest_diffractions_for_crystal(
         ).fetchone()
         is None
     ):
-        logger.warning(
-            "crystal %s found in filesystem, but not in database", crystal.crystal_id
-        )
-        return True
+        return [
+            f"crystal {crystal.crystal_id} found in filesystem, but not in database"
+        ]
 
+    warnings: List[str] = []
     for run in crystal.runs:
         if (
             conn.execute(
@@ -96,10 +96,8 @@ def _ingest_diffractions_for_crystal(
             is None
             and not insert_diffraction_if_not_exists
         ):
-            logger.info(
-                "Diffraction for crystal ID %s, run ID %s does not exist, not adding it",
-                crystal.crystal_id,
-                run.run_id,
+            logger.debug(
+                f"diffraction for crystal ID {crystal.crystal_id}, run ID {run.run_id} does not exist, not adding it"
             )
             continue
         logger.info(
@@ -116,7 +114,7 @@ def _ingest_diffractions_for_crystal(
             metadata_retriever,
         )
 
-    return False
+    return warnings
 
 
 def _ingest_diffractions_for_target(
@@ -274,14 +272,9 @@ def ingest_diffractions_for_crystals(
     crystals: List[P11Crystal],
     insert_diffraction_if_not_exists: bool,
     metadata_retriever: MetadataRetriever,
-) -> bool:
-    has_warnings = False
+) -> List[str]:
+    warnings: List[str] = []
     for crystal in crystals:
-        logger.info(
-            "Ingesting diffractions for crystal %s (%s run(s))",
-            crystal.crystal_id,
-            len(crystal.runs),
-        )
         this_has_warnings = _ingest_diffractions_for_crystal(
             conn,
             table_diffs,
@@ -290,8 +283,8 @@ def ingest_diffractions_for_crystals(
             insert_diffraction_if_not_exists,
             metadata_retriever,
         )
-        has_warnings = has_warnings or this_has_warnings
-    return has_warnings
+        warnings.extend(this_has_warnings)
+    return warnings
 
 
 def ingest_diffractions_for_targets(
@@ -414,13 +407,12 @@ def ingest_reductions_for_crystals(
     table_diffractions: sa.Table,
     crystals: List[P11Crystal],
     processed_results: Dict[Path, XDSFilesystem],
-) -> bool:
-    has_warnings = False
+) -> List[str]:
+    warnings: List[str] = []
     for crystal in crystals:
-        logger.info("Ingesting reductions for crystal %s", crystal.crystal_id)
         for run in crystal.runs:
             if run.processed_path is None:
-                logger.info(
+                logger.debug(
                     "Crystal %s, skipping run %s, no processed_path",
                     crystal.crystal_id,
                     run.run_id,
@@ -438,8 +430,9 @@ def ingest_reductions_for_crystals(
                 ).fetchone()
                 is None
             ):
-                logger.warning(
-                    "Cannot ingest data reduction: got no corresponding diffraction image"
+                logger.debug(
+                    f"crystal {crystal.crystal_id}, run {run.run_id}: cannot ingest data reduction: got no "
+                    f"corresponding diffraction image "
                 )
                 continue
 
@@ -451,7 +444,7 @@ def ingest_reductions_for_crystals(
                 ).fetchone()
                 is not None
             ):
-                logger.info(
+                logger.debug(
                     "Data reduction for folder %s already exists",
                     run.processed_path,
                 )
@@ -469,9 +462,9 @@ def ingest_reductions_for_crystals(
                     conn, crystal.crystal_id, table_data_reduction, run, xds_processed
                 )
             else:
-                logger.info(
+                logger.debug(
                     "Crystal %s, run %s: xds processing failed, doing nothing",
                     crystal.crystal_id,
                     run.run_id,
                 )
-    return has_warnings
+    return warnings

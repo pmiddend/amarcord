@@ -141,7 +141,7 @@ def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) ->
                 ],
             )
         ]
-        has_warnings = ingest_diffractions_for_crystals(
+        diffraction_warnings = ingest_diffractions_for_crystals(
             conn,
             diffs,
             crystals,
@@ -149,7 +149,7 @@ def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) ->
             insert_diffraction_if_not_exists=False,
             metadata_retriever=empty_metadata_retriever(EIGER_16_M_DETECTOR_NAME),
         )
-        assert not has_warnings
+        assert not diffraction_warnings
 
     with dbcontext.connect() as conn:
         diffraction_ids = conn.execute(sa.select([diffs.c.crystal_id])).fetchall()

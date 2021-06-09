@@ -12,7 +12,7 @@ from amarcord.amici.xds.parser import parse_correctlp
 from amarcord.amici.xds.parser import parse_resultsfile
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class XDSFilesystem:
     correct_lp: XDSCorrectLPFile
     results_file: XDSResultsFile
@@ -20,7 +20,7 @@ class XDSFilesystem:
     analysis_time: datetime.datetime
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class XDSFilesystemError:
     message: str
     log_file: Optional[Path]

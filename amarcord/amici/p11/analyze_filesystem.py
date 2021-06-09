@@ -13,6 +13,8 @@ from amarcord.amici.p11.parser import parse_p11_info_file
 
 logger = logging.getLogger(__name__)
 
+WarnMessage = str
+
 
 @dataclass(frozen=True)
 class P11Run:
@@ -43,14 +45,18 @@ class P11Crystal:
     runs: List[P11Run]
 
 
-def parse_run(run_id: int, run_path: Path) -> Tuple[Optional[P11Run], bool]:
+def parse_run(
+    crystal_name: str, run_id: int, run_path: Path
+) -> Tuple[Optional[P11Run], List[WarnMessage]]:
     info_path = run_path / "info.txt"
     if not info_path.is_file():
-        logger.warning("info file %s not a file", info_path)
-        return None, True
+        return None, [
+            f"crystal {crystal_name}, run {run_id}: info file {info_path} not a file"
+        ]
     if not info_path.exists():
-        logger.warning("info file %s does not exist", info_path)
-        return None, True
+        return None, [
+            f"crystal {crystal_name}, run {run_id}: info file {info_path} does not exist"
+        ]
     try:
         processed = Path(str(run_path.resolve()).replace("/raw/", "/processed/"))
         return (
@@ -67,77 +73,63 @@ def parse_run(run_id: int, run_path: Path) -> Tuple[Optional[P11Run], bool]:
                 else None,
                 processed_path=processed if processed.is_dir() else None,
             ),
-            False,
+            [],
         )
-    except:
-        logger.exception("error parsing %s", info_path)
-        return None, True
+    except Exception as e:
+        return None, [
+            f"crystal {crystal_name}, run {run_id}: error parsing {info_path}: {e}"
+        ]
 
 
 def parse_puck(
     puck_id: str, puck_position: int, puck_path: Path
-) -> Tuple[Optional[P11Puck], bool]:
+) -> Tuple[Optional[P11Puck], List[WarnMessage]]:
     runs: List[P11Run] = []
-    has_warnings = False
+    warnings: List[WarnMessage] = []
     for run_dir in puck_path.iterdir():
         if not run_dir.is_dir():
             continue
 
         match = re.fullmatch(r"([^_]+)_(?:pos)?(\d+)_(\d+)", run_dir.name)
         if not match:
-            logger.warning(
-                "run directory %s doesn't match %s_pos%s_ or %s_%s_ ",
-                run_dir.name,
-                puck_id,
-                puck_position,
-                puck_id,
-                puck_position,
+            warnings.append(
+                f"run directory {run_dir.name} doesn't match {puck_id}_pos{puck_position}_ or {puck_id}_{puck_position}_ "
             )
-            has_warnings = True
             continue
 
         if match.group(1) != puck_id or int(match.group(2)) != puck_position:
-            logger.warning(
-                "run directory %s doesn't match %s_pos%s_ or %s_%s_ ",
-                run_dir.name,
-                puck_id,
-                puck_position,
-                puck_id,
-                puck_position,
+            warnings.append(
+                f"run directory {run_dir.name} doesn't match {puck_id}_pos{puck_position}_ or {puck_id}_{puck_position}_ "
             )
-            has_warnings = True
             continue
 
         run_id = int(match.group(3))
 
-        run, run_has_warnings = parse_run(run_id, run_dir)
+        run, run_warnings = parse_run("from puck", run_id, run_dir)
 
         if run is not None:
             runs.append(run)
 
-        has_warnings = run_has_warnings or has_warnings
+        warnings.extend(run_warnings)
 
     if not runs:
-        logger.warning("Puck %s has no runs!", puck_path)
-        has_warnings = True
+        warnings.append(f"Puck {puck_path} has no runs!")
 
-    return P11Puck(puck_id, puck_position, runs=runs), has_warnings
+    return P11Puck(puck_id, puck_position, runs=runs), warnings
 
 
-def parse_crystal(crystal_path: Path) -> Tuple[Optional[P11Crystal], bool]:
+def parse_crystal(crystal_path: Path) -> Tuple[Optional[P11Crystal], List[WarnMessage]]:
     runs: List[P11Run] = []
-    has_warnings = False
+    warnings: List[WarnMessage] = []
     for run_dir in crystal_path.iterdir():
         if not run_dir.is_dir():
             continue
 
         if not run_dir.name.startswith(crystal_path.name):
-            logger.warning(
-                "crystal run directory %s has invalid format, doesn't start with the crystal ID %s",
-                run_dir,
-                crystal_path.name,
+            warnings.append(
+                f"crystal {crystal_path.name}: crystal run directory {run_dir} has invalid format, doesn't start with "
+                f"the crystal ID "
             )
-            has_warnings = True
             continue
 
         remainder = run_dir.name[len(crystal_path.name) + 1 :]
@@ -145,69 +137,63 @@ def parse_crystal(crystal_path: Path) -> Tuple[Optional[P11Crystal], bool]:
         try:
             run_id = int(remainder)
         except:
-            logger.warning(
-                "crystal run directory %s invalid format, couldn't find run ID at the end: %s",
-                run_dir,
-                remainder,
+            warnings.append(
+                f"crystal {crystal_path.name}: crystal run directory {run_dir} invalid format, couldn't find run ID at the end: {remainder}"
             )
-            has_warnings = True
             continue
 
-        run, run_has_warnings = parse_run(run_id, run_dir)
+        run, run_warnings = parse_run(crystal_path.name, run_id, run_dir)
 
         if run is not None:
             runs.append(run)
 
-        has_warnings = run_has_warnings or has_warnings
+        warnings.extend(run_warnings)
 
     if not runs:
-        logger.warning("crystal %s has no (valid) runs!", crystal_path)
-        has_warnings = True
+        warnings.append(f"crystal {crystal_path}: no (valid) runs!")
 
-    return P11Crystal(crystal_path.name, runs), has_warnings
+    return P11Crystal(crystal_path.name, runs), warnings
 
 
-def parse_target(target_path: Path) -> Tuple[Optional[P11Target], bool]:
+def parse_target(target_path: Path) -> Tuple[Optional[P11Target], List[WarnMessage]]:
     pucks: List[P11Puck] = []
-    has_warnings = False
+    warnings: List[WarnMessage] = []
     for puck_dir in target_path.iterdir():
         if not puck_dir.is_dir():
             continue
 
         parts = puck_dir.name.split("_")
         if len(parts) != 2:
-            logger.warning(
-                "puck directory %s invalid format, has %s part(s)", puck_dir, len(parts)
+            warnings.append(
+                f"puck directory {puck_dir} invalid format, has {len(parts)} part(s)"
             )
-            has_warnings = True
             continue
 
         match = re.fullmatch(r"([^_]+)_(?:pos)?(\d+)", puck_dir.name)
 
         if not match:
-            logger.warning(
-                "puck directory %s has invalid format, has to be ${puckid}_pos${pos} or ${puckid}_${pos}",
-                puck_dir,
+            warnings.append(
+                f"puck directory {puck_dir} has invalid format, has to be $puckid_pos$pos or $puckid_$pos"
             )
-            has_warnings = True
             continue
 
         puck_id = match.group(1)
         puck_position = int(match.group(2))
 
-        puck, puck_has_warnings = parse_puck(puck_id, puck_position, puck_dir)
+        puck, puck_warnings = parse_puck(puck_id, puck_position, puck_dir)
 
         if puck is not None:
             pucks.append(puck)
 
-        has_warnings = has_warnings or puck_has_warnings
+        warnings.extend(puck_warnings)
     if not pucks:
-        logger.warning("target %s has no pucks!", target_path)
-        has_warnings = True
-    return P11Target(target_name=target_path.name, pucks=pucks), has_warnings
+        warnings.append(f"target {target_path} has no pucks!")
+    return P11Target(target_name=target_path.name, pucks=pucks), warnings
 
 
-def parse_p11_crystals(proposal_path: Path) -> Tuple[List[P11Crystal], bool]:
+def parse_p11_crystals(
+    proposal_path: Path,
+) -> Tuple[List[P11Crystal], List[WarnMessage]]:
     """Parses all paths below the proposal path, assuming there are crystals directly below that"""
     if not proposal_path.is_dir():
         raise Exception(f"proposal path {proposal_path} is not a directory!")
@@ -215,22 +201,22 @@ def parse_p11_crystals(proposal_path: Path) -> Tuple[List[P11Crystal], bool]:
     if not raw_path.is_dir():
         raise Exception(f"proposal raw data {raw_path} is not a directory!")
     result: List[P11Crystal] = []
-    has_warnings = False
+    warnings: List[WarnMessage] = []
     for crystal_dir in raw_path.iterdir():
         if not crystal_dir.is_dir():
             continue
 
-        crystal_info, crystal_has_warnings = parse_crystal(crystal_dir)
+        crystal_info, crystal_warnings = parse_crystal(crystal_dir)
 
-        has_warnings = has_warnings or crystal_has_warnings
+        warnings.extend(crystal_warnings)
 
         if crystal_info is not None:
             result.append(crystal_info)
 
-    return result, has_warnings
+    return result, warnings
 
 
-def parse_p11_targets(proposal_path: Path) -> Tuple[List[P11Target], bool]:
+def parse_p11_targets(proposal_path: Path) -> Tuple[List[P11Target], List[WarnMessage]]:
     """
     Parses directories below the proposal path, assuming directly below that
     are directories for the different targets.
@@ -241,16 +227,16 @@ def parse_p11_targets(proposal_path: Path) -> Tuple[List[P11Target], bool]:
     if not raw_path.is_dir():
         raise Exception(f"proposal raw data {raw_path} is not a directory!")
     result: List[P11Target] = []
-    has_warnings = False
+    warnings: List[WarnMessage] = []
     for target_dir in raw_path.iterdir():
         if not target_dir.is_dir():
             continue
 
-        target_info, target_has_warnings = parse_target(target_dir)
+        target_info, target_warnings = parse_target(target_dir)
 
-        has_warnings = has_warnings or target_has_warnings
+        warnings.extend(target_warnings)
 
         if target_info is not None:
             result.append(target_info)
 
-    return result, has_warnings
+    return result, warnings

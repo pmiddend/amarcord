@@ -7,6 +7,7 @@ from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
+from typing import Union
 
 import sqlalchemy as sa
 from pint import UnitRegistry
@@ -46,6 +47,9 @@ logger = logging.getLogger(__name__)
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     db_echo: bool = False  # output SQL statements?
+    force_diffraction_ingest: bool = (
+        False  # force creation of (successful) diffractions if missing
+    )
     p11_proposal_path: str  # Path to the proposal root
     detector_name: str = EIGER_16_M_DETECTOR_NAME  # Detector name to use in the diffractions (if non-existant)
     crystal_spreadsheet: Optional[
@@ -71,11 +75,11 @@ class Arguments(Tap):
     """Ingest P11 filesystem"""
 
 
-def validate_crystal_data_reductions(
+def parse_reductions_for_crystals(
     crystals: List[P11Crystal],
-) -> Tuple[Dict[Path, XDSFilesystem], bool]:
+) -> Tuple[Dict[Path, XDSFilesystem], List[str]]:
     processed_results: Dict[Path, XDSFilesystem] = {}
-    reduction_warnings = False
+    reduction_warnings: List[str] = []
     for crystal in crystals:
         for r in crystal.runs:
             if r.processed_path is not None:
@@ -83,10 +87,13 @@ def validate_crystal_data_reductions(
                     r.processed_path, UnitRegistry()
                 )
                 if isinstance(filesystem_result, XDSFilesystemError):
-                    reduction_warnings = True
-                    logger.warning("invalid XDS ingest: %s", filesystem_result.message)
+                    reduction_warnings.append(
+                        f"invalid XDS ingest: {filesystem_result.message}"
+                    )
                     if filesystem_result.log_file is not None:
-                        logger.warning("log file %s", filesystem_result.log_file)
+                        reduction_warnings.append(
+                            f"log file {filesystem_result.log_file}"
+                        )
                 else:
                     processed_results[r.processed_path] = filesystem_result
     return processed_results, reduction_warnings
@@ -94,9 +101,9 @@ def validate_crystal_data_reductions(
 
 def process_and_validate_with_spreadsheet(
     spreadsheet_lines: List[CrystalLine], crystals: List[P11Crystal]
-) -> Tuple[List[P11Crystal], bool]:
+) -> Tuple[List[P11Crystal], List[str]]:
     new_crystals: List[P11Crystal] = []
-    spreadsheet_warnings = False
+    spreadsheet_warnings: List[str] = []
     remaining_crystals = set((c.name, c.run_id) for c in spreadsheet_lines)
     for idx, line in enumerate(spreadsheet_lines):
         duplicate_line = find_by(
@@ -106,11 +113,9 @@ def process_and_validate_with_spreadsheet(
         )
 
         if duplicate_line is not None:
-            logger.warning(
-                "line %s is a duplicate (same name and run id as another row, typo?)",
-                idx + 1,
+            spreadsheet_warnings.append(
+                f"line {idx+1} is a duplicate (same name and run id as another row, typo?)"
             )
-            spreadsheet_warnings = True
     for crystal in crystals:
         new_runs: List[P11Run] = []
         crystal_name: Optional[str] = None
@@ -122,23 +127,18 @@ def process_and_validate_with_spreadsheet(
                 and csl.run_id == run.run_id,
             )
             if crystal_spreadsheet_line is None:
-                logger.warning(
-                    'The crystal and run on the filesystem path "%s/%s" couldn\'t be associated to a line from '
-                    "the spreadsheet",
-                    crystal.crystal_id,
-                    run.run_id,
+                spreadsheet_warnings.append(
+                    f'The crystal and run on the filesystem path "{crystal.crystal_id}/{run.run_id}"couldn\'t be '
+                    f"associated to a line from the spreadsheet"
                 )
-                spreadsheet_warnings = True
             else:
                 if (
                     crystal_name is not None
                     and crystal_name != crystal_spreadsheet_line.name
                 ):
-                    logger.warning(
-                        "different name for same crystal %s given for two different runs",
-                        crystal.crystal_id,
+                    spreadsheet_warnings.append(
+                        f"different name for same crystal {crystal.crystal_id} given for two different runs"
                     )
-                    spreadsheet_warnings = True
                     new_runs.clear()
                     crystal_name = None
                     break
@@ -153,11 +153,9 @@ def process_and_validate_with_spreadsheet(
             )
 
     if remaining_crystals:
-        logger.warning(
-            "The following crystals/runs are in the spreadsheet, but not in the filesystem: %s",
-            remaining_crystals,
+        spreadsheet_warnings.append(
+            f"The following crystals/runs are in the spreadsheet, but not in the filesystem: {remaining_crystals}"
         )
-        spreadsheet_warnings = True
 
     return new_crystals, spreadsheet_warnings
 
@@ -175,56 +173,50 @@ def _crystal_exists(
     )
 
 
-def main() -> int:
-    args = Arguments(underscores_to_dashes=True).parse_args()
-
-    dbcontext = DBContext(args.db_connection_url, echo=args.db_echo)
-
-    table_crystals_ = table_crystals(
-        dbcontext.metadata,
-        table_pucks(dbcontext.metadata, schema=args.main_schema),
-        schema=args.main_schema,
-    )
-    table_diffs_ = table_diffractions(
-        dbcontext.metadata, table_crystals_, schema=args.main_schema
-    )
-    table_data_reduction_ = table_data_reduction(
-        dbcontext.metadata, table_crystals_, schema=args.analysis_schema
-    )
-
-    if args.db_connection_url.startswith("sqlite"):
-        logger.info("Creating tables")
-        dbcontext.create_all(CreationMode.CHECK_FIRST)
-
+def main_loop(
+    args: Arguments,
+    dbcontext: DBContext,
+    table_crystals_: sa.Table,
+    table_diffs_: sa.Table,
+    table_data_reduction_: sa.Table,
+) -> Union[int, Tuple[List[P11Crystal], Dict[Path, XDSFilesystem]]]:
     logger.info("Analyzing filesystem...")
     crystals, warnings = parse_p11_crystals(Path(args.p11_proposal_path))
 
-    if warnings and not args.ignore_diffraction_warnings:
-        logger.warning(
-            "There were warnings! Please check those carefully and then call with --ignore-diffraction-warnings to "
-            "apply the results"
-        )
-        return 1
+    if warnings:
+        for warning in warnings:
+            logger.warning(warning)
+        if args.ignore_diffraction_warnings:
+            logger.info("Skipping %s diffraction warning(s)", len(warnings))
+        else:
+            logger.warning(
+                "There were warnings! Please check those carefully and then call with --ignore-diffraction-warnings to "
+                "apply the results"
+            )
+            return 1
     logger.info(
-        "Analyzing filesystem...done! %s crystal(s) found%s",
+        "Analyzing filesystem...done! %s crystal(s) found",
         len(crystals),
-        ". Ignoring warnings!" if warnings else "",
     )
 
     logger.info("Analyzing reductions...")
-    processed_results, reduction_warnings = validate_crystal_data_reductions(crystals)
+    reduction_results, reduction_warnings = parse_reductions_for_crystals(crystals)
 
-    if reduction_warnings and not args.ignore_reduction_warnings:
-        logger.warning(
-            "There were reduction warnings! Please check those carefully and then call with "
-            "--ignore-reduction-warnings to apply the "
-            "results "
-        )
-        return 2
+    if reduction_warnings:
+        for warning in reduction_warnings:
+            logger.warning(warning)
+        if args.ignore_reduction_warnings:
+            logger.info("Skipping %s reduction warning(s)", len(reduction_warnings))
+        else:
+            logger.warning(
+                "There were reduction warnings! Please check those carefully and then call with "
+                "--ignore-reduction-warnings to apply the "
+                "results "
+            )
+            return 2
     logger.info(
-        "Analyzing reductions...done! %s reduction(s) found%s",
-        len(processed_results.keys()),
-        ". Ignoring warnings!" if reduction_warnings else "",
+        "Analyzing reductions...done! %s reduction(s) found",
+        len(reduction_results.keys()),
     )
 
     spreadsheet_lines: List[CrystalLine] = []
@@ -235,13 +227,20 @@ def main() -> int:
             spreadsheet_lines, crystals
         )
 
-        if spreadsheet_warnings and not args.ignore_spreadsheet_warnings:
-            logger.warning(
-                "There were spreadsheet warnings! Please check those carefully and then call with "
-                "--ignore-spreadsheet-warnings to apply the "
-                "results "
-            )
-            return 5
+        if spreadsheet_warnings:
+            for warning in spreadsheet_warnings:
+                logger.warning(warning)
+            if args.ignore_spreadsheet_warnings:
+                logger.info(
+                    "skipping %s spreadsheet warning(s)", len(spreadsheet_warnings)
+                )
+            else:
+                logger.warning(
+                    "There were spreadsheet warnings! Please check those carefully and then call with "
+                    "--ignore-spreadsheet-warnings to apply the "
+                    "results "
+                )
+                return 5
 
         crystals = new_crystals
         logger.info("Analyzing spreadsheet...Done!")
@@ -273,58 +272,101 @@ def main() -> int:
                     ]
 
                 logger.info("Ingesting diffractions...")
-                has_warnings = ingest_diffractions_for_crystals(
+                diff_ingest_warnings = ingest_diffractions_for_crystals(
                     conn,
                     table_diffs_,
                     table_crystals_,
                     crystals,
-                    args.crystal_spreadsheet is not None,
+                    args.crystal_spreadsheet is not None
+                    or args.force_diffraction_ingest,
                     metadata_retriever=metadata_retriever_from_lines(
                         spreadsheet_lines, args.detector_name
                     )
                     if spreadsheet_lines
                     else empty_metadata_retriever(args.detector_name),
                 )
-                if has_warnings and not args.ignore_db_warnings:
-                    logger.warning(
-                        "There were ingestion warnings! Please check those carefully and then call with "
-                        "--ignore-db-warnings to apply the results"
-                    )
-                    return 3
+                if diff_ingest_warnings:
+                    for warning in diff_ingest_warnings:
+                        logger.warning(warning)
+                    if args.ignore_db_warnings:
+                        logger.info(
+                            "skipping %s diffraction ingest warnings",
+                            len(diff_ingest_warnings),
+                        )
+                    else:
+                        logger.warning(
+                            "There were ingestion warnings! Please check those carefully and then call with "
+                            "--ignore-db-warnings to apply the results"
+                        )
+                        return 3
                 logger.info(
-                    "Ingesting diffractions...done!%s",
-                    ". Ignoring warnings!" if has_warnings else "",
+                    "Ingesting diffractions...done!",
                 )
                 logger.info("Ingesting reductions...")
-                has_reduction_warnings = ingest_reductions_for_crystals(
+                reduction_warnings = ingest_reductions_for_crystals(
                     conn,
                     table_data_reduction_,
                     table_diffs_,
                     crystals,
-                    processed_results,
+                    reduction_results,
                 )
-                if has_reduction_warnings and not args.ignore_db_warnings:
-                    logger.warning(
-                        "There were reduction warnings! Please check those carefully and then call with "
-                        "--ignore-db-warnings to apply the results"
-                    )
+                if reduction_warnings:
+                    for warning in reduction_warnings:
+                        logger.warning(warning)
+                    if args.ignore_db_warnings:
+                        logger.info(
+                            "Skipping %s reduction ingest warning(s)",
+                            len(reduction_warnings),
+                        )
+                    else:
+                        logger.warning(
+                            "There were reduction warnings! Please check those carefully and then call with "
+                            "--ignore-db-warnings to apply the results"
+                        )
                     return 4
-                logger.info(
-                    "Ingesting reductions...Done!%s",
-                    ". Ignoring warnings!" if has_reduction_warnings else "",
-                )
+                logger.info("Ingesting reductions...Done!")
                 if args.dry_run or (
-                    has_reduction_warnings
-                    or has_warnings
+                    reduction_warnings
+                    or diff_ingest_warnings
                     and not args.ignore_db_warnings
                 ):
                     raise StopIteration()
                 logger.info("Ingest complete!")
         except StopIteration:
             logger.info("Ingested the results as a dry-run!")
+    return crystals, reduction_results
 
-    return 0 if not warnings else 1
+
+def main(args: Arguments) -> int:
+    dbcontext = DBContext(args.db_connection_url, echo=args.db_echo)
+
+    table_crystals_ = table_crystals(
+        dbcontext.metadata,
+        table_pucks(dbcontext.metadata, schema=args.main_schema),
+        schema=args.main_schema,
+    )
+    table_diffs_ = table_diffractions(
+        dbcontext.metadata, table_crystals_, schema=args.main_schema
+    )
+    table_data_reduction_ = table_data_reduction(
+        dbcontext.metadata, table_crystals_, schema=args.analysis_schema
+    )
+
+    if args.db_connection_url.startswith("sqlite"):
+        logger.info("Creating tables")
+        dbcontext.create_all(CreationMode.CHECK_FIRST)
+
+    while True:
+        result = main_loop(
+            args,
+            dbcontext,
+            table_crystals_,
+            table_diffs_,
+            table_data_reduction_,
+        )
+        if isinstance(result, int):
+            return result
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(Arguments(underscores_to_dashes=True).parse_args()))

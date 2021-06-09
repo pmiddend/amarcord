@@ -11,7 +11,7 @@ from pint import Quantity
 from pint import UnitRegistry
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class XDSCorrectLPFile:
     a: Quantity
     b: Quantity
@@ -182,7 +182,7 @@ def parse_correctlp(fn: Path, ureg: UnitRegistry) -> XDSCorrectLPFile:
     )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class XDSResultsFile:
     wilson_b: float
 
