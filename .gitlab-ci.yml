@@ -5,6 +5,7 @@ stages:
   - deploy
   - test-deploy
   - upload-docker
+  - test-cypress
 
 check-shell-scripts:
   stage: pretest
@@ -14,6 +15,11 @@ check-shell-scripts:
 
 variables:
   AMARCORD_PYTHON_DOCKER: python:3.8
+  # These are used by the cypress tests
+  #MYSQL_USER: cypressuser
+  MYSQL_ROOT_PASSWORD: cypresspassword
+  MYSQL_DATABASE: cypressdb
+  AMARCORD_DB_URL: "mysql+pymysql://root:cypresspassword@mysql/cypressdb"
 
 pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
@@ -109,6 +115,25 @@ upload-webserver:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile-web --destination $IMAGE_SLUG_TAG --destination $IMAGE_COMMIT_TAG
+
+test-cypress:
+  image: $AMARCORD_PYTHON_DOCKER
+  stage: test-cypress
+  only:
+    - hostal-confluence
+  services:
+    - name: mysql:8
+    - name: $CI_REGISTRY/cfel-sc/amarcord-parent/amarcord-xfel:$CI_COMMIT_SHORT_SHA
+      alias: amarcord-app
+  script:
+    - ci/cypress-integration.sh
+  artifacts:
+    paths:
+      - purescript-frontend/cypress/videos/
+      - purescript-frontend/cypress/screenshots/
+    expire_in: 1 week
+    when: on_failure
+
 #integration-amici:
 #  image: $AMARCORD_PYTHON_DOCKER
 #  stage: test-deploy

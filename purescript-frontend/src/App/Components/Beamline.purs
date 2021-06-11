@@ -513,6 +513,7 @@ render state =
     , HH.p_
         [ HH.button
             [ HP.type_ ButtonButton
+            , HP.id_ "wipe-dewar-button"
             , classList [ "btn", "btn-danger" ]
             , HE.onClick \_ -> Just WipeDewarTable
             ]

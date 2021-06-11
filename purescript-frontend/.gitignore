@@ -3,3 +3,5 @@
 dist/
 node_modules/
 output/
+cypress/videos
+cypress/screenshots
