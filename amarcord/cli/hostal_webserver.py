@@ -129,7 +129,9 @@ def _retrieve_diffractions(
                 )
                 .select_from(crystals.outerjoin(diffractions))
                 .where(crystals.c.crystal_id.in_(latest_crystals))
-                .order_by(crystals.c.puck_position_id, diffractions.c.run_id)
+                .order_by(
+                    crystals.c.puck_position_id.asc(), diffractions.c.run_id.asc()
+                )
             ).fetchall()
         ]
     }

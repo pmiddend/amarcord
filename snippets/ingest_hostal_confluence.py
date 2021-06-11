@@ -88,7 +88,15 @@ def parse_crystals(table: Tag, puck_id: str) -> Tuple[List[Crystal], bool]:
 
         name = "".join(cols[column_name_to_index[NAME_COLUMN]].stripped_strings)
 
-        crystals.append(Crystal(position, name))
+        if name == "-" or not name:
+            logger.info(
+                "puck %s, row %s: skipping because empty name: %s",
+                puck_id,
+                row_idx,
+                name,
+            )
+        else:
+            crystals.append(Crystal(position, name))
 
     return crystals, has_warnings
 
@@ -155,6 +163,7 @@ class Arguments(Tap):
     confluence_page_id: int
     confluence_url: str = "https://confluence.desy.de"
     db_echo: bool = False  # output SQL statements?
+    dry_run: bool = False  # Do a dry run and don't commit anything to the DB yet
 
 
 def create_crystal_id(crystal: Crystal, max_crystal_id: int) -> str:
@@ -188,6 +197,7 @@ def ingest_puck(
     else:
         logger.info("Skipping puck %s creation, already there", puck.puck_id)
     for crystal in puck.crystals:
+        crystal_id = create_crystal_id(crystal, max_crystal_id)
         if (
             conn.execute(
                 sa.select([sa.func.count(crystals.c.crystal_id)]).where(
@@ -197,24 +207,23 @@ def ingest_puck(
                     )
                 )
             ).fetchone()[0]
-            == 0
+            != 0
         ):
-            crystal_id = create_crystal_id(crystal, max_crystal_id)
-            logger.info("Inserting crystal %s", crystal_id)
-            conn.execute(
-                sa.insert(crystals).values(
-                    crystal_id=crystal_id,
-                    puck_id=puck.puck_id,
-                    puck_position_id=crystal.position,
-                )
-            )
-            max_crystal_id += 1
-        else:
             logger.info(
-                "Skipping crystal creation for puck %s, position %s, already there",
+                "Puck puck %s, position %s is reused for crystal %s",
                 puck.puck_id,
                 crystal.position,
+                crystal_id,
             )
+        logger.info("Inserting crystal %s", crystal_id)
+        conn.execute(
+            sa.insert(crystals).values(
+                crystal_id=crystal_id,
+                puck_id=puck.puck_id,
+                puck_position_id=crystal.position,
+            )
+        )
+        max_crystal_id += 1
     return max_crystal_id
 
 
@@ -265,6 +274,10 @@ def main() -> int:
                     max_crystal_id = ingest_puck(
                         conn, pucks_table, crystals_table, puck, max_crystal_id + 1
                     )
+
+                if args.dry_run:
+                    logger.info("stopping here since it's a dry run")
+                    raise StopIteration()
     else:
         for puck in pucks:
             logger.info("puck %s, crystals:", puck.puck_id)
