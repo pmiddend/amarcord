@@ -1,7 +1,10 @@
 import logging
 import sys
 from dataclasses import replace
+from math import ceil
 from pathlib import Path
+from time import sleep
+from time import time
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -357,6 +360,7 @@ def main(args: Arguments) -> int:
         dbcontext.create_all(CreationMode.CHECK_FIRST)
 
     while True:
+        before = time()
         result = main_loop(
             args,
             dbcontext,
@@ -364,8 +368,12 @@ def main(args: Arguments) -> int:
             table_diffs_,
             table_data_reduction_,
         )
+        after = time()
         if isinstance(result, int):
             return result
+        if after - before < 5:
+            logger.info("Next iteration in %ss", ceil(5 - (after - before)))
+            sleep(ceil(5 - (after - before)))
 
 
 if __name__ == "__main__":
