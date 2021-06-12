@@ -360,6 +360,9 @@ def main(args: Arguments) -> int:
         dbcontext.create_all(CreationMode.CHECK_FIRST)
 
     while True:
+        logger.info("=====================================")
+        logger.info("==========STARTING INGEST============")
+        logger.info("=====================================")
         before = time()
         result = main_loop(
             args,
@@ -371,6 +374,9 @@ def main(args: Arguments) -> int:
         after = time()
         if isinstance(result, int):
             return result
+        logger.info("=====================================")
+        logger.info("==========FINISHED INGEST============")
+        logger.info("=====================================")
         if after - before < 5:
             logger.info("Next iteration in %ss", ceil(5 - (after - before)))
             sleep(ceil(5 - (after - before)))
