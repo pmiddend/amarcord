@@ -111,7 +111,7 @@ def _retrieve_diffractions(
         )
         # pylint: disable=singleton-comparison
         .where(sa.and_(c1.c.puck_id == puck_id, c2.c.created == None))
-    ).alias()
+    )
     return {
         "diffractions": [
             {

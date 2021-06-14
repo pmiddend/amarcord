@@ -28,7 +28,7 @@ setuptools.setup(
     ],
     install_requires=[
         # for general DB access
-        "SQLAlchemy==1.3.*",
+        "SQLAlchemy==1.4.*",
         # for mysql
         "pymysql==1.0.*",
         # for caching_sha2_password access
