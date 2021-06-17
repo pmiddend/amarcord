@@ -6,13 +6,18 @@ from sqlalchemy import DateTime
 from sqlalchemy import Enum
 from sqlalchemy import Float
 from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKeyConstraint
+from sqlalchemy import Index
 from sqlalchemy import Integer
+from sqlalchemy import JSON
 from sqlalchemy import MetaData
 from sqlalchemy import SmallInteger
 from sqlalchemy import String
 from sqlalchemy import Table
 from sqlalchemy import Text
 from sqlalchemy import func
+
+from amarcord.workflows.job_status import JobStatus
 
 ANALYSIS_SCHEMA = "SARS_COV_2_Analysis_v2"
 
@@ -38,6 +43,7 @@ class ReductionMethod(enum.Enum):
     DIALS_DIALS = "DIALS-dials"
     DIALS_1P7A_DIALS = "DIALS_1p7A-dials"
     STARANISO = "staraniso"
+    TOOL = "tool"
     OTHER = "other"
 
 
@@ -54,6 +60,62 @@ def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
         Column("created", DateTime, server_default=func.now()),
         Column("puck_type", Enum(PuckType)),
         Column("owner", String(length=255)),
+        schema=schema,
+    )
+
+
+def table_reduction_jobs(
+    metadata: MetaData,
+    _tools: Table,
+    _diffractions: Table,
+    schema: Optional[str] = None,
+) -> Table:
+    return Table(
+        "Reduction_Jobs",
+        metadata,
+        Column("id", Integer(), primary_key=True),
+        Column("queued", DateTime, nullable=False),
+        Column("started", DateTime, nullable=True),
+        Column("stopped", DateTime, nullable=True),
+        Column("status", Enum(JobStatus), nullable=False),
+        Column("failure_reason", Text(), nullable=True),
+        Column("output_directory", Text(), nullable=True),
+        Column("run_id", Integer(), nullable=False),
+        Column(
+            "crystal_id",
+            String(length=255),
+            ForeignKey("Crystals.crystal_id"),
+            nullable=False,
+        ),
+        Column(
+            "tool_id",
+            Integer(),
+            ForeignKey("Tools.id"),
+            nullable=True,
+        ),
+        Column("tool_inputs", JSON(), nullable=True),
+        Column("metadata", JSON(), nullable=True),
+        # This here is quite important, since we have the foreign key below. MySQL doesn't support adding a foreign
+        # key without the column being indexed
+        Index("crystal_and_run_id", "crystal_id", "run_id"),
+        ForeignKeyConstraint(
+            ["crystal_id", "run_id"], ["Diffractions.crystal_id", "Diffractions.run_id"]
+        ),
+        schema=schema,
+    )
+
+
+def table_tools(metadata: MetaData, schema: Optional[str] = None) -> Table:
+    return Table(
+        "Tools",
+        metadata,
+        Column("id", Integer(), primary_key=True, autoincrement=True),
+        Column("created", DateTime, server_default=func.now()),
+        Column("name", String(length=255), nullable=False, unique=True),
+        Column("executable_path", Text(), nullable=False),
+        Column("extra_files", JSON(), nullable=False),
+        Column("command_line", Text(), nullable=False),
+        Column("description", Text(), nullable=False),
         schema=schema,
     )
 
@@ -131,6 +193,12 @@ def table_data_reduction(
         Column("cchalf", Float, comment="percent"),
         Column("rfactor", Float, comment="percent"),
         Column("Wilson_b", Float, comment="angstrom**2"),
+        Column(
+            "reduction_job_id",
+            Integer(),
+            ForeignKey("Reduction_Jobs.id"),
+            nullable=True,
+        ),
         schema=schema,
     )
 

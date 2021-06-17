@@ -7,7 +7,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-import gemmi
 import sqlalchemy as sa
 from sqlalchemy import Table
 
@@ -18,6 +17,8 @@ from amarcord.amici.p11.analyze_filesystem import P11Target
 from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.run_key import RunKey
 from amarcord.modules.dbcontext import Connection
+from amarcord.util import path_mtime
+from amarcord.xtal_util import find_space_group_index_by_name
 
 EIGER_16_M_DETECTOR_NAME = "DECTRIS EIGER 16M"
 
@@ -230,10 +231,7 @@ def insert_diffraction(
             filter_transmission=run.info_file.filter_transmission_percent,
             ring_current=run.info_file.ring_current.to("milliampere").magnitude,
             data_raw_filename_pattern=run.data_raw_filename_pattern,
-            created=datetime.datetime.fromtimestamp(
-                Path(run.data_raw_filename_pattern).parent.stat().st_mtime,
-                tz=datetime.timezone.utc,
-            )
+            created=path_mtime(Path(run.data_raw_filename_pattern).parent)
             if run.data_raw_filename_pattern
             else datetime.datetime.now(),
             microscope_image_filename_pattern=run.microscope_image_filename_pattern,
@@ -324,13 +322,13 @@ def ingest_analysis_result(
     conn: Connection,
     crystal_id: str,
     data_reduction: sa.Table,
-    run: P11Run,
+    run_id: int,
     analysis_result: AnalysisResult,
-) -> None:
-    conn.execute(
+) -> int:
+    result = conn.execute(
         sa.insert(data_reduction).values(
             crystal_id=crystal_id,
-            run_id=run.run_id,
+            run_id=run_id,
             analysis_time=analysis_result.analysis_time,
             folder_path=str(analysis_result.base_path),
             mtz_path=str(analysis_result.mtz_file)
@@ -345,9 +343,9 @@ def ingest_analysis_result(
             alpha=analysis_result.alpha,
             beta=analysis_result.beta,
             gamma=analysis_result.gamma,
-            space_group=gemmi.find_spacegroup_by_name(
-                analysis_result.space_group
-            ).number,
+            space_group=find_space_group_index_by_name(analysis_result.space_group)
+            if isinstance(analysis_result.space_group, str)
+            else analysis_result.space_group,
             isigi=analysis_result.isigi,
             rmeas=analysis_result.rmeas,
             cchalf=analysis_result.cchalf,
@@ -355,6 +353,7 @@ def ingest_analysis_result(
             Wilson_b=analysis_result.wilson_b,
         )
     )
+    return result.inserted_primary_key[0]
 
 
 def ingest_reductions_for_crystals(
@@ -420,6 +419,10 @@ def ingest_reductions_for_crystals(
                     process_result.method.value,
                 )
                 ingest_analysis_result(
-                    conn, crystal.crystal_id, table_data_reduction, run, process_result
+                    conn,
+                    crystal.crystal_id,
+                    table_data_reduction,
+                    run.run_id,
+                    process_result,
                 )
     return warnings

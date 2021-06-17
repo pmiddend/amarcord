@@ -33,3 +33,4 @@ toggleSetElement :: forall a. Ord a => a -> Set a -> Set a
 toggleSetElement v x
   | member v x = delete v x
   | otherwise = insert v x
+

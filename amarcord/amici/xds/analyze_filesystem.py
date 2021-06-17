@@ -12,6 +12,7 @@ from amarcord.amici.xds.parser import XDSCorrectLPFile
 from amarcord.amici.xds.parser import XDSResultsFile
 from amarcord.amici.xds.parser import parse_correctlp
 from amarcord.amici.xds.parser import parse_resultsfile
+from amarcord.util import path_mtime
 
 
 @dataclass(frozen=True, eq=True)
@@ -86,9 +87,7 @@ def analyze_xds_filesystem(
     # Sort by mtime, take the first (so the latest) one below
     mtz_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
 
-    analysis_time = datetime.datetime.fromtimestamp(
-        processed_path.stat().st_mtime, tz=datetime.timezone.utc
-    )
+    analysis_time = path_mtime(processed_path)
 
     return XDSFilesystem(
         correct_lp=correct_lp,

@@ -1,9 +1,9 @@
-import datetime
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.db import ReductionMethod
+from amarcord.util import path_mtime
 
 
 def parse_staraniso_directory(p: Path) -> AnalysisResult:
@@ -66,9 +66,7 @@ def parse_staraniso_directory(p: Path) -> AnalysisResult:
         )
 
     return AnalysisResult(
-        analysis_time=datetime.datetime.fromtimestamp(
-            p.stat().st_mtime, tz=datetime.timezone.utc
-        ),
+        analysis_time=path_mtime(p),
         base_path=p,
         mtz_file=mtz_file,
         method=ReductionMethod.STARANISO,

@@ -4,7 +4,7 @@ RUN mkdir /app
 COPY . /app
 WORKDIR /app
 
-RUN pip install '.[webserver]'
+RUN pip install '.[webserver,slurm,p11]'
 EXPOSE 5000
 
 ENV AMARCORD_STATIC_FOLDER=/app/purescript-frontend/prod

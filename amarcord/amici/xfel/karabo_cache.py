@@ -31,6 +31,9 @@ class KaraboCache:
         for source, source_content in expected_attributi.items():
             self.content[source] = {li: [] for li in source_content}
 
+            # probably a good refactoring (use values() instead of grabbing via ki)
+            # but too lazy to change right now
+            # pylint: disable=consider-using-dict-items
             for ki in self.statistics:
                 self.statistics[ki][source] = {li: None for li in source_content}
 

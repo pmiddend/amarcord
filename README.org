@@ -1,4 +1,61 @@
-* AMARCORD — XFEL edition™
+* AMARCORD
+** How to start the AMARCORD XFEL GUI
+
+It /should/ ideally be simple:
+
+#+begin_example
+pip install -e '.[gui]'
+python amarcord/xfel_gui.py
+#+end_example
+
+Depending on your operating system, you might have to install Qt 5 or pyqt-5 separately. I’ll add some notes on that later.
+** How to administer the XFEL database
+
+There’s a command-line program in =amarcord/cli/admin.py= that providse administrative functions like adding proposals, changing passwords and migrating the database.
+** How to start the Hostal GUI Web server
+
+That’s easy:
+
+#+begin_example
+pip install -e '.[webserver]'
+./run-webserver.sh
+#+end_example
+** How to start the Hostal GUI
+
+If you’re on a Debian-based Linux distribution, there’s =purescript-frontend/install-deps.sh= to install the dependencies. If you’re not, you need at least =npm= installed. Then run:
+
+#+begin_example
+cd purescript-frontend
+npm install
+npx spago install
+#+end_example
+
+To run the GUI, simply run =./run-develop.sh= in =purescript-frontend=
+
+** Workflow notes
+
+To test workflows locally, you have to install and start [[https://docs.celeryproject.org/en/stable/index.html][Celery]] since with Python/Flask it’s not possible to just start and observe processes in the background. The simplest way to run Celery is with the Redis in-memory DB in the background. If you have Docker, that’s easy:
+
+#+begin_example
+docker run -d -p 6379:6379 redis
+#+end_example
+
+If not, check the [[https://redis.io/][Redis web site]] for more information.
+
+If you have Redis running, start a worker with:
+
+#+begin_example
+celery -A amarcord.workflows.local_job_controller worker
+#+end_example
+
+This assumes you have run:
+
+#+begin_example
+pip install -e '.[webserver]' && pip install 'celery[redis]'
+#+end_example
+
+You can then run the GUI and web server as usual.
+
 ** How to access AMARCORD from a script
 
 We’ve created the =amarcord.amici= Python package containing functions to access an AMARCORD database from within your scripts. Check the package source to see the available functions.
@@ -13,16 +70,3 @@ Note that this uses a generated token called =maxwell-token= to access the GitLa
 
 - Ideally, don’t share this URL with people outside XFEL/DESY for now. We’re working on making this package public, but we’re not there yet.
 - You can only =pip install= when you have access to =gitlab.desy.de=.
-** How to start the AMARCORD GUI
-
-It /should/ ideally be simple:
-
-#+begin_example
-pip install -e '.[gui]'
-python amarcord/xfel_gui.py
-#+end_example
-
-Depending on your operating system, you might have to install Qt 5 or pyqt-5 separately. I’ll add some notes on that later.
-** How to administer the database
-
-There’s a command-line program in =amarcord/cli/admin.py= that providse administrative functions like adding proposals, changing passwords and migrating the database.

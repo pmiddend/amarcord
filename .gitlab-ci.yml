@@ -25,8 +25,8 @@ pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
   script:
-    - pip install -e .[gui,webserver,daemon,p11]
-    - pip install 'mypy==0.812' 'pylint==2.8.*' sqlalchemy-stubs
+    - pip install -e .[gui,webserver,daemon,p11,slurm]
+    - pip install 'mypy==0.910' 'pylint==2.9.*'
     - mypy amarcord tutorial
     - apt-get update -y && apt-get install -y qt5-default
     - pylint amarcord tutorial
@@ -53,7 +53,7 @@ tests:
   script:
     - apt-get update -y
     - apt-get install -y libgl1-mesa-glx qt5-default
-    - pip install -e .[gui,p11]
+    - pip install -e .[gui,p11,slurm,webserver]
     - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*' 'hypothesis==6.3.*' 'pytest-cov==2.11.*' 'pyfakefs==4.4.*'
     - PYTHONPATH=".:$PYTHONPATH" pytest --cov=amarcord/ --junitxml=report.xml tests
     - coverage xml
@@ -76,17 +76,18 @@ tests:
 #   artifacts:
 #     paths:
 #       - docker-image.tar.gz
-deploy-pypi:
-  image: $AMARCORD_PYTHON_DOCKER
-  stage: deploy
-  only:
-    - tags
-    - master
-  script:
-    - pip install -e .
-    - pip install wheel twine
-    - python setup.py sdist bdist_wheel
-    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+
+#deploy-pypi:
+#  image: $AMARCORD_PYTHON_DOCKER
+#  stage: deploy
+#  only:
+#    - tags
+#    - master
+#  script:
+#    - pip install -e .
+#    - pip install wheel twine
+#    - python setup.py sdist bdist_wheel
+#    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
 
 build-web-prod:
   image: ubuntu:groovy
@@ -110,7 +111,7 @@ upload-webserver:
   only:
     - tags
     - master
-    - analysis-changes
+    - workflow-tools
   script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
@@ -120,7 +121,8 @@ test-cypress:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test-cypress
   only:
-    - hostal-confluence
+    - master
+    - workflow-tools
   services:
     - name: mysql:8
     - name: $CI_REGISTRY/cfel-sc/amarcord-parent/amarcord-xfel:$CI_COMMIT_SHORT_SHA

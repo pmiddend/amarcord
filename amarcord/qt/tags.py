@@ -403,6 +403,8 @@ class Tags(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         found = False
+        # probably a good refactoring, but too lazy right now
+        # pylint: disable=consider-using-enumerate
         for i in range(len(self._tags)):
             if self.in_cross_area(i, event.pos()):
                 self._tags.pop(i)

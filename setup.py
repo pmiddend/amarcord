@@ -9,6 +9,7 @@ setuptools.setup(
     entry_points={
         "console_scripts": [
             "amarcord-daemon = amarcord.cli.daemon:main",
+            "amarcord-workflow-daemon = amarcord.cli.workflow_daemon:main",
             "amarcord-db-cli = amarcord.cli.admin:main",
             "amarcord-database-fuzzer = amarcord.cli.database_fuzzer:main",
             "amarcord-xfel-filesystem-ingester = amarcord.cli.xfel_filesystem_ingester:main",
@@ -28,7 +29,7 @@ setuptools.setup(
     ],
     install_requires=[
         # for general DB access
-        "SQLAlchemy==1.4.*",
+        "SQLAlchemy[mypy]==1.4.*",
         # for mysql
         "pymysql==1.0.*",
         # for caching_sha2_password access
@@ -43,6 +44,7 @@ setuptools.setup(
         "lark-parser==0.11.*",
         # For the config file
         "PyYAML==5.4.*",
+        "types-PyYAML==5.4.*",
         # For the config file
         # (for accessing XDG_CONFIG_HOME)
         "xdg==5.0.*",
@@ -50,6 +52,7 @@ setuptools.setup(
         "typed-argument-parser==1.6.*",
     ],
     extras_require={
+        "slurm": ["requests==2.25.*", "types-requests==2.25.*"],
         # gemmi for space group string to index
         # pint for xds ingester
         "p11": ["pint==0.16.*", "numpy==1.19.*", "gemmi==0.4.*"],

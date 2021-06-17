@@ -23,9 +23,10 @@ type ParentState input tofetch
     , childInput :: input
     }
 
-data ParentAction tofetch
+data ParentAction input tofetch
   = Initialize
   | ChildFailed ParentError
+  | InputUpdated input
 
 type ParentSlots co
   = ( child :: forall query. H.Slot query co Int )
@@ -35,6 +36,12 @@ type ChildInput ci a
     , input :: ci
     }
 
+parentRender ::
+  forall tofetch m query input.
+  Ord tofetch =>
+  H.Component HH.HTML query (ChildInput input tofetch) String m ->
+  ParentState input tofetch ->
+  H.ComponentHTML (ParentAction input tofetch) ( child :: H.Slot query String tofetch ) m
 parentRender childComponent state =
   let
     loading = HH.div [ HP.classes [] ] [ HH.p_ [ HH.text ("Loading, please wait...") ], HH.p_ [ spinner (Just Twice) ] ]
@@ -42,7 +49,14 @@ parentRender childComponent state =
     case state.remoteData of
       NotAsked -> loading
       Loading -> loading
-      Failure e -> HH.div [ HP.classes [] ] [ HH.p_ [ HH.text "Error loading table:" ], HH.pre_ [ HH.text e ], HH.p_ [ HH.button [ classList [ "btn", "btn-primary" ], HE.onClick \_ -> Just Initialize ] [ HH.text "Retry" ] ] ]
+      Failure e ->
+        HH.div
+          [ HP.classes []
+          ]
+          [ HH.p_ [ HH.text "Error loading:" ]
+          , HH.pre_ [ HH.text e ]
+          , HH.p_ [ HH.button [ classList [ "btn", "btn-primary" ], HE.onClick \_ -> Just Initialize ] [ HH.text "Retry" ] ]
+          ]
       Success state' -> HH.slot (SProxy :: SProxy "child") state' childComponent ({ remoteData: state', input: state.childInput }) (Just <<< ChildFailed)
 
 type Fetcher input tofetch
@@ -51,8 +65,8 @@ type Fetcher input tofetch
 parentHandleAction ::
   forall input tofetch slots output.
   Fetcher input tofetch ->
-  ParentAction tofetch ->
-  H.HalogenM (ParentState input tofetch) (ParentAction tofetch) slots output AppMonad Unit
+  ParentAction input tofetch ->
+  H.HalogenM (ParentState input tofetch) (ParentAction input tofetch) slots output AppMonad Unit
 parentHandleAction fetchState a = case a of
   Initialize -> do
     H.modify_ \state -> state { remoteData = Loading }
@@ -61,6 +75,7 @@ parentHandleAction fetchState a = case a of
     H.modify_ \state -> state { remoteData = result }
   ChildFailed e -> do
     H.modify_ \state -> state { remoteData = Failure e }
+  InputUpdated e -> H.modify_ \state -> state { childInput = e }
 
 parentComponent ::
   forall input query output cq tofetch.
@@ -77,5 +92,6 @@ parentComponent fetchState childComponent =
           H.defaultEval
             { handleAction = parentHandleAction fetchState
             , initialize = Just Initialize
+            , receive = Just <<< InputUpdated
             }
     }

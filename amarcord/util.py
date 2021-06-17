@@ -1,5 +1,6 @@
 import datetime
 import re
+from pathlib import Path
 from typing import Callable
 from typing import Dict
 from typing import Generator
@@ -223,3 +224,10 @@ def contains(xs: List[T], by: Callable[[T], bool]) -> bool:
 def natural_key(string_: str) -> List[Union[int, str]]:
     """See https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/"""
     return [int(s) if s.isdigit() else s for s in re.split(r"(\d+)", string_)]
+
+
+def path_mtime(p: Path) -> datetime.datetime:
+    return datetime.datetime.fromtimestamp(
+        p.stat().st_mtime,
+        tz=datetime.timezone.utc,
+    )

@@ -1,10 +1,10 @@
-from enum import Enum
-from enum import auto
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 
+from enum import Enum
+from enum import auto
 from sqlalchemy import MetaData
 from sqlalchemy import create_engine
 from sqlalchemy import event
@@ -52,10 +52,6 @@ class DBContext:
             f()
         else:
             self._after_db_created.append(f)
-
-    @property
-    def dbname(self) -> str:
-        return self.engine.url.database
 
     def create_all(self, creation_mode: CreationMode) -> None:
         self.metadata.create_all(

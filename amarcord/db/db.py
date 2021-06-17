@@ -190,7 +190,9 @@ class DB:
             run.c.proposal_id == proposal_id if proposal_id is not None else True
         )
         if since:
-            where_condition = and_(where_condition, run.c.modified >= since)
+            # mypy complains: error: Value of type variable "_CLE" of function cannot be "object"
+            # not sure what that means
+            where_condition = and_(where_condition, run.c.modified >= since)  # type: ignore
         select_stmt = (
             sa.select(
                 [

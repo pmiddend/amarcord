@@ -7,6 +7,8 @@ from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_dewar_lut
 from amarcord.amici.p11.db import table_diffractions
 from amarcord.amici.p11.db import table_pucks
+from amarcord.amici.p11.db import table_reduction_jobs
+from amarcord.amici.p11.db import table_tools
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 
@@ -16,6 +18,7 @@ class Arguments(Tap):
 
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     db_echo: bool = False  # output SQL statements?
+    create_view: bool = False  # also create the Crystal_View
 
 
 def main() -> int:
@@ -24,8 +27,10 @@ def main() -> int:
     pucks = table_pucks(dbcontext.metadata)
     crystals = table_crystals(dbcontext.metadata, pucks)
     table_dewar_lut(dbcontext.metadata, pucks)
-    table_diffractions(dbcontext.metadata, crystals)
+    diffractions = table_diffractions(dbcontext.metadata, crystals)
     table_data_reduction(dbcontext.metadata, crystals)
+    tools = table_tools(dbcontext.metadata)
+    table_reduction_jobs(dbcontext.metadata, tools, diffractions)
     dbcontext.create_all(CreationMode.CHECK_FIRST)
     with dbcontext.connect() as conn:
         conn.execute(
@@ -41,6 +46,7 @@ def main() -> int:
             "on `d`.`crystal_id` = `c`.`crystal_id` left join `Pucks` `p` on `c`.`puck_id` = `p`.`puck_id`"
             "group by `c`.`crystal_id`,`d`.`run_id`"
         )
+    print("tables successfully created")
     return 0
 
 

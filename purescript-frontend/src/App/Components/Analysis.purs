@@ -1,18 +1,21 @@
 module App.Components.Analysis where
 
-import App.API (AnalysisResponse, AnalysisRow, retrieveAnalysis)
+import App.API (AnalysisResponse, AnalysisRow, DiffractionList, retrieveAnalysis)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), container, fluidContainer, table)
+import App.Bootstrap (TableFlag(..), fluidContainer, table)
+import App.Components.JobList as JobList
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
+import App.Components.ToolRunner as ToolRunner
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, singleClass)
 import App.Route (AnalysisRouteInput, Route(..), createLink)
 import App.SortOrder (SortOrder(..), invertOrder)
-import Control.Applicative (pure)
-import Control.Bind (bind)
+import Control.Applicative (pure, (<*>))
+import Control.Bind (bind, (>>=))
 import Data.Argonaut (Json, caseJson, jsonNull)
-import Data.Array (cons, elem, filter, length, mapMaybe, nub, sort)
-import Data.Eq (class Eq, (/=), (==))
+import Data.Argonaut as Argonaut
+import Data.Array (cons, elem, filter, findIndex, index, length, mapMaybe, nub, sort)
+import Data.Eq (class Eq, eq, (/=), (==))
 import Data.Foldable (indexl)
 import Data.FoldableWithIndex (foldrWithIndex)
 import Data.Function (const, identity, (<<<))
@@ -25,8 +28,11 @@ import Data.Ord (class Ord, (>))
 import Data.Semigroup ((<>))
 import Data.Show (show)
 import Data.String (Pattern(..), Replacement(..), replace)
+import Data.Symbol (SProxy(..))
+import Data.Traversable (foldMap)
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
+import Data.Void (Void, absurd)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -245,6 +251,7 @@ renderColumnChooser state =
           ]
       ]
 
+analysisColumnIsSortable :: forall t457. t457 -> Boolean
 analysisColumnIsSortable = const true
 
 rowsWithSelected columns rows selected =
@@ -257,7 +264,14 @@ rowsWithSelected columns rows selected =
   in
     (\row -> (\columnIndex -> fromMaybe jsonNull (indexl columnIndex row)) <$> selectedColumnIndices) <$> rows
 
-render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
+type Slots
+  = ( jobList :: forall query. H.Slot query Void Int, toolRunner :: forall query. H.Slot query Void Int )
+
+_jobList = SProxy :: SProxy "jobList"
+
+_toolRunner = SProxy :: SProxy "toolRunner"
+
+render :: State -> H.ComponentHTML Action Slots AppMonad
 render state =
   let
     headers = (\x -> Tuple x (postprocessColumnName x)) <$> state.selectedColumns
@@ -274,6 +288,27 @@ render state =
 
     makeRow :: forall w. AnalysisRow -> HH.HTML w Action
     makeRow row = HH.tr_ ((\cell -> HH.td [ singleClass "text-center" ] [ HH.text (showCellContent cell) ]) <$> row)
+
+    diffractionList :: DiffractionList
+    diffractionList =
+      let
+        crystalIdColumn' = findIndex (eq "diff_crystal_id") state.columns
+
+        runIdColumn' = findIndex (eq "diff_run_id") state.columns
+
+        colIdxs' :: Maybe (Tuple Int Int)
+        colIdxs' = Tuple <$> crystalIdColumn' <*> runIdColumn'
+
+        unindexCols :: Tuple Int Int -> AnalysisRow -> Maybe (Tuple Json Json)
+        unindexCols (Tuple c r) row = Tuple <$> index row c <*> index row r
+
+        decomposeCols :: Tuple Json Json -> Maybe (Tuple String Int)
+        decomposeCols (Tuple c r) = Tuple <$> (Argonaut.toString c) <*> (Argonaut.toNumber r >>= fromNumber)
+
+        processRow :: Tuple Int Int -> AnalysisRow -> Maybe (Tuple String Int)
+        processRow colIdxs row = unindexCols colIdxs row >>= decomposeCols
+      in
+        foldMap (\colIdxs -> mapMaybe (processRow colIdxs) state.rows) colIdxs'
   in
     fluidContainer
       [ HH.h2_ [ icon { name: "table", size: Nothing, spin: false }, HH.text " Analysis Results" ]
@@ -287,4 +322,8 @@ render state =
           [ TableStriped, TableSmall, TableBordered ]
           (makeHeader <$> headers)
           (makeRow <$> state.displayRows)
+      , HH.h2_ [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Run tool" ]
+      , HH.slot _toolRunner 0 ToolRunner.component { diffractions: diffractionList } absurd
+      , HH.h2_ [ icon { name: "clipboard", size: Nothing, spin: false }, HH.text " Jobs" ]
+      , HH.slot _jobList 1 JobList.component {} absurd
       ]

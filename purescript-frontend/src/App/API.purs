@@ -1,7 +1,6 @@
 module App.API where
 
 import Prelude
-
 import Affjax (Error, Response, printError)
 import Affjax as AX
 import Affjax.RequestBody (RequestBody(..))
@@ -14,22 +13,26 @@ import App.MiniSample (MiniSample)
 import App.Overview (OverviewRow)
 import App.SortOrder (SortOrder, sortToString)
 import Control.Monad.Reader (asks)
-import Data.Argonaut (class DecodeJson, JsonDecodeError)
+import Data.Argonaut (class DecodeJson, JsonDecodeError, fromObject, fromString, stringify)
+import Data.Argonaut as Argonaut
 import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
+import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
 import Data.FormURLEncoded (fromArray)
+import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..), fst, snd)
+import Foreign.Object as FO
 import Halogen (liftAff)
-import URI.Query (fromString, unsafeToString)
-
+import URI.Query as Query
 
 type OverviewResponse
   = { overviewRows :: Array OverviewRow
     }
 
-type AnalysisRow = Array Json
+type AnalysisRow
+  = Array Json
 
 type AnalysisResponse
   = { analysis :: Array AnalysisRow
@@ -39,6 +42,10 @@ type AnalysisResponse
 
 type AttributiResponse
   = { attributi :: Array Attributo
+    }
+
+type RunJobResponse
+  = { jobIds :: Array Int
     }
 
 type EventsResponse
@@ -62,6 +69,51 @@ type PucksResponse
 type SampleResponse
   = { pucks :: Array Puck
     , crystals :: Array Crystal
+    }
+
+type ToolInput
+  = { name :: String
+    , "type" :: String
+    }
+
+type ToolInputMap
+  = Map.Map String String
+
+type DiffractionList
+  = Array (Tuple String Int)
+
+type Tool
+  = { toolId :: Int
+    , created :: String
+    , name :: String
+    , executablePath :: String
+    , extraFiles :: Array String
+    , commandLine :: String
+    , description :: String
+    , inputs :: Array ToolInput
+    }
+
+type ToolsResponse
+  = { tools :: Array Tool
+    }
+
+type Job
+  = { jobId :: Int
+    , started :: Maybe String
+    , stopped :: Maybe String
+    , queued :: String
+    , status :: String
+    , failureReason :: Maybe String
+    , metadata :: Maybe Json
+    , outputDir :: Maybe String
+    , runId :: Int
+    , crystalId :: String
+    , tool :: String
+    , toolInputs :: Json
+    }
+
+type JobsResponse
+  = { jobs :: Array Job
     }
 
 type DewarEntry
@@ -99,6 +151,18 @@ handleResponse response = do
           Left jsonError -> pure (Left (printJsonDecodeError jsonError))
           Right jsonResult -> pure (Right jsonResult)
         StatusCode sc -> pure (Left ("Status code: " <> show sc <> "\n\nJSON response:\n" <> stringifyWithIndent 2 httpResult.body))
+
+retrieveTools :: AppMonad (Either String ToolsResponse)
+retrieveTools = do
+  baseUrl' <- asks (_.baseUrl)
+  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/tools")
+  handleResponse response
+
+retrieveJobs :: AppMonad (Either String JobsResponse)
+retrieveJobs = do
+  baseUrl' <- asks (_.baseUrl)
+  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/jobs")
+  handleResponse response
 
 retrieveOverview :: Maybe String -> AppMonad (Either String OverviewResponse)
 retrieveOverview query = do
@@ -139,6 +203,83 @@ retrieveDiffractions puckId = do
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
+mapToObject :: Map.Map String String -> Json
+mapToObject m =
+  let
+    -- Map with value String -> Map with value Json
+    -- Map with value Json to List of tuples
+    tuples :: Array (Tuple String Json)
+    tuples = Map.toUnfoldable (fromString <$> m)
+
+    -- List of Tuples to Object
+    obj :: FO.Object Json
+    obj = FO.fromFoldable tuples
+  in
+    -- Object to argonaut Json
+    fromObject obj
+
+startJob :: Int -> ToolInputMap -> DiffractionList -> AppMonad (Either String RunJobResponse)
+startJob toolId inputs diffractions = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    url :: String
+    url = baseUrl' <> "/api/workflows/jobs/" <> show toolId
+  response <-
+    liftAff
+      $ AX.post ResponseFormat.json url
+          ( Just
+              ( Json
+                  ( encodeJson
+                      { inputs: mapToObject inputs
+                      , diffractions
+                      }
+                  )
+              )
+          )
+  handleResponse response
+
+addTool :: Tool -> AppMonad (Either String ToolsResponse)
+addTool tool = do
+  baseUrl' <- asks (_.baseUrl)
+  response <-
+    liftAff
+      $ AX.post ResponseFormat.json (baseUrl' <> "/api/workflows/tools")
+          ( Just
+              ( FormURLEncoded
+                  ( fromArray
+                      ( [ Tuple "name" (Just tool.name)
+                        , Tuple "executablePath" (Just tool.executablePath)
+                        , Tuple "extraFiles" (Just (stringify (Argonaut.fromArray (Argonaut.fromString <$> tool.extraFiles))))
+                        , Tuple "commandLine" (Just tool.commandLine)
+                        , Tuple "description" (Just tool.description)
+                        ]
+                      )
+                  )
+              )
+          )
+  handleResponse response
+
+editTool :: Tool -> AppMonad (Either String ToolsResponse)
+editTool tool = do
+  baseUrl' <- asks (_.baseUrl)
+  response <-
+    liftAff
+      $ AX.post ResponseFormat.json (baseUrl' <> "/api/workflows/tools/" <> show tool.toolId)
+          ( Just
+              ( FormURLEncoded
+                  ( fromArray
+                      ( [ Tuple "name" (Just tool.name)
+                        , Tuple "executablePath" (Just tool.executablePath)
+                        , Tuple "extraFiles" (Just (stringify (Argonaut.fromArray (Argonaut.fromString <$> tool.extraFiles))))
+                        , Tuple "commandLine" (Just tool.commandLine)
+                        , Tuple "description" (Just tool.description)
+                        ]
+                      )
+                  )
+              )
+          )
+  handleResponse response
+
 addCrystal :: String -> Maybe (Tuple String Int) -> AppMonad (Either String SampleResponse)
 addCrystal crystalId puckIdAndPosition = do
   baseUrl' <- asks (_.baseUrl)
@@ -157,7 +298,6 @@ addCrystal crystalId puckIdAndPosition = do
               )
           )
   handleResponse response
-  
 
 addPuck :: String -> AppMonad (Either String PucksResponse)
 addPuck puckId = do
@@ -192,6 +332,12 @@ removeSingleDewarEntry dewarPosition = do
     url :: String
     url = (baseUrl' <> "/api/dewar/" <> show dewarPosition)
   response <- liftAff $ AX.delete ResponseFormat.json url
+  handleResponse response
+
+removeTool :: Int -> AppMonad (Either String ToolsResponse)
+removeTool toolId = do
+  baseUrl' <- asks (_.baseUrl)
+  response <- liftAff $ AX.delete ResponseFormat.json (baseUrl' <> "/api/workflows/tools/" <> show toolId)
   handleResponse response
 
 removePuck :: String -> AppMonad (Either String SampleResponse)
@@ -280,7 +426,7 @@ retrieveAnalysis filterQuery col order = do
   --log Info ("to stringed" <>  (toString (fromString filterQuery)))
   let
     url :: String
-    url = (baseUrl' <> "/api/analysis?sortColumn=" <> col <> "&sortOrder=" <> sortToString order) <> "&filterQuery=" <> (unsafeToString (fromString filterQuery))
+    url = (baseUrl' <> "/api/analysis?sortColumn=" <> col <> "&sortOrder=" <> sortToString order) <> "&filterQuery=" <> (Query.unsafeToString (Query.fromString filterQuery))
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 

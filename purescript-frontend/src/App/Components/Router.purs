@@ -5,6 +5,7 @@ import App.AppMonad (AppMonad)
 import App.Components.Analysis as Analysis
 import App.Components.Sample as Sample
 import App.Components.Beamline as Beamline
+import App.Components.Tools as Tools
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList, singleClass)
 import App.Root as Root
@@ -47,6 +48,7 @@ type ChildSlots
     , sample :: OpaqueSlot Unit
     , beamline :: OpaqueSlot Unit
     , analysis :: OpaqueSlot Unit
+    , tools :: OpaqueSlot Unit
     )
 
 component :: forall i o. H.Component HH.HTML Query i o AppMonad
@@ -85,10 +87,7 @@ handleAction = case _ of
   GoTo route e -> do
     liftEffect $ preventDefault (toEvent e)
     mRoute <- H.gets _.route
-    when (mRoute /= Just route)
-      $ do
-          liftEffect $ log ("new route" <> print routeCodec route)
-          navigate route
+    when (mRoute /= Just route) $ navigate route
 
 -- Renders a page component depending on which route is matched.
 render :: State -> H.ComponentHTML Action ChildSlots AppMonad
@@ -100,6 +99,7 @@ render st =
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
           Sample -> HH.slot (SProxy :: _ "sample") unit Sample.component unit absurd
           Analysis input -> HH.slot (SProxy :: _ "analysis") unit Analysis.component input absurd
+          Tools input -> HH.slot (SProxy :: _ "tools") unit Tools.component input absurd
           Beamline input -> HH.slot (SProxy :: _ "beamline") unit Beamline.component input absurd
 
 navItems ::
@@ -120,6 +120,10 @@ navItems =
   , { title: "Analysis"
     , link: Analysis { sortOrder: Descending, sortColumn: "crystals_crystal_id", filterQuery: "" }
     , fa: "table"
+    }
+  , { title: "Tools"
+    , link: Tools {}
+    , fa: "tools"
     }
   ]
 
