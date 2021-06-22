@@ -27,9 +27,9 @@ pylint-and-mypy:
   script:
     - pip install -e .[gui,webserver,daemon]
     - pip install 'mypy==0.812' 'pylint==2.8.*' sqlalchemy-stubs
-    - mypy amarcord
+    - mypy amarcord tutorial
     - apt-get update -y && apt-get install -y qt5-default
-    - pylint amarcord
+    - pylint amarcord tutorial
     - pyrcc5 icons/resources.qrc -o resources-copy.py
 
 validate-conda-yaml:
