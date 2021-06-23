@@ -161,6 +161,7 @@ def table_diffractions(
             nullable=False,
         ),
         Column("comment", Text),
+        Column("estimated_resolution", Text),
         Column("metadata", String(length=255)),
         Column("angle_start", Float, comment="deg"),
         Column("number_of_frames", Integer),

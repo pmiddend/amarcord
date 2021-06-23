@@ -35,6 +35,7 @@ class MetadataRetriever:
 
     diffraction: Callable[[str, int], DiffractionType]
     comment: Callable[[str, int], str]
+    estimated_resolution: Callable[[str, int], str]
     detector_name: str
 
 
@@ -43,7 +44,10 @@ def empty_metadata_retriever(detector_name: str) -> MetadataRetriever:
     An empty metadata retriever, which assumes every diffraction is a success and has no comment.
     """
     return MetadataRetriever(
-        lambda cid, rid: DiffractionType.success, lambda cid, rid: "", detector_name
+        lambda cid, rid: DiffractionType.success,
+        lambda cid, rid: "",
+        lambda cid, rid: "",
+        detector_name,
     )
 
 
@@ -211,6 +215,7 @@ def insert_diffraction(
             metadata=crystal_id,
             diffraction=metadata_retriever.diffraction(crystal_id, run.run_id),  # type: ignore
             comment=metadata_retriever.comment(crystal_id, run.run_id),  # type: ignore
+            estimated_resolution=metadata_retriever.estimated_resolution(crystal_id, run.run_id),  # type: ignore
             angle_start=run.info_file.start_angle.to("deg").magnitude,
             number_of_frames=run.info_file.frames,
             angle_step=run.info_file.degrees_per_frame.to("deg").magnitude,

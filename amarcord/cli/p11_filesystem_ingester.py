@@ -107,22 +107,26 @@ def process_and_validate_with_spreadsheet(
 ) -> Tuple[List[P11Crystal], List[str]]:
     new_crystals: List[P11Crystal] = []
     spreadsheet_warnings: List[str] = []
-    remaining_crystals = set((c.name, c.run_id) for c in spreadsheet_lines)
+    # First step: check for duplicate lines in the spreadsheet file
     for idx, line in enumerate(spreadsheet_lines):
-        duplicate_line = find_by(
-            spreadsheet_lines[idx + 1 :],
+        duplicate_line: Optional[Tuple[int, CrystalLine]] = find_by(
+            list(enumerate(spreadsheet_lines[idx + 1 :])),
             # pylint: disable=cell-var-from-loop
-            lambda csl: csl.name == line.name and csl.run_id == line.run_id,
+            lambda csl: csl[1].name == line.name and csl[1].run_id == line.run_id,
         )
 
         if duplicate_line is not None:
             spreadsheet_warnings.append(
-                f"line {idx+1} is a duplicate (same name and run id as another row, typo?)"
+                f"line {idx+1} is a duplicate (same name {line.name} and run id {line.run_id} as row {duplicate_line[0]}, typo?)"
             )
+    # Second step: Iterate over all known crystals from the filesystem, keep
+    # track of the ones we have _not_ seen in the spreadsheet
+    remaining_crystals = set((c.name, c.run_id) for c in spreadsheet_lines)
     for crystal in crystals:
         new_runs: List[P11Run] = []
         crystal_name: Optional[str] = None
         for run in crystal.runs:
+            # Try to find the crystal in the spreadsheet
             crystal_spreadsheet_line = find_by(
                 spreadsheet_lines,
                 # pylint: disable=cell-var-from-loop
@@ -147,9 +151,15 @@ def process_and_validate_with_spreadsheet(
                     break
                 crystal_name = crystal_spreadsheet_line.name
                 new_runs.append(run)
-                remaining_crystals.remove(
-                    (crystal_spreadsheet_line.name, crystal_spreadsheet_line.run_id)
+                crystal_tuple = (
+                    crystal_spreadsheet_line.name,
+                    crystal_spreadsheet_line.run_id,
                 )
+                # Due to duplicate lines, we might not have this tuple in the collection anymore
+                if crystal_tuple in remaining_crystals:
+                    remaining_crystals.remove(
+                        (crystal_spreadsheet_line.name, crystal_spreadsheet_line.run_id)
+                    )
         if new_runs and crystal_name is not None:
             new_crystals.append(
                 replace(crystal, crystal_id=crystal_name, runs=new_runs)
