@@ -93,7 +93,7 @@ def convert_row(
     if directory == "":
         raise Exception(f"{path}, line {row_idx}: {COLUMN_DIRECTORY} is empty!")
     try:
-        outcome = DiffractionType(row[header_to_index[COLUMN_OUTCOME]])
+        outcome = DiffractionType(row[header_to_index[COLUMN_OUTCOME]].strip())
     except:
         raise Exception(
             f"{path}, line {row_idx}: {COLUMN_OUTCOME} is not valid, expecting one of "
