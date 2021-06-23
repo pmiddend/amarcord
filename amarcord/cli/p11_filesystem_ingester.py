@@ -1,3 +1,4 @@
+import datetime
 import logging
 import sys
 from dataclasses import replace
@@ -58,6 +59,9 @@ class Arguments(Tap):
     crystal_spreadsheet: Optional[
         str
     ] = None  # Path to a spreadsheet file containing crystal information
+    crystal_creation_date: Optional[
+        str
+    ] = None  # Creation date for newly created crystals (format YYYY-MM-DD)
     ignore_diffraction_warnings: bool = (
         False  # Ignore warnings related to ingestion of diffractions
     )
@@ -144,7 +148,7 @@ def process_and_validate_with_spreadsheet(
                     and crystal_name != crystal_spreadsheet_line.name
                 ):
                     spreadsheet_warnings.append(
-                        f"different name for same crystal {crystal.crystal_id} given for two different runs"
+                        f"different name for same crystal {crystal.crystal_id} given for two different runs, now at {run.run_id}"
                     )
                     new_runs.clear()
                     crystal_name = None
@@ -193,6 +197,15 @@ def main_loop(
     table_diffs_: sa.Table,
     table_data_reduction_: sa.Table,
 ) -> Union[int, Tuple[List[P11Crystal], Dict[Path, XDSFilesystem]]]:
+    crystal_creation_date_str = args.crystal_creation_date
+    crystal_creation_date: datetime.datetime
+    if crystal_creation_date_str is None:
+        crystal_creation_date = datetime.datetime.now()
+    else:
+        crystal_creation_date = datetime.datetime.strptime(
+            crystal_creation_date_str, "%Y-%m-%d"
+        )
+
     logger.info("Analyzing filesystem...")
     crystals, warnings = parse_p11_crystals(Path(args.p11_proposal_path))
 
@@ -269,7 +282,8 @@ def main_loop(
                             logger.info("Creating crystal %s...", crystal.crystal_id)
                             conn.execute(
                                 sa.insert(table_crystals_).values(
-                                    crystal_id=crystal.crystal_id
+                                    crystal_id=crystal.crystal_id,
+                                    created=crystal_creation_date,
                                 )
                             )
                         else:
