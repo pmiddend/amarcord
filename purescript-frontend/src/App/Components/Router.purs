@@ -118,7 +118,7 @@ navItems =
     , fa: "radiation"
     }
   , { title: "Analysis"
-    , link: Analysis { sortOrder: Descending, sortColumn: "crystal_id", filterQuery: "" }
+    , link: Analysis { sortOrder: Descending, sortColumn: "crystals_crystal_id", filterQuery: "" }
     , fa: "table"
     }
   ]

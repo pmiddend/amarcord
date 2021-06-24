@@ -368,12 +368,12 @@ def retrieve_analysis() -> JSONDict:
             dbcontext.metadata, crystals, schema=None
         )
         sort_column = request.args.get("sortColumn", "crystal_id")
-        # sort_column = sort_column_to_real_column(
-        #     crystals, data_reductions, diffractions, sort_column_str
-        # )
         sort_order_desc = sort_order_to_descending(request.args.get("sortOrder", "asc"))
         filter_query = request.args.get("filterQuery", "")
-        crystal_columns = [crystals.c.crystal_id.label("crystal_id")]
+        crystal_columns = [
+            crystals.c.crystal_id.label("crystals_crystal_id"),
+            crystals.c.created.label("crystals_created"),
+        ]
         diffraction_columns = [c.label("diff_" + c.name) for c in diffractions.c]
         reduction_columns = [c.label("dr_" + c.name) for c in data_reductions.c]
         all_columns = crystal_columns + diffraction_columns + reduction_columns
@@ -406,27 +406,6 @@ def retrieve_analysis() -> JSONDict:
                 "analysisColumns": [c.name for c in all_columns],
                 "analysis": [
                     [[key, postprocess(value)] for key, value in row.items()]
-                    # {
-                    #     "crystal": [
-                    #         [row_key[8:], row[row_key]]
-                    #         for row_key in row.keys()
-                    #         if row_key.startswith("crystal_")
-                    #     ],
-                    #     "diffraction": [
-                    #         [row_key[5:], row[row_key]]
-                    #         for row_key in row.keys()
-                    #         if row_key.startswith("diff_")
-                    #     ]
-                    #     if row["diff_run_id"] is not None
-                    #     else None,
-                    #     "reduction": [
-                    #         [row_key[3:], row[row_key]]
-                    #         for row_key in row.keys()
-                    #         if row_key.startswith("dr_")
-                    #     ]
-                    #     if row["dr_data_reduction_id"] is not None
-                    #     else None,
-                    # }
                     for row in results
                 ],
                 "sqlError": None,

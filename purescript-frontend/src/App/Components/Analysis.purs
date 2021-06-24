@@ -11,12 +11,13 @@ import App.SortOrder (SortOrder(..), invertOrder)
 import Control.Applicative (pure)
 import Control.Bind (bind)
 import Data.Argonaut (Json, caseJson)
-import Data.Array (find)
+import Data.Array (find, length)
 import Data.Eq (class Eq, (==))
 import Data.Function (const, identity, (<<<))
 import Data.Functor ((<$>))
+import Data.Int (fromNumber)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Ord (class Ord)
+import Data.Ord (class Ord, (>))
 import Data.Semigroup ((<>))
 import Data.Set (Set, delete, empty, fromFoldable, insert, member, toUnfoldable)
 import Data.Show (show)
@@ -70,7 +71,7 @@ initialState { input: sorting, remoteData: AnalysisData analysisResponse } =
   , columns: analysisResponse.analysisColumns
   , sorting
   , errorMessage: Nothing
-  , selectedColumns: fromFoldable [ "crystal_id", "diff_run_id" ]
+  , selectedColumns: fromFoldable [ "crystals_crystal_id", "crystals_created", "diff_run_id", "diff_diffraction", "dr_data_reduction_id" ]
   }
 
 component :: forall query output. H.Component HH.HTML query AnalysisRouteInput output AppMonad
@@ -141,12 +142,14 @@ createUpdatedSortInput doInvertOrder newColumn { sortColumn, sortOrder, filterQu
     { sortColumn: newColumn, sortOrder: Ascending, filterQuery }
 
 showCellContent :: Json -> String
-showCellContent = caseJson (const "") show show identity (const "array") (const "object")
+showCellContent = caseJson (const "") show showNumber identity (const "array") (const "object")
+  where
+  showNumber n = fromMaybe (show n) (show <$> (fromNumber n))
 
 extractFromRow row col = HH.text (fromMaybe "" ((showCellContent <<< snd) <$> find (\(Tuple col' v) -> col' == col) row))
 
 postprocessColumnName :: String -> String
-postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.")
+postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.") <<< replace (Pattern "crystals_") (Replacement "Crystals.")
 
 renderColumnChooser :: forall w. State -> HH.HTML w Action
 renderColumnChooser state =
@@ -212,6 +215,10 @@ renderColumnChooser state =
               [ HH.li_ [ HH.text "Column greater than: ", HH.pre_ [ HH.text "Diffractions.angle_step > 0.1" ] ]
               , HH.li_ [ HH.text "Column equal to: ", HH.pre_ [ HH.text "Diffractions.beamline = \"p11\"" ] ]
               , HH.li_ [ HH.text "Text contains: ", HH.pre_ [ HH.text "Crystals.crystal_id LIKE '%cryst%'" ] ]
+              , HH.li_ [ HH.text "Crystals without diffractions: ", HH.pre_ [ HH.text "Diffractions.run_id IS NULL" ] ]
+              , HH.li_ [ HH.text "Crystals without reductions: ", HH.pre_ [ HH.text "Data_Reduction.data_reduction_id IS NULL" ] ]
+              , HH.li_ [ HH.text "Comparison with a date/time column (just date): ", HH.pre_ [ HH.text "Crystals.created > '2021-05-01'" ] ]
+              , HH.li_ [ HH.text "Comparison with a date/time column (date and time): ", HH.pre_ [ HH.text "Crystals.created > '2021-05-01 15:00:00'" ] ]
               , HH.li_ [ HH.text "Combining expressions with AND: ", HH.pre_ [ HH.text "Diffractions.beamline = \"p11\" AND Diffractions.angle_step > 0.1" ] ]
               ]
           , HH.h3_ [ HH.text "Troubleshooting" ]
@@ -255,6 +262,7 @@ render state =
       , renderColumnChooser state
       , HH.hr_
       , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
+      , HH.h5_ [ HH.text ((show (length state.rows)) <> " result" <> (if length state.rows > 1 then "s" else "")) ]
       , table
           "analysis-table"
           [ TableStriped, TableSmall ]
