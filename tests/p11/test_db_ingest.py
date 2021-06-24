@@ -38,6 +38,8 @@ def test_db_ingest_diffractions_successful(db) -> None:
     diffs = table_diffractions(dbcontext.metadata, crystals)
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
+    diffraction_columns = [c.label("diff_" + c.name) for c in diffs.c]
+
     with dbcontext.connect() as conn:
         crystal_id = "c1"
         conn.execute(sa.insert(crystals).values(crystal_id=crystal_id))

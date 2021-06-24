@@ -2,7 +2,6 @@ module App.Route where
 
 import Prelude
 
-import App.API (AnalysisColumn, analysisColumnToString, stringToAnalysisColumn)
 import App.SortOrder (SortOrder, sortFromString, sortToString)
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
@@ -30,16 +29,13 @@ type BeamlineRouteInput = {
   }
 
 type AnalysisRouteInput = {
-    sortColumn :: AnalysisColumn
+    sortColumn :: String
   , sortOrder :: SortOrder
   , filterQuery :: String
   }
 
 sortOrder :: RouteDuplex String String -> RouteDuplex SortOrder SortOrder
 sortOrder = as sortToString sortFromString
-
-analysisColumn :: RouteDuplex String String -> RouteDuplex AnalysisColumn AnalysisColumn
-analysisColumn = as analysisColumnToString stringToAnalysisColumn
 
 routeCodec :: RouteDuplex' Route
 routeCodec =
@@ -48,7 +44,7 @@ routeCodec =
         { "Root": G.noArgs
         , "Sample": path "sample" G.noArgs
         , "Beamline": "beamline" ? { puckId: optional <<< string }
-        , "Analysis": "analysis" ? { sortColumn: analysisColumn, sortOrder: sortOrder, filterQuery: string }
+        , "Analysis": "analysis" ? { sortColumn: string, sortOrder: sortOrder, filterQuery: string }
         }
 
 matchRoute :: (Maybe Route -> Route -> Effect Unit) -> Effect (Effect Unit)

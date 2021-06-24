@@ -1,7 +1,6 @@
 module App.Components.Router where
 
 import Prelude
-import App.API (AnalysisColumn(..))
 import App.AppMonad (AppMonad)
 import App.Components.Analysis as Analysis
 import App.Components.Sample as Sample
@@ -119,7 +118,7 @@ navItems =
     , fa: "radiation"
     }
   , { title: "Analysis"
-    , link: Analysis { sortOrder: Descending, sortColumn: AnalysisTime, filterQuery: "" }
+    , link: Analysis { sortOrder: Descending, sortColumn: "crystal_id", filterQuery: "" }
     , fa: "table"
     }
   ]

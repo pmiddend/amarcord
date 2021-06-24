@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from typing import Any
 
 import sqlalchemy as sa
 from flask import Flask
@@ -11,8 +12,10 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import redirect
 
+from amarcord.amici.p11.db import Beamline
 from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.db import PuckType
+from amarcord.amici.p11.db import ReductionMethod
 from amarcord.amici.p11.db import table_crystals
 from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_dewar_lut
@@ -21,6 +24,7 @@ from amarcord.amici.p11.db import table_pucks
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.json import JSONDict
+from amarcord.modules.json import JSONValue
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -363,49 +367,19 @@ def retrieve_analysis() -> JSONDict:
         data_reductions = table_data_reduction(
             dbcontext.metadata, crystals, schema=None
         )
-        sort_column_str = request.args.get("sortColumn", "crystalId")
-        sort_column = sort_column_to_real_column(
-            crystals, data_reductions, diffractions, sort_column_str
-        )
+        sort_column = request.args.get("sortColumn", "crystal_id")
+        # sort_column = sort_column_to_real_column(
+        #     crystals, data_reductions, diffractions, sort_column_str
+        # )
         sort_order_desc = sort_order_to_descending(request.args.get("sortOrder", "asc"))
         filter_query = request.args.get("filterQuery", "")
+        crystal_columns = [crystals.c.crystal_id.label("crystal_id")]
+        diffraction_columns = [c.label("diff_" + c.name) for c in diffractions.c]
+        reduction_columns = [c.label("dr_" + c.name) for c in data_reductions.c]
+        all_columns = crystal_columns + diffraction_columns + reduction_columns
         try:
             results = conn.execute(
-                sa.select(
-                    [
-                        crystals.c.crystal_id,
-                        diffractions.c.run_id,
-                        diffractions.c.comment,
-                        diffractions.c.beam_intensity,
-                        diffractions.c.pinhole,
-                        diffractions.c.number_of_frames,
-                        diffractions.c.angle_step,
-                        diffractions.c.xray_energy,
-                        diffractions.c.xray_wavelength,
-                        diffractions.c.detector_distance,
-                        diffractions.c.aperture_radius,
-                        diffractions.c.exposure_time,
-                        diffractions.c.filter_transmission,
-                        diffractions.c.ring_current,
-                        diffractions.c.aperture_horizontal,
-                        diffractions.c.aperture_vertical,
-                        data_reductions.c.data_reduction_id,
-                        data_reductions.c.resolution_cc,
-                        data_reductions.c.resolution_isigma,
-                        data_reductions.c.isigi,
-                        data_reductions.c.rmeas,
-                        data_reductions.c.cchalf,
-                        data_reductions.c.rfactor,
-                        data_reductions.c.Wilson_b,
-                        data_reductions.c.a,
-                        data_reductions.c.b,
-                        data_reductions.c.c,
-                        data_reductions.c.alpha,
-                        data_reductions.c.beta,
-                        data_reductions.c.gamma,
-                        data_reductions.c.analysis_time,
-                    ]
-                )
+                sa.select(all_columns)
                 .select_from(
                     crystals.outerjoin(diffractions).outerjoin(
                         data_reductions,
@@ -416,58 +390,54 @@ def retrieve_analysis() -> JSONDict:
                     )
                 )
                 .where(sa.text(filter_query))
-                .order_by(sort_column.desc() if sort_order_desc else sort_column)
+                .order_by(sa.desc(sort_column) if sort_order_desc else sort_column)
             ).fetchall()
+
+            def postprocess(v: Any) -> JSONValue:
+                if isinstance(v, Beamline):
+                    return v.value
+                if isinstance(v, DiffractionType):
+                    return v.value
+                if isinstance(v, ReductionMethod):
+                    return v.value
+                return v
+
             return {
+                "analysisColumns": [c.name for c in all_columns],
                 "analysis": [
-                    {
-                        "crystalId": row["crystal_id"],
-                        "diffraction": None
-                        if row["run_id"] is None
-                        else {
-                            "runId": row["run_id"],
-                            "comment": row["comment"],
-                            "beamIntensity": row["beam_intensity"],
-                            "pinhole": row["pinhole"],
-                            "frames": row["number_of_frames"],
-                            "angleStep": row["angle_step"],
-                            "exposureTime": row["exposure_time"],
-                            "xrayEnergy": row["xray_energy"],
-                            "xrayWavelength": row["xray_wavelength"],
-                            "detectorDistance": row["detector_distance"],
-                            "apertureRadius": row["aperture_radius"],
-                            "filterTransmission": row["filter_transmission"],
-                            "ringCurrent": row["ring_current"],
-                            "apertureHorizontal": row["aperture_horizontal"],
-                            "apertureVertical": row["aperture_vertical"],
-                        },
-                        "dataReduction": None
-                        if row["data_reduction_id"] is None
-                        else {
-                            "dataReductionId": row["data_reduction_id"],
-                            "resolutionCc": row["resolution_cc"],
-                            "resolutionIsigma": row["resolution_isigma"],
-                            "isigi": row["isigi"],
-                            "rmeas": row["rmeas"],
-                            "cchalf": row["cchalf"],
-                            "rfactor": row["rfactor"],
-                            "wilsonb": row["Wilson_b"],
-                            "a": row["a"],
-                            "b": row["b"],
-                            "c": row["c"],
-                            "alpha": row["alpha"],
-                            "beta": row["beta"],
-                            "gamma": row["gamma"],
-                            "analysisTime": row["analysis_time"],
-                        },
-                    }
+                    [[key, postprocess(value)] for key, value in row.items()]
+                    # {
+                    #     "crystal": [
+                    #         [row_key[8:], row[row_key]]
+                    #         for row_key in row.keys()
+                    #         if row_key.startswith("crystal_")
+                    #     ],
+                    #     "diffraction": [
+                    #         [row_key[5:], row[row_key]]
+                    #         for row_key in row.keys()
+                    #         if row_key.startswith("diff_")
+                    #     ]
+                    #     if row["diff_run_id"] is not None
+                    #     else None,
+                    #     "reduction": [
+                    #         [row_key[3:], row[row_key]]
+                    #         for row_key in row.keys()
+                    #         if row_key.startswith("dr_")
+                    #     ]
+                    #     if row["dr_data_reduction_id"] is not None
+                    #     else None,
+                    # }
                     for row in results
                 ],
                 "sqlError": None,
             }
         except Exception as e:
             logger.exception(e)
-            return {"analysis": [], "sqlError": str(e)}
+            return {
+                "analysisColumns": [c.name for c in all_columns],
+                "analysis": [],
+                "sqlError": str(e),
+            }
 
 
 @app.errorhandler(HTTPException)

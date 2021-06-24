@@ -18,13 +18,9 @@ import Data.Argonaut (class DecodeJson, JsonDecodeError)
 import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
-import Data.Enum (class Enum, enumFromTo)
 import Data.FormURLEncoded (fromArray)
-import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Enum (genericPred, genericSucc)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..), fst, snd)
-import Data.Unfoldable1 (class Unfoldable1)
 import Halogen (liftAff)
 import URI.Query (fromString, unsafeToString)
 
@@ -33,171 +29,13 @@ type OverviewResponse
   = { overviewRows :: Array OverviewRow
     }
 
-data AnalysisColumn
-  = CrystalID
-  | AnalysisTime
-  | RunID
-  | Comment
-  | BeamIntensity
-  | Pinhole
-  | Frames
-  | AngleStep
-  | ExposureTime
-  | XrayEnergy
-  | XrayWavelength
-  | DetectorDistance
-  | ApertureRadius
-  | FilterTransmission
-  | RingCurrent
-  | ApertureHorizontal
-  | ApertureVertical
-  | DataReductionID
-  | ResolutionCC
-  | ResolutionIsigI
-  | Isigi
-  | Rfactor
-  | Rmeas
-  | Cchalf
-  | Wilsonb
-  | CellA
-  | CellB
-  | CellC
-  | CellAlpha
-  | CellBeta
-  | CellGamma
-
-derive instance genericAnalysisColumn :: Generic AnalysisColumn _
-
-derive instance eqAnalysisColumn :: Eq AnalysisColumn
-
-derive instance ordAnalysisColumn :: Ord AnalysisColumn
-
-instance enumAnalysisColumn :: Enum AnalysisColumn where
-  succ = genericSucc
-  pred = genericPred
-
-allAnalysisColumns :: forall a. Unfoldable1 a => a AnalysisColumn
-allAnalysisColumns = enumFromTo CrystalID CellGamma
-
-analysisColumnToString :: AnalysisColumn -> String
-analysisColumnToString CrystalID = "crystalId"
-analysisColumnToString Isigi = "isigi"
-analysisColumnToString Rmeas = "rmeas"
-analysisColumnToString Cchalf = "cchalf"
-analysisColumnToString Rfactor = "rfactor"
-analysisColumnToString Wilsonb = "wilsonb"
-analysisColumnToString Pinhole = "pinhole"
-analysisColumnToString Frames = "frames"
-analysisColumnToString AngleStep = "angle_step"
-analysisColumnToString ExposureTime = "exposure_time"
-analysisColumnToString XrayEnergy = "xray_energy"
-analysisColumnToString XrayWavelength = "xray_wavelength"
-analysisColumnToString DetectorDistance = "detector_distance"
-analysisColumnToString ApertureRadius = "aperture_radius"
-analysisColumnToString FilterTransmission = "filter_transmission"
-analysisColumnToString RingCurrent = "ring_current"
-analysisColumnToString ApertureHorizontal = "aperture_horizontal"
-analysisColumnToString ApertureVertical = "aperture_vertical"
-
-analysisColumnToString AnalysisTime = "analysisTime"
-
-analysisColumnToString BeamIntensity = "beamIntensity"
-
-analysisColumnToString RunID = "runId"
-
-analysisColumnToString Comment = "comment"
-
-analysisColumnToString DataReductionID = "drid"
-
-analysisColumnToString ResolutionCC = "resCC"
-
-analysisColumnToString ResolutionIsigI = "resI"
-
-analysisColumnToString CellA = "a"
-
-analysisColumnToString CellB = "b"
-
-analysisColumnToString CellC = "c"
-
-analysisColumnToString CellAlpha = "alpha"
-
-analysisColumnToString CellBeta = "beta"
-
-analysisColumnToString CellGamma = "gamma"
-
-stringToAnalysisColumn :: String -> Either String AnalysisColumn
-stringToAnalysisColumn "crystalId" = Right CrystalID
-
-stringToAnalysisColumn "analysisTime" = Right AnalysisTime
-
-stringToAnalysisColumn "runId" = Right RunID
-
-stringToAnalysisColumn "comment" = Right Comment
-
-stringToAnalysisColumn "drid" = Right DataReductionID
-
-stringToAnalysisColumn "resCC" = Right ResolutionCC
-
-stringToAnalysisColumn "resI" = Right ResolutionIsigI
-
-stringToAnalysisColumn "a" = Right CellA
-
-stringToAnalysisColumn "b" = Right CellB
-
-stringToAnalysisColumn "c" = Right CellC
-
-stringToAnalysisColumn "alpha" = Right CellAlpha
-
-stringToAnalysisColumn "beta" = Right CellBeta
-
-stringToAnalysisColumn "gamma" = Right CellGamma
-
-stringToAnalysisColumn val = Left ("not a valid column: " <> val)
-
-type DataReduction = {
-      dataReductionId :: Int
-    , resolutionCc :: Maybe Number
-    , resolutionIsigma :: Maybe Number
-    , isigi :: Maybe Number
-    , rmeas :: Maybe Number
-    , cchalf :: Maybe Number
-    , rfactor :: Maybe Number
-    , wilsonb :: Maybe Number
-    , a :: Number
-    , b :: Number
-    , c :: Number
-    , alpha :: Number
-    , beta :: Number
-    , analysisTime :: String
-    , gamma :: Number
-  }
-
-type Diffraction = {
-    runId :: Int
-  , comment :: String
-  , beamIntensity :: Maybe String
-  , pinhole :: Maybe String
-  , frames :: Maybe Int
-  , angleStep :: Maybe Number
-  , exposureTime :: Maybe Number
-  , xrayEnergy :: Maybe Number
-  , xrayWavelength :: Maybe Number
-  , detectorDistance :: Maybe Number
-  , apertureRadius :: Maybe Number
-  , filterTransmission :: Maybe Number
-  , ringCurrent :: Maybe Number
-  , apertureHorizontal :: Maybe Number
-  , apertureVertical :: Maybe Number
-  }
-
-type AnalysisRow
-  = { crystalId :: String
-    , diffraction :: Maybe Diffraction
-    , dataReduction :: Maybe DataReduction
-    }
+type AnalysisColumn = Tuple String Json
+                      
+type AnalysisRow = Array AnalysisColumn
 
 type AnalysisResponse
   = { analysis :: Array AnalysisRow
+    , analysisColumns :: Array String
     , sqlError :: Maybe String
     }
 
@@ -438,13 +276,13 @@ retrieveMiniSamples = do
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
-retrieveAnalysis :: String -> AnalysisColumn -> SortOrder -> AppMonad (Either String AnalysisResponse)
+retrieveAnalysis :: String -> String -> SortOrder -> AppMonad (Either String AnalysisResponse)
 retrieveAnalysis filterQuery col order = do
   baseUrl' <- asks (_.baseUrl)
   --log Info ("to stringed" <>  (toString (fromString filterQuery)))
   let
     url :: String
-    url = (baseUrl' <> "/api/analysis?sortColumn=" <> analysisColumnToString col <> "&sortOrder=" <> sortToString order) <> "&filterQuery=" <> (unsafeToString (fromString filterQuery))
+    url = (baseUrl' <> "/api/analysis?sortColumn=" <> col <> "&sortOrder=" <> sortToString order) <> "&filterQuery=" <> (unsafeToString (fromString filterQuery))
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
