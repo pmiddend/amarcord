@@ -32,6 +32,7 @@ type BeamlineRouteInput = {
 type AnalysisRouteInput = {
     sortColumn :: AnalysisColumn
   , sortOrder :: SortOrder
+  , filterQuery :: String
   }
 
 sortOrder :: RouteDuplex String String -> RouteDuplex SortOrder SortOrder
@@ -47,7 +48,7 @@ routeCodec =
         { "Root": G.noArgs
         , "Sample": path "sample" G.noArgs
         , "Beamline": "beamline" ? { puckId: optional <<< string }
-        , "Analysis": "analysis" ? { sortColumn: analysisColumn, sortOrder: sortOrder }
+        , "Analysis": "analysis" ? { sortColumn: analysisColumn, sortOrder: sortOrder, filterQuery: string }
         }
 
 matchRoute :: (Maybe Route -> Route -> Effect Unit) -> Effect (Effect Unit)

@@ -119,7 +119,7 @@ navItems =
     , fa: "radiation"
     }
   , { title: "Analysis"
-    , link: Analysis { sortOrder: Descending, sortColumn: AnalysisTime }
+    , link: Analysis { sortOrder: Descending, sortColumn: AnalysisTime, filterQuery: "" }
     , fa: "table"
     }
   ]

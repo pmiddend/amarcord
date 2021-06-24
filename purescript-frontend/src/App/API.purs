@@ -26,6 +26,8 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.Unfoldable1 (class Unfoldable1)
 import Halogen (liftAff)
+import URI.Query (fromString, unsafeToString)
+
 
 type OverviewResponse
   = { overviewRows :: Array OverviewRow
@@ -36,9 +38,27 @@ data AnalysisColumn
   | AnalysisTime
   | RunID
   | Comment
+  | BeamIntensity
+  | Pinhole
+  | Frames
+  | AngleStep
+  | ExposureTime
+  | XrayEnergy
+  | XrayWavelength
+  | DetectorDistance
+  | ApertureRadius
+  | FilterTransmission
+  | RingCurrent
+  | ApertureHorizontal
+  | ApertureVertical
   | DataReductionID
   | ResolutionCC
   | ResolutionIsigI
+  | Isigi
+  | Rfactor
+  | Rmeas
+  | Cchalf
+  | Wilsonb
   | CellA
   | CellB
   | CellC
@@ -61,8 +81,27 @@ allAnalysisColumns = enumFromTo CrystalID CellGamma
 
 analysisColumnToString :: AnalysisColumn -> String
 analysisColumnToString CrystalID = "crystalId"
+analysisColumnToString Isigi = "isigi"
+analysisColumnToString Rmeas = "rmeas"
+analysisColumnToString Cchalf = "cchalf"
+analysisColumnToString Rfactor = "rfactor"
+analysisColumnToString Wilsonb = "wilsonb"
+analysisColumnToString Pinhole = "pinhole"
+analysisColumnToString Frames = "frames"
+analysisColumnToString AngleStep = "angle_step"
+analysisColumnToString ExposureTime = "exposure_time"
+analysisColumnToString XrayEnergy = "xray_energy"
+analysisColumnToString XrayWavelength = "xray_wavelength"
+analysisColumnToString DetectorDistance = "detector_distance"
+analysisColumnToString ApertureRadius = "aperture_radius"
+analysisColumnToString FilterTransmission = "filter_transmission"
+analysisColumnToString RingCurrent = "ring_current"
+analysisColumnToString ApertureHorizontal = "aperture_horizontal"
+analysisColumnToString ApertureVertical = "aperture_vertical"
 
 analysisColumnToString AnalysisTime = "analysisTime"
+
+analysisColumnToString BeamIntensity = "beamIntensity"
 
 analysisColumnToString RunID = "runId"
 
@@ -119,6 +158,11 @@ type DataReduction = {
       dataReductionId :: Int
     , resolutionCc :: Maybe Number
     , resolutionIsigma :: Maybe Number
+    , isigi :: Maybe Number
+    , rmeas :: Maybe Number
+    , cchalf :: Maybe Number
+    , rfactor :: Maybe Number
+    , wilsonb :: Maybe Number
     , a :: Number
     , b :: Number
     , c :: Number
@@ -131,6 +175,19 @@ type DataReduction = {
 type Diffraction = {
     runId :: Int
   , comment :: String
+  , beamIntensity :: Maybe String
+  , pinhole :: Maybe String
+  , frames :: Maybe Int
+  , angleStep :: Maybe Number
+  , exposureTime :: Maybe Number
+  , xrayEnergy :: Maybe Number
+  , xrayWavelength :: Maybe Number
+  , detectorDistance :: Maybe Number
+  , apertureRadius :: Maybe Number
+  , filterTransmission :: Maybe Number
+  , ringCurrent :: Maybe Number
+  , apertureHorizontal :: Maybe Number
+  , apertureVertical :: Maybe Number
   }
 
 type AnalysisRow
@@ -141,6 +198,7 @@ type AnalysisRow
 
 type AnalysisResponse
   = { analysis :: Array AnalysisRow
+    , sqlError :: Maybe String
     }
 
 type AttributiResponse
@@ -380,12 +438,13 @@ retrieveMiniSamples = do
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 
-retrieveAnalysis :: AnalysisColumn -> SortOrder -> AppMonad (Either String AnalysisResponse)
-retrieveAnalysis col order = do
+retrieveAnalysis :: String -> AnalysisColumn -> SortOrder -> AppMonad (Either String AnalysisResponse)
+retrieveAnalysis filterQuery col order = do
   baseUrl' <- asks (_.baseUrl)
+  --log Info ("to stringed" <>  (toString (fromString filterQuery)))
   let
     url :: String
-    url = (baseUrl' <> "/api/analysis?sortColumn=" <> analysisColumnToString col <> "&sortOrder=" <> sortToString order)
+    url = (baseUrl' <> "/api/analysis?sortColumn=" <> analysisColumnToString col <> "&sortOrder=" <> sortToString order) <> "&filterQuery=" <> (unsafeToString (fromString filterQuery))
   response <- liftAff $ AX.get ResponseFormat.json url
   handleResponse response
 

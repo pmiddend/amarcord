@@ -12,7 +12,7 @@ import Control.Applicative (pure)
 import Control.Bind (bind)
 import Control.Monad ((>>=))
 import Data.Eq (class Eq, (==))
-import Data.Function ((<<<))
+import Data.Function (const, (<<<))
 import Data.Functor ((<$>))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Ord (class Ord)
@@ -51,7 +51,9 @@ data Action
   = Initialize
   | Resort AnalysisRouteInput
   | DeselectAll
+  | QuerySubmit
   | ToggleColumn AnalysisColumn
+  | QueryChange String
 
 -- Convert a sort order to an icon
 orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
@@ -83,9 +85,32 @@ childComponent =
             }
     }
 
+refresh :: forall slots. AnalysisRouteInput -> H.HalogenM State Action slots ParentError AppMonad Unit
+refresh routeInput = do
+  result <- H.lift (fetchData routeInput)
+  case result of
+    Success (AnalysisData { analysis, sqlError: Just sqlError }) ->
+      H.modify_ \state ->
+        state
+          { errorMessage = Just ("SQL error: " <> sqlError)
+          }
+    Success (AnalysisData { analysis, sqlError: Nothing }) ->
+      H.modify_ \state ->
+        state
+          { errorMessage = Nothing
+          , rows = analysis
+          , sorting = routeInput
+          }
+    Failure e -> H.modify_ \state -> state { errorMessage = Just e }
+    _ -> pure unit
+
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
   Initialize -> pure unit
+  QueryChange query -> H.modify_ \state -> state { sorting = state.sorting { filterQuery = query } }
+  QuerySubmit -> do
+    state <- H.get
+    refresh state.sorting
   DeselectAll -> do
     let
       emptyColumns :: Set AnalysisColumn
@@ -97,30 +122,19 @@ handleAction = case _ of
       state
         { selectedColumns = if a `member` s.selectedColumns then delete a s.selectedColumns else insert a s.selectedColumns
         }
-  Resort routeInput -> do
-    result <- H.lift (fetchData routeInput)
-    case result of
-      Success (AnalysisData { analysis }) ->
-        H.modify_ \state ->
-          state
-            { errorMessage = Nothing
-            , rows = analysis
-            , sorting = routeInput
-            }
-      Failure e -> H.modify_ \state -> state { errorMessage = Just e }
-      _ -> pure unit
+  Resort routeInput -> refresh routeInput
 
 fetchData :: AnalysisRouteInput -> AppMonad (RemoteData String AnalysisData)
-fetchData { sortColumn, sortOrder } = do
-  analysis <- retrieveAnalysis sortColumn sortOrder
+fetchData { filterQuery, sortColumn, sortOrder } = do
+  analysis <- retrieveAnalysis filterQuery sortColumn sortOrder
   pure (fromEither (AnalysisData <$> analysis))
 
 createUpdatedSortInput :: Boolean -> AnalysisColumn -> AnalysisRouteInput -> AnalysisRouteInput
-createUpdatedSortInput doInvertOrder newColumn { sortColumn, sortOrder } =
+createUpdatedSortInput doInvertOrder newColumn { sortColumn, sortOrder, filterQuery } =
   if newColumn == sortColumn then
-    { sortOrder: if doInvertOrder then invertOrder sortOrder else sortOrder, sortColumn: newColumn }
+    { sortOrder: if doInvertOrder then invertOrder sortOrder else sortOrder, sortColumn: newColumn, filterQuery }
   else
-    { sortColumn: newColumn, sortOrder: Ascending }
+    { sortColumn: newColumn, sortOrder: Ascending, filterQuery }
 
 analysisColumnIsSortable :: AnalysisColumn -> Boolean
 analysisColumnIsSortable CrystalID = true
@@ -131,6 +145,40 @@ analysisColumnIsSortable DataReductionID = true
 
 analysisColumnIsSortable ResolutionCC = true
 
+analysisColumnIsSortable BeamIntensity = true
+
+analysisColumnIsSortable Pinhole = true
+
+analysisColumnIsSortable Frames = true
+
+analysisColumnIsSortable AngleStep = true
+
+analysisColumnIsSortable ExposureTime = true
+
+analysisColumnIsSortable XrayWavelength = true
+
+analysisColumnIsSortable XrayEnergy = true
+
+analysisColumnIsSortable DetectorDistance = true
+
+analysisColumnIsSortable ApertureRadius = true
+
+analysisColumnIsSortable RingCurrent = true
+
+analysisColumnIsSortable ApertureHorizontal = true
+
+analysisColumnIsSortable Isigi = true
+
+analysisColumnIsSortable Rmeas = true
+
+analysisColumnIsSortable Rfactor = true
+
+analysisColumnIsSortable Cchalf = true
+
+analysisColumnIsSortable Wilsonb = true
+
+analysisColumnIsSortable ApertureVertical = true
+
 analysisColumnIsSortable ResolutionIsigI = true
 
 analysisColumnIsSortable _ = false
@@ -138,7 +186,33 @@ analysisColumnIsSortable _ = false
 analysisColumnToHumanString :: AnalysisColumn -> String
 analysisColumnToHumanString CrystalID = "Crystal ID"
 
+analysisColumnToHumanString Pinhole = "Pinhole"
+
+analysisColumnToHumanString Frames = "Frames"
+
+analysisColumnToHumanString AngleStep = "Angle step"
+
+analysisColumnToHumanString ExposureTime = "Exposure Time"
+
+analysisColumnToHumanString XrayEnergy = "Energy"
+
+analysisColumnToHumanString XrayWavelength = "Wavelength"
+
+analysisColumnToHumanString DetectorDistance = "Detector Distance"
+
+analysisColumnToHumanString ApertureRadius = "Aperture Radius"
+
+analysisColumnToHumanString FilterTransmission = "Filter transmission"
+
+analysisColumnToHumanString RingCurrent = "Ring current"
+
+analysisColumnToHumanString ApertureHorizontal = "Aperture horizontal"
+
+analysisColumnToHumanString ApertureVertical = "Aperture vertical"
+
 analysisColumnToHumanString RunID = "Run"
+
+analysisColumnToHumanString BeamIntensity = "Beam Intensity"
 
 analysisColumnToHumanString Comment = "Comment"
 
@@ -148,7 +222,17 @@ analysisColumnToHumanString DataReductionID = "Red. ID"
 
 analysisColumnToHumanString ResolutionCC = "Res. CC"
 
-analysisColumnToHumanString ResolutionIsigI = "Res. I/σ(I)"
+analysisColumnToHumanString ResolutionIsigI = "Res. I/Σ(I)"
+
+analysisColumnToHumanString Isigi = "I/Σ(I)"
+
+analysisColumnToHumanString Rmeas = "Rmeas"
+
+analysisColumnToHumanString Cchalf = "CC/2"
+
+analysisColumnToHumanString Rfactor = "R factor"
+
+analysisColumnToHumanString Wilsonb = "Wilson B"
 
 analysisColumnToHumanString CellA = "a"
 
@@ -167,6 +251,32 @@ extractFromRow row CrystalID = HH.text row.crystalId
 
 extractFromRow row RunID = HH.text (maybe "" show (_.runId <$> row.diffraction))
 
+extractFromRow row BeamIntensity = HH.text (fromMaybe "" (row.diffraction >>= _.beamIntensity))
+
+extractFromRow row Pinhole = HH.text (fromMaybe "" (row.diffraction >>= _.pinhole))
+
+extractFromRow row Frames = HH.text (fromMaybe "" (row.diffraction >>= _.frames >>= (pure <<< show)))
+
+extractFromRow row AngleStep = HH.text (fromMaybe "" (row.diffraction >>= _.angleStep >>= (pure <<< show)))
+
+extractFromRow row ExposureTime = HH.text (fromMaybe "" (row.diffraction >>= _.exposureTime >>= (pure <<< show)))
+
+extractFromRow row XrayEnergy = HH.text (fromMaybe "" (row.diffraction >>= _.xrayEnergy >>= (pure <<< show)))
+
+extractFromRow row XrayWavelength = HH.text (fromMaybe "" (row.diffraction >>= _.xrayWavelength >>= (pure <<< show)))
+
+extractFromRow row DetectorDistance = HH.text (fromMaybe "" (row.diffraction >>= _.detectorDistance >>= (pure <<< show)))
+
+extractFromRow row ApertureRadius = HH.text (fromMaybe "" (row.diffraction >>= _.apertureRadius >>= (pure <<< show)))
+
+extractFromRow row FilterTransmission = HH.text (fromMaybe "" (row.diffraction >>= _.filterTransmission >>= (pure <<< show)))
+
+extractFromRow row RingCurrent = HH.text (fromMaybe "" (row.diffraction >>= _.ringCurrent >>= (pure <<< show)))
+
+extractFromRow row ApertureHorizontal = HH.text (fromMaybe "" (row.diffraction >>= _.apertureHorizontal >>= (pure <<< show)))
+
+extractFromRow row ApertureVertical = HH.text (fromMaybe "" (row.diffraction >>= _.apertureVertical >>= (pure <<< show)))
+
 extractFromRow row Comment = HH.text (fromMaybe "" (_.comment <$> row.diffraction))
 
 extractFromRow row AnalysisTime = HH.text (fromMaybe "" (_.analysisTime <$> row.dataReduction))
@@ -176,6 +286,16 @@ extractFromRow row DataReductionID = HH.text (maybe "" show (_.dataReductionId <
 extractFromRow row ResolutionCC = HH.text (fromMaybe "" (row.dataReduction >>= _.resolutionCc >>= (pure <<< show)))
 
 extractFromRow row ResolutionIsigI = HH.text (fromMaybe "" (row.dataReduction >>= _.resolutionIsigma >>= (pure <<< show)))
+
+extractFromRow row Isigi = HH.text (fromMaybe "" (row.dataReduction >>= _.isigi >>= (pure <<< show)))
+
+extractFromRow row Rmeas = HH.text (fromMaybe "" (row.dataReduction >>= _.rmeas >>= (pure <<< show)))
+
+extractFromRow row Cchalf = HH.text (fromMaybe "" (row.dataReduction >>= _.cchalf >>= (pure <<< show)))
+
+extractFromRow row Rfactor = HH.text (fromMaybe "" (row.dataReduction >>= _.rfactor >>= (pure <<< show)))
+
+extractFromRow row Wilsonb = HH.text (fromMaybe "" (row.dataReduction >>= _.wilsonb >>= (pure <<< show)))
 
 extractFromRow row CellA = HH.text (maybe "" show (_.a <$> row.dataReduction))
 
@@ -227,17 +347,16 @@ renderColumnChooser state =
               [ HH.div [ classList [ "input-group", "mb-3" ] ]
                   [ HH.input
                       [ HP.type_ InputText
-                      --                 , HE.onValueChange (Just <<< QueryChange)
+                      , HE.onValueChange (Just <<< QueryChange)
                       , HP.placeholder "Filter query"
                       , singleClass "form-control"
+                      , HP.value state.sorting.filterQuery
                       ]
-                  , HH.div [ classList [ "input-group-append" ] ]
-                      [ HH.button
-                          [ classList [ "btn" ]
-                          --, HE.onClick (const (Just QuerySubmit))
-                          ]
-                          [ HH.text "Apply" ]
+                  , HH.button
+                      [ classList [ "btn", "btn-secondary" ]
+                      , HE.onClick (const (Just QuerySubmit))
                       ]
+                      [ HH.text "Apply" ]
                   ]
               ]
           ]

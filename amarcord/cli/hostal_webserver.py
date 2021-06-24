@@ -26,6 +26,8 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
+logger = logging.getLogger(__name__)
+
 
 app = Flask(
     __name__,
@@ -224,6 +226,7 @@ def remove_dewar_lut() -> JSONDict:
 def sort_column_to_real_column(
     crystals: sa.Table,
     data_reductions: sa.Table,
+    diffractions: sa.Table,
     sort_column: str,
 ) -> sa.Column:
     if sort_column == "crystalId":
@@ -234,8 +237,40 @@ def sort_column_to_real_column(
         return data_reductions.c.data_reduction_id
     if sort_column == "resCC":
         return data_reductions.c.resolution_cc
+    if sort_column == "angle_step":
+        return diffractions.c.angle_step
+    if sort_column == "frames":
+        return diffractions.c.number_of_frames
+    if sort_column == "exposure_time":
+        return diffractions.c.exposure_time
+    if sort_column == "xray_energy":
+        return diffractions.c.xray_energy
+    if sort_column == "xray_wavelength":
+        return diffractions.c.xray_wavelength
+    if sort_column == "detector_distance":
+        return diffractions.c.detector_distance
+    if sort_column == "aperture_radius":
+        return diffractions.c.aperture_radius
+    if sort_column == "filter_transmission":
+        return diffractions.c.filter_transmission
+    if sort_column == "ring_current":
+        return diffractions.c.ring_current
+    if sort_column == "aperture_horizontal":
+        return diffractions.c.aperture_horizontal
+    if sort_column == "aperture_vertical":
+        return diffractions.c.aperture_vertical
     if sort_column == "resI":
         return data_reductions.c.resolution_isigma
+    if sort_column == "isigi":
+        return data_reductions.c.isigi
+    if sort_column == "rmeas":
+        return data_reductions.c.rmeas
+    if sort_column == "rfactor":
+        return data_reductions.c.rfactor
+    if sort_column == "wilsonb":
+        return data_reductions.c.Wilson_b
+    if sort_column == "cchalf":
+        return data_reductions.c.cchalf
     raise BadRequest(f'invalid sort column "{sort_column}"')
 
 
@@ -330,71 +365,109 @@ def retrieve_analysis() -> JSONDict:
         )
         sort_column_str = request.args.get("sortColumn", "crystalId")
         sort_column = sort_column_to_real_column(
-            crystals, data_reductions, sort_column_str
+            crystals, data_reductions, diffractions, sort_column_str
         )
         sort_order_desc = sort_order_to_descending(request.args.get("sortOrder", "asc"))
-        results = conn.execute(
-            sa.select(
-                [
-                    crystals.c.crystal_id,
-                    crystals.c.puck_id,
-                    crystals.c.puck_position_id,
-                    diffractions.c.run_id,
-                    diffractions.c.comment,
-                    data_reductions.c.data_reduction_id,
-                    data_reductions.c.resolution_cc,
-                    data_reductions.c.resolution_isigma,
-                    data_reductions.c.a,
-                    data_reductions.c.b,
-                    data_reductions.c.c,
-                    data_reductions.c.alpha,
-                    data_reductions.c.beta,
-                    data_reductions.c.gamma,
-                    data_reductions.c.analysis_time,
-                ]
-            )
-            .select_from(
-                crystals.outerjoin(diffractions).outerjoin(
-                    data_reductions,
-                    onclause=sa.and_(
-                        data_reductions.c.run_id == diffractions.c.run_id,
-                        diffractions.c.crystal_id == data_reductions.c.crystal_id,
-                    ),
+        filter_query = request.args.get("filterQuery", "")
+        try:
+            results = conn.execute(
+                sa.select(
+                    [
+                        crystals.c.crystal_id,
+                        diffractions.c.run_id,
+                        diffractions.c.comment,
+                        diffractions.c.beam_intensity,
+                        diffractions.c.pinhole,
+                        diffractions.c.number_of_frames,
+                        diffractions.c.angle_step,
+                        diffractions.c.xray_energy,
+                        diffractions.c.xray_wavelength,
+                        diffractions.c.detector_distance,
+                        diffractions.c.aperture_radius,
+                        diffractions.c.exposure_time,
+                        diffractions.c.filter_transmission,
+                        diffractions.c.ring_current,
+                        diffractions.c.aperture_horizontal,
+                        diffractions.c.aperture_vertical,
+                        data_reductions.c.data_reduction_id,
+                        data_reductions.c.resolution_cc,
+                        data_reductions.c.resolution_isigma,
+                        data_reductions.c.isigi,
+                        data_reductions.c.rmeas,
+                        data_reductions.c.cchalf,
+                        data_reductions.c.rfactor,
+                        data_reductions.c.Wilson_b,
+                        data_reductions.c.a,
+                        data_reductions.c.b,
+                        data_reductions.c.c,
+                        data_reductions.c.alpha,
+                        data_reductions.c.beta,
+                        data_reductions.c.gamma,
+                        data_reductions.c.analysis_time,
+                    ]
                 )
-            )
-            .where(diffractions.c.diffraction == DiffractionType.success)
-            .order_by(sort_column.desc() if sort_order_desc else sort_column)
-        ).fetchall()
-        return {
-            "analysis": [
-                {
-                    "crystalId": row[0],
-                    "puckId": row[1],
-                    "puckPositionId": row[2],
-                    "diffraction": None
-                    if row[3] is None
-                    else {
-                        "runId": row[3],
-                        "comment": row[4],
-                    },
-                    "dataReduction": None
-                    if row[5] is None
-                    else {
-                        "dataReductionId": row[5],
-                        "resolutionCc": row[6],
-                        "resolutionIsigma": row[7],
-                        "a": row[8],
-                        "b": row[9],
-                        "c": row[10],
-                        "alpha": row[11],
-                        "beta": row[12],
-                        "gamma": row[13],
-                        "analysisTime": row[14],
-                    },
-                }
-                for row in results
-            ]
-        }
+                .select_from(
+                    crystals.outerjoin(diffractions).outerjoin(
+                        data_reductions,
+                        onclause=sa.and_(
+                            data_reductions.c.run_id == diffractions.c.run_id,
+                            diffractions.c.crystal_id == data_reductions.c.crystal_id,
+                        ),
+                    )
+                )
+                .where(sa.text(filter_query))
+                .order_by(sort_column.desc() if sort_order_desc else sort_column)
+            ).fetchall()
+            return {
+                "analysis": [
+                    {
+                        "crystalId": row["crystal_id"],
+                        "diffraction": None
+                        if row["run_id"] is None
+                        else {
+                            "runId": row["run_id"],
+                            "comment": row["comment"],
+                            "beamIntensity": row["beam_intensity"],
+                            "pinhole": row["pinhole"],
+                            "frames": row["number_of_frames"],
+                            "angleStep": row["angle_step"],
+                            "exposureTime": row["exposure_time"],
+                            "xrayEnergy": row["xray_energy"],
+                            "xrayWavelength": row["xray_wavelength"],
+                            "detectorDistance": row["detector_distance"],
+                            "apertureRadius": row["aperture_radius"],
+                            "filterTransmission": row["filter_transmission"],
+                            "ringCurrent": row["ring_current"],
+                            "apertureHorizontal": row["aperture_horizontal"],
+                            "apertureVertical": row["aperture_vertical"],
+                        },
+                        "dataReduction": None
+                        if row["data_reduction_id"] is None
+                        else {
+                            "dataReductionId": row["data_reduction_id"],
+                            "resolutionCc": row["resolution_cc"],
+                            "resolutionIsigma": row["resolution_isigma"],
+                            "isigi": row["isigi"],
+                            "rmeas": row["rmeas"],
+                            "cchalf": row["cchalf"],
+                            "rfactor": row["rfactor"],
+                            "wilsonb": row["Wilson_b"],
+                            "a": row["a"],
+                            "b": row["b"],
+                            "c": row["c"],
+                            "alpha": row["alpha"],
+                            "beta": row["beta"],
+                            "gamma": row["gamma"],
+                            "analysisTime": row["analysis_time"],
+                        },
+                    }
+                    for row in results
+                ],
+                "sqlError": None,
+            }
+        except Exception as e:
+            logger.exception(e)
+            return {"analysis": [], "sqlError": str(e)}
 
 
 @app.errorhandler(HTTPException)
