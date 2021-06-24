@@ -18,9 +18,13 @@ import Data.Argonaut (class DecodeJson, JsonDecodeError)
 import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Either (Either(..))
+import Data.Enum (class Enum, enumFromTo)
 import Data.FormURLEncoded (fromArray)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Enum (genericPred, genericSucc)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..), fst, snd)
+import Data.Unfoldable1 (class Unfoldable1)
 import Halogen (liftAff)
 
 type OverviewResponse
@@ -30,7 +34,6 @@ type OverviewResponse
 data AnalysisColumn
   = CrystalID
   | AnalysisTime
-  | Puck
   | RunID
   | Comment
   | DataReductionID
@@ -43,16 +46,23 @@ data AnalysisColumn
   | CellBeta
   | CellGamma
 
-derive instance eqRoute :: Eq AnalysisColumn
+derive instance genericAnalysisColumn :: Generic AnalysisColumn _
 
-derive instance ordRoute :: Ord AnalysisColumn
+derive instance eqAnalysisColumn :: Eq AnalysisColumn
+
+derive instance ordAnalysisColumn :: Ord AnalysisColumn
+
+instance enumAnalysisColumn :: Enum AnalysisColumn where
+  succ = genericSucc
+  pred = genericPred
+
+allAnalysisColumns :: forall a. Unfoldable1 a => a AnalysisColumn
+allAnalysisColumns = enumFromTo CrystalID CellGamma
 
 analysisColumnToString :: AnalysisColumn -> String
 analysisColumnToString CrystalID = "crystalId"
 
 analysisColumnToString AnalysisTime = "analysisTime"
-
-analysisColumnToString Puck = "puck"
 
 analysisColumnToString RunID = "runId"
 
@@ -81,8 +91,6 @@ stringToAnalysisColumn "crystalId" = Right CrystalID
 
 stringToAnalysisColumn "analysisTime" = Right AnalysisTime
 
-stringToAnalysisColumn "puck" = Right Puck
-
 stringToAnalysisColumn "runId" = Right RunID
 
 stringToAnalysisColumn "comment" = Right Comment
@@ -107,14 +115,8 @@ stringToAnalysisColumn "gamma" = Right CellGamma
 
 stringToAnalysisColumn val = Left ("not a valid column: " <> val)
 
-type AnalysisRow
-  = { crystalId :: String
-    , analysisTime :: String
-    , puckId :: Maybe String
-    , puckPositionId :: Maybe Int
-    , runId :: Int
-    , comment :: Maybe String
-    , dataReductionId :: Int
+type DataReduction = {
+      dataReductionId :: Int
     , resolutionCc :: Maybe Number
     , resolutionIsigma :: Maybe Number
     , a :: Number
@@ -122,7 +124,19 @@ type AnalysisRow
     , c :: Number
     , alpha :: Number
     , beta :: Number
+    , analysisTime :: String
     , gamma :: Number
+  }
+
+type Diffraction = {
+    runId :: Int
+  , comment :: String
+  }
+
+type AnalysisRow
+  = { crystalId :: String
+    , diffraction :: Maybe Diffraction
+    , dataReduction :: Maybe DataReduction
     }
 
 type AnalysisResponse

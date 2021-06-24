@@ -1,26 +1,30 @@
 module App.Components.Analysis where
 
-import App.API (AnalysisColumn(..), AnalysisResponse, AnalysisRow, retrieveAnalysis)
+import App.API (AnalysisColumn(..), AnalysisResponse, AnalysisRow, allAnalysisColumns, retrieveAnalysis)
 import App.AppMonad (AppMonad)
 import App.Bootstrap (TableFlag(..), fluidContainer, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
-import App.HalogenUtils (AlertType(..), faIcon, makeAlert, singleClass)
+import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, singleClass)
 import App.Route (AnalysisRouteInput, Route(..), createLink)
 import App.SortOrder (SortOrder(..), invertOrder)
-import Control.Applicative (pure, (<*>))
+import Control.Applicative (pure)
 import Control.Bind (bind)
+import Control.Monad ((>>=))
 import Data.Eq (class Eq, (==))
+import Data.Function ((<<<))
 import Data.Functor ((<$>))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Ord (class Ord)
 import Data.Semigroup ((<>))
+import Data.Set (Set, delete, empty, fromFoldable, insert, member, toUnfoldable)
 import Data.Show (show)
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData(..), fromEither)
 
@@ -33,6 +37,7 @@ type State
   = { rows :: Array AnalysisRow
     , sorting :: AnalysisRouteInput
     , errorMessage :: Maybe String
+    , selectedColumns :: Set AnalysisColumn
     }
 
 data AnalysisData
@@ -45,6 +50,8 @@ derive instance ordAssociatedTable :: Ord AnalysisData
 data Action
   = Initialize
   | Resort AnalysisRouteInput
+  | DeselectAll
+  | ToggleColumn AnalysisColumn
 
 -- Convert a sort order to an icon
 orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
@@ -57,6 +64,7 @@ initialState { input: sorting, remoteData: AnalysisData analysisResponse } =
   { rows: analysisResponse.analysis
   , sorting
   , errorMessage: Nothing
+  , selectedColumns: fromFoldable [ CrystalID, AnalysisTime, RunID, Comment, DataReductionID, ResolutionCC, ResolutionIsigI ]
   }
 
 component :: forall query output. H.Component HH.HTML query AnalysisRouteInput output AppMonad
@@ -78,6 +86,17 @@ childComponent =
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
   Initialize -> pure unit
+  DeselectAll -> do
+    let
+      emptyColumns :: Set AnalysisColumn
+      emptyColumns = empty
+    H.modify_ \state -> state { selectedColumns = emptyColumns }
+  ToggleColumn a -> do
+    s <- H.get
+    H.modify_ \state ->
+      state
+        { selectedColumns = if a `member` s.selectedColumns then delete a s.selectedColumns else insert a s.selectedColumns
+        }
   Resort routeInput -> do
     result <- H.lift (fetchData routeInput)
     case result of
@@ -116,10 +135,128 @@ analysisColumnIsSortable ResolutionIsigI = true
 
 analysisColumnIsSortable _ = false
 
+analysisColumnToHumanString :: AnalysisColumn -> String
+analysisColumnToHumanString CrystalID = "Crystal ID"
+
+analysisColumnToHumanString RunID = "Run"
+
+analysisColumnToHumanString Comment = "Comment"
+
+analysisColumnToHumanString AnalysisTime = "Analysis time"
+
+analysisColumnToHumanString DataReductionID = "Red. ID"
+
+analysisColumnToHumanString ResolutionCC = "Res. CC"
+
+analysisColumnToHumanString ResolutionIsigI = "Res. I/σ(I)"
+
+analysisColumnToHumanString CellA = "a"
+
+analysisColumnToHumanString CellB = "b"
+
+analysisColumnToHumanString CellC = "c"
+
+analysisColumnToHumanString CellAlpha = "α"
+
+analysisColumnToHumanString CellBeta = "β"
+
+analysisColumnToHumanString CellGamma = "γ"
+
+extractFromRow :: forall w i. AnalysisRow -> AnalysisColumn -> HH.HTML w i
+extractFromRow row CrystalID = HH.text row.crystalId
+
+extractFromRow row RunID = HH.text (maybe "" show (_.runId <$> row.diffraction))
+
+extractFromRow row Comment = HH.text (fromMaybe "" (_.comment <$> row.diffraction))
+
+extractFromRow row AnalysisTime = HH.text (fromMaybe "" (_.analysisTime <$> row.dataReduction))
+
+extractFromRow row DataReductionID = HH.text (maybe "" show (_.dataReductionId <$> row.dataReduction))
+
+extractFromRow row ResolutionCC = HH.text (fromMaybe "" (row.dataReduction >>= _.resolutionCc >>= (pure <<< show)))
+
+extractFromRow row ResolutionIsigI = HH.text (fromMaybe "" (row.dataReduction >>= _.resolutionIsigma >>= (pure <<< show)))
+
+extractFromRow row CellA = HH.text (maybe "" show (_.a <$> row.dataReduction))
+
+extractFromRow row CellB = HH.text (maybe "" show (_.b <$> row.dataReduction))
+
+extractFromRow row CellC = HH.text (maybe "" show (_.c <$> row.dataReduction))
+
+extractFromRow row CellAlpha = HH.text (maybe "" show (_.alpha <$> row.dataReduction))
+
+extractFromRow row CellBeta = HH.text (maybe "" show (_.beta <$> row.dataReduction))
+
+extractFromRow row CellGamma = HH.text (maybe "" show (_.gamma <$> row.dataReduction))
+
+renderColumnChooser :: forall w. State -> HH.HTML w Action
+renderColumnChooser state =
+  let
+    makeRow :: AnalysisColumn -> HH.HTML w Action
+    makeRow a =
+      HH.button
+        [ HP.type_ HP.ButtonButton
+        , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if a `member` state.selectedColumns then [ "active" ] else []))
+        , HE.onClick \_ -> Just (ToggleColumn a)
+        ]
+        [ HH.text (analysisColumnToHumanString a) ]
+
+    disableAll =
+      HH.p_
+        [ HH.button
+            [ classList [ "btn", "btn-secondary" ]
+            , HE.onClick \_ -> Just DeselectAll
+            ]
+            [ HH.text "Disable all" ]
+        ]
+  in
+    HH.div_
+      [ HH.div [ singleClass "row" ]
+          [ HH.div [ singleClass "col" ]
+              [ HH.p_
+                  [ HH.button
+                      [ classList [ "btn", "btn-secondary" ]
+                      , HP.type_ HP.ButtonButton
+                      , HP.attr (HH.AttrName "data-bs-toggle") "collapse"
+                      , HP.attr (HH.AttrName "data-bs-target") "#columnChooser"
+                      ]
+                      [ faIcon "columns", HH.text " Choose columns" ]
+                  ]
+              ]
+          , HH.div [ singleClass "col" ]
+              [ HH.div [ classList [ "input-group", "mb-3" ] ]
+                  [ HH.input
+                      [ HP.type_ InputText
+                      --                 , HE.onValueChange (Just <<< QueryChange)
+                      , HP.placeholder "Filter query"
+                      , singleClass "form-control"
+                      ]
+                  , HH.div [ classList [ "input-group-append" ] ]
+                      [ HH.button
+                          [ classList [ "btn" ]
+                          --, HE.onClick (const (Just QuerySubmit))
+                          ]
+                          [ HH.text "Apply" ]
+                      ]
+                  ]
+              ]
+          ]
+      , HH.div [ singleClass "collapse", HP.id_ "columnChooser" ]
+          [ HH.div [ singleClass "row" ]
+              [ HH.div [ singleClass "col" ]
+                  [ disableAll
+                  , HH.div [ singleClass "list-group " ]
+                      (makeRow <$> allAnalysisColumns)
+                  ]
+              ]
+          ]
+      ]
+
 render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 render state =
   let
-    headers = [ Tuple CrystalID "Crystal ID", Tuple AnalysisTime "Analysis time", Tuple Puck "Puck", Tuple RunID "Run", Tuple DataReductionID "Red. ID", Tuple ResolutionCC "Res. CC", Tuple ResolutionIsigI "Res. I/σ(I)", Tuple CellA "a", Tuple CellB "b", Tuple CellC "c", Tuple CellAlpha "α", Tuple CellBeta "β", Tuple CellGamma "γ", Tuple Comment "Comment" ]
+    headers :: Array (Tuple AnalysisColumn String)
+    headers = (\x -> Tuple x (analysisColumnToHumanString x)) <$> toUnfoldable state.selectedColumns
 
     makeHeader (Tuple col title) =
       let
@@ -132,42 +269,12 @@ render state =
         HH.th [ singleClass "text-nowrap" ] cellContent
 
     makeRow :: forall w. AnalysisRow -> HH.HTML w Action
-    makeRow { crystalId
-    , analysisTime
-    , puckId
-    , puckPositionId
-    , runId
-    , comment
-    , dataReductionId
-    , resolutionCc
-    , resolutionIsigma
-    , a
-    , b
-    , c
-    , alpha
-    , beta
-    , gamma
-    } =
-      HH.tr_
-        [ HH.td_ [ HH.text crystalId ]
-        , HH.td_ [ HH.text analysisTime ]
-        , HH.td_ [ HH.text (fromMaybe "-" ((\pid ppid -> pid <> " " <> ppid) <$> puckId <*> (show <$> puckPositionId))) ]
-        , HH.td_ [ HH.text (show runId) ]
-        , HH.td_ [ HH.text (show dataReductionId) ]
-        , HH.td_ [ HH.text (maybe "" show resolutionCc) ]
-        , HH.td_ [ HH.text (maybe "" show resolutionIsigma) ]
-        , HH.td_ [ HH.text (show a) ]
-        , HH.td_ [ HH.text (show b) ]
-        , HH.td_ [ HH.text (show c) ]
-        , HH.td_ [ HH.text (show alpha) ]
-        , HH.td_ [ HH.text (show beta) ]
-        , HH.td_ [ HH.text (show gamma) ]
-        , HH.td_ [ HH.text (fromMaybe "" comment) ]
-        ]
+    makeRow row = HH.tr_ (((\x -> HH.td_ [ x ]) <<< extractFromRow row) <$> toUnfoldable state.selectedColumns)
   in
     fluidContainer
       [ HH.h2_ [ icon { name: "table", size: Nothing, spin: false }, HH.text " Analysis Results" ]
       , HH.hr_
+      , renderColumnChooser state
       , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
       , table
           "analysis-table"

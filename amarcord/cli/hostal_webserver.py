@@ -354,7 +354,7 @@ def retrieve_analysis() -> JSONDict:
                 ]
             )
             .select_from(
-                crystals.join(diffractions).join(
+                crystals.outerjoin(diffractions).outerjoin(
                     data_reductions,
                     onclause=sa.and_(
                         data_reductions.c.run_id == diffractions.c.run_id,
@@ -371,18 +371,26 @@ def retrieve_analysis() -> JSONDict:
                     "crystalId": row[0],
                     "puckId": row[1],
                     "puckPositionId": row[2],
-                    "runId": row[3],
-                    "comment": row[4],
-                    "dataReductionId": row[5],
-                    "resolutionCc": row[6],
-                    "resolutionIsigma": row[7],
-                    "a": row[8],
-                    "b": row[9],
-                    "c": row[10],
-                    "alpha": row[11],
-                    "beta": row[12],
-                    "gamma": row[13],
-                    "analysisTime": row[14],
+                    "diffraction": None
+                    if row[3] is None
+                    else {
+                        "runId": row[3],
+                        "comment": row[4],
+                    },
+                    "dataReduction": None
+                    if row[5] is None
+                    else {
+                        "dataReductionId": row[5],
+                        "resolutionCc": row[6],
+                        "resolutionIsigma": row[7],
+                        "a": row[8],
+                        "b": row[9],
+                        "c": row[10],
+                        "alpha": row[11],
+                        "beta": row[12],
+                        "gamma": row[13],
+                        "analysisTime": row[14],
+                    },
                 }
                 for row in results
             ]
