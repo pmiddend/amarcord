@@ -1,3 +1,4 @@
+import datetime
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -230,6 +231,12 @@ def insert_diffraction(
             filter_transmission=run.info_file.filter_transmission_percent,
             ring_current=run.info_file.ring_current.to("milliampere").magnitude,
             data_raw_filename_pattern=run.data_raw_filename_pattern,
+            created=datetime.datetime.fromtimestamp(
+                Path(run.data_raw_filename_pattern).parent.stat().st_mtime,
+                tz=datetime.timezone.utc,
+            )
+            if run.data_raw_filename_pattern
+            else datetime.datetime.now(),
             microscope_image_filename_pattern=run.microscope_image_filename_pattern,
         )
     )
