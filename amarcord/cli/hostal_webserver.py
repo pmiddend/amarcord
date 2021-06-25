@@ -405,8 +405,7 @@ def retrieve_analysis() -> JSONDict:
             return {
                 "analysisColumns": [c.name for c in all_columns],
                 "analysis": [
-                    [[key, postprocess(value)] for key, value in row.items()]
-                    for row in results
+                    [postprocess(value) for _, value in row.items()] for row in results
                 ],
                 "sqlError": None,
             }

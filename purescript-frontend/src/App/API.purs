@@ -29,9 +29,7 @@ type OverviewResponse
   = { overviewRows :: Array OverviewRow
     }
 
-type AnalysisColumn = Tuple String Json
-                      
-type AnalysisRow = Array AnalysisColumn
+type AnalysisRow = Array Json
 
 type AnalysisResponse
   = { analysis :: Array AnalysisRow

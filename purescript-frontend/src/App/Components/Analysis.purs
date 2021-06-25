@@ -2,7 +2,7 @@ module App.Components.Analysis where
 
 import App.API (AnalysisResponse, AnalysisRow, retrieveAnalysis)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), fluidContainer, table)
+import App.Bootstrap (TableFlag(..), container, fluidContainer, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, singleClass)
@@ -10,19 +10,22 @@ import App.Route (AnalysisRouteInput, Route(..), createLink)
 import App.SortOrder (SortOrder(..), invertOrder)
 import Control.Applicative (pure)
 import Control.Bind (bind)
-import Data.Argonaut (Json, caseJson)
-import Data.Array (find, length)
-import Data.Eq (class Eq, (==))
+import Data.Argonaut (Json, caseJson, jsonNull)
+import Data.Array (cons, elem, filter, length, mapMaybe, nub, sort)
+import Data.Eq (class Eq, (/=), (==))
+import Data.Foldable (indexl)
+import Data.FoldableWithIndex (foldrWithIndex)
 import Data.Function (const, identity, (<<<))
 import Data.Functor ((<$>))
 import Data.Int (fromNumber)
+import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Monoid (mempty)
 import Data.Ord (class Ord, (>))
 import Data.Semigroup ((<>))
-import Data.Set (Set, delete, empty, fromFoldable, insert, member, toUnfoldable)
 import Data.Show (show)
 import Data.String (Pattern(..), Replacement(..), replace)
-import Data.Tuple (Tuple(..), snd)
+import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
 import Halogen as H
 import Halogen.HTML as HH
@@ -39,9 +42,10 @@ type DewarEdit
 type State
   = { rows :: Array AnalysisRow
     , columns :: Array String
+    , displayRows :: Array AnalysisRow
     , sorting :: AnalysisRouteInput
     , errorMessage :: Maybe String
-    , selectedColumns :: Set String
+    , selectedColumns :: Array String
     }
 
 data AnalysisData
@@ -67,12 +71,16 @@ orderingToIcon Descending = faIcon "sort-down"
 
 initialState :: ChildInput AnalysisRouteInput AnalysisData -> State
 initialState { input: sorting, remoteData: AnalysisData analysisResponse } =
-  { rows: analysisResponse.analysis
-  , columns: analysisResponse.analysisColumns
-  , sorting
-  , errorMessage: Nothing
-  , selectedColumns: fromFoldable [ "crystals_crystal_id", "crystals_created", "diff_run_id", "diff_diffraction", "dr_data_reduction_id" ]
-  }
+  let
+    selectedColumns = [ "crystals_crystal_id", "crystals_created", "diff_run_id", "diff_diffraction", "dr_data_reduction_id" ]
+  in
+    { rows: analysisResponse.analysis
+    , columns: analysisResponse.analysisColumns
+    , displayRows: nub (rowsWithSelected analysisResponse.analysisColumns analysisResponse.analysis selectedColumns)
+    , sorting
+    , errorMessage: Nothing
+    , selectedColumns
+    }
 
 component :: forall query output. H.Component HH.HTML query AnalysisRouteInput output AppMonad
 component = parentComponent fetchData childComponent
@@ -90,8 +98,8 @@ childComponent =
             }
     }
 
-refresh :: forall slots. AnalysisRouteInput -> H.HalogenM State Action slots ParentError AppMonad Unit
-refresh routeInput = do
+refresh :: forall slots. Array String -> AnalysisRouteInput -> H.HalogenM State Action slots ParentError AppMonad Unit
+refresh selectedColumns routeInput = do
   result <- H.lift (fetchData routeInput)
   case result of
     Success (AnalysisData { analysis, sqlError: Just sqlError }) ->
@@ -99,11 +107,12 @@ refresh routeInput = do
         state
           { errorMessage = Just ("SQL error: " <> sqlError)
           }
-    Success (AnalysisData { analysis, sqlError: Nothing }) ->
+    Success (AnalysisData { analysisColumns, analysis, sqlError: Nothing }) ->
       H.modify_ \state ->
         state
           { errorMessage = Nothing
           , rows = analysis
+          , displayRows = nub (rowsWithSelected analysisColumns analysis selectedColumns)
           , sorting = routeInput
           }
     Failure e -> H.modify_ \state -> state { errorMessage = Just e }
@@ -115,19 +124,21 @@ handleAction = case _ of
   QueryChange query -> H.modify_ \state -> state { sorting = state.sorting { filterQuery = query } }
   QuerySubmit -> do
     state <- H.get
-    refresh state.sorting
+    refresh state.selectedColumns state.sorting
   DeselectAll -> do
-    let
-      emptyColumns :: Set String
-      emptyColumns = empty
-    H.modify_ \state -> state { selectedColumns = emptyColumns }
+    H.modify_ \state -> state { selectedColumns = [] }
   ToggleColumn a -> do
     s <- H.get
+    let
+      newSelectedColumns = if a `elem` s.selectedColumns then filter (_ /= a) s.selectedColumns else sort (cons a s.selectedColumns)
     H.modify_ \state ->
       state
-        { selectedColumns = if a `member` s.selectedColumns then delete a s.selectedColumns else insert a s.selectedColumns
+        { selectedColumns = newSelectedColumns
+        , displayRows = nub (rowsWithSelected state.columns state.rows newSelectedColumns)
         }
-  Resort routeInput -> refresh routeInput
+  Resort routeInput -> do
+    state <- H.get
+    refresh state.selectedColumns routeInput
 
 fetchData :: AnalysisRouteInput -> AppMonad (RemoteData String AnalysisData)
 fetchData { filterQuery, sortColumn, sortOrder } = do
@@ -146,8 +157,6 @@ showCellContent = caseJson (const "") show showNumber identity (const "array") (
   where
   showNumber n = fromMaybe (show n) (show <$> (fromNumber n))
 
-extractFromRow row col = HH.text (fromMaybe "" ((showCellContent <<< snd) <$> find (\(Tuple col' v) -> col' == col) row))
-
 postprocessColumnName :: String -> String
 postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.") <<< replace (Pattern "crystals_") (Replacement "Crystals.")
 
@@ -158,7 +167,7 @@ renderColumnChooser state =
     makeRow a =
       HH.button
         [ HP.type_ HP.ButtonButton
-        , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if a `member` state.selectedColumns then [ "active" ] else []))
+        , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if a `elem` state.selectedColumns then [ "active" ] else []))
         , HE.onClick \_ -> Just (ToggleColumn a)
         ]
         [ HH.text (postprocessColumnName a) ]
@@ -238,10 +247,20 @@ renderColumnChooser state =
 
 analysisColumnIsSortable = const true
 
+rowsWithSelected columns rows selected =
+  let
+    columnsWithIndices :: Map.Map String Int
+    columnsWithIndices = foldrWithIndex (\i columnName prior -> Map.insert columnName i prior) mempty columns
+
+    selectedColumnIndices :: Array Int
+    selectedColumnIndices = mapMaybe (\columnName -> Map.lookup columnName columnsWithIndices) selected
+  in
+    (\row -> (\columnIndex -> fromMaybe jsonNull (indexl columnIndex row)) <$> selectedColumnIndices) <$> rows
+
 render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 render state =
   let
-    headers = (\x -> Tuple x (postprocessColumnName x)) <$> toUnfoldable state.selectedColumns
+    headers = (\x -> Tuple x (postprocessColumnName x)) <$> state.selectedColumns
 
     makeHeader (Tuple col title) =
       let
@@ -249,12 +268,12 @@ render state =
 
         maybeOrderIcon = if state.sorting.sortColumn == col then [ orderingToIcon state.sorting.sortOrder, HH.text " " ] else []
 
-        cellContent = if analysisColumnIsSortable col then maybeOrderIcon <> [ HH.a [ HP.href (createLink (Analysis (updatedSortInput false))), HE.onClick \_ -> Just (Resort (updatedSortInput true)) ] [ HH.text title ] ] else [ HH.text title ]
+        cellContent = if analysisColumnIsSortable col then maybeOrderIcon <> [ HH.a [ singleClass "text-decoration-none", HP.href (createLink (Analysis (updatedSortInput false))), HE.onClick \_ -> Just (Resort (updatedSortInput true)) ] [ HH.text title ] ] else [ HH.text title ]
       in
-        HH.th [ singleClass "text-nowrap" ] cellContent
+        HH.th [ singleClass "text-nowrap text-center" ] cellContent
 
     makeRow :: forall w. AnalysisRow -> HH.HTML w Action
-    makeRow row = HH.tr_ (((\x -> HH.td_ [ x ]) <<< extractFromRow row) <$> toUnfoldable state.selectedColumns)
+    makeRow row = HH.tr_ ((\cell -> HH.td [ singleClass "text-center" ] [ HH.text (showCellContent cell) ]) <$> row)
   in
     fluidContainer
       [ HH.h2_ [ icon { name: "table", size: Nothing, spin: false }, HH.text " Analysis Results" ]
@@ -262,10 +281,10 @@ render state =
       , renderColumnChooser state
       , HH.hr_
       , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
-      , HH.h5_ [ HH.text ((show (length state.rows)) <> " result" <> (if length state.rows > 1 then "s" else "")) ]
+      , HH.h5_ [ HH.text ((show (length state.displayRows)) <> " result" <> (if length state.displayRows > 1 then "s" else "")) ]
       , table
           "analysis-table"
-          [ TableStriped, TableSmall ]
+          [ TableStriped, TableSmall, TableBordered ]
           (makeHeader <$> headers)
-          (makeRow <$> state.rows)
+          (makeRow <$> state.displayRows)
       ]

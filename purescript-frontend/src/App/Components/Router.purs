@@ -171,7 +171,7 @@ navbar route =
 
 contentView :: forall t150 t151. HH.HTML t151 t150 -> HH.HTML t151 t150
 contentView html =
-  HH.main [ HPA.role "main", classList [ "col-md-10", "ml-sm-auto", "col-lg-11", "px-md-4", "pt-3" ] ]
+  HH.main [ HPA.role "main" ]
     [ html ]
 
 skeleton :: forall a. Maybe Route -> HH.HTML a Action -> HH.HTML a Action
@@ -186,7 +186,7 @@ skeleton route html =
             , HH.ul [ singleClass "nav nav-pills" ] (makeNavItem route <$> navItems)
             ]
         ]
-    , HH.div [ singleClass "container" ]
+    , HH.div [ singleClass "container-fluid" ]
         [ contentView html
         ]
     ]

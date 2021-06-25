@@ -2,7 +2,7 @@ module App.Components.Sample where
 
 import App.API (Crystal, Puck, SampleResponse, addCrystal, addPuck, removeCrystal, removePuck, retrieveSample)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), fluidContainer, plainH2_, plainH3_, table)
+import App.Bootstrap (TableFlag(..), container, fluidContainer, plainH2_, plainH3_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), classList, makeAlert, singleClass)
@@ -293,7 +293,7 @@ puckAddForm state =
 
 render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 render state =
-  fluidContainer
+  container
     [ maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
     , HH.h2_ [ icon { name: "hockey-puck", size: Nothing, spin: false }, HH.text " Pucks" ]
     , HH.hr_
