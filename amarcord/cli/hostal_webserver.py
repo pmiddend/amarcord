@@ -227,57 +227,6 @@ def remove_dewar_lut() -> JSONDict:
         return _retrieve_dewar_table(conn, dewar_lut)
 
 
-def sort_column_to_real_column(
-    crystals: sa.Table,
-    data_reductions: sa.Table,
-    diffractions: sa.Table,
-    sort_column: str,
-) -> sa.Column:
-    if sort_column == "crystalId":
-        return crystals.c.crystal_id
-    if sort_column == "analysisTime":
-        return data_reductions.c.analysis_time
-    if sort_column == "drid":
-        return data_reductions.c.data_reduction_id
-    if sort_column == "resCC":
-        return data_reductions.c.resolution_cc
-    if sort_column == "angle_step":
-        return diffractions.c.angle_step
-    if sort_column == "frames":
-        return diffractions.c.number_of_frames
-    if sort_column == "exposure_time":
-        return diffractions.c.exposure_time
-    if sort_column == "xray_energy":
-        return diffractions.c.xray_energy
-    if sort_column == "xray_wavelength":
-        return diffractions.c.xray_wavelength
-    if sort_column == "detector_distance":
-        return diffractions.c.detector_distance
-    if sort_column == "aperture_radius":
-        return diffractions.c.aperture_radius
-    if sort_column == "filter_transmission":
-        return diffractions.c.filter_transmission
-    if sort_column == "ring_current":
-        return diffractions.c.ring_current
-    if sort_column == "aperture_horizontal":
-        return diffractions.c.aperture_horizontal
-    if sort_column == "aperture_vertical":
-        return diffractions.c.aperture_vertical
-    if sort_column == "resI":
-        return data_reductions.c.resolution_isigma
-    if sort_column == "isigi":
-        return data_reductions.c.isigi
-    if sort_column == "rmeas":
-        return data_reductions.c.rmeas
-    if sort_column == "rfactor":
-        return data_reductions.c.rfactor
-    if sort_column == "wilsonb":
-        return data_reductions.c.Wilson_b
-    if sort_column == "cchalf":
-        return data_reductions.c.cchalf
-    raise BadRequest(f'invalid sort column "{sort_column}"')
-
-
 def sort_order_to_descending(so: str) -> bool:
     if so == "asc":
         return False
