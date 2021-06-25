@@ -4,6 +4,7 @@ import pytest
 
 from amarcord.amici.p11.spreadsheet_reader import COLUMN_COMMENT
 from amarcord.amici.p11.spreadsheet_reader import COLUMN_DIRECTORY
+from amarcord.amici.p11.spreadsheet_reader import COLUMN_ESTIMATED_RESOLUTION
 from amarcord.amici.p11.spreadsheet_reader import COLUMN_NAME
 from amarcord.amici.p11.spreadsheet_reader import COLUMN_OUTCOME
 from amarcord.amici.p11.spreadsheet_reader import COLUMN_RUN_ID
@@ -24,8 +25,9 @@ def test_convert_row_successful() -> None:
             COLUMN_OUTCOME: 2,
             COLUMN_COMMENT: 3,
             COLUMN_RUN_ID: 4,
+            COLUMN_ESTIMATED_RESOLUTION: 4,
         },
-        ["a", "b", "success", "d", "1"],
+        ["a", "b", "success", "d", "1", ""],
         1,
     )
 

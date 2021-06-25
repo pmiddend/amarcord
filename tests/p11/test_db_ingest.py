@@ -27,6 +27,7 @@ from amarcord.modules.dbcontext import DBContext
 DEFAULT_METADATA_RETRIEVER = MetadataRetriever(
     lambda _crystal_id, _run_id: DiffractionType.success,
     lambda _crystal_id, _run_id: "",
+    lambda _crystal_id, _run_id: "",
     EIGER_16_M_DETECTOR_NAME,
 )
 
@@ -214,8 +215,10 @@ def test_db_ingest_diffractions_update_diffraction_if_exists(db) -> None:
 
 def test_process_and_validate_with_spreadsheet_run_doesnt_match() -> None:
     spreadsheet_lines = [
-        CrystalLine(1, "directory", "name", 1, DiffractionType.success, "comment"),
-        CrystalLine(2, "directory2", "name2", 1, DiffractionType.success, "comment2"),
+        CrystalLine(1, "directory", "name", 1, DiffractionType.success, "comment", ""),
+        CrystalLine(
+            2, "directory2", "name2", 1, DiffractionType.success, "comment2", ""
+        ),
     ]
     crystals = [
         # This crystal matches the first line of the spreadsheet, so it will be renamed from "directory"
@@ -261,8 +264,10 @@ def test_process_and_validate_with_spreadsheet_run_doesnt_match() -> None:
 def test_process_and_validate_with_spreadsheet_more_lines_in_spreadsheet_than_filesystem() -> None:
     # Here we have two crystals, but only one on the filesystem. This should cause warnings.
     spreadsheet_lines = [
-        CrystalLine(1, "directory", "name", 1, DiffractionType.success, "comment"),
-        CrystalLine(2, "directory2", "name2", 1, DiffractionType.success, "comment2"),
+        CrystalLine(1, "directory", "name", 1, DiffractionType.success, "comment", ""),
+        CrystalLine(
+            2, "directory2", "name2", 1, DiffractionType.success, "comment2", ""
+        ),
     ]
     crystals = [
         # This crystal matches the first line of the spreadsheet, so it will be renamed from "directory"
@@ -293,9 +298,11 @@ def test_process_and_validate_with_spreadsheet_more_lines_in_spreadsheet_than_fi
 def test_process_and_validate_with_spreadsheet_duplicate_lines() -> None:
     # Here we have two lines that are exactly the same w.r.t. the primary keys
     spreadsheet_lines = [
-        CrystalLine(1, "directory", "name", 1, DiffractionType.success, "comment"),
+        CrystalLine(1, "directory", "name", 1, DiffractionType.success, "comment", ""),
         # Different directory, same crystal, same run ID (this simulates a typo)
-        CrystalLine(2, "directory2", "name", 1, DiffractionType.success, "comment2"),
+        CrystalLine(
+            2, "directory2", "name", 1, DiffractionType.success, "comment2", ""
+        ),
     ]
     new_crystals, has_warnings = process_and_validate_with_spreadsheet(
         spreadsheet_lines, []
@@ -356,8 +363,10 @@ def test_process_and_validate_with_spreadsheet_different_name_for_same_run() -> 
     # This is tricky: we want to update existing crystals with the new name given in the spreadsheet.
     # But what if we have two different names for two different runs for the same crystal?
     spreadsheet_lines = [
-        CrystalLine(1, "directory", "name", 1, DiffractionType.success, ""),
-        CrystalLine(2, "directory", "differentname", 2, DiffractionType.success, ""),
+        CrystalLine(1, "directory", "name", 1, DiffractionType.success, "", ""),
+        CrystalLine(
+            2, "directory", "differentname", 2, DiffractionType.success, "", ""
+        ),
     ]
     new_crystals, has_warnings = process_and_validate_with_spreadsheet(
         spreadsheet_lines,
