@@ -7,17 +7,16 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import gemmi
 import sqlalchemy as sa
-from pint import UnitRegistry
 from sqlalchemy import Table
 
+from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.analyze_filesystem import P11Crystal
 from amarcord.amici.p11.analyze_filesystem import P11Run
 from amarcord.amici.p11.analyze_filesystem import P11Target
 from amarcord.amici.p11.db import DiffractionType
-from amarcord.amici.p11.db import ReductionMethod
-from amarcord.amici.xds.analyze_filesystem import XDSFilesystem
-from amarcord.amici.xds.analyze_filesystem import analyze_xds_filesystem
+from amarcord.amici.p11.run_key import RunKey
 from amarcord.modules.dbcontext import Connection
 
 EIGER_16_M_DETECTOR_NAME = "DECTRIS EIGER 16M"
@@ -321,94 +320,39 @@ def ingest_diffractions_for_targets(
     return has_warnings
 
 
-def ingest_reductions_for_targets(
-    conn: Connection,
-    crystals: Table,
-    data_reduction: sa.Table,
-    targets: List[P11Target],
-    ureg: UnitRegistry,
-) -> bool:
-    has_warnings = False
-    for target in targets:
-        for puck in target.pucks:
-            crystal_id = _find_crystal(conn, crystals, puck.puck_id, puck.position)
-
-            if crystal_id is None:
-                logger.warning(
-                    "found no crystal for puck ID %s and position %s",
-                    puck.puck_id,
-                    puck.position,
-                )
-                has_warnings = True
-                continue
-
-            for run in puck.runs:
-                if run.processed_path is None:
-                    continue
-
-                if (
-                    conn.execute(
-                        sa.select([data_reduction.c.data_reduction_id]).where(
-                            data_reduction.c.folder_path == str(run.processed_path)
-                        )
-                    ).fetchone()
-                    is not None
-                ):
-                    logger.info(
-                        "Data reduction for folder %s already exists",
-                        run.processed_path,
-                    )
-                    continue
-
-                xds_processed = analyze_xds_filesystem(run.processed_path, ureg)
-                if isinstance(xds_processed, XDSFilesystem):
-                    ingest_xds_result(
-                        conn, crystal_id, data_reduction, run, xds_processed
-                    )
-    return has_warnings
-
-
-def ingest_xds_result(
+def ingest_analysis_result(
     conn: Connection,
     crystal_id: str,
     data_reduction: sa.Table,
     run: P11Run,
-    xds_processed: XDSFilesystem,
+    analysis_result: AnalysisResult,
 ) -> None:
     conn.execute(
         sa.insert(data_reduction).values(
             crystal_id=crystal_id,
             run_id=run.run_id,
-            analysis_time=xds_processed.analysis_time,
-            folder_path=str(run.processed_path),
-            mtz_path=str(xds_processed.mtz_file)
-            if xds_processed.mtz_file is not None
+            analysis_time=analysis_result.analysis_time,
+            folder_path=str(analysis_result.base_path),
+            mtz_path=str(analysis_result.mtz_file)
+            if analysis_result.mtz_file is not None
             else None,
-            # No idea
-            # comment=
-            method=ReductionMethod.XDS_FULL,
-            resolution_cc=xds_processed.correct_lp.resolution_cc.to(
-                "angstrom"
-            ).magnitude
-            if xds_processed.correct_lp.resolution_cc is not None
-            else None,
-            resolution_isigma=xds_processed.correct_lp.resolution_isigma.to(
-                "angstrom"
-            ).magnitude
-            if xds_processed.correct_lp.resolution_isigma is not None
-            else None,
-            a=xds_processed.correct_lp.a.to("angstrom").magnitude,
-            b=xds_processed.correct_lp.b.to("angstrom").magnitude,
-            c=xds_processed.correct_lp.c.to("angstrom").magnitude,
-            alpha=xds_processed.correct_lp.alpha.to("deg").magnitude,
-            beta=xds_processed.correct_lp.beta.to("deg").magnitude,
-            gamma=xds_processed.correct_lp.gamma.to("deg").magnitude,
-            space_group=xds_processed.correct_lp.space_group,
-            isigi=xds_processed.correct_lp.isigi,
-            rmeas=xds_processed.correct_lp.rmeas,
-            cchalf=xds_processed.correct_lp.cchalf,
-            rfactor=xds_processed.correct_lp.rfactor,
-            Wilson_b=xds_processed.results_file.wilson_b,
+            method=analysis_result.method,
+            resolution_cc=analysis_result.resolution_cc,
+            resolution_isigma=analysis_result.resolution_isigma,
+            a=analysis_result.a,
+            b=analysis_result.b,
+            c=analysis_result.c,
+            alpha=analysis_result.alpha,
+            beta=analysis_result.beta,
+            gamma=analysis_result.gamma,
+            space_group=gemmi.find_spacegroup_by_name(
+                analysis_result.space_group
+            ).number,
+            isigi=analysis_result.isigi,
+            rmeas=analysis_result.rmeas,
+            cchalf=analysis_result.cchalf,
+            rfactor=analysis_result.rfactor,
+            Wilson_b=analysis_result.wilson_b,
         )
     )
 
@@ -418,14 +362,18 @@ def ingest_reductions_for_crystals(
     table_data_reduction: sa.Table,
     table_diffractions: sa.Table,
     crystals: List[P11Crystal],
-    processed_results: Dict[Path, XDSFilesystem],
+    processed_results: Dict[RunKey, List[AnalysisResult]],
 ) -> List[str]:
     warnings: List[str] = []
     for crystal in crystals:
         for run in crystal.runs:
-            if run.processed_path is None:
+            process_results = processed_results.get(
+                RunKey(crystal.crystal_id, run.run_id), None
+            )
+
+            if process_results is None or not processed_results:
                 logger.debug(
-                    "Crystal %s, skipping run %s, no processed_path",
+                    "Crystal %s, skipping run %s, no process result",
                     crystal.crystal_id,
                     run.run_id,
                 )
@@ -448,35 +396,30 @@ def ingest_reductions_for_crystals(
                 )
                 continue
 
-            if (
-                conn.execute(
-                    sa.select([table_data_reduction.c.data_reduction_id]).where(
-                        table_data_reduction.c.folder_path == str(run.processed_path)
+            for process_result in process_results:
+                if (
+                    conn.execute(
+                        sa.select([table_data_reduction.c.data_reduction_id]).where(
+                            table_data_reduction.c.folder_path
+                            == str(process_result.base_path)
+                        )
+                    ).fetchone()
+                    is not None
+                ):
+                    logger.debug(
+                        "Data reduction for folder %s already exists",
+                        process_result.base_path,
                     )
-                ).fetchone()
-                is not None
-            ):
-                logger.debug(
-                    "Data reduction for folder %s already exists",
-                    run.processed_path,
-                )
-                continue
+                    continue
 
-            xds_processed = processed_results.get(run.processed_path, None)
-            if xds_processed is not None:
                 logger.info(
-                    "Crystal %s, run %s, processed path %s: ingesting XDS result",
+                    "Crystal %s, run %s, processed path %s: ingesting %s result",
                     crystal.crystal_id,
                     run.run_id,
-                    run.processed_path,
+                    process_result.base_path,
+                    process_result.method.value,
                 )
-                ingest_xds_result(
-                    conn, crystal.crystal_id, table_data_reduction, run, xds_processed
-                )
-            else:
-                logger.debug(
-                    "Crystal %s, run %s: xds processing failed, doing nothing",
-                    crystal.crystal_id,
-                    run.run_id,
+                ingest_analysis_result(
+                    conn, crystal.crystal_id, table_data_reduction, run, process_result
                 )
     return warnings

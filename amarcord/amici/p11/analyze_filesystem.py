@@ -19,10 +19,10 @@ WarnMessage = str
 @dataclass(frozen=True)
 class P11Run:
     run_id: int
+    run_path: Path
     info_file: P11InfoFile
     data_raw_filename_pattern: Optional[str]
     microscope_image_filename_pattern: Optional[str]
-    processed_path: Optional[Path]
 
 
 @dataclass(frozen=True)
@@ -58,10 +58,10 @@ def parse_run(
             f"crystal {crystal_name}, run {run_id}: info file {info_path} does not exist"
         ]
     try:
-        processed = Path(str(run_path.resolve()).replace("/raw/", "/processed/"))
         return (
             P11Run(
                 run_id,
+                run_path,
                 parse_p11_info_file(info_path, UnitRegistry()),
                 data_raw_filename_pattern=f"{run_path}/*h5"
                 if list(run_path.glob("*h5"))
@@ -71,7 +71,6 @@ def parse_run(
                 microscope_image_filename_pattern=f"{run_path}/*jpg"
                 if list(run_path.glob("*jpg"))
                 else None,
-                processed_path=processed if processed.is_dir() else None,
             ),
             [],
         )
@@ -155,42 +154,6 @@ def parse_crystal(crystal_path: Path) -> Tuple[Optional[P11Crystal], List[WarnMe
     return P11Crystal(crystal_path.name, runs), warnings
 
 
-def parse_target(target_path: Path) -> Tuple[Optional[P11Target], List[WarnMessage]]:
-    pucks: List[P11Puck] = []
-    warnings: List[WarnMessage] = []
-    for puck_dir in target_path.iterdir():
-        if not puck_dir.is_dir():
-            continue
-
-        parts = puck_dir.name.split("_")
-        if len(parts) != 2:
-            warnings.append(
-                f"puck directory {puck_dir} invalid format, has {len(parts)} part(s)"
-            )
-            continue
-
-        match = re.fullmatch(r"([^_]+)_(?:pos)?(\d+)", puck_dir.name)
-
-        if not match:
-            warnings.append(
-                f"puck directory {puck_dir} has invalid format, has to be $puckid_pos$pos or $puckid_$pos"
-            )
-            continue
-
-        puck_id = match.group(1)
-        puck_position = int(match.group(2))
-
-        puck, puck_warnings = parse_puck(puck_id, puck_position, puck_dir)
-
-        if puck is not None:
-            pucks.append(puck)
-
-        warnings.extend(puck_warnings)
-    if not pucks:
-        warnings.append(f"target {target_path} has no pucks!")
-    return P11Target(target_name=target_path.name, pucks=pucks), warnings
-
-
 def parse_p11_crystals(
     proposal_path: Path,
 ) -> Tuple[List[P11Crystal], List[WarnMessage]]:
@@ -212,31 +175,5 @@ def parse_p11_crystals(
 
         if crystal_info is not None:
             result.append(crystal_info)
-
-    return result, warnings
-
-
-def parse_p11_targets(proposal_path: Path) -> Tuple[List[P11Target], List[WarnMessage]]:
-    """
-    Parses directories below the proposal path, assuming directly below that
-    are directories for the different targets.
-    """
-    if not proposal_path.is_dir():
-        raise Exception(f"proposal path {proposal_path} is not a directory!")
-    raw_path = proposal_path / "raw"
-    if not raw_path.is_dir():
-        raise Exception(f"proposal raw data {raw_path} is not a directory!")
-    result: List[P11Target] = []
-    warnings: List[WarnMessage] = []
-    for target_dir in raw_path.iterdir():
-        if not target_dir.is_dir():
-            continue
-
-        target_info, target_warnings = parse_target(target_dir)
-
-        warnings.extend(target_warnings)
-
-        if target_info is not None:
-            result.append(target_info)
 
     return result, warnings

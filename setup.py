@@ -50,7 +50,9 @@ setuptools.setup(
         "typed-argument-parser==1.6.*",
     ],
     extras_require={
-        "p11": ["pint==0.16.*", "numpy==1.19.*"],
+        # gemmi for space group string to index
+        # pint for xds ingester
+        "p11": ["pint==0.16.*", "numpy==1.19.*", "gemmi==0.4.*"],
         "daemon": [
             "pyzmq==22.0.*",
             "karabo-bridge==0.6.*",

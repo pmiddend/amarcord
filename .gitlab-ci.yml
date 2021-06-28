@@ -25,7 +25,7 @@ pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
   script:
-    - pip install -e .[gui,webserver,daemon]
+    - pip install -e .[gui,webserver,daemon,p11]
     - pip install 'mypy==0.812' 'pylint==2.8.*' sqlalchemy-stubs
     - mypy amarcord tutorial
     - apt-get update -y && apt-get install -y qt5-default
@@ -53,7 +53,7 @@ tests:
   script:
     - apt-get update -y
     - apt-get install -y libgl1-mesa-glx qt5-default
-    - pip install -e .[gui]
+    - pip install -e .[gui,p11]
     - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*' 'hypothesis==6.3.*' 'pytest-cov==2.11.*' 'pyfakefs==4.4.*'
     - PYTHONPATH=".:$PYTHONPATH" pytest --cov=amarcord/ --junitxml=report.xml tests
     - coverage xml

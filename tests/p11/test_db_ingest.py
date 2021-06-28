@@ -8,18 +8,15 @@ from amarcord.amici.p11.analyze_filesystem import P11Crystal
 from amarcord.amici.p11.analyze_filesystem import P11Run
 from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.db import table_crystals
-from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_diffractions
 from amarcord.amici.p11.db import table_pucks
 from amarcord.amici.p11.db_ingest import EIGER_16_M_DETECTOR_NAME
 from amarcord.amici.p11.db_ingest import MetadataRetriever
 from amarcord.amici.p11.db_ingest import empty_metadata_retriever
 from amarcord.amici.p11.db_ingest import ingest_diffractions_for_crystals
-from amarcord.amici.p11.db_ingest import ingest_reductions_for_crystals
 from amarcord.amici.p11.db_ingest import insert_diffraction
 from amarcord.amici.p11.parser import parse_p11_info_file
 from amarcord.amici.p11.spreadsheet_reader import CrystalLine
-from amarcord.amici.xds.analyze_filesystem import XDSFilesystem
 from amarcord.cli.p11_filesystem_ingester import process_and_validate_with_spreadsheet
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -50,12 +47,12 @@ def test_db_ingest_diffractions_successful(db) -> None:
                 runs=[
                     P11Run(
                         1,
+                        Path(__file__).parent,
                         parse_p11_info_file(
                             Path(__file__).parent / "info.txt", UnitRegistry()
                         ),
                         data_raw_filename_pattern=None,
                         microscope_image_filename_pattern=None,
-                        processed_path=None,
                     )
                 ],
             )
@@ -92,12 +89,12 @@ def test_db_ingest_diffractions_crystal_in_filesystem_but_not_in_db(db) -> None:
                 runs=[
                     P11Run(
                         1,
+                        Path(__file__).parent,
                         parse_p11_info_file(
                             Path(__file__).parent / "info.txt", UnitRegistry()
                         ),
                         data_raw_filename_pattern=None,
                         microscope_image_filename_pattern=None,
-                        processed_path=None,
                     )
                 ],
             )
@@ -134,12 +131,12 @@ def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) ->
                 runs=[
                     P11Run(
                         1,
+                        Path(__file__).parent,
                         parse_p11_info_file(
                             Path(__file__).parent / "info.txt", UnitRegistry()
                         ),
                         data_raw_filename_pattern=None,
                         microscope_image_filename_pattern=None,
-                        processed_path=None,
                     )
                 ],
             )
@@ -175,10 +172,10 @@ def test_db_ingest_diffractions_update_diffraction_if_exists(db) -> None:
         )
         run = P11Run(
             1,
+            Path(__file__).parent,
             info_file,
             data_raw_filename_pattern=None,
             microscope_image_filename_pattern=None,
-            processed_path=None,
         )
         # "Pre-insert" the diffraction, using a different number of frames as an example field
         insert_diffraction(
@@ -230,12 +227,12 @@ def test_process_and_validate_with_spreadsheet_run_doesnt_match() -> None:
             runs=[
                 P11Run(
                     1,
+                    Path(__file__).parent,
                     parse_p11_info_file(
                         Path(__file__).parent / "info.txt", UnitRegistry()
                     ),
                     data_raw_filename_pattern=None,
                     microscope_image_filename_pattern=None,
-                    processed_path=None,
                 )
             ],
         ),
@@ -245,12 +242,12 @@ def test_process_and_validate_with_spreadsheet_run_doesnt_match() -> None:
             runs=[
                 P11Run(
                     2,
+                    Path(__file__).parent,
                     parse_p11_info_file(
                         Path(__file__).parent / "info.txt", UnitRegistry()
                     ),
                     data_raw_filename_pattern=None,
                     microscope_image_filename_pattern=None,
-                    processed_path=None,
                 )
             ],
         ),
@@ -279,12 +276,12 @@ def test_process_and_validate_with_spreadsheet_more_lines_in_spreadsheet_than_fi
             runs=[
                 P11Run(
                     1,
+                    Path(__file__).parent,
                     parse_p11_info_file(
                         Path(__file__).parent / "info.txt", UnitRegistry()
                     ),
                     data_raw_filename_pattern=None,
                     microscope_image_filename_pattern=None,
-                    processed_path=None,
                 )
             ],
         ),
@@ -313,54 +310,6 @@ def test_process_and_validate_with_spreadsheet_duplicate_lines() -> None:
     assert has_warnings
 
 
-def test_ingest_reduction_without_diffraction(db) -> None:
-    # We might want to ingest a reduction, but don't have a diffraction (because it wasn't part of the original
-    # beamtime, for example). In this case, we shouldn't crash, but ignore the entry
-
-    dbcontext = DBContext("sqlite://", echo=False)
-    table_crystals_ = table_crystals(
-        dbcontext.metadata, table_pucks(dbcontext.metadata)
-    )
-    diffs = table_diffractions(dbcontext.metadata, table_crystals_)
-    reductions = table_data_reduction(dbcontext.metadata, table_crystals_)
-    dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
-
-    with dbcontext.connect() as conn:
-        processed_path = Path("/")
-        crystals = [
-            P11Crystal(
-                "crystal_id",
-                runs=[
-                    P11Run(
-                        1,
-                        parse_p11_info_file(
-                            Path(__file__).parent / "info.txt", UnitRegistry()
-                        ),
-                        data_raw_filename_pattern=None,
-                        microscope_image_filename_pattern=None,
-                        processed_path=processed_path,
-                    )
-                ],
-            )
-        ]
-        has_warnings = ingest_reductions_for_crystals(
-            conn,
-            reductions,
-            diffs,
-            crystals,
-            {
-                # this is invalid, but shouldn't matter, we are testing if we are _considering_ this reduction even
-                processed_path: XDSFilesystem(
-                    correct_lp=None,  # type: ignore
-                    results_file=None,  # type: ignore
-                    mtz_file=None,
-                    analysis_time=None,  # type: ignore
-                )
-            },
-        )
-        assert not has_warnings
-
-
 def test_process_and_validate_with_spreadsheet_different_name_for_same_run() -> None:
     # This is tricky: we want to update existing crystals with the new name given in the spreadsheet.
     # But what if we have two different names for two different runs for the same crystal?
@@ -378,21 +327,21 @@ def test_process_and_validate_with_spreadsheet_different_name_for_same_run() -> 
                 runs=[
                     P11Run(
                         1,
+                        Path(__file__).parent,
                         parse_p11_info_file(
                             Path(__file__).parent / "info.txt", UnitRegistry()
                         ),
                         data_raw_filename_pattern=None,
                         microscope_image_filename_pattern=None,
-                        processed_path=None,
                     ),
                     P11Run(
                         2,
+                        Path(__file__).parent,
                         parse_p11_info_file(
                             Path(__file__).parent / "info.txt", UnitRegistry()
                         ),
                         data_raw_filename_pattern=None,
                         microscope_image_filename_pattern=None,
-                        processed_path=None,
                     ),
                 ],
             )

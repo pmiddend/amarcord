@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+<AutoProcContainer>
+  <AutoProcProgramContainer>
+    <AutoProcProgram>
+      <processingCommandLine>/home/yefanov/programs/autoproc_20210420/autoPROC/bin/linux64/process -I /asap3/petra3/gpfs/p11/2021/data/11010900/raw/TrpR_CKpep_Ca2_pos1_69/TrpR_CKpep_Ca2_pos1_69_001 beam="2135 2183.6" -B -d /asap3/petra3/gpfs/p11/2021/data/11010900/processed/reprocess/autoproc//TrpR_CKpep_Ca2_pos1_69/TrpR_CKpep_Ca2_pos1_69_001/</processingCommandLine>
+      <processingPrograms>autoPROC 1.0.5 (20210420 - see: http://www.globalphasing.com/autoproc/)</processingPrograms>
+      <processingStatus>0</processingStatus>
+      <processingMessage></processingMessage>
+      <processingStartTime>Fri May 28 16:17:22 CEST 2021</processingStartTime>
+      <processingEndTime>Fri May 28 16:36:45 CEST 2021</processingEndTime>
+      <processingEnvironment>
+  Host      : max-exfl286.desy.de
+  OS        : CentOS Linux release 7.9.2009 (Core)|PRETTY_NAME="CentOS Linux 7 (Core)"||REDHAT_SUPPORT_PRODUCT="centos"|REDHAT_SUPPORT_PRODUCT_VERSION="7"|x86_64|3.10.0-1160.21.1.el7.x86_64
+  User      : yefanov (group = cfel)
+  Directory : /asap3/petra3/gpfs/p11/2021/data/11010900/processed/reprocess/autoproc
+  Date      : Fri May 28 16:17:22 CEST 2021
+  autoPROC  : /home/yefanov/programs/autoproc_20210420
+      </processingEnvironment>
+    </AutoProcProgram>
+  </AutoProcProgramContainer>
+  <AutoProc>
+    <spaceGroup>P 61 2 2</spaceGroup>
+    <wavelength>1.03321</wavelength>
+    <refinedCell_a>85.940</refinedCell_a>
+    <refinedCell_b>85.940</refinedCell_b>
+    <refinedCell_c>114.585</refinedCell_c>
+    <refinedCell_alpha>90.000</refinedCell_alpha>
+    <refinedCell_beta>90.000</refinedCell_beta>
+    <refinedCell_gamma>120.000</refinedCell_gamma>
+  </AutoProc>
+  <AutoProcScalingContainer>
+    <AutoProcScaling>
+      <recordTimeStamp>2021-05-28 16:35:33</recordTimeStamp>
+      <resolutionEllipsoidAxis11>1.00000</resolutionEllipsoidAxis11>
+      <resolutionEllipsoidAxis12>.00000</resolutionEllipsoidAxis12>
+      <resolutionEllipsoidAxis13>.00000</resolutionEllipsoidAxis13>
+      <resolutionEllipsoidAxis21>.00000</resolutionEllipsoidAxis21>
+      <resolutionEllipsoidAxis22>1.00000</resolutionEllipsoidAxis22>
+      <resolutionEllipsoidAxis23>.00000</resolutionEllipsoidAxis23>
+      <resolutionEllipsoidAxis31>.00000</resolutionEllipsoidAxis31>
+      <resolutionEllipsoidAxis32>.00000</resolutionEllipsoidAxis32>
+      <resolutionEllipsoidAxis33>1.00000</resolutionEllipsoidAxis33>
+      <resolutionEllipsoidValue1>3.36600</resolutionEllipsoidValue1>
+      <resolutionEllipsoidValue2>3.36600</resolutionEllipsoidValue2>
+      <resolutionEllipsoidValue3>3.26800</resolutionEllipsoidValue3>
+    </AutoProcScaling>
+    <AutoProcScalingStatistics>
+      <scalingStatisticsType>overall</scalingStatisticsType>
+      <resolutionLimitLow>74.426</resolutionLimitLow>
+      <resolutionLimitHigh>3.334</resolutionLimitHigh>
+      <rMerge>.122</rMerge>
+      <rMeasWithinIPlusIMinus>.143</rMeasWithinIPlusIMinus>
+      <rMeasAllIPlusIMinus>.124</rMeasAllIPlusIMinus>
+      <rPimWithinIPlusIMinus>.029</rPimWithinIPlusIMinus>
+      <rPimAllIPlusIMinus>.019</rPimAllIPlusIMinus>
+      <nTotalObservations>147040</nTotalObservations>
+      <nTotalUniqueObservations>3614</nTotalUniqueObservations>
+      <meanIOverSigI>17.7</meanIOverSigI>
+      <completenessSpherical>90.5</completenessSpherical>
+      <completenessEllipsoidal>91.4</completenessEllipsoidal>
+      <completeness>91.4</completeness>
+      <multiplicity>40.7</multiplicity>
+      <ccHalf>1.000</ccHalf>
+      <anomalousCompletenessSpherical>89.4</anomalousCompletenessSpherical>
+      <anomalousCompletenessEllipsoidal>90.4</anomalousCompletenessEllipsoidal>
+      <anomalousCompleteness>90.4</anomalousCompleteness>
+      <anomalousMultiplicity>23.7</anomalousMultiplicity>
+      <ccAnomalous>-0.008</ccAnomalous>
+      <DanoOverSigDano>.701</DanoOverSigDano>
+    </AutoProcScalingStatistics>
+    <AutoProcScalingStatistics>
+      <scalingStatisticsType>innerShell</scalingStatisticsType>
+      <resolutionLimitLow>74.426</resolutionLimitLow>
+      <resolutionLimitHigh>9.727</resolutionLimitHigh>
+      <rMerge>.035</rMerge>
+      <rMeasWithinIPlusIMinus>.034</rMeasWithinIPlusIMinus>
+      <rMeasAllIPlusIMinus>.036</rMeasAllIPlusIMinus>
+      <rPimWithinIPlusIMinus>.007</rPimWithinIPlusIMinus>
+      <rPimAllIPlusIMinus>.006</rPimAllIPlusIMinus>
+      <nTotalObservations>6648</nTotalObservations>
+      <nTotalUniqueObservations>200</nTotalUniqueObservations>
+      <meanIOverSigI>73.3</meanIOverSigI>
+      <completenessSpherical>100.0</completenessSpherical>
+      <completenessEllipsoidal>100.0</completenessEllipsoidal>
+      <completeness>100.0</completeness>
+      <multiplicity>33.2</multiplicity>
+      <ccHalf>1.000</ccHalf>
+      <anomalousCompletenessSpherical>100.0</anomalousCompletenessSpherical>
+      <anomalousCompletenessEllipsoidal>100.0</anomalousCompletenessEllipsoidal>
+      <anomalousCompleteness>100.0</anomalousCompleteness>
+      <anomalousMultiplicity>24.9</anomalousMultiplicity>
+      <ccAnomalous>0.002</ccAnomalous>
+      <DanoOverSigDano>.640</DanoOverSigDano>
+    </AutoProcScalingStatistics>
+    <AutoProcScalingStatistics>
+      <scalingStatisticsType>outerShell</scalingStatisticsType>
+      <resolutionLimitLow>3.481</resolutionLimitLow>
+      <resolutionLimitHigh>3.334</resolutionLimitHigh>
+      <rMerge>4.373</rMerge>
+      <rMeasWithinIPlusIMinus>4.530</rMeasWithinIPlusIMinus>
+      <rMeasAllIPlusIMinus>4.423</rMeasAllIPlusIMinus>
+      <rPimWithinIPlusIMinus>.910</rPimWithinIPlusIMinus>
+      <rPimAllIPlusIMinus>.656</rPimAllIPlusIMinus>
+      <nTotalObservations>9008</nTotalObservations>
+      <nTotalUniqueObservations>201</nTotalUniqueObservations>
+      <meanIOverSigI>1.1</meanIOverSigI>
+      <completenessSpherical>43.5</completenessSpherical>
+      <completenessEllipsoidal>47.9</completenessEllipsoidal>
+      <completeness>47.9</completeness>
+      <multiplicity>44.8</multiplicity>
+      <ccHalf>0.689</ccHalf>
+      <anomalousCompletenessSpherical>43.0</anomalousCompletenessSpherical>
+      <anomalousCompletenessEllipsoidal>47.2</anomalousCompletenessEllipsoidal>
+      <anomalousCompleteness>47.2</anomalousCompleteness>
+      <anomalousMultiplicity>24.8</anomalousMultiplicity>
+      <ccAnomalous>0.062</ccAnomalous>
+      <DanoOverSigDano>.732</DanoOverSigDano>
+    </AutoProcScalingStatistics>
+  </AutoProcScalingContainer>
+</AutoProcContainer>
