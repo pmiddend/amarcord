@@ -66,21 +66,21 @@ def _update_job_status(
 
 def _process_running_job(
     conn: Connection,
-    table_reduction_jobs: sa.Table,
+    table_job_to_diffraction: sa.Table,
     job_id: str,
     job_metadata: JSONDict,
 ) -> None:
     conn.execute(
-        sa.update(table_reduction_jobs)
+        sa.update(table_job_to_diffraction)
         .values(metadata=job_metadata)
-        .where(table_reduction_jobs.c.id == job_id)
+        .where(table_job_to_diffraction.c.id == job_id)
     )
 
 
 def _process_completed_job(
     conn: Connection,
     table_data_reduction: sa.Table,
-    table_reduction_jobs: sa.Table,
+    table_jobs: sa.Table,
     table_job_to_reductions: sa.Table,
     job: _ReductionJob,
 ) -> None:
@@ -93,7 +93,7 @@ def _process_completed_job(
         logger.info("job %s: output file %s not a file", job.id, output_description)
         _update_job_status(
             conn,
-            table_reduction_jobs,
+            table_jobs,
             job.id,
             job.metadata,
             f"output file not found: {output_description}",
@@ -111,7 +111,7 @@ def _process_completed_job(
         )
         _update_job_status(
             conn,
-            table_reduction_jobs,
+            table_jobs,
             job.id,
             job.metadata,
             f"invalid output file {output_description}: {parse_results}",
@@ -134,9 +134,7 @@ def _process_completed_job(
         )
 
     logger.info("job %s: completing without error", job.id)
-    _update_job_status(
-        conn, table_reduction_jobs, job.id, job.metadata, failure_message=None
-    )
+    _update_job_status(conn, table_jobs, job.id, job.metadata, failure_message=None)
 
 
 def process_tool_command_line(
@@ -155,14 +153,14 @@ def process_tool_command_line(
 def _start_job(
     conn: Connection,
     job_controller: JobController,
-    table_reduction_jobs: sa.Table,
+    table_jobs: sa.Table,
     job: _ReductionJob,
 ) -> None:
     if job.data_raw_filename_pattern is None:
         logger.info("wanted to start queued job, but have no diffraction path")
         _update_job_status(
             conn,
-            table_reduction_jobs,
+            table_jobs,
             job.id,
             job.metadata,
             "no filename pattern in Diffraction",
@@ -188,7 +186,7 @@ def _start_job(
         logger.exception("failed to start job %s", job.id)
         _update_job_status(
             conn,
-            table_reduction_jobs,
+            table_jobs,
             job.id,
             job.metadata,
             "failed to start job",
@@ -204,14 +202,14 @@ def _start_job(
     )
 
     conn.execute(
-        sa.update(table_reduction_jobs)
+        sa.update(table_jobs)
         .values(
             status=JobStatus.RUNNING,
             started=datetime.datetime.utcnow(),
             output_directory=str(result.output_directory),
             metadata=result.metadata,
         )
-        .where(table_reduction_jobs.c.id == job.id)
+        .where(table_jobs.c.id == job.id)
     )
 
 
@@ -219,7 +217,8 @@ def check_jobs(
     job_controller: JobController,
     conn: Connection,
     table_tools: sa.Table,
-    table_reduction_jobs: sa.Table,
+    table_jobs: sa.Table,
+    table_job_to_diffraction: sa.Table,
     table_job_to_reductions: sa.Table,
     table_diffractions: sa.Table,
     table_data_reduction: sa.Table,
@@ -253,30 +252,32 @@ def check_jobs(
             for job in conn.execute(
                 sa.select(
                     [
-                        table_reduction_jobs.c.id,
-                        table_reduction_jobs.c.started,
-                        table_reduction_jobs.c.stopped,
-                        table_reduction_jobs.c.queued,
-                        table_reduction_jobs.c.output_directory,
-                        table_reduction_jobs.c.run_id,
-                        table_reduction_jobs.c.crystal_id,
-                        table_reduction_jobs.c.tool_id,
-                        table_reduction_jobs.c.tool_inputs,
-                        table_reduction_jobs.c.metadata,
-                        table_reduction_jobs.c.status,
+                        table_jobs.c.id,
+                        table_jobs.c.started,
+                        table_jobs.c.stopped,
+                        table_jobs.c.queued,
+                        table_jobs.c.output_directory,
+                        table_jobs.c.tool_id,
+                        table_jobs.c.tool_inputs,
+                        table_jobs.c.metadata,
+                        table_jobs.c.status,
+                        table_job_to_diffraction.c.run_id,
+                        table_job_to_diffraction.c.crystal_id,
                         table_tools.c.executable_path,
                         table_tools.c.command_line,
                         table_tools.c.extra_files,
                         table_diffractions.c.data_raw_filename_pattern,
                     ]
                 ).select_from(
-                    table_reduction_jobs.join(table_tools).join(table_diffractions)
+                    table_jobs.join(table_job_to_diffraction)
+                    .join(table_tools)
+                    .join(table_diffractions)
                 )
             ).fetchall()
         ]
 
         for db_job in (x for x in db_jobs if x.status == JobStatus.QUEUED):
-            _start_job(conn, job_controller, table_reduction_jobs, db_job)
+            _start_job(conn, job_controller, table_jobs, db_job)
 
         controller_jobs = list(job_controller.list_jobs())
         # Iterate over the completed jobs, align with running DB jobs
@@ -302,7 +303,7 @@ def check_jobs(
             _process_completed_job(
                 conn,
                 table_data_reduction,
-                table_reduction_jobs,
+                table_jobs,
                 table_job_to_reductions,
                 db_job,
             )
@@ -327,7 +328,7 @@ def check_jobs(
                 _process_completed_job(
                     conn,
                     table_data_reduction,
-                    table_reduction_jobs,
+                    table_jobs,
                     table_job_to_reductions,
                     db_job,
                 )

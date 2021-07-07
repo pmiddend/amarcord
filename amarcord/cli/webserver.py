@@ -32,9 +32,10 @@ from amarcord.amici.p11.db import table_crystals
 from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_dewar_lut
 from amarcord.amici.p11.db import table_diffractions
+from amarcord.amici.p11.db import table_job_to_diffraction
 from amarcord.amici.p11.db import table_job_to_reduction
+from amarcord.amici.p11.db import table_jobs
 from amarcord.amici.p11.db import table_pucks
-from amarcord.amici.p11.db import table_reduction_jobs
 from amarcord.amici.p11.db import table_tools
 from amarcord.locker import Locker
 from amarcord.modules.dbcontext import Connection
@@ -70,8 +71,9 @@ class WebserverDB:
     table_crystals: sa.Table
     table_diffractions: sa.Table
     table_data_reductions: sa.Table
-    table_reduction_jobs: sa.Table
-    table_job_reductions: sa.Table
+    table_jobs: sa.Table
+    table_job_to_diffraction: sa.Table
+    table_job_to_reduction: sa.Table
 
     def __enter__(self) -> "WebserverDB":
         return self
@@ -119,7 +121,8 @@ def _create_db(db_url: str) -> WebserverDB:
     tools = table_tools(dbcontext.metadata)
     diffs = table_diffractions(dbcontext.metadata, crystals)
     reductions = table_data_reduction(dbcontext.metadata, crystals)
-    reduction_jobs = table_reduction_jobs(dbcontext.metadata, tools, diffs)
+    jobs = table_jobs(dbcontext.metadata, tools)
+    reduction_jobs = table_job_to_diffraction(dbcontext.metadata, jobs, crystals, diffs)
     job_reductions = table_job_to_reduction(
         dbcontext.metadata, reduction_jobs, reductions
     )
@@ -133,6 +136,7 @@ def _create_db(db_url: str) -> WebserverDB:
         crystals,
         diffs,
         reductions,
+        jobs,
         reduction_jobs,
         job_reductions,
     )
@@ -170,8 +174,9 @@ def workflow_daemon_thread(
                     job_controller,
                     db.connection,
                     db.table_tools,
-                    db.table_reduction_jobs,
-                    db.table_job_reductions,
+                    db.table_jobs,
+                    db.table_job_to_diffraction,
+                    db.table_job_to_reduction,
                     db.table_diffractions,
                     db.table_data_reductions,
                 )
@@ -477,7 +482,7 @@ def create_app() -> Flask:
             }
 
         db = get_db()
-        rjc = db.table_reduction_jobs.c
+        rjc = db.table_jobs.c
         return {
             "jobs": [
                 convert_job(j)
@@ -491,14 +496,18 @@ def create_app() -> Flask:
                             rjc.status,
                             rjc.failure_reason,
                             rjc.output_directory,
-                            rjc.run_id,
-                            rjc.crystal_id,
+                            db.table_job_to_diffraction.c.run_id,
+                            db.table_job_to_diffraction.c.crystal_id,
                             rjc.metadata,
                             db.table_tools.c.name.label("tool"),
                             rjc.tool_inputs,
                         ]
                     )
-                    .select_from(db.table_reduction_jobs.join(db.table_tools))
+                    .select_from(
+                        db.table_jobs.join(db.table_tools).outerjoin(
+                            db.table_job_to_diffraction
+                        )
+                    )
                     .order_by(rjc.started.desc())
                 )
             ]
@@ -521,21 +530,26 @@ def create_app() -> Flask:
         db = get_db()
 
         inserted_jobs: List[int] = []
-        for diff in diffractions_raw:
-            crystal_id: str = diff[0]
-            run_id: int = diff[1]
+        with db.connection.begin():
+            for diff in diffractions_raw:
+                crystal_id: str = diff[0]
+                run_id: int = diff[1]
 
-            result = db.connection.execute(
-                sa.insert(db.table_reduction_jobs).values(
-                    status=JobStatus.QUEUED,
-                    queued=datetime.datetime.utcnow(),
-                    run_id=run_id,
-                    crystal_id=crystal_id,
-                    tool_id=tool_id,
-                    tool_inputs=inputs,
+                result = db.connection.execute(
+                    sa.insert(db.table_jobs).values(
+                        status=JobStatus.QUEUED,
+                        queued=datetime.datetime.utcnow(),
+                        tool_id=tool_id,
+                        tool_inputs=inputs,
+                    )
                 )
-            )
-            inserted_jobs.append(result.inserted_primary_key[0])
+                job_id = result.inserted_primary_key[0]
+                db.connection.execute(
+                    sa.insert(db.table_job_to_diffraction).values(
+                        run_id=run_id, crystal_id=crystal_id, job_id=job_id
+                    )
+                )
+                inserted_jobs.append(job_id)
 
         return {"jobIds": inserted_jobs}
 
@@ -658,8 +672,8 @@ def create_app() -> Flask:
             + diffraction_columns
             + reduction_columns
             + [
-                db.table_reduction_jobs.c.id.label("jobs_id"),
-                db.table_reduction_jobs.c.tool_inputs.label("jobs_tool_inputs"),
+                db.table_jobs.c.id.label("jobs_id"),
+                db.table_jobs.c.tool_inputs.label("jobs_tool_inputs"),
                 db.table_tools.c.name.label("tools_name"),
             ]
         )
@@ -677,8 +691,8 @@ def create_app() -> Flask:
                             == db.table_data_reductions.c.crystal_id,
                         ),
                     )
-                    .outerjoin(db.table_job_reductions)
-                    .outerjoin(db.table_reduction_jobs)
+                    .outerjoin(db.table_job_to_reduction)
+                    .outerjoin(db.table_jobs)
                     .outerjoin(db.table_tools)
                 )
                 .where(sa.text(filter_query))

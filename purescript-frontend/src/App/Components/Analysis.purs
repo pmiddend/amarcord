@@ -308,7 +308,7 @@ render state =
         processRow :: Tuple Int Int -> AnalysisRow -> Maybe (Tuple String Int)
         processRow colIdxs row = unindexCols colIdxs row >>= decomposeCols
       in
-        foldMap (\colIdxs -> mapMaybe (processRow colIdxs) state.rows) colIdxs'
+        nub (foldMap (\colIdxs -> mapMaybe (processRow colIdxs) state.rows) colIdxs')
   in
     fluidContainer
       [ HH.h2_ [ icon { name: "table", size: Nothing, spin: false }, HH.text " Analysis Results" ]

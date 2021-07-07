@@ -6,8 +6,8 @@ from amarcord.amici.p11.db import table_crystals
 from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_dewar_lut
 from amarcord.amici.p11.db import table_diffractions
+from amarcord.amici.p11.db import table_job_to_diffraction
 from amarcord.amici.p11.db import table_pucks
-from amarcord.amici.p11.db import table_reduction_jobs
 from amarcord.amici.p11.db import table_tools
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -30,7 +30,7 @@ def main() -> int:
     diffractions = table_diffractions(dbcontext.metadata, crystals)
     table_data_reduction(dbcontext.metadata, crystals)
     tools = table_tools(dbcontext.metadata)
-    table_reduction_jobs(dbcontext.metadata, tools, diffractions)
+    table_job_to_diffraction(dbcontext.metadata, tools, diffractions)
     dbcontext.create_all(CreationMode.CHECK_FIRST)
     with dbcontext.connect() as conn:
         conn.execute(

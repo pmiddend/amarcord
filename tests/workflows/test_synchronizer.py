@@ -18,9 +18,10 @@ from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.db import table_crystals
 from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_diffractions
+from amarcord.amici.p11.db import table_job_to_diffraction
 from amarcord.amici.p11.db import table_job_to_reduction
+from amarcord.amici.p11.db import table_jobs
 from amarcord.amici.p11.db import table_pucks
-from amarcord.amici.p11.db import table_reduction_jobs
 from amarcord.amici.p11.db import table_tools
 from amarcord.clock import Clock
 from amarcord.clock import MockClock
@@ -141,8 +142,12 @@ class SynchronizerTestScenario:
             self.table_diffractions = table_diffractions(
                 self.dbcontext.metadata, self.table_crystals
             )
-            self.table_reduction_jobs = table_reduction_jobs(
-                self.dbcontext.metadata, self.table_tools, self.table_diffractions
+            self.table_jobs = table_jobs(self.dbcontext.metadata, self.table_tools)
+            self.table_reduction_jobs = table_job_to_diffraction(
+                self.dbcontext.metadata,
+                self.table_jobs,
+                self.table_crystals,
+                self.table_diffractions,
             )
             self.table_data_reduction = table_data_reduction(
                 self.dbcontext.metadata, self.table_crystals
@@ -175,22 +180,28 @@ class SynchronizerTestScenario:
             )
             self.tool_id = tool_result.inserted_primary_key[0]
             job_result = conn.execute(
-                sa.insert(self.table_reduction_jobs).values(
+                sa.insert(self.table_jobs).values(
                     status=JobStatus.QUEUED,
                     queued=self.clock.now(),
-                    run_id=TEST_RUN_ID,
-                    crystal_id=TEST_CRYSTAL_ID,
                     tool_id=self.tool_id,
                     tool_inputs={},
                 )
             )
             self.job_id = job_result.inserted_primary_key[0]
+            conn.execute(
+                sa.insert(self.table_reduction_jobs).values(
+                    job_id=self.job_id,
+                    run_id=TEST_RUN_ID,
+                    crystal_id=TEST_CRYSTAL_ID,
+                )
+            )
 
     def check_jobs(self, conn: Connection) -> None:
         check_jobs(
             self.job_controller,
             conn,
             self.table_tools,
+            self.table_jobs,
             self.table_reduction_jobs,
             self.table_job_to_reduction,
             self.table_diffractions,
@@ -210,8 +221,8 @@ def test_check_jobs_no_diffraction_path() -> None:
         job_after_start = conn.execute(
             sa.select(
                 [
-                    scenario.table_reduction_jobs.c.status,
-                    scenario.table_reduction_jobs.c.failure_reason,
+                    scenario.table_jobs.c.status,
+                    scenario.table_jobs.c.failure_reason,
                 ]
             )
         ).fetchone()
@@ -234,7 +245,7 @@ def test_check_jobs_result_file_doesnt_exist() -> None:
         assert scenario.job_controller.started_jobs[0].command_line == TEST_COMMAND_LINE
 
         job_after_start = conn.execute(
-            sa.select([scenario.table_reduction_jobs.c.status])
+            sa.select([scenario.table_jobs.c.status])
         ).fetchone()
 
         assert job_after_start["status"] == JobStatus.RUNNING
@@ -248,8 +259,8 @@ def test_check_jobs_result_file_doesnt_exist() -> None:
         job_after_start = conn.execute(
             sa.select(
                 [
-                    scenario.table_reduction_jobs.c.status,
-                    scenario.table_reduction_jobs.c.failure_reason,
+                    scenario.table_jobs.c.status,
+                    scenario.table_jobs.c.failure_reason,
                 ]
             )
         ).fetchone()
@@ -282,8 +293,8 @@ def test_check_jobs_invalid_json_file(fs) -> None:
         job_after_start = conn.execute(
             sa.select(
                 [
-                    scenario.table_reduction_jobs.c.status,
-                    scenario.table_reduction_jobs.c.failure_reason,
+                    scenario.table_jobs.c.status,
+                    scenario.table_jobs.c.failure_reason,
                 ]
             )
         ).fetchone()
@@ -322,8 +333,8 @@ def test_check_jobs_valid_result(fs) -> None:
         job_after_start = conn.execute(
             sa.select(
                 [
-                    scenario.table_reduction_jobs.c.status,
-                    scenario.table_reduction_jobs.c.failure_reason,
+                    scenario.table_jobs.c.status,
+                    scenario.table_jobs.c.failure_reason,
                 ]
             )
         ).fetchone()
@@ -361,8 +372,8 @@ def test_check_jobs_valid_result_but_forgotten_by_job_controller(fs) -> None:
         job_after_start = conn.execute(
             sa.select(
                 [
-                    scenario.table_reduction_jobs.c.status,
-                    scenario.table_reduction_jobs.c.failure_reason,
+                    scenario.table_jobs.c.status,
+                    scenario.table_jobs.c.failure_reason,
                 ]
             )
         ).fetchone()

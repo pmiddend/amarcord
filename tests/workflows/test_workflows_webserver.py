@@ -1,6 +1,12 @@
 import json
 
 
+def test_get_jobs(client):
+    # This just tests if the jobs SQL statement doesn't fail, nothing more.
+    rvjson = client.get("/api/workflows/jobs").get_json()
+    assert rvjson["jobs"] == []
+
+
 def test_get_analysis(client):
     # This just tests if the analysis SQL statement doesn't fail, nothing more.
     rvjson = client.get("/api/analysis").get_json()

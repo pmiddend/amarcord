@@ -7,7 +7,6 @@ from sqlalchemy import Enum
 from sqlalchemy import Float
 from sqlalchemy import ForeignKey
 from sqlalchemy import ForeignKeyConstraint
-from sqlalchemy import Index
 from sqlalchemy import Integer
 from sqlalchemy import JSON
 from sqlalchemy import MetaData
@@ -63,16 +62,45 @@ def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
     )
 
 
+def table_job_to_diffraction(
+    metadata: MetaData,
+    _jobs: Table,
+    _crystals: Table,
+    _diffractions: Table,
+    schema: Optional[str] = None,
+) -> Table:
+    return Table(
+        "Job_To_Diffraction",
+        metadata,
+        Column("job_id", Integer(), ForeignKey("Jobs.id"), primary_key=True),
+        Column(
+            "crystal_id",
+            String(length=255),
+            ForeignKey("Crystals.crystal_id"),
+            primary_key=True,
+        ),
+        Column(
+            "run_id",
+            Integer(),
+            primary_key=True,
+        ),
+        ForeignKeyConstraint(
+            ["crystal_id", "run_id"], ["Diffractions.crystal_id", "Diffractions.run_id"]
+        ),
+        schema=schema,
+    )
+
+
 def table_job_to_reduction(
     metadata: MetaData,
-    _reduction_jobs: Table,
+    _jobs: Table,
     _data_reduction: Table,
     schema: Optional[str] = None,
 ) -> Table:
     return Table(
-        "Job_Reductions",
+        "Job_To_Data_Reduction",
         metadata,
-        Column("job_id", Integer(), ForeignKey("Reduction_Jobs.id"), primary_key=True),
+        Column("job_id", Integer(), ForeignKey("Jobs.id"), primary_key=True),
         Column(
             "data_reduction_id",
             Integer(),
@@ -83,14 +111,13 @@ def table_job_to_reduction(
     )
 
 
-def table_reduction_jobs(
+def table_jobs(
     metadata: MetaData,
     _tools: Table,
-    _diffractions: Table,
     schema: Optional[str] = None,
 ) -> Table:
     return Table(
-        "Reduction_Jobs",
+        "Jobs",
         metadata,
         Column("id", Integer(), primary_key=True),
         Column("queued", DateTime, nullable=False),
@@ -99,13 +126,6 @@ def table_reduction_jobs(
         Column("status", Enum(JobStatus), nullable=False),
         Column("failure_reason", Text(), nullable=True),
         Column("output_directory", Text(), nullable=True),
-        Column("run_id", Integer(), nullable=False),
-        Column(
-            "crystal_id",
-            String(length=255),
-            ForeignKey("Crystals.crystal_id"),
-            nullable=False,
-        ),
         Column(
             "tool_id",
             Integer(),
@@ -114,12 +134,6 @@ def table_reduction_jobs(
         ),
         Column("tool_inputs", JSON(), nullable=True),
         Column("metadata", JSON(), nullable=True),
-        # This here is quite important, since we have the foreign key below. MySQL doesn't support adding a foreign
-        # key without the column being indexed
-        Index("crystal_and_run_id", "crystal_id", "run_id"),
-        ForeignKeyConstraint(
-            ["crystal_id", "run_id"], ["Diffractions.crystal_id", "Diffractions.run_id"]
-        ),
         schema=schema,
     )
 
