@@ -12,7 +12,7 @@ import App.Route (AnalysisRouteInput, Route(..), createLink)
 import App.SortOrder (SortOrder(..), invertOrder)
 import Control.Applicative (pure, (<*>))
 import Control.Bind (bind, (>>=))
-import Data.Argonaut (Json, caseJson, jsonNull)
+import Data.Argonaut (Json, caseJson, fromObject, jsonNull, stringify)
 import Data.Argonaut as Argonaut
 import Data.Array (cons, elem, filter, findIndex, index, length, mapMaybe, nub, sort)
 import Data.Eq (class Eq, eq, (/=), (==))
@@ -159,12 +159,12 @@ createUpdatedSortInput doInvertOrder newColumn { sortColumn, sortOrder, filterQu
     { sortColumn: newColumn, sortOrder: Ascending, filterQuery }
 
 showCellContent :: Json -> String
-showCellContent = caseJson (const "") show showNumber identity (const "array") (const "object")
+showCellContent = caseJson (const "") show showNumber identity (const "array") (stringify <<< fromObject)
   where
   showNumber n = fromMaybe (show n) (show <$> (fromNumber n))
 
 postprocessColumnName :: String -> String
-postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.") <<< replace (Pattern "crystals_") (Replacement "Crystals.")
+postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.") <<< replace (Pattern "crystals_") (Replacement "Crystals.") <<< replace (Pattern "jobs_") (Replacement "Reduction_Jobs.") <<< replace (Pattern "tools_") (Replacement "Tools.")
 
 renderColumnChooser :: forall w. State -> HH.HTML w Action
 renderColumnChooser state =

@@ -32,6 +32,7 @@ from amarcord.amici.p11.db import table_crystals
 from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_dewar_lut
 from amarcord.amici.p11.db import table_diffractions
+from amarcord.amici.p11.db import table_job_to_reduction
 from amarcord.amici.p11.db import table_pucks
 from amarcord.amici.p11.db import table_reduction_jobs
 from amarcord.amici.p11.db import table_tools
@@ -70,6 +71,7 @@ class WebserverDB:
     table_diffractions: sa.Table
     table_data_reductions: sa.Table
     table_reduction_jobs: sa.Table
+    table_job_reductions: sa.Table
 
     def __enter__(self) -> "WebserverDB":
         return self
@@ -104,7 +106,7 @@ def _create_test_db(db: WebserverDB, test_files_dir: Path) -> None:
             extra_files=[
                 str(Path().absolute() / "workflow-data" / "dummy-amarcord-output.json")
             ],
-            command_line="${diffraction_path} ${testarg}",
+            command_line="${diffraction.path} ${testarg}",
             description="description",
         )
     )
@@ -118,6 +120,9 @@ def _create_db(db_url: str) -> WebserverDB:
     diffs = table_diffractions(dbcontext.metadata, crystals)
     reductions = table_data_reduction(dbcontext.metadata, crystals)
     reduction_jobs = table_reduction_jobs(dbcontext.metadata, tools, diffs)
+    job_reductions = table_job_to_reduction(
+        dbcontext.metadata, reduction_jobs, reductions
+    )
     if db_url.startswith("sqlite://"):
         dbcontext.create_all(CreationMode.CHECK_FIRST)
     db = WebserverDB(
@@ -129,6 +134,7 @@ def _create_db(db_url: str) -> WebserverDB:
         diffs,
         reductions,
         reduction_jobs,
+        job_reductions,
     )
     test_files_dir = os.environ.get("AMARCORD_TEST_FILES_DIR")
     if db_url.startswith("sqlite://") and test_files_dir is not None:
@@ -165,6 +171,7 @@ def workflow_daemon_thread(
                     db.connection,
                     db.table_tools,
                     db.table_reduction_jobs,
+                    db.table_job_reductions,
                     db.table_diffractions,
                     db.table_data_reductions,
                 )
@@ -646,12 +653,22 @@ def create_app() -> Flask:
         reduction_columns = [
             c.label("dr_" + c.name) for c in db.table_data_reductions.c
         ]
-        all_columns = crystal_columns + diffraction_columns + reduction_columns
+        all_columns = (
+            crystal_columns
+            + diffraction_columns
+            + reduction_columns
+            + [
+                db.table_reduction_jobs.c.id.label("jobs_id"),
+                db.table_reduction_jobs.c.tool_inputs.label("jobs_tool_inputs"),
+                db.table_tools.c.name.label("tools_name"),
+            ]
+        )
         try:
             results = db.connection.execute(
                 sa.select(all_columns)
                 .select_from(
-                    db.table_crystals.outerjoin(db.table_diffractions).outerjoin(
+                    db.table_crystals.outerjoin(db.table_diffractions)
+                    .outerjoin(
                         db.table_data_reductions,
                         onclause=sa.and_(
                             db.table_data_reductions.c.run_id
@@ -660,6 +677,9 @@ def create_app() -> Flask:
                             == db.table_data_reductions.c.crystal_id,
                         ),
                     )
+                    .outerjoin(db.table_job_reductions)
+                    .outerjoin(db.table_reduction_jobs)
+                    .outerjoin(db.table_tools)
                 )
                 .where(sa.text(filter_query))
                 .order_by(sa.desc(sort_column) if sort_order_desc else sort_column)

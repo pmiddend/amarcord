@@ -81,6 +81,7 @@ def _process_completed_job(
     conn: Connection,
     table_data_reduction: sa.Table,
     table_reduction_jobs: sa.Table,
+    table_job_to_reductions: sa.Table,
     job: _ReductionJob,
 ) -> None:
     assert job.output_directory is not None
@@ -119,12 +120,17 @@ def _process_completed_job(
 
     for parse_result in parse_results:
         logger.info("job %s: ingesting result", job.id)
-        ingest_analysis_result(
+        data_reduction_id = ingest_analysis_result(
             conn,
             job.crystal_id,
             table_data_reduction,
             job.run_id,
             parse_result,
+        )
+        conn.execute(
+            sa.insert(table_job_to_reductions).values(
+                job_id=job.id, data_reduction_id=data_reduction_id
+            )
         )
 
     logger.info("job %s: completing without error", job.id)
@@ -214,6 +220,7 @@ def check_jobs(
     conn: Connection,
     table_tools: sa.Table,
     table_reduction_jobs: sa.Table,
+    table_job_to_reductions: sa.Table,
     table_diffractions: sa.Table,
     table_data_reduction: sa.Table,
     clock: Clock = RealClock(),
@@ -293,7 +300,11 @@ def check_jobs(
 
             logger.info("processing completed job %s (DB %s)", md_str, db_job.id)
             _process_completed_job(
-                conn, table_data_reduction, table_reduction_jobs, db_job
+                conn,
+                table_data_reduction,
+                table_reduction_jobs,
+                table_job_to_reductions,
+                db_job,
             )
 
         # Iterate over (old) running DB jobs that we don't find in the current job list
@@ -314,5 +325,9 @@ def check_jobs(
             ):
                 logger.info("found stale job %s", db_job.id)
                 _process_completed_job(
-                    conn, table_data_reduction, table_reduction_jobs, db_job
+                    conn,
+                    table_data_reduction,
+                    table_reduction_jobs,
+                    table_job_to_reductions,
+                    db_job,
                 )

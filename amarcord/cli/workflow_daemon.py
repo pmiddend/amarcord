@@ -7,6 +7,7 @@ from tap import Tap
 from amarcord.amici.p11.db import table_crystals
 from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_diffractions
+from amarcord.amici.p11.db import table_job_to_reduction
 from amarcord.amici.p11.db import table_pucks
 from amarcord.amici.p11.db import table_reduction_jobs
 from amarcord.amici.p11.db import table_tools
@@ -42,6 +43,9 @@ def main(args: Arguments) -> int:
         dbcontext.metadata, table_tools_, table_diffractions_
     )
     table_data_reduction_ = table_data_reduction(dbcontext.metadata, table_crystals_)
+    table_job_to_reductions_ = table_job_to_reduction(
+        dbcontext.metadata, table_reduction_jobs_, table_data_reduction_
+    )
 
     job_controller = create_job_controller(parse_job_controller(args.job_controller))
 
@@ -56,6 +60,7 @@ def main(args: Arguments) -> int:
                     conn,
                     table_tools_,
                     table_reduction_jobs_,
+                    table_job_to_reductions_,
                     table_diffractions_,
                     table_data_reduction_,
                 )

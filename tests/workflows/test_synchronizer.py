@@ -18,6 +18,7 @@ from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.db import table_crystals
 from amarcord.amici.p11.db import table_data_reduction
 from amarcord.amici.p11.db import table_diffractions
+from amarcord.amici.p11.db import table_job_to_reduction
 from amarcord.amici.p11.db import table_pucks
 from amarcord.amici.p11.db import table_reduction_jobs
 from amarcord.amici.p11.db import table_tools
@@ -146,6 +147,11 @@ class SynchronizerTestScenario:
             self.table_data_reduction = table_data_reduction(
                 self.dbcontext.metadata, self.table_crystals
             )
+            self.table_job_to_reduction = table_job_to_reduction(
+                self.dbcontext.metadata,
+                self.table_reduction_jobs,
+                self.table_data_reduction,
+            )
             self.dbcontext.create_all(CreationMode.DONT_CHECK)
             conn.execute(
                 sa.insert(self.table_crystals).values(crystal_id=TEST_CRYSTAL_ID)
@@ -186,6 +192,7 @@ class SynchronizerTestScenario:
             conn,
             self.table_tools,
             self.table_reduction_jobs,
+            self.table_job_to_reduction,
             self.table_diffractions,
             self.table_data_reduction,
         )

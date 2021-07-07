@@ -1,6 +1,14 @@
 import json
 
 
+def test_get_analysis(client):
+    # This just tests if the analysis SQL statement doesn't fail, nothing more.
+    rvjson = client.get("/api/analysis").get_json()
+    assert rvjson["analysis"] == []
+    assert rvjson["analysisColumns"] != []
+    assert rvjson["sqlError"] is None
+
+
 def test_add_and_get_tool(client):
     # Assume empty tools list
     rv = client.get("/api/workflows/tools")

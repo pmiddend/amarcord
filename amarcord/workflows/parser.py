@@ -62,7 +62,7 @@ def parse_reduction_result(
         analysis_time=datetime.datetime.fromisoformat(retrieve_safe("analysis-time")),
         base_path=base_path,
         mtz_file=optional_path("mtz-file"),
-        method=ReductionMethod.TOOL,
+        method=ReductionMethod.OTHER,
         resolution_cc=retrieve_safe_float("resolution-cc"),
         resolution_isigma=retrieve_safe_float("resolution-isigma"),
         a=retrieve_safe_float("a"),

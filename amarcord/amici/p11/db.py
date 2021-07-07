@@ -43,7 +43,6 @@ class ReductionMethod(enum.Enum):
     DIALS_DIALS = "DIALS-dials"
     DIALS_1P7A_DIALS = "DIALS_1p7A-dials"
     STARANISO = "staraniso"
-    TOOL = "tool"
     OTHER = "other"
 
 
@@ -60,6 +59,26 @@ def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
         Column("created", DateTime, server_default=func.now()),
         Column("puck_type", Enum(PuckType)),
         Column("owner", String(length=255)),
+        schema=schema,
+    )
+
+
+def table_job_to_reduction(
+    metadata: MetaData,
+    _reduction_jobs: Table,
+    _data_reduction: Table,
+    schema: Optional[str] = None,
+) -> Table:
+    return Table(
+        "Job_Reductions",
+        metadata,
+        Column("job_id", Integer(), ForeignKey("Reduction_Jobs.id"), primary_key=True),
+        Column(
+            "data_reduction_id",
+            Integer(),
+            ForeignKey("Data_Reduction.data_reduction_id"),
+            primary_key=True,
+        ),
         schema=schema,
     )
 
@@ -193,12 +212,6 @@ def table_data_reduction(
         Column("cchalf", Float, comment="percent"),
         Column("rfactor", Float, comment="percent"),
         Column("Wilson_b", Float, comment="angstrom**2"),
-        Column(
-            "reduction_job_id",
-            Integer(),
-            ForeignKey("Reduction_Jobs.id"),
-            nullable=True,
-        ),
         schema=schema,
     )
 
