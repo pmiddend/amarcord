@@ -24,6 +24,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import redirect
 
+from amarcord.amici.p11.alembic import upgrade_to_head
 from amarcord.amici.p11.db import Beamline
 from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.db import PuckType
@@ -115,6 +116,8 @@ def _create_test_db(db: WebserverDB, test_files_dir: Path) -> None:
 
 
 def _create_db(db_url: str) -> WebserverDB:
+    if "AMARCORD_DO_MIGRATIONS" in os.environ:
+        upgrade_to_head(db_url)
     dbcontext = DBContext(db_url)
     pucks = table_pucks(dbcontext.metadata)
     crystals = table_crystals(dbcontext.metadata, pucks)

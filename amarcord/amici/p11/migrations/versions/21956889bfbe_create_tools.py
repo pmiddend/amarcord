@@ -5,12 +5,15 @@ Revises:
 Create Date: 2021-06-28 12:08:10.149964
 
 """
+import sqlalchemy as sa
 from alembic import op
+from enum import Enum
 
 # revision identifiers, used by Alembic.
 from sqlalchemy import Column
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKeyConstraint
 from sqlalchemy import Integer
 from sqlalchemy import JSON
 from sqlalchemy import String
@@ -21,6 +24,12 @@ revision = "21956889bfbe"
 down_revision = None
 branch_labels = None
 depends_on = None
+
+
+class JobStatus(Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
 
 
 def upgrade():
@@ -34,19 +43,56 @@ def upgrade():
         Column("command_line", Text(), nullable=False),
         Column("description", Text(), nullable=False),
     )
-    op.add_column(
-        "Data_Reduction",
+    op.create_table(
+        "Jobs",
+        Column("id", Integer(), primary_key=True),
+        Column("queued", DateTime, nullable=False),
+        Column("started", DateTime, nullable=True),
+        Column("stopped", DateTime, nullable=True),
+        Column("status", sa.Enum(JobStatus), nullable=False),
+        Column("failure_reason", Text(), nullable=True),
+        Column("output_directory", Text(), nullable=True),
         Column(
             "tool_id",
             Integer(),
             ForeignKey("Tools.id"),
             nullable=True,
         ),
+        Column("tool_inputs", JSON(), nullable=True),
+        Column("metadata", JSON(), nullable=True),
     )
-    op.add_column("Data_Reduction", Column("tool_inputs", JSON(), nullable=True))
+    op.create_table(
+        "Job_To_Diffraction",
+        Column("job_id", Integer(), ForeignKey("Jobs.id"), primary_key=True),
+        Column(
+            "crystal_id",
+            String(length=255),
+            ForeignKey("Crystals.crystal_id"),
+            primary_key=True,
+        ),
+        Column(
+            "run_id",
+            Integer(),
+            primary_key=True,
+        ),
+        ForeignKeyConstraint(
+            ["crystal_id", "run_id"], ["Diffractions.crystal_id", "Diffractions.run_id"]
+        ),
+    )
+    op.create_table(
+        "Job_To_Data_Reduction",
+        Column("job_id", Integer(), ForeignKey("Jobs.id"), primary_key=True),
+        Column(
+            "data_reduction_id",
+            Integer(),
+            ForeignKey("Data_Reduction.data_reduction_id"),
+            primary_key=True,
+        ),
+    )
 
 
 def downgrade():
-    op.drop_column("Data_Reduction", "tool_id")
-    op.drop_column("Data_Reduction", "tool_inputs")
     op.drop_table("Tools")
+    op.drop_table("Jobs")
+    op.drop_table("Job_To_Diffraction")
+    op.drop_table("Job_To_Data_Reduction")

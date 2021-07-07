@@ -46,10 +46,10 @@ class SlurmHttpWrapper:
 
 class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
     def post(self, url: str, headers: Dict[str, Any], data: str) -> Response:
-        return requests.post(url, headers, data)
+        return requests.post(url, headers=headers, data=data)
 
     def get(self, url: str, headers: Dict[str, Any]) -> Response:
-        return requests.get(url, headers)
+        return requests.get(url, headers=headers)
 
 
 class SlurmRestJobController(JobController):
@@ -138,9 +138,14 @@ class SlurmRestJobController(JobController):
         return job.get("user_id", 0) == self._user_id
 
     def list_jobs(self) -> List[Job]:
-        response = self._request_wrapper.get(
+        response_raw = self._request_wrapper.get(
             f"{self._rest_url}/jobs", headers=self._headers()
-        ).json()
+        )
+        try:
+            response = response_raw.json()
+        except:
+            logger.exception("couldn't decode json response %s", response_raw.text)
+            raise
         errors = response.get("errors", None)
         if errors is not None and errors:
             raise Exception("list job request contained errors: " + ",".join(errors))
