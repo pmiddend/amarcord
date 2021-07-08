@@ -13,6 +13,7 @@ from amarcord.clock import Clock
 from amarcord.clock import RealClock
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.json import JSONDict
+from amarcord.util import deglob_path
 from amarcord.util import find_by
 from amarcord.workflows.job_controller import JobController
 from amarcord.workflows.job_status import JobStatus
@@ -167,11 +168,7 @@ def _start_job(
         )
         return
 
-    data_path = Path(
-        job.data_raw_filename_pattern[:-5]
-        if job.data_raw_filename_pattern.endswith("*.cbf")
-        else job.data_raw_filename_pattern
-    )
+    data_path = deglob_path(job.data_raw_filename_pattern)
 
     try:
         result = job_controller.start_job(

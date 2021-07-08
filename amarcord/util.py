@@ -231,3 +231,7 @@ def path_mtime(p: Path) -> datetime.datetime:
         p.stat().st_mtime,
         tz=datetime.timezone.utc,
     )
+
+
+def deglob_path(x: str) -> Path:
+    return Path(re.sub(r"\*.*$", "", x))
