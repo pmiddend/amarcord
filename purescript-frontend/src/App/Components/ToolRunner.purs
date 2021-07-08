@@ -5,7 +5,7 @@ import App.AppMonad (AppMonad)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, makeRequestResult, singleClass)
 import Control.Bind (bind)
-import Data.Array (intercalate, length)
+import Data.Array (head, intercalate, length)
 import Data.BooleanAlgebra ((||))
 import Data.Either (Either(..))
 import Data.Eq ((==))
@@ -15,14 +15,13 @@ import Data.Function (const)
 import Data.Functor ((<$>))
 import Data.Int (fromString)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), isNothing)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing)
 import Data.Monoid (mempty)
-import Data.Ord ((>))
+import Data.Ord ((<), (>))
 import Data.Semigroup ((<>))
 import Data.Show (show)
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit)
-import Debug.Trace (spy)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -116,7 +115,7 @@ render state =
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
   UpdateDiffractions newDiffractions ->
-    H.modify_ \state -> state { diffractions = spy "hello" newDiffractions }
+    H.modify_ \state -> state { diffractions = newDiffractions }
   ChangeTool newToolId -> do
     availableTools <- H.gets _.tools
     case find (\t -> t.toolId == newToolId) availableTools of
@@ -138,10 +137,17 @@ handleAction = case _ of
     for_ s.selectedToolId \toolId -> do
       result <- H.lift (startJob toolId s.toolInputs s.diffractions)
       case result of
-        Right { jobIds } ->
+        Right { jobIds } -> do
+          let numberOfJobs = length jobIds
+              jobString = if numberOfJobs == 1
+                          then "job " <> fromMaybe "" (show <$> head jobIds)
+                          else
+                               if numberOfJobs < 10
+                               then show numberOfJobs <> " jobs with ids: " <> intercalate ", " (show <$> jobIds)
+                               else show numberOfJobs <> " jobs"
           H.modify_ \state ->
             state
-              { lastRequest = Success ("Started job(s) " <> intercalate ", " (show <$> jobIds))
+              { lastRequest = Success ("Started " <> jobString)
               }
         Left e -> H.modify_ \state -> state { lastRequest = Failure e }
 
