@@ -378,6 +378,7 @@ def main_loop(
                         c for c in crystals if c.crystal_id not in to_remove_crystal_ids
                     ]
 
+                diff_ingest_warnings: List[str] = []
                 if not args.skip_diffractions:
                     logger.info("Ingesting diffractions...")
                     diff_ingest_warnings = ingest_diffractions_for_crystals(
