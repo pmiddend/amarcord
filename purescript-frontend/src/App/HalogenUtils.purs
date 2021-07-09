@@ -1,6 +1,8 @@
 module App.HalogenUtils where
 
 import Prelude
+
+import App.SortOrder (SortOrder(..))
 import DOM.HTML.Indexed.ScopeValue (ScopeValue)
 import Halogen.HTML (IProp)
 import Halogen.HTML as HH
@@ -88,3 +90,9 @@ faIcon name = HH.i [ HP.classes [ HH.ClassName "fa", HH.ClassName ("fa-" <> name
 
 errorText :: forall w i. String -> HH.HTML w i
 errorText text = makeAlert AlertDanger text
+
+-- Convert a sort order to an icon
+orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
+orderingToIcon Ascending = faIcon "sort-up"
+
+orderingToIcon Descending = faIcon "sort-down"

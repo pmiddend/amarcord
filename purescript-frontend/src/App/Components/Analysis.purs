@@ -7,7 +7,7 @@ import App.Components.JobList as JobList
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Components.ToolRunner as ToolRunner
 import App.Halogen.FontAwesome (icon)
-import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, singleClass)
+import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, orderingToIcon, singleClass)
 import App.Route (AnalysisRouteInput, Route(..), createLink)
 import App.SortOrder (SortOrder(..), invertOrder)
 import Control.Applicative (pure, (<*>))
@@ -40,11 +40,6 @@ import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData(..), fromEither)
 
-type DewarEdit
-  = { editDewarPosition :: Int
-    , editPuckId :: String
-    }
-
 type State
   = { rows :: Array AnalysisRow
     , columns :: Array String
@@ -68,12 +63,6 @@ data Action
   | QuerySubmit
   | ToggleColumn String
   | QueryChange String
-
--- Convert a sort order to an icon
-orderingToIcon :: forall w i. SortOrder -> HH.HTML w i
-orderingToIcon Ascending = faIcon "sort-up"
-
-orderingToIcon Descending = faIcon "sort-down"
 
 initialState :: ChildInput AnalysisRouteInput AnalysisData -> State
 initialState { input: sorting, remoteData: AnalysisData analysisResponse } =
