@@ -12,11 +12,12 @@ import Control.Applicative (pure, (<*>))
 import Control.Bind (bind, (>>=), discard)
 import Data.Argonaut (Json, caseJson, fromObject, jsonNull, stringify)
 import Data.Argonaut as Argonaut
-import Data.Array (cons, elem, filter, findIndex, index, length, mapMaybe, nub, sort)
+import Data.Array (cons, elem, filter, find, findIndex, groupBy, index, length, mapMaybe, nub, sort)
+import Data.Array.NonEmpty (NonEmptyArray, head, toUnfoldable)
 import Data.Eq (class Eq, eq, (/=), (==))
 import Data.Foldable (indexl)
 import Data.FoldableWithIndex (foldrWithIndex)
-import Data.Function (const, identity, (<<<))
+import Data.Function (const, identity, on, (<<<), (>>>))
 import Data.Functor ((<$>))
 import Data.Int (fromNumber)
 import Data.Map as Map
@@ -24,10 +25,10 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid (mempty)
 import Data.Ord (class Ord, (>))
 import Data.Semigroup ((<>))
-import Data.Show (show)
-import Data.String (Pattern(..), Replacement(..), replace)
+import Data.Show (show, class Show)
+import Data.String (Pattern(..), Replacement(..), codePointFromChar, drop, dropWhile, replace, takeWhile)
 import Data.Traversable (foldMap)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst, snd)
 import Data.Unit (Unit, unit)
 import Halogen as H
 import Halogen.HTML as HH
@@ -158,17 +159,82 @@ showCellContent = caseJson (const "") show showNumber identity (const "array") (
 postprocessColumnName :: String -> String
 postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.") <<< replace (Pattern "crystals_") (Replacement "Crystals.") <<< replace (Pattern "jobs_") (Replacement "Reduction_Jobs.") <<< replace (Pattern "tools_") (Replacement "Tools.")
 
+data ColumnGroup
+  = Crystals
+  | Diffractions
+  | Reductions
+  | Jobs
+  | ToolsGroup
+  | Other
+
+derive instance eqColumnGroup :: Eq ColumnGroup
+
+derive instance ordColumnGroup :: Ord ColumnGroup
+
+instance showColumnGroup :: Show ColumnGroup where
+  show Crystals = "Crystals"
+  show Diffractions = "Diffractions"
+  show Reductions = "Data_Reduction"
+  show Jobs = "Reduction Jobs"
+  show ToolsGroup = "Tools"
+  show Other = "Other"
+
+groupPrefixes :: Array (Tuple String ColumnGroup)
+groupPrefixes =
+  [ Tuple "diff" Diffractions
+  , Tuple "dr" Reductions
+  , Tuple "crystals" Crystals
+  , Tuple "jobs" Jobs
+  , Tuple "tools" ToolsGroup
+  ]
+
+type GroupedEntry
+  = { group :: ColumnGroup
+    , original :: String
+    , rest :: String
+    }
+
 renderColumnChooser :: forall w. State -> HH.HTML w Action
 renderColumnChooser state =
   let
-    makeRow :: String -> HH.HTML w Action
+    toColumnGroup :: String -> ColumnGroup
+    toColumnGroup s = fromMaybe Other (snd <$> find (fst >>> (_ == s)) groupPrefixes)
+
+    makeGroupedEntry :: String -> GroupedEntry
+    makeGroupedEntry s =
+      let
+        prefix = takeWhile (_ /= codePointFromChar '_') s
+
+        group = toColumnGroup prefix
+
+        rest = case group of
+          Other -> s
+          _ -> drop 1 (dropWhile (_ /= codePointFromChar '_') s)
+      in
+        { group
+        , rest
+        , original: s
+        }
+
+    columnGroups :: Array (NonEmptyArray GroupedEntry)
+    columnGroups = groupBy ((==) `on` (\x -> x.group)) (makeGroupedEntry <$> state.columns)
+
+    makeColumn :: NonEmptyArray GroupedEntry -> HH.HTML w Action
+    makeColumn col =
+      HH.div [ singleClass "col" ]
+        [ HH.h3_ [ HH.text (show (head col).group) ]
+        , HH.div [ singleClass "list-group " ]
+            (makeRow <$> toUnfoldable col)
+        ]
+
+    makeRow :: GroupedEntry -> HH.HTML w Action
     makeRow a =
       HH.button
         [ HP.type_ HP.ButtonButton
-        , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if a `elem` state.selectedColumns then [ "active" ] else []))
-        , HE.onClick \_ -> Just (ToggleColumn a)
+        , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if a.original `elem` state.selectedColumns then [ "active" ] else []))
+        , HE.onClick \_ -> Just (ToggleColumn a.original)
         ]
-        [ HH.text (postprocessColumnName a) ]
+        [ HH.text a.rest ]
 
     disableAll =
       HH.p_
@@ -195,7 +261,7 @@ renderColumnChooser state =
           , HH.div [ singleClass "col" ]
               [ HH.div [ classList [ "input-group", "mb-3" ] ]
                   [ HH.input
-                      [ HP.type_ InputText
+                      [ HP.type_ InputSearch
                       , HE.onValueChange (Just <<< QueryChange)
                       , HP.placeholder "Filter query"
                       , singleClass "form-control"
@@ -216,7 +282,7 @@ renderColumnChooser state =
                   ]
               ]
           ]
-      , HH.div [ singleClass "collapse", HP.id_ "helpDisplayer" ]
+      , HH.div [ singleClass "collapse bg-light shadow p-3", HP.id_ "helpDisplayer" ]
           [ HH.h3_ [ HH.text "Example queries" ]
           , HH.ul_
               [ HH.li_ [ HH.text "Column greater than: ", HH.pre_ [ HH.text "Diffractions.angle_step > 0.1" ] ]
@@ -233,14 +299,7 @@ renderColumnChooser state =
           , HH.p_ [ HH.text "When you want to reference the crystal ID, you have to use ", HH.span [ singleClass "font-monospace" ] [ HH.text "Crystals.crystal_id" ], HH.text " as the column name." ]
           ]
       , HH.div [ singleClass "collapse", HP.id_ "columnChooser" ]
-          [ HH.div [ singleClass "row" ]
-              [ HH.div [ singleClass "col" ]
-                  [ disableAll
-                  , HH.div [ singleClass "list-group " ]
-                      (makeRow <$> state.columns)
-                  ]
-              ]
-          ]
+          [ HH.div [ singleClass "row p-1 bg-light shadow" ] (makeColumn <$> columnGroups) ]
       ]
 
 analysisColumnIsSortable :: forall t457. t457 -> Boolean
