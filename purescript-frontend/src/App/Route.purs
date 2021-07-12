@@ -34,14 +34,17 @@ sameRoute (Tools _) (Tools _) = true
 
 sameRoute _ _ = false
 
-type ToolsRouteInput
-  = {}
-
 type BeamlineRouteInput
   = { puckId :: Maybe String
     }
 
 type AnalysisRouteInput
+  = { sortColumn :: String
+    , sortOrder :: SortOrder
+    , filterQuery :: String
+    }
+
+type ToolsRouteInput
   = { sortColumn :: String
     , sortOrder :: SortOrder
     , filterQuery :: String
@@ -58,7 +61,7 @@ routeCodec =
         , "Sample": path "sample" G.noArgs
         , "Beamline": "beamline" ? { puckId: optional <<< string }
         , "Analysis": "analysis" ? { sortColumn: string, sortOrder: sortOrder, filterQuery: string }
-        , "Tools": "tools" ? {}
+        , "Tools": "tools" ? { sortColumn: string, sortOrder: sortOrder, filterQuery: string }
         }
 
 matchRoute :: (Maybe Route -> Route -> Effect Unit) -> Effect (Effect Unit)

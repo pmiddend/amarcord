@@ -1,226 +1,87 @@
 module App.Components.Tools where
 
-import App.API (Tool, ToolsResponse, addTool, editTool, removeTool, retrieveTools)
+import App.API (AnalysisResponse, AnalysisRow, DiffractionList, retrieveAnalysis)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), container, plainH2_, table)
+import App.Bootstrap (TableFlag(..), container, fluidContainer, table)
+import App.Components.JobList as JobList
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
+import App.Components.ToolRunner as ToolRunner
+import App.Components.ToolsCrud as ToolsCrud
 import App.Halogen.FontAwesome (icon)
-import App.HalogenUtils (classList, makeRequestResult, singleClass)
-import App.Route (ToolsRouteInput)
-import Control.Applicative (pure, when)
-import Control.Bind (bind)
-import Data.Array (find, singleton)
-import Data.Either (Either(..))
-import Data.Eq ((/=), (==))
-import Data.Function ((<<<), (>>>))
+import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, orderingToIcon, singleClass)
+import App.Route (ToolsRouteInput, Route(..), createLink)
+import App.SortOrder (SortOrder(..), invertOrder)
+import Control.Applicative (pure, (<*>))
+import Control.Bind (bind, (>>=))
+import Data.Argonaut (Json, caseJson, fromObject, jsonNull, stringify)
+import Data.Argonaut as Argonaut
+import Data.Array (cons, elem, filter, findIndex, index, length, mapMaybe, nub, sort)
+import Data.Eq (class Eq, eq, (/=), (==))
+import Data.Foldable (indexl)
+import Data.FoldableWithIndex (foldrWithIndex)
+import Data.Function (const, identity, (<<<))
 import Data.Functor ((<$>))
-import Data.Maybe (Maybe(..))
+import Data.Int (fromNumber)
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Monoid (mempty)
+import Data.Ord (class Ord, (>))
 import Data.Semigroup ((<>))
 import Data.Show (show)
-import Data.String (Pattern(..), joinWith, split)
+import Data.String (Pattern(..), Replacement(..), replace)
+import Data.Symbol (SProxy(..))
+import Data.Traversable (foldMap)
+import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
+import Data.Void (Void, absurd)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.HTML.Properties (ButtonType(..), InputType(..))
+import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData(..), fromEither)
-import Web.HTML (window)
-import Web.HTML.Window (confirm)
 
 type State
-  = { tools :: Array Tool
-    , editTool :: Tool
-    , lastRequest :: RemoteData String String
+  = { rows :: Array AnalysisRow
+    , columns :: Array String
+    , displayRows :: Array AnalysisRow
+    , sorting :: ToolsRouteInput
+    , errorMessage :: Maybe String
+    , selectedColumns :: Array String
     }
 
-toolEditing :: Tool -> Boolean
-toolEditing t = t.toolId /= 0
+data AnalysisData
+  = AnalysisData AnalysisResponse
 
-stateEditing :: State -> Boolean
-stateEditing s = toolEditing s.editTool
+derive instance eqAssociatedTable :: Eq AnalysisData
+
+derive instance ordAssociatedTable :: Ord AnalysisData
 
 data Action
-  = ChangeTool (Tool -> Tool)
-  | RemoveTool Int
-  | EditTool Int
-  | FinishEditing
-  | CancelEditing
+  = Initialize
+  | Resort ToolsRouteInput
+  | DeselectAll
+  | QuerySubmit
+  | ToggleColumn String
+  | QueryChange String
 
-fetchData :: ToolsRouteInput -> AppMonad (RemoteData String ToolsResponse)
-fetchData _ = fromEither <$> retrieveTools
+initialState :: ChildInput ToolsRouteInput AnalysisData -> State
+initialState { input: sorting, remoteData: AnalysisData analysisResponse } =
+  let
+    selectedColumns = [ "crystals_crystal_id", "crystals_created", "diff_run_id", "diff_diffraction", "dr_data_reduction_id" ]
+  in
+    { rows: analysisResponse.analysis
+    , columns: analysisResponse.analysisColumns
+    , displayRows: nub (rowsWithSelected analysisResponse.analysisColumns analysisResponse.analysis selectedColumns)
+    , sorting
+    , errorMessage: Nothing
+    , selectedColumns
+    }
 
 component :: forall query output. H.Component HH.HTML query ToolsRouteInput output AppMonad
 component = parentComponent fetchData childComponent
 
-emptyTool :: Tool
-emptyTool = { toolId: 0, created: "", name: "", executablePath: "", extraFiles: [], commandLine: "", description: "", inputs: mempty }
-
-initialState :: ChildInput ToolsRouteInput ToolsResponse -> State
-initialState { input: _, remoteData: { tools } } =
-  { tools
-  , lastRequest: NotAsked
-  , editTool:
-      emptyTool
-  }
-
-handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
-handleAction = case _ of
-  ChangeTool f -> do
-    currentTool <- H.gets _.editTool
-    H.modify_ \state -> state { editTool = f currentTool }
-  RemoveTool toolId -> do
-    w <- H.liftEffect window
-    confirmResult <- H.liftEffect (confirm "Really delete this tool?" w)
-    when confirmResult do
-      toolRemoval <- H.lift (removeTool toolId)
-      case toolRemoval of
-        Right { tools } -> H.modify_ \state -> state { tools = tools, lastRequest = Success "Tool removed!" }
-        Left e -> H.modify_ \state -> state { lastRequest = Failure e }
-  EditTool toolId -> do
-    tools <- H.gets _.tools
-    case find (\t -> t.toolId == toolId) tools of
-      Nothing -> pure unit
-      Just tool -> H.modify_ \state -> state { editTool = tool }
-  CancelEditing -> H.modify_ \state -> state { editTool = emptyTool }
-  FinishEditing -> do
-    currentTool <- H.gets _.editTool
-    newTools <- H.lift ((if toolEditing currentTool then editTool else addTool) currentTool)
-    case newTools of
-      Right ({ tools }) -> H.modify_ \state -> state { lastRequest = Success "Edit successful!", tools = tools, editTool = emptyTool }
-      Left e -> H.modify_ \state -> state { lastRequest = Failure e }
-
-toolsTable :: forall w. State -> HH.HTML w Action
-toolsTable state =
-  let
-    makeExtraFiles :: Array String -> HH.HTML w Action
-    makeExtraFiles [] = HH.text ""
-
-    makeExtraFiles xs = HH.ul_ ((HH.li_ <<< singleton <<< makeMonospace) <$> xs)
-
-    makeMonospace :: String -> HH.HTML w Action
-    makeMonospace x = HH.span [ singleClass "font-monospace" ] [ HH.text x ]
-
-    makeActions tool =
-      HH.div [ singleClass "text-nowrap" ]
-        [ HH.button
-            [ HP.type_ ButtonButton
-            , classList [ "btn", "btn-danger", "btn-sm", "me-1" ]
-            , HE.onClick \_ -> Just (RemoveTool tool.toolId)
-            ]
-            [ icon { name: "trash", size: Nothing, spin: false }, HH.text " Remove" ]
-        , HH.button
-            [ HP.type_ ButtonButton
-            , classList [ "btn", "btn-info", "btn-sm" ]
-            , HE.onClick \_ -> Just (EditTool tool.toolId)
-            ]
-            [ icon { name: "edit", size: Nothing, spin: false }, HH.text " Edit" ]
-        ]
-
-    makeRow tool =
-      HH.tr_
-        ( (HH.td_ <<< singleton)
-            <$> [ makeActions tool
-              , HH.text (show tool.toolId)
-              , HH.text tool.name
-              , makeMonospace tool.executablePath
-              , makeExtraFiles tool.extraFiles
-              , makeMonospace tool.commandLine
-              , HH.text tool.description
-              ]
-        )
-  in
-    table
-      "tools-table"
-      [ TableStriped ]
-      ((HH.text >>> singleton >>> HH.th_) <$> [ "Action", "ID", "Name", "Executable path", "Files", "CLI", "Description" ])
-      (makeRow <$> state.tools)
-
-editForm :: forall slots. State -> H.ComponentHTML Action slots AppMonad
-editForm state =
-  let
-    parseExtraFiles :: String -> Array String
-    parseExtraFiles = split (Pattern ",")
-
-    coparseExtraFiles :: Array String -> String
-    coparseExtraFiles = joinWith ","
-  in
-    HH.form_
-      [ HH.div [ singleClass "mb-3" ]
-          [ HH.label [ HP.for "editName", singleClass "form-label" ] [ HH.text "Name" ]
-          , HH.input
-              [ HP.type_ InputText
-              , HP.id_ "editName"
-              , HE.onValueChange (\newValue -> Just (ChangeTool (\t -> t { name = newValue })))
-              , singleClass "form-control"
-              , HP.value state.editTool.name
-              ]
-          , HH.div [ singleClass "form-text" ] [ HH.text "Must be unique among all tools" ]
-          ]
-      , HH.div [ singleClass "mb-3" ]
-          [ HH.label [ HP.for "editExecutablePath", singleClass "form-label" ] [ HH.text "Executable path" ]
-          , HH.input
-              [ HP.type_ InputText
-              , HE.onValueChange (\newValue -> Just (ChangeTool (\t -> t { executablePath = newValue })))
-              , singleClass "form-control"
-              , HP.value state.editTool.executablePath
-              ]
-          ]
-      , HH.div [ singleClass "mb-3" ]
-          [ HH.label [ HP.for "editExtraFiles", singleClass "form-label" ] [ HH.text "Extra files" ]
-          , HH.input
-              [ HP.type_ InputText
-              , HE.onValueChange (\newValue -> Just (ChangeTool (\t -> t { extraFiles = parseExtraFiles newValue })))
-              , singleClass "form-control"
-              , HP.value (coparseExtraFiles state.editTool.extraFiles)
-              ]
-          ]
-      , HH.div [ singleClass "mb-3" ]
-          [ HH.label [ HP.for "editCommandLine", singleClass "form-label" ] [ HH.text "Command line" ]
-          , HH.input
-              [ HP.type_ InputText
-              , HE.onValueChange (\newValue -> Just (ChangeTool (\t -> t { commandLine = newValue })))
-              , singleClass "form-control"
-              , HP.value state.editTool.commandLine
-              ]
-          ]
-      , HH.div [ singleClass "mb-3" ]
-          [ HH.label [ HP.for "editDescription", singleClass "form-label" ] [ HH.text "Description" ]
-          , HH.input
-              [ HP.type_ InputText
-              , HE.onValueChange (\newValue -> Just (ChangeTool (\t -> t { description = newValue })))
-              , singleClass "form-control"
-              , HP.value state.editTool.description
-              ]
-          ]
-      , HH.div_
-          [ HH.button
-              [ HP.type_ ButtonButton
-              , classList [ "btn", "btn-primary", "me-2" ]
-              , HE.onClick \_ -> Just FinishEditing
-              ]
-              [ icon { name: (if stateEditing state then "edit" else "plus"), size: Nothing, spin: false }, HH.text (if stateEditing state then " Edit" else " Add") ]
-          , HH.button
-              [ HP.type_ ButtonButton
-              , classList [ "btn", "btn-secondary" ]
-              , HE.onClick \_ -> Just CancelEditing
-              ]
-              [ icon { name: "ban", size: Nothing, spin: false }, HH.text " Cancel" ]
-          ]
-      ]
-
-render :: forall slots. State -> H.ComponentHTML Action slots AppMonad
-render state =
-  container
-    [ plainH2_ "Available tools"
-    , toolsTable state
-    , plainH2_ (if stateEditing state then ("Edit " <> state.editTool.name) else "Add tool")
-    , makeRequestResult state.lastRequest
-    , editForm state
-    ]
-
-childComponent :: forall q. H.Component HH.HTML q (ChildInput ToolsRouteInput ToolsResponse) ParentError AppMonad
+childComponent :: forall q. H.Component HH.HTML q (ChildInput ToolsRouteInput AnalysisData) ParentError AppMonad
 childComponent =
   H.mkComponent
     { initialState
@@ -229,5 +90,243 @@ childComponent =
         H.mkEval
           H.defaultEval
             { handleAction = handleAction
+            , initialize = Just Initialize
             }
     }
+
+refresh :: forall slots. Array String -> ToolsRouteInput -> H.HalogenM State Action slots ParentError AppMonad Unit
+refresh selectedColumns routeInput = do
+  result <- H.lift (fetchData routeInput)
+  case result of
+    Success (AnalysisData { analysis, sqlError: Just sqlError }) ->
+      H.modify_ \state ->
+        state
+          { errorMessage = Just ("SQL error: " <> sqlError)
+          }
+    Success (AnalysisData { analysisColumns, analysis, sqlError: Nothing }) ->
+      H.modify_ \state ->
+        state
+          { errorMessage = Nothing
+          , rows = analysis
+          , displayRows = nub (rowsWithSelected analysisColumns analysis selectedColumns)
+          , sorting = routeInput
+          }
+    Failure e -> H.modify_ \state -> state { errorMessage = Just e }
+    _ -> pure unit
+
+handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
+handleAction = case _ of
+  Initialize -> pure unit
+  QueryChange query -> H.modify_ \state -> state { sorting = state.sorting { filterQuery = query } }
+  QuerySubmit -> do
+    state <- H.get
+    refresh state.selectedColumns state.sorting
+  DeselectAll -> do
+    H.modify_ \state -> state { selectedColumns = [] }
+  ToggleColumn a -> do
+    s <- H.get
+    let
+      newSelectedColumns = if a `elem` s.selectedColumns then filter (_ /= a) s.selectedColumns else sort (cons a s.selectedColumns)
+    H.modify_ \state ->
+      state
+        { selectedColumns = newSelectedColumns
+        , displayRows = nub (rowsWithSelected state.columns state.rows newSelectedColumns)
+        }
+  Resort routeInput -> do
+    state <- H.get
+    refresh state.selectedColumns routeInput
+
+fetchData :: ToolsRouteInput -> AppMonad (RemoteData String AnalysisData)
+fetchData { filterQuery, sortColumn, sortOrder } = do
+  analysis <- retrieveAnalysis filterQuery sortColumn sortOrder
+  pure (fromEither (AnalysisData <$> analysis))
+
+createUpdatedSortInput :: Boolean -> String -> ToolsRouteInput -> ToolsRouteInput
+createUpdatedSortInput doInvertOrder newColumn { sortColumn, sortOrder, filterQuery } =
+  if newColumn == sortColumn then
+    { sortOrder: if doInvertOrder then invertOrder sortOrder else sortOrder, sortColumn: newColumn, filterQuery }
+  else
+    { sortColumn: newColumn, sortOrder: Ascending, filterQuery }
+
+showCellContent :: Json -> String
+showCellContent = caseJson (const "") show showNumber identity (const "array") (stringify <<< fromObject)
+  where
+  showNumber n = fromMaybe (show n) (show <$> (fromNumber n))
+
+postprocessColumnName :: String -> String
+postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.") <<< replace (Pattern "crystals_") (Replacement "Crystals.") <<< replace (Pattern "jobs_") (Replacement "Reduction_Jobs.") <<< replace (Pattern "tools_") (Replacement "Tools.")
+
+renderColumnChooser :: forall w. State -> HH.HTML w Action
+renderColumnChooser state =
+  let
+    makeRow :: String -> HH.HTML w Action
+    makeRow a =
+      HH.button
+        [ HP.type_ HP.ButtonButton
+        , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if a `elem` state.selectedColumns then [ "active" ] else []))
+        , HE.onClick \_ -> Just (ToggleColumn a)
+        ]
+        [ HH.text (postprocessColumnName a) ]
+
+    disableAll =
+      HH.p_
+        [ HH.button
+            [ classList [ "btn", "btn-secondary" ]
+            , HE.onClick \_ -> Just DeselectAll
+            ]
+            [ HH.text "Disable all" ]
+        ]
+  in
+    HH.div_
+      [ HH.div [ singleClass "row" ]
+          [ HH.div [ singleClass "col" ]
+              [ HH.p_
+                  [ HH.button
+                      [ classList [ "btn", "btn-secondary" ]
+                      , HP.type_ HP.ButtonButton
+                      , HP.attr (HH.AttrName "data-bs-toggle") "collapse"
+                      , HP.attr (HH.AttrName "data-bs-target") "#columnChooser"
+                      ]
+                      [ faIcon "columns", HH.text " Choose columns" ]
+                  ]
+              ]
+          , HH.div [ singleClass "col" ]
+              [ HH.div [ classList [ "input-group", "mb-3" ] ]
+                  [ HH.input
+                      [ HP.type_ InputText
+                      , HE.onValueChange (Just <<< QueryChange)
+                      , HP.placeholder "Filter query"
+                      , singleClass "form-control"
+                      , HP.value state.sorting.filterQuery
+                      ]
+                  , HH.button
+                      [ classList [ "btn", "btn-secondary" ]
+                      , HE.onClick (const (Just QuerySubmit))
+                      ]
+                      [ HH.text "Apply" ]
+                  , HH.button
+                      [ classList [ "btn", "btn-info" ]
+                      , HP.type_ HP.ButtonButton
+                      , HP.attr (HH.AttrName "data-bs-toggle") "collapse"
+                      , HP.attr (HH.AttrName "data-bs-target") "#helpDisplayer"
+                      ]
+                      [ HH.text "Help" ]
+                  ]
+              ]
+          ]
+      , HH.div [ singleClass "collapse", HP.id_ "helpDisplayer" ]
+          [ HH.h3_ [ HH.text "Example queries" ]
+          , HH.ul_
+              [ HH.li_ [ HH.text "Column greater than: ", HH.pre_ [ HH.text "Diffractions.angle_step > 0.1" ] ]
+              , HH.li_ [ HH.text "Column equal to: ", HH.pre_ [ HH.text "Diffractions.beamline = \"p11\"" ] ]
+              , HH.li_ [ HH.text "Text contains: ", HH.pre_ [ HH.text "Crystals.crystal_id LIKE '%cryst%'" ] ]
+              , HH.li_ [ HH.text "Crystals without diffractions: ", HH.pre_ [ HH.text "Diffractions.run_id IS NULL" ] ]
+              , HH.li_ [ HH.text "Crystals without reductions: ", HH.pre_ [ HH.text "Data_Reduction.data_reduction_id IS NULL" ] ]
+              , HH.li_ [ HH.text "Comparison with a date/time column (just date): ", HH.pre_ [ HH.text "Crystals.created > '2021-05-01'" ] ]
+              , HH.li_ [ HH.text "Comparison with a date/time column (date and time): ", HH.pre_ [ HH.text "Crystals.created > '2021-05-01 15:00:00'" ] ]
+              , HH.li_ [ HH.text "Combining expressions with AND: ", HH.pre_ [ HH.text "Diffractions.beamline = \"p11\" AND Diffractions.angle_step > 0.1" ] ]
+              ]
+          , HH.h3_ [ HH.text "Troubleshooting" ]
+          , HH.h4_ [ HH.text "Searches involving the crystal ID" ]
+          , HH.p_ [ HH.text "When you want to reference the crystal ID, you have to use ", HH.span [ singleClass "font-monospace" ] [ HH.text "Crystals.crystal_id" ], HH.text " as the column name." ]
+          ]
+      , HH.div [ singleClass "collapse", HP.id_ "columnChooser" ]
+          [ HH.div [ singleClass "row" ]
+              [ HH.div [ singleClass "col" ]
+                  [ disableAll
+                  , HH.div [ singleClass "list-group " ]
+                      (makeRow <$> state.columns)
+                  ]
+              ]
+          ]
+      ]
+
+analysisColumnIsSortable :: forall t457. t457 -> Boolean
+analysisColumnIsSortable = const true
+
+rowsWithSelected columns rows selected =
+  let
+    columnsWithIndices :: Map.Map String Int
+    columnsWithIndices = foldrWithIndex (\i columnName prior -> Map.insert columnName i prior) mempty columns
+
+    selectedColumnIndices :: Array Int
+    selectedColumnIndices = mapMaybe (\columnName -> Map.lookup columnName columnsWithIndices) selected
+  in
+    (\row -> (\columnIndex -> fromMaybe jsonNull (indexl columnIndex row)) <$> selectedColumnIndices) <$> rows
+
+type Slots
+  = ( jobList :: forall query. H.Slot query Void Int
+    , toolRunner :: forall query. H.Slot query Void Int
+    , toolsCrud :: forall query. H.Slot query Void Int
+    )
+
+_jobList = SProxy :: SProxy "jobList"
+
+_toolRunner = SProxy :: SProxy "toolRunner"
+
+_toolsCrud = SProxy :: SProxy "toolsCrud"
+
+render :: State -> H.ComponentHTML Action Slots AppMonad
+render state =
+  let
+    headers = (\x -> Tuple x (postprocessColumnName x)) <$> state.selectedColumns
+
+    makeHeader (Tuple col title) =
+      let
+        updatedSortInput doInvertOrder = createUpdatedSortInput doInvertOrder col state.sorting
+
+        maybeOrderIcon = if state.sorting.sortColumn == col then [ orderingToIcon state.sorting.sortOrder, HH.text " " ] else []
+
+        cellContent = if analysisColumnIsSortable col then maybeOrderIcon <> [ HH.a [ singleClass "text-decoration-none", HP.href (createLink (Analysis (updatedSortInput false))), HE.onClick \_ -> Just (Resort (updatedSortInput true)) ] [ HH.text title ] ] else [ HH.text title ]
+      in
+        HH.th [ singleClass "text-nowrap text-center" ] cellContent
+
+    makeRow :: forall w. AnalysisRow -> HH.HTML w Action
+    makeRow row = HH.tr_ ((\cell -> HH.td [ singleClass "text-center" ] [ HH.text (showCellContent cell) ]) <$> row)
+
+    diffractionList :: DiffractionList
+    diffractionList =
+      let
+        crystalIdColumn' = findIndex (eq "diff_crystal_id") state.columns
+
+        runIdColumn' = findIndex (eq "diff_run_id") state.columns
+
+        colIdxs' :: Maybe (Tuple Int Int)
+        colIdxs' = Tuple <$> crystalIdColumn' <*> runIdColumn'
+
+        unindexCols :: Tuple Int Int -> AnalysisRow -> Maybe (Tuple Json Json)
+        unindexCols (Tuple c r) row = Tuple <$> index row c <*> index row r
+
+        decomposeCols :: Tuple Json Json -> Maybe (Tuple String Int)
+        decomposeCols (Tuple c r) = Tuple <$> (Argonaut.toString c) <*> (Argonaut.toNumber r >>= fromNumber)
+
+        processRow :: Tuple Int Int -> AnalysisRow -> Maybe (Tuple String Int)
+        processRow colIdxs row = unindexCols colIdxs row >>= decomposeCols
+      in
+        nub (foldMap (\colIdxs -> mapMaybe (processRow colIdxs) state.rows) colIdxs')
+  in
+    container
+      [ HH.h2_ [ icon { name: "table", size: Nothing, spin: false }, HH.text " Analysis Results" ]
+      , HH.hr_
+      , renderColumnChooser state
+      , HH.hr_
+      , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
+      , HH.h5_ [ HH.text ((show (length state.displayRows)) <> " result" <> (if length state.displayRows > 1 then "s" else "")) ]
+      , table
+          "analysis-table"
+          [ TableStriped, TableSmall, TableBordered ]
+          (makeHeader <$> headers)
+          (makeRow <$> state.displayRows)
+      , HH.h2
+          [ singleClass "amarcord-section-separator" ]
+          [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Run tool" ]
+      , HH.slot _toolRunner 0 ToolRunner.component { diffractions: diffractionList } absurd
+      , HH.h2
+          [ singleClass "amarcord-section-separator" ]
+          [ icon { name: "clipboard", size: Nothing, spin: false }, HH.text " Jobs" ]
+      , HH.slot _jobList 1 JobList.component {} absurd
+      , HH.h2
+          [ singleClass "amarcord-section-separator" ]
+          [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Available Tools" ]
+      , HH.slot _toolsCrud 1 ToolsCrud.component {} absurd
+      ]

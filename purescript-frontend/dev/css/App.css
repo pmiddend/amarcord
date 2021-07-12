@@ -82,3 +82,7 @@ body {
     height: 2.5em;
     margin-right: 1em;
 }
+
+.amarcord-section-separator {
+    margin-top: 3em !important;
+}

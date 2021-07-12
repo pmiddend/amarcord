@@ -3,9 +3,7 @@ module App.Components.Analysis where
 import App.API (AnalysisResponse, AnalysisRow, DiffractionList, retrieveAnalysis)
 import App.AppMonad (AppMonad)
 import App.Bootstrap (TableFlag(..), fluidContainer, table)
-import App.Components.JobList as JobList
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
-import App.Components.ToolRunner as ToolRunner
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, orderingToIcon, singleClass)
 import App.Route (AnalysisRouteInput, Route(..), createLink)
@@ -28,11 +26,9 @@ import Data.Ord (class Ord, (>))
 import Data.Semigroup ((<>))
 import Data.Show (show)
 import Data.String (Pattern(..), Replacement(..), replace)
-import Data.Symbol (SProxy(..))
 import Data.Traversable (foldMap)
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
-import Data.Void (Void, absurd)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -253,14 +249,7 @@ rowsWithSelected columns rows selected =
   in
     (\row -> (\columnIndex -> fromMaybe jsonNull (indexl columnIndex row)) <$> selectedColumnIndices) <$> rows
 
-type Slots
-  = ( jobList :: forall query. H.Slot query Void Int, toolRunner :: forall query. H.Slot query Void Int )
-
-_jobList = SProxy :: SProxy "jobList"
-
-_toolRunner = SProxy :: SProxy "toolRunner"
-
-render :: State -> H.ComponentHTML Action Slots AppMonad
+render :: forall slots. State -> H.ComponentHTML Action slots AppMonad
 render state =
   let
     headers = (\x -> Tuple x (postprocessColumnName x)) <$> state.selectedColumns
@@ -311,8 +300,4 @@ render state =
           [ TableStriped, TableSmall, TableBordered ]
           (makeHeader <$> headers)
           (makeRow <$> state.displayRows)
-      , HH.h2_ [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Run tool" ]
-      , HH.slot _toolRunner 0 ToolRunner.component { diffractions: diffractionList } absurd
-      , HH.h2_ [ icon { name: "clipboard", size: Nothing, spin: false }, HH.text " Jobs" ]
-      , HH.slot _jobList 1 JobList.component {} absurd
       ]

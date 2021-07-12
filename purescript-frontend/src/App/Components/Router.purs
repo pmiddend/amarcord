@@ -15,7 +15,6 @@ import Data.Either (hush)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
 import Effect.Class (class MonadEffect, liftEffect)
-import Effect.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -122,7 +121,7 @@ navItems =
     , fa: "table"
     }
   , { title: "Tools"
-    , link: Tools {}
+    , link: Tools {  sortOrder: Descending, sortColumn: "crystals_crystal_id", filterQuery: "" }
     , fa: "tools"
     }
   ]
