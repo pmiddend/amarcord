@@ -1,59 +1,38 @@
 import logging
-import os
-import sys
 from pathlib import Path
-from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import TypedDict
-from typing import Union
 
 import yaml
+from pydantic import BaseModel
 from xdg import xdg_config_home
 
-from amarcord.python_schema import load_and_validate
 
-CONFIG_YML = xdg_config_home() / "AMARCORD" / "config.yml"
+# this is deliberately a function so that it neatly works with pyfakefs (and perforamnce doesn't matter)
+def user_config_path() -> Path:
+    return xdg_config_home() / "AMARCORD" / "config.yml"
+
 
 logger = logging.getLogger(__name__)
 
 
-class UserConfig(TypedDict):
+class UserConfig(BaseModel):
     db_url: Optional[str]
     create_sample_data: Optional[bool]
     proposal_id: Optional[int]
 
 
 def remove_user_config() -> None:
-    CONFIG_YML.unlink(missing_ok=True)
+    user_config_path().unlink(missing_ok=True)
 
 
 def load_user_config() -> UserConfig:
-    if not CONFIG_YML.exists():
+    if not user_config_path().exists():
         return UserConfig(db_url=None, create_sample_data=None, proposal_id=None)
-    with CONFIG_YML.open("r") as f:
-        result: Union[List[str], Any] = load_and_validate(f.read(), UserConfig)
-        if isinstance(result, list):
-            raise Exception(
-                f"configuration file {CONFIG_YML} invalid: " + (", ".join(result))
-            )
-        return result
+    with user_config_path().open("r") as f:
+        return UserConfig(**yaml.load(f, Loader=yaml.SafeLoader))
 
 
 def write_user_config(uc: UserConfig) -> None:
-    CONFIG_YML.parent.mkdir(parents=True, exist_ok=True)
-    with CONFIG_YML.open("w") as f:
-        f.write(yaml.dump(uc, Dumper=yaml.Dumper))
-
-
-def load_config() -> Dict[str, Any]:
-    config_file_name = os.environ.get("AMARCORD_CONFIG_FILE", "config.yml")
-    config_file = Path(config_file_name)
-    if not config_file.exists():
-        sys.stderr.write(
-            f"Expected a configuration file called “{config_file_name}” but didn't find one\n"
-        )
-        sys.exit(1)
-    with config_file.open() as f:
-        return yaml.load(f.read(), Loader=yaml.SafeLoader)
+    user_config_path().parent.mkdir(parents=True, exist_ok=True)
+    with user_config_path().open("w") as f:
+        f.write(yaml.dump(uc.dict(), Dumper=yaml.Dumper))

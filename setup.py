@@ -50,6 +50,8 @@ setuptools.setup(
         "xdg==5.0.*",
         # For parsing the arguments for programs (always required basically)
         "typed-argument-parser==1.6.*",
+        # For the config file (technically xfel only)
+        "pydantic==1.8.*",
     ],
     extras_require={
         "slurm": ["requests==2.25.*", "types-requests==2.25.*"],

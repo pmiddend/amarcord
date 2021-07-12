@@ -48,10 +48,10 @@ PROPOSAL_ID = ProposalId(1)
 
 user_config = load_user_config()
 
-if user_config["db_url"] is None:
+if user_config.db_url is None:
     sys.exit(1)
 
-db_context = DBContext(user_config["db_url"])
+db_context = DBContext(user_config.db_url)
 db = DB(db_context, create_tables(db_context))
 db_context.create_all(CreationMode.CHECK_FIRST)
 

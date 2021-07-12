@@ -51,7 +51,7 @@ class XFELGui:
 
         self.restart = False
 
-        db_url = self._user_config["db_url"]
+        db_url = self._user_config.db_url
         if db_url is None:
             db_url = show_connection_dialog(self._ui_context)
             if db_url is None:
@@ -61,7 +61,7 @@ class XFELGui:
         self._context = Context(self._user_config, self._ui_context, self._db_context)
         self._tables = create_tables(self._db_context)
         self._db_context.create_all(creation_mode=CreationMode.CHECK_FIRST)
-        if self._user_config["create_sample_data"]:
+        if self._user_config.create_sample_data:
             create_sample_data(DB(self._db_context, self._tables))
 
         self._event_timer = EventLogDaemon(
@@ -89,7 +89,7 @@ class XFELGui:
             remove_user_config()
             sys.exit(1)
 
-        self._proposal_id = self._user_config["proposal_id"]
+        self._proposal_id = self._user_config.proposal_id
 
         if self._proposal_id is None:
             if len(self._proposal_ids) == 1:
@@ -109,8 +109,8 @@ class XFELGui:
                 remove_user_config()
                 sys.exit(1)
             self._proposal_id = ProposalId(self._proposal_id)
-        self._user_config["proposal_id"] = self._proposal_id
-        self._user_config["db_url"] = db_url
+        self._user_config.proposal_id = self._proposal_id
+        self._user_config.db_url = db_url
         write_user_config(self._user_config)
         self._ui_context.add_menu_item(
             "Change &database",
@@ -180,14 +180,14 @@ class XFELGui:
         self._ui_context.exec_()
 
     def _slot_change_database(self) -> None:
-        self._user_config["proposal_id"] = None
-        self._user_config["db_url"] = None
+        self._user_config.proposal_id = None
+        self._user_config.db_url = None
         write_user_config(self._user_config)
         self.restart = True
         self._ui_context.close()
 
     def _slot_change_proposal(self) -> None:
-        self._user_config["proposal_id"] = None
+        self._user_config.proposal_id = None
         write_user_config(self._user_config)
         self.restart = True
         self._ui_context.close()
