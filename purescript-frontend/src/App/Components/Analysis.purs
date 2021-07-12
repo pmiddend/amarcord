@@ -26,7 +26,7 @@ import Data.Monoid (mempty)
 import Data.Ord (class Ord, (>))
 import Data.Semigroup ((<>))
 import Data.Show (show, class Show)
-import Data.String (Pattern(..), Replacement(..), codePointFromChar, drop, dropWhile, replace, takeWhile)
+import Data.String (codePointFromChar, drop, dropWhile, takeWhile)
 import Data.Traversable (foldMap)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.Unit (Unit, unit)
@@ -156,9 +156,6 @@ showCellContent = caseJson (const "") show showNumber identity (const "array") (
   where
   showNumber n = fromMaybe (show n) (show <$> (fromNumber n))
 
-postprocessColumnName :: String -> String
-postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.") <<< replace (Pattern "crystals_") (Replacement "Crystals.") <<< replace (Pattern "jobs_") (Replacement "Reduction_Jobs.") <<< replace (Pattern "tools_") (Replacement "Tools.")
-
 data ColumnGroup
   = Crystals
   | Diffractions
@@ -188,6 +185,34 @@ groupPrefixes =
   , Tuple "tools" ToolsGroup
   ]
 
+toColumnGroup :: String -> ColumnGroup
+toColumnGroup s = fromMaybe Other (snd <$> find (fst >>> (_ == s)) groupPrefixes)
+
+makeGroupedEntry :: String -> GroupedEntry
+makeGroupedEntry s =
+  let
+    prefix = takeWhile (_ /= codePointFromChar '_') s
+
+    group = toColumnGroup prefix
+
+    rest = case group of
+      Other -> s
+      _ -> drop 1 (dropWhile (_ /= codePointFromChar '_') s)
+  in
+    { group
+    , rest
+    , original: s
+    }
+
+postprocessColumnName :: forall w i. String -> Array (HH.HTML w i)
+postprocessColumnName s =
+  let
+    { group, rest } = makeGroupedEntry s
+  in
+    [ HH.span [ singleClass "text-muted" ] [ HH.text (show group <> ".") ]
+    , HH.text rest
+    ]
+
 type GroupedEntry
   = { group :: ColumnGroup
     , original :: String
@@ -197,25 +222,6 @@ type GroupedEntry
 renderColumnChooser :: forall w. State -> HH.HTML w Action
 renderColumnChooser state =
   let
-    toColumnGroup :: String -> ColumnGroup
-    toColumnGroup s = fromMaybe Other (snd <$> find (fst >>> (_ == s)) groupPrefixes)
-
-    makeGroupedEntry :: String -> GroupedEntry
-    makeGroupedEntry s =
-      let
-        prefix = takeWhile (_ /= codePointFromChar '_') s
-
-        group = toColumnGroup prefix
-
-        rest = case group of
-          Other -> s
-          _ -> drop 1 (dropWhile (_ /= codePointFromChar '_') s)
-      in
-        { group
-        , rest
-        , original: s
-        }
-
     columnGroups :: Array (NonEmptyArray GroupedEntry)
     columnGroups = groupBy ((==) `on` (\x -> x.group)) (makeGroupedEntry <$> state.columns)
 
@@ -326,7 +332,14 @@ render state =
 
         maybeOrderIcon = if state.sorting.sortColumn == col then [ orderingToIcon state.sorting.sortOrder, HH.text " " ] else []
 
-        cellContent = if analysisColumnIsSortable col then maybeOrderIcon <> [ HH.a [ singleClass "text-decoration-none", HP.href (createLink (Analysis (updatedSortInput false))), HE.onClick \_ -> Just (Resort (updatedSortInput true)) ] [ HH.text title ] ] else [ HH.text title ]
+        cellContent =
+          if analysisColumnIsSortable col then
+            maybeOrderIcon
+              <> [ HH.a [ singleClass "text-decoration-none", HP.href (createLink (Analysis (updatedSortInput false))), HE.onClick \_ -> Just (Resort (updatedSortInput true)) ]
+                    title
+                ]
+          else
+            title
       in
         HH.th [ singleClass "text-nowrap text-center" ] cellContent
 
