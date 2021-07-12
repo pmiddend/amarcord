@@ -9,7 +9,7 @@ import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, orderingTo
 import App.Route (AnalysisRouteInput, Route(..), createLink)
 import App.SortOrder (SortOrder(..), invertOrder)
 import Control.Applicative (pure, (<*>))
-import Control.Bind (bind, (>>=))
+import Control.Bind (bind, (>>=), discard)
 import Data.Argonaut (Json, caseJson, fromObject, jsonNull, stringify)
 import Data.Argonaut as Argonaut
 import Data.Array (cons, elem, filter, findIndex, index, length, mapMaybe, nub, sort)
@@ -35,6 +35,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData(..), fromEither)
+import Routing.Hash (setHash)
 
 type State
   = { rows :: Array AnalysisRow
@@ -89,9 +90,15 @@ childComponent =
             }
     }
 
+updateHash :: forall slots action. H.HalogenM State action slots ParentError AppMonad Unit
+updateHash = do
+  s <- H.get
+  H.liftEffect (setHash (createLink (Analysis s.sorting)))
+
 refresh :: forall slots. Array String -> AnalysisRouteInput -> H.HalogenM State Action slots ParentError AppMonad Unit
 refresh selectedColumns routeInput = do
   result <- H.lift (fetchData routeInput)
+  updateHash
   case result of
     Success (AnalysisData { analysis, sqlError: Just sqlError }) ->
       H.modify_ \state ->
@@ -198,7 +205,7 @@ renderColumnChooser state =
                       [ classList [ "btn", "btn-secondary" ]
                       , HE.onClick (const (Just QuerySubmit))
                       ]
-                      [ HH.text "Apply" ]
+                      [ HH.text "Refresh" ]
                   , HH.button
                       [ classList [ "btn", "btn-info" ]
                       , HP.type_ HP.ButtonButton
