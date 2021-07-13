@@ -6,6 +6,7 @@
   , "console"
   , "debug"
   , "effect"
+  , "filterable"
   , "formatters"
   , "halogen"
   , "halogen-css"

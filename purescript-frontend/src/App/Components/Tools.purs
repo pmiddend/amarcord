@@ -44,6 +44,8 @@ import Routing.Hash (setHash)
 
 type State
   = { rows :: Array AnalysisRow
+    , totalRows :: Int
+    , totalDiffractions :: Int
     , columns :: Array String
     , displayRows :: Array AnalysisRow
     , sorting :: ToolsRouteInput
@@ -72,6 +74,8 @@ initialState { input: sorting, remoteData: AnalysisData analysisResponse } =
     selectedColumns = [ "crystals_crystal_id", "crystals_created", "diff_run_id", "diff_diffraction", "dr_data_reduction_id" ]
   in
     { rows: analysisResponse.analysis
+    , totalRows: analysisResponse.totalRows
+    , totalDiffractions: analysisResponse.totalDiffractions
     , columns: analysisResponse.analysisColumns
     , displayRows: nub (rowsWithSelected analysisResponse.analysisColumns analysisResponse.analysis selectedColumns)
     , sorting
@@ -105,11 +109,13 @@ refresh selectedColumns routeInput = do
         state
           { errorMessage = Just ("SQL error: " <> sqlError)
           }
-    Success (AnalysisData { analysisColumns, analysis, sqlError: Nothing }) ->
+    Success (AnalysisData { analysisColumns, analysis, totalRows, totalDiffractions, sqlError: Nothing }) ->
       H.modify_ \state ->
         state
           { errorMessage = Nothing
           , rows = analysis
+          , totalRows = totalRows
+          , totalDiffractions = totalDiffractions
           , displayRows = nub (rowsWithSelected analysisColumns analysis selectedColumns)
           , sorting = routeInput
           }
@@ -318,7 +324,8 @@ render state =
       , renderColumnChooser state
       , HH.hr_
       , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
-      , HH.h5_ [ HH.text ((show (length state.displayRows)) <> " result" <> (if length state.displayRows > 1 then "s" else "")) ]
+      , (if state.totalRows > length state.rows then makeAlert AlertInfo "Results have been capped" else HH.text "")
+      , HH.h5_ [ HH.text ((show state.totalRows) <> " result" <> (if state.totalRows > 1 then "s" else "")) ]
       , table
           "analysis-table"
           [ TableStriped, TableSmall, TableBordered ]
@@ -327,7 +334,7 @@ render state =
       , HH.h2
           [ singleClass "amarcord-section-separator" ]
           [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Run tool" ]
-      , HH.slot _toolRunner 0 ToolRunner.component { diffractions: diffractionList } absurd
+      , HH.slot _toolRunner 0 ToolRunner.component { numberOfDiffractions: state.totalDiffractions, filterQuery: state.sorting.filterQuery } absurd
       , HH.h2
           [ singleClass "amarcord-section-separator" ]
           [ icon { name: "clipboard", size: Nothing, spin: false }, HH.text " Jobs" ]

@@ -12,6 +12,8 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
+from typing import Tuple
 
 import sqlalchemy as sa
 from flask import Flask
@@ -20,6 +22,8 @@ from flask import current_app
 from flask import g
 from flask import request
 from flask_cors import CORS
+from sqlalchemy.sql import Select
+from sqlalchemy.sql.elements import Label
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import redirect
@@ -522,37 +526,47 @@ def create_app() -> Flask:
         assert isinstance(
             json_content, dict
         ), f"expected a dictionary for the tool input, got {json_content}"
-        inputs = json_content.get("inputs")
+        inputs = json_content.get("inputs", None)
         assert (
             inputs is not None
         ), f'expected "inputs" in tool input, got {json_content}'
-        diffractions_raw = json_content.get("diffractions")
+        filter_query = json_content.get("filterQuery", None)
         assert (
-            diffractions_raw is not None
-        ), f'expected "diffractions" in tool input, got {json_content}'
+            filter_query is not None
+        ), f'expected "filter_query" in tool input, got {json_content}'
+        limit = json_content.get("limit", None)
+        assert limit is None or isinstance(limit, int)
         db = get_db()
 
         inserted_jobs: List[int] = []
         with db.connection.begin():
-            for diff in diffractions_raw:
-                crystal_id: str = diff[0]
-                run_id: int = diff[1]
+            query, _all_columns = _analysis_filter_query(
+                db, filter_query, sort_column=None, sort_order_desc=False
+            )
+            processed_diffractions: Set[Tuple[str, int]] = set()
+            for row in db.connection.execute(query):
+                if len(processed_diffractions) == limit:
+                    break
+                crystal_id: str = row["diff_crystal_id"]
+                run_id: int = row["diff_run_id"]
 
-                result = db.connection.execute(
-                    sa.insert(db.table_jobs).values(
-                        status=JobStatus.QUEUED,
-                        queued=datetime.datetime.utcnow(),
-                        tool_id=tool_id,
-                        tool_inputs=inputs,
+                if (crystal_id, run_id) not in processed_diffractions:
+                    processed_diffractions.add((crystal_id, run_id))
+                    result = db.connection.execute(
+                        sa.insert(db.table_jobs).values(
+                            status=JobStatus.QUEUED,
+                            queued=datetime.datetime.utcnow(),
+                            tool_id=tool_id,
+                            tool_inputs=inputs,
+                        )
                     )
-                )
-                job_id = result.inserted_primary_key[0]
-                db.connection.execute(
-                    sa.insert(db.table_job_to_diffraction).values(
-                        run_id=run_id, crystal_id=crystal_id, job_id=job_id
+                    job_id = result.inserted_primary_key[0]
+                    db.connection.execute(
+                        sa.insert(db.table_job_to_diffraction).values(
+                            run_id=run_id, crystal_id=crystal_id, job_id=job_id
+                        )
                     )
-                )
-                inserted_jobs.append(job_id)
+                    inserted_jobs.append(job_id)
 
         return {"jobIds": inserted_jobs}
 
@@ -654,12 +668,12 @@ def create_app() -> Flask:
             crystals = table_crystals(dbcontext.metadata, pucks, schema=None)
             return _retrieve_sample(conn, pucks, crystals)
 
-    @app.route("/api/analysis")
-    def retrieve_analysis() -> JSONDict:
-        db = get_db()
-        sort_column = request.args.get("sortColumn", "crystal_id")
-        sort_order_desc = sort_order_to_descending(request.args.get("sortOrder", "asc"))
-        filter_query = request.args.get("filterQuery", "")
+    def _analysis_filter_query(
+        db: WebserverDB,
+        filter_query: str,
+        sort_column: Optional[str],
+        sort_order_desc: bool,
+    ) -> Tuple[Select, List[Label]]:
         crystal_columns = [
             db.table_crystals.c.crystal_id.label("crystals_crystal_id"),
             db.table_crystals.c.created.label("crystals_created"),
@@ -680,27 +694,54 @@ def create_app() -> Flask:
                 db.table_tools.c.name.label("tools_name"),
             ]
         )
-        try:
-            results = db.connection.execute(
-                sa.select(all_columns)
-                .select_from(
-                    db.table_crystals.outerjoin(db.table_diffractions)
-                    .outerjoin(
-                        db.table_data_reductions,
-                        onclause=sa.and_(
-                            db.table_data_reductions.c.run_id
-                            == db.table_diffractions.c.run_id,
-                            db.table_diffractions.c.crystal_id
-                            == db.table_data_reductions.c.crystal_id,
-                        ),
-                    )
-                    .outerjoin(db.table_job_to_reduction)
-                    .outerjoin(db.table_jobs)
-                    .outerjoin(db.table_tools)
+        query = (
+            sa.select(all_columns)
+            .select_from(
+                db.table_crystals.outerjoin(db.table_diffractions)
+                .outerjoin(
+                    db.table_data_reductions,
+                    onclause=sa.and_(
+                        db.table_data_reductions.c.run_id
+                        == db.table_diffractions.c.run_id,
+                        db.table_diffractions.c.crystal_id
+                        == db.table_data_reductions.c.crystal_id,
+                    ),
                 )
-                .where(sa.text(filter_query))
-                .order_by(sa.desc(sort_column) if sort_order_desc else sort_column)
-            ).fetchall()
+                .outerjoin(db.table_job_to_reduction)
+                .outerjoin(db.table_jobs)
+                .outerjoin(db.table_tools)
+            )
+            .where(sa.text(filter_query))
+        )
+        if sort_column is not None:
+            query = query.order_by(
+                sa.desc(sort_column) if sort_order_desc else sort_column
+            )
+        return query, all_columns
+
+    @app.route("/api/analysis")
+    def retrieve_analysis() -> JSONDict:
+        db = get_db()
+        sort_column = request.args.get("sortColumn", "crystal_id")
+        sort_order_desc = sort_order_to_descending(request.args.get("sortOrder", "asc"))
+        filter_query = request.args.get("filterQuery", "")
+        all_columns: List[Label] = []
+        try:
+            results: List[Any] = []
+            number_of_results = 0
+            diffractions: Set[Tuple[str, int]] = set()
+
+            before = time.time()
+            query, all_columns = _analysis_filter_query(
+                db, filter_query, sort_column, sort_order_desc
+            )
+            for row in db.connection.execute(query):
+                number_of_results += 1
+                if len(results) < 100:
+                    results.append(row)
+                diffractions.add((row["diff_crystal_id"], row["diff_run_id"]))
+            after = time.time()
+            logger.info("Analysis query took %ss", int(after - before))
 
             def postprocess(v: Any) -> JSONValue:
                 if isinstance(v, Beamline):
@@ -713,6 +754,8 @@ def create_app() -> Flask:
 
             return {
                 "analysisColumns": [c.name for c in all_columns],
+                "totalRows": number_of_results,
+                "totalDiffractions": len(diffractions),
                 "analysis": [
                     [postprocess(value) for _, value in row.items()] for row in results
                 ],

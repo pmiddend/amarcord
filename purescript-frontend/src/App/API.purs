@@ -37,6 +37,8 @@ type AnalysisRow
 type AnalysisResponse
   = { analysis :: Array AnalysisRow
     , analysisColumns :: Array String
+    , totalRows :: Int
+    , totalDiffractions :: Int
     , sqlError :: Maybe String
     }
 
@@ -218,8 +220,8 @@ mapToObject m =
     -- Object to argonaut Json
     fromObject obj
 
-startJob :: Int -> ToolInputMap -> DiffractionList -> AppMonad (Either String RunJobResponse)
-startJob toolId inputs diffractions = do
+startJob :: Int -> ToolInputMap -> String -> Maybe Int -> AppMonad (Either String RunJobResponse)
+startJob toolId inputs filterQuery limit = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
@@ -231,7 +233,8 @@ startJob toolId inputs diffractions = do
               ( Json
                   ( encodeJson
                       { inputs: mapToObject inputs
-                      , diffractions
+                      , filterQuery
+                      , limit
                       }
                   )
               )

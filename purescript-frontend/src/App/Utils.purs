@@ -2,11 +2,13 @@ module App.Utils where
 
 import Data.Array (find, head, uncons)
 import Data.Boolean (otherwise)
+import Data.Filterable (filter)
 import Data.Foldable (foldMap)
 import Data.Functor (class Functor)
+import Data.Int (fromString)
 import Data.Maybe (Maybe(..))
 import Data.Monoid (class Monoid)
-import Data.Ord (class Ord)
+import Data.Ord (class Ord, (>=))
 import Data.Set (Set, delete, insert, member)
 import Data.Tuple (Tuple(..))
 import Prelude (class Apply, class Eq, eq, map, (<$>), (<*>), (>>>))
@@ -34,3 +36,5 @@ toggleSetElement v x
   | member v x = delete v x
   | otherwise = insert v x
 
+fromStringPositive :: String -> Maybe Int
+fromStringPositive = fromString >>> filter (_ >= 0)

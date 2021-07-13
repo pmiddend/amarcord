@@ -1,6 +1,6 @@
 module App.Components.ToolRunner where
 
-import App.API (DiffractionList, Tool, ToolsResponse, ToolInputMap, retrieveTools, startJob)
+import App.API (Tool, ToolInputMap, ToolsResponse, retrieveTools, startJob)
 import App.AppMonad (AppMonad)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, makeRequestResult, singleClass)
@@ -25,6 +25,7 @@ import Data.Unit (Unit)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData(..), fromEither)
 
@@ -32,29 +33,34 @@ data Action
   = ChangeTool Int
   | RunTool
   | ChangeInput String String
-  | UpdateDiffractions DiffractionList
+  | UpdateInput ToolRunnerInput
+  | ChangeLimit Int
 
 type ToolRunnerInput
-  = { diffractions :: DiffractionList }
+  = { numberOfDiffractions :: Int, filterQuery :: String }
 
 type State
   = { tools :: Array Tool
     , selectedToolId :: Maybe Int
     , toolInputs :: ToolInputMap
     , lastRequest :: RemoteData String String
-    , diffractions :: DiffractionList
+    , filterQuery :: String
+    , numberOfDiffractions :: Int
+    , limit :: Int
     }
 
 fetchData :: ToolRunnerInput -> AppMonad (RemoteData String ToolsResponse)
 fetchData _ = fromEither <$> retrieveTools
 
 initialState :: ChildInput ToolRunnerInput ToolsResponse -> State
-initialState { input: { diffractions }, remoteData: { tools } } =
+initialState { input: { numberOfDiffractions, filterQuery }, remoteData: { tools } } =
   { selectedToolId: Nothing
   , toolInputs: mempty
   , lastRequest: NotAsked
-  , diffractions
+  , numberOfDiffractions
+  , filterQuery
   , tools
+  , limit: 0
   }
 
 render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
@@ -81,7 +87,7 @@ render state =
         )
         state.toolInputs
 
-    numberOfDiffs = length state.diffractions
+    numberOfDiffs = state.numberOfDiffractions
   in
     HH.form [ singleClass "mb-3" ]
       ( [ makeRequestResult state.lastRequest
@@ -97,6 +103,19 @@ render state =
             ]
         ]
           <> inputs
+          <> [ HH.div [ singleClass "mb-3" ]
+                [ HH.label [ HP.for "tool-limit", singleClass "form-label" ] [ HH.text "Maximum number of jobs" ]
+                , HH.input
+                    [ HP.type_ InputNumber
+                    , HP.min 0.0
+                    , HP.id_ ("tool-limit")
+                    , singleClass "form-control"
+                    , HP.value (show state.limit)
+                    , HE.onValueInput (\x -> ChangeLimit <$> fromString x)
+                    ]
+                , HH.div [ singleClass "form-text" ] [ HH.text "Set to 0 for unlimited number of jobs (here be dragons)" ]
+                ]
+            ]
           <> [ HH.div_
                 [ HH.button
                     [ HP.type_ HP.ButtonButton
@@ -107,15 +126,27 @@ render state =
                     [ HH.text "Run tool" ]
                 , HH.div
                     [ singleClass "form-text" ]
-                    (if numberOfDiffs > 0 then [ HH.text ("The tool will be run on " <> show numberOfDiffs <> " diffraction" <> (if numberOfDiffs > 1 then "s" else "")) ] else [])
+                    ( if numberOfDiffs > 0 then
+                        [ HH.text "The tool will be run on "
+                        , HH.strong_ [ HH.text (show numberOfDiffs <> " diffraction" <> (if numberOfDiffs > 1 then "s" else "")) ]
+                        , HH.text " unless maximum number of jobs is set."
+                        ]
+                      else
+                        []
+                    )
                 ]
             ]
       )
 
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
-  UpdateDiffractions newDiffractions ->
-    H.modify_ \state -> state { diffractions = newDiffractions }
+  ChangeLimit newLimit -> H.modify_ \state -> state { limit = newLimit }
+  UpdateInput newInput ->
+    H.modify_ \state ->
+      state
+        { numberOfDiffractions = newInput.numberOfDiffractions
+        , filterQuery = newInput.filterQuery
+        }
   ChangeTool newToolId -> do
     availableTools <- H.gets _.tools
     case find (\t -> t.toolId == newToolId) availableTools of
@@ -135,16 +166,19 @@ handleAction = case _ of
   RunTool -> do
     s <- H.get
     for_ s.selectedToolId \toolId -> do
-      result <- H.lift (startJob toolId s.toolInputs s.diffractions)
+      result <- H.lift (startJob toolId s.toolInputs s.filterQuery (if s.limit == 0 then Nothing else Just s.limit))
       case result of
         Right { jobIds } -> do
-          let numberOfJobs = length jobIds
-              jobString = if numberOfJobs == 1
-                          then "job " <> fromMaybe "" (show <$> head jobIds)
-                          else
-                               if numberOfJobs < 10
-                               then show numberOfJobs <> " jobs with ids: " <> intercalate ", " (show <$> jobIds)
-                               else show numberOfJobs <> " jobs"
+          let
+            numberOfJobs = length jobIds
+
+            jobString =
+              if numberOfJobs == 1 then
+                "job " <> fromMaybe "" (show <$> head jobIds)
+              else if numberOfJobs < 10 then
+                show numberOfJobs <> " jobs with ids: " <> intercalate ", " (show <$> jobIds)
+              else
+                show numberOfJobs <> " jobs"
           H.modify_ \state ->
             state
               { lastRequest = Success ("Started " <> jobString)
@@ -160,7 +194,7 @@ childComponent =
         H.mkEval
           H.defaultEval
             { handleAction = handleAction
-            , receive = \{ input: { diffractions } } -> Just (UpdateDiffractions diffractions)
+            , receive = \{ input } -> Just (UpdateInput input)
             }
     }
 
