@@ -14,9 +14,9 @@ from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.analyze_filesystem import P11Crystal
 from amarcord.amici.p11.analyze_filesystem import P11Run
 from amarcord.amici.p11.analyze_filesystem import P11Target
-from amarcord.amici.p11.db import DiffractionType
 from amarcord.amici.p11.run_key import RunKey
 from amarcord.modules.dbcontext import Connection
+from amarcord.newdb.db import DiffractionType
 from amarcord.util import path_mtime
 from amarcord.xtal_util import find_space_group_index_by_name
 

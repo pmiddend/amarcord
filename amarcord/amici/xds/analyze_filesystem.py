@@ -7,11 +7,11 @@ from typing import Union
 from pint import UnitRegistry
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
-from amarcord.amici.p11.db import ReductionMethod
 from amarcord.amici.xds.parser import XDSCorrectLPFile
 from amarcord.amici.xds.parser import XDSResultsFile
 from amarcord.amici.xds.parser import parse_correctlp
 from amarcord.amici.xds.parser import parse_resultsfile
+from amarcord.newdb.db import ReductionMethod
 from amarcord.util import path_mtime
 
 

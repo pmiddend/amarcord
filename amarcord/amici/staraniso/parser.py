@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
-from amarcord.amici.p11.db import ReductionMethod
+from amarcord.newdb.db import ReductionMethod
 from amarcord.util import path_mtime
 
 

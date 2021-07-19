@@ -4,15 +4,15 @@ from time import sleep
 
 from tap import Tap
 
-from amarcord.amici.p11.db import table_crystals
-from amarcord.amici.p11.db import table_data_reduction
-from amarcord.amici.p11.db import table_diffractions
-from amarcord.amici.p11.db import table_job_to_diffraction
-from amarcord.amici.p11.db import table_job_to_reduction
-from amarcord.amici.p11.db import table_jobs
-from amarcord.amici.p11.db import table_pucks
-from amarcord.amici.p11.db import table_tools
 from amarcord.modules.dbcontext import DBContext
+from amarcord.newdb.db import table_crystals
+from amarcord.newdb.db import table_data_reduction
+from amarcord.newdb.db import table_diffractions
+from amarcord.newdb.db import table_job_to_diffraction
+from amarcord.newdb.db import table_job_to_reduction
+from amarcord.newdb.db import table_jobs
+from amarcord.newdb.db import table_pucks
+from amarcord.newdb.db import table_tools
 from amarcord.workflows.job_controller_factory import create_job_controller
 from amarcord.workflows.job_controller_factory import parse_job_controller
 from amarcord.workflows.workflow_synchronize import check_jobs

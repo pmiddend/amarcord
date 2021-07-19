@@ -21,10 +21,6 @@ from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.analyze_filesystem import P11Crystal
 from amarcord.amici.p11.analyze_filesystem import P11Run
 from amarcord.amici.p11.analyze_filesystem import parse_p11_crystals
-from amarcord.amici.p11.db import table_crystals
-from amarcord.amici.p11.db import table_data_reduction
-from amarcord.amici.p11.db import table_diffractions
-from amarcord.amici.p11.db import table_pucks
 from amarcord.amici.p11.db_ingest import EIGER_16_M_DETECTOR_NAME
 from amarcord.amici.p11.db_ingest import empty_metadata_retriever
 from amarcord.amici.p11.db_ingest import ingest_diffractions_for_crystals
@@ -39,6 +35,10 @@ from amarcord.amici.xds.analyze_filesystem import analyze_xds_filesystem
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
+from amarcord.newdb.db import table_crystals
+from amarcord.newdb.db import table_data_reduction
+from amarcord.newdb.db import table_diffractions
+from amarcord.newdb.db import table_pucks
 from amarcord.util import find_by
 
 DUMMY_PUCK_ID = "P1"

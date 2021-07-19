@@ -6,10 +6,6 @@ from pint import UnitRegistry
 
 from amarcord.amici.p11.analyze_filesystem import P11Crystal
 from amarcord.amici.p11.analyze_filesystem import P11Run
-from amarcord.amici.p11.db import DiffractionType
-from amarcord.amici.p11.db import table_crystals
-from amarcord.amici.p11.db import table_diffractions
-from amarcord.amici.p11.db import table_pucks
 from amarcord.amici.p11.db_ingest import EIGER_16_M_DETECTOR_NAME
 from amarcord.amici.p11.db_ingest import MetadataRetriever
 from amarcord.amici.p11.db_ingest import empty_metadata_retriever
@@ -20,6 +16,10 @@ from amarcord.amici.p11.spreadsheet_reader import CrystalLine
 from amarcord.cli.p11_filesystem_ingester import process_and_validate_with_spreadsheet
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
+from amarcord.newdb.db import DiffractionType
+from amarcord.newdb.db import table_crystals
+from amarcord.newdb.db import table_diffractions
+from amarcord.newdb.db import table_pucks
 
 DEFAULT_METADATA_RETRIEVER = MetadataRetriever(
     lambda _crystal_id, _run_id: DiffractionType.success,
