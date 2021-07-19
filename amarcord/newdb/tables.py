@@ -1,3 +1,4 @@
+import enum
 from typing import Optional
 
 from sqlalchemy import Column
@@ -14,6 +15,7 @@ from sqlalchemy import String
 from sqlalchemy import Table
 from sqlalchemy import Text
 from sqlalchemy import func
+from sqlalchemy.dialects.mysql import DOUBLE
 from sqlalchemy.engine import Engine
 
 from amarcord.newdb.beamline import Beamline
@@ -76,6 +78,46 @@ def table_job_to_reduction(
         Column("job_id", Integer(), ForeignKey("Jobs.id"), primary_key=True),
         Column(
             "data_reduction_id",
+            Integer(),
+            ForeignKey("Data_Reduction.data_reduction_id"),
+            primary_key=True,
+        ),
+        schema=schema,
+    )
+
+
+def table_unfinished_job_to_reduction(
+    metadata: MetaData,
+    _jobs: Table,
+    _data_reduction: Table,
+    schema: Optional[str] = None,
+) -> Table:
+    return Table(
+        "Unfinished_Job_To_Data_Reduction",
+        metadata,
+        Column("job_id", Integer(), ForeignKey("Jobs.id"), primary_key=True),
+        Column(
+            "data_reduction_id",
+            Integer(),
+            ForeignKey("Data_Reduction.data_reduction_id"),
+            primary_key=True,
+        ),
+        schema=schema,
+    )
+
+
+def table_job_to_refinement(
+    metadata: MetaData,
+    _jobs: Table,
+    _refinement: Table,
+    schema: Optional[str] = None,
+) -> Table:
+    return Table(
+        "Job_To_Refinement",
+        metadata,
+        Column("job_id", Integer(), ForeignKey("Jobs.id"), primary_key=True),
+        Column(
+            "refinement_id",
             Integer(),
             ForeignKey("Data_Reduction.data_reduction_id"),
             primary_key=True,
@@ -158,6 +200,14 @@ def table_crystals(
     )
 
 
+class RefinementMethod(enum.Enum):
+    HZB = "hzb"
+    DMPL = "dmpl"
+    DMPL2 = "dmpl2"
+    DMPL2_ALIGNED = "dmpl2-aligned"
+    DMPL2_QFIT = "dmpl2-qfit"
+
+
 def table_data_reduction(
     metadata: MetaData, _crystals: Table, schema: Optional[str] = None
 ) -> Table:
@@ -199,6 +249,38 @@ def table_data_reduction(
         Column("cchalf", Float, comment="percent"),
         Column("rfactor", Float, comment="percent"),
         Column("Wilson_b", Float, comment="angstrom**2"),
+        schema=schema,
+    )
+
+
+def table_refinement(
+    metadata: MetaData, _crystals: Table, schema: Optional[str] = None
+) -> Table:
+    return Table(
+        "Refinement",
+        metadata,
+        Column("refinement_id", Integer, primary_key=True),
+        Column(
+            "data_reduction_id", Integer, ForeignKey("Data_Reduction.data_reduction_id")
+        ),
+        Column("analysis_time", DateTime, nullable=False),
+        Column("folder_path", Text),
+        Column("initial_pdb_path", Text),
+        Column("final_pdb_path", Text),
+        Column("refinement_mtz_path", Text),
+        Column(
+            "method",
+            Enum(RefinementMethod, values_callable=lambda x: [e.value for e in x]),
+            nullable=False,
+        ),
+        Column("comment", Text),
+        Column("resolution_cut", DOUBLE, comment="angstrom"),
+        Column("rfree", DOUBLE, comment="percent"),
+        Column("rwork", DOUBLE, comment="percent"),
+        Column("rms_bond_length", DOUBLE, comment="angstrom"),
+        Column("rms_bond_angle", DOUBLE, comment="angstrom"),
+        Column("num_blobs", SmallInteger, comment="count"),
+        Column("average_model_b", DOUBLE, comment="angstrom**2"),
         schema=schema,
     )
 
