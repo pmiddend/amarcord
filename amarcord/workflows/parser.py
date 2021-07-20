@@ -8,7 +8,7 @@ from typing import Optional
 from typing import Union
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
-from amarcord.newdb.db import ReductionMethod
+from amarcord.newdb.reduction_method import ReductionMethod
 from amarcord.xtal_util import find_space_group_index_by_name
 
 

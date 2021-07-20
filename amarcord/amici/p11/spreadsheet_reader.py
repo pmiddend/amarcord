@@ -6,7 +6,7 @@ from typing import List
 from typing import Mapping
 
 from amarcord.amici.p11.db_ingest import MetadataRetriever
-from amarcord.newdb.db import DiffractionType
+from amarcord.newdb.diffraction_type import DiffractionType
 from amarcord.util import find_by
 
 COLUMN_COMMENT: Final = "comment"

@@ -235,3 +235,10 @@ def path_mtime(p: Path) -> datetime.datetime:
 
 def deglob_path(x: str) -> Path:
     return Path(re.sub(r"\*.*$", "", x))
+
+
+class DontUpdate:
+    pass
+
+
+TriOptional = Union[T, None, DontUpdate]

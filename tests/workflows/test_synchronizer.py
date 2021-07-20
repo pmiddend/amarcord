@@ -8,7 +8,6 @@ from uuid import UUID
 from uuid import uuid4
 
 import pytest
-import sqlalchemy as sa
 from hypothesis import given
 from hypothesis.strategies import characters
 from hypothesis.strategies import integers
@@ -20,15 +19,13 @@ from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.json import JSONDict
-from amarcord.newdb.db import DiffractionType
-from amarcord.newdb.db import table_crystals
-from amarcord.newdb.db import table_data_reduction
-from amarcord.newdb.db import table_diffractions
-from amarcord.newdb.db import table_job_to_diffraction
-from amarcord.newdb.db import table_job_to_reduction
-from amarcord.newdb.db import table_jobs
-from amarcord.newdb.db import table_pucks
-from amarcord.newdb.db import table_tools
+from amarcord.newdb.db_crystal import DBCrystal
+from amarcord.newdb.db_diffraction import DBDiffraction
+from amarcord.newdb.db_job import DBJob
+from amarcord.newdb.db_tool import DBTool
+from amarcord.newdb.diffraction_type import DiffractionType
+from amarcord.newdb.newdb import NewDB
+from amarcord.newdb.tables import DBTables
 from amarcord.workflows.job import Job
 from amarcord.workflows.job_controller import JobController
 from amarcord.workflows.job_controller import JobStartResult
@@ -120,9 +117,9 @@ class MockJobController(JobController):
 
 TEST_CRYSTAL_ID = "crystal_id"
 TEST_RUN_ID = 1
-TEST_EXECUTABLE_PATH = "/usr/bin/test"
+TEST_EXECUTABLE_PATH = Path("/usr/bin/test")
 TEST_COMMAND_LINE = ""
-TEST_EXTRA_FILES = ["/tmp/extra"]
+TEST_EXTRA_FILES = [Path("/tmp/extra")]
 
 
 class SynchronizerTestScenario:
@@ -130,83 +127,51 @@ class SynchronizerTestScenario:
         self, diffraction_filename_pattern: Optional[str] = "/tmp/*.cbf"
     ) -> None:
         self.dbcontext = DBContext("sqlite://")
+        self.db = NewDB(self.dbcontext, DBTables(self.dbcontext.metadata))
         self.clock = MockClock(datetime.datetime(1987, 8, 21, 15, 0, 0, 0))
         self.job_controller = MockJobController(self.clock)
 
         with self.dbcontext.connect() as conn:
-            self.table_pucks = table_pucks(self.dbcontext.metadata)
-            self.table_crystals = table_crystals(
-                self.dbcontext.metadata, self.table_pucks
-            )
-            self.table_tools = table_tools(self.dbcontext.metadata)
-            self.table_diffractions = table_diffractions(
-                self.dbcontext.metadata, self.table_crystals
-            )
-            self.table_jobs = table_jobs(self.dbcontext.metadata, self.table_tools)
-            self.table_reduction_jobs = table_job_to_diffraction(
-                self.dbcontext.metadata,
-                self.table_jobs,
-                self.table_crystals,
-                self.table_diffractions,
-            )
-            self.table_data_reduction = table_data_reduction(
-                self.dbcontext.metadata, self.table_crystals
-            )
-            self.table_job_to_reduction = table_job_to_reduction(
-                self.dbcontext.metadata,
-                self.table_reduction_jobs,
-                self.table_data_reduction,
-            )
             self.dbcontext.create_all(CreationMode.DONT_CHECK)
-            conn.execute(
-                sa.insert(self.table_crystals).values(crystal_id=TEST_CRYSTAL_ID)
-            )
-            tool_result = conn.execute(
-                sa.insert(self.table_tools).values(
+            self.db.insert_crystal(conn, DBCrystal(TEST_CRYSTAL_ID))
+            self.tool_id = self.db.insert_tool(
+                conn,
+                DBTool(
+                    id=None,
                     name="test_tool",
                     executable_path=TEST_EXECUTABLE_PATH,
                     extra_files=TEST_EXTRA_FILES,
                     command_line=TEST_COMMAND_LINE,
                     description="",
-                )
+                ),
             )
-            conn.execute(
-                sa.insert(self.table_diffractions).values(
+            self.db.insert_diffraction(
+                conn,
+                DBDiffraction(
                     crystal_id=TEST_CRYSTAL_ID,
                     run_id=TEST_RUN_ID,
                     diffraction=DiffractionType.success,
-                    data_raw_filename_pattern=diffraction_filename_pattern,
-                )
+                    data_raw_filename_pattern=Path(diffraction_filename_pattern)
+                    if diffraction_filename_pattern is not None
+                    else None,
+                ),
             )
-            self.tool_id = tool_result.inserted_primary_key[0]
-            job_result = conn.execute(
-                sa.insert(self.table_jobs).values(
+            self.job_id = self.db.insert_job(
+                conn,
+                DBJob(
+                    id=None,
                     status=JobStatus.QUEUED,
                     queued=self.clock.now(),
                     tool_id=self.tool_id,
                     tool_inputs={},
-                )
+                ),
             )
-            self.job_id = job_result.inserted_primary_key[0]
-            conn.execute(
-                sa.insert(self.table_reduction_jobs).values(
-                    job_id=self.job_id,
-                    run_id=TEST_RUN_ID,
-                    crystal_id=TEST_CRYSTAL_ID,
-                )
+            self.db.insert_job_to_diffraction(
+                conn, self.job_id, TEST_CRYSTAL_ID, TEST_RUN_ID
             )
 
     def check_jobs(self, conn: Connection) -> None:
-        check_jobs(
-            self.job_controller,
-            conn,
-            self.table_tools,
-            self.table_jobs,
-            self.table_reduction_jobs,
-            self.table_job_to_reduction,
-            self.table_diffractions,
-            self.table_data_reduction,
-        )
+        check_jobs(self.job_controller, conn, self.db)
 
 
 def test_check_jobs_no_diffraction_path() -> None:
@@ -218,17 +183,11 @@ def test_check_jobs_no_diffraction_path() -> None:
 
         assert not scenario.job_controller.started_jobs
 
-        job_after_start = conn.execute(
-            sa.select(
-                [
-                    scenario.table_jobs.c.status,
-                    scenario.table_jobs.c.failure_reason,
-                ]
-            )
-        ).fetchone()
+        reduction_jobs = scenario.db.retrieve_reduction_jobs(conn)
 
-        assert job_after_start["status"] == JobStatus.COMPLETED
-        assert job_after_start["failure_reason"]
+        assert len(reduction_jobs) == 1
+        assert reduction_jobs[0].status == JobStatus.COMPLETED
+        assert reduction_jobs[0].failure_reason is not None
 
 
 def test_check_jobs_result_file_doesnt_exist() -> None:
@@ -244,29 +203,21 @@ def test_check_jobs_result_file_doesnt_exist() -> None:
         ]
         assert scenario.job_controller.started_jobs[0].command_line == TEST_COMMAND_LINE
 
-        job_after_start = conn.execute(
-            sa.select([scenario.table_jobs.c.status])
-        ).fetchone()
+        jobs = scenario.db.retrieve_reduction_jobs(conn)
 
-        assert job_after_start["status"] == JobStatus.RUNNING
+        assert len(jobs) == 1
+        assert jobs[0].status == JobStatus.RUNNING
 
         # Now simulate the job completing
         scenario.job_controller.started_jobs[0].status = JobStatus.COMPLETED
 
         scenario.check_jobs(conn)
 
-        # This should fail, since we haven't specified correct paths
-        job_after_start = conn.execute(
-            sa.select(
-                [
-                    scenario.table_jobs.c.status,
-                    scenario.table_jobs.c.failure_reason,
-                ]
-            )
-        ).fetchone()
+        jobs = scenario.db.retrieve_reduction_jobs(conn)
 
-        assert job_after_start["status"] == JobStatus.COMPLETED
-        assert job_after_start["failure_reason"]
+        assert len(jobs) == 1
+        assert jobs[0].status == JobStatus.COMPLETED
+        assert jobs[0].failure_reason is not None
 
 
 def test_check_jobs_invalid_json_file(fs) -> None:
@@ -290,24 +241,33 @@ def test_check_jobs_invalid_json_file(fs) -> None:
         scenario.check_jobs(conn)
 
         # This should fail, since we haven't specified correct paths
-        job_after_start = conn.execute(
-            sa.select(
-                [
-                    scenario.table_jobs.c.status,
-                    scenario.table_jobs.c.failure_reason,
-                ]
-            )
-        ).fetchone()
+        jobs = scenario.db.retrieve_reduction_jobs(conn)
 
-        assert job_after_start["status"] == JobStatus.COMPLETED
-        assert job_after_start["failure_reason"]
+        assert len(jobs) == 1
+        assert jobs[0].status == JobStatus.COMPLETED
+        assert jobs[0].failure_reason is not None
 
-        assert (
-            conn.execute(
-                sa.select([scenario.table_data_reduction.c.data_reduction_id])
-            ).fetchone()
-            is None
-        )
+        assert_no_reductions(scenario, conn)
+
+
+def assert_reductions(scenario: SynchronizerTestScenario, conn: Connection) -> None:
+    analysis_results = scenario.db.retrieve_analysis_results(
+        conn, filter_query="", sort_column=None, sort_order_desc=False, limit=None
+    )
+    assert (
+        analysis_results.rows[0][analysis_results.columns.index("dr_data_reduction_id")]
+        is not None
+    )
+
+
+def assert_no_reductions(scenario: SynchronizerTestScenario, conn: Connection) -> None:
+    analysis_results = scenario.db.retrieve_analysis_results(
+        conn, filter_query="", sort_column=None, sort_order_desc=False, limit=None
+    )
+    assert (
+        analysis_results.rows[0][analysis_results.columns.index("dr_data_reduction_id")]
+        is None
+    )
 
 
 def test_check_jobs_valid_result(fs) -> None:
@@ -330,21 +290,13 @@ def test_check_jobs_valid_result(fs) -> None:
 
         scenario.check_jobs(conn)
 
-        job_after_start = conn.execute(
-            sa.select(
-                [
-                    scenario.table_jobs.c.status,
-                    scenario.table_jobs.c.failure_reason,
-                ]
-            )
-        ).fetchone()
+        jobs = scenario.db.retrieve_reduction_jobs(conn)
 
-        assert job_after_start["status"] == JobStatus.COMPLETED
-        assert not job_after_start["failure_reason"]
+        assert len(jobs) == 1
+        assert jobs[0].status == JobStatus.COMPLETED
+        assert jobs[0].failure_reason is None
 
-        assert conn.execute(
-            sa.select([scenario.table_data_reduction.c.data_reduction_id])
-        ).fetchone()
+        assert_reductions(scenario, conn)
 
 
 def test_check_jobs_valid_result_but_forgotten_by_job_controller(fs) -> None:
@@ -369,18 +321,10 @@ def test_check_jobs_valid_result_but_forgotten_by_job_controller(fs) -> None:
 
         scenario.check_jobs(conn)
 
-        job_after_start = conn.execute(
-            sa.select(
-                [
-                    scenario.table_jobs.c.status,
-                    scenario.table_jobs.c.failure_reason,
-                ]
-            )
-        ).fetchone()
+        jobs = scenario.db.retrieve_reduction_jobs(conn)
 
-        assert job_after_start["status"] == JobStatus.COMPLETED
-        assert not job_after_start["failure_reason"]
+        assert len(jobs) == 1
+        assert jobs[0].status == JobStatus.COMPLETED
+        assert jobs[0].failure_reason is None
 
-        assert conn.execute(
-            sa.select([scenario.table_data_reduction.c.data_reduction_id])
-        ).fetchone()
+        assert_reductions(scenario, conn)

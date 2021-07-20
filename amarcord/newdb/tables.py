@@ -1,4 +1,3 @@
-import enum
 from typing import Optional
 
 from sqlalchemy import Column
@@ -16,41 +15,13 @@ from sqlalchemy import Table
 from sqlalchemy import Text
 from sqlalchemy import func
 
+from amarcord.newdb.beamline import Beamline
+from amarcord.newdb.diffraction_type import DiffractionType
+from amarcord.newdb.puck_type import PuckType
+from amarcord.newdb.reduction_method import ReductionMethod
 from amarcord.workflows.job_status import JobStatus
 
 ANALYSIS_SCHEMA = "SARS_COV_2_Analysis_v2"
-
-
-class Beamline(enum.Enum):
-    p11 = "p11"
-    p13 = "p13"
-    p14 = "p14"
-
-
-class DiffractionType(enum.Enum):
-    no_diffraction = "no diffraction"
-    no_crystal = "no crystal"
-    ice_salt = "ice / salt"
-    success = "success"
-
-
-class ReductionMethod(enum.Enum):
-    XDS_PRE = "xds_pre"
-    XDS_FULL = "xds_full"
-    XDS_REINDEX1 = "xds_reindex1"
-    XDS_REINDER1_NOICE = "xds_reindex1_noice"
-    DIALS_DIALS = "DIALS-dials"
-    DIALS_1P7A_DIALS = "DIALS_1p7A-dials"
-    PLPRO_DIALS_1P6A_DIALS = "plpro_DIALS_1p6A-dials"
-    PLPRO_DIALS_DIALS = "plpro_DIALS-dials"
-    AGAL_DIALS = "AGAL-dials"
-    STARANISO = "staraniso"
-    OTHER = "other"
-
-
-class PuckType(enum.Enum):
-    UNI = "UNI"
-    SPINE = "SPINE"
 
 
 def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
@@ -279,3 +250,20 @@ def table_diffractions(
         Column("aperture_vertical", Float, comment="um"),
         schema=schema,
     )
+
+
+class DBTables:
+    def __init__(self, metadata: MetaData) -> None:
+        self.pucks = table_pucks(metadata)
+        self.crystals = table_crystals(metadata, self.pucks)
+        self.tools = table_tools(metadata)
+        self.diffs = table_diffractions(metadata, self.crystals)
+        self.reductions = table_data_reduction(metadata, self.crystals)
+        self.jobs = table_jobs(metadata, self.tools)
+        self.dewar_lut = table_dewar_lut(metadata, self.pucks)
+        self.reduction_jobs = table_job_to_diffraction(
+            metadata, self.jobs, self.crystals, self.diffs
+        )
+        self.job_reductions = table_job_to_reduction(
+            metadata, self.reduction_jobs, self.reductions
+        )

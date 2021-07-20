@@ -35,10 +35,9 @@ from amarcord.amici.xds.analyze_filesystem import analyze_xds_filesystem
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
-from amarcord.newdb.db import table_crystals
-from amarcord.newdb.db import table_data_reduction
-from amarcord.newdb.db import table_diffractions
-from amarcord.newdb.db import table_pucks
+from amarcord.newdb.db_crystal import DBCrystal
+from amarcord.newdb.newdb import NewDB
+from amarcord.newdb.tables import DBTables
 from amarcord.util import find_by
 
 DUMMY_PUCK_ID = "P1"
@@ -238,9 +237,6 @@ def _crystal_exists(
 def main_loop(
     args: Arguments,
     dbcontext: DBContext,
-    table_crystals_: sa.Table,
-    table_diffs_: sa.Table,
-    table_data_reduction_: sa.Table,
 ) -> Union[int, Tuple[List[P11Crystal], Dict[RunKey, List[AnalysisResult]]]]:
     crystal_creation_date_str = args.crystal_creation_date
     crystal_creation_date: datetime.datetime
@@ -351,20 +347,21 @@ def main_loop(
         crystals = new_crystals
         logger.info("Analyzing spreadsheet...Done!")
 
-    with dbcontext.connect() as conn:
+    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
+    with db.connect() as conn:
         try:
             with conn.begin():
                 logger.info("Ingesting into DB...")
                 to_remove_crystal_ids: Set[str] = set()
                 for crystal in crystals:
-                    if not _crystal_exists(conn, table_crystals_, crystal.crystal_id):
+                    if not db.crystal_exists(conn, crystal.crystal_id):
                         if args.create_crystals:
                             logger.info("Creating crystal %s...", crystal.crystal_id)
-                            conn.execute(
-                                sa.insert(table_crystals_).values(
-                                    crystal_id=crystal.crystal_id,
-                                    created=crystal_creation_date,
-                                )
+                            db.insert_crystal(
+                                conn,
+                                DBCrystal(
+                                    crystal.crystal_id, created=crystal_creation_date
+                                ),
                             )
                         else:
                             to_remove_crystal_ids.add(crystal.crystal_id)
@@ -383,8 +380,7 @@ def main_loop(
                     logger.info("Ingesting diffractions...")
                     diff_ingest_warnings = ingest_diffractions_for_crystals(
                         conn,
-                        table_diffs_,
-                        table_crystals_,
+                        db,
                         crystals,
                         args.crystal_spreadsheet is not None
                         or args.force_diffraction_ingest,
@@ -414,8 +410,7 @@ def main_loop(
                 logger.info("Ingesting reductions...")
                 reduction_warnings = ingest_reductions_for_crystals(
                     conn,
-                    table_data_reduction_,
-                    table_diffs_,
+                    db,
                     crystals,
                     reduction_results,
                 )
@@ -449,18 +444,6 @@ def main_loop(
 def main(args: Arguments) -> int:
     dbcontext = DBContext(args.db_connection_url, echo=args.db_echo)
 
-    table_crystals_ = table_crystals(
-        dbcontext.metadata,
-        table_pucks(dbcontext.metadata, schema=args.main_schema),
-        schema=args.main_schema,
-    )
-    table_diffs_ = table_diffractions(
-        dbcontext.metadata, table_crystals_, schema=args.main_schema
-    )
-    table_data_reduction_ = table_data_reduction(
-        dbcontext.metadata, table_crystals_, schema=args.analysis_schema
-    )
-
     if args.db_connection_url.startswith("sqlite"):
         logger.info("Creating tables")
         dbcontext.create_all(CreationMode.CHECK_FIRST)
@@ -473,9 +456,6 @@ def main(args: Arguments) -> int:
         result = main_loop(
             args,
             dbcontext,
-            table_crystals_,
-            table_diffs_,
-            table_data_reduction_,
         )
         after = time()
         if isinstance(result, int):

@@ -1,18 +1,17 @@
 import datetime
 import json
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List
-from typing import Optional
 
 import sqlalchemy as sa
 
-from amarcord.amici.p11.db_ingest import ingest_analysis_result
 from amarcord.clock import Clock
 from amarcord.clock import RealClock
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.json import JSONDict
+from amarcord.newdb.db_data_reduction import DBDataReduction
+from amarcord.newdb.db_reduction_job import DBReductionJob
+from amarcord.newdb.newdb import NewDB
 from amarcord.util import deglob_path
 from amarcord.util import find_by
 from amarcord.workflows.job_controller import JobController
@@ -20,49 +19,6 @@ from amarcord.workflows.job_status import JobStatus
 from amarcord.workflows.parser import parse_workflow_result_file
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class _Tool:
-    id: int
-    inputs: JSONDict
-    executable_path: Path
-    extra_files: List[Path]
-    command_line: str
-
-
-@dataclass(frozen=True)
-class _ReductionJob:
-    id: int
-    queued: datetime.datetime
-    started: Optional[datetime.datetime]
-    stopped: Optional[datetime.datetime]
-    status: JobStatus
-    output_directory: Optional[Path]
-    run_id: int
-    crystal_id: str
-    data_raw_filename_pattern: Optional[str]
-    metadata: JSONDict
-    tool: _Tool
-
-
-def _update_job_status(
-    conn: Connection,
-    table_jobs: sa.Table,
-    job_id: int,
-    job_metadata: JSONDict,
-    failure_message: Optional[str],
-) -> None:
-    conn.execute(
-        sa.update(table_jobs)
-        .values(
-            failure_reason=failure_message,
-            stopped=datetime.datetime.utcnow(),
-            status=JobStatus.COMPLETED,
-            metadata=job_metadata,
-        )
-        .where(table_jobs.c.id == job_id)
-    )
 
 
 def _process_running_job(
@@ -80,10 +36,8 @@ def _process_running_job(
 
 def _process_completed_job(
     conn: Connection,
-    table_data_reduction: sa.Table,
-    table_jobs: sa.Table,
-    table_job_to_reductions: sa.Table,
-    job: _ReductionJob,
+    db: NewDB,
+    job: DBReductionJob,
 ) -> None:
     assert job.output_directory is not None
 
@@ -92,12 +46,14 @@ def _process_completed_job(
 
     if not output_description.is_file():
         logger.info("job %s: output file %s not a file", job.id, output_description)
-        _update_job_status(
+
+        db.update_job(
             conn,
-            table_jobs,
             job.id,
-            job.metadata,
+            JobStatus.COMPLETED,
             f"output file not found: {output_description}",
+            metadata=job.metadata,
+            stopped=datetime.datetime.utcnow(),
         )
         return
 
@@ -110,32 +66,56 @@ def _process_completed_job(
             output_description,
             parse_results,
         )
-        _update_job_status(
+        db.update_job(
             conn,
-            table_jobs,
             job.id,
-            job.metadata,
+            JobStatus.COMPLETED,
             f"invalid output file {output_description}: {parse_results}",
+            job.metadata,
+            stopped=datetime.datetime.utcnow(),
         )
         return
 
     for parse_result in parse_results:
         logger.info("job %s: ingesting result", job.id)
-        data_reduction_id = ingest_analysis_result(
+        data_reduction_id = db.insert_data_reduction(
             conn,
-            job.crystal_id,
-            table_data_reduction,
-            job.run_id,
-            parse_result,
+            DBDataReduction(
+                data_reduction_id=None,
+                crystal_id=job.crystal_id,
+                run_id=job.run_id,
+                analysis_time=parse_result.analysis_time,
+                method=parse_result.method,
+                folder_path=parse_result.base_path,
+                mtz_path=parse_result.mtz_file,
+                comment=None,
+                resolution_cc=parse_result.resolution_cc,
+                resolution_isigma=parse_result.resolution_isigma,
+                a=parse_result.a,
+                b=parse_result.b,
+                c=parse_result.c,
+                alpha=parse_result.alpha,
+                beta=parse_result.beta,
+                gamma=parse_result.gamma,
+                space_group=parse_result.space_group,
+                isigi=parse_result.isigi,
+                rmeas=parse_result.rmeas,
+                cchalf=parse_result.cchalf,
+                rfactor=parse_result.rfactor,
+                wilson_b=parse_result.wilson_b,
+            ),
         )
-        conn.execute(
-            sa.insert(table_job_to_reductions).values(
-                job_id=job.id, data_reduction_id=data_reduction_id
-            )
-        )
+        db.insert_job_reduction_result(conn, job.id, data_reduction_id)
 
     logger.info("job %s: completing without error", job.id)
-    _update_job_status(conn, table_jobs, job.id, job.metadata, failure_message=None)
+    db.update_job(
+        conn,
+        job.id,
+        JobStatus.COMPLETED,
+        failure_reason=None,
+        metadata=job.metadata,
+        stopped=datetime.datetime.utcnow(),
+    )
 
 
 def process_tool_command_line(
@@ -154,17 +134,18 @@ def process_tool_command_line(
 def _start_job(
     conn: Connection,
     job_controller: JobController,
-    table_jobs: sa.Table,
-    job: _ReductionJob,
+    db: NewDB,
+    job: DBReductionJob,
 ) -> None:
     if job.data_raw_filename_pattern is None:
         logger.info("wanted to start queued job, but have no diffraction path")
-        _update_job_status(
+        db.update_job(
             conn,
-            table_jobs,
             job.id,
+            JobStatus.COMPLETED,
+            "no filename pattern in diffraction",
             job.metadata,
-            "no filename pattern in Diffraction",
+            stopped=datetime.datetime.utcnow(),
         )
         return
 
@@ -175,18 +156,19 @@ def _start_job(
             Path(job.crystal_id) / str(job.run_id) / str(job.id),
             job.tool.executable_path,
             process_tool_command_line(
-                job.tool.command_line, data_path, job.tool.inputs
+                job.tool.command_line, data_path, job.tool_inputs
             ),
             job.tool.extra_files,
         )
     except:
         logger.exception("failed to start job %s", job.id)
-        _update_job_status(
+        db.update_job(
             conn,
-            table_jobs,
             job.id,
-            job.metadata,
+            JobStatus.COMPLETED,
             "failed to start job",
+            job.metadata,
+            stopped=datetime.datetime.utcnow(),
         )
         return
 
@@ -198,83 +180,30 @@ def _start_job(
         json.dumps(result.metadata),
     )
 
-    conn.execute(
-        sa.update(table_jobs)
-        .values(
-            status=JobStatus.RUNNING,
-            started=datetime.datetime.utcnow(),
-            output_directory=str(result.output_directory),
-            metadata=result.metadata,
-        )
-        .where(table_jobs.c.id == job.id)
+    db.update_job(
+        conn,
+        job.id,
+        JobStatus.RUNNING,
+        failure_reason=None,
+        metadata=result.metadata,
+        started=datetime.datetime.utcnow(),
+        output_directory=result.output_directory,
     )
 
 
 def check_jobs(
     job_controller: JobController,
     conn: Connection,
-    table_tools: sa.Table,
-    table_jobs: sa.Table,
-    table_job_to_diffraction: sa.Table,
-    table_job_to_reductions: sa.Table,
-    table_diffractions: sa.Table,
-    table_data_reduction: sa.Table,
+    db: NewDB,
     clock: Clock = RealClock(),
 ) -> None:
     # First, list jobs, add jobs that are unknown
     # Second, check reduction jobs in DB and remove all of them that are completed, ingesting the results
     with conn.begin():
-        db_jobs: List[_ReductionJob] = [
-            _ReductionJob(
-                id=job["id"],
-                started=job["started"],
-                stopped=job["stopped"],
-                queued=job["queued"],
-                status=job["status"],
-                output_directory=Path(job["output_directory"])
-                if job["output_directory"] is not None
-                else None,
-                data_raw_filename_pattern=job["data_raw_filename_pattern"],
-                run_id=job["run_id"],
-                crystal_id=job["crystal_id"],
-                metadata=job["metadata"],
-                tool=_Tool(
-                    id=job["tool_id"],
-                    inputs=job["tool_inputs"],
-                    executable_path=Path(job["executable_path"]),
-                    extra_files=[Path(p) for p in job["extra_files"]],
-                    command_line=job["command_line"],
-                ),
-            )
-            for job in conn.execute(
-                sa.select(
-                    [
-                        table_jobs.c.id,
-                        table_jobs.c.started,
-                        table_jobs.c.stopped,
-                        table_jobs.c.queued,
-                        table_jobs.c.output_directory,
-                        table_jobs.c.tool_id,
-                        table_jobs.c.tool_inputs,
-                        table_jobs.c.metadata,
-                        table_jobs.c.status,
-                        table_job_to_diffraction.c.run_id,
-                        table_job_to_diffraction.c.crystal_id,
-                        table_tools.c.executable_path,
-                        table_tools.c.command_line,
-                        table_tools.c.extra_files,
-                        table_diffractions.c.data_raw_filename_pattern,
-                    ]
-                ).select_from(
-                    table_jobs.join(table_job_to_diffraction)
-                    .join(table_tools)
-                    .join(table_diffractions)
-                )
-            ).fetchall()
-        ]
+        db_jobs = db.retrieve_reduction_jobs(conn)
 
         for db_job in (x for x in db_jobs if x.status == JobStatus.QUEUED):
-            _start_job(conn, job_controller, table_jobs, db_job)
+            _start_job(conn, job_controller, db, db_job)
 
         controller_jobs = list(job_controller.list_jobs())
         # Iterate over the completed jobs, align with running DB jobs
@@ -299,9 +228,7 @@ def check_jobs(
             logger.info("processing completed job %s (DB %s)", md_str, db_job.id)
             _process_completed_job(
                 conn,
-                table_data_reduction,
-                table_jobs,
-                table_job_to_reductions,
+                db,
                 db_job,
             )
 
@@ -324,8 +251,6 @@ def check_jobs(
                 logger.info("found stale job %s", db_job.id)
                 _process_completed_job(
                     conn,
-                    table_data_reduction,
-                    table_jobs,
-                    table_job_to_reductions,
+                    db,
                     db_job,
                 )

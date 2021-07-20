@@ -2,17 +2,10 @@ import sys
 
 from tap import Tap
 
-from amarcord.amici.p11.db import table_crystals
-from amarcord.amici.p11.db import table_data_reduction
-from amarcord.amici.p11.db import table_dewar_lut
-from amarcord.amici.p11.db import table_diffractions
-from amarcord.amici.p11.db import table_job_to_diffraction
-from amarcord.amici.p11.db import table_job_to_reduction
-from amarcord.amici.p11.db import table_jobs
-from amarcord.amici.p11.db import table_pucks
-from amarcord.amici.p11.db import table_tools
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
+from amarcord.newdb.newdb import NewDB
+from amarcord.newdb.tables import DBTables
 
 
 class Arguments(Tap):
@@ -26,15 +19,7 @@ class Arguments(Tap):
 def main() -> int:
     args = Arguments(underscores_to_dashes=True).parse_args()
     dbcontext = DBContext(args.db_connection_url, args.db_echo)
-    pucks = table_pucks(dbcontext.metadata)
-    crystals = table_crystals(dbcontext.metadata, pucks)
-    table_dewar_lut(dbcontext.metadata, pucks)
-    diffractions = table_diffractions(dbcontext.metadata, crystals)
-    data_reduction = table_data_reduction(dbcontext.metadata, crystals)
-    tools = table_tools(dbcontext.metadata)
-    jobs = table_jobs(dbcontext.metadata, tools)
-    table_job_to_diffraction(dbcontext.metadata, jobs, crystals, diffractions)
-    table_job_to_reduction(dbcontext.metadata, jobs, data_reduction)
+    NewDB(dbcontext, DBTables(dbcontext.metadata))
     dbcontext.create_all(CreationMode.CHECK_FIRST)
     with dbcontext.connect() as conn:
         conn.execute(

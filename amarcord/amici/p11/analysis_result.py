@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 from typing import Union
 
-from amarcord.newdb.db import ReductionMethod
+from amarcord.newdb.reduction_method import ReductionMethod
 
 
 @dataclass(frozen=True)

@@ -11,7 +11,7 @@ from amarcord.amici.xds.parser import XDSCorrectLPFile
 from amarcord.amici.xds.parser import XDSResultsFile
 from amarcord.amici.xds.parser import parse_correctlp
 from amarcord.amici.xds.parser import parse_resultsfile
-from amarcord.newdb.db import ReductionMethod
+from amarcord.newdb.reduction_method import ReductionMethod
 from amarcord.util import path_mtime
 
 

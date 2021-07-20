@@ -5,14 +5,8 @@ from time import sleep
 from tap import Tap
 
 from amarcord.modules.dbcontext import DBContext
-from amarcord.newdb.db import table_crystals
-from amarcord.newdb.db import table_data_reduction
-from amarcord.newdb.db import table_diffractions
-from amarcord.newdb.db import table_job_to_diffraction
-from amarcord.newdb.db import table_job_to_reduction
-from amarcord.newdb.db import table_jobs
-from amarcord.newdb.db import table_pucks
-from amarcord.newdb.db import table_tools
+from amarcord.newdb.newdb import NewDB
+from amarcord.newdb.tables import DBTables
 from amarcord.workflows.job_controller_factory import create_job_controller
 from amarcord.workflows.job_controller_factory import parse_job_controller
 from amarcord.workflows.workflow_synchronize import check_jobs
@@ -35,19 +29,7 @@ class Arguments(Tap):
 
 def main(args: Arguments) -> int:
     dbcontext = DBContext(args.db_connection_url, echo=args.db_echo)
-
-    table_tools_ = table_tools(dbcontext.metadata)
-    table_pucks_ = table_pucks(dbcontext.metadata)
-    table_crystals_ = table_crystals(dbcontext.metadata, table_pucks_)
-    table_diffractions_ = table_diffractions(dbcontext.metadata, table_crystals_)
-    table_jobs_ = table_jobs(dbcontext.metadata, table_tools_)
-    table_job_to_diffraction_ = table_job_to_diffraction(
-        dbcontext.metadata, table_jobs_, table_crystals_, table_diffractions_
-    )
-    table_data_reduction_ = table_data_reduction(dbcontext.metadata, table_crystals_)
-    table_job_to_reductions_ = table_job_to_reduction(
-        dbcontext.metadata, table_job_to_diffraction_, table_data_reduction_
-    )
+    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
 
     job_controller = create_job_controller(parse_job_controller(args.job_controller))
 
@@ -57,16 +39,7 @@ def main(args: Arguments) -> int:
             sleep(args.wait_after_check)
 
             with dbcontext.connect() as conn:
-                check_jobs(
-                    job_controller,
-                    conn,
-                    table_tools_,
-                    table_jobs_,
-                    table_job_to_diffraction_,
-                    table_job_to_reductions_,
-                    table_diffractions_,
-                    table_data_reduction_,
-                )
+                check_jobs(job_controller, conn, db)
     except:
         logger.exception("caught an unexpected exception")
         return 1

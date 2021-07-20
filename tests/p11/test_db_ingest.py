@@ -16,10 +16,10 @@ from amarcord.amici.p11.spreadsheet_reader import CrystalLine
 from amarcord.cli.p11_filesystem_ingester import process_and_validate_with_spreadsheet
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
-from amarcord.newdb.db import DiffractionType
-from amarcord.newdb.db import table_crystals
-from amarcord.newdb.db import table_diffractions
-from amarcord.newdb.db import table_pucks
+from amarcord.newdb.db_crystal import DBCrystal
+from amarcord.newdb.diffraction_type import DiffractionType
+from amarcord.newdb.newdb import NewDB
+from amarcord.newdb.tables import DBTables
 
 DEFAULT_METADATA_RETRIEVER = MetadataRetriever(
     lambda _crystal_id, _run_id: DiffractionType.success,
@@ -31,15 +31,13 @@ DEFAULT_METADATA_RETRIEVER = MetadataRetriever(
 
 def test_db_ingest_diffractions_successful(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
-    crystals = table_crystals(dbcontext.metadata, table_pucks(dbcontext.metadata))
-    diffs = table_diffractions(dbcontext.metadata, crystals)
+    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
-
-    diffraction_columns = [c.label("diff_" + c.name) for c in diffs.c]
 
     with dbcontext.connect() as conn:
         crystal_id = "c1"
-        conn.execute(sa.insert(crystals).values(crystal_id=crystal_id))
+
+        db.insert_crystal(conn, DBCrystal(crystal_id))
 
         crystal_list = [
             P11Crystal(
@@ -59,8 +57,7 @@ def test_db_ingest_diffractions_successful(db) -> None:
         ]
         has_warnings = ingest_diffractions_for_crystals(
             conn,
-            diffs,
-            crystals,
+            db,
             crystal_list,
             insert_diffraction_if_not_exists=True,
             metadata_retriever=empty_metadata_retriever(EIGER_16_M_DETECTOR_NAME),
@@ -68,16 +65,15 @@ def test_db_ingest_diffractions_successful(db) -> None:
         assert not has_warnings
 
     with dbcontext.connect() as conn:
-        diffraction_ids = conn.execute(sa.select([diffs.c.crystal_id])).fetchall()
+        diffractions = db.retrieve_analysis_diffractions(conn, "")
 
-        assert len(diffraction_ids) == 1
-        assert diffraction_ids[0][0] == crystal_id
+        assert len(diffractions) == 1
+        assert diffractions[0][0] == crystal_id
 
 
 def test_db_ingest_diffractions_crystal_in_filesystem_but_not_in_db(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
-    crystals = table_crystals(dbcontext.metadata, table_pucks(dbcontext.metadata))
-    diffs = table_diffractions(dbcontext.metadata, crystals)
+    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:
@@ -101,8 +97,7 @@ def test_db_ingest_diffractions_crystal_in_filesystem_but_not_in_db(db) -> None:
         ]
         has_warnings = ingest_diffractions_for_crystals(
             conn,
-            diffs,
-            crystals,
+            db,
             crystal_list,
             insert_diffraction_if_not_exists=True,
             metadata_retriever=empty_metadata_retriever(EIGER_16_M_DETECTOR_NAME),
@@ -110,20 +105,21 @@ def test_db_ingest_diffractions_crystal_in_filesystem_but_not_in_db(db) -> None:
         assert has_warnings
 
     with dbcontext.connect() as conn:
-        diffraction_ids = conn.execute(sa.select([diffs.c.crystal_id])).fetchall()
+        diffraction_ids = conn.execute(
+            sa.select([db.tables.diffs.c.crystal_id])
+        ).fetchall()
 
         assert not diffraction_ids
 
 
 def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
-    crystals = table_crystals(dbcontext.metadata, table_pucks(dbcontext.metadata))
-    diffs = table_diffractions(dbcontext.metadata, crystals)
+    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:
         crystal_id = "c1"
-        conn.execute(sa.insert(crystals).values(crystal_id=crystal_id))
+        db.insert_crystal(conn, DBCrystal(crystal_id))
 
         crystal_list = [
             P11Crystal(
@@ -143,8 +139,7 @@ def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) ->
         ]
         diffraction_warnings = ingest_diffractions_for_crystals(
             conn,
-            diffs,
-            crystals,
+            db,
             crystal_list,
             insert_diffraction_if_not_exists=False,
             metadata_retriever=empty_metadata_retriever(EIGER_16_M_DETECTOR_NAME),
@@ -152,20 +147,17 @@ def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) ->
         assert not diffraction_warnings
 
     with dbcontext.connect() as conn:
-        diffraction_ids = conn.execute(sa.select([diffs.c.crystal_id])).fetchall()
-
-        assert not diffraction_ids
+        assert not db.retrieve_analysis_diffractions(conn, "")
 
 
 def test_db_ingest_diffractions_update_diffraction_if_exists(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
-    crystals = table_crystals(dbcontext.metadata, table_pucks(dbcontext.metadata))
-    diffs = table_diffractions(dbcontext.metadata, crystals)
+    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:
         crystal_id = "c1"
-        conn.execute(sa.insert(crystals).values(crystal_id=crystal_id))
+        db.insert_crystal(conn, DBCrystal(crystal_id))
 
         info_file = parse_p11_info_file(
             Path(__file__).parent / "info.txt", UnitRegistry()
@@ -180,8 +172,8 @@ def test_db_ingest_diffractions_update_diffraction_if_exists(db) -> None:
         # "Pre-insert" the diffraction, using a different number of frames as an example field
         insert_diffraction(
             conn,
+            db,
             crystal_id,
-            diffs,
             replace(
                 # See replacement here
                 run,
@@ -197,8 +189,7 @@ def test_db_ingest_diffractions_update_diffraction_if_exists(db) -> None:
         ]
         has_warnings = ingest_diffractions_for_crystals(
             conn,
-            diffs,
-            crystals,
+            db,
             crystal_list,
             insert_diffraction_if_not_exists=False,
             metadata_retriever=empty_metadata_retriever(EIGER_16_M_DETECTOR_NAME),
@@ -206,10 +197,13 @@ def test_db_ingest_diffractions_update_diffraction_if_exists(db) -> None:
         assert not has_warnings
 
     with dbcontext.connect() as conn:
-        frames = conn.execute(sa.select([diffs.c.number_of_frames])).fetchone()
+        analysis_results = db.retrieve_analysis_results(conn, "", None, False, None)
+        assert len(analysis_results.rows) == 1
+        number_of_frame_column = analysis_results.columns.index("diff_number_of_frames")
+        assert number_of_frame_column is not None
 
         # We have pre-inserted "frames+1" and now expected "frames" as the updated value
-        assert frames[0] == run.info_file.frames
+        assert analysis_results.rows[0][number_of_frame_column] == run.info_file.frames
 
 
 def test_process_and_validate_with_spreadsheet_run_doesnt_match() -> None:

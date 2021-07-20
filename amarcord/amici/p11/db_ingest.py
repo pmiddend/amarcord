@@ -8,15 +8,16 @@ from typing import List
 from typing import Optional
 
 import sqlalchemy as sa
-from sqlalchemy import Table
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.analyze_filesystem import P11Crystal
 from amarcord.amici.p11.analyze_filesystem import P11Run
-from amarcord.amici.p11.analyze_filesystem import P11Target
 from amarcord.amici.p11.run_key import RunKey
 from amarcord.modules.dbcontext import Connection
-from amarcord.newdb.db import DiffractionType
+from amarcord.newdb.db_data_reduction import DBDataReduction
+from amarcord.newdb.db_diffraction import DBDiffraction
+from amarcord.newdb.diffraction_type import DiffractionType
+from amarcord.newdb.newdb import NewDB
 from amarcord.util import path_mtime
 from amarcord.xtal_util import find_space_group_index_by_name
 
@@ -69,20 +70,12 @@ def _find_crystal(
 
 def _ingest_diffractions_for_crystal(
     conn: Connection,
-    diffs: sa.Table,
-    crystals: sa.Table,
+    db: NewDB,
     crystal: P11Crystal,
     insert_diffraction_if_not_exists: bool,
     metadata_retriever: MetadataRetriever,
 ) -> List[str]:
-    if (
-        conn.execute(
-            sa.select([crystals.c.crystal_id]).where(
-                crystals.c.crystal_id == crystal.crystal_id
-            )
-        ).fetchone()
-        is None
-    ):
+    if not db.crystal_exists(conn, crystal.crystal_id):
         return [
             f"crystal {crystal.crystal_id} found in filesystem, but not in database"
         ]
@@ -90,15 +83,7 @@ def _ingest_diffractions_for_crystal(
     warnings: List[str] = []
     for run in crystal.runs:
         if (
-            conn.execute(
-                sa.select([diffs.c.crystal_id]).where(
-                    sa.and_(
-                        diffs.c.crystal_id == crystal.crystal_id,
-                        diffs.c.run_id == run.run_id,
-                    )
-                )
-            ).fetchone()
-            is None
+            not db.has_diffractions(conn, crystal.crystal_id, run.run_id)
             and not insert_diffraction_if_not_exists
         ):
             logger.debug(
@@ -112,8 +97,8 @@ def _ingest_diffractions_for_crystal(
         )
         _ingest_diffraction(
             conn,
+            db,
             crystal.crystal_id,
-            diffs,
             run,
             insert_diffraction_if_not_exists,
             metadata_retriever,
@@ -122,96 +107,38 @@ def _ingest_diffractions_for_crystal(
     return warnings
 
 
-def _ingest_diffractions_for_target(
-    conn: Connection,
-    diffs: sa.Table,
-    crystals: sa.Table,
-    target: P11Target,
-    insert_diffraction_if_not_exists: bool,
-    metadata_retriever: MetadataRetriever,
-) -> bool:
-    has_warnings = False
-    for puck in target.pucks:
-        crystal_id = _find_crystal(conn, crystals, puck.puck_id, puck.position)
-
-        if crystal_id is None:
-            logger.warning(
-                "found no crystal for puck ID %s and position %s",
-                puck.puck_id,
-                puck.position,
-            )
-            has_warnings = True
-            continue
-
-        for run in puck.runs:
-            if (
-                conn.execute(
-                    sa.select([diffs.c.crystal_id]).where(
-                        sa.and_(
-                            diffs.c.crystal_id == crystal_id,
-                            diffs.c.run_id == run.run_id,
-                        )
-                    )
-                ).fetchone()
-                is not None
-            ):
-                logger.info(
-                    "Diffraction for crystal ID %s, run ID %s exists",
-                    crystals,
-                    run.run_id,
-                )
-                continue
-            _ingest_diffraction(
-                conn,
-                crystal_id,
-                diffs,
-                run,
-                insert_diffraction_if_not_exists,
-                metadata_retriever,
-            )
-
-    return has_warnings
-
-
 def _ingest_diffraction(
     conn: Connection,
+    db: NewDB,
     crystal_id: str,
-    diffs: sa.Table,
     run: P11Run,
     insert_diffraction_if_not_exists: bool,
     metadata_retriever: MetadataRetriever,
 ) -> None:
     if not insert_diffraction_if_not_exists:
-        update_diffraction(conn, crystal_id, diffs, run)
+        update_diffraction(conn, db, crystal_id, run)
     else:
-        exists = conn.execute(
-            sa.select([diffs.c.run_id]).where(
-                sa.and_(diffs.c.run_id == run.run_id, diffs.c.crystal_id == crystal_id)
-            )
-        ).fetchall()
+        exists = db.has_diffractions(conn, crystal_id, run.run_id)
 
         if exists:
-            update_diffraction(conn, crystal_id, diffs, run)
+            update_diffraction(conn, db, crystal_id, run)
         else:
-            insert_diffraction(conn, crystal_id, diffs, run, metadata_retriever)
+            insert_diffraction(conn, db, crystal_id, run, metadata_retriever)
 
 
 def insert_diffraction(
     conn: Connection,
+    db: NewDB,
     crystal_id: str,
-    diffs: sa.Table,
     run: P11Run,
     metadata_retriever: MetadataRetriever,
 ) -> None:
-    conn.execute(
-        sa.insert(diffs).values(
+    db.insert_diffraction(
+        conn,
+        DBDiffraction(
             crystal_id=crystal_id,
             run_id=run.run_id,
-            # Don't know how to fill this. Important?
-            # beam_intensity=
-            # Don't know how to fill this. Important?
             pinhole=run.info_file.aperture.magnitude,
-            # Don't know how to fill this. Important?
             focusing=run.info_file.focus,
             metadata=crystal_id,
             diffraction=metadata_retriever.diffraction(crystal_id, run.run_id),  # type: ignore
@@ -230,28 +157,30 @@ def insert_diffraction(
             aperture_radius=run.info_file.aperture.to("micrometer").magnitude,
             filter_transmission=run.info_file.filter_transmission_percent,
             ring_current=run.info_file.ring_current.to("milliampere").magnitude,
-            data_raw_filename_pattern=run.data_raw_filename_pattern,
+            data_raw_filename_pattern=Path(run.data_raw_filename_pattern)
+            if run.data_raw_filename_pattern is not None
+            else None,
             created=path_mtime(Path(run.data_raw_filename_pattern).parent)
             if run.data_raw_filename_pattern
             else datetime.datetime.now(),
-            microscope_image_filename_pattern=run.microscope_image_filename_pattern,
-        )
+            microscope_image_filename_pattern=Path(
+                run.microscope_image_filename_pattern
+            )
+            if run.microscope_image_filename_pattern is not None
+            else None,
+        ),
     )
 
 
 def update_diffraction(
-    conn: Connection, crystal_id: str, diffs: sa.Table, run: P11Run
+    conn: Connection, db: NewDB, crystal_id: str, run: P11Run
 ) -> None:
-    conn.execute(
-        sa.update(diffs)
-        .values(
+    db.update_diffraction(
+        conn,
+        DBDiffraction(
             crystal_id=crystal_id,
             run_id=run.run_id,
-            # Don't know how to fill this. Important?
-            # beam_intensity=
-            # Don't know how to fill this. Important?
             pinhole=run.info_file.aperture.magnitude,
-            # Don't know how to fill this. Important?
             focusing=run.info_file.focus,
             metadata=crystal_id,
             angle_start=run.info_file.start_angle.to("deg").magnitude,
@@ -267,17 +196,23 @@ def update_diffraction(
             aperture_radius=run.info_file.aperture.to("micrometer").magnitude,
             filter_transmission=run.info_file.filter_transmission_percent,
             ring_current=run.info_file.ring_current.to("milliampere").magnitude,
-            data_raw_filename_pattern=run.data_raw_filename_pattern,
-            microscope_image_filename_pattern=run.microscope_image_filename_pattern,
-        )
-        .where(sa.and_(diffs.c.crystal_id == crystal_id, diffs.c.run_id == run.run_id))
+            data_raw_filename_pattern=Path(run.data_raw_filename_pattern)
+            if run.data_raw_filename_pattern is not None
+            else None,
+            microscope_image_filename_pattern=Path(
+                run.microscope_image_filename_pattern
+            )
+            if run.microscope_image_filename_pattern is not None
+            else None,
+            # In this case means: don't update it
+            diffraction=None,
+        ),
     )
 
 
 def ingest_diffractions_for_crystals(
     conn: Connection,
-    table_diffs: Table,
-    table_crystals: Table,
+    db: NewDB,
     crystals: List[P11Crystal],
     insert_diffraction_if_not_exists: bool,
     metadata_retriever: MetadataRetriever,
@@ -286,8 +221,7 @@ def ingest_diffractions_for_crystals(
     for crystal in crystals:
         this_has_warnings = _ingest_diffractions_for_crystal(
             conn,
-            table_diffs,
-            table_crystals,
+            db,
             crystal,
             insert_diffraction_if_not_exists,
             metadata_retriever,
@@ -296,70 +230,9 @@ def ingest_diffractions_for_crystals(
     return warnings
 
 
-def ingest_diffractions_for_targets(
-    conn: Connection,
-    diffs: Table,
-    crystals: Table,
-    targets: List[P11Target],
-    insert_diffraction_if_not_exists: bool,
-    metadata_retriever: MetadataRetriever,
-) -> bool:
-    has_warnings = False
-    for target in targets:
-        this_has_warnings = _ingest_diffractions_for_target(
-            conn,
-            diffs,
-            crystals,
-            target,
-            insert_diffraction_if_not_exists,
-            metadata_retriever,
-        )
-        has_warnings = has_warnings or this_has_warnings
-    return has_warnings
-
-
-def ingest_analysis_result(
-    conn: Connection,
-    crystal_id: str,
-    data_reduction: sa.Table,
-    run_id: int,
-    analysis_result: AnalysisResult,
-) -> int:
-    result = conn.execute(
-        sa.insert(data_reduction).values(
-            crystal_id=crystal_id,
-            run_id=run_id,
-            analysis_time=analysis_result.analysis_time,
-            folder_path=str(analysis_result.base_path),
-            mtz_path=str(analysis_result.mtz_file)
-            if analysis_result.mtz_file is not None
-            else None,
-            method=analysis_result.method,
-            resolution_cc=analysis_result.resolution_cc,
-            resolution_isigma=analysis_result.resolution_isigma,
-            a=analysis_result.a,
-            b=analysis_result.b,
-            c=analysis_result.c,
-            alpha=analysis_result.alpha,
-            beta=analysis_result.beta,
-            gamma=analysis_result.gamma,
-            space_group=find_space_group_index_by_name(analysis_result.space_group)
-            if isinstance(analysis_result.space_group, str)
-            else analysis_result.space_group,
-            isigi=analysis_result.isigi,
-            rmeas=analysis_result.rmeas,
-            cchalf=analysis_result.cchalf,
-            rfactor=analysis_result.rfactor,
-            Wilson_b=analysis_result.wilson_b,
-        )
-    )
-    return result.inserted_primary_key[0]
-
-
 def ingest_reductions_for_crystals(
     conn: Connection,
-    table_data_reduction: sa.Table,
-    table_diffractions: sa.Table,
+    db: NewDB,
     crystals: List[P11Crystal],
     processed_results: Dict[RunKey, List[AnalysisResult]],
 ) -> List[str]:
@@ -378,17 +251,7 @@ def ingest_reductions_for_crystals(
                 )
                 continue
 
-            if (
-                conn.execute(
-                    sa.select([table_diffractions.c.crystal_id]).where(
-                        sa.and_(
-                            table_diffractions.c.crystal_id == crystal.crystal_id,
-                            table_diffractions.c.run_id == run.run_id,
-                        )
-                    )
-                ).fetchone()
-                is None
-            ):
+            if not db.has_diffractions(conn, crystal.crystal_id, run.run_id):
                 logger.debug(
                     f"crystal {crystal.crystal_id}, run {run.run_id}: cannot ingest data reduction: got no "
                     f"corresponding diffraction image "
@@ -396,15 +259,7 @@ def ingest_reductions_for_crystals(
                 continue
 
             for process_result in process_results:
-                if (
-                    conn.execute(
-                        sa.select([table_data_reduction.c.data_reduction_id]).where(
-                            table_data_reduction.c.folder_path
-                            == str(process_result.base_path)
-                        )
-                    ).fetchone()
-                    is not None
-                ):
+                if db.directory_has_reductions(conn, process_result.base_path):
                     logger.debug(
                         "Data reduction for folder %s already exists",
                         process_result.base_path,
@@ -418,11 +273,34 @@ def ingest_reductions_for_crystals(
                     process_result.base_path,
                     process_result.method.value,
                 )
-                ingest_analysis_result(
+                db.insert_data_reduction(
                     conn,
-                    crystal.crystal_id,
-                    table_data_reduction,
-                    run.run_id,
-                    process_result,
+                    DBDataReduction(
+                        data_reduction_id=None,
+                        crystal_id=crystal.crystal_id,
+                        run_id=run.run_id,
+                        analysis_time=process_result.analysis_time,
+                        folder_path=process_result.base_path,
+                        mtz_path=process_result.mtz_file,
+                        method=process_result.method,
+                        resolution_cc=process_result.resolution_cc,
+                        resolution_isigma=process_result.resolution_isigma,
+                        a=process_result.a,
+                        b=process_result.b,
+                        c=process_result.c,
+                        alpha=process_result.alpha,
+                        beta=process_result.beta,
+                        gamma=process_result.gamma,
+                        space_group=find_space_group_index_by_name(
+                            process_result.space_group
+                        )
+                        if isinstance(process_result.space_group, str)
+                        else process_result.space_group,
+                        isigi=process_result.isigi,
+                        rmeas=process_result.rmeas,
+                        cchalf=process_result.cchalf,
+                        rfactor=process_result.rfactor,
+                        wilson_b=process_result.wilson_b,
+                    ),
                 )
     return warnings
