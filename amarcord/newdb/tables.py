@@ -21,8 +21,6 @@ from amarcord.newdb.puck_type import PuckType
 from amarcord.newdb.reduction_method import ReductionMethod
 from amarcord.workflows.job_status import JobStatus
 
-ANALYSIS_SCHEMA = "SARS_COV_2_Analysis_v2"
-
 
 def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
     return Table(
@@ -253,17 +251,35 @@ def table_diffractions(
 
 
 class DBTables:
-    def __init__(self, metadata: MetaData) -> None:
-        self.pucks = table_pucks(metadata)
-        self.crystals = table_crystals(metadata, self.pucks)
-        self.tools = table_tools(metadata)
-        self.diffs = table_diffractions(metadata, self.crystals)
-        self.reductions = table_data_reduction(metadata, self.crystals)
-        self.jobs = table_jobs(metadata, self.tools)
-        self.dewar_lut = table_dewar_lut(metadata, self.pucks)
-        self.reduction_jobs = table_job_to_diffraction(
-            metadata, self.jobs, self.crystals, self.diffs
-        )
-        self.job_reductions = table_job_to_reduction(
-            metadata, self.reduction_jobs, self.reductions
-        )
+    def __init__(
+        self,
+        metadata: MetaData,
+        with_tools: bool,
+        with_estimated_resolution: bool,
+        normal_schema: Optional[str],
+        analysis_schema: Optional[str],
+    ) -> None:
+        self.with_estimated_resolution = with_estimated_resolution
+        self.pucks = table_pucks(metadata, normal_schema)
+        self.dewar_lut = table_dewar_lut(metadata, self.pucks, normal_schema)
+        self.crystals = table_crystals(metadata, self.pucks, normal_schema)
+        self.diffs = table_diffractions(metadata, self.crystals, normal_schema)
+        self.reductions = table_data_reduction(metadata, self.crystals, analysis_schema)
+        self.tools: Optional[Table]
+        self.jobs: Optional[Table]
+        self.reduction_jobs: Optional[Table]
+        self.job_reductions: Optional[Table]
+        if with_tools:
+            self.tools = table_tools(metadata, analysis_schema)
+            self.jobs = table_jobs(metadata, self.tools, analysis_schema)
+            self.reduction_jobs = table_job_to_diffraction(
+                metadata, self.jobs, self.crystals, self.diffs, analysis_schema
+            )
+            self.job_reductions = table_job_to_reduction(
+                metadata, self.reduction_jobs, self.reductions, analysis_schema
+            )
+        else:
+            self.tools = None
+            self.jobs = None
+            self.reduction_jobs = None
+            self.job_reductions = None

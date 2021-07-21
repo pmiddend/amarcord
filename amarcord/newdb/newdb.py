@@ -588,40 +588,39 @@ class NewDB:
         self, filter_query, sort_column, sort_order_desc
     ) -> Tuple[List[Label], Select]:
         crystal_columns = [
-            c.label("crystals_" + c.name)
-            for c in self.tables.crystals.c
-            # self.tables.crystals.c.crystal_id.label("crystals_crystal_id"),
-            # self.tables.crystals.c.created.label("crystals_created"),
+            c.label("crystals_" + c.name) for c in self.tables.crystals.c
         ]
         diffraction_columns = [c.label("diff_" + c.name) for c in self.tables.diffs.c]
+        if not self.tables.with_estimated_resolution:
+            diffraction_columns = [
+                c for c in diffraction_columns if c.name != "diff_estimated_resolution"
+            ]
         reduction_columns = [c.label("dr_" + c.name) for c in self.tables.reductions.c]
-        all_columns = (
-            crystal_columns
-            + diffraction_columns
-            + reduction_columns
-            + [
+        all_columns = crystal_columns + diffraction_columns + reduction_columns
+
+        if self.tables.tools is not None and self.tables.jobs is not None:
+            all_columns += [
                 self.tables.jobs.c.id.label("jobs_id"),
                 self.tables.jobs.c.tool_inputs.label("jobs_tool_inputs"),
                 self.tables.tools.c.name.label("tools_name"),
             ]
+        select_from = self.tables.crystals.outerjoin(self.tables.diffs).outerjoin(
+            self.tables.reductions,
+            onclause=sa.and_(
+                self.tables.reductions.c.run_id == self.tables.diffs.c.run_id,
+                self.tables.diffs.c.crystal_id == self.tables.reductions.c.crystal_id,
+            ),
         )
+        if (
+            self.tables.job_reductions is not None
+            and self.tables.jobs is not None
+            and self.tables.tools is not None
+        ):
+            select_from.outerjoin(self.tables.job_reductions).outerjoin(
+                self.tables.jobs
+            ).outerjoin(self.tables.tools)
         query = (
-            sa.select(all_columns)
-            .select_from(
-                self.tables.crystals.outerjoin(self.tables.diffs)
-                .outerjoin(
-                    self.tables.reductions,
-                    onclause=sa.and_(
-                        self.tables.reductions.c.run_id == self.tables.diffs.c.run_id,
-                        self.tables.diffs.c.crystal_id
-                        == self.tables.reductions.c.crystal_id,
-                    ),
-                )
-                .outerjoin(self.tables.job_reductions)
-                .outerjoin(self.tables.jobs)
-                .outerjoin(self.tables.tools)
-            )
-            .where(sa.text(filter_query))
+            sa.select(all_columns).select_from(select_from).where(sa.text(filter_query))
         )
         if sort_column is not None:
             query = query.order_by(
