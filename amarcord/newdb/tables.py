@@ -14,6 +14,7 @@ from sqlalchemy import String
 from sqlalchemy import Table
 from sqlalchemy import Text
 from sqlalchemy import func
+from sqlalchemy.engine import Engine
 
 from amarcord.newdb.beamline import Beamline
 from amarcord.newdb.diffraction_type import DiffractionType
@@ -258,11 +259,16 @@ class DBTables:
         with_estimated_resolution: bool,
         normal_schema: Optional[str],
         analysis_schema: Optional[str],
+        engine: Optional[Engine] = None,
     ) -> None:
         self.with_estimated_resolution = with_estimated_resolution
         self.pucks = table_pucks(metadata, normal_schema)
         self.dewar_lut = table_dewar_lut(metadata, self.pucks, normal_schema)
-        self.crystals = table_crystals(metadata, self.pucks, normal_schema)
+        self.crystals = (
+            table_crystals(metadata, self.pucks, normal_schema)
+            if engine is None
+            else Table("Crystals", metadata, autoload_with=engine)
+        )
         self.diffs = table_diffractions(metadata, self.crystals, normal_schema)
         self.reductions = table_data_reduction(metadata, self.crystals, analysis_schema)
         self.tools: Optional[Table]

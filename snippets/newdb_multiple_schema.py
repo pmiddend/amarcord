@@ -11,6 +11,7 @@ db = NewDB(
         with_estimated_resolution=False,
         normal_schema=None,
         analysis_schema="SARS_COV_2_Analysis_v2",
+        engine=dbcontext.engine,
     ),
 )
 
@@ -18,4 +19,4 @@ with db.connect() as conn:
     results = db.retrieve_analysis_results(
         conn, filter_query="", sort_column=None, sort_order_desc=False, limit=100
     )
-    print(results)
+    # print(results)
