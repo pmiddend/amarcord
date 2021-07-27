@@ -12,10 +12,10 @@ class DBJob:
     id: Optional[int]
     queued: datetime.datetime
     status: JobStatus
+    tool_id: int
+    tool_inputs: JSONDict
     failure_reason: Optional[str] = None
     output_directory: Optional[Path] = None
-    tool_id: Optional[int] = None
-    tool_inputs: Optional[JSONDict] = None
     metadata: Optional[JSONDict] = None
     started: Optional[datetime.datetime] = None
     stopped: Optional[datetime.datetime] = None

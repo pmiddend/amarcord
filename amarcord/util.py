@@ -233,8 +233,8 @@ def path_mtime(p: Path) -> datetime.datetime:
     )
 
 
-def deglob_path(x: str) -> Path:
-    return Path(re.sub(r"\*.*$", "", x))
+def deglob_path(x: Path) -> Path:
+    return Path(re.sub(r"\*.*$", "", str(x)))
 
 
 class DontUpdate:

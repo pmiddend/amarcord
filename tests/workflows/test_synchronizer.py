@@ -20,11 +20,13 @@ from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.json import JSONDict
 from amarcord.newdb.db_crystal import DBCrystal
+from amarcord.newdb.db_data_reduction import DBDataReduction
 from amarcord.newdb.db_diffraction import DBDiffraction
 from amarcord.newdb.db_job import DBJob
 from amarcord.newdb.db_tool import DBTool
 from amarcord.newdb.diffraction_type import DiffractionType
 from amarcord.newdb.newdb import NewDB
+from amarcord.newdb.reduction_method import ReductionMethod
 from amarcord.newdb.tables import DBTables
 from amarcord.workflows.job import Job
 from amarcord.workflows.job_controller import JobController
@@ -37,34 +39,57 @@ from amarcord.workflows.workflow_synchronize import process_tool_command_line
 @given(text(alphabet=characters(blacklist_characters="$")))
 def test_process_command_line_simple_string(s: str) -> None:
     # If we don't use the special character $, we shouldn't see any difference in replacement
-    assert process_tool_command_line(s, Path(), {}) == s
+    assert process_tool_command_line(s, Path(), Path(), {}) == s
 
 
 def test_process_string_input() -> None:
     assert (
-        process_tool_command_line("foo${bar}baz", Path(), {"bar": "xyz"}) == "fooxyzbaz"
+        process_tool_command_line("foo${bar}baz", Path(), Path(), {"bar": "xyz"})
+        == "fooxyzbaz"
     )
 
 
 @given(integers())
 def test_process_int_input(i: int) -> None:
-    assert process_tool_command_line("foo${bar}baz", Path(), {"bar": i}) == f"foo{i}baz"
+    assert (
+        process_tool_command_line("foo${bar}baz", Path(), Path(), {"bar": i})
+        == f"foo{i}baz"
+    )
 
 
 def test_process_unconsumed_string_input() -> None:
-    assert process_tool_command_line("foo${bar}baz", Path(), {}) == "foo${bar}baz"
+    assert (
+        process_tool_command_line("foo${bar}baz", Path(), Path(), {}) == "foo${bar}baz"
+    )
 
 
 def test_process_diffraction_path() -> None:
     assert (
-        process_tool_command_line("foo${diffraction.path}baz", Path("/tmp"), {})
+        process_tool_command_line(
+            "foo${diffraction.path}baz",
+            diffraction_data_path=Path("/tmp"),
+            mtz_path=None,
+            tool_inputs={},
+        )
+        == "foo/tmpbaz"
+    )
+
+
+def test_process_mtz_path() -> None:
+    assert (
+        process_tool_command_line(
+            "foo${reduction.mtz_path}baz",
+            diffraction_data_path=None,
+            mtz_path=Path("/tmp"),
+            tool_inputs={},
+        )
         == "foo/tmpbaz"
     )
 
 
 def test_process_array_input() -> None:
     with pytest.raises(Exception):
-        process_tool_command_line("foo${bar}baz", Path(), {"bar": []})
+        process_tool_command_line("foo${bar}baz", Path(), Path(), {"bar": []})
 
 
 @dataclass
@@ -127,7 +152,16 @@ class SynchronizerTestScenario:
         self, diffraction_filename_pattern: Optional[str] = "/tmp/*.cbf"
     ) -> None:
         self.dbcontext = DBContext("sqlite://")
-        self.db = NewDB(self.dbcontext, DBTables(self.dbcontext.metadata))
+        self.db = NewDB(
+            self.dbcontext,
+            DBTables(
+                self.dbcontext.metadata,
+                with_tools=True,
+                with_estimated_resolution=False,
+                normal_schema=None,
+                analysis_schema=None,
+            ),
+        )
         self.clock = MockClock(datetime.datetime(1987, 8, 21, 15, 0, 0, 0))
         self.job_controller = MockJobController(self.clock)
 
@@ -156,19 +190,47 @@ class SynchronizerTestScenario:
                     else None,
                 ),
             )
-            self.job_id = self.db.insert_job(
+            self.mock_reduction_id = self.db.insert_data_reduction(
                 conn,
-                DBJob(
-                    id=None,
-                    status=JobStatus.QUEUED,
-                    queued=self.clock.now(),
-                    tool_id=self.tool_id,
-                    tool_inputs={},
+                DBDataReduction(
+                    data_reduction_id=None,
+                    crystal_id=TEST_CRYSTAL_ID,
+                    run_id=TEST_RUN_ID,
+                    analysis_time=datetime.datetime.utcnow(),
+                    method=ReductionMethod.OTHER,
+                    folder_path=Path("/tmp/reduction-path"),
+                    mtz_path=Path("/tmp/reduction-path/testfile.mtz"),
+                    comment=None,
+                    resolution_cc=1.0,
+                    resolution_isigma=2.0,
+                    a=200.0,
+                    b=100.0,
+                    c=300.0,
+                    alpha=40.0,
+                    beta=50.0,
+                    gamma=10.0,
+                    space_group=1,
+                    isigi=1.0,
+                    rmeas=2.0,
+                    cchalf=3.0,
+                    rfactor=4.0,
+                    wilson_b=5.0,
                 ),
             )
-            self.db.insert_job_to_diffraction(
-                conn, self.job_id, TEST_CRYSTAL_ID, TEST_RUN_ID
-            )
+
+    def insert_job_for_diffraction(self, conn: Connection) -> int:
+        job_id = self.db.insert_job(
+            conn,
+            DBJob(
+                id=None,
+                status=JobStatus.QUEUED,
+                queued=self.clock.now(),
+                tool_id=self.tool_id,
+                tool_inputs={},
+            ),
+        )
+        self.db.insert_job_to_diffraction(conn, job_id, TEST_CRYSTAL_ID, TEST_RUN_ID)
+        return job_id
 
     def check_jobs(self, conn: Connection) -> None:
         check_jobs(self.job_controller, conn, self.db)
@@ -178,22 +240,24 @@ def test_check_jobs_no_diffraction_path() -> None:
     scenario = SynchronizerTestScenario(diffraction_filename_pattern=None)
 
     with scenario.dbcontext.connect() as conn:
+        scenario.insert_job_for_diffraction(conn)
         # Job shouldn't be started, because we have no path!
         scenario.check_jobs(conn)
 
         assert not scenario.job_controller.started_jobs
 
-        reduction_jobs = scenario.db.retrieve_reduction_jobs(conn)
+        reduction_jobs = scenario.db.retrieve_jobs_with_attached(conn)
 
         assert len(reduction_jobs) == 1
-        assert reduction_jobs[0].status == JobStatus.COMPLETED
-        assert reduction_jobs[0].failure_reason is not None
+        assert reduction_jobs[0].job.status == JobStatus.COMPLETED
+        assert reduction_jobs[0].job.failure_reason is not None
 
 
 def test_check_jobs_result_file_doesnt_exist() -> None:
     scenario = SynchronizerTestScenario()
 
     with scenario.dbcontext.connect() as conn:
+        scenario.insert_job_for_diffraction(conn)
         # Now let the daemon run a single time. It should start the job using the controller, logging that in the DB
         scenario.check_jobs(conn)
 
@@ -203,27 +267,29 @@ def test_check_jobs_result_file_doesnt_exist() -> None:
         ]
         assert scenario.job_controller.started_jobs[0].command_line == TEST_COMMAND_LINE
 
-        jobs = scenario.db.retrieve_reduction_jobs(conn)
+        jobs = scenario.db.retrieve_jobs_with_attached(conn)
 
         assert len(jobs) == 1
-        assert jobs[0].status == JobStatus.RUNNING
+        assert jobs[0].job.status == JobStatus.RUNNING
+        assert jobs[0].job.metadata is not None
 
         # Now simulate the job completing
         scenario.job_controller.started_jobs[0].status = JobStatus.COMPLETED
 
         scenario.check_jobs(conn)
 
-        jobs = scenario.db.retrieve_reduction_jobs(conn)
+        jobs = scenario.db.retrieve_jobs_with_attached(conn)
 
         assert len(jobs) == 1
-        assert jobs[0].status == JobStatus.COMPLETED
-        assert jobs[0].failure_reason is not None
+        assert jobs[0].job.status == JobStatus.COMPLETED
+        assert jobs[0].job.failure_reason is not None
 
 
 def test_check_jobs_invalid_json_file(fs) -> None:
     scenario = SynchronizerTestScenario()
 
     with scenario.dbcontext.connect() as conn:
+        scenario.insert_job_for_diffraction(conn)
         # Start job
         scenario.check_jobs(conn)
 
@@ -241,32 +307,27 @@ def test_check_jobs_invalid_json_file(fs) -> None:
         scenario.check_jobs(conn)
 
         # This should fail, since we haven't specified correct paths
-        jobs = scenario.db.retrieve_reduction_jobs(conn)
+        jobs = scenario.db.retrieve_jobs_with_attached(conn)
 
         assert len(jobs) == 1
-        assert jobs[0].status == JobStatus.COMPLETED
-        assert jobs[0].failure_reason is not None
+        assert jobs[0].job.status == JobStatus.COMPLETED
+        assert jobs[0].job.failure_reason is not None
 
-        assert_no_reductions(scenario, conn)
-
-
-def assert_reductions(scenario: SynchronizerTestScenario, conn: Connection) -> None:
-    analysis_results = scenario.db.retrieve_analysis_results(
-        conn, filter_query="", sort_column=None, sort_order_desc=False, limit=None
-    )
-    assert (
-        analysis_results.rows[0][analysis_results.columns.index("dr_data_reduction_id")]
-        is not None
-    )
+        _assert_no_reductions(scenario, conn)
 
 
-def assert_no_reductions(scenario: SynchronizerTestScenario, conn: Connection) -> None:
-    analysis_results = scenario.db.retrieve_analysis_results(
-        conn, filter_query="", sort_column=None, sort_order_desc=False, limit=None
-    )
-    assert (
-        analysis_results.rows[0][analysis_results.columns.index("dr_data_reduction_id")]
-        is None
+def _assert_reductions(scenario: SynchronizerTestScenario, conn: Connection) -> None:
+    assert _have_reductions(scenario, conn)
+
+
+def _assert_no_reductions(scenario: SynchronizerTestScenario, conn: Connection) -> None:
+    assert not _have_reductions(scenario, conn)
+
+
+def _have_reductions(scenario: SynchronizerTestScenario, conn: Connection) -> bool:
+    return any(
+        r.data_reduction_id is None or r.data_reduction_id != scenario.mock_reduction_id
+        for r in scenario.db.retrieve_data_reductions(conn)
     )
 
 
@@ -274,6 +335,7 @@ def test_check_jobs_valid_result(fs) -> None:
     scenario = SynchronizerTestScenario()
 
     with scenario.dbcontext.connect() as conn:
+        scenario.insert_job_for_diffraction(conn)
         # Start job
         scenario.check_jobs(conn)
 
@@ -290,19 +352,20 @@ def test_check_jobs_valid_result(fs) -> None:
 
         scenario.check_jobs(conn)
 
-        jobs = scenario.db.retrieve_reduction_jobs(conn)
+        jobs = scenario.db.retrieve_jobs_with_attached(conn)
 
         assert len(jobs) == 1
-        assert jobs[0].status == JobStatus.COMPLETED
-        assert jobs[0].failure_reason is None
+        assert jobs[0].job.status == JobStatus.COMPLETED
+        assert jobs[0].job.failure_reason is None
 
-        assert_reductions(scenario, conn)
+        _assert_reductions(scenario, conn)
 
 
 def test_check_jobs_valid_result_but_forgotten_by_job_controller(fs) -> None:
     scenario = SynchronizerTestScenario()
 
     with scenario.dbcontext.connect() as conn:
+        scenario.insert_job_for_diffraction(conn)
         # Start job
         scenario.check_jobs(conn)
 
@@ -321,10 +384,10 @@ def test_check_jobs_valid_result_but_forgotten_by_job_controller(fs) -> None:
 
         scenario.check_jobs(conn)
 
-        jobs = scenario.db.retrieve_reduction_jobs(conn)
+        jobs = scenario.db.retrieve_jobs_with_attached(conn)
 
         assert len(jobs) == 1
-        assert jobs[0].status == JobStatus.COMPLETED
-        assert jobs[0].failure_reason is None
+        assert jobs[0].job.status == JobStatus.COMPLETED
+        assert jobs[0].job.failure_reason is None
 
-        assert_reductions(scenario, conn)
+        _assert_reductions(scenario, conn)

@@ -33,7 +33,9 @@ from amarcord.newdb.db_dewar_lut import DBDewarLUT
 from amarcord.newdb.db_diffraction import DBDiffraction
 from amarcord.newdb.db_job import DBJob
 from amarcord.newdb.db_puck import DBPuck
-from amarcord.newdb.db_reduction_job import DBReductionJob
+from amarcord.newdb.db_reduction_job import DBJobWithInputsAndOutputs
+from amarcord.newdb.db_reduction_job import DBMiniDiffraction
+from amarcord.newdb.db_reduction_job import DBMiniReduction
 from amarcord.newdb.db_tool import DBTool
 from amarcord.newdb.diffraction_type import DiffractionType
 from amarcord.newdb.newdb import NewDB
@@ -96,7 +98,14 @@ def _create_db(db_url: str) -> NewDB:
     if "AMARCORD_DO_MIGRATIONS" in os.environ:
         upgrade_to_head(db_url)
     dbcontext = DBContext(db_url)
-    tables = DBTables(dbcontext.metadata)
+    tables = DBTables(
+        dbcontext.metadata,
+        with_tools="AMARCORD_WITHOUT_TOOLS" not in os.environ,
+        with_estimated_resolution="AMARCORD_WITHOUT_ESTIMATED_RESOLUTION"
+        not in os.environ,
+        analysis_schema=os.environ.get("AMARCORD_ANALYSIS_SCHEMA", None),
+        normal_schema=os.environ.get("AMARCORD_NORMAL_SCHEMA", None),
+    )
     if db_url.startswith("sqlite://"):
         dbcontext.create_all(CreationMode.CHECK_FIRST)
     db = NewDB(dbcontext, tables)
@@ -334,25 +343,37 @@ def create_app() -> Flask:
 
     @app.get("/api/workflows/jobs")
     def list_jobs() -> JSONDict:
-        def convert_job(j: DBReductionJob) -> JSONDict:
+        def convert_job(j: DBJobWithInputsAndOutputs) -> JSONDict:
             return {
-                "jobId": j.id,
-                "started": j.started,
-                "queued": j.queued,
-                "stopped": j.stopped,
-                "status": j.status.value,
-                "failureReason": j.failure_reason,
-                "metadata": j.metadata,
-                "outputDir": str(j.output_directory),
-                "runId": j.run_id,
-                "crystalId": j.crystal_id,
+                "jobId": j.job.id,
+                "started": j.job.started,
+                "queued": j.job.queued,
+                "stopped": j.job.stopped,
+                "status": j.job.status.value,
+                "failureReason": j.job.failure_reason,
+                "metadata": j.job.metadata,
+                "outputDir": str(j.job.output_directory),
+                "diffraction": {
+                    "runId": j.io.run_id,
+                    "crystalId": j.io.crystal_id,
+                }
+                if isinstance(j.io, DBMiniDiffraction)
+                else None,
+                "reduction": {
+                    "dataReductionId": j.io.data_reduction_id,
+                    "mtzPath": j.io.mtz_path,
+                }
+                if isinstance(j.io, DBMiniReduction)
+                else None,
                 "tool": j.tool.name,
-                "toolInputs": j.tool_inputs,
+                "toolInputs": j.job.tool_inputs,
             }
 
         db = get_db()
         with db.connect() as conn:
-            return {"jobs": [convert_job(j) for j in db.retrieve_reduction_jobs(conn)]}
+            return {
+                "jobs": [convert_job(j) for j in db.retrieve_jobs_with_attached(conn)]
+            }
 
     @app.post("/api/workflows/jobs/<int:tool_id>")
     def start_job(tool_id: int) -> JSONDict:

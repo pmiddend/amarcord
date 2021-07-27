@@ -31,7 +31,10 @@ DEFAULT_METADATA_RETRIEVER = MetadataRetriever(
 
 def test_db_ingest_diffractions_successful(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
-    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
+    db = NewDB(
+        dbcontext,
+        _tables(dbcontext),
+    )
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:
@@ -71,9 +74,19 @@ def test_db_ingest_diffractions_successful(db) -> None:
         assert diffractions[0][0] == crystal_id
 
 
+def _tables(dbcontext):
+    return DBTables(
+        dbcontext.metadata,
+        with_tools=False,
+        with_estimated_resolution=False,
+        normal_schema=None,
+        analysis_schema=None,
+    )
+
+
 def test_db_ingest_diffractions_crystal_in_filesystem_but_not_in_db(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
-    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
+    db = NewDB(dbcontext, _tables(dbcontext))
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:
@@ -114,7 +127,7 @@ def test_db_ingest_diffractions_crystal_in_filesystem_but_not_in_db(db) -> None:
 
 def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
-    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
+    db = NewDB(dbcontext, _tables(dbcontext))
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:
@@ -152,7 +165,7 @@ def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) ->
 
 def test_db_ingest_diffractions_update_diffraction_if_exists(db) -> None:
     dbcontext = DBContext("sqlite://", echo=False)
-    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
+    db = NewDB(dbcontext, _tables(dbcontext))
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
 
     with dbcontext.connect() as conn:

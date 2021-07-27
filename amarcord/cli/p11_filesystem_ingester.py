@@ -347,7 +347,16 @@ def main_loop(
         crystals = new_crystals
         logger.info("Analyzing spreadsheet...Done!")
 
-    db = NewDB(dbcontext, DBTables(dbcontext.metadata))
+    db = NewDB(
+        dbcontext,
+        DBTables(
+            dbcontext.metadata,
+            with_tools=False,
+            with_estimated_resolution=False,
+            normal_schema=args.main_schema,
+            analysis_schema=args.analysis_schema,
+        ),
+    )
     with db.connect() as conn:
         try:
             with conn.begin():
