@@ -419,7 +419,7 @@ class DBTables:
         self.diffs = table_diffractions(metadata, self.crystals, normal_schema)
         self.reductions = table_data_reduction(metadata, self.crystals, analysis_schema)
         self.refinements = table_refinement(
-            metadata, self.crystals, self.reductions, analysis_schema
+            metadata, self.reductions, self.crystals, analysis_schema
         )
         self.tools: Optional[Table]
         self.jobs: Optional[Table]

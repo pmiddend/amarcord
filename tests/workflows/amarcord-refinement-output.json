@@ -1,0 +1,17 @@
+[
+  {
+    "type": "refinement",
+    "analysis-time": "2021-06-29T12:56:03.027924",
+    "initial-pdb-path": "/tmp",
+    "final-pdb-path": "/tmp",
+    "refinement-mtz-path": "/tmp/test.mtz",
+    "comment": "comment1",
+    "resolution-cut": 3.0,
+    "rfree": 4.0,
+    "rwork": 5.0,
+    "rms-bond-length": 6.0,
+    "rms-bond-angle": 7.0,
+    "num-blobs": 7,
+    "average-model-b": 3.0
+  }
+]

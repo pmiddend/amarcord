@@ -6,20 +6,22 @@ import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, makeRequestResult, singleClass)
 import Control.Bind (bind)
 import Data.Array (head, intercalate, length)
-import Data.BooleanAlgebra ((||))
+import Data.Boolean (otherwise)
+import Data.BooleanAlgebra ((&&), (||))
 import Data.Either (Either(..))
 import Data.Eq ((==))
-import Data.Foldable (find, foldMap, for_)
+import Data.Foldable (any, find, foldMap, for_)
 import Data.FoldableWithIndex (foldMapWithIndex)
 import Data.Function (const)
 import Data.Functor ((<$>))
 import Data.Int (fromString)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isNothing)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
 import Data.Monoid (mempty)
 import Data.Ord ((<), (>))
 import Data.Semigroup ((<>))
 import Data.Show (show)
+import Data.String (Pattern(..), contains)
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit)
 import Halogen as H
@@ -37,15 +39,17 @@ data Action
   | ChangeLimit Int
 
 type ToolRunnerInput
-  = { numberOfDiffractions :: Int, filterQuery :: String }
+  = { numberOfDiffractions :: Int, numberOfReductions :: Int, filterQuery :: String }
 
 type State
   = { tools :: Array Tool
     , selectedToolId :: Maybe Int
     , toolInputs :: ToolInputMap
     , lastRequest :: RemoteData String String
+    , createsRefinement :: Boolean
     , filterQuery :: String
     , numberOfDiffractions :: Int
+    , numberOfReductions :: Int
     , limit :: Int
     }
 
@@ -53,11 +57,13 @@ fetchData :: ToolRunnerInput -> AppMonad (RemoteData String ToolsResponse)
 fetchData _ = fromEither <$> retrieveTools
 
 initialState :: ChildInput ToolRunnerInput ToolsResponse -> State
-initialState { input: { numberOfDiffractions, filterQuery }, remoteData: { tools } } =
+initialState { input: { numberOfDiffractions, numberOfReductions, filterQuery }, remoteData: { tools } } =
   { selectedToolId: Nothing
   , toolInputs: mempty
   , lastRequest: NotAsked
   , numberOfDiffractions
+  , numberOfReductions
+  , createsRefinement: false
   , filterQuery
   , tools
   , limit: 0
@@ -87,7 +93,17 @@ render state =
         )
         state.toolInputs
 
-    numberOfDiffs = state.numberOfDiffractions
+    willBeRunOnNumber
+      | state.createsRefinement = state.numberOfReductions
+      | otherwise = state.numberOfDiffractions
+
+    willBeRunOnType
+      | state.createsRefinement = "reduction"
+      | otherwise = "diffraction"
+
+    buttonDisabled = willBeRunOnNumber == 0 || isNothing state.selectedToolId
+
+    willBeRunOn = HH.strong_ [ HH.text (show willBeRunOnNumber <> " " <> willBeRunOnType <> (if willBeRunOnNumber > 1 then "s" else "")) ]
   in
     HH.form [ singleClass "mb-3" ]
       ( [ makeRequestResult state.lastRequest
@@ -120,15 +136,15 @@ render state =
                 [ HH.button
                     [ HP.type_ HP.ButtonButton
                     , classList [ "btn", "btn-primary" ]
-                    , HP.disabled (numberOfDiffs == 0 || isNothing state.selectedToolId)
+                    , HP.disabled buttonDisabled
                     , HE.onClick (const (Just RunTool))
                     ]
                     [ HH.text "Run tool" ]
                 , HH.div
                     [ singleClass "form-text" ]
-                    ( if numberOfDiffs > 0 then
+                    ( if isJust state.selectedToolId && willBeRunOnNumber > 0 then
                         [ HH.text "The tool will be run on "
-                        , HH.strong_ [ HH.text (show numberOfDiffs <> " diffraction" <> (if numberOfDiffs > 1 then "s" else "")) ]
+                        , willBeRunOn
                         , HH.text " unless maximum number of jobs is set."
                         ]
                       else
@@ -161,6 +177,7 @@ handleAction = case _ of
           state
             { selectedToolId = Just newTool.toolId
             , toolInputs = Map.fromFoldable (foldMap (\i -> if i."type" == "string" then [ Tuple i.name "" ] else []) newTool.inputs)
+            , createsRefinement = any (\i -> contains (Pattern "reduction.") i."type") newTool.inputs
             }
   ChangeInput name newValue -> H.modify_ \state -> state { toolInputs = Map.insert name newValue state.toolInputs }
   RunTool -> do

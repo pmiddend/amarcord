@@ -4,7 +4,6 @@ import shutil
 import subprocess
 from multiprocessing import Process
 from pathlib import Path
-from time import time
 from typing import Iterable
 from typing import List
 from typing import Optional
@@ -66,7 +65,7 @@ def start_process_locally(
     executable_path = Path(executable_path_str)
     extra_file_paths = [Path(s) for s in extra_file_paths_str]
 
-    process_dir = output_base_dir / str(int(time()))
+    process_dir = output_base_dir
     process_dir.mkdir(parents=True)
 
     for extra_file in extra_file_paths:

@@ -99,14 +99,14 @@ def test_diffractions_crud() -> None:
         )
 
         assert db.has_diffractions(conn, CRYSTAL_ID, RUN_ID)
-        assert len(db.retrieve_analysis_diffractions(conn, "")) == 1
+        assert len(list(db.retrieve_analysis_diffractions(conn, ""))) == 1
 
         db.update_diffraction(
             conn,
             DBDiffraction(CRYSTAL_ID, RUN_ID, DiffractionType.success, pinhole="xyz"),
         )
 
-        assert len(db.retrieve_analysis_diffractions(conn, "")) == 1
+        assert len(list(db.retrieve_analysis_diffractions(conn, ""))) == 1
 
 
 def test_tools_crud() -> None:
@@ -234,6 +234,7 @@ def test_refinements() -> None:
                 folder_path=Path("/tmp/"),
             ),
         )
+        assert data_reduction_id is not None
         refinement_id = db.insert_refinement(
             conn,
             DBRefinement(
@@ -255,6 +256,6 @@ def test_refinements() -> None:
                 average_model_b=1.0,
             ),
         )
-        assert refinement_id
+        assert refinement_id is not None
 
         assert len(db.retrieve_refinements(conn)) == 1

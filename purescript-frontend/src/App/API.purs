@@ -39,6 +39,7 @@ type AnalysisResponse
     , analysisColumns :: Array String
     , totalRows :: Int
     , totalDiffractions :: Int
+    , totalReductions :: Int
     , sqlError :: Maybe String
     }
 
@@ -108,8 +109,12 @@ type Job
     , failureReason :: Maybe String
     , metadata :: Maybe Json
     , outputDir :: Maybe String
-    , runId :: Int
-    , crystalId :: String
+    , diffraction ::
+        Maybe
+          { runId :: Int
+          , crystalId :: String
+          }
+    , reduction :: Maybe { dataReductionId :: Int, mtzPath :: String }
     , tool :: String
     , toolInputs :: Json
     }

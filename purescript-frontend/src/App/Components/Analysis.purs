@@ -166,6 +166,7 @@ data ColumnGroup
   = Crystals
   | Diffractions
   | Reductions
+  | Refinements
   | Jobs
   | ToolsGroup
   | Other
@@ -178,6 +179,7 @@ instance showColumnGroup :: Show ColumnGroup where
   show Crystals = "Crystals"
   show Diffractions = "Diffractions"
   show Reductions = "Data_Reduction"
+  show Refinements = "Refinement"
   show Jobs = "Reduction Jobs"
   show ToolsGroup = "Tools"
   show Other = "Other"
@@ -189,6 +191,7 @@ groupPrefixes =
   , Tuple "crystals" Crystals
   , Tuple "jobs" Jobs
   , Tuple "tools" ToolsGroup
+  , Tuple "ref" Refinements
   ]
 
 toColumnGroup :: String -> ColumnGroup

@@ -68,7 +68,7 @@ def test_db_ingest_diffractions_successful(db) -> None:
         assert not has_warnings
 
     with dbcontext.connect() as conn:
-        diffractions = db.retrieve_analysis_diffractions(conn, "")
+        diffractions = list(db.retrieve_analysis_diffractions(conn, ""))
 
         assert len(diffractions) == 1
         assert diffractions[0][0] == crystal_id
@@ -160,7 +160,7 @@ def test_db_ingest_diffractions_diffraction_does_not_exist_and_not_add_it(db) ->
         assert not diffraction_warnings
 
     with dbcontext.connect() as conn:
-        assert not db.retrieve_analysis_diffractions(conn, "")
+        assert not list(db.retrieve_analysis_diffractions(conn, ""))
 
 
 def test_db_ingest_diffractions_update_diffraction_if_exists(db) -> None:

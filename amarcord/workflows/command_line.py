@@ -1,13 +1,14 @@
 import re
 from dataclasses import dataclass
-from typing import List
-
 from enum import Enum
+from typing import List
 
 
 class CommandLineInputType(Enum):
     STRING = "string"
     DIFFRACTION_PATH = "diffraction.path"
+    REDUCTION_MTZ_PATH = "reduction.mtz_path"
+    REDUCTION_FOLDER_PATH = "reduction.folder_path"
 
 
 @dataclass(frozen=True)
@@ -20,14 +21,22 @@ class CommandLineInput:
 class CommandLine:
     inputs: List[CommandLineInput]
 
+    def contains_reductions(self) -> bool:
+        return any(
+            f.type_
+            in (
+                CommandLineInputType.REDUCTION_FOLDER_PATH,
+                CommandLineInputType.REDUCTION_MTZ_PATH,
+            )
+            for f in self.inputs
+        )
+
 
 def _parse_parameter(s: str) -> CommandLineInput:
-    return CommandLineInput(
-        type_=CommandLineInputType.STRING
-        if s != CommandLineInputType.DIFFRACTION_PATH.value
-        else CommandLineInputType.DIFFRACTION_PATH,
-        name=s,
-    )
+    for e in CommandLineInputType:
+        if e.value == s:
+            return CommandLineInput(type_=e, name=s)
+    return CommandLineInput(type_=CommandLineInputType.STRING, name=s)
 
 
 def parse_command_line(s: str) -> CommandLine:

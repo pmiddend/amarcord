@@ -62,11 +62,17 @@ render state =
 
     makeOutputDirectory od = HH.span [ classList [ "d-inline-block", "font-monospace", "text-truncate" ] ] [ HH.text od ]
 
+    makeWorkingOn job =
+      case job.diffraction of
+        Nothing -> case job.reduction of
+          Nothing -> HH.text "unknown"
+          Just reduction -> HH.text ("Reduction " <> show reduction.dataReductionId)
+        Just diffraction -> HH.text (diffraction.crystalId <> "/" <> show diffraction.runId)
+
     makeRow job =
       HH.tr_
         ( (HH.td_ <<< singleton)
-            <$> [ HH.text (show job.runId)
-              , HH.text job.crystalId
+            <$> [ makeWorkingOn job
               , HH.text (show job.jobId)
               , HH.text job.queued
               , HH.text (fromMaybe "" job.started)
@@ -84,8 +90,8 @@ render state =
       "job-table"
       [ TableStriped ]
       ( (HH.text >>> singleton >>> HH.th_)
-          <$> [ "Run"
-            , "Crystal"
+          <$> [ 
+             "Working on"
             , "Job ID"
             , "Queued"
             , "Started"

@@ -2,7 +2,7 @@ module App.Components.Tools where
 
 import App.API (AnalysisResponse, AnalysisRow, DiffractionList, retrieveAnalysis)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), container, fluidContainer, table)
+import App.Bootstrap (TableFlag(..), container, table)
 import App.Components.JobList as JobList
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Components.ToolRunner as ToolRunner
@@ -46,6 +46,7 @@ type State
   = { rows :: Array AnalysisRow
     , totalRows :: Int
     , totalDiffractions :: Int
+    , totalReductions :: Int
     , columns :: Array String
     , displayRows :: Array AnalysisRow
     , sorting :: ToolsRouteInput
@@ -76,6 +77,7 @@ initialState { input: sorting, remoteData: AnalysisData analysisResponse } =
     { rows: analysisResponse.analysis
     , totalRows: analysisResponse.totalRows
     , totalDiffractions: analysisResponse.totalDiffractions
+    , totalReductions: analysisResponse.totalReductions
     , columns: analysisResponse.analysisColumns
     , displayRows: nub (rowsWithSelected analysisResponse.analysisColumns analysisResponse.analysis selectedColumns)
     , sorting
@@ -334,7 +336,7 @@ render state =
       , HH.h2
           [ singleClass "amarcord-section-separator" ]
           [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Run tool" ]
-      , HH.slot _toolRunner 0 ToolRunner.component { numberOfDiffractions: state.totalDiffractions, filterQuery: state.sorting.filterQuery } absurd
+      , HH.slot _toolRunner 0 ToolRunner.component { numberOfReductions: state.totalReductions, numberOfDiffractions: state.totalDiffractions, filterQuery: state.sorting.filterQuery } absurd
       , HH.h2
           [ singleClass "amarcord-section-separator" ]
           [ icon { name: "clipboard", size: Nothing, spin: false }, HH.text " Jobs" ]

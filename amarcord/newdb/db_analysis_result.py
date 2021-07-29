@@ -9,4 +9,5 @@ class DBAnalysisResult:
     rows: List[DBAnalysisRow]
     columns: List[str]
     total_diffractions: int
+    total_reductions: int
     total_rows: int

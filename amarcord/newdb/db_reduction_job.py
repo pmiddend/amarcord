@@ -17,6 +17,8 @@ class DBMiniDiffraction:
 
 @dataclass(frozen=True)
 class DBMiniReduction:
+    crystal_id: str
+    run_id: int
     data_reduction_id: int
     mtz_path: Path
     resulting_refinement_id: Optional[int]

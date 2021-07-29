@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List
 from typing import Optional
 
-from amarcord.modules.json import JSONArray
+from amarcord.workflows.command_line import CommandLine
 
 
 @dataclass(frozen=True)
@@ -15,5 +15,5 @@ class DBTool:
     extra_files: List[Path]
     command_line: str
     description: str
-    inputs: Optional[JSONArray] = None
+    inputs: Optional[CommandLine] = None
     created: Optional[datetime.datetime] = None

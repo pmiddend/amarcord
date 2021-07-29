@@ -2,7 +2,10 @@ import datetime
 import json
 import logging
 from pathlib import Path
+from typing import List
 from typing import Optional
+from typing import Set
+from typing import Tuple
 
 import sqlalchemy as sa
 
@@ -13,6 +16,7 @@ from amarcord.clock import RealClock
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.json import JSONDict
 from amarcord.newdb.db_data_reduction import DBDataReduction
+from amarcord.newdb.db_job import DBJob
 from amarcord.newdb.db_reduction_job import DBJobWithInputsAndOutputs
 from amarcord.newdb.db_reduction_job import DBMiniDiffraction
 from amarcord.newdb.db_reduction_job import DBMiniReduction
@@ -26,6 +30,107 @@ from amarcord.workflows.job_status import JobStatus
 from amarcord.workflows.parser import parse_workflow_result_file
 
 logger = logging.getLogger(__name__)
+
+
+def bulk_start_jobs(
+    conn: Connection,
+    db: NewDB,
+    tool_id: int,
+    filter_query: str,
+    limit: Optional[int],
+    tool_inputs: JSONDict,
+) -> List[int]:
+    tool = next(iter(t for t in db.retrieve_tools(conn) if t.id == tool_id), None)
+    if tool is None:
+        raise Exception(f"tool with ID {tool_id} not found!")
+
+    if tool.inputs is None:
+        raise Exception(f"tool {tool.name} (ID {tool_id}) has no inputs!")
+
+    # If the inputs contain reduction parameters, fetch reductions, then start jobs for every reduction
+    # Otherwise, do the same for diffractions
+    if tool.inputs.contains_reductions():
+        return _bulk_start_jobs_reductions(
+            conn, db, tool_id, filter_query, limit, tool_inputs
+        )
+
+    return _bulk_start_jobs_diffractions(
+        conn, db, tool_id, filter_query, limit, tool_inputs
+    )
+
+
+def _bulk_start_jobs_reductions(
+    conn: Connection,
+    db: NewDB,
+    tool_id: int,
+    filter_query: str,
+    limit: Optional[int],
+    tool_inputs: JSONDict,
+) -> List[int]:
+    processed_reductions: Set[int] = set()
+    inserted_jobs: List[int] = []
+    for data_reduction_id in db.retrieve_analysis_reductions(conn, filter_query):
+        if len(processed_reductions) == limit:
+            break
+
+        if data_reduction_id not in processed_reductions:
+            processed_reductions.add(data_reduction_id)
+            job_id = db.insert_job(
+                conn,
+                DBJob(
+                    id=None,
+                    queued=datetime.datetime.utcnow(),
+                    status=JobStatus.QUEUED,
+                    tool_id=tool_id,
+                    tool_inputs=tool_inputs,
+                ),
+            )
+            db.insert_job_to_reduction(
+                conn,
+                job_id=job_id,
+                data_reduction_id=data_reduction_id,
+            )
+            inserted_jobs.append(job_id)
+
+    return inserted_jobs
+
+
+def _bulk_start_jobs_diffractions(
+    conn: Connection,
+    db: NewDB,
+    tool_id: int,
+    filter_query: str,
+    limit: Optional[int],
+    tool_inputs: JSONDict,
+) -> List[int]:
+    diffractions = db.retrieve_analysis_diffractions(conn, filter_query)
+    processed_diffractions: Set[Tuple[str, int]] = set()
+    inserted_jobs: List[int] = []
+    for crystal_id, run_id in diffractions:
+        if len(processed_diffractions) == limit:
+            break
+
+        if (crystal_id, run_id) not in processed_diffractions:
+            processed_diffractions.add((crystal_id, run_id))
+            job_id = db.insert_job(
+                conn,
+                DBJob(
+                    id=None,
+                    queued=datetime.datetime.utcnow(),
+                    status=JobStatus.QUEUED,
+                    tool_id=tool_id,
+                    tool_inputs=tool_inputs,
+                ),
+            )
+            db.insert_job_to_diffraction(
+                conn,
+                job_id=job_id,
+                crystal_id=crystal_id,
+                run_id=run_id,
+            )
+            inserted_jobs.append(job_id)
+
+    return inserted_jobs
 
 
 def _process_running_job(
@@ -198,7 +303,9 @@ def _start_job_on_reduction(
     try:
         assert job.job.tool_inputs is not None
         result = job_controller.start_job(
-            Path(str(reduction.data_reduction_id)) / str(job.job.id),
+            Path(reduction.crystal_id)
+            / str(reduction.run_id)
+            / f"reduction-{reduction.data_reduction_id}-refinement-job-{job.job.id}",
             job.tool.executable_path,
             process_tool_command_line(
                 job.tool.command_line,
@@ -263,7 +370,9 @@ def _start_job_on_diffraction(
     try:
         assert job.job.tool_inputs is not None
         result = job_controller.start_job(
-            Path(diffraction.crystal_id) / str(diffraction.run_id) / str(job.job.id),
+            Path(diffraction.crystal_id)
+            / str(diffraction.run_id)
+            / f"reduction-job-{job.job.id}",
             job.tool.executable_path,
             process_tool_command_line(
                 job.tool.command_line,

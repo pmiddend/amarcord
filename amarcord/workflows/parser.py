@@ -88,7 +88,7 @@ def parse_refinement_result(
         rwork=jsonc.optional_float("rwork"),
         rms_bond_length=jsonc.optional_float("rms-bond-length"),
         rms_bond_angle=jsonc.optional_float("rms-bond-angle"),
-        num_blobs=jsonc.optional_int("rms-bond-angle"),
+        num_blobs=jsonc.optional_int("num-blobs"),
         average_model_b=jsonc.optional_float("average-model-b"),
     )
 

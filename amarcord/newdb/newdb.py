@@ -2,6 +2,7 @@ import datetime
 from pathlib import Path
 from typing import Any
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Set
@@ -14,7 +15,6 @@ from sqlalchemy.sql.elements import Label
 
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.json import JSONArray
 from amarcord.modules.json import JSONDict
 from amarcord.modules.json import JSONValue
 from amarcord.newdb.beamline import Beamline
@@ -40,14 +40,9 @@ from amarcord.newdb.tables import DBTables
 from amarcord.util import DontUpdate
 from amarcord.util import TriOptional
 from amarcord.util import dict_union
-from amarcord.workflows.command_line import CommandLine
 from amarcord.workflows.command_line import parse_command_line
 from amarcord.workflows.job_status import JobStatus
 from amarcord.xtal_util import find_space_group_index_by_name
-
-
-def _convert_command_line(c: CommandLine) -> JSONArray:
-    return [{"name": x.name, "type": x.type_.value} for x in c.inputs]
 
 
 class NewDB:
@@ -245,12 +240,14 @@ class NewDB:
                 return DBMiniReduction(
                     data_reduction_id=job["input_data_reduction_id"],
                     mtz_path=job["input_reduction_mtz_path"],
-                    resulting_refinement_id=job["refinement_id"],
+                    resulting_refinement_id=job["output_refinement_id"],
+                    crystal_id=job["jwor_crystal_id"],
+                    run_id=job["jwor_run_id"],
                 )
             return DBMiniDiffraction(
                 data_raw_filename_pattern=job["data_raw_filename_pattern"],
-                run_id=job["run_id"],
-                crystal_id=job["crystal_id"],
+                run_id=job["jwod_run_id"],
+                crystal_id=job["jwod_crystal_id"],
                 resulting_data_reduction_id=job["output_data_reduction_id"],
             )
 
@@ -271,8 +268,12 @@ class NewDB:
                     self.tables.jobs.c.tool_inputs,
                     self.tables.jobs.c.metadata,
                     self.tables.jobs.c.status,
-                    self.tables.job_working_on_diffraction.c.run_id,
-                    self.tables.job_working_on_diffraction.c.crystal_id,
+                    self.tables.job_working_on_diffraction.c.run_id.label(
+                        "jwod_run_id"
+                    ),
+                    self.tables.job_working_on_diffraction.c.crystal_id.label(
+                        "jwod_crystal_id"
+                    ),
                     self.tables.tools.c.executable_path.label("tool_executable_path"),
                     self.tables.tools.c.name.label("tool_name"),
                     self.tables.tools.c.description.label("tool_description"),
@@ -287,6 +288,8 @@ class NewDB:
                         "input_data_reduction_id"
                     ),
                     reductions_as_input.c.mtz_path.label("input_reduction_mtz_path"),
+                    reductions_as_input.c.crystal_id.label("jwor_crystal_id"),
+                    reductions_as_input.c.run_id.label("jwor_run_id"),
                     self.tables.job_has_refinement_result.c.refinement_id.label(
                         "output_refinement_id"
                     ),
@@ -362,7 +365,7 @@ class NewDB:
                     extra_files=[Path(p) for p in job["tool_extra_files"]],
                     command_line=job["tool_command_line"],
                     description=job["tool_description"],
-                    inputs=[],
+                    inputs=parse_command_line(job["tool_command_line"]),
                     created=job["tool_created"],
                 ),
                 io=_make_job_io(job),
@@ -423,9 +426,10 @@ class NewDB:
         )
 
     def insert_refinement(self, conn: Connection, r: DBRefinement) -> int:
+        assert r.refinement_id is None
+
         result = conn.execute(
             sa.insert(self.tables.refinements).values(
-                refinement_id=r.refinement_id,
                 data_reduction_id=r.data_reduction_id,
                 analysis_time=r.analysis_time,
                 folder_path=r.folder_path,
@@ -446,6 +450,8 @@ class NewDB:
         return result.inserted_primary_key[0]
 
     def insert_data_reduction(self, conn: Connection, r: DBDataReduction) -> int:
+        assert r.data_reduction_id is None
+
         result = conn.execute(
             sa.insert(self.tables.reductions).values(
                 crystal_id=r.crystal_id,
@@ -488,7 +494,7 @@ class NewDB:
                 extra_files=row["extra_files"],
                 command_line=row["command_line"],
                 description=row["description"],
-                inputs=_convert_command_line(parse_command_line(row["command_line"])),
+                inputs=parse_command_line(row["command_line"]),
             )
             for row in conn.execute(
                 sa.select(
@@ -714,16 +720,29 @@ class NewDB:
 
     def retrieve_analysis_diffractions(
         self, conn: Connection, filter_query: str
-    ) -> List[Tuple[str, int]]:
+    ) -> Iterable[Tuple[str, int]]:
         _all_columns, query = self._analysis_filter_query(
             filter_query, sort_column=None, sort_order_desc=False
         )
 
-        return [
+        return (
             (row["diff_crystal_id"], row["diff_run_id"])
             for row in conn.execute(query)
             if row["diff_crystal_id"] is not None
-        ]
+        )
+
+    def retrieve_analysis_reductions(
+        self, conn: Connection, filter_query: str
+    ) -> Iterable[int]:
+        _all_columns, query = self._analysis_filter_query(
+            filter_query, sort_column=None, sort_order_desc=False
+        )
+
+        return (
+            row["dr_data_reduction_id"]
+            for row in conn.execute(query)
+            if row["dr_data_reduction_id"] is not None
+        )
 
     def retrieve_analysis_results(
         self,
@@ -753,11 +772,14 @@ class NewDB:
         results: List[DBAnalysisRow] = []
         number_of_results = 0
         diffractions: Set[Tuple[str, int]] = set()
+        reductions: Set[int] = set()
         for row in conn.execute(query):
             number_of_results += 1
             if limit is None or len(results) < limit:
                 results.append(row)
             diffractions.add((row["diff_crystal_id"], row["diff_run_id"]))
+            if row["dr_data_reduction_id"] is not None:
+                reductions.add(row["dr_data_reduction_id"])
 
         # noinspection PyProtectedMember
         return DBAnalysisResult(
@@ -768,6 +790,7 @@ class NewDB:
                 for row in conn.execute(query)
             ],
             total_diffractions=len(diffractions),
+            total_reductions=len(reductions),
             total_rows=number_of_results,
         )
 
@@ -822,9 +845,9 @@ class NewDB:
 
             all_columns += [
                 reduction_jobs.c.tool_inputs.label("red_jobs_tool_inputs"),
-                refinement_jobs.c.tool_inputs.label("ref_jobs_tool_inputs"),
+                refinement_jobs.c.tool_inputs.label("rf_jobs_tool_inputs"),
                 reduction_tools.c.name.label("red_jobs_tool_name"),
-                refinement_tools.c.name.label("ref_jobs_tool_name"),
+                refinement_tools.c.name.label("rf_jobs_tool_name"),
             ]
 
             # noinspection PyTypeChecker
@@ -886,5 +909,14 @@ class NewDB:
         conn.execute(
             sa.insert(self.tables.job_working_on_diffraction).values(
                 run_id=run_id, crystal_id=crystal_id, job_id=job_id
+            )
+        )
+
+    def insert_job_to_reduction(
+        self, conn: Connection, job_id: int, data_reduction_id: int
+    ) -> None:
+        conn.execute(
+            sa.insert(self.tables.job_working_on_reduction).values(
+                data_reduction_id=data_reduction_id, job_id=job_id
             )
         )

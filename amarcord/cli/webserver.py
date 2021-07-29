@@ -1,4 +1,3 @@
-import datetime
 import json
 import logging
 import os
@@ -7,10 +6,7 @@ from functools import partial
 from pathlib import Path
 from threading import Thread
 from typing import Callable
-from typing import List
 from typing import Optional
-from typing import Set
-from typing import Tuple
 
 from flask import Flask
 from flask import Response
@@ -26,12 +22,12 @@ from amarcord.locker import Locker
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
+from amarcord.modules.json import JSONArray
 from amarcord.modules.json import JSONDict
 from amarcord.newdb.alembic import upgrade_to_head
 from amarcord.newdb.db_crystal import DBCrystal
 from amarcord.newdb.db_dewar_lut import DBDewarLUT
 from amarcord.newdb.db_diffraction import DBDiffraction
-from amarcord.newdb.db_job import DBJob
 from amarcord.newdb.db_puck import DBPuck
 from amarcord.newdb.db_reduction_job import DBJobWithInputsAndOutputs
 from amarcord.newdb.db_reduction_job import DBMiniDiffraction
@@ -41,10 +37,11 @@ from amarcord.newdb.diffraction_type import DiffractionType
 from amarcord.newdb.newdb import NewDB
 from amarcord.newdb.puck_type import PuckType
 from amarcord.newdb.tables import DBTables
+from amarcord.workflows.command_line import CommandLine
 from amarcord.workflows.job_controller_factory import LocalJobControllerConfig
 from amarcord.workflows.job_controller_factory import create_job_controller
 from amarcord.workflows.job_controller_factory import parse_job_controller
-from amarcord.workflows.job_status import JobStatus
+from amarcord.workflows.workflow_synchronize import bulk_start_jobs
 from amarcord.workflows.workflow_synchronize import check_jobs
 
 AMARCORD_DB_URL = "AMARCORD_DB_URL"
@@ -75,7 +72,7 @@ def _create_test_db(db: NewDB, test_files_dir: Path) -> None:
                     ),
                 ),
             )
-        tool_id = db.insert_tool(
+        reduction_tool_id = db.insert_tool(
             conn,
             DBTool(
                 id=None,
@@ -91,7 +88,26 @@ def _create_test_db(db: NewDB, test_files_dir: Path) -> None:
                 inputs=None,
             ),
         )
-        logger.info("added tool with ID %s", tool_id)
+        logger.info("added reduction tool with ID %s", reduction_tool_id)
+        refinement_tool_id = db.insert_tool(
+            conn,
+            DBTool(
+                id=None,
+                name="dmpl",
+                executable_path=Path().absolute()
+                / "workflow-data"
+                / "local-dummy-refinement.sh",
+                extra_files=[
+                    Path().absolute()
+                    / "workflow-data"
+                    / "dummy-amarcord-refinement-output.json"
+                ],
+                command_line="${reduction.mtz_path} ${testarg}",
+                description="description2",
+                inputs=None,
+            ),
+        )
+        logger.info("added refinement tool with ID %s", refinement_tool_id)
 
 
 def _create_db(db_url: str) -> NewDB:
@@ -216,6 +232,9 @@ def create_app() -> Flask:
             ]
         }
 
+    def _convert_command_line(c: CommandLine) -> JSONArray:
+        return [{"name": x.name, "type": x.type_.value} for x in c.inputs]
+
     def _convert_tool(row: DBTool) -> JSONDict:
         return {
             "toolId": row.id,
@@ -225,7 +244,9 @@ def create_app() -> Flask:
             "extraFiles": [str(s) for s in row.extra_files],
             "commandLine": row.command_line,
             "description": row.description,
-            "inputs": row.inputs,
+            "inputs": _convert_command_line(row.inputs)
+            if row.inputs is not None
+            else None,
         }
 
     def _retrieve_tools(conn: Connection, db: NewDB) -> JSONDict:
@@ -361,7 +382,7 @@ def create_app() -> Flask:
                 else None,
                 "reduction": {
                     "dataReductionId": j.io.data_reduction_id,
-                    "mtzPath": j.io.mtz_path,
+                    "mtzPath": str(j.io.mtz_path),
                 }
                 if isinstance(j.io, DBMiniReduction)
                 else None,
@@ -393,35 +414,13 @@ def create_app() -> Flask:
         assert limit is None or isinstance(limit, int)
         db = get_db()
 
-        inserted_jobs: List[int] = []
         with db.connect() as conn:
-            diffractions = db.retrieve_analysis_diffractions(conn, filter_query)
-            processed_diffractions: Set[Tuple[str, int]] = set()
-            for crystal_id, run_id in diffractions:
-                if len(processed_diffractions) == limit:
-                    break
-
-                if (crystal_id, run_id) not in processed_diffractions:
-                    processed_diffractions.add((crystal_id, run_id))
-                    job_id = db.insert_job(
-                        conn,
-                        DBJob(
-                            id=None,
-                            queued=datetime.datetime.utcnow(),
-                            status=JobStatus.QUEUED,
-                            tool_id=tool_id,
-                            tool_inputs=inputs,
-                        ),
+            with conn.begin():
+                return {
+                    "jobIds": bulk_start_jobs(
+                        conn, db, tool_id, filter_query, limit, inputs
                     )
-                    db.insert_job_to_diffraction(
-                        conn,
-                        job_id=job_id,
-                        crystal_id=crystal_id,
-                        run_id=run_id,
-                    )
-                    inserted_jobs.append(job_id)
-
-        return {"jobIds": inserted_jobs}
+                }
 
     @app.post("/api/workflows/tools")
     def add_tool() -> JSONDict:
@@ -530,6 +529,7 @@ def create_app() -> Flask:
                     "analysisColumns": result.columns,
                     "totalRows": result.total_rows,
                     "totalDiffractions": result.total_diffractions,
+                    "totalReductions": result.total_reductions,
                     "analysis": result.rows,
                     "sqlError": None,
                 }
