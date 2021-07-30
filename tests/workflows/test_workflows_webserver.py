@@ -204,6 +204,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_one_refinement(c
                 data_reduction_id=data_reduction_id,
                 analysis_time=datetime.datetime.utcnow(),
                 folder_path=Path("/tmp"),
+                initial_pdb_path=Path("/tmp/initial.pdb"),
                 method=RefinementMethod.OTHER,
             ),
         )

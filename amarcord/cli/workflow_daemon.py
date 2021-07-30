@@ -26,9 +26,6 @@ class Arguments(Tap):
     wait_after_check: float = (
         1.0  # Frequency in seconds to wait after a successfully synchronization
     )
-    with_estimated_resolution: bool = (
-        False  # Do we have a DB with the estimated_resolution column in Diffractions?
-    )
     job_controller: str  # Job controller string (has a defined, documented format)
     normal_schema: Optional[str] = None
     analysis_schema: Optional[str] = None
@@ -41,7 +38,7 @@ def main(args: Arguments) -> int:
         DBTables(
             dbcontext.metadata,
             with_tools=True,
-            with_estimated_resolution=args.with_estimated_resolution,
+            with_estimated_resolution=False,
             schemata=SeparateSchemata.from_two_optionals(
                 args.normal_schema, args.analysis_schema
             ),

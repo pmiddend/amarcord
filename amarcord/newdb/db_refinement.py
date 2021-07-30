@@ -13,7 +13,7 @@ class DBRefinement:
     analysis_time: datetime.datetime
     folder_path: Optional[Path]
     method: RefinementMethod
-    initial_pdb_path: Optional[Path] = None
+    initial_pdb_path: Path
     final_pdb_path: Optional[Path] = None
     refinement_mtz_path: Optional[Path] = None
     comment: Optional[str] = None

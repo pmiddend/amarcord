@@ -196,10 +196,10 @@ class NewDB:
 
     def insert_tool(self, conn: Connection, t: DBTool) -> int:
         assert t.id is None
-        assert self.tables.tools is not None
+        assert self.tables.tool_tables is not None
 
         result = conn.execute(
-            sa.insert(self.tables.tools).values(
+            sa.insert(self.tables.tool_tables.tools).values(
                 name=t.name,
                 executable_path=t.executable_path,
                 extra_files=[str(s) for s in t.extra_files],
@@ -210,11 +210,11 @@ class NewDB:
         return result.inserted_primary_key[0]
 
     def update_tool(self, conn: Connection, t: DBTool) -> None:
-        assert self.tables.tools is not None
+        assert self.tables.tool_tables is not None
         assert t.id is not None
 
         conn.execute(
-            sa.update(self.tables.tools)
+            sa.update(self.tables.tool_tables.tools)
             .values(
                 name=t.name,
                 executable_path=t.executable_path,
@@ -222,18 +222,14 @@ class NewDB:
                 command_line=t.command_line,
                 description=t.description,
             )
-            .where(self.tables.tools.c.id == t.id)
+            .where(self.tables.tool_tables.tools.c.id == t.id)
         )
 
     def retrieve_jobs_with_attached(
         self, conn: Connection
-    ) -> List[DBJobWithInputsAndOutputs]:
-        if self.tables.jobs is None:
+    ) -> Iterable[DBJobWithInputsAndOutputs]:
+        if self.tables.tool_tables is None:
             return []
-
-        assert self.tables.job_working_on_diffraction is not None
-        assert self.tables.job_has_reduction_result is not None
-        assert self.tables.tools is not None
 
         def _make_job_io(
             job: Dict[str, Any]
@@ -256,32 +252,34 @@ class NewDB:
         reductions_as_result = self.tables.reductions.alias()
         reductions_as_input = self.tables.reductions.alias()
 
+        jc = self.tables.tool_tables.jobs.c
+        tc = self.tables.tool_tables.tools.c
         # noinspection PyTypeChecker
         query_result = conn.execute(
             sa.select(
                 [
-                    self.tables.jobs.c.id,
-                    self.tables.jobs.c.started,
-                    self.tables.jobs.c.stopped,
-                    self.tables.jobs.c.failure_reason,
-                    self.tables.jobs.c.queued,
-                    self.tables.jobs.c.output_directory,
-                    self.tables.jobs.c.tool_id,
-                    self.tables.jobs.c.tool_inputs,
-                    self.tables.jobs.c.metadata,
-                    self.tables.jobs.c.status,
-                    self.tables.job_working_on_diffraction.c.run_id.label(
+                    jc.id,
+                    jc.started,
+                    jc.stopped,
+                    jc.failure_reason,
+                    jc.queued,
+                    jc.output_directory,
+                    jc.tool_id,
+                    jc.tool_inputs,
+                    jc.metadata,
+                    jc.status,
+                    self.tables.tool_tables.job_working_on_diffraction.c.run_id.label(
                         "jwod_run_id"
                     ),
-                    self.tables.job_working_on_diffraction.c.crystal_id.label(
+                    self.tables.tool_tables.job_working_on_diffraction.c.crystal_id.label(
                         "jwod_crystal_id"
                     ),
-                    self.tables.tools.c.executable_path.label("tool_executable_path"),
-                    self.tables.tools.c.name.label("tool_name"),
-                    self.tables.tools.c.description.label("tool_description"),
-                    self.tables.tools.c.command_line.label("tool_command_line"),
-                    self.tables.tools.c.extra_files.label("tool_extra_files"),
-                    self.tables.tools.c.created.label("tool_created"),
+                    tc.executable_path.label("tool_executable_path"),
+                    tc.name.label("tool_name"),
+                    tc.description.label("tool_description"),
+                    tc.command_line.label("tool_command_line"),
+                    tc.extra_files.label("tool_extra_files"),
+                    tc.created.label("tool_created"),
                     self.tables.diffs.c.data_raw_filename_pattern,
                     reductions_as_result.c.data_reduction_id.label(
                         "output_data_reduction_id"
@@ -292,59 +290,59 @@ class NewDB:
                     reductions_as_input.c.mtz_path.label("input_reduction_mtz_path"),
                     reductions_as_input.c.crystal_id.label("jwor_crystal_id"),
                     reductions_as_input.c.run_id.label("jwor_run_id"),
-                    self.tables.job_has_refinement_result.c.refinement_id.label(
+                    self.tables.tool_tables.job_has_refinement_result.c.refinement_id.label(
                         "output_refinement_id"
                     ),
                 ]
             ).select_from(
-                self.tables.jobs.join(self.tables.tools)
+                self.tables.tool_tables.jobs.join(self.tables.tool_tables.tools)
                 .outerjoin(
-                    self.tables.job_working_on_diffraction,
-                    self.tables.jobs.c.id
-                    == self.tables.job_working_on_diffraction.c.job_id,
+                    self.tables.tool_tables.job_working_on_diffraction,
+                    self.tables.tool_tables.jobs.c.id
+                    == self.tables.tool_tables.job_working_on_diffraction.c.job_id,
                 )
                 .outerjoin(
                     self.tables.diffs,
                     sa.and_(
                         self.tables.diffs.c.crystal_id
-                        == self.tables.job_working_on_diffraction.c.crystal_id,
+                        == self.tables.tool_tables.job_working_on_diffraction.c.crystal_id,
                         self.tables.diffs.c.run_id
-                        == self.tables.job_working_on_diffraction.c.run_id,
+                        == self.tables.tool_tables.job_working_on_diffraction.c.run_id,
                     ),
                 )
                 .outerjoin(
-                    self.tables.job_has_reduction_result,
-                    self.tables.job_has_reduction_result.c.job_id
-                    == self.tables.jobs.c.id,
+                    self.tables.tool_tables.job_has_reduction_result,
+                    self.tables.tool_tables.job_has_reduction_result.c.job_id
+                    == self.tables.tool_tables.jobs.c.id,
                 )
                 .outerjoin(
                     reductions_as_result,
                     reductions_as_result.c.data_reduction_id
-                    == self.tables.job_has_reduction_result.c.data_reduction_id,
+                    == self.tables.tool_tables.job_has_reduction_result.c.data_reduction_id,
                 )
                 .outerjoin(
-                    self.tables.job_working_on_reduction,
-                    self.tables.job_working_on_reduction.c.job_id
-                    == self.tables.jobs.c.id,
+                    self.tables.tool_tables.job_working_on_reduction,
+                    self.tables.tool_tables.job_working_on_reduction.c.job_id
+                    == self.tables.tool_tables.jobs.c.id,
                 )
                 .outerjoin(
                     reductions_as_input,
                     reductions_as_input.c.data_reduction_id
-                    == self.tables.job_working_on_reduction.c.data_reduction_id,
+                    == self.tables.tool_tables.job_working_on_reduction.c.data_reduction_id,
                 )
                 .outerjoin(
-                    self.tables.job_has_refinement_result,
-                    self.tables.job_has_refinement_result.c.job_id
-                    == self.tables.jobs.c.id,
+                    self.tables.tool_tables.job_has_refinement_result,
+                    self.tables.tool_tables.job_has_refinement_result.c.job_id
+                    == self.tables.tool_tables.jobs.c.id,
                 )
                 .outerjoin(
                     self.tables.refinements,
                     self.tables.refinements.c.refinement_id
-                    == self.tables.job_has_refinement_result.c.refinement_id,
+                    == self.tables.tool_tables.job_has_refinement_result.c.refinement_id,
                 )
             )
         )
-        return [
+        return (
             DBJobWithInputsAndOutputs(
                 DBJob(
                     id=job["id"],
@@ -373,7 +371,7 @@ class NewDB:
                 io=_make_job_io(job),
             )
             for job in query_result
-        ]
+        )
 
     def update_job(
         self,
@@ -386,10 +384,10 @@ class NewDB:
         stopped: TriOptional[datetime.datetime] = DontUpdate(),
         output_directory: TriOptional[Path] = DontUpdate(),
     ) -> None:
-        assert self.tables.jobs is not None
+        assert self.tables.tool_tables is not None
 
         conn.execute(
-            sa.update(self.tables.jobs)
+            sa.update(self.tables.tool_tables.jobs)
             .values(
                 dict_union(
                     [
@@ -406,14 +404,15 @@ class NewDB:
                     ]
                 )
             )
-            .where(self.tables.jobs.c.id == job_id)
+            .where(self.tables.tool_tables.jobs.c.id == job_id)
         )
 
     def insert_job_reduction_result(
         self, conn: Connection, job_id: int, data_reduction_id: int
     ) -> None:
+        assert self.tables.tool_tables is not None
         conn.execute(
-            sa.insert(self.tables.job_has_reduction_result).values(
+            sa.insert(self.tables.tool_tables.job_has_reduction_result).values(
                 job_id=job_id, data_reduction_id=data_reduction_id
             )
         )
@@ -421,8 +420,9 @@ class NewDB:
     def insert_job_refinement_result(
         self, conn: Connection, job_id: int, refinement_id: int
     ) -> None:
+        assert self.tables.tool_tables is not None
         conn.execute(
-            sa.insert(self.tables.job_has_refinement_result).values(
+            sa.insert(self.tables.tool_tables.job_has_refinement_result).values(
                 job_id=job_id, refinement_id=refinement_id
             )
         )
@@ -483,10 +483,10 @@ class NewDB:
         return result.inserted_primary_key[0]
 
     def retrieve_tools(self, conn: Connection) -> List[DBTool]:
-        if self.tables.tools is None:
+        if self.tables.tool_tables is None:
             return []
 
-        tools = self.tables.tools
+        tools = self.tables.tool_tables.tools
         return [
             DBTool(
                 id=row["id"],
@@ -533,10 +533,12 @@ class NewDB:
         ]
 
     def remove_tool(self, conn: Connection, tool_id: int) -> None:
-        assert self.tables.tools is not None
+        assert self.tables.tool_tables is not None
 
         conn.execute(
-            sa.delete(self.tables.tools).where(self.tables.tools.c.id == tool_id)
+            sa.delete(self.tables.tool_tables.tools).where(
+                self.tables.tool_tables.tools.c.id == tool_id
+            )
         )
 
     def insert_dewar_table_entry(self, conn: Connection, d: DBDewarLUT) -> None:
@@ -660,8 +662,8 @@ class NewDB:
             crystals=list(self.retrieve_crystals(conn)),
         )
 
-    def retrieve_data_reductions(self, conn: Connection) -> List[DBDataReduction]:
-        return [
+    def retrieve_data_reductions(self, conn: Connection) -> Iterable[DBDataReduction]:
+        return (
             DBDataReduction(
                 data_reduction_id=r["data_reduction_id"],
                 crystal_id=r["crystal_id"],
@@ -688,7 +690,7 @@ class NewDB:
             for r in conn.execute(
                 sa.select(["*"]).select_from(self.tables.reductions)
             ).fetchall()
-        ]
+        )
 
     def retrieve_refinements(self, conn: Connection) -> Iterable[DBRefinement]:
         return (
@@ -831,19 +833,13 @@ class NewDB:
             self.tables.refinements.c.data_reduction_id
             == self.tables.reductions.c.data_reduction_id,
         )
-        if (
-            self.tables.job_has_reduction_result is not None
-            and self.tables.jobs is not None
-            and self.tables.tools is not None
-            and self.tables.job_working_on_diffraction is not None
-            and self.tables.job_working_on_reduction is not None
-        ):
-            reduction_jobs = self.tables.jobs.alias()
-            reduction_tools = self.tables.tools.alias()
-            refinement_jobs = self.tables.jobs.alias()
-            refinement_tools = self.tables.tools.alias()
-            jwod = self.tables.job_working_on_diffraction
-            jwor = self.tables.job_working_on_reduction
+        if self.tables.tool_tables is not None:
+            reduction_jobs = self.tables.tool_tables.jobs.alias()
+            reduction_tools = self.tables.tool_tables.tools.alias()
+            refinement_jobs = self.tables.tool_tables.jobs.alias()
+            refinement_tools = self.tables.tool_tables.tools.alias()
+            jwod = self.tables.tool_tables.job_working_on_diffraction
+            jwor = self.tables.tool_tables.job_working_on_reduction
 
             all_columns += [
                 reduction_jobs.c.tool_inputs.label("red_jobs_tool_inputs"),
@@ -888,8 +884,10 @@ class NewDB:
         return all_columns, query
 
     def insert_job(self, conn: Connection, job: DBJob) -> int:
+        assert self.tables.tool_tables is not None
+
         result = conn.execute(
-            sa.insert(self.tables.jobs).values(
+            sa.insert(self.tables.tool_tables.jobs).values(
                 {
                     "queued": job.queued,
                     "started": job.started,
@@ -908,8 +906,10 @@ class NewDB:
     def insert_job_to_diffraction(
         self, conn: Connection, job_id: int, crystal_id: str, run_id: int
     ) -> None:
+        assert self.tables.tool_tables is not None
+
         conn.execute(
-            sa.insert(self.tables.job_working_on_diffraction).values(
+            sa.insert(self.tables.tool_tables.job_working_on_diffraction).values(
                 run_id=run_id, crystal_id=crystal_id, job_id=job_id
             )
         )
@@ -917,8 +917,9 @@ class NewDB:
     def insert_job_to_reduction(
         self, conn: Connection, job_id: int, data_reduction_id: int
     ) -> None:
+        assert self.tables.tool_tables is not None
         conn.execute(
-            sa.insert(self.tables.job_working_on_reduction).values(
+            sa.insert(self.tables.tool_tables.job_working_on_reduction).values(
                 data_reduction_id=data_reduction_id, job_id=job_id
             )
         )

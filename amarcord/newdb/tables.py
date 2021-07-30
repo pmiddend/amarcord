@@ -112,7 +112,7 @@ def table_job_working_on_diffraction(
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
-        schema=schemata.analysis_schema if schemata is not None else None,
+        schema=_analysis_schema(schemata),
     )
 
 
@@ -421,6 +421,35 @@ def table_diffractions(
     )
 
 
+class DBToolTables:
+    def __init__(
+        self,
+        metadata: MetaData,
+        schemata: Schemata,
+        crystals: Table,
+        diffs: Table,
+        reductions: Table,
+        refinements: Table,
+    ) -> None:
+        self.tools = table_tools(metadata, schemata)
+        self.jobs = table_jobs(metadata, self.tools, schemata)
+        self.job_working_on_diffraction = table_job_working_on_diffraction(
+            metadata, self.jobs, crystals, diffs, schemata
+        )
+        self.job_has_reduction_result = table_job_has_reduction_result(
+            metadata,
+            self.jobs,
+            reductions,
+            schemata,
+        )
+        self.job_working_on_reduction = table_job_working_on_reduction(
+            metadata, self.jobs, reductions, schemata
+        )
+        self.job_has_refinement_result = table_job_has_refinement_result(
+            metadata, self.jobs, refinements, schemata
+        )
+
+
 class DBTables:
     def __init__(
         self,
@@ -445,26 +474,15 @@ class DBTables:
         self.jobs: Optional[Table]
         self.job_working_on_diffraction: Optional[Table]
         self.job_has_reduction_result: Optional[Table]
+        self.tool_tables: Optional[DBToolTables]
         if with_tools:
-            self.tools = table_tools(metadata, schemata)
-            self.jobs = table_jobs(metadata, self.tools, schemata)
-            self.job_working_on_diffraction = table_job_working_on_diffraction(
-                metadata, self.jobs, self.crystals, self.diffs, schemata
-            )
-            self.job_has_reduction_result = table_job_has_reduction_result(
+            self.tool_tables = DBToolTables(
                 metadata,
-                self.jobs,
-                self.reductions,
                 schemata,
-            )
-            self.job_working_on_reduction = table_job_working_on_reduction(
-                metadata, self.jobs, self.reductions, schemata
-            )
-            self.job_has_refinement_result = table_job_has_refinement_result(
-                metadata, self.jobs, self.refinements, schemata
+                self.crystals,
+                self.diffs,
+                self.reductions,
+                self.refinements,
             )
         else:
-            self.tools = None
-            self.jobs = None
-            self.job_working_on_diffraction = None
-            self.job_has_reduction_result = None
+            self.tool_tables = None

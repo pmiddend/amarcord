@@ -8,7 +8,7 @@ from typing import Optional
 class RefinementResult:
     analysis_time: datetime.datetime
     folder_path: Path
-    initial_pdb_path: Optional[Path]
+    initial_pdb_path: Path
     final_pdb_path: Optional[Path]
     refinement_mtz_path: Optional[Path]
     comment: Optional[str]

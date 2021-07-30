@@ -40,6 +40,7 @@ def upgrade():
         is not None
     ):
         print("Not creating any tables, since we have an analysis schema")
+        op.add_column("Diffraction", Column("estimated_resolution", Text))
         return
     print("Creating v1 tools tables")
     op.create_table(

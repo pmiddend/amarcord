@@ -82,7 +82,7 @@ def upgrade():
             ),
             Column("analysis_time", DateTime, nullable=False),
             Column("folder_path", Text),
-            Column("initial_pdb_path", Text),
+            Column("initial_pdb_path", Text, nullable=False),
             Column("final_pdb_path", Text),
             Column("refinement_mtz_path", Text),
             Column(

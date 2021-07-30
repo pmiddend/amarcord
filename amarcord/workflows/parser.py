@@ -4,70 +4,13 @@ from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import Optional
 from typing import Union
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.refinement_result import RefinementResult
-from amarcord.modules.json import JSONDict
+from amarcord.modules.json_checker import JSONChecker
 from amarcord.newdb.reduction_method import ReductionMethod
 from amarcord.xtal_util import find_space_group_index_by_name
-
-
-class JSONChecker:
-    def __init__(self, d: JSONDict, description: str) -> None:
-        self.d = d
-        self.description = description
-
-    def optional_str(self, key: str) -> Optional[str]:
-        result = self.d.get(key, None)
-        if result is None:
-            return None
-        if not isinstance(result, str):
-            raise Exception(
-                f'{self.description} result: value "{key}" not a string but {result}'
-            )
-        return result
-
-    def optional_path(self, key: str) -> Optional[Path]:
-        result = self.optional_str(key)
-        return Path(result) if result is not None else None
-
-    def optional_float(self, key: str) -> Optional[float]:
-        result = self.d.get(key, None)
-        if result is None:
-            return None
-        if not isinstance(result, (float, int)):
-            raise Exception(
-                f'{self.description} result: value "{key}" not a float but {result}'
-            )
-        return float(result)
-
-    def optional_int(self, key: str) -> Optional[int]:
-        result = self.d.get(key, None)
-        if result is None:
-            return None
-        if not isinstance(result, int):
-            raise Exception(
-                f'{self.description} result: value "{key}" not an int but {result}'
-            )
-        return result
-
-    def retrieve_safe(self, key: str) -> Any:
-        result = self.d.get(key, None)
-        if result is None:
-            raise Exception(
-                f'{self.description} result: couldn\'t get value "{key}", dict is: {self.d}'
-            )
-        return result
-
-    def retrieve_safe_float(self, key: str) -> float:
-        v = self.retrieve_safe(key)
-        if not isinstance(v, (float, int)):
-            raise Exception(
-                f'{self.description} result: value "{key}" not a number: {v}'
-            )
-        return float(v)
 
 
 def parse_refinement_result(
@@ -79,8 +22,8 @@ def parse_refinement_result(
             jsonc.retrieve_safe("analysis-time")
         ),
         folder_path=base_path,
-        initial_pdb_path=jsonc.optional_path("initial-db-path"),
-        final_pdb_path=jsonc.optional_path("final-db-path"),
+        initial_pdb_path=jsonc.safe_path("initial-pdb-path"),
+        final_pdb_path=jsonc.optional_path("final-pdb-path"),
         refinement_mtz_path=jsonc.optional_path("refinement-mtz-path"),
         comment=jsonc.optional_str("comment"),
         resolution_cut=jsonc.optional_float("resolution-cut"),
