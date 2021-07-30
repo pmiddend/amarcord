@@ -37,6 +37,7 @@ from amarcord.newdb.diffraction_type import DiffractionType
 from amarcord.newdb.newdb import NewDB
 from amarcord.newdb.puck_type import PuckType
 from amarcord.newdb.tables import DBTables
+from amarcord.newdb.tables import SeparateSchemata
 from amarcord.workflows.command_line import CommandLine
 from amarcord.workflows.job_controller_factory import LocalJobControllerConfig
 from amarcord.workflows.job_controller_factory import create_job_controller
@@ -119,8 +120,10 @@ def _create_db(db_url: str) -> NewDB:
         with_tools="AMARCORD_WITHOUT_TOOLS" not in os.environ,
         with_estimated_resolution="AMARCORD_WITHOUT_ESTIMATED_RESOLUTION"
         not in os.environ,
-        analysis_schema=os.environ.get("AMARCORD_ANALYSIS_SCHEMA", None),
-        normal_schema=os.environ.get("AMARCORD_NORMAL_SCHEMA", None),
+        schemata=SeparateSchemata.from_two_optionals(
+            os.environ.get("AMARCORD_MAIN_SCHEMA", None),
+            os.environ.get("AMARCORD_ANALYSIS_SCHEMA", None),
+        ),
     )
     if db_url.startswith("sqlite://"):
         dbcontext.create_all(CreationMode.CHECK_FIRST)

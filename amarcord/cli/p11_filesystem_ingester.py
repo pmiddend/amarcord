@@ -38,6 +38,7 @@ from amarcord.modules.dbcontext import DBContext
 from amarcord.newdb.db_crystal import DBCrystal
 from amarcord.newdb.newdb import NewDB
 from amarcord.newdb.tables import DBTables
+from amarcord.newdb.tables import SeparateSchemata
 from amarcord.util import find_by
 
 DUMMY_PUCK_ID = "P1"
@@ -353,8 +354,9 @@ def main_loop(
             dbcontext.metadata,
             with_tools=False,
             with_estimated_resolution=False,
-            normal_schema=args.main_schema,
-            analysis_schema=args.analysis_schema,
+            schemata=SeparateSchemata.from_two_optionals(
+                args.main_schema, args.analysis_schema
+            ),
         ),
     )
     with db.connect() as conn:

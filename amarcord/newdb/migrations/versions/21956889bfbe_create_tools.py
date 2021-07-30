@@ -5,9 +5,11 @@ Revises:
 Create Date: 2021-06-28 12:08:10.149964
 
 """
-import sqlalchemy as sa
-from alembic import op
 from enum import Enum
+
+import sqlalchemy as sa
+from alembic import context
+from alembic import op
 
 # revision identifiers, used by Alembic.
 from sqlalchemy import Column
@@ -33,6 +35,13 @@ class JobStatus(Enum):
 
 
 def upgrade():
+    if (
+        context.get_x_argument(as_dictionary=True).get("analysis-schema", None)
+        is not None
+    ):
+        print("Not creating any tables, since we have an analysis schema")
+        return
+    print("Creating v1 tools tables")
     op.create_table(
         "Tools",
         Column("id", Integer(), primary_key=True, autoincrement=True),
@@ -92,6 +101,12 @@ def upgrade():
 
 
 def downgrade():
+    if (
+        context.get_x_argument(as_dictionary=True).get("analysis-schema", None)
+        is not None
+    ):
+        return
+
     op.drop_table("Tools")
     op.drop_table("Jobs")
     op.drop_table("Job_To_Diffraction")

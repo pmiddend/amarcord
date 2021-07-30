@@ -158,8 +158,7 @@ class SynchronizerTestScenario:
                 self.dbcontext.metadata,
                 with_tools=True,
                 with_estimated_resolution=False,
-                normal_schema=None,
-                analysis_schema=None,
+                schemata=None,
             ),
         )
         self.clock = MockClock(datetime.datetime(1987, 8, 21, 15, 0, 0, 0))

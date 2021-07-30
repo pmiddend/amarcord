@@ -34,8 +34,7 @@ def test_get_analysis_only_one_crystal(client):
             dbcontext.metadata,
             with_tools=True,
             with_estimated_resolution=False,
-            normal_schema=None,
-            analysis_schema=None,
+            schemata=None,
         ),
     )
     dbcontext.create_all(CreationMode.DONT_CHECK)
@@ -63,8 +62,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_no_jobs(client):
             dbcontext.metadata,
             with_tools=True,
             with_estimated_resolution=False,
-            normal_schema=None,
-            analysis_schema=None,
+            schemata=None,
         ),
     )
     dbcontext.create_all(CreationMode.DONT_CHECK)
@@ -74,11 +72,10 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_no_jobs(client):
         db.insert_diffraction(
             conn, DBDiffraction("cid", run_id=1, diffraction=DiffractionType.success)
         )
-        DATA_REDUCTION_ID = 1
-        db.insert_data_reduction(
+        data_reduction_Id = db.insert_data_reduction(
             conn,
             DBDataReduction(
-                data_reduction_id=DATA_REDUCTION_ID,
+                data_reduction_id=None,
                 crystal_id="cid",
                 run_id=1,
                 analysis_time=datetime.datetime.utcnow(),
@@ -92,7 +89,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_no_jobs(client):
     assert len(rvjson["analysis"]) == 1
     assert (
         rvjson["analysis"][0][rvjson["analysisColumns"].index("dr_data_reduction_id")]
-        == DATA_REDUCTION_ID
+        == data_reduction_Id
     )
     assert rvjson["analysisColumns"] != []
     assert rvjson["sqlError"] is None
@@ -107,8 +104,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_from_job(client)
             dbcontext.metadata,
             with_tools=True,
             with_estimated_resolution=False,
-            normal_schema=None,
-            analysis_schema=None,
+            schemata=None,
         ),
     )
     dbcontext.create_all(CreationMode.DONT_CHECK)
@@ -132,11 +128,10 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_from_job(client)
         db.insert_diffraction(
             conn, DBDiffraction("cid", run_id=1, diffraction=DiffractionType.success)
         )
-        DATA_REDUCTION_ID = 1
-        db.insert_data_reduction(
+        data_reduction_id = db.insert_data_reduction(
             conn,
             DBDataReduction(
-                data_reduction_id=DATA_REDUCTION_ID,
+                data_reduction_id=None,
                 crystal_id="cid",
                 run_id=1,
                 analysis_time=datetime.datetime.utcnow(),
@@ -161,7 +156,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_from_job(client)
     assert len(rvjson["analysis"]) == 1
     assert (
         rvjson["analysis"][0][rvjson["analysisColumns"].index("dr_data_reduction_id")]
-        == DATA_REDUCTION_ID
+        == data_reduction_id
     )
     assert (
         rvjson["analysis"][0][rvjson["analysisColumns"].index("red_jobs_tool_name")]
@@ -180,8 +175,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_one_refinement(c
             dbcontext.metadata,
             with_tools=True,
             with_estimated_resolution=False,
-            normal_schema=None,
-            analysis_schema=None,
+            schemata=None,
         ),
     )
     dbcontext.create_all(CreationMode.CHECK_FIRST)
@@ -202,7 +196,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_one_refinement(c
                 method=ReductionMethod.OTHER,
             ),
         )
-        assert not db.retrieve_refinements(conn)
+        assert not list(db.retrieve_refinements(conn))
         refinement_id = db.insert_refinement(
             conn,
             DBRefinement(
@@ -213,7 +207,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_one_refinement(c
                 method=RefinementMethod.OTHER,
             ),
         )
-        assert len(db.retrieve_refinements(conn)) == 1
+        assert len(list(db.retrieve_refinements(conn))) == 1
         assert refinement_id is not None
 
     rvjson = client.get("/api/analysis").get_json()

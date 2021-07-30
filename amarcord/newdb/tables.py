@@ -1,5 +1,4 @@
-import pathlib
-from typing import Any
+from dataclasses import dataclass
 from typing import Optional
 
 from sqlalchemy import Column
@@ -16,58 +15,59 @@ from sqlalchemy import String
 from sqlalchemy import Table
 from sqlalchemy import Text
 from sqlalchemy import func
-from sqlalchemy import types
-from sqlalchemy.engine import Dialect
 from sqlalchemy.engine import Engine
+from sqlalchemy.sql import ColumnElement
 
 from amarcord.newdb.beamline import Beamline
 from amarcord.newdb.diffraction_type import DiffractionType
+from amarcord.newdb.path import Path
+from amarcord.newdb.path import VarcharPath
 from amarcord.newdb.puck_type import PuckType
 from amarcord.newdb.reduction_method import ReductionMethod
 from amarcord.newdb.refinement_method import RefinementMethod
 from amarcord.workflows.job_status import JobStatus
 
 
-# pylint: disable=abstract-method
-class VarcharPath(types.TypeDecorator):
-    impl = types.String
+@dataclass(frozen=True)
+class SeparateSchemata:
+    main_schema: str
+    analysis_schema: str
 
-    cache_ok = True
-
-    def process_bind_param(
-        self, value: Optional[pathlib.Path], dialect: Dialect
-    ) -> Any:
-        return str(value) if value is not None else None
-
-    def process_result_value(
-        self, value: Any, dialect: Dialect
-    ) -> Optional[pathlib.Path]:
-        return pathlib.Path(value) if value is not None else None
-
-    def copy(self, **kw: Any) -> "VarcharPath":
-        return VarcharPath(self.impl.length)
-
-
-class Path(types.TypeDecorator):
-    impl = types.Text
-
-    cache_ok = True
-
-    def process_bind_param(
-        self, value: Optional[pathlib.Path], dialect: Dialect
-    ) -> Any:
-        return str(value) if value is not None else None
-
-    def process_result_value(
-        self, value: Any, dialect: Dialect
-    ) -> Optional[pathlib.Path]:
-        return pathlib.Path(value) if value is not None else None
-
-    def copy(self, **kw: Any) -> "Path":
-        return Path()
+    @staticmethod
+    def from_two_optionals(
+        main_schema: Optional[str], analysis_schema: Optional[str]
+    ) -> "Optional[SeparateSchemata]":
+        if main_schema is None != analysis_schema is None:
+            if main_schema is None:
+                raise Exception(
+                    "received an analysis schema, but not a main schema; please specify both!"
+                )
+            raise Exception(
+                "received a main schema, but not an analysis schema; please specify both!"
+            )
+        if main_schema is None or analysis_schema is None:
+            return None
+        return SeparateSchemata(main_schema, analysis_schema)
 
 
-def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
+Schemata = Optional[SeparateSchemata]
+
+
+def _analysis_schema(s: Schemata) -> Optional[str]:
+    return s.analysis_schema if s is not None else None
+
+
+def _main_schema(s: Schemata) -> Optional[str]:
+    return s.main_schema if s is not None else None
+
+
+def _fk_identifier(c: ColumnElement) -> str:
+    if c.table.schema is not None:
+        return f"{c.table.schema}.{c.table.name}.{c.name}"
+    return f"{c.table.name}.{c.name}"
+
+
+def table_pucks(metadata: MetaData, schemata: Schemata) -> Table:
     return Table(
         "Pucks",
         metadata,
@@ -75,25 +75,27 @@ def table_pucks(metadata: MetaData, schema: Optional[str] = None) -> Table:
         Column("created", DateTime, server_default=func.now()),
         Column("puck_type", Enum(PuckType)),
         Column("owner", String(length=255)),
-        schema=schema,
+        schema=_main_schema(schemata),
     )
 
 
 def table_job_working_on_diffraction(
     metadata: MetaData,
-    _jobs: Table,
-    _crystals: Table,
-    _diffractions: Table,
-    schema: Optional[str] = None,
+    jobs: Table,
+    crystals: Table,
+    diffractions: Table,
+    schemata: Schemata,
 ) -> Table:
     return Table(
         "Job_Working_On_Diffraction",
         metadata,
-        Column("job_id", Integer(), ForeignKey("Jobs.id"), primary_key=True),
+        Column(
+            "job_id", Integer(), ForeignKey(_fk_identifier(jobs.c.id)), primary_key=True
+        ),
         Column(
             "crystal_id",
             String(length=255),
-            ForeignKey("Crystals.crystal_id"),
+            ForeignKey(_fk_identifier(crystals.c.crystal_id)),
             primary_key=True,
         ),
         Column(
@@ -103,19 +105,22 @@ def table_job_working_on_diffraction(
         ),
         ForeignKeyConstraint(
             ["crystal_id", "run_id"],
-            ["Diffractions.crystal_id", "Diffractions.run_id"],
+            [
+                _fk_identifier(diffractions.c.crystal_id),
+                _fk_identifier(diffractions.c.run_id),
+            ],
             onupdate="CASCADE",
             ondelete="CASCADE",
         ),
-        schema=schema,
+        schema=schemata.analysis_schema if schemata is not None else None,
     )
 
 
 def table_job_has_reduction_result(
     metadata: MetaData,
-    _jobs: Table,
-    _data_reduction: Table,
-    schema: Optional[str] = None,
+    jobs: Table,
+    data_reduction: Table,
+    schemata: Schemata,
 ) -> Table:
     return Table(
         "Job_Has_Reduction_Result",
@@ -123,28 +128,30 @@ def table_job_has_reduction_result(
         Column(
             "job_id",
             Integer(),
-            ForeignKey("Jobs.id", onupdate="CASCADE", ondelete="CASCADE"),
+            ForeignKey(
+                _fk_identifier(jobs.c.id), onupdate="CASCADE", ondelete="CASCADE"
+            ),
             primary_key=True,
         ),
         Column(
             "data_reduction_id",
             Integer(),
             ForeignKey(
-                "Data_Reduction.data_reduction_id",
+                _fk_identifier(data_reduction.c.data_reduction_id),
                 onupdate="CASCADE",
                 ondelete="CASCADE",
             ),
             primary_key=True,
         ),
-        schema=schema,
+        schema=_analysis_schema(schemata),
     )
 
 
 def table_job_working_on_reduction(
     metadata: MetaData,
-    _jobs: Table,
-    _data_reduction: Table,
-    schema: Optional[str] = None,
+    jobs: Table,
+    data_reduction: Table,
+    schemata: Schemata,
 ) -> Table:
     return Table(
         "Job_Working_On_Reduction",
@@ -152,28 +159,30 @@ def table_job_working_on_reduction(
         Column(
             "job_id",
             Integer(),
-            ForeignKey("Jobs.id", onupdate="CASCADE", ondelete="CASCADE"),
+            ForeignKey(
+                _fk_identifier(jobs.c.id), onupdate="CASCADE", ondelete="CASCADE"
+            ),
             primary_key=True,
         ),
         Column(
             "data_reduction_id",
             Integer(),
             ForeignKey(
-                "Data_Reduction.data_reduction_id",
+                _fk_identifier(data_reduction.c.data_reduction_id),
                 onupdate="CASCADE",
                 ondelete="CASCADE",
             ),
             primary_key=True,
         ),
-        schema=schema,
+        schema=_analysis_schema(schemata),
     )
 
 
 def table_job_has_refinement_result(
     metadata: MetaData,
-    _jobs: Table,
-    _refinement: Table,
-    schema: Optional[str] = None,
+    jobs: Table,
+    refinement: Table,
+    schemata: Schemata,
 ) -> Table:
     return Table(
         "Job_Has_Refinement_Result",
@@ -181,25 +190,29 @@ def table_job_has_refinement_result(
         Column(
             "job_id",
             Integer(),
-            ForeignKey("Jobs.id", onupdate="CASCADE", ondelete="CASCADE"),
+            ForeignKey(
+                _fk_identifier(jobs.c.id), onupdate="CASCADE", ondelete="CASCADE"
+            ),
             primary_key=True,
         ),
         Column(
             "refinement_id",
             Integer(),
             ForeignKey(
-                "Refinement.refinement_id", onupdate="CASCADE", ondelete="CASCADE"
+                _fk_identifier(refinement.c.refinement_id),
+                onupdate="CASCADE",
+                ondelete="CASCADE",
             ),
             primary_key=True,
         ),
-        schema=schema,
+        schema=_analysis_schema(schemata),
     )
 
 
 def table_jobs(
     metadata: MetaData,
-    _tools: Table,
-    schema: Optional[str] = None,
+    tools: Table,
+    schemata: Schemata,
 ) -> Table:
     return Table(
         "Jobs",
@@ -214,16 +227,18 @@ def table_jobs(
         Column(
             "tool_id",
             Integer(),
-            ForeignKey("Tools.id", onupdate="CASCADE", ondelete="CASCADE"),
+            ForeignKey(
+                _fk_identifier(tools.c.id), onupdate="CASCADE", ondelete="CASCADE"
+            ),
             nullable=False,
         ),
         Column("tool_inputs", JSON(), nullable=False),
         Column("metadata", JSON(), nullable=True),
-        schema=schema,
+        schema=_analysis_schema(schemata),
     )
 
 
-def table_tools(metadata: MetaData, schema: Optional[str] = None) -> Table:
+def table_tools(metadata: MetaData, schemata: Schemata) -> Table:
     return Table(
         "Tools",
         metadata,
@@ -234,44 +249,47 @@ def table_tools(metadata: MetaData, schema: Optional[str] = None) -> Table:
         Column("extra_files", JSON(), nullable=False),
         Column("command_line", Text(), nullable=False),
         Column("description", Text(), nullable=False),
-        schema=schema,
+        schema=_analysis_schema(schemata),
     )
 
 
-def table_dewar_lut(
-    metadata: MetaData, _pucks: Table, schema: Optional[str] = None
-) -> Table:
+def table_dewar_lut(metadata: MetaData, pucks: Table, schemata: Schemata) -> Table:
     return Table(
         "Dewar_LUT",
         metadata,
         Column(
             "puck_id",
             String(length=255),
-            ForeignKey("Pucks.puck_id", ondelete="CASCADE", onupdate="CASCADE"),
+            ForeignKey(
+                _fk_identifier(pucks.c.puck_id), ondelete="CASCADE", onupdate="CASCADE"
+            ),
             nullable=False,
             primary_key=True,
         ),
         Column("dewar_position", Integer, nullable=False, primary_key=True),
-        schema=schema,
+        schema=_main_schema(schemata),
     )
 
 
-def table_crystals(
-    metadata: MetaData, _pucks: Table, schema: Optional[str] = None
-) -> Table:
+def table_crystals(metadata: MetaData, pucks: Table, schemata: Schemata) -> Table:
     return Table(
         "Crystals",
         metadata,
         Column("crystal_id", String(length=255), primary_key=True, nullable=False),
         Column("created", DateTime, server_default=func.now()),
-        Column("puck_id", String(length=255), ForeignKey("Pucks.puck_id"), index=True),
+        Column(
+            "puck_id",
+            String(length=255),
+            ForeignKey(_fk_identifier(pucks.c.puck_id)),
+            index=True,
+        ),
         Column("puck_position_id", SmallInteger),
-        schema=schema,
+        schema=_main_schema(schemata),
     )
 
 
 def table_data_reduction(
-    metadata: MetaData, _crystals: Table, schema: Optional[str] = None
+    metadata: MetaData, crystals: Table, schemata: Schemata
 ) -> Table:
     return Table(
         "Data_Reduction",
@@ -280,7 +298,7 @@ def table_data_reduction(
         Column(
             "crystal_id",
             String(length=255),
-            ForeignKey("Crystals.crystal_id"),
+            ForeignKey(_fk_identifier(crystals.c.crystal_id)),
             nullable=False,
         ),
         Column("run_id", Integer, nullable=False),
@@ -311,22 +329,23 @@ def table_data_reduction(
         Column("cchalf", Float, comment="percent"),
         Column("rfactor", Float, comment="percent"),
         Column("Wilson_b", Float, comment="angstrom**2"),
-        schema=schema,
+        schema=_analysis_schema(schemata),
     )
 
 
 def table_refinement(
     metadata: MetaData,
-    _data_reduction: Table,
-    _crystals: Table,
-    schema: Optional[str] = None,
+    data_reduction: Table,
+    schemata: Schemata,
 ) -> Table:
     return Table(
         "Refinement",
         metadata,
         Column("refinement_id", Integer, primary_key=True),
         Column(
-            "data_reduction_id", Integer, ForeignKey("Data_Reduction.data_reduction_id")
+            "data_reduction_id",
+            Integer,
+            ForeignKey(_fk_identifier(data_reduction.c.data_reduction_id)),
         ),
         Column("analysis_time", DateTime, nullable=False),
         Column("folder_path", Path),
@@ -346,12 +365,12 @@ def table_refinement(
         Column("rms_bond_angle", Float, comment="angstrom"),
         Column("num_blobs", SmallInteger, comment="count"),
         Column("average_model_b", Float, comment="angstrom**2"),
-        schema=schema,
+        schema=_analysis_schema(schemata),
     )
 
 
 def table_diffractions(
-    metadata: MetaData, _crystals: Table, schema: Optional[str] = None
+    metadata: MetaData, crystals: Table, schemata: Schemata
 ) -> Table:
     return Table(
         "Diffractions",
@@ -359,7 +378,11 @@ def table_diffractions(
         Column(
             "crystal_id",
             String(length=255),
-            ForeignKey("Crystals.crystal_id", ondelete="CASCADE", onupdate="CASCADE"),
+            ForeignKey(
+                _fk_identifier(crystals.c.crystal_id),
+                ondelete="CASCADE",
+                onupdate="CASCADE",
+            ),
             nullable=False,
             primary_key=True,
         ),
@@ -394,7 +417,7 @@ def table_diffractions(
         Column("microscope_image_filename_pattern", Path, comment="regexp"),
         Column("aperture_horizontal", Float, comment="um"),
         Column("aperture_vertical", Float, comment="um"),
-        schema=schema,
+        schema=_main_schema(schemata),
     )
 
 
@@ -404,44 +427,41 @@ class DBTables:
         metadata: MetaData,
         with_tools: bool,
         with_estimated_resolution: bool,
-        normal_schema: Optional[str],
-        analysis_schema: Optional[str],
+        schemata: Schemata,
         engine: Optional[Engine] = None,
     ) -> None:
         self.with_estimated_resolution = with_estimated_resolution
-        self.pucks = table_pucks(metadata, normal_schema)
-        self.dewar_lut = table_dewar_lut(metadata, self.pucks, normal_schema)
+        self.pucks = table_pucks(metadata, schemata)
+        self.dewar_lut = table_dewar_lut(metadata, self.pucks, schemata)
         self.crystals = (
-            table_crystals(metadata, self.pucks, normal_schema)
+            table_crystals(metadata, self.pucks, schemata)
             if engine is None
             else Table("Crystals", metadata, autoload_with=engine)
         )
-        self.diffs = table_diffractions(metadata, self.crystals, normal_schema)
-        self.reductions = table_data_reduction(metadata, self.crystals, analysis_schema)
-        self.refinements = table_refinement(
-            metadata, self.reductions, self.crystals, analysis_schema
-        )
+        self.diffs = table_diffractions(metadata, self.crystals, schemata)
+        self.reductions = table_data_reduction(metadata, self.crystals, schemata)
+        self.refinements = table_refinement(metadata, self.reductions, schemata)
         self.tools: Optional[Table]
         self.jobs: Optional[Table]
         self.job_working_on_diffraction: Optional[Table]
         self.job_has_reduction_result: Optional[Table]
         if with_tools:
-            self.tools = table_tools(metadata, analysis_schema)
-            self.jobs = table_jobs(metadata, self.tools, analysis_schema)
+            self.tools = table_tools(metadata, schemata)
+            self.jobs = table_jobs(metadata, self.tools, schemata)
             self.job_working_on_diffraction = table_job_working_on_diffraction(
-                metadata, self.jobs, self.crystals, self.diffs, analysis_schema
+                metadata, self.jobs, self.crystals, self.diffs, schemata
             )
             self.job_has_reduction_result = table_job_has_reduction_result(
                 metadata,
-                self.job_working_on_diffraction,
+                self.jobs,
                 self.reductions,
-                analysis_schema,
+                schemata,
             )
             self.job_working_on_reduction = table_job_working_on_reduction(
-                metadata, self.jobs, self.reductions, analysis_schema
+                metadata, self.jobs, self.reductions, schemata
             )
             self.job_has_refinement_result = table_job_has_refinement_result(
-                metadata, self.jobs, self.refinements, analysis_schema
+                metadata, self.jobs, self.refinements, schemata
             )
         else:
             self.tools = None

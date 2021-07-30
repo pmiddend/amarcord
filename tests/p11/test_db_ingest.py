@@ -79,8 +79,7 @@ def _tables(dbcontext):
         dbcontext.metadata,
         with_tools=False,
         with_estimated_resolution=False,
-        normal_schema=None,
-        analysis_schema=None,
+        schemata=None,
     )
 
 

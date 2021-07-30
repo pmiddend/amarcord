@@ -1,4 +1,5 @@
 import datetime
+import logging
 from pathlib import Path
 from typing import Any
 from typing import Dict
@@ -19,7 +20,6 @@ from amarcord.modules.json import JSONDict
 from amarcord.modules.json import JSONValue
 from amarcord.newdb.beamline import Beamline
 from amarcord.newdb.db_analysis_result import DBAnalysisResult
-from amarcord.newdb.db_analysis_row import DBAnalysisRow
 from amarcord.newdb.db_beamline_diffraction import DBBeamlineDiffraction
 from amarcord.newdb.db_crystal import DBCrystal
 from amarcord.newdb.db_data_reduction import DBDataReduction
@@ -43,6 +43,8 @@ from amarcord.util import dict_union
 from amarcord.workflows.command_line import parse_command_line
 from amarcord.workflows.job_status import JobStatus
 from amarcord.xtal_util import find_space_group_index_by_name
+
+logger = logging.getLogger(__name__)
 
 
 class NewDB:
@@ -632,8 +634,8 @@ class NewDB:
             )
         )
 
-    def retrieve_crystals(self, conn: Connection) -> List[DBCrystal]:
-        return [
+    def retrieve_crystals(self, conn: Connection) -> Iterable[DBCrystal]:
+        return (
             DBCrystal(
                 row["crystal_id"],
                 row["created"],
@@ -650,12 +652,12 @@ class NewDB:
                     ]
                 )
             ).fetchall()
-        ]
+        )
 
     def retrieve_sample_data(self, conn: Connection) -> DBSampleData:
         return DBSampleData(
             pucks=self.retrieve_pucks(conn),
-            crystals=self.retrieve_crystals(conn),
+            crystals=list(self.retrieve_crystals(conn)),
         )
 
     def retrieve_data_reductions(self, conn: Connection) -> List[DBDataReduction]:
@@ -688,8 +690,8 @@ class NewDB:
             ).fetchall()
         ]
 
-    def retrieve_refinements(self, conn: Connection) -> List[DBRefinement]:
-        return [
+    def retrieve_refinements(self, conn: Connection) -> Iterable[DBRefinement]:
+        return (
             DBRefinement(
                 r["refinement_id"],
                 r["data_reduction_id"],
@@ -716,7 +718,7 @@ class NewDB:
                     ]
                 ).select_from(self.tables.refinements)
             ).fetchall()
-        ]
+        )
 
     def retrieve_analysis_diffractions(
         self, conn: Connection, filter_query: str
@@ -769,13 +771,13 @@ class NewDB:
                 return v.value
             return v
 
-        results: List[DBAnalysisRow] = []
+        results: List[Any] = []
         number_of_results = 0
         diffractions: Set[Tuple[str, int]] = set()
         reductions: Set[int] = set()
         for row in conn.execute(query):
             number_of_results += 1
-            if limit is None or len(results) < limit:
+            if limit is None or number_of_results < limit:
                 results.append(row)
             diffractions.add((row["diff_crystal_id"], row["diff_run_id"]))
             if row["dr_data_reduction_id"] is not None:
@@ -787,7 +789,7 @@ class NewDB:
             rows=[
                 # pylint: disable=protected-access
                 [postprocess(value) for _, value in row._mapping.items()]
-                for row in conn.execute(query)
+                for row in results
             ],
             total_diffractions=len(diffractions),
             total_reductions=len(reductions),

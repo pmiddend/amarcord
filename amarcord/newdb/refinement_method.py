@@ -8,3 +8,4 @@ class RefinementMethod(enum.Enum):
     DMPL2 = "dmpl2"
     DMPL2_ALIGNED = "dmpl2-aligned"
     DMPL2_QFIT = "dmpl2-qfit"
+    DMPL2_REDO = "dmpl2-redo"

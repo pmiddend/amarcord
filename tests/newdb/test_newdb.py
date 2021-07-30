@@ -33,8 +33,7 @@ def _sample_tables(dbcontext: DBContext) -> DBTables:
         dbcontext.metadata,
         with_tools=False,
         with_estimated_resolution=False,
-        normal_schema=None,
-        analysis_schema=None,
+        schemata=None,
     )
 
 
@@ -117,8 +116,7 @@ def test_tools_crud() -> None:
             dbcontext.metadata,
             with_tools=True,
             with_estimated_resolution=False,
-            normal_schema=None,
-            analysis_schema=None,
+            schemata=None,
         ),
     )
     dbcontext.create_all(creation_mode=CreationMode.DONT_CHECK)
@@ -258,4 +256,4 @@ def test_refinements() -> None:
         )
         assert refinement_id is not None
 
-        assert len(db.retrieve_refinements(conn)) == 1
+        assert len(list(db.retrieve_refinements(conn))) == 1

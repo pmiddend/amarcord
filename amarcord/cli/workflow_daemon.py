@@ -8,6 +8,7 @@ from tap import Tap
 from amarcord.modules.dbcontext import DBContext
 from amarcord.newdb.newdb import NewDB
 from amarcord.newdb.tables import DBTables
+from amarcord.newdb.tables import SeparateSchemata
 from amarcord.workflows.job_controller_factory import create_job_controller
 from amarcord.workflows.job_controller_factory import parse_job_controller
 from amarcord.workflows.workflow_synchronize import check_jobs
@@ -41,8 +42,9 @@ def main(args: Arguments) -> int:
             dbcontext.metadata,
             with_tools=True,
             with_estimated_resolution=args.with_estimated_resolution,
-            normal_schema=args.normal_schema,
-            analysis_schema=args.analysis_schema,
+            schemata=SeparateSchemata.from_two_optionals(
+                args.normal_schema, args.analysis_schema
+            ),
         ),
     )
 
