@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import os
@@ -13,6 +14,7 @@ from flask import Response
 from flask import current_app
 from flask import g
 from flask import request
+from flask.json import JSONEncoder
 from flask_cors import CORS
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import HTTPException
@@ -53,6 +55,13 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat(sep=" ", timespec="seconds")
+        return JSONEncoder.default(self, obj)
 
 
 def _create_test_db(db: NewDB, test_files_dir: Path) -> None:
@@ -203,6 +212,7 @@ def create_app() -> Flask:
         ),
         static_url_path="/",
     )
+    app.json_encoder = CustomJSONEncoder
     CORS(app)
 
     app.teardown_appcontext(close_db)
@@ -367,6 +377,8 @@ def create_app() -> Flask:
 
     @app.get("/api/workflows/jobs")
     def list_jobs() -> JSONDict:
+        limit = int(request.args.get("limit", "10"))
+
         def convert_job(j: DBJobWithInputsAndOutputs) -> JSONDict:
             return {
                 "jobId": j.job.id,
@@ -398,7 +410,12 @@ def create_app() -> Flask:
         db = get_db()
         with db.connect() as conn:
             return {
-                "jobs": [convert_job(j) for j in db.retrieve_jobs_with_attached(conn)]
+                "jobs": [
+                    convert_job(j)
+                    for j in db.retrieve_jobs_with_attached(
+                        conn, limit if limit != 0 else None
+                    )
+                ]
             }
 
     @app.post("/api/workflows/jobs/<int:tool_id>")

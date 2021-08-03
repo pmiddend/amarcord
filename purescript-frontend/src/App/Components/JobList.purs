@@ -12,41 +12,70 @@ import Data.Argonaut (stringify)
 import Data.Array (singleton)
 import Data.Function ((<<<), (>>>))
 import Data.Functor ((<$>))
+import Data.Int (fromString)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Semigroup ((<>))
 import Data.Show (show)
 import Data.Unit (Unit, unit)
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData(..), fromEither)
 
 data Action
   = Initialize
   | Refresh
+  | ChangeLimit Int
 
 type JobListInput
-  = {}
+  = { limit :: Int }
 
 type State
   = { jobs :: Array Job
+    , limit :: Int
     }
 
 fetchData :: JobListInput -> AppMonad (RemoteData String JobsResponse)
-fetchData _ = fromEither <$> retrieveJobs
+fetchData i = fromEither <$> retrieveJobs i.limit
 
 initialState :: ChildInput JobListInput JobsResponse -> State
-initialState { input: _, remoteData: { jobs } } = { jobs }
+initialState { input: _, remoteData: { jobs } } = { jobs, limit: 20 }
 
-render :: forall cs action. State -> H.ComponentHTML action cs AppMonad
+render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 render state =
+  HH.div_
+    [ renderForm state
+    , renderTable state
+    ]
+
+renderForm :: forall cs. State -> H.ComponentHTML Action cs AppMonad
+renderForm state =
+  HH.form_
+    [ HH.div [ singleClass "mb-3" ]
+        [ HH.label [ HP.for "job-list-limit", singleClass "form-label" ] [ HH.text "Limit" ]
+        , HH.input
+            [ HP.type_ InputNumber
+            , HP.min 0.0
+            , HP.id_ ("tool-limit")
+            , singleClass "form-control"
+            , HP.value (show state.limit)
+            , HE.onValueInput (\x -> ChangeLimit <$> fromString x)
+            ]
+        , HH.div [ singleClass "form-text" ] [ HH.text "Set to 0 for unlimited number of jobs (here be dragons)" ]
+        ]
+    ]
+
+renderTable :: forall cs action. State -> H.ComponentHTML action cs AppMonad
+renderTable state =
   let
     makeExpander :: forall w i. String -> Int -> HH.HTML w i -> HH.HTML w i
     makeExpander suffix jid content =
       HH.div_
         [ HH.button
             [ HP.type_ HP.ButtonButton
-            , classList [ "btn", "btn-dark", "btn-sm" ]
+            , classList [ "btn", "btn-dark", "amarcord-very-small-button" ]
             , HP.attr (HH.AttrName "data-bs-toggle") "collapse"
             , HP.attr (HH.AttrName "data-bs-target") ("#j-" <> show jid <> "-" <> suffix)
             ]
@@ -73,6 +102,14 @@ render state =
             ]
       Just diffraction -> HH.text (diffraction.crystalId <> "/" <> show diffraction.runId)
 
+    makeJobStatus "completed" Nothing = HH.span [ singleClass "badge rounded-pill bg-success" ] [ HH.text "success" ]
+
+    makeJobStatus "completed" _ = HH.span [ singleClass "badge rounded-pill bg-danger" ] [ HH.text "error" ]
+
+    makeJobStatus "running" _ = HH.span [ singleClass "badge rounded-pill bg-info" ] [ HH.text "running" ]
+
+    makeJobStatus _ _ = HH.span [ singleClass "badge rounded-pill bg-secondary" ] [ HH.text "queued" ]
+
     makeRow job =
       HH.tr_
         ( (HH.td_ <<< singleton)
@@ -81,7 +118,7 @@ render state =
               , HH.text job.queued
               , HH.text (fromMaybe "" job.started)
               , HH.text (fromMaybe "" job.stopped)
-              , HH.text job.status
+              , makeJobStatus job.status job.failureReason
               , maybe (HH.text "") (makeOutputDirectory job.jobId) job.outputDir
               , maybe (HH.text "") (makeFailureReason job.jobId <<< HH.text) job.failureReason
               , HH.text job.tool
@@ -115,12 +152,19 @@ handleAction = case _ of
     _ <- H.subscribe (timerEventSource Refresh)
     pure unit
   Refresh -> do
-    remoteData <- H.lift (fetchData {})
+    currentLimit <- H.gets _.limit
+    remoteData <- H.lift (fetchData { limit: currentLimit })
     case remoteData of
       Success { jobs } -> H.modify_ \state -> state { jobs = jobs }
       _ -> pure unit
     _ <- H.subscribe (timerEventSource Refresh)
     pure unit
+  ChangeLimit newLimit -> do
+    H.modify_ \state -> state { limit = newLimit }
+    remoteData <- H.lift (fetchData { limit: newLimit })
+    case remoteData of
+      Success { jobs } -> H.modify_ \state -> state { jobs = jobs }
+      _ -> pure unit
 
 childComponent :: forall q. H.Component HH.HTML q (ChildInput JobListInput JobsResponse) ParentError AppMonad
 childComponent =

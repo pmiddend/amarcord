@@ -226,7 +226,7 @@ class NewDB:
         )
 
     def retrieve_jobs_with_attached(
-        self, conn: Connection
+        self, conn: Connection, limit: Optional[int]
     ) -> Iterable[DBJobWithInputsAndOutputs]:
         if self.tables.tool_tables is None:
             return []
@@ -295,7 +295,8 @@ class NewDB:
                         "output_refinement_id"
                     ),
                 ]
-            ).select_from(
+            )
+            .select_from(
                 self.tables.tool_tables.jobs.join(self.tables.tool_tables.tools)
                 .outerjoin(
                     self.tables.tool_tables.job_working_on_diffraction,
@@ -342,6 +343,8 @@ class NewDB:
                     == self.tables.tool_tables.job_has_refinement_result.c.refinement_id,
                 )
             )
+            .order_by(jc.started.desc())
+            .limit(limit)
         )
         return (
             DBJobWithInputsAndOutputs(

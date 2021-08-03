@@ -165,10 +165,10 @@ retrieveTools = do
   response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/tools")
   handleResponse response
 
-retrieveJobs :: AppMonad (Either String JobsResponse)
-retrieveJobs = do
+retrieveJobs :: Int -> AppMonad (Either String JobsResponse)
+retrieveJobs limit = do
   baseUrl' <- asks (_.baseUrl)
-  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/jobs")
+  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/jobs?limit=" <> show limit)
   handleResponse response
 
 retrieveOverview :: Maybe String -> AppMonad (Either String OverviewResponse)

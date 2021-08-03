@@ -453,7 +453,7 @@ def check_jobs(
     with conn.begin():
         # We have to convert to a list because we're iterating over db_jobs twice below.
         # Might be optimizable later on, possibly with two queries even.
-        db_jobs = list(db.retrieve_jobs_with_attached(conn))
+        db_jobs = list(db.retrieve_jobs_with_attached(conn, limit=None))
 
         for db_job in (x for x in db_jobs if x.job.status == JobStatus.QUEUED):
             _start_job(conn, job_controller, db, db_job)

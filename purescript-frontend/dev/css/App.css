@@ -86,3 +86,7 @@ body {
 .amarcord-section-separator {
     margin-top: 3em !important;
 }
+
+.amarcord-very-small-button {
+    font-size: 0.6rem;
+}

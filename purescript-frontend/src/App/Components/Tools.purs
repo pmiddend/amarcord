@@ -341,7 +341,7 @@ render state =
       , HH.h2
           [ singleClass "amarcord-section-separator" ]
           [ icon { name: "clipboard", size: Nothing, spin: false }, HH.text " Jobs" ]
-      , HH.slot _jobList 1 JobList.component {} absurd
+      , HH.slot _jobList 1 JobList.component { limit: 10 } absurd
       , HH.h2
           [ singleClass "amarcord-section-separator" ]
           [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Available Tools" ]

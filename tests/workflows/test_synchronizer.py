@@ -245,7 +245,7 @@ def test_check_jobs_no_diffraction_path() -> None:
 
         assert not scenario.job_controller.started_jobs
 
-        reduction_jobs = list(scenario.db.retrieve_jobs_with_attached(conn))
+        reduction_jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(reduction_jobs) == 1
         assert reduction_jobs[0].job.status == JobStatus.COMPLETED
@@ -266,7 +266,7 @@ def test_check_jobs_result_file_doesnt_exist() -> None:
         ]
         assert scenario.job_controller.started_jobs[0].command_line == TEST_COMMAND_LINE
 
-        jobs = list(scenario.db.retrieve_jobs_with_attached(conn))
+        jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(jobs) == 1
         assert jobs[0].job.status == JobStatus.RUNNING
@@ -277,7 +277,7 @@ def test_check_jobs_result_file_doesnt_exist() -> None:
 
         scenario.check_jobs(conn)
 
-        jobs = list(scenario.db.retrieve_jobs_with_attached(conn))
+        jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(jobs) == 1
         assert jobs[0].job.status == JobStatus.COMPLETED
@@ -306,7 +306,7 @@ def test_check_jobs_invalid_json_file(fs) -> None:
         scenario.check_jobs(conn)
 
         # This should fail, since we haven't specified correct paths
-        jobs = list(scenario.db.retrieve_jobs_with_attached(conn))
+        jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(jobs) == 1
         assert jobs[0].job.status == JobStatus.COMPLETED
@@ -351,7 +351,7 @@ def test_check_jobs_valid_result(fs) -> None:
 
         scenario.check_jobs(conn)
 
-        jobs = list(scenario.db.retrieve_jobs_with_attached(conn))
+        jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(jobs) == 1
         assert jobs[0].job.status == JobStatus.COMPLETED
@@ -383,7 +383,7 @@ def test_check_jobs_valid_result_but_forgotten_by_job_controller(fs) -> None:
 
         scenario.check_jobs(conn)
 
-        jobs = list(scenario.db.retrieve_jobs_with_attached(conn))
+        jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(jobs) == 1
         assert jobs[0].job.status == JobStatus.COMPLETED
