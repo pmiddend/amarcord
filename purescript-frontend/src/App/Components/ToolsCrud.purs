@@ -142,10 +142,10 @@ editForm :: forall slots. State -> H.ComponentHTML Action slots AppMonad
 editForm state =
   let
     parseExtraFiles :: String -> Array String
-    parseExtraFiles = split (Pattern ",")
+    parseExtraFiles = split (Pattern "\n")
 
     coparseExtraFiles :: Array String -> String
-    coparseExtraFiles = joinWith ","
+    coparseExtraFiles = joinWith "\n"
   in
     HH.form [ singleClass "mb-3" ]
       [ HH.div [ singleClass "mb-3" ]
@@ -169,10 +169,9 @@ editForm state =
               ]
           ]
       , HH.div [ singleClass "mb-3" ]
-          [ HH.label [ HP.for "editExtraFiles", singleClass "form-label" ] [ HH.text "Extra files" ]
-          , HH.input
-              [ HP.type_ InputText
-              , HE.onValueChange (\newValue -> Just (ChangeTool (\t -> t { extraFiles = parseExtraFiles newValue })))
+          [ HH.label [ HP.for "editExtraFiles", singleClass "form-label" ] [ HH.text "Extra files (one per line)" ]
+          , HH.textarea
+              [ HE.onValueChange (\newValue -> Just (ChangeTool (\t -> t { extraFiles = parseExtraFiles newValue })))
               , singleClass "form-control"
               , HP.value (coparseExtraFiles state.editTool.extraFiles)
               ]

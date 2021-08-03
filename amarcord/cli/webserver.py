@@ -58,10 +58,10 @@ logger = logging.getLogger(__name__)
 
 
 class CustomJSONEncoder(JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime.datetime):
-            return obj.isoformat(sep=" ", timespec="seconds")
-        return JSONEncoder.default(self, obj)
+    def default(self, o):
+        if isinstance(o, datetime.datetime):
+            return o.isoformat(sep=" ", timespec="seconds")
+        return JSONEncoder.default(self, o)
 
 
 def _create_test_db(db: NewDB, test_files_dir: Path) -> None:
