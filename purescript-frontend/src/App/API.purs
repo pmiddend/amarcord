@@ -114,7 +114,7 @@ type Job
           { runId :: Int
           , crystalId :: String
           }
-    , reduction :: Maybe { dataReductionId :: Int, mtzPath :: String }
+    , reduction :: Maybe { dataReductionId :: Int, mtzPath :: String, runId :: Int, crystalId :: String }
     , tool :: String
     , toolInputs :: Json
     }
@@ -225,8 +225,8 @@ mapToObject m =
     -- Object to argonaut Json
     fromObject obj
 
-startJob :: Int -> ToolInputMap -> String -> Maybe Int -> AppMonad (Either String RunJobResponse)
-startJob toolId inputs filterQuery limit = do
+startJob :: Int -> ToolInputMap -> String -> String -> Maybe Int -> AppMonad (Either String RunJobResponse)
+startJob toolId inputs comment filterQuery limit = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
@@ -239,6 +239,7 @@ startJob toolId inputs filterQuery limit = do
                   ( encodeJson
                       { inputs: mapToObject inputs
                       , filterQuery
+                      , comment
                       , limit
                       }
                   )

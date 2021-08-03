@@ -79,6 +79,7 @@ def parse_reduction_result(
         cchalf=jsonc.optional_float("cchalf"),
         rfactor=jsonc.optional_float("rfactor"),
         wilson_b=jsonc.optional_float("wilson-b"),
+        comment=jsonc.optional_str("comment"),
     )
 
 

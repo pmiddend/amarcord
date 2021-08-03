@@ -15,6 +15,7 @@ class DBJob:
     tool_id: int
     tool_inputs: JSONDict
     failure_reason: Optional[str] = None
+    comment: Optional[str] = None
     output_directory: Optional[Path] = None
     metadata: Optional[JSONDict] = None
     started: Optional[datetime.datetime] = None

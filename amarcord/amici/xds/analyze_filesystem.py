@@ -41,6 +41,7 @@ class XDSFilesystem:
             alpha=self.correct_lp.alpha.to("deg").magnitude,
             beta=self.correct_lp.beta.to("deg").magnitude,
             gamma=self.correct_lp.gamma.to("deg").magnitude,
+            comment=None,
             space_group=self.correct_lp.space_group,
             isigi=self.correct_lp.isigi,
             rmeas=self.correct_lp.rmeas,

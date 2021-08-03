@@ -267,6 +267,7 @@ class NewDB:
                     jc.tool_id,
                     jc.tool_inputs,
                     jc.metadata,
+                    jc.comment,
                     jc.status,
                     self.tables.tool_tables.job_working_on_diffraction.c.run_id.label(
                         "jwod_run_id"
@@ -349,6 +350,7 @@ class NewDB:
                     started=job["started"],
                     stopped=job["stopped"],
                     failure_reason=job["failure_reason"],
+                    comment=job["comment"],
                     queued=job["queued"],
                     status=job["status"],
                     output_directory=Path(job["output_directory"])
@@ -461,6 +463,7 @@ class NewDB:
                 analysis_time=r.analysis_time,
                 folder_path=r.folder_path,
                 mtz_path=r.mtz_path,
+                comment=r.comment,
                 method=r.method,
                 resolution_cc=r.resolution_cc,
                 resolution_isigma=r.resolution_isigma,
@@ -673,6 +676,7 @@ class NewDB:
                 mtz_path=r["mtz_path"],
                 method=r["method"],
                 resolution_cc=r["resolution_cc"],
+                comment=r["comment"],
                 resolution_isigma=r["resolution_isigma"],
                 a=r["a"],
                 b=r["b"],
@@ -895,6 +899,7 @@ class NewDB:
                     "status": job.status,
                     "failure_reason": job.failure_reason,
                     "output_directory": job.output_directory,
+                    "comment": job.comment,
                     "tool_id": job.tool_id,
                     "tool_inputs": job.tool_inputs,
                     "metadata": job.metadata,

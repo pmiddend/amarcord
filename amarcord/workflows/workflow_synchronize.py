@@ -36,6 +36,7 @@ def bulk_start_jobs(
     conn: Connection,
     db: NewDB,
     tool_id: int,
+    comment: Optional[str],
     filter_query: str,
     limit: Optional[int],
     tool_inputs: JSONDict,
@@ -51,11 +52,11 @@ def bulk_start_jobs(
     # Otherwise, do the same for diffractions
     if tool.inputs.contains_reductions():
         return _bulk_start_jobs_reductions(
-            conn, db, tool_id, filter_query, limit, tool_inputs
+            conn, db, tool_id, comment, filter_query, limit, tool_inputs
         )
 
     return _bulk_start_jobs_diffractions(
-        conn, db, tool_id, filter_query, limit, tool_inputs
+        conn, db, tool_id, comment, filter_query, limit, tool_inputs
     )
 
 
@@ -63,6 +64,7 @@ def _bulk_start_jobs_reductions(
     conn: Connection,
     db: NewDB,
     tool_id: int,
+    comment: Optional[str],
     filter_query: str,
     limit: Optional[int],
     tool_inputs: JSONDict,
@@ -83,6 +85,7 @@ def _bulk_start_jobs_reductions(
                     status=JobStatus.QUEUED,
                     tool_id=tool_id,
                     tool_inputs=tool_inputs,
+                    comment=comment,
                 ),
             )
             db.insert_job_to_reduction(
@@ -99,6 +102,7 @@ def _bulk_start_jobs_diffractions(
     conn: Connection,
     db: NewDB,
     tool_id: int,
+    comment: Optional[str],
     filter_query: str,
     limit: Optional[int],
     tool_inputs: JSONDict,
@@ -120,6 +124,7 @@ def _bulk_start_jobs_diffractions(
                     status=JobStatus.QUEUED,
                     tool_id=tool_id,
                     tool_inputs=tool_inputs,
+                    comment=comment,
                 ),
             )
             db.insert_job_to_diffraction(
@@ -198,6 +203,12 @@ def _process_completed_job(
                     "got an analysis result, but job was not a reduction job; that's not an error per se, "
                     "but we're not supporting it right now"
                 )
+            logger.info(
+                "job %s: reduction result with result comment %s, job comment %s",
+                job.job.id,
+                job.job.comment,
+                parse_result.comment,
+            )
             data_reduction_id = db.insert_data_reduction(
                 conn,
                 DBDataReduction(
@@ -208,7 +219,11 @@ def _process_completed_job(
                     method=parse_result.method,
                     folder_path=parse_result.base_path,
                     mtz_path=parse_result.mtz_file,
-                    comment=None,
+                    comment=job.job.comment
+                    if not parse_result.comment
+                    else parse_result.comment
+                    if not parse_result.comment
+                    else parse_result.comment,
                     resolution_cc=parse_result.resolution_cc,
                     resolution_isigma=parse_result.resolution_isigma,
                     a=parse_result.a,
@@ -245,7 +260,9 @@ def _process_completed_job(
                     final_pdb_path=parse_result.final_pdb_path,
                     refinement_mtz_path=parse_result.refinement_mtz_path,
                     method=RefinementMethod.HZB,
-                    comment=parse_result.comment,
+                    comment=parse_result.comment
+                    if parse_result.comment
+                    else job.job.comment,
                     resolution_cut=parse_result.resolution_cut,
                     rfree=parse_result.rfree,
                     rwork=parse_result.rwork,

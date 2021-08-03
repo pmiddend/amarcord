@@ -12,7 +12,7 @@ import Data.Either (Either(..))
 import Data.Eq ((==))
 import Data.Foldable (any, find, foldMap, for_)
 import Data.FoldableWithIndex (foldMapWithIndex)
-import Data.Function (const)
+import Data.Function (const, (>>>))
 import Data.Functor ((<$>))
 import Data.Int (fromString)
 import Data.Map as Map
@@ -37,6 +37,7 @@ data Action
   | ChangeInput String String
   | UpdateInput ToolRunnerInput
   | ChangeLimit Int
+  | ChangeComment String
 
 type ToolRunnerInput
   = { numberOfDiffractions :: Int, numberOfReductions :: Int, filterQuery :: String }
@@ -48,6 +49,7 @@ type State
     , lastRequest :: RemoteData String String
     , createsRefinement :: Boolean
     , filterQuery :: String
+    , comment :: String
     , numberOfDiffractions :: Int
     , numberOfReductions :: Int
     , limit :: Int
@@ -64,6 +66,7 @@ initialState { input: { numberOfDiffractions, numberOfReductions, filterQuery },
   , numberOfDiffractions
   , numberOfReductions
   , createsRefinement: false
+  , comment: ""
   , filterQuery
   , tools
   , limit: 0
@@ -120,6 +123,18 @@ render state =
         ]
           <> inputs
           <> [ HH.div [ singleClass "mb-3" ]
+                [ HH.label [ HP.for "job-comment", singleClass "form-label" ] [ HH.text "Comment" ]
+                , HH.input
+                    [ HP.type_ InputText
+                    , HP.id_ ("job-comment")
+                    , singleClass "form-control"
+                    , HP.value state.comment
+                    , HE.onValueInput (ChangeComment >>> Just)
+                    ]
+                , HH.div [ singleClass "form-text" ] [ HH.text "Describe what this tool run does. Will be attached to the reductions/refinements." ]
+                ]
+            ]
+          <> [ HH.div [ singleClass "mb-3" ]
                 [ HH.label [ HP.for "tool-limit", singleClass "form-label" ] [ HH.text "Maximum number of jobs" ]
                 , HH.input
                     [ HP.type_ InputNumber
@@ -157,10 +172,12 @@ render state =
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
   ChangeLimit newLimit -> H.modify_ \state -> state { limit = newLimit }
+  ChangeComment newComment -> H.modify_ \state -> state { comment = newComment }
   UpdateInput newInput ->
     H.modify_ \state ->
       state
         { numberOfDiffractions = newInput.numberOfDiffractions
+        , numberOfReductions = newInput.numberOfReductions
         , filterQuery = newInput.filterQuery
         }
   ChangeTool newToolId -> do
@@ -183,7 +200,7 @@ handleAction = case _ of
   RunTool -> do
     s <- H.get
     for_ s.selectedToolId \toolId -> do
-      result <- H.lift (startJob toolId s.toolInputs s.filterQuery (if s.limit == 0 then Nothing else Just s.limit))
+      result <- H.lift (startJob toolId s.toolInputs s.comment s.filterQuery (if s.limit == 0 then Nothing else Just s.limit))
       case result of
         Right { jobIds } -> do
           let

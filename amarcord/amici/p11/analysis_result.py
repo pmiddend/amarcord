@@ -27,3 +27,4 @@ class AnalysisResult:
     cchalf: Optional[float]
     rfactor: Optional[float]
     wilson_b: Optional[float]
+    comment: Optional[str]

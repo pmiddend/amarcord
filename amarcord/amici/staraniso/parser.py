@@ -73,6 +73,7 @@ def parse_staraniso_directory(p: Path) -> AnalysisResult:
         method=ReductionMethod.STARANISO,
         resolution_cc=scaling_stats.get("outerShell", {}).get("cchalf", None),
         resolution_isigma=main_stat["resolution_isigma"],
+        comment=None,
         a=cell_a,
         b=cell_b,
         c=cell_c,

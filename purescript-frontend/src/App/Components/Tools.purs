@@ -111,13 +111,14 @@ refresh selectedColumns routeInput = do
         state
           { errorMessage = Just ("SQL error: " <> sqlError)
           }
-    Success (AnalysisData { analysisColumns, analysis, totalRows, totalDiffractions, sqlError: Nothing }) ->
+    Success (AnalysisData { analysisColumns, analysis, totalRows, totalReductions, totalDiffractions, sqlError: Nothing }) ->
       H.modify_ \state ->
         state
           { errorMessage = Nothing
           , rows = analysis
           , totalRows = totalRows
           , totalDiffractions = totalDiffractions
+          , totalReductions = totalReductions
           , displayRows = nub (rowsWithSelected analysisColumns analysis selectedColumns)
           , sorting = routeInput
           }

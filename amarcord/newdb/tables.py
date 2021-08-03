@@ -223,6 +223,7 @@ def table_jobs(
         Column("stopped", DateTime, nullable=True),
         Column("status", Enum(JobStatus), nullable=False),
         Column("failure_reason", Text(), nullable=True),
+        Column("comment", Text(), nullable=True),
         Column("output_directory", Path(), nullable=True),
         Column(
             "tool_id",

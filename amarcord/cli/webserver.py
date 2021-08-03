@@ -384,6 +384,8 @@ def create_app() -> Flask:
                 if isinstance(j.io, DBMiniDiffraction)
                 else None,
                 "reduction": {
+                    "runId": j.io.run_id,
+                    "crystalId": j.io.crystal_id,
                     "dataReductionId": j.io.data_reduction_id,
                     "mtzPath": str(j.io.mtz_path),
                 }
@@ -421,7 +423,13 @@ def create_app() -> Flask:
             with conn.begin():
                 return {
                     "jobIds": bulk_start_jobs(
-                        conn, db, tool_id, filter_query, limit, inputs
+                        conn,
+                        db,
+                        tool_id,
+                        json_content.get("comment", None),
+                        filter_query,
+                        limit,
+                        inputs,
                     )
                 }
 

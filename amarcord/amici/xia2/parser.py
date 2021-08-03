@@ -81,6 +81,7 @@ def parse_xia2_directory(p: Path) -> AnalysisResult:
         alpha=alpha,
         beta=beta,
         gamma=gamma,
+        comment=None,
         space_group=integrater["_intgr_spacegroup_number"],
         isigi=statistics["I/sigma"][0],
         rmeas=statistics["Rmeas(I)"][0],

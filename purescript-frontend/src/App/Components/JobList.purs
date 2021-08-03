@@ -41,7 +41,7 @@ initialState { input: _, remoteData: { jobs } } = { jobs }
 render :: forall cs action. State -> H.ComponentHTML action cs AppMonad
 render state =
   let
-    makeExpander :: forall w i.String -> Int -> String -> HH.HTML w i
+    makeExpander :: forall w i. String -> Int -> HH.HTML w i -> HH.HTML w i
     makeExpander suffix jid content =
       HH.div_
         [ HH.button
@@ -53,21 +53,25 @@ render state =
             [ HH.text "Expand..." ]
         , HH.div
             [ singleClass "collapse", HP.id_ ("j-" <> show jid <> "-" <> suffix) ]
-            [ HH.span [ singleClass "font-monospace" ] [ HH.text content ] ]
+            [ HH.span [ singleClass "font-monospace" ] [ content ] ]
         ]
 
     makeFailureReason = makeExpander "fr"
 
-    makeMetadata jid x = makeExpander "md" jid (stringify x)
+    makeMetadata jid x = makeExpander "md" jid (HH.text (stringify x))
 
-    makeOutputDirectory od = HH.span [ classList [ "d-inline-block", "font-monospace", "text-truncate" ] ] [ HH.text od ]
+    makeOutputDirectory jid od = makeExpander "od" jid (HH.span [ classList [ "d-inline-block", "font-monospace", "text-truncate" ] ] [ HH.text od ])
 
-    makeWorkingOn job =
-      case job.diffraction of
-        Nothing -> case job.reduction of
-          Nothing -> HH.text "unknown"
-          Just reduction -> HH.text ("Reduction " <> show reduction.dataReductionId)
-        Just diffraction -> HH.text (diffraction.crystalId <> "/" <> show diffraction.runId)
+    makeWorkingOn job = case job.diffraction of
+      Nothing -> case job.reduction of
+        Nothing -> HH.text "unknown"
+        Just reduction ->
+          HH.div_
+            [ HH.text (reduction.crystalId <> "/" <> show reduction.runId)
+            , HH.br_
+            , HH.text ("Reduction " <> show reduction.dataReductionId)
+            ]
+      Just diffraction -> HH.text (diffraction.crystalId <> "/" <> show diffraction.runId)
 
     makeRow job =
       HH.tr_
@@ -78,8 +82,8 @@ render state =
               , HH.text (fromMaybe "" job.started)
               , HH.text (fromMaybe "" job.stopped)
               , HH.text job.status
-              , maybe (HH.text "") makeOutputDirectory job.outputDir
-              , maybe (HH.text "") (makeFailureReason job.jobId) job.failureReason
+              , maybe (HH.text "") (makeOutputDirectory job.jobId) job.outputDir
+              , maybe (HH.text "") (makeFailureReason job.jobId <<< HH.text) job.failureReason
               , HH.text job.tool
               , HH.text (stringify job.toolInputs)
               , maybe (HH.text "") (makeMetadata job.jobId) job.metadata
@@ -90,8 +94,7 @@ render state =
       "job-table"
       [ TableStriped ]
       ( (HH.text >>> singleton >>> HH.th_)
-          <$> [ 
-             "Working on"
+          <$> [ "Working on"
             , "Job ID"
             , "Queued"
             , "Started"
