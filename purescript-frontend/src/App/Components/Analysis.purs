@@ -167,7 +167,8 @@ data ColumnGroup
   | Diffractions
   | Reductions
   | Refinements
-  | Jobs
+  | ReductionJobs
+  | RefinementJobs
   | ToolsGroup
   | Other
 
@@ -180,7 +181,8 @@ instance showColumnGroup :: Show ColumnGroup where
   show Diffractions = "Diffractions"
   show Reductions = "Data_Reduction"
   show Refinements = "Refinement"
-  show Jobs = "Reduction Jobs"
+  show ReductionJobs = "Reduction_Jobs"
+  show RefinementJobs = "Refinement_Jobs"
   show ToolsGroup = "Tools"
   show Other = "Other"
 
@@ -189,7 +191,8 @@ groupPrefixes =
   [ Tuple "diff" Diffractions
   , Tuple "dr" Reductions
   , Tuple "crystals" Crystals
-  , Tuple "jobs" Jobs
+  , Tuple "redjobs" ReductionJobs
+  , Tuple "rfjobs" RefinementJobs
   , Tuple "tools" ToolsGroup
   , Tuple "ref" Refinements
   ]

@@ -849,10 +849,10 @@ class NewDB:
             jwor = self.tables.tool_tables.job_working_on_reduction
 
             all_columns += [
-                reduction_jobs.c.tool_inputs.label("red_jobs_tool_inputs"),
-                refinement_jobs.c.tool_inputs.label("rf_jobs_tool_inputs"),
-                reduction_tools.c.name.label("red_jobs_tool_name"),
-                refinement_tools.c.name.label("rf_jobs_tool_name"),
+                reduction_jobs.c.tool_inputs.label("redjobs_tool_inputs"),
+                reduction_tools.c.name.label("redjobs_tool_name"),
+                refinement_jobs.c.tool_inputs.label("rfjobs_tool_inputs"),
+                refinement_tools.c.name.label("rfjobs_tool_name"),
             ]
 
             # noinspection PyTypeChecker
@@ -876,9 +876,9 @@ class NewDB:
                     jwor.c.data_reduction_id
                     == self.tables.reductions.c.data_reduction_id,
                 )
-                .outerjoin(refinement_jobs, refinement_jobs.c.id == jwod.c.job_id)
+                .outerjoin(refinement_jobs, refinement_jobs.c.id == jwor.c.job_id)
                 .outerjoin(
-                    refinement_tools, refinement_tools.c.id == reduction_jobs.c.tool_id
+                    refinement_tools, refinement_tools.c.id == refinement_jobs.c.tool_id
                 )
             )
         query = (
