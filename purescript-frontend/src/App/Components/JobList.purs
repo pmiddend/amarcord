@@ -9,6 +9,7 @@ import App.Timer (timerEventSource)
 import Control.Applicative (pure)
 import Control.Bind (bind, discard)
 import Data.Argonaut (stringify)
+import Data.Argonaut.Core (Json, toObject)
 import Data.Array (singleton)
 import Data.Function ((<<<), (>>>))
 import Data.Functor ((<$>))
@@ -16,7 +17,9 @@ import Data.Int (fromString)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Semigroup ((<>))
 import Data.Show (show)
+import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
+import Foreign.Object (toUnfoldable)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -110,6 +113,13 @@ renderTable state =
 
     makeJobStatus _ _ = HH.span [ singleClass "badge rounded-pill bg-secondary" ] [ HH.text "queued" ]
 
+    makeInputs :: forall w i. Json -> HH.HTML w i
+    makeInputs json = case toObject json of
+      Nothing -> HH.text (stringify json)
+      Just jsonObject ->
+        HH.ul_
+          ((\(Tuple key value) -> HH.li_ [ HH.text (key <> ": " <> stringify value) ]) <$> (toUnfoldable jsonObject))
+
     makeRow job =
       HH.tr_
         ( (HH.td_ <<< singleton)
@@ -122,7 +132,7 @@ renderTable state =
               , maybe (HH.text "") (makeOutputDirectory job.jobId) job.outputDir
               , maybe (HH.text "") (makeFailureReason job.jobId <<< HH.text) job.failureReason
               , HH.text job.tool
-              , HH.text (stringify job.toolInputs)
+              , makeInputs job.toolInputs
               , maybe (HH.text "") (makeMetadata job.jobId) job.metadata
               ]
         )
