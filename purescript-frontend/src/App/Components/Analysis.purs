@@ -386,7 +386,7 @@ render state =
       , HH.hr_
       , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
       , (if state.totalRows > length state.rows then makeAlert AlertInfo "Results have been capped" else HH.text "")
-      , HH.h5_ [ HH.text ((show state.totalRows) <> " result" <> (if state.totalRows > 1 then "s" else "")) ]
+      , HH.h5_ [ HH.text ((show state.totalRows) <> " result" <> (if state.totalRows > 1 then "s" else "")), HH.br_, HH.em [ singleClass "text-muted" ] [  HH.text "including attached reductions/refinements" ] ]
       , table
           "analysis-table"
           [ TableStriped, TableSmall, TableBordered ]

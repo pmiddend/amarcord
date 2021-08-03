@@ -888,6 +888,7 @@ class NewDB:
             query = query.order_by(
                 sa.desc(sort_column) if sort_order_desc else sort_column
             )
+        query = query.distinct()
         return all_columns, query
 
     def insert_job(self, conn: Connection, job: DBJob) -> int:

@@ -548,7 +548,7 @@ def create_app() -> Flask:
             try:
                 before = time.time()
                 result = db.retrieve_analysis_results(
-                    conn, filter_query, sort_column, sort_order_desc, limit=100
+                    conn, filter_query, sort_column, sort_order_desc, limit=500
                 )
                 after = time.time()
                 logger.info("Analysis query took %ss", int(after - before))

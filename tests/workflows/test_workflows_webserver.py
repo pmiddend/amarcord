@@ -159,7 +159,7 @@ def test_get_analysis_one_crystal_one_diffraction_one_reduction_from_job(client)
         == data_reduction_id
     )
     assert (
-        rvjson["analysis"][0][rvjson["analysisColumns"].index("red_jobs_tool_name")]
+        rvjson["analysis"][0][rvjson["analysisColumns"].index("redjobs_tool_name")]
         == TOOL_NAME
     )
     assert rvjson["analysisColumns"] != []
