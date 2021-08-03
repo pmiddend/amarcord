@@ -57,7 +57,7 @@ setuptools.setup(
         "slurm": ["requests==2.25.*", "types-requests==2.25.*"],
         # gemmi for space group string to index
         # pint for xds ingester
-        "p11": ["pint==0.16.*", "numpy==1.19.*", "gemmi==0.4.*"],
+        "p11": ["pint==0.16.*", "numpy==1.19.*", "gemmi==0.4.*", "tqdm==4.62.*"],
         "daemon": [
             "pyzmq==22.0.*",
             "karabo-bridge==0.6.*",

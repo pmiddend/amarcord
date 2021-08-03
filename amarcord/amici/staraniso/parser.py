@@ -59,10 +59,11 @@ def parse_staraniso_directory(p: Path) -> AnalysisResult:
         for scaling_stat in root.iter("AutoProcScalingStatistics")
     }
 
-    overall_stat = scaling_stats.get("overall", None)
-    if overall_stat is None:
+    main_stat_key = "overall"
+    main_stat = scaling_stats.get(main_stat_key, None)
+    if main_stat is None:
         raise Exception(
-            f"{p}: didn't get the overall stats in XML, just {scaling_stats.keys()}"
+            f"{p}: didn't get the {main_stat_key} stats in XML, just {scaling_stats.keys()}"
         )
 
     return AnalysisResult(
@@ -71,7 +72,7 @@ def parse_staraniso_directory(p: Path) -> AnalysisResult:
         mtz_file=mtz_file,
         method=ReductionMethod.STARANISO,
         resolution_cc=scaling_stats.get("outerShell", {}).get("cchalf", None),
-        resolution_isigma=overall_stat["resolution_isigma"],
+        resolution_isigma=main_stat["resolution_isigma"],
         a=cell_a,
         b=cell_b,
         c=cell_c,
@@ -79,9 +80,9 @@ def parse_staraniso_directory(p: Path) -> AnalysisResult:
         beta=cell_beta,
         gamma=cell_gamma,
         space_group=space_group,
-        isigi=overall_stat["isigi"],
-        rmeas=overall_stat["rmeas"],
-        cchalf=overall_stat["cchalf"],
-        rfactor=overall_stat["rfactor"],
+        isigi=main_stat["isigi"],
+        rmeas=main_stat["rmeas"],
+        cchalf=main_stat["cchalf"],
+        rfactor=main_stat["rfactor"],
         wilson_b=None,
     )

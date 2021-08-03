@@ -7,6 +7,7 @@ from typing import Optional
 from typing import Tuple
 
 from pint import UnitRegistry
+from tqdm import tqdm
 
 from amarcord.amici.p11.parser import P11InfoFile
 from amarcord.amici.p11.parser import parse_p11_info_file
@@ -165,7 +166,7 @@ def parse_p11_crystals(
         raise Exception(f"proposal raw data {raw_path} is not a directory!")
     result: List[P11Crystal] = []
     warnings: List[WarnMessage] = []
-    for crystal_dir in raw_path.iterdir():
+    for crystal_dir in tqdm(list(raw_path.iterdir())):
         if not crystal_dir.is_dir():
             continue
 

@@ -16,6 +16,7 @@ from typing import Union
 import sqlalchemy as sa
 from pint import UnitRegistry
 from tap import Tap
+from tqdm import tqdm
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.analyze_filesystem import P11Crystal
@@ -99,7 +100,7 @@ def parse_staraniso_reductions_for_crystals(
 ) -> Tuple[Dict[RunKey, AnalysisResult], List[str]]:
     processed_results: Dict[RunKey, AnalysisResult] = {}
     reduction_warnings: List[str] = []
-    for crystal in crystals:
+    for crystal in tqdm(crystals):
         for r in crystal.runs:
             processed_path = Path(
                 path_builder.replace("${cid}", crystal.crystal_id).replace(
@@ -127,7 +128,7 @@ def parse_xds_reductions_for_crystals(
 ) -> Tuple[Dict[RunKey, AnalysisResult], List[str]]:
     processed_results: Dict[RunKey, AnalysisResult] = {}
     reduction_warnings: List[str] = []
-    for crystal in crystals:
+    for crystal in tqdm(crystals):
         for r in crystal.runs:
             processed_path = Path(
                 str(r.run_path.resolve()).replace("/raw/", "/processed/")
