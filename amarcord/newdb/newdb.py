@@ -130,7 +130,6 @@ class NewDB:
                             "pinhole": d.pinhole,
                             "focusing": d.focusing,
                             "comment": d.comment,
-                            "estimated_resolution": d.estimated_resolution,
                             "metadata": d.metadata,
                             "angle_start": d.angle_start,
                             "exposure_time": d.exposure_time,
@@ -150,6 +149,9 @@ class NewDB:
                         },
                         {"diffraction": d.diffraction}
                         if d.diffraction is not None
+                        else {},
+                        {"estimated_resolution": d.estimated_resolution}
+                        if self.tables.with_estimated_resolution
                         else {},
                     ]
                 )
