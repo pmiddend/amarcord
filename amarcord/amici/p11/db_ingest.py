@@ -14,6 +14,7 @@ from amarcord.amici.p11.analyze_filesystem import P11Crystal
 from amarcord.amici.p11.analyze_filesystem import P11Run
 from amarcord.amici.p11.run_key import RunKey
 from amarcord.modules.dbcontext import Connection
+from amarcord.newdb.beamline import Beamline
 from amarcord.newdb.db_data_reduction import DBDataReduction
 from amarcord.newdb.db_diffraction import DBDiffraction
 from amarcord.newdb.diffraction_type import DiffractionType
@@ -206,6 +207,7 @@ def update_diffraction(
             else None,
             # In this case means: don't update it
             diffraction=None,
+            beamline=Beamline.p11,
         ),
     )
 
