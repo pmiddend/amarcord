@@ -37,7 +37,7 @@ class SeparateSchemata:
     def from_two_optionals(
         main_schema: Optional[str], analysis_schema: Optional[str]
     ) -> "Optional[SeparateSchemata]":
-        if main_schema is None != analysis_schema is None:
+        if (main_schema is None) != (analysis_schema is None):
             if main_schema is None:
                 raise Exception(
                     "received an analysis schema, but not a main schema; please specify both!"
