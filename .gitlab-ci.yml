@@ -28,7 +28,7 @@ pylint-and-mypy:
     - pip install -e .[gui,webserver,daemon,p11,slurm]
     - pip install 'mypy==0.910' 'pylint==2.9.*'
     - mypy amarcord tutorial
-    - apt-get update -y && apt-get install -y qt5-default
+    - apt-get update -y && apt-get install -y qtbase5-dev
     - pylint amarcord tutorial
     - pyrcc5 icons/resources.qrc -o resources-copy.py
 
@@ -52,7 +52,7 @@ tests:
     QT_QPA_PLATFORM: "offscreen"
   script:
     - apt-get update -y
-    - apt-get install -y libgl1-mesa-glx qt5-default
+    - apt-get install -y libgl1-mesa-glx qtbase5-dev
     - pip install -e .[gui,p11,slurm,webserver]
     - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*' 'hypothesis==6.3.*' 'pytest-cov==2.11.*' 'pyfakefs==4.4.*'
     - PYTHONPATH=".:$PYTHONPATH" pytest --cov=amarcord/ --junitxml=report.xml tests
