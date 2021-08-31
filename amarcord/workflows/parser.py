@@ -8,9 +8,17 @@ from typing import Union
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.refinement_result import RefinementResult
+from amarcord.amici.p11.user_error_result import UserErrorResult
 from amarcord.modules.json_checker import JSONChecker
 from amarcord.newdb.reduction_method import ReductionMethod
 from amarcord.xtal_util import find_space_group_index_by_name
+
+
+def parse_user_error_result(
+    _base_path: Path, error_content: Dict[str, Any]
+) -> UserErrorResult:
+    jsonc = JSONChecker(error_content, "refinement")
+    return UserErrorResult(error_message=jsonc.retrieve_safe_str("message"))
 
 
 def parse_refinement_result(
@@ -85,7 +93,7 @@ def parse_reduction_result(
 
 def parse_workflow_result_file(
     fp: Path,
-) -> Union[str, List[Union[AnalysisResult, RefinementResult]]]:
+) -> Union[str, List[Union[AnalysisResult, RefinementResult, UserErrorResult]]]:
     with fp.open("r") as f:
         try:
             output_file_json = json.load(f)
@@ -97,7 +105,7 @@ def parse_workflow_result_file(
             f"output file {fp} invalid JSON: not an array but {type(output_file_json)}"
         )
 
-    results: List[Union[AnalysisResult, RefinementResult]] = []
+    results: List[Union[AnalysisResult, RefinementResult, UserErrorResult]] = []
     for result_idx, result in enumerate(output_file_json):
         if not isinstance(result, dict):
             return f"output file {fp} invalid JSON: index {result_idx} not a dictionary but: {result}"
@@ -114,6 +122,11 @@ def parse_workflow_result_file(
         elif type_ == "refinement":
             try:
                 results.append(parse_refinement_result(fp.parent, result))
+            except Exception as e:
+                return f"error parsing refinement result: {e}"
+        elif type_ == "user-error":
+            try:
+                results.append(parse_user_error_result(fp.parent, result))
             except Exception as e:
                 return f"error parsing refinement result: {e}"
         else:

@@ -2,15 +2,18 @@ import datetime
 import json
 import logging
 from pathlib import Path
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
+from typing import Union
 
 import sqlalchemy as sa
 
 from amarcord.amici.p11.analysis_result import AnalysisResult
 from amarcord.amici.p11.refinement_result import RefinementResult
+from amarcord.amici.p11.user_error_result import UserErrorResult
 from amarcord.clock import Clock
 from amarcord.clock import RealClock
 from amarcord.modules.dbcontext import Connection
@@ -22,10 +25,12 @@ from amarcord.newdb.db_reduction_job import DBMiniDiffraction
 from amarcord.newdb.db_reduction_job import DBMiniReduction
 from amarcord.newdb.db_refinement import DBRefinement
 from amarcord.newdb.newdb import NewDB
+from amarcord.newdb.reduction_simple_filter import ReductionSimpleFilter
 from amarcord.newdb.refinement_method import RefinementMethod
 from amarcord.util import deglob_path
 from amarcord.util import find_by
 from amarcord.workflows.job_controller import JobController
+from amarcord.workflows.job_controller import JobStartError
 from amarcord.workflows.job_status import JobStatus
 from amarcord.workflows.parser import parse_workflow_result_file
 
@@ -37,7 +42,7 @@ def bulk_start_jobs(
     db: NewDB,
     tool_id: int,
     comment: Optional[str],
-    filter_query: str,
+    filter_query: Union[str, ReductionSimpleFilter],
     limit: Optional[int],
     tool_inputs: JSONDict,
 ) -> List[int]:
@@ -55,6 +60,10 @@ def bulk_start_jobs(
             conn, db, tool_id, comment, filter_query, limit, tool_inputs
         )
 
+    if isinstance(filter_query, ReductionSimpleFilter):
+        raise Exception(
+            f'tried to run tool "{tool.name}" but this is a reduction tool, not a refinement tool!'
+        )
     return _bulk_start_jobs_diffractions(
         conn, db, tool_id, comment, filter_query, limit, tool_inputs
     )
@@ -65,13 +74,18 @@ def _bulk_start_jobs_reductions(
     db: NewDB,
     tool_id: int,
     comment: Optional[str],
-    filter_query: str,
+    filter_query: Union[str, ReductionSimpleFilter],
     limit: Optional[int],
     tool_inputs: JSONDict,
 ) -> List[int]:
     processed_reductions: Set[int] = set()
     inserted_jobs: List[int] = []
-    for data_reduction_id in db.retrieve_analysis_reductions(conn, filter_query):
+    reduction_ids = (
+        db.retrieve_analysis_reductions(conn, filter_query)
+        if isinstance(filter_query, str)
+        else db.retrieve_data_reduction_ids_simple(conn, filter_query)
+    )
+    for data_reduction_id in reduction_ids:
         if len(processed_reductions) == limit:
             break
 
@@ -168,7 +182,7 @@ def _process_completed_job(
         db.update_job(
             conn,
             job.job.id,
-            JobStatus.COMPLETED,
+            JobStatus.FAILED,
             f"output file not found: {output_description}",
             metadata=job.job.metadata,
             stopped=datetime.datetime.utcnow(),
@@ -188,7 +202,7 @@ def _process_completed_job(
         db.update_job(
             conn,
             job.job.id,
-            JobStatus.COMPLETED,
+            JobStatus.FAILED,
             f"invalid output file {output_description}: {parse_results}",
             job.job.metadata,
             stopped=datetime.datetime.utcnow(),
@@ -274,6 +288,23 @@ def _process_completed_job(
             )
             assert job.job.id is not None
             db.insert_job_refinement_result(conn, job.job.id, refinement_id)
+        elif isinstance(parse_result, UserErrorResult):
+            logger.info(
+                "job %s: output file %s user error: %s",
+                job.job.id,
+                output_description,
+                parse_result.error_message,
+            )
+            assert job.job.id is not None
+            db.update_job(
+                conn,
+                job.job.id,
+                JobStatus.FAILED,
+                f"user error: {parse_result.error_message}",
+                job.job.metadata,
+                stopped=datetime.datetime.utcnow(),
+            )
+            return
         else:
             raise Exception(f"invalid analysis result type: {type(parse_result)}")
 
@@ -291,15 +322,15 @@ def _process_completed_job(
 
 def process_tool_command_line(
     command_line: str,
-    mtz_path: Optional[Path],
-    diffraction_data_path: Optional[Path],
+    reduction_data: Dict[str, str],
+    diffraction_data: Dict[str, str],
     tool_inputs: JSONDict,
 ) -> str:
     result = command_line
-    if diffraction_data_path is not None:
-        result = result.replace("${diffraction.path}", str(diffraction_data_path))
-    if mtz_path is not None:
-        result = result.replace("${reduction.mtz_path}", str(mtz_path))
+    for k, v in reduction_data.items():
+        result = result.replace("${Data_Reduction." + k + "}", v)
+    for k, v in diffraction_data.items():
+        result = result.replace("${Diffractions." + k + "}", v)
     for param_name, param_value in tool_inputs.items():
         if isinstance(param_value, list):
             raise Exception(f"param {param_name} is a list: {param_value}")
@@ -322,23 +353,38 @@ def _start_job_on_reduction(
         result = job_controller.start_job(
             Path(reduction.crystal_id)
             / str(reduction.run_id)
-            / f"reduction-{reduction.data_reduction_id}-refinement-job-{job.job.id}",
+            / "refinements"
+            / f"reduction-{reduction.data_reduction_id}-job-{job.job.id}",
             job.tool.executable_path,
             process_tool_command_line(
                 job.tool.command_line,
-                mtz_path=reduction.mtz_path,
-                diffraction_data_path=None,
+                reduction_data={
+                    "mtz_path": str(reduction.mtz_path),
+                    "resolution_cc": str(reduction.resolution_cc),
+                },
+                diffraction_data={},
                 tool_inputs=job.job.tool_inputs,
             ),
             job.tool.extra_files,
         )
+    except JobStartError as e:
+        logger.exception("failed to start refinement job %s", job.job.id)
+        db.update_job(
+            conn,
+            job.job.id,
+            JobStatus.FAILED,
+            "failed to start job: " + e.message,
+            job.job.metadata,
+            stopped=datetime.datetime.utcnow(),
+        )
+        return
     except:
         logger.exception("failed to start refinement job %s", job.job.id)
         db.update_job(
             conn,
             job.job.id,
-            JobStatus.COMPLETED,
-            "failed to start job",
+            JobStatus.FAILED,
+            "failed to start job: unexpected error (see log)",
             job.job.metadata,
             stopped=datetime.datetime.utcnow(),
         )
@@ -375,7 +421,7 @@ def _start_job_on_diffraction(
         db.update_job(
             conn,
             job.job.id,
-            JobStatus.COMPLETED,
+            JobStatus.FAILED,
             "no filename pattern in diffraction",
             job.job.metadata,
             stopped=datetime.datetime.utcnow(),
@@ -389,23 +435,36 @@ def _start_job_on_diffraction(
         result = job_controller.start_job(
             Path(diffraction.crystal_id)
             / str(diffraction.run_id)
-            / f"reduction-job-{job.job.id}",
+            / "reductions"
+            / f"job-{job.job.id}",
             job.tool.executable_path,
             process_tool_command_line(
                 job.tool.command_line,
-                mtz_path=None,
-                diffraction_data_path=data_path,
+                reduction_data={},
+                diffraction_data={"path": str(data_path)},
                 tool_inputs=job.job.tool_inputs,
             ),
             job.tool.extra_files,
         )
+    except JobStartError as e:
+        logger.exception("failed to start reduction job %s", job.job.id)
+
+        db.update_job(
+            conn,
+            job.job.id,
+            JobStatus.FAILED,
+            "failed to start job: " + e.message,
+            job.job.metadata,
+            stopped=datetime.datetime.utcnow(),
+        )
+        return
     except:
         logger.exception("failed to start reduction job %s", job.job.id)
         db.update_job(
             conn,
             job.job.id,
-            JobStatus.COMPLETED,
-            "failed to start job",
+            JobStatus.FAILED,
+            "failed to start job: unexpected error (see log)",
             job.job.metadata,
             stopped=datetime.datetime.utcnow(),
         )
@@ -453,14 +512,22 @@ def check_jobs(
     with conn.begin():
         # We have to convert to a list because we're iterating over db_jobs twice below.
         # Might be optimizable later on, possibly with two queries even.
-        db_jobs = list(db.retrieve_jobs_with_attached(conn, limit=None))
+        db_jobs = list(
+            db.retrieve_jobs_with_attached(
+                conn, limit=None, status_filter=None, start_at_least=None
+            )
+        )
 
         for db_job in (x for x in db_jobs if x.job.status == JobStatus.QUEUED):
             _start_job(conn, job_controller, db, db_job)
 
         controller_jobs = list(job_controller.list_jobs())
         # Iterate over the completed jobs, align with running DB jobs
-        for rt_job in (y for y in controller_jobs if y.status == JobStatus.COMPLETED):
+        for rt_job in (
+            y
+            for y in controller_jobs
+            if y.status in (JobStatus.COMPLETED, JobStatus.FAILED)
+        ):
             db_job = next(
                 iter(
                     x
@@ -504,7 +571,11 @@ def check_jobs(
                 )
                 is None
             ):
-                logger.info("found stale job %s", db_job.job.id)
+                logger.info(
+                    "found stale job %s (controller jobs %s)",
+                    db_job.job.id,
+                    controller_jobs,
+                )
                 _process_completed_job(
                     conn,
                     db,

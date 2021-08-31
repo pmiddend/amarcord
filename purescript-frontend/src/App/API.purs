@@ -1,6 +1,7 @@
 module App.API where
 
 import Prelude
+
 import Affjax (Error, Response, printError)
 import Affjax as AX
 import Affjax.RequestBody (RequestBody(..))
@@ -12,6 +13,7 @@ import App.Event (Event)
 import App.MiniSample (MiniSample)
 import App.Overview (OverviewRow)
 import App.SortOrder (SortOrder, sortToString)
+import App.Utils (stringMapToJsonObject, stringMaybeMapToJsonObject)
 import Control.Monad.Reader (asks)
 import Data.Argonaut (class DecodeJson, JsonDecodeError, fromObject, fromString, stringify)
 import Data.Argonaut as Argonaut
@@ -19,7 +21,9 @@ import Data.Argonaut.Core (Json, stringifyWithIndent)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
+import Data.Foldable (intercalate)
 import Data.FormURLEncoded (fromArray)
+import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..), fst, snd)
@@ -33,6 +37,31 @@ type OverviewResponse
 
 type AnalysisRow
   = Array Json
+
+data HumanDuration
+  = LastDay
+  | LastWeek
+  | LastMonth
+
+derive instance eqHumanDuration :: Eq HumanDuration
+
+derive instance ordHumanDuration :: Ord HumanDuration
+
+serializeHumanDuration :: HumanDuration -> String
+serializeHumanDuration LastDay = "last_day"
+
+serializeHumanDuration LastWeek = "last_week"
+
+serializeHumanDuration LastMonth = "last_month"
+
+deserializeHumanDuration :: String -> Maybe HumanDuration
+deserializeHumanDuration "last_day" = Just LastDay
+
+deserializeHumanDuration "last_week" = Just LastWeek
+
+deserializeHumanDuration "last_month" = Just LastMonth
+
+deserializeHumanDuration _ = Nothing
 
 type AnalysisResponse
   = { analysis :: Array AnalysisRow
@@ -51,6 +80,10 @@ type RunJobResponse
   = { jobIds :: Array Int
     }
 
+type ReductionCountResult
+  = { totalResults :: Int
+    }
+
 type EventsResponse
   = { events :: Array Event
     }
@@ -67,6 +100,15 @@ type Crystal
 
 type PucksResponse
   = { pucks :: Array Puck
+    }
+
+type CrystalFilter
+  = { columnName :: String
+    , values :: Array (Maybe String)
+    }
+
+type CrystalFilterResponse
+  = { columnsWithValues :: Array CrystalFilter
     }
 
 type SampleResponse
@@ -107,6 +149,7 @@ type Job
     , queued :: String
     , status :: String
     , failureReason :: Maybe String
+    , comment :: String
     , metadata :: Maybe Json
     , outputDir :: Maybe String
     , diffraction ::
@@ -159,16 +202,71 @@ handleResponse response = do
           Right jsonResult -> pure (Right jsonResult)
         StatusCode sc -> pure (Left ("Status code: " <> show sc <> "\n\nJSON response:\n" <> stringifyWithIndent 2 httpResult.body))
 
+retrieveReductionCount :: Map String (Maybe String) -> Maybe String -> Boolean -> AppMonad (Either String ReductionCountResult)
+retrieveReductionCount crystalFiltersMap reductionMethod onlyNonrefined = do
+  baseUrl' <- asks (_.baseUrl)
+  response <-
+    liftAff
+      $ AX.post ResponseFormat.json (baseUrl' <> "/api/reduction-count")
+          ( Just
+              ( Json
+                  ( encodeJson
+                      { reductionMethod
+                      , onlyNonrefined
+                      , crystalFilters: stringMaybeMapToJsonObject crystalFiltersMap
+                      }
+                  )
+              )
+          )
+  handleResponse response
+
+startJobsSimple :: Int -> String -> Maybe Int -> Map String String -> Map String (Maybe String) -> Maybe String -> Boolean -> AppMonad (Either String RunJobResponse)
+startJobsSimple toolId comment limit toolInputs crystalFiltersMap reductionMethod onlyNonrefined = do
+  baseUrl' <- asks (_.baseUrl)
+  response <-
+    liftAff
+      $ AX.post ResponseFormat.json (baseUrl' <> "/api/workflows/jobs-simple/" <> show toolId)
+          ( Just
+              ( Json
+                  ( encodeJson
+                      { reductionMethod
+                      , onlyNonrefined
+                      , limit
+                      , comment
+                      , inputs: stringMapToJsonObject toolInputs
+                      , crystalFilters: stringMaybeMapToJsonObject crystalFiltersMap
+                      }
+                  )
+              )
+          )
+  handleResponse response
+
 retrieveTools :: AppMonad (Either String ToolsResponse)
 retrieveTools = do
   baseUrl' <- asks (_.baseUrl)
   response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/tools")
   handleResponse response
 
-retrieveJobs :: Int -> AppMonad (Either String JobsResponse)
-retrieveJobs limit = do
+retrieveCrystalFilters :: AppMonad (Either String CrystalFilterResponse)
+retrieveCrystalFilters = do
   baseUrl' <- asks (_.baseUrl)
-  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/jobs?limit=" <> show limit)
+  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/crystal-filters")
+  handleResponse response
+
+retrieveJobs :: Int -> Maybe String -> Maybe HumanDuration -> AppMonad (Either String JobsResponse)
+retrieveJobs limit statusFilter humanDuration = do
+  baseUrl' <- asks (_.baseUrl)
+  let
+    statusFilterSuffix = case statusFilter of
+      Nothing -> []
+      Just f -> [ "statusFilter=" <> f ]
+
+    humanDurationSuffix = case humanDuration of
+      Nothing -> []
+      Just f -> [ "humanDuration=" <> serializeHumanDuration f ]
+
+    parameters = [ "limit=" <> show limit ] <> statusFilterSuffix <> humanDurationSuffix
+  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/jobs?" <> intercalate "&" parameters)
   handleResponse response
 
 retrieveOverview :: Maybe String -> AppMonad (Either String OverviewResponse)

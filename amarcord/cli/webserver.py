@@ -26,8 +26,10 @@ from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.json import JSONArray
 from amarcord.modules.json import JSONDict
+from amarcord.modules.json_checker import JSONChecker
 from amarcord.newdb.alembic import upgrade_to_head
 from amarcord.newdb.db_crystal import DBCrystal
+from amarcord.newdb.db_data_reduction import DBDataReduction
 from amarcord.newdb.db_dewar_lut import DBDewarLUT
 from amarcord.newdb.db_diffraction import DBDiffraction
 from amarcord.newdb.db_puck import DBPuck
@@ -38,12 +40,15 @@ from amarcord.newdb.db_tool import DBTool
 from amarcord.newdb.diffraction_type import DiffractionType
 from amarcord.newdb.newdb import NewDB
 from amarcord.newdb.puck_type import PuckType
+from amarcord.newdb.reduction_method import ReductionMethod
+from amarcord.newdb.reduction_simple_filter import ReductionSimpleFilter
 from amarcord.newdb.tables import DBTables
 from amarcord.newdb.tables import SeparateSchemata
 from amarcord.workflows.command_line import CommandLine
 from amarcord.workflows.job_controller_factory import LocalJobControllerConfig
 from amarcord.workflows.job_controller_factory import create_job_controller
 from amarcord.workflows.job_controller_factory import parse_job_controller
+from amarcord.workflows.job_status import JobStatus
 from amarcord.workflows.workflow_synchronize import bulk_start_jobs
 from amarcord.workflows.workflow_synchronize import check_jobs
 
@@ -82,6 +87,36 @@ def _create_test_db(db: NewDB, test_files_dir: Path) -> None:
                     ),
                 ),
             )
+            db.insert_data_reduction(
+                conn,
+                DBDataReduction(
+                    data_reduction_id=None,
+                    crystal_id=crystal,
+                    run_id=1,
+                    analysis_time=datetime.datetime.utcnow(),
+                    folder_path=Path(
+                        f"{test_files_dir}/reductions/{crystal}/{crystal}_001"
+                    ),
+                    mtz_path=Path(
+                        f"{test_files_dir}/reductions/{crystal}/{crystal}_001/test.mtz"
+                    ),
+                    method=ReductionMethod.STARANISO,
+                    resolution_cc=1.0,
+                    resolution_isigma=2.0,
+                    a=30.0,
+                    b=40.0,
+                    c=50.0,
+                    alpha=90.0,
+                    beta=120.0,
+                    gamma=240.0,
+                    space_group=152,
+                    isigi=1.0,
+                    rmeas=1.0,
+                    cchalf=1.0,
+                    rfactor=1.0,
+                    wilson_b=20.0,
+                ),
+            )
         reduction_tool_id = db.insert_tool(
             conn,
             DBTool(
@@ -112,7 +147,7 @@ def _create_test_db(db: NewDB, test_files_dir: Path) -> None:
                     / "workflow-data"
                     / "dummy-amarcord-refinement-output.json"
                 ],
-                command_line="${reduction.mtz_path} ${testarg}",
+                command_line="${Data_Reduction.mtz_path} ${Data_Reduction.resolution_cc}",
                 description="description2",
                 inputs=None,
             ),
@@ -136,6 +171,12 @@ def _create_db(db_url: str) -> NewDB:
     )
     if db_url.startswith("sqlite://"):
         dbcontext.create_all(CreationMode.CHECK_FIRST)
+    tables.load_from_engine(dbcontext.engine)
+    logger.info(
+        "dynamically loaded tables from engine for %s, crystals columns: %s",
+        db_url,
+        ",".join(c.name for c in tables.crystals.columns),
+    )
     db = NewDB(dbcontext, tables)
     test_files_dir = os.environ.get("AMARCORD_TEST_FILES_DIR")
     if db_url.startswith("sqlite://") and test_files_dir is not None:
@@ -378,6 +419,30 @@ def create_app() -> Flask:
     @app.get("/api/workflows/jobs")
     def list_jobs() -> JSONDict:
         limit = int(request.args.get("limit", "10"))
+        status_filter_str = request.args.get("statusFilter", None)
+        human_duration_str = request.args.get("humanDuration", None)
+
+        since: Optional[datetime.datetime] = None
+        if human_duration_str is not None:
+            hours_in_the_past: int
+            if human_duration_str == "last_day":
+                hours_in_the_past = 24
+            elif human_duration_str == "last_week":
+                hours_in_the_past = 7 * 24
+            else:
+                hours_in_the_past = 28 * 24
+            since = datetime.datetime.utcnow() - datetime.timedelta(
+                hours=hours_in_the_past
+            )
+        try:
+            status_filter = (
+                JobStatus(status_filter_str) if status_filter_str is not None else None
+            )
+        except:
+            raise Exception(
+                f'invalid job status "{status_filter_str}", valid stati are '
+                + ", ".join(e.value for e in JobStatus)
+            )
 
         def convert_job(j: DBJobWithInputsAndOutputs) -> JSONDict:
             return {
@@ -386,6 +451,7 @@ def create_app() -> Flask:
                 "queued": j.job.queued,
                 "stopped": j.job.stopped,
                 "status": j.job.status.value,
+                "comment": j.job.comment if j.job.comment else "",
                 "failureReason": j.job.failure_reason,
                 "metadata": j.job.metadata,
                 "outputDir": str(j.job.output_directory),
@@ -413,27 +479,22 @@ def create_app() -> Flask:
                 "jobs": [
                     convert_job(j)
                     for j in db.retrieve_jobs_with_attached(
-                        conn, limit if limit != 0 else None
+                        conn, limit if limit != 0 else None, status_filter, since
                     )
                 ]
             }
 
-    @app.post("/api/workflows/jobs/<int:tool_id>")
-    def start_job(tool_id: int) -> JSONDict:
+    def _safe_json_dict() -> JSONDict:
         json_content = request.get_json(force=True)
         assert isinstance(
             json_content, dict
-        ), f"expected a dictionary for the tool input, got {json_content}"
-        inputs = json_content.get("inputs", None)
-        assert (
-            inputs is not None
-        ), f'expected "inputs" in tool input, got {json_content}'
-        filter_query = json_content.get("filterQuery", None)
-        assert (
-            filter_query is not None
-        ), f'expected "filter_query" in tool input, got {json_content}'
-        limit = json_content.get("limit", None)
-        assert limit is None or isinstance(limit, int)
+        ), f"expected a dictionary for the request input, got {json_content}"
+        return json_content
+
+    @app.post("/api/workflows/jobs-simple/<int:tool_id>")
+    def start_job_simple(tool_id: int) -> JSONDict:
+        json_content = JSONChecker(_safe_json_dict(), "POST request")
+
         db = get_db()
 
         with db.connect() as conn:
@@ -443,7 +504,29 @@ def create_app() -> Flask:
                         conn,
                         db,
                         tool_id,
-                        json_content.get("comment", None),
+                        json_content.optional_str("comment"),
+                        _parse_reduction_filter(json_content.d),
+                        json_content.optional_int("limit"),
+                        json_content.retrieve_safe_dict("inputs"),
+                    )
+                }
+
+    @app.post("/api/workflows/jobs/<int:tool_id>")
+    def start_job(tool_id: int) -> JSONDict:
+        json_content = JSONChecker(_safe_json_dict(), "POST request")
+        inputs = json_content.retrieve_safe_dict("inputs")
+        filter_query = json_content.retrieve_safe_str("filter_query")
+        limit = json_content.optional_int("limit")
+        db = get_db()
+
+        with db.connect() as conn:
+            with conn.begin():
+                return {
+                    "jobIds": bulk_start_jobs(
+                        conn,
+                        db,
+                        tool_id,
+                        json_content.optional_str("comment"),
                         filter_query,
                         limit,
                         inputs,
@@ -537,6 +620,58 @@ def create_app() -> Flask:
         db = get_db()
         with db.connect() as conn:
             return _retrieve_sample(conn, db)
+
+    def _parse_reduction_filter(json_content: JSONDict) -> ReductionSimpleFilter:
+        reduction_method_str = json_content.get("reductionMethod")
+        only_non_refined = json_content.get("onlyNonrefined")
+        crystal_filters = json_content.get("crystalFilters")
+
+        if not isinstance(only_non_refined, bool):
+            raise Exception(
+                f'invalid "only_non_refined", expected bool, got {only_non_refined}'
+            )
+
+        if not isinstance(crystal_filters, dict):
+            raise Exception(
+                f'invalid "crystal_filters", expected dict, got {crystal_filters}'
+            )
+
+        reduction_method: Optional[ReductionMethod]
+        try:
+            if reduction_method_str is not None:
+                reduction_method = ReductionMethod(reduction_method_str)
+            else:
+                reduction_method = None
+        except:
+            raise Exception(
+                f'reduction method "{reduction_method_str}" not valid; valid methods are: '
+                + ", ".join(x.value for x in ReductionMethod)
+            )
+
+        return ReductionSimpleFilter(
+            reduction_method=reduction_method,
+            only_non_refined=only_non_refined,
+            crystal_filters=crystal_filters,
+        )
+
+    @app.post("/api/reduction-count")
+    def retrieve_reduction_count() -> JSONDict:
+        db = get_db()
+        with db.connect() as conn:
+            return {
+                "totalResults": len(
+                    db.retrieve_data_reduction_ids_simple(
+                        conn, filter_=_parse_reduction_filter(_safe_json_dict())
+                    )
+                )
+            }
+
+    @app.route("/api/crystal-filters")
+    def retrieve_crystal_filters() -> JSONDict:
+        db = get_db()
+
+        with db.connect() as conn:
+            return {"columnsWithValues": db.retrieve_crystal_column_values(conn)}
 
     @app.route("/api/analysis")
     def retrieve_analysis() -> JSONDict:

@@ -67,3 +67,23 @@ class JSONChecker:
                 f'{self.description} result: value "{key}" not a number: {v}'
             )
         return float(v)
+
+    def retrieve_safe_int(self, key: str) -> int:
+        v = self.retrieve_safe(key)
+        if not isinstance(v, int):
+            raise Exception(f'{self.description} result: value "{key}" not an int: {v}')
+        return v
+
+    def retrieve_safe_dict(self, key: str) -> JSONDict:
+        v = self.retrieve_safe(key)
+        if not isinstance(v, dict):
+            raise Exception(f'{self.description} result: value "{key}" not a dict: {v}')
+        return v
+
+    def retrieve_safe_str(self, key: str) -> str:
+        v = self.retrieve_safe(key)
+        if not isinstance(v, str):
+            raise Exception(
+                f'{self.description} result: value "{key}" not a string: {v}'
+            )
+        return v

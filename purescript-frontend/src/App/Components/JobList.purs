@@ -1,6 +1,6 @@
 module App.Components.JobList where
 
-import App.API (JobsResponse, Job, retrieveJobs)
+import App.API (HumanDuration(..), Job, JobsResponse, deserializeHumanDuration, retrieveJobs, serializeHumanDuration)
 import App.AppMonad (AppMonad)
 import App.Bootstrap (TableFlag(..), table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
@@ -9,17 +9,18 @@ import App.Timer (timerEventSource)
 import Control.Applicative (pure)
 import Control.Bind (bind, discard)
 import Data.Argonaut (stringify)
-import Data.Argonaut.Core (Json, toObject)
-import Data.Array (singleton)
+import Data.Argonaut.Core (Json, toObject, toString)
+import Data.Array (singleton, (:))
+import Data.Eq ((==))
+import Data.FoldableWithIndex (foldrWithIndex)
 import Data.Function ((<<<), (>>>))
 import Data.Functor ((<$>))
 import Data.Int (fromString)
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
+import Data.Monoid (mempty)
 import Data.Semigroup ((<>))
 import Data.Show (show)
-import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
-import Foreign.Object (toUnfoldable)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -30,21 +31,25 @@ import Network.RemoteData (RemoteData(..), fromEither)
 data Action
   = Initialize
   | Refresh
-  | ChangeLimit Int
+  | LimitChanged Int
+  | StatusFilterChanged (Maybe String)
+  | DurationFilterChanged (Maybe HumanDuration)
 
 type JobListInput
-  = { limit :: Int }
+  = { limit :: Int, statusFilter :: Maybe String, durationFilter :: Maybe HumanDuration }
 
 type State
   = { jobs :: Array Job
     , limit :: Int
+    , statusFilter :: Maybe String
+    , durationFilter :: Maybe HumanDuration
     }
 
 fetchData :: JobListInput -> AppMonad (RemoteData String JobsResponse)
-fetchData i = fromEither <$> retrieveJobs i.limit
+fetchData i = fromEither <$> retrieveJobs i.limit i.statusFilter i.durationFilter
 
 initialState :: ChildInput JobListInput JobsResponse -> State
-initialState { input: _, remoteData: { jobs } } = { jobs, limit: 20 }
+initialState { input: _, remoteData: { jobs } } = { jobs, limit: 20, statusFilter: Nothing, durationFilter: Nothing }
 
 render :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 render state =
@@ -55,20 +60,48 @@ render state =
 
 renderForm :: forall cs. State -> H.ComponentHTML Action cs AppMonad
 renderForm state =
-  HH.form_
-    [ HH.div [ singleClass "mb-3" ]
-        [ HH.label [ HP.for "job-list-limit", singleClass "form-label" ] [ HH.text "Limit" ]
-        , HH.input
-            [ HP.type_ InputNumber
-            , HP.min 0.0
-            , HP.id_ ("tool-limit")
-            , singleClass "form-control"
-            , HP.value (show state.limit)
-            , HE.onValueInput (\x -> ChangeLimit <$> fromString x)
-            ]
-        , HH.div [ singleClass "form-text" ] [ HH.text "Set to 0 for unlimited number of jobs (here be dragons)" ]
-        ]
-    ]
+  let -- make a single <option> for a job status
+    makeStatus :: forall w. String -> HH.HTML w Action
+    makeStatus s = HH.option [ HP.value s, HP.selected (state.statusFilter == Just s) ] [ HH.text s ]
+
+    humanReadableHumanDuration :: HumanDuration -> String
+    humanReadableHumanDuration LastDay = "yesterday"
+
+    humanReadableHumanDuration LastWeek = "last week"
+
+    humanReadableHumanDuration LastMonth = "last month"
+
+    makeHumanDuration :: forall w. HumanDuration -> HH.HTML w Action
+    makeHumanDuration s = HH.option [ HP.value (serializeHumanDuration s), HP.selected (state.durationFilter == Just s) ] [ HH.text (humanReadableHumanDuration s) ]
+
+    noStatusFilterOption = (HH.option [ HP.value "", HP.selected (isNothing state.statusFilter) ] [ HH.text "any status" ])
+
+    noDurationFilterOption = (HH.option [ HP.value "", HP.selected (isNothing state.durationFilter) ] [ HH.text "any time" ])
+  in
+    HH.form_
+      [ HH.div [ singleClass "mb-3" ]
+          [ HH.label [ HP.for "job-list-limit", singleClass "form-label" ] [ HH.text "Display only this many jobs:" ]
+          , HH.input
+              [ HP.type_ InputNumber
+              , HP.min 0.0
+              , HP.id_ ("tool-limit")
+              , singleClass "form-control"
+              , HP.value (show state.limit)
+              , HE.onValueInput (\x -> LimitChanged <$> fromString x)
+              ]
+          , HH.div [ singleClass "form-text" ] [ HH.text "Set to 0 for unlimited number of jobs (warning: the table might get really large)" ]
+          ]
+      , HH.div [ singleClass "mb-3" ]
+          [ HH.label [ HP.for "job-list-status-filter", singleClass "form-label" ] [ HH.text "Job status:" ]
+          , HH.select [ singleClass "form-select", HP.id_ "job-list-status-filter", HE.onValueChange (\x -> Just (StatusFilterChanged (if x == "" then Nothing else Just x))) ]
+              (noStatusFilterOption : (makeStatus <$> [ "completed", "running", "queued", "failed" ]))
+          ]
+      , HH.div [ singleClass "mb-3" ]
+          [ HH.label [ HP.for "job-list-duration-filter", singleClass "form-label" ] [ HH.text "Jobs started since:" ]
+          , HH.select [ singleClass "form-select", HP.id_ "job-list-duration-filter", HE.onValueChange (\x -> if x == "" then Just (DurationFilterChanged Nothing) else (DurationFilterChanged <<< Just) <$> deserializeHumanDuration x) ]
+              (noDurationFilterOption : (makeHumanDuration <$> [ LastDay, LastWeek, LastMonth ]))
+          ]
+      ]
 
 renderTable :: forall cs action. State -> H.ComponentHTML action cs AppMonad
 renderTable state =
@@ -101,36 +134,57 @@ renderTable state =
           HH.div_
             [ HH.text (reduction.crystalId <> "/" <> show reduction.runId)
             , HH.br_
-            , HH.text ("Reduction " <> show reduction.dataReductionId)
+            , HH.small [ singleClass "text-muted" ] [ HH.text ("Reduction " <> show reduction.dataReductionId) ]
             ]
       Just diffraction -> HH.text (diffraction.crystalId <> "/" <> show diffraction.runId)
 
-    makeJobStatus "completed" Nothing = HH.span [ singleClass "badge rounded-pill bg-success" ] [ HH.text "success" ]
+    makeJobStatus job "completed" _ =
+      HH.div_
+        [ HH.span [ singleClass "badge rounded-pill bg-success" ] [ HH.text "success" ]
+        , HH.br_
+        , HH.small [ singleClass "text-sm text-muted" ] [ HH.text ("finished at " <> (fromMaybe "" job.stopped)) ]
+        ]
 
-    makeJobStatus "completed" _ = HH.span [ singleClass "badge rounded-pill bg-danger" ] [ HH.text "error" ]
+    makeJobStatus job "failed" (Just reason) =
+      HH.div_
+        [ HH.span [ singleClass "badge rounded-pill bg-danger" ] [ HH.text "error" ]
+        , HH.br_
+        , HH.small [ singleClass "text-sm text-muted" ] [ HH.text ("stopped at " <> (fromMaybe "" job.stopped) <> ", reason: " <> reason) ]
+        ]
 
-    makeJobStatus "running" _ = HH.span [ singleClass "badge rounded-pill bg-info" ] [ HH.text "running" ]
+    makeJobStatus job "running" _ =
+      HH.div_
+        [ HH.span [ singleClass "badge rounded-pill bg-info" ] [ HH.text "running" ]
+        , HH.br_
+        , HH.small [ singleClass "text-sm text-muted" ] [ HH.text ("since " <> (fromMaybe "" job.started)) ]
+        ]
 
-    makeJobStatus _ _ = HH.span [ singleClass "badge rounded-pill bg-secondary" ] [ HH.text "queued" ]
+    makeJobStatus job _ _ =
+      HH.div_
+        [ HH.span [ singleClass "badge rounded-pill bg-secondary" ] [ HH.text "queued" ]
+        , HH.br_
+        , HH.small [ singleClass "text-sm text-muted" ] [ HH.text ("since " <> job.queued) ]
+        ]
+
+    htmlifyValue :: forall w i. Json -> HH.HTML w i
+    htmlifyValue v = case toString v of
+      Nothing -> HH.text (stringify v)
+      Just "" -> HH.em_ [ HH.text "<empty>" ]
+      Just s -> HH.text s
 
     makeInputs :: forall w i. Json -> HH.HTML w i
     makeInputs json = case toObject json of
       Nothing -> HH.text (stringify json)
-      Just jsonObject ->
-        HH.ul_
-          ((\(Tuple key value) -> HH.li_ [ HH.text (key <> ": " <> stringify value) ]) <$> (toUnfoldable jsonObject))
+      Just jsonObject -> HH.ul_ (foldrWithIndex (\key value prevList -> (HH.li_ [ HH.text (key <> ": "), htmlifyValue value ]) : prevList) mempty jsonObject)
 
     makeRow job =
       HH.tr_
         ( (HH.td_ <<< singleton)
-            <$> [ makeWorkingOn job
-              , HH.text (show job.jobId)
-              , HH.text job.queued
-              , HH.text (fromMaybe "" job.started)
-              , HH.text (fromMaybe "" job.stopped)
-              , makeJobStatus job.status job.failureReason
+            <$> [ HH.text (show job.jobId)
+              , makeWorkingOn job
+              , HH.text job.comment
+              , makeJobStatus job job.status job.failureReason
               , maybe (HH.text "") (makeOutputDirectory job.jobId) job.outputDir
-              , maybe (HH.text "") (makeFailureReason job.jobId <<< HH.text) job.failureReason
               , HH.text job.tool
               , makeInputs job.toolInputs
               , maybe (HH.text "") (makeMetadata job.jobId) job.metadata
@@ -140,21 +194,26 @@ renderTable state =
     table
       "job-table"
       [ TableStriped ]
-      ( (HH.text >>> singleton >>> HH.th_)
-          <$> [ "Working on"
-            , "Job ID"
-            , "Queued"
-            , "Started"
-            , "Stopped"
+      ( (HH.text >>> singleton >>> HH.th [ singleClass "text-nowrap" ])
+          <$> [ "Job ID"
+            , "Working on"
+            , "Comment"
             , "Status"
-            , "Output Directory"
-            , "Failure Reason"
+            , "Directory"
             , "Tool"
             , "Tool Inputs"
-            , "Job Metadata"
+            , "Metadata"
             ]
       )
       (makeRow <$> state.jobs)
+
+refresh :: forall slots. H.HalogenM State Action slots ParentError AppMonad Unit
+refresh = do
+  state <- H.get
+  remoteData <- H.lift (fetchData { limit: state.limit, statusFilter: state.statusFilter, durationFilter: state.durationFilter })
+  case remoteData of
+    Success { jobs } -> H.put state { jobs = jobs }
+    _ -> pure unit
 
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
@@ -162,19 +221,18 @@ handleAction = case _ of
     _ <- H.subscribe (timerEventSource Refresh)
     pure unit
   Refresh -> do
-    currentLimit <- H.gets _.limit
-    remoteData <- H.lift (fetchData { limit: currentLimit })
-    case remoteData of
-      Success { jobs } -> H.modify_ \state -> state { jobs = jobs }
-      _ -> pure unit
+    refresh
     _ <- H.subscribe (timerEventSource Refresh)
     pure unit
-  ChangeLimit newLimit -> do
+  LimitChanged newLimit -> do
     H.modify_ \state -> state { limit = newLimit }
-    remoteData <- H.lift (fetchData { limit: newLimit })
-    case remoteData of
-      Success { jobs } -> H.modify_ \state -> state { jobs = jobs }
-      _ -> pure unit
+    refresh
+  StatusFilterChanged newFilter -> do
+    H.modify_ \state -> state { statusFilter = newFilter }
+    refresh
+  DurationFilterChanged newFilter -> do
+    H.modify_ \state -> state { durationFilter = newFilter }
+    refresh
 
 childComponent :: forall q. H.Component HH.HTML q (ChildInput JobListInput JobsResponse) ParentError AppMonad
 childComponent =

@@ -1,0 +1,139 @@
+# workflow log (compatible with Python ConfigParser)
+
+[workflow]
+host: max-cfel012.desy.de
+platform: Linux-3.10.0-1160.36.2.el7.x86_64-x86_64-with-centos-7.9.2009-Core
+cwd: /asap3/petra3/gpfs/p11/2021/data/11011728/scratch_cc/nsp10_16_DIALS/NS16_11872_4/NS16_11872_4_001
+prog: /software/opt/xray/ccp4-7.0/lib/py2/dimple/__main__.py
+args:
+ --free-r-flags
+ NS16_11872_4_001_cut.mtz
+ --jelly
+ 0
+ --restr-cycles
+ 0
+ --hklout
+ NS16_11872_4_001_dimple-MR.mtz
+ --xyzout
+ NS16_11872_4_001_dimple-MR.pdb
+ NS16_11872_4_001_cut.mtz
+ /asap3/petra3/gpfs/p11/2021/data/11011728/scratch_cc/xia2pipe-metadata/NSP10_16_SAMref_refine_2_refmac9.pdb
+ .
+output_dir: .
+CCP4: /opt/xray/ccp4-7.0
+CCP4_SCR: /tmp/pmidden
+version: 2.5.6
+#      ### Dimple v2.5.6. Problems and suggestions: ccp4.github.io/dimple ###
+# 
+# MTZ (2.3A)            P 31 2 1     (166.68, 166.68, 51.18,  90, 90, 120.00)
+# 41566dc14ba9c1a1e8fee987487fe9de /asap3/petra3/gpfs/p11/2021/data/11011728/scratch_cc/xia2pipe-metadata/NSP10_16_SAMref_refine_2_refmac9.pdb
+data_file: NS16_11872_4_001_cut.mtz
+pdb_files: ["/asap3/petra3/gpfs/p11/2021/data/11011728/scratch_cc/xia2pipe-metadata/NSP10_16_SAMref_refine_2_refmac9.pdb"]
+# 
+# NSP10_16_SAMref_refine_2_refmac9.pdb P 31 2 1     (166.81, 166.81, 51.27,  90, 90, 120.00)
+
+[rwcontents]
+start_time: 2021-08-27 19:48:48
+input: end
+prog: /opt/xray/ccp4-7.0/bin/rwcontents
+args: XYZIN ini.pdb
+end_time: 2021-08-27 19:48:48
+info: 6 x 48kDa (+ 5kDa het) in 1235nm3, 71% solvent
+stdout: 01-rwcontents.log
+num_mol: 6
+aa_count: 417
+weight: 47774.008
+Vm: 4.31
+water_count: 251.5
+volume: 1235488.0
+total_weight: 52304.855
+solvent_percent: 71.4617169374
+
+[pointless]
+start_time: 2021-08-27 19:48:48
+input: TOLERANCE 5
+  end
+prog: /opt/xray/ccp4-7.0/bin/pointless
+args: HKLIN NS16_11872_4_001_cut.mtz HKLOUT pointless.mtz XYZIN ini.pdb
+end_time: 2021-08-27 19:48:49
+info: resol. 2.32 A   #refl: 35494
+stdout: 02-pointless.log
+refl_out: 35494
+output_cell: (166.68, 166.68, 51.18, 90.0, 90.0, 120.0)
+resol: 2.32
+refl_ref: 35635
+alt_reindex: [{"cc": 0.254, "cell_deviat": 0.12, "op": "[h,k,l]"}, {"cc": 0.025, "cell_deviat": 0.12, "op": "[-h,-k,l]"}]
+# 
+#     [h,k,l]    CC: 0.254    cell diff: 0.1A
+# 
+#     [-h,-k,l]  CC: 0.025    cell diff: 0.1A
+# 
+# Rigid-body refinement with resolution 3.5 A, 10 cycles.
+#  0.6 waters/aa.
+
+[refmac5 rigid]
+start_time: 2021-08-27 19:48:49
+input: labin FP=FP SIGFP=SIGFP
+  refinement type rigidbody resolution 15 3.5
+  rigidbody ncycle 10
+  end
+prog: /opt/xray/ccp4-7.0/bin/refmac5
+args: HKLIN pointless.mtz HKLOUT refmacRB.mtz XYZIN ini.pdb XYZOUT refmacRB.pdb
+end_time: 2021-08-27 19:49:01
+info: 10/10   R  0.1713  ->  0.1690
+stdout: 03-refmac5_rigid.log
+ncyc: 10
+overall_r: 0.169
+iter_overall_r: [0.1713, 0.1691, 0.1691, 0.1691, 0.1691, 0.1691, 0.169, 0.169, 0.169, 0.169, 0.169]
+ini_overall_r: 0.1713
+cycle: 10
+# 
+# No MR for R < 0.4.
+# 
+# Free-R flags from the input file, column FreeR_flag.
+# 
+# Restrained refinement, 0+0 cycles.
+
+[refmac5 restr]
+start_time: 2021-08-27 19:49:01
+input: labin FP=FP SIGFP=SIGFP FREE=FreeR_flag
+  make newligand continue
+  refinement type restrained
+  weight auto
+  ncycle 0
+  end
+prog: /opt/xray/ccp4-7.0/bin/refmac5
+args: HKLIN pointless.mtz HKLOUT NS16_11872_4_001_dimple-MR.mtz XYZIN refmacRB.pdb XYZOUT NS16_11872_4_001_dimple-MR.pdb
+end_time: 2021-08-27 19:49:24
+info:  0/0   R/Rfree  0.2169/0.2398  ->  0.2169/0.2398
+stdout: 04-refmac5_restr.log
+ncyc: 0
+ini_free_r: 0.2398
+overall_r: 0.2169
+iter_overall_r: [0.2169]
+iter_free_r: [0.2398]
+rmsBOND: [0.0171]
+ini_overall_r: 0.2169
+free_r: 0.2398
+rmsANGL: [1.987]
+rmsCHIRAL: [0.131]
+cycle: 0
+# 
+#     RMS:   bond 0.017 -> 0.017   angle 1.99 -> 1.99   chiral 0.13 -> 0.13
+
+[find-blobs]
+start_time: 2021-08-27 19:49:24
+prog: /opt/xray/ccp4-7.0/bin/find-blobs
+args: -c -s0.8 NS16_11872_4_001_dimple-MR.mtz NS16_11872_4_001_dimple-MR.pdb
+end_time: 2021-08-27 19:49:24
+info: searching with cut-off: 0.151 e/A^3 (0.8 sigma)
+stdout: 05-find-blobs.log
+center: (82.95, -21.59, -6.378)
+density_info: Density std.dev: 0.188, cut-off: 0.151 e/A^3 (0.8 sigma)
+blobs: []
+scores: []
+# 
+# Unmodelled blobs not found.
+# 
+# To see it in Coot run /asap3/petra3/gpfs/p11/2021/data/11011728/scratch_cc/nsp10_16_DIALS/NS16_11872_4/NS16_11872_4_001/coot.sh
+# 

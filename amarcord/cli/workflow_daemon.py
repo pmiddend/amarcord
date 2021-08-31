@@ -24,7 +24,7 @@ class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     db_echo: bool = False  # output SQL statements?
     wait_after_check: float = (
-        1.0  # Frequency in seconds to wait after a successfully synchronization
+        10.0  # Frequency in seconds to wait after a successful synchronization
     )
     job_controller: str  # Job controller string (has a defined, documented format)
     normal_schema: Optional[str] = None

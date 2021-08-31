@@ -6,9 +6,10 @@ from typing import List
 
 class CommandLineInputType(Enum):
     STRING = "string"
-    DIFFRACTION_PATH = "diffraction.path"
-    REDUCTION_MTZ_PATH = "reduction.mtz_path"
-    REDUCTION_FOLDER_PATH = "reduction.folder_path"
+    DIFFRACTION_PATH = "Diffractions.path"
+    REDUCTION_MTZ_PATH = "Data_Reduction.mtz_path"
+    REDUCTION_RESOLUTION_CC = "Data_Reduction.resolution_cc"
+    REDUCTION_FOLDER_PATH = "Data_Reduction.folder_path"
 
 
 @dataclass(frozen=True)

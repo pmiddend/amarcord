@@ -14,6 +14,12 @@ class JobStartResult:
     output_directory: Path
 
 
+class JobStartError(Exception):
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self.message = message
+
+
 class JobController(Protocol):
     def start_job(
         self,

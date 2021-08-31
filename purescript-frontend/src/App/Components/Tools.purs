@@ -1,94 +1,119 @@
 module App.Components.Tools where
 
-import App.API (AnalysisResponse, AnalysisRow, DiffractionList, retrieveAnalysis)
+import App.API (CrystalFilter, CrystalFilterResponse, Tool, ToolsResponse, retrieveCrystalFilters, retrieveReductionCount, retrieveTools, startJobsSimple)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), container, table)
-import App.Components.JobList as JobList
+import App.Bootstrap (container)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
-import App.Components.ToolRunner as ToolRunner
-import App.Components.ToolsCrud as ToolsCrud
 import App.Halogen.FontAwesome (icon)
-import App.HalogenUtils (AlertType(..), classList, faIcon, makeAlert, orderingToIcon, singleClass)
-import App.Route (ToolsRouteInput, Route(..), createLink)
-import App.SortOrder (SortOrder(..), invertOrder)
+import App.HalogenUtils (AlertType(..), makeAlert, singleClass)
+import App.Route (Route(..), ToolsRouteInput, createLink)
+import App.SQL (sqlConditionToString)
+import App.SortOrder (SortOrder(..))
+import App.Utils (Endo, dehomoEither, startsWith)
 import Control.Applicative (pure, (<*>))
-import Control.Bind (bind, (>>=), discard)
-import Data.Argonaut (Json, caseJson, fromObject, jsonNull, stringify)
-import Data.Argonaut as Argonaut
-import Data.Array (cons, elem, filter, findIndex, index, length, mapMaybe, nub, sort)
-import Data.Eq (class Eq, eq, (/=), (==))
-import Data.Foldable (indexl)
+import Control.Bind (bind, (>>=))
+import Data.Array (any, filter, length, (:))
+import Data.Boolean (otherwise)
+import Data.BooleanAlgebra (not)
+import Data.Either (Either(..), isLeft)
+import Data.Eq (class Eq, eq, (==))
+import Data.EuclideanRing ((-))
+import Data.Foldable (find, foldMap)
 import Data.FoldableWithIndex (foldrWithIndex)
-import Data.Function (const, identity, (<<<))
-import Data.Functor ((<$>))
-import Data.Int (fromNumber)
-import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Function (const, ($), (<<<))
+import Data.Functor (map, (<$>))
+import Data.Int (fromString)
+import Data.Map (Map, delete, fromFoldable, insert, lookup, member)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.Monoid (mempty)
-import Data.Ord (class Ord, (>))
+import Data.Ord (class Ord, min)
+import Data.Ring ((*))
 import Data.Semigroup ((<>))
 import Data.Show (show)
-import Data.String (Pattern(..), Replacement(..), replace)
 import Data.Symbol (SProxy(..))
-import Data.Traversable (foldMap)
 import Data.Tuple (Tuple(..))
 import Data.Unit (Unit, unit)
-import Data.Void (Void, absurd)
+import Data.Void (Void)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties (InputType(..))
 import Halogen.HTML.Properties as HP
 import Network.RemoteData (RemoteData(..), fromEither)
-import Routing.Hash (setHash)
+
+data JobDecision
+  = Process
+  | Refine
+
+parseDecision :: String -> Maybe JobDecision
+parseDecision "process" = Just Process
+
+parseDecision "refine" = Just Refine
+
+parseDecision _ = Nothing
+
+derive instance eqJobDecision :: Eq JobDecision
+
+type RefinementData
+  = { onlyUnrefined :: Boolean
+    , reductionMethod :: Maybe String
+    , selectedFilters :: Map String (Maybe String)
+    , toolParameters :: Map String String
+    , limit :: Int
+    , toolId :: Maybe Int
+    , reductionCount :: Int
+    , comment :: String
+    , jobStartResult :: RemoteData String String
+    }
+
+data JobFormData
+  = RefinementData RefinementData
+  | ProcessData
+
+jobFormDataToDecision :: JobFormData -> JobDecision
+jobFormDataToDecision (RefinementData _) = Refine
+
+jobFormDataToDecision ProcessData = Process
+
+type JobForm
+  = { jobFormData :: Maybe JobFormData
+    , tools :: Array Tool
+    , crystalFilters :: Array CrystalFilter
+    }
 
 type State
-  = { rows :: Array AnalysisRow
-    , totalRows :: Int
-    , totalDiffractions :: Int
-    , totalReductions :: Int
-    , columns :: Array String
-    , displayRows :: Array AnalysisRow
-    , sorting :: ToolsRouteInput
-    , errorMessage :: Maybe String
-    , selectedColumns :: Array String
+  = { errorMessage :: Maybe String
+    , jobForm :: JobForm
     }
 
-data AnalysisData
-  = AnalysisData AnalysisResponse
+data ToolsData
+  = ToolsData ToolsResponse CrystalFilterResponse
 
-derive instance eqAssociatedTable :: Eq AnalysisData
+derive instance eqAssociatedTable :: Eq ToolsData
 
-derive instance ordAssociatedTable :: Ord AnalysisData
+derive instance ordAssociatedTable :: Ord ToolsData
 
 data Action
-  = Initialize
-  | Resort ToolsRouteInput
-  | DeselectAll
-  | QuerySubmit
-  | ToggleColumn String
-  | QueryChange String
+  = DecisionChange JobDecision
+  | RefinementToggleOnlyNonrefined
+  | RefinementReductionMethodChanged String
+  | RefinementCrystalFilterChanged String String
+  | RefinementLimitChanged Int
+  | RefinementCommentChanged String
+  | RefinementToolChanged Int
+  | RefinementToolParameterChanged String String
+  | RefinementStart
 
-initialState :: ChildInput ToolsRouteInput AnalysisData -> State
-initialState { input: sorting, remoteData: AnalysisData analysisResponse } =
-  let
-    selectedColumns = [ "crystals_crystal_id", "crystals_created", "diff_run_id", "diff_diffraction", "dr_data_reduction_id" ]
-  in
-    { rows: analysisResponse.analysis
-    , totalRows: analysisResponse.totalRows
-    , totalDiffractions: analysisResponse.totalDiffractions
-    , totalReductions: analysisResponse.totalReductions
-    , columns: analysisResponse.analysisColumns
-    , displayRows: nub (rowsWithSelected analysisResponse.analysisColumns analysisResponse.analysis selectedColumns)
-    , sorting
-    , errorMessage: Nothing
-    , selectedColumns
-    }
+initialState :: ChildInput ToolsRouteInput ToolsData -> State
+initialState { input: sorting, remoteData: ToolsData { tools } { columnsWithValues } } =
+  { errorMessage: Nothing
+  , jobForm: { jobFormData: Nothing, tools, crystalFilters: columnsWithValues }
+  }
 
 component :: forall query output. H.Component HH.HTML query ToolsRouteInput output AppMonad
 component = parentComponent fetchData childComponent
 
-childComponent :: forall q. H.Component HH.HTML q (ChildInput ToolsRouteInput AnalysisData) ParentError AppMonad
+childComponent :: forall q. H.Component HH.HTML q (ChildInput ToolsRouteInput ToolsData) ParentError AppMonad
 childComponent =
   H.mkComponent
     { initialState
@@ -97,178 +122,94 @@ childComponent =
         H.mkEval
           H.defaultEval
             { handleAction = handleAction
-            , initialize = Just Initialize
             }
     }
 
-refresh :: forall slots. Array String -> ToolsRouteInput -> H.HalogenM State Action slots ParentError AppMonad Unit
-refresh selectedColumns routeInput = do
-  result <- H.lift (fetchData routeInput)
-  updateHash
-  case result of
-    Success (AnalysisData { analysis, sqlError: Just sqlError }) ->
-      H.modify_ \state ->
-        state
-          { errorMessage = Just ("SQL error: " <> sqlError)
-          }
-    Success (AnalysisData { analysisColumns, analysis, totalRows, totalReductions, totalDiffractions, sqlError: Nothing }) ->
-      H.modify_ \state ->
-        state
-          { errorMessage = Nothing
-          , rows = analysis
-          , totalRows = totalRows
-          , totalDiffractions = totalDiffractions
-          , totalReductions = totalReductions
-          , displayRows = nub (rowsWithSelected analysisColumns analysis selectedColumns)
-          , sorting = routeInput
-          }
-    Failure e -> H.modify_ \state -> state { errorMessage = Just e }
-    _ -> pure unit
+modifyRefinementData :: Endo RefinementData -> Endo State
+modifyRefinementData f state = case state.jobForm.jobFormData of
+  Just (RefinementData rd) -> state { jobForm = state.jobForm { jobFormData = Just (RefinementData (f rd)) } }
+  _ -> state
 
-updateHash :: forall slots action. H.HalogenM State action slots ParentError AppMonad Unit
-updateHash = do
-  s <- H.get
-  H.liftEffect (setHash (createLink (Tools s.sorting)))
+refreshRefinementData :: forall slots. State -> RefinementData -> H.HalogenM State Action slots ParentError AppMonad Unit
+refreshRefinementData state rd = do
+  reductionCount' <- H.lift (retrieveReductionCount rd.selectedFilters rd.reductionMethod rd.onlyUnrefined)
+  case reductionCount' of
+    Right { totalResults: reductionCount } -> do
+      let
+        rdWithCount = RefinementData (rd { reductionCount = reductionCount })
+      H.put (state { jobForm = state.jobForm { jobFormData = Just rdWithCount } })
+    Left e -> H.put (state { errorMessage = Just e })
+
+modifyRefinementDataStateful :: forall slots. Endo RefinementData -> H.HalogenM State Action slots ParentError AppMonad Unit
+modifyRefinementDataStateful f = do
+  state <- H.get
+  case state.jobForm.jobFormData of
+    Just (RefinementData oldRd) -> refreshRefinementData state (f oldRd)
+    _ -> pure unit
 
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
-  Initialize -> pure unit
-  QueryChange query -> H.modify_ \state -> state { sorting = state.sorting { filterQuery = query } }
-  QuerySubmit -> do
+  RefinementStart -> do
     state <- H.get
-    refresh state.selectedColumns state.sorting
-  DeselectAll -> do
-    H.modify_ \state -> state { selectedColumns = [] }
-  ToggleColumn a -> do
-    s <- H.get
+    case state.jobForm.jobFormData of
+      Just (RefinementData rd) -> case rd.toolId of
+        Nothing -> pure unit
+        Just toolId -> do
+          result <-
+            H.lift
+              $ startJobsSimple
+                  toolId
+                  rd.comment
+                  (if rd.limit == 0 then Nothing else Just rd.limit)
+                  rd.toolParameters
+                  rd.selectedFilters
+                  rd.reductionMethod
+                  rd.onlyUnrefined
+          case result of
+            Left e -> H.modify_ (modifyRefinementData \rd' -> rd' { jobStartResult = Failure e })
+            Right { jobIds } -> H.modify_ (modifyRefinementData \rd' -> rd' { jobStartResult = Success $ "Started " <> show (length jobIds) <> (if length jobIds == 1 then " job" else " jobs") })
+      _ -> pure unit
+  DecisionChange v -> do
+    case v of
+      Process -> H.modify_ \state -> state { jobForm = state.jobForm { jobFormData = Just ProcessData } }
+      Refine -> do
+        state <- H.get
+        let
+          rd =
+            { onlyUnrefined: true
+            , reductionMethod: Nothing
+            , selectedFilters: mempty
+            , limit: 0
+            , toolId: Nothing
+            , reductionCount: 0
+            , toolParameters: mempty
+            , comment: ""
+            , jobStartResult: NotAsked
+            }
+        refreshRefinementData state rd
+  RefinementToggleOnlyNonrefined -> modifyRefinementDataStateful (\rd -> rd { onlyUnrefined = not rd.onlyUnrefined })
+  RefinementReductionMethodChanged newMethod -> modifyRefinementDataStateful (\rd -> rd { reductionMethod = if newMethod == "" then Nothing else Just newMethod })
+  RefinementCrystalFilterChanged columnName value ->
+    modifyRefinementDataStateful case value of
+      "" -> \rd -> rd { selectedFilters = delete columnName rd.selectedFilters }
+      "None" -> \rd -> rd { selectedFilters = insert columnName Nothing rd.selectedFilters }
+      value' -> (\rd -> rd { selectedFilters = insert columnName (Just value') rd.selectedFilters })
+  RefinementLimitChanged newLimit -> H.modify_ (modifyRefinementData \rd -> rd { limit = newLimit })
+  RefinementCommentChanged newComment -> H.modify_ (modifyRefinementData \rd -> rd { comment = newComment })
+  RefinementToolChanged newToolId -> do
+    jobForm' <- H.gets _.jobForm
     let
-      newSelectedColumns = if a `elem` s.selectedColumns then filter (_ /= a) s.selectedColumns else sort (cons a s.selectedColumns)
-    H.modify_ \state ->
-      state
-        { selectedColumns = newSelectedColumns
-        , displayRows = nub (rowsWithSelected state.columns state.rows newSelectedColumns)
-        }
-  Resort routeInput -> do
-    state <- H.get
-    refresh state.selectedColumns routeInput
+      chosenTool = find (\t -> t.toolId == newToolId) jobForm'.tools
 
-fetchData :: ToolsRouteInput -> AppMonad (RemoteData String AnalysisData)
-fetchData { filterQuery, sortColumn, sortOrder } = do
-  analysis <- retrieveAnalysis filterQuery sortColumn sortOrder
-  pure (fromEither (AnalysisData <$> analysis))
+      toolParameters = (\newTool -> fromFoldable (foldMap (\i -> if i."type" == "string" then [ Tuple i.name "" ] else []) newTool.inputs)) <$> chosenTool
+    modifyRefinementDataStateful (\rd -> rd { toolId = Just newToolId, toolParameters = fromMaybe mempty toolParameters })
+  RefinementToolParameterChanged paramName paramValue -> H.modify_ (modifyRefinementData \rd -> rd { toolParameters = insert paramName paramValue rd.toolParameters })
 
-createUpdatedSortInput :: Boolean -> String -> ToolsRouteInput -> ToolsRouteInput
-createUpdatedSortInput doInvertOrder newColumn { sortColumn, sortOrder, filterQuery } =
-  if newColumn == sortColumn then
-    { sortOrder: if doInvertOrder then invertOrder sortOrder else sortOrder, sortColumn: newColumn, filterQuery }
-  else
-    { sortColumn: newColumn, sortOrder: Ascending, filterQuery }
-
-showCellContent :: Json -> String
-showCellContent = caseJson (const "") show showNumber identity (const "array") (stringify <<< fromObject)
-  where
-  showNumber n = fromMaybe (show n) (show <$> (fromNumber n))
-
-postprocessColumnName :: String -> String
-postprocessColumnName = replace (Pattern "diff_") (Replacement "Diffractions.") <<< replace (Pattern "dr_") (Replacement "Data_Reduction.") <<< replace (Pattern "crystals_") (Replacement "Crystals.") <<< replace (Pattern "jobs_") (Replacement "Reduction_Jobs.") <<< replace (Pattern "tools_") (Replacement "Tools.")
-
-renderColumnChooser :: forall w. State -> HH.HTML w Action
-renderColumnChooser state =
-  let
-    makeRow :: String -> HH.HTML w Action
-    makeRow a =
-      HH.button
-        [ HP.type_ HP.ButtonButton
-        , classList ([ "list-group-item", "list-group-flush", "list-group-item-action" ] <> (if a `elem` state.selectedColumns then [ "active" ] else []))
-        , HE.onClick \_ -> Just (ToggleColumn a)
-        ]
-        [ HH.text (postprocessColumnName a) ]
-
-    disableAll =
-      HH.p_
-        [ HH.button
-            [ classList [ "btn", "btn-secondary" ]
-            , HE.onClick \_ -> Just DeselectAll
-            ]
-            [ HH.text "Disable all" ]
-        ]
-  in
-    HH.div_
-      [ HH.div [ singleClass "row" ]
-          [ HH.div [ singleClass "col" ]
-              [ HH.p_
-                  [ HH.button
-                      [ classList [ "btn", "btn-secondary" ]
-                      , HP.type_ HP.ButtonButton
-                      , HP.attr (HH.AttrName "data-bs-toggle") "collapse"
-                      , HP.attr (HH.AttrName "data-bs-target") "#columnChooser"
-                      ]
-                      [ faIcon "columns", HH.text " Choose columns" ]
-                  ]
-              ]
-          , HH.div [ singleClass "col" ]
-              [ HH.div [ classList [ "input-group", "mb-3" ] ]
-                  [ HH.input
-                      [ HP.type_ InputText
-                      , HE.onValueChange (Just <<< QueryChange)
-                      , HP.placeholder "Filter query"
-                      , singleClass "form-control"
-                      , HP.value state.sorting.filterQuery
-                      ]
-                  , HH.button
-                      [ classList [ "btn", "btn-secondary" ]
-                      , HE.onClick (const (Just QuerySubmit))
-                      ]
-                      [ HH.text "Refresh" ]
-                  , HH.button
-                      [ classList [ "btn", "btn-info" ]
-                      , HP.type_ HP.ButtonButton
-                      , HP.attr (HH.AttrName "data-bs-toggle") "collapse"
-                      , HP.attr (HH.AttrName "data-bs-target") "#helpDisplayer"
-                      ]
-                      [ HH.text "Help" ]
-                  ]
-              ]
-          ]
-      , HH.div [ singleClass "collapse", HP.id_ "helpDisplayer" ]
-          [ HH.h3_ [ HH.text "Example queries" ]
-          , HH.ul_
-              [ HH.li_ [ HH.text "Column greater than: ", HH.pre_ [ HH.text "Diffractions.angle_step > 0.1" ] ]
-              , HH.li_ [ HH.text "Column equal to: ", HH.pre_ [ HH.text "Diffractions.beamline = \"p11\"" ] ]
-              , HH.li_ [ HH.text "Text contains: ", HH.pre_ [ HH.text "Crystals.crystal_id LIKE '%cryst%'" ] ]
-              , HH.li_ [ HH.text "Crystals without diffractions: ", HH.pre_ [ HH.text "Diffractions.run_id IS NULL" ] ]
-              , HH.li_ [ HH.text "Crystals without reductions: ", HH.pre_ [ HH.text "Data_Reduction.data_reduction_id IS NULL" ] ]
-              , HH.li_ [ HH.text "Comparison with a date/time column (just date): ", HH.pre_ [ HH.text "Crystals.created > '2021-05-01'" ] ]
-              , HH.li_ [ HH.text "Comparison with a date/time column (date and time): ", HH.pre_ [ HH.text "Crystals.created > '2021-05-01 15:00:00'" ] ]
-              , HH.li_ [ HH.text "Combining expressions with AND: ", HH.pre_ [ HH.text "Diffractions.beamline = \"p11\" AND Diffractions.angle_step > 0.1" ] ]
-              ]
-          , HH.h3_ [ HH.text "Troubleshooting" ]
-          , HH.h4_ [ HH.text "Searches involving the crystal ID" ]
-          , HH.p_ [ HH.text "When you want to reference the crystal ID, you have to use ", HH.span [ singleClass "font-monospace" ] [ HH.text "Crystals.crystal_id" ], HH.text " as the column name." ]
-          ]
-      , HH.div [ singleClass "collapse", HP.id_ "columnChooser" ]
-          [ HH.div [ singleClass "row" ]
-              [ HH.div [ singleClass "col" ]
-                  [ disableAll
-                  , HH.div [ singleClass "list-group " ]
-                      (makeRow <$> state.columns)
-                  ]
-              ]
-          ]
-      ]
-
-analysisColumnIsSortable :: forall t457. t457 -> Boolean
-analysisColumnIsSortable = const true
-
-rowsWithSelected columns rows selected =
-  let
-    columnsWithIndices :: Map.Map String Int
-    columnsWithIndices = foldrWithIndex (\i columnName prior -> Map.insert columnName i prior) mempty columns
-
-    selectedColumnIndices :: Array Int
-    selectedColumnIndices = mapMaybe (\columnName -> Map.lookup columnName columnsWithIndices) selected
-  in
-    (\row -> (\columnIndex -> fromMaybe jsonNull (indexl columnIndex row)) <$> selectedColumnIndices) <$> rows
+fetchData :: ToolsRouteInput -> AppMonad (RemoteData String ToolsData)
+fetchData {} = do
+  tools <- retrieveTools
+  crystalFilters <- retrieveCrystalFilters
+  pure (fromEither (ToolsData <$> tools <*> crystalFilters))
 
 type Slots
   = ( jobList :: forall query. H.Slot query Void Int
@@ -282,68 +223,220 @@ _toolRunner = SProxy :: SProxy "toolRunner"
 
 _toolsCrud = SProxy :: SProxy "toolsCrud"
 
+jobForm :: forall w. State -> HH.HTML w Action
+jobForm state =
+  let
+    classifyTool :: Tool -> JobDecision
+    classifyTool t
+      | any (\ti -> ti.type `startsWith` "Data_Reduction.") t.inputs = Refine
+      | otherwise = Process
+
+    totalProcessTools :: Int
+    totalProcessTools = length (filter (\t -> t == Process) (classifyTool <$> state.jobForm.tools))
+
+    refinementTools :: Array Tool
+    refinementTools = filter (\t -> classifyTool t == Refine) state.jobForm.tools
+
+    totalRefineTools :: Int
+    totalRefineTools = length state.jobForm.tools - totalProcessTools
+
+    processText :: String
+    processText
+      | totalProcessTools == 0 = "No tools available, add one below"
+      | totalProcessTools == 1 = "One tool available"
+      | otherwise = show totalProcessTools <> " tools available"
+
+    refineText :: String
+    refineText
+      | totalRefineTools == 0 = "No tools available, add one below"
+      | totalRefineTools == 1 = "One tool available"
+      | otherwise = show totalRefineTools <> " tools available"
+
+    introButton =
+      HH.div [ singleClass "d-flex btn-group" ]
+        [ HH.input
+            [ HP.type_ InputRadio
+            , singleClass "btn-check"
+            , HP.name "job-form-decision"
+            , HP.value "process"
+            , HP.id_ "job-form-decision-process"
+            , HP.disabled (totalProcessTools == 0)
+            , HP.checked ((jobFormDataToDecision <$> state.jobForm.jobFormData) == Just Process)
+            , HE.onValueChange ((map DecisionChange) <<< parseDecision)
+            ]
+        , HH.label
+            [ HP.for "job-form-decision-process"
+            , singleClass ("btn " <> if totalProcessTools == 0 then "btn-secondary" else "btn-success")
+            ]
+            [ HH.text "Process diffractions", HH.br_, HH.small_ [ HH.text processText ] ]
+        , HH.input
+            [ HP.type_ InputRadio
+            , singleClass "btn-check"
+            , HP.name "job-form-decision"
+            , HP.value "refine"
+            , HP.id_ "job-form-decision-refine"
+            , HP.disabled (totalRefineTools == 0)
+            , HP.checked ((jobFormDataToDecision <$> state.jobForm.jobFormData) == Just Refine)
+            , HE.onValueChange ((map DecisionChange) <<< parseDecision)
+            ]
+        , HH.label
+            [ HP.for "job-form-decision-refine"
+            , singleClass ("btn " <> if totalRefineTools == 0 then "btn-secondary" else "btn-primary")
+            ]
+            [ HH.text "Refine", HH.br_, HH.small_ [ HH.text refineText ] ]
+        ]
+
+    linkToAdminister = if totalRefineTools * totalProcessTools == 0 then HH.a [ HP.href (createLink ToolsAdmin) ] [ HH.text "→ Add a tool" ] else HH.text ""
+
+    refinementForm :: RefinementData -> HH.HTML w Action
+    refinementForm rd =
+      let
+        noReductionMethodOption = HH.option [ HP.value "", HP.selected (rd.reductionMethod == Nothing) ] [ HH.text "any method is fine" ]
+
+        noCrystalFilterOption columnName = HH.option [ HP.value "", HP.selected (not (columnName `member` rd.selectedFilters)) ] [ HH.text "any value is fine" ]
+
+        separatorOption = HH.option [ HP.disabled true ] [ HH.text "──────────" ]
+
+        makeReductionMethodOption rm = HH.option [ HP.value rm, HP.selected (rd.reductionMethod == Just rm) ] [ HH.text rm ]
+
+        reductionMethodOptions = makeReductionMethodOption <$> [ "xds_full", "staraniso", "other" ]
+
+        filterOptionIsSelected :: String -> Maybe String -> Boolean
+        filterOptionIsSelected columnName value = fromMaybe false (eq value <$> columnName `lookup` rd.selectedFilters)
+
+        makeCrystalFilterOption :: String -> Maybe String -> HH.HTML w Action
+        makeCrystalFilterOption columnName value = HH.option [ HP.value (fromMaybe "None" value), HP.selected (filterOptionIsSelected columnName value) ] [ HH.text (fromMaybe "None" value) ]
+
+        makeCrystalFilterElement :: CrystalFilter -> HH.HTML w Action
+        makeCrystalFilterElement { columnName, values } =
+          HH.div [ singleClass "mt-3 row" ]
+            [ HH.div [ singleClass "col" ] [ HH.label [ singleClass "form-label col-form-label", HP.for ("refine-form-crystal-filter" <> columnName) ] [ HH.text columnName ] ]
+            , HH.div [ singleClass "col" ] [ HH.select [ singleClass "form-select col", HP.id_ ("refine-form-crystal-filter" <> columnName), HE.onValueChange (\x -> Just (RefinementCrystalFilterChanged columnName x)) ] (noCrystalFilterOption columnName : separatorOption : (makeCrystalFilterOption columnName <$> values)) ]
+            ]
+
+        crystalFilterElements = makeCrystalFilterElement <$> state.jobForm.crystalFilters
+
+        crystalFilterQuery =
+          let
+            crystalConditions = (foldrWithIndex (\column value priorList -> { column: "Crystals." <> column, value } : priorList) mempty rd.selectedFilters)
+
+            reductionConditions = case rd.reductionMethod of
+              Nothing -> []
+              Just m -> [ { column: "Data_Reduction.method", value: Just m } ]
+
+            filterQuery = sqlConditionToString (crystalConditions <> reductionConditions)
+          in
+            HH.a [ HP.href (createLink (Analysis { sortColumn: "crystals_crystal_id", sortOrder: Ascending, filterQuery })) ] [ HH.text "→ View datasets in analysis table" ]
+
+        noToolOption = HH.option [ HP.value "0", HP.disabled true, HP.selected (rd.toolId == Nothing) ] [ HH.text "Choose a tool" ]
+
+        makeToolOption tool = HH.option [ HP.value (show tool.toolId), HP.selected (rd.toolId == Just tool.toolId) ] [ HH.text (tool.name) ]
+
+        reductionCount = if rd.limit == 0 then rd.reductionCount else min rd.limit rd.reductionCount
+
+        buttonText =
+          if rd.reductionCount == 0 then
+            Left "No datasets found to refine"
+          else if isNothing rd.toolId then
+            Left "Please choose a tool to use"
+          else
+            Right ("Refine " <> show reductionCount <> (if reductionCount == 1 then " dataset" else " datasets"))
+
+        sectionTool =
+          let
+            chosenTool :: Maybe Tool
+            chosenTool = rd.toolId >>= \tid -> find (\t -> t.toolId == tid) state.jobForm.tools
+
+            makeParameterRow name value prevRows =
+              ( HH.div [ singleClass "mt-3 row" ]
+                  [ HH.div [ singleClass "col" ]
+                      [ HH.label [ singleClass "form-label col-form-label", HP.for ("refine-form-tool-parameter" <> name) ] [ HH.text name ]
+                      ]
+                  , HH.div [ singleClass "col" ] [ HH.input [ singleClass "form-control", HP.type_ InputText, HP.value value, HE.onValueChange (\v -> Just (RefinementToolParameterChanged name v)) ] ]
+                  ]
+              )
+                : prevRows
+
+            toolUserParameters = foldrWithIndex makeParameterRow mempty rd.toolParameters
+          in
+            ( [ HH.h3 [ singleClass "mt-3" ] [ icon { name: "cogs", size: Nothing, spin: false }, HH.text " Tool" ]
+              , HH.div [ singleClass "mt-3 row" ]
+                  [ HH.div [ singleClass "col" ]
+                      [ HH.label [ singleClass "form-label col-form-label", HP.for "refine-form-limit" ] [ HH.text "Tool" ]
+                      , HH.div [ singleClass "form-text" ] [ HH.text "After selecting a tool, you might need to enter some more parameters specific to the tool" ]
+                      ]
+                  , HH.div [ singleClass "col" ] [ HH.select [ singleClass "form-select", HP.id_ "refine-form-tool", HE.onValueChange (\x -> RefinementToolChanged <$> fromString x), HP.value (show (fromMaybe 0 rd.toolId)) ] (noToolOption : (makeToolOption <$> refinementTools)) ]
+                  ]
+              ]
+                <> toolUserParameters
+            )
+
+        jobStartResult = case rd.jobStartResult of
+          Failure e -> makeAlert AlertDanger e
+          Success e -> makeAlert AlertSuccess e
+          _ -> HH.text ""
+
+        sectionStartRefinement =
+          [ HH.h3 [ singleClass "mt-3" ] [ icon { name: "bong", size: Nothing, spin: false }, HH.text " Starting the refinement" ]
+          , HH.div [ singleClass "mt-3 row" ]
+              [ HH.div [ singleClass "col" ]
+                  [ HH.label [ singleClass "form-label col-form-label", HP.for "refine-form-limit" ] [ HH.text "Limit" ]
+                  , HH.div [ singleClass "form-text" ] [ HH.text "If this is 0, there will be no limit - all datasets will be refined" ]
+                  ]
+              , HH.div [ singleClass "col" ] [ HH.input [ HP.type_ InputNumber, singleClass "form-control", HP.id_ "refine-form-limit", HE.onValueChange (\x -> RefinementLimitChanged <$> fromString x), HP.value (show rd.limit) ] ]
+              ]
+          , HH.div [ singleClass "mt-3 row" ]
+              [ HH.div [ singleClass "col" ]
+                  [ HH.label [ singleClass "form-label col-form-label", HP.for "refine-form-comment" ] [ HH.text "Comment" ]
+                  , HH.div [ singleClass "form-text" ] [ HH.text "If you want, describe what you're doing. The text will be attached to the job, so you can see it in the job overview" ]
+                  ]
+              , HH.div [ singleClass "col" ] [ HH.input [ HP.type_ InputText, singleClass "form-control", HP.id_ "refine-form-comment", HE.onValueChange (Just <<< RefinementCommentChanged), HP.value rd.comment ] ]
+              ]
+          , HH.div [ singleClass "mt-3 mb-2 row" ]
+              [ HH.button [ HP.type_ HP.ButtonButton, singleClass ("btn " <> (if isLeft buttonText then "btn-secondary" else "btn-primary")), HE.onClick \_ -> Just RefinementStart, HP.disabled (isLeft buttonText) ] [ HH.text (dehomoEither buttonText) ]
+              ]
+          , jobStartResult
+          ]
+      in
+        HH.form_
+          ( [ HH.h3 [ singleClass "mt-3" ] [ icon { name: "puzzle-piece", size: Nothing, spin: false }, HH.text " Refinement parameters" ]
+            , HH.p [ singleClass "lead" ] [ HH.text "Here you can specify exactly what processing results you want to refine. Below, you can see how many refinements will take place." ]
+            , HH.div [ singleClass "form-check " ]
+                [ HH.input
+                    [ HP.type_ InputCheckbox
+                    , singleClass "form-check-input"
+                    , HP.id_ "refine-form-only-nonrefined"
+                    , HP.checked rd.onlyUnrefined
+                    , HE.onValueChange (const (Just RefinementToggleOnlyNonrefined))
+                    ]
+                , HH.label [ singleClass "form-check-label", HP.for "refine-form-only-nonrefined" ] [ HH.text "Only results that have not been refined yet" ]
+                ]
+            , HH.div [ singleClass "mt-3 row" ]
+                [ HH.div [ singleClass "col" ] [ HH.label [ singleClass "form-label col-form-label", HP.for "refine-form-reduction-method" ] [ HH.text "Reduction method" ] ]
+                , HH.div [ singleClass "col" ] [ HH.select [ singleClass "form-select col", HP.id_ "refine-form-reduction-method", HE.onValueChange (Just <<< RefinementReductionMethodChanged) ] (noReductionMethodOption : separatorOption : reductionMethodOptions) ]
+                ]
+            ]
+              <> crystalFilterElements
+              <> [ crystalFilterQuery ]
+              <> sectionTool
+              <> sectionStartRefinement
+          )
+
+    actualForm = case state.jobForm.jobFormData of
+      Just ProcessData -> HH.h2_ [ HH.text "Processing is a TODO right now, sorry" ]
+      Just (RefinementData rd) -> refinementForm rd
+      Nothing -> HH.text ""
+  in
+    HH.div_
+      [ introButton
+      , linkToAdminister
+      , actualForm
+      ]
+
 render :: State -> H.ComponentHTML Action Slots AppMonad
 render state =
-  let
-    headers = (\x -> Tuple x (postprocessColumnName x)) <$> state.selectedColumns
-
-    makeHeader (Tuple col title) =
-      let
-        updatedSortInput doInvertOrder = createUpdatedSortInput doInvertOrder col state.sorting
-
-        maybeOrderIcon = if state.sorting.sortColumn == col then [ orderingToIcon state.sorting.sortOrder, HH.text " " ] else []
-
-        cellContent = if analysisColumnIsSortable col then maybeOrderIcon <> [ HH.a [ singleClass "text-decoration-none", HP.href (createLink (Analysis (updatedSortInput false))), HE.onClick \_ -> Just (Resort (updatedSortInput true)) ] [ HH.text title ] ] else [ HH.text title ]
-      in
-        HH.th [ singleClass "text-nowrap text-center" ] cellContent
-
-    makeRow :: forall w. AnalysisRow -> HH.HTML w Action
-    makeRow row = HH.tr_ ((\cell -> HH.td [ singleClass "text-center" ] [ HH.text (showCellContent cell) ]) <$> row)
-
-    diffractionList :: DiffractionList
-    diffractionList =
-      let
-        crystalIdColumn' = findIndex (eq "diff_crystal_id") state.columns
-
-        runIdColumn' = findIndex (eq "diff_run_id") state.columns
-
-        colIdxs' :: Maybe (Tuple Int Int)
-        colIdxs' = Tuple <$> crystalIdColumn' <*> runIdColumn'
-
-        unindexCols :: Tuple Int Int -> AnalysisRow -> Maybe (Tuple Json Json)
-        unindexCols (Tuple c r) row = Tuple <$> index row c <*> index row r
-
-        decomposeCols :: Tuple Json Json -> Maybe (Tuple String Int)
-        decomposeCols (Tuple c r) = Tuple <$> (Argonaut.toString c) <*> (Argonaut.toNumber r >>= fromNumber)
-
-        processRow :: Tuple Int Int -> AnalysisRow -> Maybe (Tuple String Int)
-        processRow colIdxs row = unindexCols colIdxs row >>= decomposeCols
-      in
-        nub (foldMap (\colIdxs -> mapMaybe (processRow colIdxs) state.rows) colIdxs')
-  in
-    container
-      [ HH.h2_ [ icon { name: "table", size: Nothing, spin: false }, HH.text " Analysis Results" ]
-      , HH.hr_
-      , renderColumnChooser state
-      , HH.hr_
-      , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
-      , (if state.totalRows > length state.rows then makeAlert AlertInfo "Results have been capped" else HH.text "")
-      , HH.h5_ [ HH.text ((show state.totalRows) <> " result" <> (if state.totalRows > 1 then "s" else "")) ]
-      , table
-          "analysis-table"
-          [ TableStriped, TableSmall, TableBordered ]
-          (makeHeader <$> headers)
-          (makeRow <$> state.displayRows)
-      , HH.h2
-          [ singleClass "amarcord-section-separator" ]
-          [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Run tool" ]
-      , HH.slot _toolRunner 0 ToolRunner.component { numberOfReductions: state.totalReductions, numberOfDiffractions: state.totalDiffractions, filterQuery: state.sorting.filterQuery } absurd
-      , HH.h2
-          [ singleClass "amarcord-section-separator" ]
-          [ icon { name: "clipboard", size: Nothing, spin: false }, HH.text " Jobs" ]
-      , HH.slot _jobList 1 JobList.component { limit: 10 } absurd
-      , HH.h2
-          [ singleClass "amarcord-section-separator" ]
-          [ icon { name: "tools", size: Nothing, spin: false }, HH.text " Available Tools" ]
-      , HH.slot _toolsCrud 1 ToolsCrud.component {} absurd
-      ]
+  container
+    [ HH.h2_ [ icon { name: "user-cog", size: Nothing, spin: false }, HH.text " I want to..." ]
+    , jobForm state
+    , maybe (HH.text "") (makeAlert AlertDanger) state.errorMessage
+    ]

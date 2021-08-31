@@ -3,15 +3,18 @@ module App.Components.Router where
 import Prelude
 import App.AppMonad (AppMonad)
 import App.Components.Analysis as Analysis
-import App.Components.Sample as Sample
 import App.Components.Beamline as Beamline
+import App.Components.Sample as Sample
+import App.Components.Jobs as Jobs
 import App.Components.Tools as Tools
+import App.Components.ToolsAdmin as ToolsAdmin
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList, singleClass)
 import App.Root as Root
 import App.Route (Route(..), routeCodec, sameRoute)
 import App.SortOrder (SortOrder(..))
 import Data.Either (hush)
+import Data.Foldable (any)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
 import Effect.Class (class MonadEffect, liftEffect)
@@ -48,6 +51,8 @@ type ChildSlots
     , beamline :: OpaqueSlot Unit
     , analysis :: OpaqueSlot Unit
     , tools :: OpaqueSlot Unit
+    , toolsadmin :: OpaqueSlot Unit
+    , jobs :: OpaqueSlot Unit
     )
 
 component :: forall i o. H.Component HH.HTML Query i o AppMonad
@@ -97,45 +102,80 @@ render st =
         Just route -> case route of
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
           Sample -> HH.slot (SProxy :: _ "sample") unit Sample.component unit absurd
+          Jobs -> HH.slot (SProxy :: _ "jobs") unit Jobs.component unit absurd
+          ToolsAdmin -> HH.slot (SProxy :: _ "toolsadmin") unit ToolsAdmin.component unit absurd
           Analysis input -> HH.slot (SProxy :: _ "analysis") unit Analysis.component input absurd
           Tools input -> HH.slot (SProxy :: _ "tools") unit Tools.component input absurd
           Beamline input -> HH.slot (SProxy :: _ "beamline") unit Beamline.component input absurd
 
-navItems ::
-  Array
-    { fa :: String
+type NavItemData
+  = { fa :: String
     , link :: Route
     , title :: String
     }
+
+data NavItem
+  = AtomicNavItem NavItemData
+  | NestedNavItem { fa :: String, title :: String } (Array NavItemData)
+
+navItems ::
+  Array NavItem
 navItems =
-  [ { title: "Sample"
-    , link: Sample
-    , fa: "vial"
-    }
-  , { title: "Beamline"
-    , link: Beamline { puckId: Nothing }
-    , fa: "radiation"
-    }
-  , { title: "Analysis"
-    , link: Analysis { sortOrder: Descending, sortColumn: "crystals_crystal_id", filterQuery: "" }
-    , fa: "table"
-    }
-  , { title: "Tools"
-    , link: Tools {  sortOrder: Descending, sortColumn: "crystals_crystal_id", filterQuery: "" }
-    , fa: "tools"
-    }
+  [ AtomicNavItem
+      { title: "Sample"
+      , link: Sample
+      , fa: "vial"
+      }
+  , AtomicNavItem
+      { title: "Beamline"
+      , link: Beamline { puckId: Nothing }
+      , fa: "radiation"
+      }
+  , AtomicNavItem
+      { title: "Analysis"
+      , link: Analysis { sortOrder: Descending, sortColumn: "crystals_crystal_id", filterQuery: "" }
+      , fa: "table"
+      }
+  , NestedNavItem { fa: "tools", title: "Processing" }
+      [ { title: "Run tools", link: Tools {}, fa: "running" }
+      , { title: "View jobs", link: Jobs, fa: "tasks" }
+      , { title: "Administer tools", link: ToolsAdmin, fa: "screwdriver" }
+      ]
   ]
 
 makeNavItem ::
-  forall t158 t163.
+  forall t163.
   Maybe Route ->
-  { fa :: String
-  , link :: Route
-  , title :: String
-  | t158
-  } ->
+  NavItem ->
   HH.HTML t163 Action
-makeNavItem route ({ title, link, fa }) =
+makeNavItem route (NestedNavItem { fa, title } subNavItems) =
+  let
+    makeSubNav { fa: faSub, title: titleSub, link } =
+      HH.a
+        [ singleClass ("dropdown-item" <> (if fromMaybe false (sameRoute link <$> route) then " active" else ""))
+        , HP.href "#"
+        , HE.onClick (Just <<< GoTo link)
+        ]
+        [ icon { name: faSub, size: Nothing, spin: false }, HH.text (" " <> titleSub)
+        ]
+
+    active = case route of
+      Nothing -> ""
+      Just route' -> if any (\i -> sameRoute i.link route') subNavItems then " active" else ""
+  in
+    HH.li [ singleClass "nav-item dropdown" ]
+      [ HH.a
+          [ singleClass ("nav-link dropdown-toggle" <> active)
+          , HP.attr (HH.AttrName "data-bs-toggle") "dropdown"
+          , HP.href "#"
+          ]
+          [ icon { name: fa, size: Nothing, spin: false }, HH.text (" " <> title) ]
+      , HH.div
+          [ singleClass "dropdown-menu" ]
+          (makeSubNav <$> subNavItems)
+      ]
+
+makeNavItem route (AtomicNavItem { title, link, fa }) =
   let
     isActive = if fromMaybe false (sameRoute link <$> route) then [ "active" ] else []
   in

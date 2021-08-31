@@ -460,6 +460,7 @@ class DBTables:
         schemata: Schemata,
         engine: Optional[Engine] = None,
     ) -> None:
+        self.metadata = metadata
         self.with_estimated_resolution = with_estimated_resolution
         self.pucks = table_pucks(metadata, schemata)
         self.dewar_lut = table_dewar_lut(metadata, self.pucks, schemata)
@@ -487,3 +488,8 @@ class DBTables:
             )
         else:
             self.tool_tables = None
+
+    def load_from_engine(self, engine: Engine) -> None:
+        self.crystals = Table(
+            "Crystals", self.metadata, autoload_with=engine, extend_existing=True
+        )

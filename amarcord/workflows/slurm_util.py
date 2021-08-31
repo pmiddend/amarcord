@@ -10,7 +10,9 @@ def parse_job_state(s: str) -> JobStatus:
 
 
 def build_sbatch(content: str) -> str:
-    return f"""#!/bin/sh
+    # Note bash -l here. It's pretty tricky to get a "normal" environment on SLURM, especially
+    # via the REST interface. We need the -l here to force reading, for example, ~/.bashrc.
+    return f"""#!/bin/bash -l
 
 {content}
     """

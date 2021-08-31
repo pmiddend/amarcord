@@ -39,12 +39,22 @@ from amarcord.workflows.workflow_synchronize import process_tool_command_line
 @given(text(alphabet=characters(blacklist_characters="$")))
 def test_process_command_line_simple_string(s: str) -> None:
     # If we don't use the special character $, we shouldn't see any difference in replacement
-    assert process_tool_command_line(s, Path(), Path(), {}) == s
+    assert (
+        process_tool_command_line(
+            s, reduction_data={}, diffraction_data={}, tool_inputs={}
+        )
+        == s
+    )
 
 
 def test_process_string_input() -> None:
     assert (
-        process_tool_command_line("foo${bar}baz", Path(), Path(), {"bar": "xyz"})
+        process_tool_command_line(
+            "foo${bar}baz",
+            reduction_data={},
+            diffraction_data={},
+            tool_inputs={"bar": "xyz"},
+        )
         == "fooxyzbaz"
     )
 
@@ -52,23 +62,31 @@ def test_process_string_input() -> None:
 @given(integers())
 def test_process_int_input(i: int) -> None:
     assert (
-        process_tool_command_line("foo${bar}baz", Path(), Path(), {"bar": i})
+        process_tool_command_line(
+            "foo${bar}baz",
+            reduction_data={},
+            diffraction_data={},
+            tool_inputs={"bar": i},
+        )
         == f"foo{i}baz"
     )
 
 
 def test_process_unconsumed_string_input() -> None:
     assert (
-        process_tool_command_line("foo${bar}baz", Path(), Path(), {}) == "foo${bar}baz"
+        process_tool_command_line(
+            "foo${bar}baz", reduction_data={}, diffraction_data={}, tool_inputs={}
+        )
+        == "foo${bar}baz"
     )
 
 
 def test_process_diffraction_path() -> None:
     assert (
         process_tool_command_line(
-            "foo${diffraction.path}baz",
-            diffraction_data_path=Path("/tmp"),
-            mtz_path=None,
+            "foo${Diffractions.path}baz",
+            reduction_data={},
+            diffraction_data={"path": "/tmp"},
             tool_inputs={},
         )
         == "foo/tmpbaz"
@@ -78,9 +96,9 @@ def test_process_diffraction_path() -> None:
 def test_process_mtz_path() -> None:
     assert (
         process_tool_command_line(
-            "foo${reduction.mtz_path}baz",
-            diffraction_data_path=None,
-            mtz_path=Path("/tmp"),
+            "foo${Data_Reduction.mtz_path}baz",
+            diffraction_data={},
+            reduction_data={"mtz_path": "/tmp"},
             tool_inputs={},
         )
         == "foo/tmpbaz"
@@ -89,7 +107,12 @@ def test_process_mtz_path() -> None:
 
 def test_process_array_input() -> None:
     with pytest.raises(Exception):
-        process_tool_command_line("foo${bar}baz", Path(), Path(), {"bar": []})
+        process_tool_command_line(
+            "foo${bar}baz",
+            reduction_data={},
+            diffraction_data={},
+            tool_inputs={"bar": []},
+        )
 
 
 @dataclass
@@ -248,7 +271,7 @@ def test_check_jobs_no_diffraction_path() -> None:
         reduction_jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(reduction_jobs) == 1
-        assert reduction_jobs[0].job.status == JobStatus.COMPLETED
+        assert reduction_jobs[0].job.status == JobStatus.FAILED
         assert reduction_jobs[0].job.failure_reason is not None
 
 
@@ -280,7 +303,7 @@ def test_check_jobs_result_file_doesnt_exist() -> None:
         jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(jobs) == 1
-        assert jobs[0].job.status == JobStatus.COMPLETED
+        assert jobs[0].job.status == JobStatus.FAILED
         assert jobs[0].job.failure_reason is not None
 
 
@@ -309,7 +332,7 @@ def test_check_jobs_invalid_json_file(fs) -> None:
         jobs = list(scenario.db.retrieve_jobs_with_attached(conn, limit=None))
 
         assert len(jobs) == 1
-        assert jobs[0].job.status == JobStatus.COMPLETED
+        assert jobs[0].job.status == JobStatus.FAILED
         assert jobs[0].job.failure_reason is not None
 
         _assert_no_reductions(scenario, conn)

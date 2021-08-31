@@ -11,6 +11,7 @@ from typing import Tuple
 from typing import Union
 
 import sqlalchemy as sa
+from sqlalchemy import and_
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.elements import Label
 
@@ -35,6 +36,7 @@ from amarcord.newdb.db_sample_data import DBSampleData
 from amarcord.newdb.db_tool import DBTool
 from amarcord.newdb.diffraction_type import DiffractionType
 from amarcord.newdb.reduction_method import ReductionMethod
+from amarcord.newdb.reduction_simple_filter import ReductionSimpleFilter
 from amarcord.newdb.refinement_method import RefinementMethod
 from amarcord.newdb.tables import DBTables
 from amarcord.util import DontUpdate
@@ -228,7 +230,11 @@ class NewDB:
         )
 
     def retrieve_jobs_with_attached(
-        self, conn: Connection, limit: Optional[int]
+        self,
+        conn: Connection,
+        limit: Optional[int] = None,
+        status_filter: Optional[JobStatus] = None,
+        start_at_least: Optional[datetime.datetime] = None,
     ) -> Iterable[DBJobWithInputsAndOutputs]:
         if self.tables.tool_tables is None:
             return []
@@ -240,6 +246,7 @@ class NewDB:
                 return DBMiniReduction(
                     data_reduction_id=job["input_data_reduction_id"],
                     mtz_path=job["input_reduction_mtz_path"],
+                    resolution_cc=job["input_reduction_resolution_cc"],
                     resulting_refinement_id=job["output_refinement_id"],
                     crystal_id=job["jwor_crystal_id"],
                     run_id=job["jwor_run_id"],
@@ -256,6 +263,16 @@ class NewDB:
 
         jc = self.tables.tool_tables.jobs.c
         tc = self.tables.tool_tables.tools.c
+
+        where_condition = and_(  # type: ignore
+            True
+            if status_filter is None
+            else self.tables.tool_tables.jobs.c.status == status_filter,
+            True
+            if start_at_least is None
+            else self.tables.tool_tables.jobs.c.started >= start_at_least,
+        )
+
         # noinspection PyTypeChecker
         query_result = conn.execute(
             sa.select(
@@ -291,6 +308,9 @@ class NewDB:
                         "input_data_reduction_id"
                     ),
                     reductions_as_input.c.mtz_path.label("input_reduction_mtz_path"),
+                    reductions_as_input.c.resolution_cc.label(
+                        "input_reduction_resolution_cc"
+                    ),
                     reductions_as_input.c.crystal_id.label("jwor_crystal_id"),
                     reductions_as_input.c.run_id.label("jwor_run_id"),
                     self.tables.tool_tables.job_has_refinement_result.c.refinement_id.label(
@@ -345,6 +365,7 @@ class NewDB:
                     == self.tables.tool_tables.job_has_refinement_result.c.refinement_id,
                 )
             )
+            .where(where_condition)
             .order_by(jc.started.desc())
             .limit(limit)
         )
@@ -742,6 +763,60 @@ class NewDB:
             (row["diff_crystal_id"], row["diff_run_id"])
             for row in conn.execute(query)
             if row["diff_crystal_id"] is not None
+        )
+
+    def retrieve_crystal_column_values(self, conn: Connection) -> List[Dict[str, Any]]:
+        result: List[Dict[str, Any]] = []
+        for c in (
+            c
+            for c in self.tables.crystals.columns
+            if c.name not in ("crystal_id", "created", "compound_drop_id")
+        ):
+            result.append(
+                {
+                    "columnName": c.name,
+                    "values": [
+                        str(x[0]) if x[0] is not None else None
+                        for x in conn.execute(sa.select(c).distinct())
+                    ],
+                }
+            )
+        return result
+
+    def retrieve_data_reduction_ids_simple(
+        self,
+        conn: Connection,
+        filter_: ReductionSimpleFilter,
+    ) -> Set[int]:
+        select_from = (
+            self.tables.reductions.join(
+                self.tables.diffs,
+                (self.tables.reductions.c.crystal_id == self.tables.diffs.c.crystal_id)
+                & (self.tables.reductions.c.run_id == self.tables.diffs.c.run_id),
+            )
+            .join(
+                self.tables.crystals,
+                self.tables.crystals.c.crystal_id == self.tables.diffs.c.crystal_id,
+            )
+            .outerjoin(self.tables.refinements)
+        )
+        columns = [self.tables.reductions.c.data_reduction_id]
+        query = sa.select(columns).select_from(select_from)
+        if filter_.only_non_refined:
+            query = query.where(self.tables.refinements.c.refinement_id.is_(None))
+        if filter_.reduction_method is not None:
+            query = query.where(
+                self.tables.reductions.c.method == filter_.reduction_method
+            )
+        for column_name, value in filter_.crystal_filters.items():
+            if column_name not in self.tables.crystals.columns:
+                raise Exception(
+                    f'crystal column "{column_name}" not found in crystals table, available columns are {self.tables.crystals.columns}'
+                )
+            column = self.tables.crystals.columns[column_name]
+            query = query.where(column == value)
+        return set(
+            x[self.tables.reductions.c.data_reduction_id] for x in conn.execute(query)
         )
 
     def retrieve_analysis_reductions(

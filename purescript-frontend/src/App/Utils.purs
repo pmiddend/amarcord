@@ -1,17 +1,27 @@
 module App.Utils where
 
+import Data.Argonaut.Core as Argonaut
 import Data.Array (find, head, uncons)
 import Data.Boolean (otherwise)
+import Data.Either (Either, either)
+import Data.Eq ((==))
 import Data.Filterable (filter)
 import Data.Foldable (foldMap)
+import Data.FoldableWithIndex (foldrWithIndex)
 import Data.Functor (class Functor)
 import Data.Int (fromString)
-import Data.Maybe (Maybe(..))
-import Data.Monoid (class Monoid)
+import Data.List ((:))
+import Data.Map (Map)
+import Data.Maybe (Maybe(..), maybe)
+import Data.Monoid (class Monoid, mempty)
 import Data.Ord (class Ord, (>=))
 import Data.Set (Set, delete, insert, member)
+import Data.String (length, take)
 import Data.Tuple (Tuple(..))
-import Prelude (class Apply, class Eq, eq, map, (<$>), (<*>), (>>>))
+import Foreign.Object (Object, fromFoldable)
+import Prelude (class Apply, class Eq, eq, identity, map, (<$>), (<*>), (>>>))
+
+type Endo a = a -> a
 
 foldMap' :: forall a m. Monoid m => Maybe a -> (a -> m) -> m
 foldMap' m f = foldMap f m
@@ -38,3 +48,20 @@ toggleSetElement v x
 
 fromStringPositive :: String -> Maybe Int
 fromStringPositive = fromString >>> filter (_ >= 0)
+
+startsWith :: String -> String -> Boolean
+startsWith haystack needle = take (length needle) haystack == needle
+
+stringMaybeMapToJsonObject :: Map String (Maybe String) -> Object Argonaut.Json
+stringMaybeMapToJsonObject m =
+  let folder k v prevList = Tuple k (maybe Argonaut.jsonNull Argonaut.fromString v) : prevList
+  in fromFoldable (foldrWithIndex folder mempty m)
+
+stringMapToJsonObject :: Map String String -> Object Argonaut.Json
+stringMapToJsonObject m =
+  let folder k v prevList = Tuple k (Argonaut.fromString v) : prevList
+  in fromFoldable (foldrWithIndex folder mempty m)
+
+
+dehomoEither :: forall a. Either a a -> a
+dehomoEither = either identity identity

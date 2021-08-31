@@ -13,6 +13,7 @@ from requests import Response
 from amarcord.modules.json import JSONDict
 from amarcord.workflows.job import Job
 from amarcord.workflows.job_controller import JobController
+from amarcord.workflows.job_controller import JobStartError
 from amarcord.workflows.job_controller import JobStartResult
 from amarcord.workflows.slurm_util import build_sbatch
 from amarcord.workflows.slurm_util import parse_job_state
@@ -59,7 +60,7 @@ class SlurmRestJobController(JobController):
         partition: str,
         jwt_token: str,
         user_id: int,
-        rest_url: str = "http://max-portal.desy.de:6820/slurm/v0.0.36",
+        rest_url: str = "http://max-portal.desy.de/sapi/slurm/v0.0.36",
         rest_user: str = "pmidden",
         request_wrapper: SlurmHttpWrapper = SlurmRequestsHttpWrapper(),
     ) -> None:
@@ -106,7 +107,9 @@ class SlurmRestJobController(JobController):
             "job": {
                 "nodes": 1,
                 "current_working_directory": str(self._output_base_dir),
+                "time_limit": 24 * 60,
                 "environment": {
+                    # Weirdly enough, HOME isn't really set when we don't set it here.
                     "HOME": f"/home/{self._rest_user}",
                     "SHELL": "/bin/bash",
                     "USER": self._rest_user,
@@ -123,13 +126,13 @@ class SlurmRestJobController(JobController):
         response_json = response.json()
         errors: List[SlurmError] = response_json.get("errors", None)
         if errors is not None and errors:
-            raise Exception(
+            raise JobStartError(
                 "there were slurm errors: "
                 + ",".join(f"{s['error_code']}: {s['error']}" for s in errors)
             )
         job_id = response_json.get("job_id", None)
         if job_id is None:
-            raise Exception(
+            raise JobStartError(
                 "slurm response didn't contain a job ID: " + json.dumps(response_json)
             )
         return JobStartResult({"job_id": job_id}, chdir)
@@ -149,11 +152,18 @@ class SlurmRestJobController(JobController):
         errors = response.get("errors", None)
         if errors is not None and errors:
             raise Exception("list job request contained errors: " + ",".join(errors))
-        return [
-            _convert_job(job)
-            for job in response.get("jobs", [])
-            if self.job_matches(job)
-        ]
+        if "jobs" not in response:
+            raise Exception(
+                "didn't get any jobs in the response: " + json.dumps(response)
+            )
+        jobs = response.get("jobs", [])
+        if not jobs:
+            logger.info(
+                "jobs array actually empty (token expired probably): %s",
+                json.dumps(response),
+            )
+            raise Exception("jobs array empty, token expired?")
+        return [_convert_job(job) for job in jobs if self.job_matches(job)]
 
     def equals(self, metadata_a: JSONDict, metadata_b: JSONDict) -> bool:
         return metadata_a.get("job_id", None) == metadata_b.get("job_id", None)

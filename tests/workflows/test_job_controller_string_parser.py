@@ -31,3 +31,41 @@ def test_parse_job_controller_slurm(fs) -> None:
     assert result.partition == partition
     assert result.jwtToken == jwt_token
     assert result.url == "http://host:1337/path"
+
+
+# We had a bug at one point where specifying no port in the URL (so using 80 or 443) didn't parse right
+def test_parse_job_controller_slurm_no_port(fs) -> None:
+    partition = "testpartition"
+    user_id = 1
+    jwt_token = "token"
+    user = "pmidden"
+    base_dir = "basedir"
+    result = parse_job_controller(
+        f"slurmrest://host/path?baseDir={base_dir}&partition={partition}&userId={user_id}&jwtToken={jwt_token}&user={user}"
+    )
+    assert isinstance(result, SlurmRestJobControllerConfig)
+    assert result.baseDir == Path(base_dir)
+    assert result.user == user
+    assert result.user_id == user_id
+    assert result.partition == partition
+    assert result.jwtToken == jwt_token
+    assert result.url == "http://host/path"
+
+
+# The interface changed to https at some point
+def test_parse_job_controller_slurm_secure(fs) -> None:
+    partition = "testpartition"
+    user_id = 1
+    jwt_token = "token"
+    user = "pmidden"
+    base_dir = "basedir"
+    result = parse_job_controller(
+        f"slurmrestsecure://host/path?baseDir={base_dir}&partition={partition}&userId={user_id}&jwtToken={jwt_token}&user={user}"
+    )
+    assert isinstance(result, SlurmRestJobControllerConfig)
+    assert result.baseDir == Path(base_dir)
+    assert result.user == user
+    assert result.user_id == user_id
+    assert result.partition == partition
+    assert result.jwtToken == jwt_token
+    assert result.url == "https://host/path"

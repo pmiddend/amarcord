@@ -51,19 +51,22 @@ def parse_job_controller(
         return LocalJobControllerConfig(
             Path(jcc.path), Path(get_raise_missing("sqliteFile"))
         )
-    if jcc.scheme == "slurmrest":
+    if jcc.scheme == "slurmrest" or jcc.scheme == "slurmrestsecure":
         baseDir = get_raise_missing("baseDir")
         partition = get_raise_missing("partition")
         user_id = get_raise_missing("userId")
         jwtToken = get_raise_missing("jwtToken")
         user = get_raise_missing("user")
+        output_scheme = "http" if jcc.scheme == "slurmrest" else "https"
         return SlurmRestJobControllerConfig(
             Path(baseDir),
             partition,
             int(user_id),
             jwtToken,
             user,
-            "http://" + str(jcc.hostname) + ":" + str(jcc.port) + jcc.path,
+            f"{output_scheme}://{jcc.hostname}"
+            + (":" + str(jcc.port) if jcc.port is not None else "")
+            + jcc.path,
         )
     raise Exception(f"invalid job controller url (invalid scheme {jcc.scheme}): {s}")
 

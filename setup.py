@@ -15,6 +15,7 @@ setuptools.setup(
             "amarcord-xfel-filesystem-ingester = amarcord.cli.xfel_filesystem_ingester:main",
             "amarcord-karabo-online-ingester = amarcord.cli.karabo_online_ingester:main",
             "amarcord-karabo-bridge-dumper = amarcord.cli.karabo_bridge_dumper:main",
+            "amarcord-newdb-admin = amarcord.cli.newdb_admin:main",
         ]
     },
     # see https://github.com/dolfinus/setuptools-git-versioning

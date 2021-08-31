@@ -16,6 +16,8 @@ data Route
   | Analysis AnalysisRouteInput
   | Sample
   | Tools ToolsRouteInput
+  | Jobs
+  | ToolsAdmin
 
 derive instance genericRoute :: Generic Route _
 
@@ -25,6 +27,8 @@ sameRoute :: Route -> Route -> Boolean
 sameRoute Root Root = true
 
 sameRoute Sample Sample = true
+sameRoute Jobs Jobs = true
+sameRoute ToolsAdmin ToolsAdmin = true
 
 sameRoute (Analysis _) (Analysis _) = true
 
@@ -44,11 +48,7 @@ type AnalysisRouteInput
     , filterQuery :: String
     }
 
-type ToolsRouteInput
-  = { sortColumn :: String
-    , sortOrder :: SortOrder
-    , filterQuery :: String
-    }
+type ToolsRouteInput = {}
 
 sortOrder :: RouteDuplex String String -> RouteDuplex SortOrder SortOrder
 sortOrder = as sortToString sortFromString
@@ -61,7 +61,9 @@ routeCodec =
         , "Sample": path "sample" G.noArgs
         , "Beamline": "beamline" ? { puckId: optional <<< string }
         , "Analysis": "analysis" ? { sortColumn: string, sortOrder: sortOrder, filterQuery: string }
-        , "Tools": "tools" ? { sortColumn: string, sortOrder: sortOrder, filterQuery: string }
+        , "Tools": "tools" ? {}
+        , "Jobs": path "jobs" G.noArgs
+        , "ToolsAdmin": path "toolsadmin" G.noArgs
         }
 
 matchRoute :: (Maybe Route -> Route -> Effect Unit) -> Effect (Effect Unit)
