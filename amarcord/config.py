@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from xdg import xdg_config_home
 
 
-# this is deliberately a function so that it neatly works with pyfakefs (and perforamnce doesn't matter)
+# this is deliberately a function so that it neatly works with pyfakefs (and performance doesn't matter)
 def user_config_path() -> Path:
     return xdg_config_home() / "AMARCORD" / "config.yml"
 

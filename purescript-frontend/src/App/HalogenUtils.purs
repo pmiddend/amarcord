@@ -62,11 +62,14 @@ instance showAlertType :: Show AlertType where
   show AlertLight = "alert-light"
   show AlertDark = "alert-dark"
 
-makeAlert :: forall w i. AlertType -> String -> HH.HTML w i
-makeAlert alertType content =
+makeAlertHtml :: forall w i. AlertType -> Array (HH.HTML w i) -> HH.HTML w i
+makeAlertHtml alertType content =
   HH.div
     [ HP.classes [ HH.ClassName ("alert " <> show alertType) ], HPA.role "alert" ]
-    [ HH.text content ]
+    content
+
+makeAlert :: forall w i. AlertType -> String -> HH.HTML w i
+makeAlert alertType content = makeAlertHtml alertType [HH.text content]
 
 makeRequestResult :: forall w i. (RemoteData String String) -> HH.HTML w i
 makeRequestResult (Failure e) = makeAlert AlertDanger e

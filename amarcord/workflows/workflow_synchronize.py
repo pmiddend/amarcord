@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Dict
 from typing import List
@@ -8,6 +9,7 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 import sqlalchemy as sa
 
@@ -27,6 +29,8 @@ from amarcord.newdb.db_refinement import DBRefinement
 from amarcord.newdb.newdb import NewDB
 from amarcord.newdb.reduction_simple_filter import ReductionSimpleFilter
 from amarcord.newdb.refinement_method import RefinementMethod
+from amarcord.util import DontUpdate
+from amarcord.util import TriOptional
 from amarcord.util import deglob_path
 from amarcord.util import find_by
 from amarcord.workflows.job_controller import JobController
@@ -165,6 +169,15 @@ def _process_running_job(
     )
 
 
+def _try_read_output(d: Path) -> TriOptional[str]:
+    try:
+        with d.open("rb") as f:
+            f.seek(-1024, os.SEEK_END)
+            return f.read().decode("utf-8", errors="ignore")
+    except:
+        return DontUpdate()
+
+
 def _process_completed_job(
     conn: Connection,
     db: NewDB,
@@ -184,6 +197,8 @@ def _process_completed_job(
             job.job.id,
             JobStatus.FAILED,
             f"output file not found: {output_description}",
+            last_stderr=_try_read_output(job.job.output_directory / "stderr.txt"),
+            last_stdout=_try_read_output(job.job.output_directory / "stdout.txt"),
             metadata=job.job.metadata,
             stopped=datetime.datetime.utcnow(),
         )
@@ -205,6 +220,8 @@ def _process_completed_job(
             JobStatus.FAILED,
             f"invalid output file {output_description}: {parse_results}",
             job.job.metadata,
+            last_stderr=_try_read_output(job.job.output_directory / "stderr.txt"),
+            last_stdout=_try_read_output(job.job.output_directory / "stdout.txt"),
             stopped=datetime.datetime.utcnow(),
         )
         return
@@ -315,6 +332,8 @@ def _process_completed_job(
         job.job.id,
         JobStatus.COMPLETED,
         failure_reason=None,
+        last_stderr=_try_read_output(job.job.output_directory / "stderr.txt"),
+        last_stdout=_try_read_output(job.job.output_directory / "stdout.txt"),
         metadata=job.job.metadata,
         stopped=datetime.datetime.utcnow(),
     )
@@ -522,6 +541,38 @@ def check_jobs(
             _start_job(conn, job_controller, db, db_job)
 
         controller_jobs = list(job_controller.list_jobs())
+
+        # Iterate over running jobs, updating the output
+        for rt_job in (y for y in controller_jobs if y.status == JobStatus.RUNNING):
+            db_job = next(
+                iter(
+                    x
+                    for x in db_jobs
+                    if x.job.status == JobStatus.RUNNING
+                    and x.job.metadata is not None
+                    and job_controller.equals(rt_job.metadata, x.job.metadata)
+                ),
+                # No idea why this doesn't type check (mypy)
+                None,  # type: ignore
+            )
+
+            if db_job is None:
+                continue
+
+            job_id = db_job.job.id
+            outdir = db_job.job.output_directory
+
+            if job_id is not None and outdir is not None:
+                db.update_job(
+                    conn,
+                    cast(int, job_id),
+                    JobStatus.RUNNING,
+                    None,
+                    last_stderr=_try_read_output(outdir / "stderr.txt"),
+                    last_stdout=_try_read_output(outdir / "stdout.txt"),
+                    metadata=db_job.job.metadata,
+                )
+
         # Iterate over the completed jobs, align with running DB jobs
         for rt_job in (
             y

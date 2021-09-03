@@ -2,7 +2,7 @@ module App.Components.ToolsCrud where
 
 import App.API (Tool, ToolsResponse, addTool, editTool, removeTool, retrieveTools)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), container, plainH2_, table)
+import App.Bootstrap (TableFlag(..), plainH2_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (classList, makeRequestResult, singleClass)
@@ -28,7 +28,8 @@ import Network.RemoteData (RemoteData(..), fromEither)
 import Web.HTML (window)
 import Web.HTML.Window (confirm)
 
-type ToolsCrudInput = {}
+type ToolsCrudInput
+  = {}
 
 type State
   = { tools :: Array Tool
@@ -46,6 +47,7 @@ data Action
   = ChangeTool (Tool -> Tool)
   | RemoveTool Int
   | EditTool Int
+  | AppendCommandLine String
   | FinishEditing
   | CancelEditing
 
@@ -68,6 +70,8 @@ initialState { input: _, remoteData: { tools } } =
 
 handleAction :: forall slots. Action -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleAction = case _ of
+  AppendCommandLine c -> do
+    H.modify_ \state -> state { editTool = state.editTool { commandLine = state.editTool.commandLine <> " " <> c } }
   ChangeTool f -> do
     currentTool <- H.gets _.editTool
     H.modify_ \state -> state { editTool = f currentTool }
@@ -146,6 +150,18 @@ editForm state =
 
     coparseExtraFiles :: Array String -> String
     coparseExtraFiles = joinWith "\n"
+
+    specialParameters :: Array { name :: String, description :: String }
+    specialParameters =
+      [ { name: "${Data_Reduction.mtz_path}", description: "Full path to the MTZ file for the processing result" }
+      , { name: "${Data_Reduction.resolution_cc}", description: "Cut resolution of the processing result" }
+      ]
+
+    makeParameterTableRow { name, description } =
+      HH.tr_
+        [ HH.td_ [ HH.button [ HP.type_ ButtonButton, singleClass "btn btn-link btn-sm", HE.onClick (\_ -> Just (AppendCommandLine name)) ] [ HH.code_ [ HH.text name ] ] ]
+        , HH.td_ [ HH.text description ]
+        ]
   in
     HH.form [ singleClass "mb-3" ]
       [ HH.div [ singleClass "mb-3" ]
@@ -184,6 +200,12 @@ editForm state =
               , singleClass "form-control"
               , HP.value state.editTool.commandLine
               ]
+          ]
+      , HH.div [ singleClass "mb-3" ]
+          [ HH.h3_ [ HH.text "Command line placeholders" ]
+          , HH.p_ [ HH.small [ singleClass "text-muted" ] [ HH.text "Click to append to the command line" ] ]
+          , table "command-line-placeholder-table" [ TableStriped ] [ HH.th_ [ HH.text "Flag" ], HH.th_ [ HH.text "Description" ] ]
+              (makeParameterTableRow <$> specialParameters)
           ]
       , HH.div [ singleClass "mb-3" ]
           [ HH.label [ HP.for "editDescription", singleClass "form-label" ] [ HH.text "Description" ]

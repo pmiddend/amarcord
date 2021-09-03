@@ -5,7 +5,7 @@ import App.AppMonad (AppMonad)
 import App.Bootstrap (container)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
-import App.HalogenUtils (AlertType(..), makeAlert, singleClass)
+import App.HalogenUtils (AlertType(..), makeAlert, makeAlertHtml, singleClass)
 import App.Route (Route(..), ToolsRouteInput, createLink)
 import App.SQL (sqlConditionToString)
 import App.SortOrder (SortOrder(..))
@@ -167,7 +167,7 @@ handleAction = case _ of
                   rd.onlyUnrefined
           case result of
             Left e -> H.modify_ (modifyRefinementData \rd' -> rd' { jobStartResult = Failure e })
-            Right { jobIds } -> H.modify_ (modifyRefinementData \rd' -> rd' { jobStartResult = Success $ "Started " <> show (length jobIds) <> (if length jobIds == 1 then " job" else " jobs") })
+            Right { jobIds } -> H.modify_ (modifyRefinementData \rd' -> rd' { jobStartResult = Success $ "Started " <> show (length jobIds) <> (if length jobIds == 1 then " job!" else " jobs!") })
       _ -> pure unit
   DecisionChange v -> do
     case v of
@@ -316,7 +316,7 @@ jobForm state =
 
         crystalFilterElements = makeCrystalFilterElement <$> state.jobForm.crystalFilters
 
-        crystalFilterQuery =
+        viewInAnalysisTable =
           let
             crystalConditions = (foldrWithIndex (\column value priorList -> { column: "Crystals." <> column, value } : priorList) mempty rd.selectedFilters)
 
@@ -336,7 +336,7 @@ jobForm state =
 
         buttonText =
           if rd.reductionCount == 0 then
-            Left "No datasets found to refine"
+            Left "No datasets found to refine (maybe all have been refined already?)"
           else if isNothing rd.toolId then
             Left "Please choose a tool to use"
           else
@@ -358,6 +358,11 @@ jobForm state =
                 : prevRows
 
             toolUserParameters = foldrWithIndex makeParameterRow mempty rd.toolParameters
+
+            toolDescription = case chosenTool of
+              Nothing -> []
+              Just { description: "" } -> []
+              Just { description } -> [ HH.div [ singleClass "mt-3 row" ] [ HH.p_ [ HH.text "Description: ", HH.em_ [ HH.text description ] ] ] ]
           in
             ( [ HH.h3 [ singleClass "mt-3" ] [ icon { name: "cogs", size: Nothing, spin: false }, HH.text " Tool" ]
               , HH.div [ singleClass "mt-3 row" ]
@@ -369,11 +374,12 @@ jobForm state =
                   ]
               ]
                 <> toolUserParameters
+                <> toolDescription
             )
 
         jobStartResult = case rd.jobStartResult of
           Failure e -> makeAlert AlertDanger e
-          Success e -> makeAlert AlertSuccess e
+          Success e -> makeAlertHtml AlertSuccess [ HH.text e, HH.br_, HH.text "Go to the ", HH.a [ HP.href (createLink Jobs) ] [ HH.text "job list" ], HH.text " to view your jobs" ]
           _ -> HH.text ""
 
         sectionStartRefinement =
@@ -392,32 +398,33 @@ jobForm state =
                   ]
               , HH.div [ singleClass "col" ] [ HH.input [ HP.type_ InputText, singleClass "form-control", HP.id_ "refine-form-comment", HE.onValueChange (Just <<< RefinementCommentChanged), HP.value rd.comment ] ]
               ]
+          , jobStartResult
           , HH.div [ singleClass "mt-3 mb-2 row" ]
               [ HH.button [ HP.type_ HP.ButtonButton, singleClass ("btn " <> (if isLeft buttonText then "btn-secondary" else "btn-primary")), HE.onClick \_ -> Just RefinementStart, HP.disabled (isLeft buttonText) ] [ HH.text (dehomoEither buttonText) ]
               ]
-          , jobStartResult
           ]
       in
         HH.form_
           ( [ HH.h3 [ singleClass "mt-3" ] [ icon { name: "puzzle-piece", size: Nothing, spin: false }, HH.text " Refinement parameters" ]
             , HH.p [ singleClass "lead" ] [ HH.text "Here you can specify exactly what processing results you want to refine. Below, you can see how many refinements will take place." ]
-            , HH.div [ singleClass "form-check " ]
-                [ HH.input
-                    [ HP.type_ InputCheckbox
-                    , singleClass "form-check-input"
-                    , HP.id_ "refine-form-only-nonrefined"
-                    , HP.checked rd.onlyUnrefined
-                    , HE.onValueChange (const (Just RefinementToggleOnlyNonrefined))
-                    ]
-                , HH.label [ singleClass "form-check-label", HP.for "refine-form-only-nonrefined" ] [ HH.text "Only results that have not been refined yet" ]
-                ]
             , HH.div [ singleClass "mt-3 row" ]
                 [ HH.div [ singleClass "col" ] [ HH.label [ singleClass "form-label col-form-label", HP.for "refine-form-reduction-method" ] [ HH.text "Reduction method" ] ]
                 , HH.div [ singleClass "col" ] [ HH.select [ singleClass "form-select col", HP.id_ "refine-form-reduction-method", HE.onValueChange (Just <<< RefinementReductionMethodChanged) ] (noReductionMethodOption : separatorOption : reductionMethodOptions) ]
                 ]
             ]
               <> crystalFilterElements
-              <> [ crystalFilterQuery ]
+              <> [ HH.div [ singleClass "form-check mt-3 mb-3" ]
+                    [ HH.input
+                        [ HP.type_ InputCheckbox
+                        , singleClass "form-check-input"
+                        , HP.id_ "refine-form-only-nonrefined"
+                        , HP.checked rd.onlyUnrefined
+                        , HE.onValueChange (const (Just RefinementToggleOnlyNonrefined))
+                        ]
+                    , HH.label [ singleClass "form-check-label", HP.for "refine-form-only-nonrefined" ] [ HH.text "Only results that have not been refined yet" ]
+                    ]
+                , viewInAnalysisTable
+                ]
               <> sectionTool
               <> sectionStartRefinement
           )

@@ -6,6 +6,12 @@ from amarcord.modules.json import JSONDict
 
 
 class JSONChecker:
+    """
+    In the web server, but also other places, we have the need to extract values of different types from a JSON
+    dictionary. To do not repeat ourselves, this little class provides some nice error messages and type-safe getter
+    functions.
+    """
+
     def __init__(self, d: JSONDict, description: str) -> None:
         self.d = d
         self.description = description

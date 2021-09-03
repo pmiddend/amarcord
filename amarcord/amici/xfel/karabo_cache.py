@@ -96,7 +96,7 @@ class KaraboCache:
                         continue
                     if len(unique_values) > 1:
                         logger.warning(
-                            "%s//%s: expected constant values in list, got (exerpt) %s",
+                            "%s//%s: expected constant values in list, got (excerpt) %s",
                             source,
                             key,
                             list(unique_values)[0:5],

@@ -125,6 +125,8 @@ def upgrade():
         Column("status", Enum(JobStatus), nullable=False),
         Column("failure_reason", Text(), nullable=True),
         Column("output_directory", Text(), nullable=True),
+        Column("last_stdout", Text(), nullable=True),
+        Column("last_stderr", Text(), nullable=True),
         Column(
             "tool_id",
             Integer(),

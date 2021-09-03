@@ -58,7 +58,7 @@ class Arguments(Tap):
         False  # force creation of (successful) diffractions if missing
     )
     p11_proposal_path: str  # Path to the proposal root
-    detector_name: str = EIGER_16_M_DETECTOR_NAME  # Detector name to use in the diffractions (if non-existant)
+    detector_name: str = EIGER_16_M_DETECTOR_NAME  # Detector name to use in the diffractions (if non-existent)
     crystal_spreadsheet: Optional[
         str
     ] = None  # Path to a spreadsheet file containing crystal information

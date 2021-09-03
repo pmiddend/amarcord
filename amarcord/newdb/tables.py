@@ -225,6 +225,8 @@ def table_jobs(
         Column("failure_reason", Text(), nullable=True),
         Column("comment", Text(), nullable=True),
         Column("output_directory", Path(), nullable=True),
+        Column("last_stdout", Text(), nullable=True),
+        Column("last_stderr", Text(), nullable=True),
         Column(
             "tool_id",
             Integer(),

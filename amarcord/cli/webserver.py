@@ -64,6 +64,7 @@ logger = logging.getLogger(__name__)
 
 class CustomJSONEncoder(JSONEncoder):
     def default(self, o):
+        # The default ISO format for JSON encoding isn't well-parseable, better to use good olde ISO!
         if isinstance(o, datetime.datetime):
             return o.isoformat(sep=" ", timespec="seconds")
         return JSONEncoder.default(self, o)
@@ -172,7 +173,8 @@ def _create_db(db_url: str) -> NewDB:
     if db_url.startswith("sqlite://"):
         dbcontext.create_all(CreationMode.CHECK_FIRST)
     tables.load_from_engine(dbcontext.engine)
-    logger.info(
+    # Interesting info, but not on every create_db
+    logger.debug(
         "dynamically loaded tables from engine for %s, crystals columns: %s",
         db_url,
         ",".join(c.name for c in tables.crystals.columns),
@@ -308,12 +310,14 @@ def create_app() -> Flask:
 
     @app.route("/api/workflows/tools")
     def retrieve_tools() -> JSONDict:
+        """ Used in the "Administer tools" GUI """
         db = get_db()
         with db.connect() as conn:
             return _retrieve_tools(conn, db)
 
     @app.route("/api/pucks")
     def retrieve_pucks() -> JSONDict:
+        """ Used in the "Beamline" GUI """
         db = get_db()
         with db.connect() as conn:
             return _retrieve_pucks(conn, db)
@@ -341,12 +345,14 @@ def create_app() -> Flask:
 
     @app.route("/api/diffraction/<puck_id>")
     def retrieve_diffractions(puck_id: str) -> JSONDict:
+        """ Used in the "Beamline" GUI """
         db = get_db()
         with db.connect() as conn:
             return _retrieve_diffractions(conn, db, puck_id)
 
     @app.post("/api/diffraction/<puck_id>")
     def add_diffraction(puck_id: str) -> JSONDict:
+        """ Used in the "Beamline" GUI """
         db = get_db()
         with db.connect() as conn:
             db.insert_diffraction(
@@ -363,6 +369,7 @@ def create_app() -> Flask:
 
     @app.get("/api/dewar/<int:dewar_position>/<puck_id>")
     def add_puck_to_table(dewar_position: int, puck_id: str) -> JSONDict:
+        """ Used in the "Beamline" GUI """
         db = get_db()
         with db.connect() as conn:
             db.insert_dewar_table_entry(conn, DBDewarLUT(dewar_position, puck_id))
@@ -370,12 +377,14 @@ def create_app() -> Flask:
 
     @app.route("/api/dewar")
     def retrieve_dewar_table() -> JSONDict:
+        """ Used in the "Beamline" GUI """
         db = get_db()
         with db.connect() as conn:
             return _retrieve_dewar_table(conn, db)
 
     @app.delete("/api/workflows/tools/<int:tool_id>")
     def remove_tool(tool_id: int) -> JSONDict:
+        """ Used in the "Administer tools" GUI """
         db = get_db()
         with db.connect() as conn:
             db.remove_tool(conn, tool_id)
@@ -383,6 +392,7 @@ def create_app() -> Flask:
 
     @app.delete("/api/pucks/<puck_id>")
     def remove_puck(puck_id: str) -> JSONDict:
+        # Used in the "Sample" GUI
         db = get_db()
         with db.connect() as conn:
             db.remove_puck(conn, puck_id)
@@ -390,6 +400,7 @@ def create_app() -> Flask:
 
     @app.delete("/api/crystals/<crystal_id>")
     def remove_crystal(crystal_id: str) -> JSONDict:
+        # Used in the "Sample" GUI
         db = get_db()
         with db.connect() as conn:
             db.remove_crystal(conn, crystal_id)
@@ -397,6 +408,7 @@ def create_app() -> Flask:
 
     @app.delete("/api/dewar/<int:position>")
     def remove_single_dewar_entry(position: int) -> JSONDict:
+        # Used in the "Beamline" GUI
         db = get_db()
         with db.connect() as conn:
             db.remove_dewar_table_entry(conn, position)
@@ -404,6 +416,7 @@ def create_app() -> Flask:
 
     @app.delete("/api/dewar")
     def remove_dewar_lut() -> JSONDict:
+        # Used in the "Beamline" GUI
         db = get_db()
         with db.connect() as conn:
             db.truncate_dewar_table(conn)
@@ -416,18 +429,45 @@ def create_app() -> Flask:
             return True
         raise BadRequest(f'invalid sort order "{so}"')
 
+    @app.get("/api/workflows/jobs/<int:job_id>")
+    def retrieve_job(job_id: int) -> JSONDict:
+        # Used in the "Job details" GUI
+        db = get_db()
+        with db.connect() as conn:
+            job = db.retrieve_job(conn, job_id)
+            return {
+                "job": {
+                    "jobId": job_id,
+                    "queued": job.queued,
+                    "status": job.status.value,
+                    "toolId": job.tool_id,
+                    "toolInputs": job.tool_inputs,
+                    "failureReason": job.failure_reason,
+                    "comment": job.comment,
+                    "outputDir": str(job.output_directory),
+                    "lastStdout": job.last_stdout,
+                    "lastStderr": job.last_stderr,
+                    "metadata": job.metadata,
+                    "started": job.started,
+                    "stopped": job.stopped,
+                }
+            }
+
+    # This is used in the jobs table and retrieves not only the jobs themselves, but also to what they are
+    # attached to (diffractions/reductions)
     @app.get("/api/workflows/jobs")
     def list_jobs() -> JSONDict:
+        """ Used in the "Job list" GUI """
         limit = int(request.args.get("limit", "10"))
         status_filter_str = request.args.get("statusFilter", None)
-        human_duration_str = request.args.get("humanDuration", None)
+        since_str = request.args.get("since", None)
 
         since: Optional[datetime.datetime] = None
-        if human_duration_str is not None:
+        if since_str is not None:
             hours_in_the_past: int
-            if human_duration_str == "last_day":
+            if since_str == "last_day":
                 hours_in_the_past = 24
-            elif human_duration_str == "last_week":
+            elif since_str == "last_week":
                 hours_in_the_past = 7 * 24
             else:
                 hours_in_the_past = 28 * 24
@@ -491,8 +531,11 @@ def create_app() -> Flask:
         ), f"expected a dictionary for the request input, got {json_content}"
         return json_content
 
-    @app.post("/api/workflows/jobs-simple/<int:tool_id>")
+    # There were at one point two approaches to job starting: one used a filter query, which was "complicated" in a
+    # way, so this one uses a special "filter" structure that's simpler than an arbitrary SQL query.
+    @app.post("/api/workflows/jobs-simple/start/<int:tool_id>")
     def start_job_simple(tool_id: int) -> JSONDict:
+        """ Used in the "Run tools" GUI """
         json_content = JSONChecker(_safe_json_dict(), "POST request")
 
         db = get_db()
@@ -511,8 +554,9 @@ def create_app() -> Flask:
                     )
                 }
 
-    @app.post("/api/workflows/jobs/<int:tool_id>")
+    @app.post("/api/workflows/jobs/start/<int:tool_id>")
     def start_job(tool_id: int) -> JSONDict:
+        """ Not really used anymore """
         json_content = JSONChecker(_safe_json_dict(), "POST request")
         inputs = json_content.retrieve_safe_dict("inputs")
         filter_query = json_content.retrieve_safe_str("filter_query")
@@ -535,6 +579,7 @@ def create_app() -> Flask:
 
     @app.post("/api/workflows/tools")
     def add_tool() -> JSONDict:
+        """ Used in the "Administer tools" GUI """
         db = get_db()
         with db.connect() as conn:
             db.insert_tool(
@@ -554,6 +599,7 @@ def create_app() -> Flask:
 
     @app.post("/api/workflows/tools/<int:tool_id>")
     def update_tool(tool_id: int) -> JSONDict:
+        """ Used in the "Administer tools" GUI """
         db = get_db()
         with db.connect() as conn:
             db.update_tool(
@@ -573,6 +619,7 @@ def create_app() -> Flask:
 
     @app.post("/api/crystals")
     def add_crystal() -> JSONDict:
+        """ Used in the "Sample" GUI """
         db = get_db()
         with db.connect() as conn:
             has_puck_id = request.form["puckId"] != ""
@@ -590,6 +637,7 @@ def create_app() -> Flask:
 
     @app.post("/api/pucks")
     def add_puck() -> JSONDict:
+        """ Used in the "Sample" GUI """
         db = get_db()
         with db.connect() as conn:
             db.insert_puck(
@@ -617,6 +665,7 @@ def create_app() -> Flask:
 
     @app.route("/api/sample")
     def retrieve_sample() -> JSONDict:
+        """ Used in the "Sample" GUI """
         db = get_db()
         with db.connect() as conn:
             return _retrieve_sample(conn, db)
@@ -654,8 +703,10 @@ def create_app() -> Flask:
             crystal_filters=crystal_filters,
         )
 
+    # Retrieves the number of reductions for a simple reduction filter. Used in the "Start tool" GUI
     @app.post("/api/reduction-count")
     def retrieve_reduction_count() -> JSONDict:
+        """ Used in the "Run tools" GUI """
         db = get_db()
         with db.connect() as conn:
             return {
@@ -668,6 +719,7 @@ def create_app() -> Flask:
 
     @app.route("/api/crystal-filters")
     def retrieve_crystal_filters() -> JSONDict:
+        """ Used in the "Run tools" GUI """
         db = get_db()
 
         with db.connect() as conn:
@@ -675,6 +727,7 @@ def create_app() -> Flask:
 
     @app.route("/api/analysis")
     def retrieve_analysis() -> JSONDict:
+        """ Used in the "Analysis" GUI """
         db = get_db()
         sort_column = request.args.get("sortColumn", "crystal_id")
         sort_order_desc = sort_order_to_descending(request.args.get("sortOrder", "asc"))

@@ -5,7 +5,7 @@ import App.SortOrder (SortOrder, sortFromString, sortToString)
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
 import Effect (Effect)
-import Routing.Duplex (RouteDuplex, RouteDuplex', as, optional, parse, path, print, root, string)
+import Routing.Duplex (RouteDuplex, RouteDuplex', as, optional, parse, path, print, root, string, int)
 import Routing.Duplex.Generic as G
 import Routing.Duplex.Generic.Syntax ((?))
 import Routing.Hash (matchesWith)
@@ -17,6 +17,7 @@ data Route
   | Sample
   | Tools ToolsRouteInput
   | Jobs
+  | Job JobRouteInput
   | ToolsAdmin
 
 derive instance genericRoute :: Generic Route _
@@ -41,6 +42,10 @@ sameRoute _ _ = false
 type BeamlineRouteInput
   = { puckId :: Maybe String
     }
+    
+type JobRouteInput
+  = { jobId :: Int
+    }
 
 type AnalysisRouteInput
   = { sortColumn :: String
@@ -60,6 +65,7 @@ routeCodec =
         { "Root": G.noArgs
         , "Sample": path "sample" G.noArgs
         , "Beamline": "beamline" ? { puckId: optional <<< string }
+        , "Job": "job" ? { jobId: int }
         , "Analysis": "analysis" ? { sortColumn: string, sortOrder: sortOrder, filterQuery: string }
         , "Tools": "tools" ? {}
         , "Jobs": path "jobs" G.noArgs

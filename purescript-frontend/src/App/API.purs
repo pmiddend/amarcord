@@ -38,30 +38,30 @@ type OverviewResponse
 type AnalysisRow
   = Array Json
 
-data HumanDuration
+data Since
   = LastDay
   | LastWeek
   | LastMonth
 
-derive instance eqHumanDuration :: Eq HumanDuration
+derive instance eqSince :: Eq Since
 
-derive instance ordHumanDuration :: Ord HumanDuration
+derive instance ordSince :: Ord Since
 
-serializeHumanDuration :: HumanDuration -> String
-serializeHumanDuration LastDay = "last_day"
+serializeSince :: Since -> String
+serializeSince LastDay = "last_day"
 
-serializeHumanDuration LastWeek = "last_week"
+serializeSince LastWeek = "last_week"
 
-serializeHumanDuration LastMonth = "last_month"
+serializeSince LastMonth = "last_month"
 
-deserializeHumanDuration :: String -> Maybe HumanDuration
-deserializeHumanDuration "last_day" = Just LastDay
+deserializeSince :: String -> Maybe Since
+deserializeSince "last_day" = Just LastDay
 
-deserializeHumanDuration "last_week" = Just LastWeek
+deserializeSince "last_week" = Just LastWeek
 
-deserializeHumanDuration "last_month" = Just LastMonth
+deserializeSince "last_month" = Just LastMonth
 
-deserializeHumanDuration _ = Nothing
+deserializeSince _ = Nothing
 
 type AnalysisResponse
   = { analysis :: Array AnalysisRow
@@ -152,6 +152,22 @@ type Job
     , comment :: String
     , metadata :: Maybe Json
     , outputDir :: Maybe String
+    , toolId :: Int
+    , toolInputs :: Json
+    , lastStderr :: Maybe String
+    , lastStdout :: Maybe String
+    }
+
+type AugmentedJob
+  = { jobId :: Int
+    , started :: Maybe String
+    , stopped :: Maybe String
+    , queued :: String
+    , status :: String
+    , failureReason :: Maybe String
+    , comment :: String
+    , metadata :: Maybe Json
+    , outputDir :: Maybe String
     , diffraction ::
         Maybe
           { runId :: Int
@@ -163,7 +179,11 @@ type Job
     }
 
 type JobsResponse
-  = { jobs :: Array Job
+  = { jobs :: Array AugmentedJob
+    }
+
+type JobResponse
+  = { job :: Job
     }
 
 type DewarEntry
@@ -225,7 +245,7 @@ startJobsSimple toolId comment limit toolInputs crystalFiltersMap reductionMetho
   baseUrl' <- asks (_.baseUrl)
   response <-
     liftAff
-      $ AX.post ResponseFormat.json (baseUrl' <> "/api/workflows/jobs-simple/" <> show toolId)
+      $ AX.post ResponseFormat.json (baseUrl' <> "/api/workflows/jobs-simple/start/" <> show toolId)
           ( Just
               ( Json
                   ( encodeJson
@@ -253,7 +273,13 @@ retrieveCrystalFilters = do
   response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/crystal-filters")
   handleResponse response
 
-retrieveJobs :: Int -> Maybe String -> Maybe HumanDuration -> AppMonad (Either String JobsResponse)
+retrieveJob :: Int -> AppMonad (Either String JobResponse)
+retrieveJob jobId = do
+  baseUrl' <- asks (_.baseUrl)
+  response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/jobs/" <> show jobId)
+  handleResponse response
+
+retrieveJobs :: Int -> Maybe String -> Maybe Since -> AppMonad (Either String JobsResponse)
 retrieveJobs limit statusFilter humanDuration = do
   baseUrl' <- asks (_.baseUrl)
   let
@@ -263,7 +289,7 @@ retrieveJobs limit statusFilter humanDuration = do
 
     humanDurationSuffix = case humanDuration of
       Nothing -> []
-      Just f -> [ "humanDuration=" <> serializeHumanDuration f ]
+      Just f -> [ "since=" <> serializeSince f ]
 
     parameters = [ "limit=" <> show limit ] <> statusFilterSuffix <> humanDurationSuffix
   response <- liftAff $ AX.get ResponseFormat.json (baseUrl' <> "/api/workflows/jobs?" <> intercalate "&" parameters)
@@ -328,7 +354,7 @@ startJob toolId inputs comment filterQuery limit = do
   baseUrl' <- asks (_.baseUrl)
   let
     url :: String
-    url = baseUrl' <> "/api/workflows/jobs/" <> show toolId
+    url = baseUrl' <> "/api/workflows/jobs/start/" <> show toolId
   response <-
     liftAff
       $ AX.post ResponseFormat.json url

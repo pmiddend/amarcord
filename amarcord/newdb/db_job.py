@@ -17,6 +17,8 @@ class DBJob:
     failure_reason: Optional[str] = None
     comment: Optional[str] = None
     output_directory: Optional[Path] = None
+    last_stdout: Optional[str] = None
+    last_stderr: Optional[str] = None
     metadata: Optional[JSONDict] = None
     started: Optional[datetime.datetime] = None
     stopped: Optional[datetime.datetime] = None

@@ -229,6 +229,45 @@ class NewDB:
             .where(self.tables.tool_tables.tools.c.id == t.id)
         )
 
+    def retrieve_job(self, conn: Connection, job_id: int) -> DBJob:
+        assert self.tables.tool_tables is not None
+        jc = self.tables.tool_tables.jobs.c
+        result = conn.execute(
+            sa.select(
+                [
+                    jc.id,
+                    jc.started,
+                    jc.stopped,
+                    jc.failure_reason,
+                    jc.queued,
+                    jc.output_directory,
+                    jc.tool_id,
+                    jc.tool_inputs,
+                    jc.metadata,
+                    jc.comment,
+                    jc.status,
+                    jc.last_stdout,
+                    jc.last_stderr,
+                ]
+            ).where(jc.id == job_id)
+        ).one()
+
+        return DBJob(
+            job_id,
+            result["queued"],
+            result["status"],
+            result["tool_id"],
+            result["tool_inputs"],
+            result["failure_reason"],
+            result["comment"],
+            result["output_directory"],
+            result["last_stdout"],
+            result["last_stderr"],
+            result["metadata"],
+            result["started"],
+            result["stopped"],
+        )
+
     def retrieve_jobs_with_attached(
         self,
         conn: Connection,
@@ -366,7 +405,7 @@ class NewDB:
                 )
             )
             .where(where_condition)
-            .order_by(jc.started.desc())
+            .order_by(jc.id.desc())
             .limit(limit)
         )
         return (
@@ -408,6 +447,8 @@ class NewDB:
         status: JobStatus,
         failure_reason: Optional[str],
         metadata: Optional[JSONDict],
+        last_stderr: TriOptional[str] = DontUpdate(),
+        last_stdout: TriOptional[str] = DontUpdate(),
         started: TriOptional[datetime.datetime] = DontUpdate(),
         stopped: TriOptional[datetime.datetime] = DontUpdate(),
         output_directory: TriOptional[Path] = DontUpdate(),
@@ -425,6 +466,12 @@ class NewDB:
                             "metadata": metadata,
                         },
                         {} if isinstance(started, DontUpdate) else {"started": started},
+                        {}
+                        if isinstance(last_stdout, DontUpdate)
+                        else {"last_stdout": last_stdout},
+                        {}
+                        if isinstance(last_stderr, DontUpdate)
+                        else {"last_stderr": last_stderr},
                         {} if isinstance(stopped, DontUpdate) else {"stopped": stopped},
                         {}
                         if isinstance(output_directory, DontUpdate)

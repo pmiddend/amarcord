@@ -15,10 +15,10 @@ import Data.Argonaut as Argonaut
 import Data.Array (cons, elem, filter, find, findIndex, groupBy, index, length, mapMaybe, nub, sort)
 import Data.Array.NonEmpty (NonEmptyArray, head, toUnfoldable)
 import Data.Eq (class Eq, eq, (/=), (==))
-import Data.Foldable (indexl)
-import Data.FoldableWithIndex (foldrWithIndex)
+import Data.Foldable (class Foldable, indexl)
+import Data.FoldableWithIndex (class FoldableWithIndex, foldrWithIndex)
 import Data.Function (const, identity, on, (<<<), (>>>))
-import Data.Functor ((<$>))
+import Data.Functor (class Functor, (<$>))
 import Data.Int (fromNumber)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -323,6 +323,7 @@ renderColumnChooser state =
 analysisColumnIsSortable :: forall t457. t457 -> Boolean
 analysisColumnIsSortable = const true
 
+rowsWithSelected :: forall t33 t43 t50. FoldableWithIndex Int t33 => Functor t43 => Foldable t50 => t33 String -> t43 (t50 Json) -> Array String -> t43 (Array Json)
 rowsWithSelected columns rows selected =
   let
     columnsWithIndices :: Map.Map String Int

@@ -2,7 +2,7 @@ module App.Components.Beamline where
 
 import App.API (DewarEntry, DewarResponse, DiffractionEntry, DiffractionResponse, Puck, PucksResponse, addDiffraction, addPuckToTable, removeSingleDewarEntry, removeWholeTable, retrieveDewarTable, retrieveDiffractions, retrievePucks)
 import App.AppMonad (AppMonad)
-import App.Bootstrap (TableFlag(..), container, fluidContainer, plainH2_, plainH3_, table)
+import App.Bootstrap (TableFlag(..), container, plainH2_, plainH3_, table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.Halogen.FontAwesome (icon)
 import App.HalogenUtils (AlertType(..), classList, makeAlert, singleClass)
@@ -140,6 +140,7 @@ childComponent =
             }
     }
 
+handleDewarResponse :: forall slots. Either String DewarResponse -> H.HalogenM State Action slots ParentError AppMonad Unit
 handleDewarResponse = case _ of
   Right newTable -> do
     H.modify_ \state ->
@@ -166,6 +167,15 @@ updateHash = do
 selectRunId :: String -> Array DiffractionEntry -> Int
 selectRunId crystalId diffs = maybe 1 (\x -> x + 1) (maximum (mapMaybe _.runId (filter (\x -> x.crystalId == crystalId) diffs)))
 
+nextCrystalId ::
+  forall t60 t68.
+  Ord t68 =>
+  t68 ->
+  Array
+    { crystalId :: t68
+    | t60
+    } ->
+  t68
 nextCrystalId currentId diffractions =
   let
     crystalIds = nub (_.crystalId <$> diffractions)

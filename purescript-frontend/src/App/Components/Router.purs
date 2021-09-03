@@ -6,6 +6,7 @@ import App.Components.Analysis as Analysis
 import App.Components.Beamline as Beamline
 import App.Components.Sample as Sample
 import App.Components.Jobs as Jobs
+import App.Components.SingleJob as SingleJob
 import App.Components.Tools as Tools
 import App.Components.ToolsAdmin as ToolsAdmin
 import App.Halogen.FontAwesome (icon)
@@ -53,6 +54,7 @@ type ChildSlots
     , tools :: OpaqueSlot Unit
     , toolsadmin :: OpaqueSlot Unit
     , jobs :: OpaqueSlot Unit
+    , job :: OpaqueSlot Unit
     )
 
 component :: forall i o. H.Component HH.HTML Query i o AppMonad
@@ -103,6 +105,7 @@ render st =
           Root -> HH.slot (SProxy :: _ "root") unit Root.component unit absurd
           Sample -> HH.slot (SProxy :: _ "sample") unit Sample.component unit absurd
           Jobs -> HH.slot (SProxy :: _ "jobs") unit Jobs.component unit absurd
+          Job input -> HH.slot (SProxy :: _ "job") unit SingleJob.component input absurd
           ToolsAdmin -> HH.slot (SProxy :: _ "toolsadmin") unit ToolsAdmin.component unit absurd
           Analysis input -> HH.slot (SProxy :: _ "analysis") unit Analysis.component input absurd
           Tools input -> HH.slot (SProxy :: _ "tools") unit Tools.component input absurd

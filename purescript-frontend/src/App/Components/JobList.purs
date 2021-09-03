@@ -1,10 +1,11 @@
 module App.Components.JobList where
 
-import App.API (HumanDuration(..), Job, JobsResponse, deserializeHumanDuration, retrieveJobs, serializeHumanDuration)
+import App.API (Since(..), AugmentedJob, JobsResponse, deserializeSince, retrieveJobs, serializeSince)
 import App.AppMonad (AppMonad)
 import App.Bootstrap (TableFlag(..), table)
 import App.Components.ParentComponent (ChildInput, ParentError, parentComponent)
 import App.HalogenUtils (classList, singleClass)
+import App.Route (Route(..), createLink)
 import App.Timer (timerEventSource)
 import Control.Applicative (pure)
 import Control.Bind (bind, discard)
@@ -16,7 +17,7 @@ import Data.FoldableWithIndex (foldrWithIndex)
 import Data.Function ((<<<), (>>>))
 import Data.Functor ((<$>))
 import Data.Int (fromString)
-import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing)
 import Data.Monoid (mempty)
 import Data.Semigroup ((<>))
 import Data.Show (show)
@@ -33,16 +34,16 @@ data Action
   | Refresh
   | LimitChanged Int
   | StatusFilterChanged (Maybe String)
-  | DurationFilterChanged (Maybe HumanDuration)
+  | DurationFilterChanged (Maybe Since)
 
 type JobListInput
-  = { limit :: Int, statusFilter :: Maybe String, durationFilter :: Maybe HumanDuration }
+  = { limit :: Int, statusFilter :: Maybe String, durationFilter :: Maybe Since }
 
 type State
-  = { jobs :: Array Job
+  = { jobs :: Array AugmentedJob
     , limit :: Int
     , statusFilter :: Maybe String
-    , durationFilter :: Maybe HumanDuration
+    , durationFilter :: Maybe Since
     }
 
 fetchData :: JobListInput -> AppMonad (RemoteData String JobsResponse)
@@ -64,15 +65,15 @@ renderForm state =
     makeStatus :: forall w. String -> HH.HTML w Action
     makeStatus s = HH.option [ HP.value s, HP.selected (state.statusFilter == Just s) ] [ HH.text s ]
 
-    humanReadableHumanDuration :: HumanDuration -> String
-    humanReadableHumanDuration LastDay = "yesterday"
+    humanReadableSince :: Since -> String
+    humanReadableSince LastDay = "yesterday"
 
-    humanReadableHumanDuration LastWeek = "last week"
+    humanReadableSince LastWeek = "last week"
 
-    humanReadableHumanDuration LastMonth = "last month"
+    humanReadableSince LastMonth = "last month"
 
-    makeHumanDuration :: forall w. HumanDuration -> HH.HTML w Action
-    makeHumanDuration s = HH.option [ HP.value (serializeHumanDuration s), HP.selected (state.durationFilter == Just s) ] [ HH.text (humanReadableHumanDuration s) ]
+    makeSince :: forall w. Since -> HH.HTML w Action
+    makeSince s = HH.option [ HP.value (serializeSince s), HP.selected (state.durationFilter == Just s) ] [ HH.text (humanReadableSince s) ]
 
     noStatusFilterOption = (HH.option [ HP.value "", HP.selected (isNothing state.statusFilter) ] [ HH.text "any status" ])
 
@@ -98,8 +99,8 @@ renderForm state =
           ]
       , HH.div [ singleClass "mb-3" ]
           [ HH.label [ HP.for "job-list-duration-filter", singleClass "form-label" ] [ HH.text "Jobs started since:" ]
-          , HH.select [ singleClass "form-select", HP.id_ "job-list-duration-filter", HE.onValueChange (\x -> if x == "" then Just (DurationFilterChanged Nothing) else (DurationFilterChanged <<< Just) <$> deserializeHumanDuration x) ]
-              (noDurationFilterOption : (makeHumanDuration <$> [ LastDay, LastWeek, LastMonth ]))
+          , HH.select [ singleClass "form-select", HP.id_ "job-list-duration-filter", HE.onValueChange (\x -> if x == "" then Just (DurationFilterChanged Nothing) else (DurationFilterChanged <<< Just) <$> deserializeSince x) ]
+              (noDurationFilterOption : (makeSince <$> [ LastDay, LastWeek, LastMonth ]))
           ]
       ]
 
@@ -182,12 +183,11 @@ renderTable state =
         ( (HH.td_ <<< singleton)
             <$> [ HH.text (show job.jobId)
               , makeWorkingOn job
-              , HH.text job.comment
               , makeJobStatus job job.status job.failureReason
-              , maybe (HH.text "") (makeOutputDirectory job.jobId) job.outputDir
+              , HH.a [ HP.href (createLink (Job {jobId:job.jobId})), singleClass "text-nowrap" ] [ HH.text "Show details" ]
               , HH.text job.tool
               , makeInputs job.toolInputs
-              , maybe (HH.text "") (makeMetadata job.jobId) job.metadata
+              , HH.text job.comment
               ]
         )
   in
@@ -197,12 +197,11 @@ renderTable state =
       ( (HH.text >>> singleton >>> HH.th [ singleClass "text-nowrap" ])
           <$> [ "Job ID"
             , "Working on"
-            , "Comment"
             , "Status"
-            , "Directory"
+            , "Details"
             , "Tool"
             , "Tool Inputs"
-            , "Metadata"
+            , "Comment"
             ]
       )
       (makeRow <$> state.jobs)
