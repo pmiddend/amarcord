@@ -1,0 +1,80 @@
+[tool.poetry]
+name = "amarcord"
+version = "1.0.0"
+description = "A ModulAR CollectOR of metaData - serial edition"
+authors = ["Philipp Middendorf <philipp.middendorf@desy.de>", "CFEL-SC <sc@cfel.de>"]
+license = "GPL-3.0-or-later"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+# for general DB access
+SQLAlchemy = { version = "^1.4", extras = ["mypy"] }
+# for mysql
+pymysql = '^1.0'
+# for caching_sha2_password access in MySQL
+cryptography = '^3.4'
+# for migrating a DB
+alembic = '^1.5'
+# for attributi: parsing/printing a delta
+isodate = '^0.6'
+# for verifying passwords in the DB
+bcrypt = '^3.2'
+# to pretty-print attributi (yeah, it's a bit overkill)
+lark-parser = '^0.11'
+# for the config file
+PyYAML = '^5.4'
+types-PyYAML = '^5.4'
+# for accessing XDG_CONFIG_HOME in the config file for example
+xdg = '^5.0'
+# For parsing the arguments for programs (always required basically)
+typed-argument-parser = '^1.6'
+# For the config file
+pydantic = '^1.8'
+# numpy for Karabo statistics
+numpy = { version = '^1.19' }
+# for the GUI
+PyQt5 = '^5.15'
+# for the GUI  types
+PyQt5-stubs = '^5.15'
+# for zmq access in the daemon
+pyzmq = '^22.0'
+# for plotting
+pandas = '^1.2'
+# for validating pubchemids
+PubChemPy = '^1.0'
+# For printing "x second(s) ago" in the comments
+humanize = '^3.2'
+# Also for the plots
+matplotlib = '^3.3'
+# For validating units
+pint = '^0.16'
+# for the daemon
+karabo-bridge = "^0.6"
+# for the daemon
+msgpack = "^1.0"
+# for the daemon
+msgpack-types = "^0.1"
+# for offline ingest
+EXtra-data = "^1.5"
+
+[tool.poetry.dev-dependencies]
+black = '21.9b0'
+mypy = '0.910'
+pylint = '2.10.2'
+pyfakefs = '^4.4.*'
+pytest = '^6.2'
+hypothesis = '^6.3'
+pytest-cov = '^2.11'
+pytest-qt = "^4.0.2"
+
+[tool.poetry.scripts]
+amarcord-daemon = "amarcord.cli.daemon:main"
+amarcord-db-cli = "amarcord.cli.admin:main"
+amarcord-database-fuzzer = "amarcord.cli.database_fuzzer:main"
+amarcord-xfel-filesystem-ingester = "amarcord.cli.xfel_filesystem_ingester:main"
+amarcord-karabo-online-ingester = "amarcord.cli.karabo_online_ingester:main"
+amarcord-karabo-bridge-dumper = "amarcord.cli.karabo_bridge_dumper:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

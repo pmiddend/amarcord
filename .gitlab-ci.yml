@@ -3,9 +3,11 @@ stages:
   - test
   - integration
   - deploy
-  - test-deploy
-  - upload-docker
-  - test-cypress
+
+# this is a workaround for etcd runner issues
+default:
+  tags:
+    - DESY-intern
 
 check-shell-scripts:
   stage: pretest
@@ -14,36 +16,32 @@ check-shell-scripts:
     - shellcheck ci/*.sh
 
 variables:
-  AMARCORD_PYTHON_DOCKER: python:3.8
-  # These are used by the cypress tests
-  #MYSQL_USER: cypressuser
-  MYSQL_ROOT_PASSWORD: cypresspassword
-  MYSQL_DATABASE: cypressdb
-  AMARCORD_DB_URL: "mysql+pymysql://root:cypresspassword@mysql/cypressdb"
+  AMARCORD_PYTHON_DOCKER: gitlab.desy.de:5555/cfel-sc-public/amarcord/poetry-base-image:v1-1-8
+  # this is a workaround for the root CA issue in DESY’s GitLab CI (will be fixed soon (tm))
+  GIT_SSL_NO_VERIFY: "true"
+
+check-requirements:
+  image: $AMARCORD_PYTHON_DOCKER
+  stage: test
+  script:
+    - poetry export --dev -o requirements-new.txt
+    - diff requirements.txt requirements-new.txt
 
 pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
   script:
-    - pip install -e .[gui,daemon]
-    - pip install 'mypy==0.910' 'pylint==2.9.*'
-    - mypy amarcord tutorial
+    - poetry install
+    - poetry run mypy amarcord tutorial
     - apt-get update -y && apt-get install -y qtbase5-dev
-    - pylint amarcord tutorial
-    - pyrcc5 icons/resources.qrc -o resources-copy.py
-
-validate-conda-yaml:
-  image: continuumio/miniconda3:4.9.2
-  stage: test
-  script:
-    - conda env create -f environment.yml
+    - poetry run pylint amarcord
 
 run-migrations:
   image: $AMARCORD_PYTHON_DOCKER
   stage: integration
   script:
-    - pip install -e .
-    - python amarcord/cli/admin.py --connection-url="sqlite://" migrate
+    - poetry install
+    - poetry run amarcord-db-cli --connection-url="sqlite://" migrate
 
 tests:
   image: $AMARCORD_PYTHON_DOCKER
@@ -53,39 +51,24 @@ tests:
   script:
     - apt-get update -y
     - apt-get install -y libgl1-mesa-glx qtbase5-dev
-    - pip install -e .[gui]
-    - pip install 'pytest==6.2.*' 'pytest-qt==3.3.*' 'hypothesis==6.3.*' 'pytest-cov==2.11.*' 'pyfakefs==4.4.*'
-    - PYTHONPATH=".:$PYTHONPATH" pytest --cov=amarcord/ --junitxml=report.xml tests
-    - coverage xml
+    - poetry install
+    - poetry run pytest --cov=amarcord/ --junitxml=report.xml tests
+    - poetry run coverage xml
   artifacts:
     when: always
     reports:
       cobertura: coverage.xml
       junit: report.xml
 
-# The image built by Nix is much smaller than the one below, but we have to find a way to
-# call “docker load” on it and then upload it. Not sure how to best do this.
-# build-docker-image-nix:
-#   image: nixos/nix
-#   stage: integration
-#   script:
-#     - nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs
-#     - nix-channel --update
-#     - IMAGE=$(nix-build ./default.nix)
-#     - cp $IMAGE docker-image.tar.gz
-#   artifacts:
-#     paths:
-#       - docker-image.tar.gz
-
-deploy-pypi:
-  image: $AMARCORD_PYTHON_DOCKER
-  stage: deploy
-  only:
-    - tags
-    - master
-  script:
-    - pip install -e .
-    - pip install wheel twine
-    - python setup.py sdist bdist_wheel
-    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
-
+#deploy-pypi:
+#  image: $AMARCORD_PYTHON_DOCKER
+#  stage: deploy
+#  only:
+#    - tags
+#    - master
+#  script:
+#    - poetry install
+#    - pip install wheel twine
+#    - python setup.py sdist bdist_wheel
+#    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+#
