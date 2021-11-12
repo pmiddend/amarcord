@@ -4,18 +4,16 @@ setuptools.setup(
     name="amarcord",
     author="Philipp Middendorf <philipp.middendorf@desy.de>",
     author_email="sc@cfel.de",
-    description="AMARCORD main application",
+    description="AMARCORD XFEL main application",
     packages=setuptools.find_packages(),
     entry_points={
         "console_scripts": [
             "amarcord-daemon = amarcord.cli.daemon:main",
-            "amarcord-workflow-daemon = amarcord.cli.workflow_daemon:main",
             "amarcord-db-cli = amarcord.cli.admin:main",
             "amarcord-database-fuzzer = amarcord.cli.database_fuzzer:main",
             "amarcord-xfel-filesystem-ingester = amarcord.cli.xfel_filesystem_ingester:main",
             "amarcord-karabo-online-ingester = amarcord.cli.karabo_online_ingester:main",
             "amarcord-karabo-bridge-dumper = amarcord.cli.karabo_bridge_dumper:main",
-            "amarcord-newdb-admin = amarcord.cli.newdb_admin:main",
         ]
     },
     # see https://github.com/dolfinus/setuptools-git-versioning
@@ -55,10 +53,6 @@ setuptools.setup(
         "pydantic==1.8.*",
     ],
     extras_require={
-        "slurm": ["requests==2.25.*", "types-requests==2.25.*"],
-        # gemmi for space group string to index
-        # pint for xds ingester
-        "p11": ["pint==0.16.*", "numpy==1.19.*", "gemmi==0.4.*", "tqdm==4.62.*"],
         "daemon": [
             "pyzmq==22.0.*",
             "karabo-bridge==0.6.*",
@@ -85,7 +79,6 @@ setuptools.setup(
             # For validating units
             "pint==0.16.*",
         ],
-        "webserver": ["Flask==2.0.*", "Flask-Cors==3.0.*", "gunicorn==20.1.*"],
     },
     python_requires=">=3.8",
 )
