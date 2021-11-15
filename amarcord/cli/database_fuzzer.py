@@ -28,13 +28,6 @@ from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.table_classes import DBDataSource
-from amarcord.db.table_classes import DBHitFindingParameters
-from amarcord.db.table_classes import DBHitFindingResult
-from amarcord.db.table_classes import DBIndexingParameters
-from amarcord.db.table_classes import DBIndexingResult
-from amarcord.db.table_classes import DBIntegrationParameters
-from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
@@ -292,164 +285,11 @@ def action_add_attributi() -> None:
         )
 
 
-def generate_peak_search_parameters() -> DBPeakSearchParameters:
-    return DBPeakSearchParameters(
-        id=None,
-        method=generate_random_string(8),
-        software=generate_random_string(),
-        tag=generate_random_string(8),
-        comment=generate_random_string(),
-        software_version=generate_random_string(4),
-        max_num_peaks=random.uniform(0, 100),
-        adc_threshold=random.uniform(0, 100),
-        minimum_snr=random.uniform(0, 100),
-        min_pixel_count=random.randint(0, 100),
-        max_pixel_count=random.randint(0, 100),
-        min_res=random.uniform(0, 100),
-        max_res=random.uniform(0, 100),
-        bad_pixel_map_filename=generate_random_string(),
-        bad_pixel_map_hdf5_path=generate_random_string(),
-        local_bg_radius=random.uniform(0, 100),
-        min_peak_over_neighbor=random.uniform(0, 100),
-        min_snr_biggest_pix=random.uniform(0, 100),
-        min_snr_peak_pix=random.uniform(0, 100),
-        min_sig=random.uniform(0, 100),
-        min_squared_gradient=random.uniform(0, 100),
-        geometry=None,
-    )
-
-
-def generate_hit_finding_parameters() -> DBHitFindingParameters:
-    return DBHitFindingParameters(
-        id=None,
-        min_peaks=10,
-        tag=generate_random_string(8),
-        comment=generate_random_string(),
-        software_version=None,
-        software=generate_random_string(max_length=10),
-    )
-
-
-def generate_hit_finding_result(
-    number_of_frames: int, data_source_id: int, psp_id: int, hfp_id: int
-) -> DBHitFindingResult:
-    number_of_hits = random.randint(0, number_of_frames)
-    return DBHitFindingResult(
-        id=None,
-        data_source_id=data_source_id,
-        peak_search_parameters_id=psp_id,
-        hit_finding_parameters_id=hfp_id,
-        result_filename=generate_random_string(),
-        result_type="",
-        number_of_hits=number_of_hits,
-        hit_rate=number_of_hits / number_of_frames * 100,
-        tag=generate_random_string(8),
-        comment=generate_random_string(),
-        average_resolution=0,
-        average_peaks_event=0,
-        peaks_filename=generate_random_string(),
-    )
-
-
-def generate_indexing_result(
-    hfr_id: int, psp_id: int, ip_id: int, intp_id: int, number_of_hits: int
-) -> DBIndexingResult:
-    return DBIndexingResult(
-        id=None,
-        hit_finding_result_id=hfr_id,
-        peak_search_parameters_id=psp_id,
-        indexing_parameters_id=ip_id,
-        integration_parameters_id=intp_id,
-        num_indexed=random.randint(0, number_of_hits),
-        num_crystals=1,
-        tag=generate_random_string(8),
-        comment=generate_random_string(),
-        result_filename=generate_random_string(),
-    )
-
-
-def action_add_data_source() -> None:
-    print("adding data source")
-    with db.connect() as conn:
-        number_of_frames = random.randint(10, 1000)
-        run_ids = db.retrieve_run_ids(conn, PROPOSAL_ID)
-        if not run_ids:
-            print("cannot add data source, no runs yet")
-            return
-        data_source_id = db.add_data_source(
-            conn,
-            DBDataSource(
-                id=None,
-                run_id=random.choice(run_ids),
-                number_of_frames=number_of_frames,
-                source={
-                    "files": [
-                        generate_random_string() for _ in range(random.randint(1, 50))
-                    ]
-                },
-                tag=generate_random_string(max_length=8),
-                comment=generate_random_string(),
-            ),
-        )
-
-        psp_id = db.add_peak_search_parameters(conn, generate_peak_search_parameters())
-        hfp_id = db.add_hit_finding_parameters(conn, generate_hit_finding_parameters())
-        for hfr in (
-            generate_hit_finding_result(
-                number_of_frames, data_source_id, psp_id, hfp_id
-            )
-            for _ in range(random.randint(0, 2))
-        ):
-            hfr_id = db.add_hit_finding_result(conn, hfr)
-
-            ip_id = db.add_indexing_parameters(
-                conn,
-                DBIndexingParameters(
-                    id=None,
-                    tag=None,
-                    comment=None,
-                    software=generate_random_string(),
-                    software_version="",
-                    command_line=generate_random_string(),
-                    parameters={},
-                    methods=[],
-                    geometry=None,
-                ),
-            )
-
-            intp_id = db.add_integration_parameters(
-                conn,
-                DBIntegrationParameters(
-                    id=None,
-                    tag=None,
-                    comment=generate_random_string(),
-                    software="dummy",
-                    software_version="version",
-                    method=None,
-                    center_boxes=None,
-                    overpredict=None,
-                    push_res=None,
-                    radius_inner=None,
-                    radius_outer=None,
-                    radius_middle=None,
-                ),
-            )
-
-            for ir in (
-                generate_indexing_result(
-                    hfr_id, psp_id, ip_id, intp_id, hfr.number_of_hits
-                )
-                for _ in range(random.randint(0, 2))
-            ):
-                db.add_indexing_result(conn, ir)
-
-
 actions_with_weights = [
     (action_change_run_property, 5000),
     (action_add_event, 500),
     (action_add_run, 30),
     (action_modify_sample, 16),
-    (action_add_data_source, 10),
     # Commented out temporarily because we cannot delete run "1" in SQLite for some shitty reason
     # (action_remove_run, 3),
     (action_add_comment, 2),

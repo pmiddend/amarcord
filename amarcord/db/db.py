@@ -26,33 +26,19 @@ from amarcord.db.comment import DBComment
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.constants import MANUAL_SOURCE_NAME
-from amarcord.db.constants import OFFLINE_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.karabo import Karabo
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.table_classes import DBDataSource
 from amarcord.db.table_classes import DBEvent
-from amarcord.db.table_classes import DBHitFindingParameters
-from amarcord.db.table_classes import DBHitFindingResult
-from amarcord.db.table_classes import DBIndexingParameters
-from amarcord.db.table_classes import DBIndexingResult
-from amarcord.db.table_classes import DBIntegrationParameters
-from amarcord.db.table_classes import DBLinkedDataSource
-from amarcord.db.table_classes import DBLinkedHitFindingResult
-from amarcord.db.table_classes import DBLinkedIndexingResult
-from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBRun
 from amarcord.db.table_classes import DBSample
-from amarcord.db.table_classes import DBSampleAnalysisResult
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.spb.analysis_tree import compute_hit_rate_per_run
-from amarcord.modules.spb.analysis_tree import compute_indexing_rate_per_run
 from amarcord.query_parser import Row as QueryRow
 from amarcord.util import dict_union
 from amarcord.util import remove_duplicates_stable
@@ -107,12 +93,11 @@ class DB:
         self.tables = tables
 
     def overview_update_time(self, conn: Connection) -> Optional[datetime.datetime]:
-        max_run, max_sample, max_hfr = conn.execute(
+        max_run, max_sample = conn.execute(
             sa.select(
                 [
                     sa.func.max(self.tables.run.c.modified),
                     sa.func.max(self.tables.sample.c.modified),
-                    sa.func.max(self.tables.hit_finding_results.c.created),
                 ]
             ).select_from(self.tables.run.outerjoin(self.tables.sample))
         ).fetchone()
@@ -120,7 +105,7 @@ class DB:
         # which downstream should handle as "list
         # needs update!"
         return (
-            max(max_run, max_sample, max_hfr)
+            max(max_run, max_sample)
             if max_run is not None and max_sample is not None
             else None
         )
@@ -143,35 +128,17 @@ class DB:
         }
         runs: List[DBRun] = self.retrieve_runs(conn, proposal_id, None)
 
-        analysis = self.retrieve_analysis_data_sources(conn)
-        hit_rate_per_run: Dict[int, float] = compute_hit_rate_per_run(analysis)
-        indexing_rate_per_run: Dict[int, float] = compute_indexing_rate_per_run(
-            analysis
-        )
-
         run_types = types[AssociatedTable.RUN]
         result: List[OverviewAttributi] = []
         for r in runs:
             sample_id = r.sample_id
             sample = samples.get(sample_id, None) if sample_id is not None else None
-            analysis_attributi = AttributiMap(types.get(AssociatedTable.ANALYSIS, {}))
-            if r.id in hit_rate_per_run:
-                analysis_attributi.append_to_source(
-                    OFFLINE_SOURCE_NAME,
-                    {AttributoId("hit_rate"): hit_rate_per_run[r.id]},
-                )
-            if r.id in indexing_rate_per_run:
-                analysis_attributi.append_to_source(
-                    OFFLINE_SOURCE_NAME,
-                    {AttributoId("indexing_rate"): indexing_rate_per_run[r.id]},
-                )
             result.append(
                 {
                     AssociatedTable.SAMPLE: sample
                     if sample is not None
                     else AttributiMap(sample_types, None),
                     AssociatedTable.RUN: _run_to_attributi(r, run_types),
-                    AssociatedTable.ANALYSIS: analysis_attributi,
                 }
             )
         return result
@@ -759,471 +726,6 @@ class DB:
                 raise Exception(
                     f"cannot delete attributo {name} of table {table} because that code doesn't exist yet"
                 )
-
-    def add_data_source(self, conn: Connection, ds: DBDataSource) -> int:
-        return conn.execute(
-            sa.insert(self.tables.data_source).values(
-                run_id=ds.run_id,
-                number_of_frames=ds.number_of_frames,
-                source=ds.source,
-                tag=ds.tag,
-                comment=ds.comment,
-            )
-        ).inserted_primary_key[0]
-
-    def add_peak_search_parameters(
-        self, conn: Connection, psp: DBPeakSearchParameters
-    ) -> int:
-        return conn.execute(
-            sa.insert(self.tables.peak_search_parameters).values(
-                tag=psp.tag,
-                comment=psp.comment,
-                method=psp.method,
-                software=psp.software,
-                software_version=psp.software_version,
-                max_num_peaks=psp.max_num_peaks,
-                adc_threshold=psp.adc_threshold,
-                minimum_snr=psp.minimum_snr,
-                min_pixel_count=psp.min_pixel_count,
-                max_pixel_count=psp.max_pixel_count,
-                min_res=psp.min_res,
-                max_res=psp.max_res,
-                bad_pixel_map_filename=psp.bad_pixel_map_filename,
-                bad_pixel_map_hdf5_path=psp.bad_pixel_map_hdf5_path,
-                local_bg_radius=psp.local_bg_radius,
-                min_peak_over_neighbor=psp.min_peak_over_neighbor,
-                min_snr_biggest_pix=psp.min_snr_biggest_pix,
-                min_snr_peak_pix=psp.min_snr_peak_pix,
-                min_sig=psp.min_sig,
-                min_squared_gradient=psp.min_squared_gradient,
-                geometry=psp.geometry,
-            )
-        ).inserted_primary_key[0]
-
-    def add_hit_finding_parameters(
-        self, conn: Connection, hfp: DBHitFindingParameters
-    ) -> int:
-        return conn.execute(
-            sa.insert(self.tables.hit_finding_parameters).values(
-                min_peaks=hfp.min_peaks,
-                tag=hfp.tag,
-                comment=hfp.comment,
-                software=hfp.software,
-                software_version=hfp.software_version,
-            )
-        ).inserted_primary_key[0]
-
-    def add_hit_finding_result(self, conn: Connection, ds: DBHitFindingResult) -> int:
-        with conn.begin():
-            return conn.execute(
-                sa.insert(self.tables.hit_finding_results).values(
-                    peak_search_parameters_id=ds.peak_search_parameters_id,
-                    hit_finding_parameters_id=ds.hit_finding_parameters_id,
-                    data_source_id=ds.data_source_id,
-                    result_filename=ds.result_filename,
-                    result_type=ds.result_type,
-                    average_peaks_event=ds.average_peaks_event,
-                    average_resolution=ds.average_resolution,
-                    peaks_filename=ds.peaks_filename,
-                    number_of_hits=ds.number_of_hits,
-                    hit_rate=ds.hit_rate,
-                    tag=ds.tag,
-                    comment=ds.comment,
-                )
-            ).inserted_primary_key[0]
-
-    def add_indexing_parameters(
-        self, conn: Connection, ds: DBIndexingParameters
-    ) -> int:
-        return conn.execute(
-            sa.insert(self.tables.indexing_parameters).values(
-                tag=ds.tag,
-                comment=ds.comment,
-                software=ds.software,
-                software_version=ds.software_version,
-                command_line=ds.command_line,
-                parameters=ds.parameters,
-                methods=ds.methods,
-                geometry=ds.geometry,
-            )
-        ).inserted_primary_key[0]
-
-    def add_integration_parameters(
-        self, conn: Connection, ds: DBIntegrationParameters
-    ) -> int:
-        return conn.execute(
-            sa.insert(self.tables.integration_parameters).values(
-                tag=ds.tag,
-                comment=ds.comment,
-                software=ds.software,
-                software_version=ds.software_version,
-                method=ds.method,
-                center_boxes=ds.center_boxes,
-                overpredict=ds.overpredict,
-                push_res=ds.push_res,
-                radius_inner=ds.radius_inner,
-                radius_middle=ds.radius_middle,
-                radius_outer=ds.radius_outer,
-            )
-        ).inserted_primary_key[0]
-
-    def add_indexing_result(self, conn: Connection, ds: DBIndexingResult) -> int:
-        with conn.begin():
-            return conn.execute(
-                sa.insert(self.tables.indexing_results).values(
-                    hit_finding_result_id=ds.hit_finding_result_id,
-                    peak_search_parameters_id=ds.peak_search_parameters_id,
-                    integration_parameters_id=ds.integration_parameters_id,
-                    indexing_parameters_id=ds.indexing_parameters_id,
-                    tag=ds.tag,
-                    comment=ds.comment,
-                    result_filename=ds.result_filename,
-                    num_indexed=ds.num_indexed,
-                    num_crystals=ds.num_crystals,
-                )
-            ).inserted_primary_key[0]
-
-    def retrieve_analysis_data_sources(
-        self, conn: Connection
-    ) -> List[DBLinkedDataSource]:
-        data_sources: Dict[int, DBDataSource] = {}
-        for r in conn.execute(
-            sa.select(
-                [
-                    self.tables.data_source.c.id,
-                    self.tables.data_source.c.run_id,
-                    self.tables.data_source.c.number_of_frames,
-                    self.tables.data_source.c.source,
-                    self.tables.data_source.c.tag,
-                    self.tables.data_source.c.comment,
-                ]
-            )
-        ).fetchall():
-            data_sources[r["id"]] = DBDataSource(
-                id=r["id"],
-                run_id=r["run_id"],
-                number_of_frames=r["number_of_frames"],
-                source=r["source"],
-                tag=r["tag"],
-                comment=r["comment"],
-            )
-
-        peak_search_parameters: Dict[int, DBPeakSearchParameters] = {}
-        hit_finding_parameters: Dict[int, DBHitFindingParameters] = {}
-        hit_finding_results_for_data_source: Dict[int, List[DBHitFindingResult]] = {
-            k: [] for k in data_sources
-        }
-        hit_finding_results: Dict[int, DBHitFindingResult] = {}
-        for r in conn.execute(
-            sa.select(
-                [
-                    self.tables.data_source.c.id.label("data_source_id"),
-                    self.tables.peak_search_parameters.c.id.label("psp_id"),
-                    self.tables.peak_search_parameters.c.tag.label("psp_tag"),
-                    self.tables.peak_search_parameters.c.comment.label("psp_comment"),
-                    self.tables.peak_search_parameters.c.method,
-                    self.tables.peak_search_parameters.c.software.label("psp_software"),
-                    self.tables.peak_search_parameters.c.software_version.label(
-                        "psp_software_version"
-                    ),
-                    self.tables.peak_search_parameters.c.max_num_peaks,
-                    self.tables.peak_search_parameters.c.adc_threshold,
-                    self.tables.peak_search_parameters.c.minimum_snr,
-                    self.tables.peak_search_parameters.c.min_pixel_count,
-                    self.tables.peak_search_parameters.c.max_pixel_count,
-                    self.tables.peak_search_parameters.c.min_res,
-                    self.tables.peak_search_parameters.c.max_res,
-                    self.tables.peak_search_parameters.c.bad_pixel_map_filename,
-                    self.tables.peak_search_parameters.c.bad_pixel_map_hdf5_path,
-                    self.tables.peak_search_parameters.c.local_bg_radius,
-                    self.tables.peak_search_parameters.c.min_peak_over_neighbor,
-                    self.tables.peak_search_parameters.c.min_snr_biggest_pix,
-                    self.tables.peak_search_parameters.c.min_snr_peak_pix,
-                    self.tables.peak_search_parameters.c.min_sig,
-                    self.tables.peak_search_parameters.c.min_squared_gradient,
-                    self.tables.peak_search_parameters.c.geometry,
-                    self.tables.hit_finding_parameters.c.id.label("hfp_id"),
-                    self.tables.hit_finding_parameters.c.tag.label("hfp_tag"),
-                    self.tables.hit_finding_parameters.c.software.label("hfp_software"),
-                    self.tables.hit_finding_parameters.c.software_version.label(
-                        "hfp_software_version"
-                    ),
-                    self.tables.hit_finding_parameters.c.comment.label("hfp_comment"),
-                    self.tables.hit_finding_parameters.c.min_peaks.label("min_peaks"),
-                    self.tables.hit_finding_results.c.id,
-                    self.tables.hit_finding_results.c.number_of_hits,
-                    self.tables.hit_finding_results.c.hit_rate,
-                    self.tables.hit_finding_results.c.average_peaks_event,
-                    self.tables.hit_finding_results.c.average_resolution,
-                    self.tables.hit_finding_results.c.peaks_filename,
-                    self.tables.hit_finding_results.c.result_filename,
-                    self.tables.hit_finding_results.c.result_type,
-                    self.tables.hit_finding_results.c.tag,
-                    self.tables.hit_finding_results.c.comment,
-                ]
-            ).select_from(
-                self.tables.data_source.join(self.tables.hit_finding_results)
-                .join(self.tables.peak_search_parameters)
-                .join(self.tables.hit_finding_parameters)
-            )
-        ).fetchall():
-            peak_search_parameters[r["psp_id"]] = DBPeakSearchParameters(
-                id=r["psp_id"],
-                method=r["method"],
-                software=r["psp_software"],
-                tag=r["psp_tag"],
-                comment=r["psp_comment"],
-                software_version=r["psp_software_version"],
-                max_num_peaks=r["max_num_peaks"],
-                adc_threshold=r["adc_threshold"],
-                minimum_snr=r["minimum_snr"],
-                min_pixel_count=r["min_pixel_count"],
-                max_pixel_count=r["max_pixel_count"],
-                min_res=r["min_res"],
-                max_res=r["max_res"],
-                bad_pixel_map_filename=r["bad_pixel_map_filename"],
-                bad_pixel_map_hdf5_path=r["bad_pixel_map_hdf5_path"],
-                local_bg_radius=r["local_bg_radius"],
-                min_peak_over_neighbor=r["min_peak_over_neighbor"],
-                min_snr_biggest_pix=r["min_snr_biggest_pix"],
-                min_snr_peak_pix=r["min_snr_peak_pix"],
-                min_sig=r["min_sig"],
-                min_squared_gradient=r["min_squared_gradient"],
-                geometry=r["geometry"],
-            )
-            hit_finding_parameters[r["hfp_id"]] = DBHitFindingParameters(
-                id=r["hfp_id"],
-                min_peaks=r["min_peaks"],
-                tag=r["hfp_tag"],
-                comment=r["hfp_comment"],
-                software=r["hfp_software"],
-                software_version=r["hfp_software_version"],
-            )
-            hit_finding_result = DBHitFindingResult(
-                id=r["id"],
-                peak_search_parameters_id=r["psp_id"],
-                hit_finding_parameters_id=r["hfp_id"],
-                data_source_id=r["data_source_id"],
-                result_filename=r["result_filename"],
-                result_type=r["result_type"],
-                average_peaks_event=r["average_peaks_event"],
-                average_resolution=r["average_resolution"],
-                number_of_hits=r["number_of_hits"],
-                hit_rate=r["hit_rate"],
-                peaks_filename=r["peaks_filename"],
-                tag=r["tag"],
-                comment=r["comment"],
-            )
-            hit_finding_results[r["id"]] = hit_finding_result
-            hit_finding_results_for_data_source[r["data_source_id"]].append(
-                hit_finding_result
-            )
-
-        indexing_parameters: Dict[int, DBIndexingParameters] = {}
-        indexing_results_for_hfr: Dict[int, List[DBIndexingResult]] = {
-            k: [] for k in hit_finding_results
-        }
-        integration_parameters: Dict[int, DBIntegrationParameters] = {}
-        for r in conn.execute(
-            sa.select(
-                [
-                    self.tables.peak_search_parameters.c.id.label("psp_id"),
-                    self.tables.peak_search_parameters.c.tag.label("psp_tag"),
-                    self.tables.peak_search_parameters.c.comment.label("psp_comment"),
-                    self.tables.peak_search_parameters.c.method,
-                    self.tables.peak_search_parameters.c.software.label("psp_software"),
-                    self.tables.peak_search_parameters.c.software_version.label(
-                        "psp_software_version"
-                    ),
-                    self.tables.peak_search_parameters.c.max_num_peaks,
-                    self.tables.peak_search_parameters.c.adc_threshold,
-                    self.tables.peak_search_parameters.c.minimum_snr,
-                    self.tables.peak_search_parameters.c.min_pixel_count,
-                    self.tables.peak_search_parameters.c.max_pixel_count,
-                    self.tables.peak_search_parameters.c.min_res,
-                    self.tables.peak_search_parameters.c.max_res,
-                    self.tables.peak_search_parameters.c.bad_pixel_map_filename,
-                    self.tables.peak_search_parameters.c.bad_pixel_map_hdf5_path,
-                    self.tables.peak_search_parameters.c.local_bg_radius,
-                    self.tables.peak_search_parameters.c.min_peak_over_neighbor,
-                    self.tables.peak_search_parameters.c.min_snr_biggest_pix,
-                    self.tables.peak_search_parameters.c.min_snr_peak_pix,
-                    self.tables.peak_search_parameters.c.min_sig,
-                    self.tables.peak_search_parameters.c.min_squared_gradient,
-                    self.tables.peak_search_parameters.c.geometry,
-                    self.tables.indexing_parameters.c.id.label("ip_id"),
-                    self.tables.indexing_parameters.c.tag.label("ip_tag"),
-                    self.tables.indexing_parameters.c.comment.label("ip_comment"),
-                    self.tables.indexing_parameters.c.software.label("ip_software"),
-                    self.tables.indexing_parameters.c.software_version.label(
-                        "ip_software_version"
-                    ),
-                    self.tables.indexing_parameters.c.command_line,
-                    self.tables.indexing_parameters.c.parameters,
-                    self.tables.indexing_parameters.c.methods,
-                    self.tables.indexing_parameters.c.geometry.label("ip_geometry"),
-                    self.tables.integration_parameters.c.id.label("intp_id"),
-                    self.tables.integration_parameters.c.tag.label("intp_tag"),
-                    self.tables.integration_parameters.c.comment.label("intp_comment"),
-                    self.tables.integration_parameters.c.center_boxes,
-                    self.tables.integration_parameters.c.overpredict,
-                    self.tables.integration_parameters.c.push_res,
-                    self.tables.integration_parameters.c.radius_inner,
-                    self.tables.integration_parameters.c.radius_middle,
-                    self.tables.integration_parameters.c.radius_outer,
-                    self.tables.integration_parameters.c.software.label(
-                        "intp_software"
-                    ),
-                    self.tables.integration_parameters.c.software_version.label(
-                        "intp_software_version"
-                    ),
-                    self.tables.integration_parameters.c.method.label("intp_method"),
-                    self.tables.indexing_results.c.id,
-                    self.tables.indexing_results.c.hit_finding_result_id,
-                    self.tables.indexing_results.c.num_indexed,
-                    self.tables.indexing_results.c.num_crystals,
-                    self.tables.indexing_results.c.tag,
-                    self.tables.indexing_results.c.comment,
-                    self.tables.indexing_results.c.result_filename,
-                ]
-            ).select_from(
-                self.tables.indexing_results.join(self.tables.peak_search_parameters)
-                .join(self.tables.integration_parameters)
-                .join(self.tables.indexing_parameters)
-            )
-        ).fetchall():
-            peak_search_parameters[r["psp_id"]] = DBPeakSearchParameters(
-                id=r["psp_id"],
-                method=r["method"],
-                software=r["psp_software"],
-                tag=r["psp_tag"],
-                comment=r["psp_comment"],
-                software_version=r["psp_software_version"],
-                max_num_peaks=r["max_num_peaks"],
-                adc_threshold=r["adc_threshold"],
-                minimum_snr=r["minimum_snr"],
-                min_pixel_count=r["min_pixel_count"],
-                max_pixel_count=r["max_pixel_count"],
-                min_res=r["min_res"],
-                max_res=r["max_res"],
-                bad_pixel_map_filename=r["bad_pixel_map_filename"],
-                bad_pixel_map_hdf5_path=r["bad_pixel_map_hdf5_path"],
-                local_bg_radius=r["local_bg_radius"],
-                min_peak_over_neighbor=r["min_peak_over_neighbor"],
-                min_snr_biggest_pix=r["min_snr_biggest_pix"],
-                min_snr_peak_pix=r["min_snr_peak_pix"],
-                min_sig=r["min_sig"],
-                min_squared_gradient=r["min_squared_gradient"],
-                geometry=r["geometry"],
-            )
-            indexing_parameters[r["ip_id"]] = DBIndexingParameters(
-                id=r["ip_id"],
-                tag=r["ip_tag"],
-                comment=r["ip_comment"],
-                software=r["ip_software"],
-                software_version=r["ip_software_version"],
-                command_line=r["command_line"],
-                parameters=r["parameters"],
-                methods=r["methods"],
-                geometry=r["ip_geometry"],
-            )
-            integration_parameters[r["intp_id"]] = DBIntegrationParameters(
-                r["intp_id"],
-                r["intp_tag"],
-                r["intp_comment"],
-                r["intp_software"],
-                r["intp_software_version"],
-                r["intp_method"],
-                r["center_boxes"],
-                r["overpredict"],
-                r["push_res"],
-                r["radius_inner"],
-                r["radius_middle"],
-                r["radius_outer"],
-            )
-            indexing_results_for_hfr[r["hit_finding_result_id"]].append(
-                DBIndexingResult(
-                    id=r["id"],
-                    hit_finding_result_id=r["hit_finding_result_id"],
-                    peak_search_parameters_id=r["psp_id"],
-                    indexing_parameters_id=r["ip_id"],
-                    integration_parameters_id=r["intp_id"],
-                    num_indexed=r["num_indexed"],
-                    num_crystals=r["num_crystals"],
-                    tag=r["tag"],
-                    comment=r["comment"],
-                    result_filename=r["result_filename"],
-                )
-            )
-
-        result: List[DBLinkedDataSource] = []
-        for ds_id, ds in data_sources.items():
-            hfr_result: List[DBLinkedHitFindingResult] = []
-            for hfr in hit_finding_results_for_data_source[ds_id]:
-                ir_result: List[DBLinkedIndexingResult] = []
-                for ir in indexing_results_for_hfr[cast(int, hfr.id)]:
-                    ir_result.append(
-                        DBLinkedIndexingResult(
-                            ir,
-                            peak_search_parameters[ir.peak_search_parameters_id],
-                            indexing_parameters[ir.indexing_parameters_id],
-                            integration_parameters[ir.integration_parameters_id],
-                        )
-                    )
-                hfr_result.append(
-                    DBLinkedHitFindingResult(
-                        hfr,
-                        peak_search_parameters[hfr.peak_search_parameters_id],
-                        hit_finding_parameters[hfr.hit_finding_parameters_id],
-                        indexing_results=ir_result,
-                    )
-                )
-            result.append(DBLinkedDataSource(ds, hfr_result))
-
-        return result
-
-    def retrieve_sample_based_analysis(
-        self, conn: Connection
-    ) -> List[DBSampleAnalysisResult]:
-        data_sources: Dict[int, DBLinkedDataSource] = {
-            cast(int, k.data_source.id): k
-            for k in self.retrieve_analysis_data_sources(conn)
-        }
-
-        sample_id_to_name: Dict[int, str] = {}
-        sample_id_to_data_sources: Dict[int, List[DBLinkedDataSource]] = {}
-        for row in conn.execute(
-            sa.select(
-                [
-                    self.tables.sample.c.id.label("sample_id"),
-                    self.tables.sample.c.name.label("sample_name"),
-                    self.tables.data_source.c.id,
-                ]
-            ).select_from(
-                self.tables.sample.outerjoin(self.tables.run).outerjoin(
-                    self.tables.data_source
-                )
-            )
-        ).fetchall():
-            sample_id = row["sample_id"]
-            sample_name = row["sample_name"]
-            sample_id_to_name[sample_id] = sample_name
-            if sample_id not in sample_id_to_data_sources:
-                sample_id_to_data_sources[sample_id] = []
-            # Filters samples without runs
-            if row["id"] is not None:
-                sample_id_to_data_sources[sample_id].append(data_sources[row["id"]])
-
-        result: List[DBSampleAnalysisResult] = []
-        for sample_id, data_sources_ in sample_id_to_data_sources.items():
-            result.append(
-                DBSampleAnalysisResult(
-                    sample_id,
-                    sample_id_to_name[sample_id],
-                    data_sources=data_sources_,
-                )
-            )
-        return result
 
     def have_proposals(self, conn: Connection) -> bool:
         return conn.execute(sa.select([self.tables.proposal.c.id])).fetchall()

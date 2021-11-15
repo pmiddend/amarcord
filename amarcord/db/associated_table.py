@@ -4,7 +4,6 @@ from enum import Enum
 class AssociatedTable(Enum):
     RUN = "run"
     SAMPLE = "sample"
-    ANALYSIS = "analysis"
 
     def pretty_id(self) -> str:
         # pylint: disable=no-member

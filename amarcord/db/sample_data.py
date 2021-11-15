@@ -3,8 +3,6 @@ from random import choice
 from random import randint
 from random import randrange
 from random import seed
-from random import uniform
-from typing import Final
 from typing import List
 
 from amarcord.db.associated_table import AssociatedTable
@@ -22,13 +20,6 @@ from amarcord.db.db import DB
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.table_classes import DBDataSource
-from amarcord.db.table_classes import DBHitFindingParameters
-from amarcord.db.table_classes import DBHitFindingResult
-from amarcord.db.table_classes import DBIndexingParameters
-from amarcord.db.table_classes import DBIndexingResult
-from amarcord.db.table_classes import DBIntegrationParameters
-from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import logger
 from amarcord.numeric_range import NumericRange
@@ -204,139 +195,6 @@ def create_sample_data(db: DB) -> None:
                         ]
                     ),
                 )
-
-        # Insert analysis results
-        # For each run, add 1 to 2 data sources
-        # For each data source, generate 1 to 2 peak search result, hit finding parameters and hit finding results
-        # For each hit finding result, generate 1 to 2 indexing parameters, integration parameters  and indexing results
-        # For indexing result, generate 1 or 2 merge results
-
-        possible_tags: Final = [
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            "noice",
-            "newtry",
-            "foo",
-            "othertag",
-            "goodweather",
-            "spring",
-            "more_kev",
-            "pixhigher",
-        ]
-
-        for run_id in run_ids:
-            for _ in range(choice([1, 2])):
-                number_of_frames = randint(0, 1000)
-                data_source_id = db.add_data_source(
-                    conn,
-                    DBDataSource(
-                        id=None,
-                        run_id=run_id,
-                        number_of_frames=number_of_frames,
-                        source={"files": ["/var/log/file/hoooo.h5" for _ in range(10)]},
-                        tag=choice(possible_tags),
-                        comment=None,
-                    ),
-                )
-
-                for _ in range(choice([0, 1, 2])):
-                    psp_id = db.add_peak_search_parameters(
-                        conn,
-                        DBPeakSearchParameters(
-                            id=None,
-                            method="dummy-method",
-                            software="dummy-software",
-                            tag=choice(possible_tags),
-                            comment=None,
-                            software_version=None,
-                        ),
-                    )
-
-                    hfp_id = db.add_hit_finding_parameters(
-                        conn,
-                        DBHitFindingParameters(
-                            id=None,
-                            min_peaks=int(uniform(10, 100)),
-                            tag=choice(possible_tags),
-                            comment=None,
-                            software="dummy-software",
-                            software_version="1.0",
-                        ),
-                    )
-
-                    hfr_id = db.add_hit_finding_result(
-                        conn,
-                        DBHitFindingResult(
-                            id=None,
-                            peak_search_parameters_id=psp_id,
-                            hit_finding_parameters_id=hfp_id,
-                            data_source_id=data_source_id,
-                            result_filename="/tmp/result.hkl",
-                            peaks_filename="/tmp/peaks.txt",
-                            result_type="hkl",
-                            average_resolution=1,
-                            number_of_hits=1000,
-                            average_peaks_event=0,
-                            hit_rate=uniform(0, 100),
-                            tag=None,
-                            comment=None,
-                        ),
-                    )
-
-                    for _ in range(choice([0, 1, 2])):
-                        ip_id = db.add_indexing_parameters(
-                            conn,
-                            DBIndexingParameters(
-                                id=None,
-                                tag=choice(possible_tags),
-                                comment=None,
-                                software="dummy-software",
-                                software_version="",
-                                command_line="command-line",
-                                parameters={},
-                                methods=[],
-                                geometry=None,
-                            ),
-                        )
-
-                        intp_id = db.add_integration_parameters(
-                            conn,
-                            DBIntegrationParameters(
-                                id=None,
-                                tag=choice(possible_tags),
-                                comment=None,
-                                software="dummy-software",
-                                software_version="1.0",
-                                method=None,
-                                center_boxes=None,
-                                overpredict=None,
-                                push_res=None,
-                                radius_inner=None,
-                                radius_outer=None,
-                                radius_middle=None,
-                            ),
-                        )
-
-                        db.add_indexing_result(
-                            conn,
-                            DBIndexingResult(
-                                id=None,
-                                hit_finding_result_id=hfr_id,
-                                peak_search_parameters_id=psp_id,
-                                indexing_parameters_id=ip_id,
-                                integration_parameters_id=intp_id,
-                                num_indexed=int(uniform(0, number_of_frames)),
-                                num_crystals=1,
-                                tag=None,
-                                comment=None,
-                                result_filename="/tmp/result.hkl",
-                            ),
-                        )
 
     logger.info("Done")
 
