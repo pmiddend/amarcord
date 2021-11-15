@@ -52,7 +52,6 @@ from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.json import JSONDict
 from amarcord.modules.spb.attributi_table import AttributiTable
-from amarcord.qt.combo_box import ComboBox
 from amarcord.qt.image_viewer import display_image_viewer
 from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import Partial
@@ -82,7 +81,6 @@ def _empty_sample(
         id=None,
         proposal_id=proposal_id,
         name="",
-        target_id=None,
         compounds=None,
         micrograph=None,
         protocol=None,
@@ -188,15 +186,6 @@ class Samples(QWidget):
             "Name*",
             self._name_edit,
         )
-
-        self._target_id_edit = ComboBox[Optional[int]](
-            items=[("None", None)], selected=None
-        )
-        right_form_layout.addRow(
-            "Target",
-            self._target_id_edit,
-        )
-        self._target_id_edit.item_selected.connect(self._target_id_change)
 
         self._compounds_edit = ValidatedLineEdit(
             None,
@@ -456,7 +445,6 @@ class Samples(QWidget):
         self._current_sample = self._samples[index.row()]
         sample_name = self._current_sample.name
         self._right_headline.setText(f"Edit sample “{sample_name}”")
-        self._target_id_edit.set_current_value(self._current_sample.target_id)
         self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
         self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
         # noinspection PyTypeChecker
@@ -526,10 +514,6 @@ class Samples(QWidget):
             self._current_sample.attributi, self._attributi_table.metadata, []
         )
 
-    def _target_id_change(self, new_id: int) -> None:
-        self._current_sample = replace(self._current_sample, target_id=new_id)
-        self._reset_button()
-
     def _micrograph_change(self, value: str) -> None:
         if not isinstance(value, Partial):
             self._current_sample = replace(self._current_sample, micrograph=value)
@@ -562,12 +546,7 @@ class Samples(QWidget):
     def _reload_and_fill_samples(self, conn: Connection) -> None:
         self._samples_with_runs = self._db.retrieve_used_sample_ids(conn)
         self._samples = self._db.retrieve_samples(conn, self._proposal_id)
-        self._targets = self._db.retrieve_targets(conn)
 
-        self._target_id_edit.reset_items(
-            [("None", cast(Optional[int], None))]
-            + [(s.short_name, cast(Optional[int], s.id)) for s in self._targets]
-        )
         self._fill_table()
 
     def _fill_table(self):
@@ -582,7 +561,6 @@ class Samples(QWidget):
             "ID",
             "Name",
             "Number of runs",
-            "Target",
             "Compounds",
             "Micrograph",
             "Protocol",
@@ -597,12 +575,6 @@ class Samples(QWidget):
                 str(sample.id),
                 sample.name,
                 str(len(self._samples_with_runs.get(sample.id, []))),
-                next(
-                    iter(
-                        t.short_name for t in self._targets if sample.target_id == t.id
-                    ),
-                    None,
-                ),
                 ", ".join(
                     [str(c) for c in sample.compounds]
                     if sample.compounds is not None

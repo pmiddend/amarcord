@@ -37,24 +37,6 @@ def _table_attributo(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_target(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "Target",
-        metadata,
-        sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column(
-            "proposal_id",
-            sa.Integer,
-            sa.ForeignKey("Proposal.id", use_alter=True),
-            nullable=True,
-        ),
-        sa.Column("name", sa.String(length=255), nullable=False),
-        sa.Column("short_name", sa.String(length=255), nullable=False),
-        sa.Column("molecular_weight", sa.Float, nullable=True),
-        sa.Column("uniprot_id", sa.String(length=64), nullable=True),
-    )
-
-
 def _table_sample(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Sample",
@@ -64,12 +46,6 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
             "proposal_id",
             sa.Integer,
             sa.ForeignKey("Proposal.id", use_alter=True),
-            nullable=True,
-        ),
-        sa.Column(
-            "target_id",
-            sa.Integer,
-            sa.ForeignKey("Target.id", use_alter=True),
             nullable=True,
         ),
         sa.Column("name", sa.String(length=255), nullable=False),
@@ -311,7 +287,6 @@ class DBTables:
         run: sa.Table,
         run_comment: sa.Table,
         attributo: sa.Table,
-        target: sa.Table,
         data_source: sa.Table,
         peak_search_parameters: sa.Table,
         hit_finding_parameters: sa.Table,
@@ -332,7 +307,6 @@ class DBTables:
         self.proposal = proposal
         self.run = run
         self.run_comment = run_comment
-        self.target = target
         self.data_source = data_source
         self.attributo = attributo
         self.attributo_run_id = AttributoId("id")
@@ -432,7 +406,6 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         run=_table_run(metadata),
         run_comment=_table_run_comment(metadata),
         attributo=_table_attributo(metadata),
-        target=_table_target(metadata),
         data_source=_table_data_source(metadata),
         peak_search_parameters=_table_peak_search_parameters(metadata),
         hit_finding_parameters=_table_hit_finding_parameters(metadata),

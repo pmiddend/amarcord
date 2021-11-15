@@ -36,7 +36,6 @@ from amarcord.db.table_classes import DBIndexingResult
 from amarcord.db.table_classes import DBIntegrationParameters
 from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSample
-from amarcord.db.table_classes import DBTarget
 from amarcord.db.tables import create_tables
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
@@ -63,17 +62,6 @@ with db.connect() as global_conn:
         )
         db.add_attributo(
             global_conn, "last_train", "", AssociatedTable.RUN, AttributoTypeInt()
-        )
-        db.add_target(
-            global_conn,
-            DBTarget(
-                id=None,
-                proposal_id=PROPOSAL_ID,
-                name="target name",
-                short_name="target short name",
-                molecular_weight=None,
-                uniprot_id="",
-            ),
         )
 
 
@@ -258,14 +246,12 @@ def action_add_event() -> None:
 
 def action_add_sample() -> None:
     with db.connect() as conn:
-        targets = db.retrieve_targets(conn)
         db.add_sample(
             conn,
             DBSample(
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name=generate_random_string(),
-                target_id=random.choice(targets).id,
                 compounds=None,
                 micrograph=None,
                 protocol=None,

@@ -30,7 +30,6 @@ from amarcord.db.table_classes import DBIndexingResult
 from amarcord.db.table_classes import DBIntegrationParameters
 from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBSample
-from amarcord.db.table_classes import DBTarget
 from amarcord.db.tables import logger
 from amarcord.numeric_range import NumericRange
 
@@ -56,30 +55,6 @@ def create_sample_data(db: DB) -> None:
         #         id=2, metadata={"data": {}, "title": "shit proposal"}
         #     )
         # )
-        # Create targets
-        first_target_id = db.add_target(
-            conn,
-            DBTarget(
-                id=None,
-                proposal_id=ProposalId(1),
-                name="Main Protease",
-                short_name="MPro",
-                molecular_weight=None,
-                uniprot_id="",
-            ),
-        )
-        # pylint: disable=unused-variable
-        _second_target_id = db.add_target(
-            conn,
-            DBTarget(
-                id=None,
-                proposal_id=ProposalId(1),
-                name="Protein Like Protease",
-                short_name="PLPro",
-                molecular_weight=None,
-                uniprot_id="",
-            ),
-        )
 
         add_xfel_2696_attributi(db, conn)
 
@@ -99,7 +74,6 @@ def create_sample_data(db: DB) -> None:
                         id=None,
                         proposal_id=ProposalId(proposal_id),
                         name=f"mpro {i}",
-                        target_id=first_target_id,
                         compounds=None,
                         micrograph=None,
                         protocol=None,
@@ -114,7 +88,6 @@ def create_sample_data(db: DB) -> None:
                 id=None,
                 proposal_id=ProposalId(proposal_id),
                 name="mpro unused",
-                target_id=first_target_id,
                 compounds=None,
                 micrograph=None,
                 protocol=None,

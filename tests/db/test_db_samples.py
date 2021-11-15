@@ -23,7 +23,6 @@ def test_add_and_delete_sample(db: DB) -> None:
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name="sample1",
-                target_id=None,
                 compounds=None,
                 micrograph=None,
                 protocol=None,
@@ -38,9 +37,6 @@ def test_add_and_delete_sample(db: DB) -> None:
 
     with db.connect() as conn:
         db.delete_sample(conn, new_id)
-
-    with db.connect() as conn:
-        assert not db.retrieve_targets(conn)
 
 
 def test_modify_sample_attributi(db: DB) -> None:
@@ -62,7 +58,6 @@ def test_modify_sample_attributi(db: DB) -> None:
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name="sample1",
-                target_id=None,
                 compounds=None,
                 micrograph=None,
                 protocol=None,
@@ -99,7 +94,6 @@ def test_remove_attributo(db: DB) -> None:
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name="sample1",
-                target_id=None,
                 compounds=None,
                 micrograph=None,
                 protocol=None,
@@ -134,7 +128,6 @@ def test_inherent_attributi_are_not_in_attributi_list(db: DB) -> None:
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name="sample1",
-                target_id=None,
                 compounds=[1, 2],
                 micrograph="/tmp/foo",
                 protocol="/tmp/bar",

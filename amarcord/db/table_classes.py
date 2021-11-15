@@ -21,22 +21,11 @@ class DBEvent:
 
 
 @dataclass(frozen=True)
-class DBTarget:
-    id: Optional[int]
-    proposal_id: ProposalId
-    name: str
-    short_name: str
-    molecular_weight: Optional[float]
-    uniprot_id: str
-
-
-@dataclass(frozen=True)
 class DBSample:
     id: Optional[int]
     proposal_id: ProposalId
     name: str
     attributi: RawAttributiMap
-    target_id: Optional[int] = None
     compounds: Optional[List[int]] = None
     micrograph: Optional[str] = None
     protocol: Optional[str] = None

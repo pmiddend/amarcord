@@ -47,7 +47,6 @@ from amarcord.db.table_classes import DBPeakSearchParameters
 from amarcord.db.table_classes import DBRun
 from amarcord.db.table_classes import DBSample
 from amarcord.db.table_classes import DBSampleAnalysisResult
-from amarcord.db.table_classes import DBTarget
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
 from amarcord.modules.dbcontext import Connection
@@ -621,73 +620,6 @@ class DB:
             )
         )
 
-    def retrieve_targets(
-        self, conn: Connection, proposal_id: Optional[ProposalId] = None
-    ) -> List[DBTarget]:
-        tc = self.tables.target.c
-        return [
-            DBTarget(
-                row["id"],
-                row["proposal_id"],
-                row["name"],
-                row["short_name"],
-                row["molecular_weight"],
-                row["uniprot_id"],
-            )
-            for row in conn.execute(
-                sa.select(
-                    [
-                        tc.id,
-                        tc.proposal_id,
-                        tc.name,
-                        tc.short_name,
-                        tc.molecular_weight,
-                        tc.uniprot_id,
-                    ]
-                )
-                .where(
-                    tc.proposal_id == proposal_id if proposal_id is not None else True
-                )
-                .order_by(tc.short_name)
-            ).fetchall()
-        ]
-
-    def add_target(self, conn: Connection, t: DBTarget) -> int:
-        assert t.name.strip()
-        assert t.short_name.strip()
-        assert t.id is None
-        assert t.molecular_weight is None or t.molecular_weight >= 0
-        return conn.execute(
-            sa.insert(self.tables.target).values(
-                name=t.name,
-                proposal_id=t.proposal_id,
-                short_name=t.short_name,
-                molecular_weight=t.molecular_weight,
-                uniprot_id=t.uniprot_id,
-            )
-        ).inserted_primary_key[0]
-
-    def edit_target(self, conn: Connection, t: DBTarget) -> None:
-        assert t.name.strip()
-        assert t.short_name.strip()
-        assert t.id is not None
-        assert t.molecular_weight is None or t.molecular_weight >= 0
-        conn.execute(
-            sa.update(self.tables.target)
-            .values(
-                name=t.name,
-                short_name=t.short_name,
-                molecular_weight=t.molecular_weight,
-                uniprot_id=t.uniprot_id,
-            )
-            .where(self.tables.target.c.id == t.id)
-        )
-
-    def delete_target(self, conn: Connection, tid: int) -> None:
-        conn.execute(
-            sa.delete(self.tables.target).where(self.tables.target.c.id == tid)
-        )
-
     def retrieve_used_sample_ids(self, conn: Connection) -> Dict[int, List[int]]:
         result: Dict[int, List[int]] = {}
         db_results = conn.execute(
@@ -720,7 +652,6 @@ class DB:
                     tc.id,
                     tc.proposal_id,
                     tc.name,
-                    tc.target_id,
                     tc.compounds,
                     tc.micrograph,
                     tc.protocol,
@@ -742,7 +673,6 @@ class DB:
                 id=row["id"],
                 proposal_id=ProposalId(row["proposal_id"]),
                 name=row["name"],
-                target_id=row["target_id"],
                 compounds=row["compounds"],
                 micrograph=row["micrograph"],
                 protocol=row["protocol"],
@@ -760,7 +690,6 @@ class DB:
             sa.insert(self.tables.sample).values(
                 name=t.name,
                 proposal_id=t.proposal_id,
-                target_id=t.target_id,
                 compounds=t.compounds,
                 micrograph=t.micrograph,
                 protocol=t.protocol,
@@ -778,7 +707,6 @@ class DB:
         conn.execute(
             sa.update(self.tables.sample)
             .values(
-                target_id=t.target_id,
                 name=t.name,
                 compounds=t.compounds,
                 micrograph=t.micrograph,

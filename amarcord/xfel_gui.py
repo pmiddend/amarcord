@@ -28,7 +28,6 @@ from amarcord.modules.spb.factories import retrieve_proposal_ids
 from amarcord.modules.spb.factories import run_details
 from amarcord.modules.spb.factories import run_table
 from amarcord.modules.spb.samples import Samples
-from amarcord.modules.spb.targets import Targets
 from amarcord.modules.uicontext import UIContext
 
 try:
@@ -121,12 +120,6 @@ class XFELGui:
             self._slot_change_proposal,
         )
         self._ui_context.set_application_suffix(f"proposal {self._proposal_id}")
-
-        _targets_index = self._ui_context.register_tab(
-            "Targets",
-            Targets(self._context, self._tables, self._proposal_id),
-            QIcon(":/icons/bullseye-solid.png"),
-        )
 
         samples_tab = Samples(self._context, self._tables, self._proposal_id)
         _samples_index = self._ui_context.register_tab(
