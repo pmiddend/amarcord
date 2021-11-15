@@ -14,6 +14,8 @@ from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.indexing_job_status import IndexingJobStatus
+from amarcord.db.path import Path
 from amarcord.modules.dbcontext import DBContext
 
 logger = logging.getLogger(__name__)
@@ -78,6 +80,72 @@ def _table_proposal(metadata: sa.MetaData) -> sa.Table:
     )
 
 
+def _table_indexing_job_parameter(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "IndexingJobParameter",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("project_file_creation", sa.DateTime, nullable=False),
+        sa.Column("project_file_last_discovery", sa.DateTime, nullable=False),
+        sa.Column("project_file_path", Path, nullable=False),
+        sa.Column("project_file_content", sa.Text, nullable=False),
+        sa.Column("project_file_hash", sa.String(length=64), nullable=False),
+    )
+
+
+def _table_indexing_job(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "IndexingJob",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column(
+            "run_id",
+            sa.Integer,
+            ForeignKey("Run.id", ondelete="cascade"),
+            nullable=False,
+        ),
+        sa.Column(
+            "indexing_job_parameter_id",
+            sa.Integer,
+            ForeignKey("IndexingJobParameter.id", ondelete="cascade"),
+            nullable=False,
+        ),
+        sa.Column("master_file", Path, nullable=False),
+        sa.Column("command_line", sa.Text, nullable=False),
+        sa.Column("status", sa.Enum(IndexingJobStatus), nullable=False),
+        sa.Column("slurm_job_id", sa.Integer, nullable=True),
+        sa.Column("error_message", sa.Text, nullable=True),
+    )
+
+
+def _table_indexing_job_result(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "IndexingJobResult",
+        metadata,
+        sa.Column(
+            "indexing_job_id", sa.Integer, ForeignKey("IndexingJob.id"), nullable=False
+        ),
+        sa.Column(
+            "result_file",
+            Path,
+            nullable=False,
+        ),
+    )
+
+
+def _table_configuration(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "Configuration",
+        metadata,
+        sa.Column(
+            "latest_indexing_job_parameters_id",
+            sa.Integer,
+            ForeignKey("IndexingJobParameter.id"),
+            nullable=True,
+        ),
+    )
+
+
 def _table_run(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Run",
@@ -120,6 +188,10 @@ class DBTables:
         run_comment: sa.Table,
         attributo: sa.Table,
         event_log: sa.Table,
+        configuration: sa.Table,
+        indexing_job_parameter: sa.Table,
+        indexing_job: sa.Table,
+        indexing_job_result: sa.Table,
     ) -> None:
         self.event_log = event_log
         self.sample = sample
@@ -127,6 +199,10 @@ class DBTables:
         self.run = run
         self.run_comment = run_comment
         self.attributo = attributo
+        self.configuration = configuration
+        self.indexing_job_parameter = indexing_job_parameter
+        self.indexing_job = indexing_job
+        self.indexing_job_result = indexing_job_result
         self.attributo_run_id = AttributoId("id")
         self.attributo_run_comments = AttributoId("comments")
         self.attributo_run_modified = AttributoId("modified")
@@ -211,6 +287,10 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         run_comment=_table_run_comment(metadata),
         attributo=_table_attributo(metadata),
         event_log=_table_event_log(metadata),
+        configuration=_table_configuration(metadata),
+        indexing_job_parameter=_table_indexing_job_parameter(metadata),
+        indexing_job=_table_indexing_job(metadata),
+        indexing_job_result=_table_indexing_job_result(metadata),
     )
 
 
