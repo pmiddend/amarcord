@@ -50,9 +50,6 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
             nullable=True,
         ),
         sa.Column("name", sa.String(length=255), nullable=False),
-        sa.Column("compounds", sa.JSON, nullable=True),
-        sa.Column("micrograph", sa.Text, nullable=True),
-        sa.Column("protocol", sa.Text, nullable=True),
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("attributi", sa.JSON, nullable=False),
     )

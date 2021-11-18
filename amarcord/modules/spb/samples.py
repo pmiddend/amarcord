@@ -2,7 +2,6 @@ import datetime
 import getpass
 import logging
 from dataclasses import replace
-from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Final
@@ -13,14 +12,11 @@ from typing import cast
 
 from PyQt5.QtCore import QModelIndex
 from PyQt5.QtCore import QTimer
-from PyQt5.QtCore import QUrl
 from PyQt5.QtCore import Qt
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QContextMenuEvent
-from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import QAbstractItemView
 from PyQt5.QtWidgets import QCheckBox
-from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QLabel
@@ -52,11 +48,7 @@ from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
 from amarcord.modules.json import JSONDict
 from amarcord.modules.spb.attributi_table import AttributiTable
-from amarcord.qt.image_viewer import display_image_viewer
-from amarcord.qt.validated_line_edit import ValidatedLineEdit
 from amarcord.qt.validators import Partial
-from amarcord.qt.validators import parse_existing_filename
-from amarcord.qt.validators import parse_list
 from amarcord.util import str_to_int
 
 NEW_SAMPLE_HEADLINE = "New sample"
@@ -81,9 +73,6 @@ def _empty_sample(
         id=None,
         proposal_id=proposal_id,
         name="",
-        compounds=None,
-        micrograph=None,
-        protocol=None,
         attributi=RawAttributiMap(attributi_map),
     )
 
@@ -187,61 +176,6 @@ class Samples(QWidget):
             self._name_edit,
         )
 
-        self._compounds_edit = ValidatedLineEdit(
-            None,
-            lambda str_list: ", ".join(str(s) for s in str_list),  # type: ignore
-            lambda str_list_str: parse_list(str_list_str, None, _validate_pubchem),  # type: ignore
-            "list of pubchem CIDs, separated by commas",
-        )
-        self._compounds_edit.value_change.connect(self._compounds_change)
-        right_form_layout.addRow("Compounds", self._compounds_edit)
-
-        micrograph_layout = QHBoxLayout()
-        micrograph_layout.setContentsMargins(0, 0, 0, 0)
-        self._micrograph_edit = ValidatedLineEdit(
-            None,
-            lambda p: p,  # type: ignore
-            parse_existing_filename,  # type: ignore
-            "Absolute path to file",
-        )
-        self._micrograph_edit.value_change.connect(self._micrograph_change)
-        micrograph_layout.addWidget(self._micrograph_edit)
-        choose_micrograph_button = QPushButton(
-            self.style().standardIcon(QStyle.SP_DialogOpenButton), "Browse..."
-        )
-        self._display_micrograph_button = QPushButton(
-            self.style().standardIcon(QStyle.SP_FileDialogContentsView), "Show"
-        )
-        self._display_micrograph_button.setEnabled(False)
-        self._display_micrograph_button.clicked.connect(self._display_micrograph)
-        choose_micrograph_button.clicked.connect(self._choose_micrograph)
-        micrograph_layout.addWidget(self._display_micrograph_button)
-        micrograph_layout.addWidget(choose_micrograph_button)
-        right_form_layout.addRow("Micrograph", micrograph_layout)
-
-        protocol_layout = QHBoxLayout()
-        protocol_layout.setContentsMargins(0, 0, 0, 0)
-        self._protocol_edit = ValidatedLineEdit(
-            None,
-            lambda p: p,  # type: ignore
-            parse_existing_filename,  # type: ignore
-            "Absolute path to file",
-        )
-        self._protocol_edit.value_change.connect(self._protocol_change)
-        protocol_layout.addWidget(self._protocol_edit)
-        choose_protocol_button = QPushButton(
-            self.style().standardIcon(QStyle.SP_DialogOpenButton), "Browse..."
-        )
-        self._open_protocol_button = QPushButton(
-            self.style().standardIcon(QStyle.SP_FileDialogContentsView), "Open"
-        )
-        self._open_protocol_button.setEnabled(False)
-        self._open_protocol_button.clicked.connect(self._open_protocol)
-        choose_protocol_button.clicked.connect(self._choose_protocol)
-        protocol_layout.addWidget(self._open_protocol_button)
-        protocol_layout.addWidget(choose_protocol_button)
-        right_form_layout.addRow("Protocol", protocol_layout)
-
         with self._db.connect() as conn:
             metadata_wrapper = QWidget()
             metadata_wrapper_layout = QVBoxLayout(metadata_wrapper)
@@ -295,7 +229,7 @@ class Samples(QWidget):
             conn, AssociatedTable.SAMPLE
         )
         # Some attributes shouldn't be editable in the table
-        for aid in ("id", "name", "micrograph", "protocol"):
+        for aid in ("id", "name"):
             self._available_attributi.pop(AttributoId(aid), None)
         return self._available_attributi
 
@@ -346,38 +280,6 @@ class Samples(QWidget):
         if self._auto_refresh.isChecked():
             self._slot_refresh_with_conn()
             self._update_timer.start(AUTO_REFRESH_TIMER_MSEC)
-
-    def _display_micrograph(self) -> None:
-        assert self._current_sample.micrograph is not None
-        display_image_viewer(Path(self._current_sample.micrograph), parent=self)
-
-    def _open_protocol(self) -> None:
-        assert self._current_sample.protocol is not None
-        QDesktopServices.openUrl(QUrl(f"file://{self._current_sample.protocol}"))
-
-    def _choose_protocol(self) -> None:
-        result, _ = QFileDialog.getOpenFileName(
-            self,
-            "Choose a protocol file",
-        )
-        if not result:
-            return
-
-        self._protocol_edit.setText(result)
-        self._current_sample = replace(self._current_sample, protocol=result)
-        self._open_protocol_button.setEnabled(True)
-
-    def _choose_micrograph(self) -> None:
-        result, _ = QFileDialog.getOpenFileName(
-            self,
-            "Choose an image file",
-        )
-        if not result:
-            return
-
-        self._micrograph_edit.setText(result)
-        self._current_sample = replace(self._current_sample, micrograph=result)
-        self._display_micrograph_button.setEnabled(True)
 
     def _slot_delete_sample(self) -> None:
         row_idx = self._sample_table.currentRow()
@@ -445,10 +347,6 @@ class Samples(QWidget):
         self._current_sample = self._samples[index.row()]
         sample_name = self._current_sample.name
         self._right_headline.setText(f"Edit sample “{sample_name}”")
-        self._micrograph_edit.set_value(self._current_sample.micrograph)  # type: ignore
-        self._protocol_edit.set_value(self._current_sample.protocol)  # type: ignore
-        # noinspection PyTypeChecker
-        self._compounds_edit.set_value(self._current_sample.compounds)  # type: ignore
         self._name_edit.setText(self._current_sample.name)
         self._clear_submit()
         self._submit_layout.addWidget(self._create_edit_button())
@@ -503,10 +401,7 @@ class Samples(QWidget):
             self._reload_and_fill_samples(conn)
 
     def _reset_input_fields(self):
-        self._compounds_edit.set_value(None)
         self._name_edit.setText("")
-        self._micrograph_edit.set_value(None)
-        self._protocol_edit.set_value(None)
         self._current_sample = _empty_sample(
             self._proposal_id, self._attributi_table.metadata
         )
@@ -514,27 +409,8 @@ class Samples(QWidget):
             self._current_sample.attributi, self._attributi_table.metadata, []
         )
 
-    def _micrograph_change(self, value: str) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, micrograph=value)
-        self._display_micrograph_button.setEnabled(
-            self._current_sample.micrograph is not None
-        )
-        self._reset_button()
-
-    def _protocol_change(self, value: str) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, protocol=value)
-        self._open_protocol_button.setEnabled(self._current_sample.protocol is not None)
-        self._reset_button()
-
-    def _compounds_change(self, value: Union[str, List[int]]) -> None:
-        if not isinstance(value, Partial):
-            self._current_sample = replace(self._current_sample, compounds=value)
-        self._reset_button()
-
     def _button_enabled(self) -> bool:
-        return self._compounds_edit.valid_value() and bool(self._name_edit.text())
+        return bool(self._name_edit.text())
 
     def _reset_button(self) -> None:
         self._add_button.setEnabled(self._button_enabled())
@@ -561,9 +437,6 @@ class Samples(QWidget):
             "ID",
             "Name",
             "Number of runs",
-            "Compounds",
-            "Micrograph",
-            "Protocol",
         ] + attributi_headers
         self._sample_table.setColumnCount(len(headers))
         self._sample_table.setHorizontalHeaderLabels(headers)
@@ -575,15 +448,6 @@ class Samples(QWidget):
                 str(sample.id),
                 sample.name,
                 str(len(self._samples_with_runs.get(sample.id, []))),
-                ", ".join(
-                    [str(c) for c in sample.compounds]
-                    if sample.compounds is not None
-                    else []
-                )
-                if sample.compounds is not None
-                else "",
-                sample.micrograph if sample.micrograph is not None else "",
-                sample.protocol if sample.protocol is not None else "",
             )
             for col, column_value in enumerate(built_in_columns):
                 self._sample_table.setItem(row, col, QTableWidgetItem(column_value))  # type: ignore

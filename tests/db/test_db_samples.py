@@ -23,9 +23,6 @@ def test_add_and_delete_sample(db: DB) -> None:
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name="sample1",
-                compounds=None,
-                micrograph=None,
-                protocol=None,
                 attributi=RawAttributiMap({}),
             ),
         )
@@ -58,9 +55,6 @@ def test_modify_sample_attributi(db: DB) -> None:
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name="sample1",
-                compounds=None,
-                micrograph=None,
-                protocol=None,
                 attributi=RawAttributiMap({}),
             ),
         )
@@ -94,9 +88,6 @@ def test_remove_attributo(db: DB) -> None:
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name="sample1",
-                compounds=None,
-                micrograph=None,
-                protocol=None,
                 attributi=RawAttributiMap({}),
             ),
         )
@@ -109,40 +100,3 @@ def test_remove_attributo(db: DB) -> None:
             )
             is None
         )
-
-
-def test_inherent_attributi_are_not_in_attributi_list(db: DB) -> None:
-    with db.connect() as conn:
-        db.add_proposal(conn, PROPOSAL_ID)
-        db.add_attributo(
-            conn,
-            MY_ATTRIBUTO,
-            "description",
-            AssociatedTable.SAMPLE,
-            AttributoTypeString(),
-        )
-
-        db.add_sample(
-            conn,
-            DBSample(
-                id=None,
-                proposal_id=PROPOSAL_ID,
-                name="sample1",
-                compounds=[1, 2],
-                micrograph="/tmp/foo",
-                protocol="/tmp/bar",
-                attributi=RawAttributiMap({}),
-            ),
-        )
-
-        samples = db.retrieve_samples(conn, PROPOSAL_ID, since=None)
-
-        s = samples[0]
-
-        assert s.attributi.select_value(AttributoId("compounds")) is None
-        assert s.attributi.select_value(AttributoId("micrograph")) is None
-        assert s.attributi.select_value(AttributoId("protocol")) is None
-
-        assert s.micrograph is not None
-        assert s.protocol is not None
-        assert s.compounds == [1, 2]

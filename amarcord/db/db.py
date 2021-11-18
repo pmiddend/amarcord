@@ -84,8 +84,6 @@ def _sample_to_attributi(
     result = AttributiMap(types, s.attributi)
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("id"): s.id})
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("name"): s.name})
-    result.append_to_source(DB_SOURCE_NAME, {AttributoId("micrograph"): s.micrograph})
-    result.append_to_source(DB_SOURCE_NAME, {AttributoId("protocol"): s.protocol})
     return result
 
 
@@ -644,9 +642,6 @@ class DB:
                     tc.id,
                     tc.proposal_id,
                     tc.name,
-                    tc.compounds,
-                    tc.micrograph,
-                    tc.protocol,
                     tc.attributi,
                 ]
             )
@@ -665,9 +660,6 @@ class DB:
                 id=row["id"],
                 proposal_id=ProposalId(row["proposal_id"]),
                 name=row["name"],
-                compounds=row["compounds"],
-                micrograph=row["micrograph"],
-                protocol=row["protocol"],
                 attributi=RawAttributiMap(row["attributi"]),
             )
 
@@ -682,9 +674,6 @@ class DB:
             sa.insert(self.tables.sample).values(
                 name=t.name,
                 proposal_id=t.proposal_id,
-                compounds=t.compounds,
-                micrograph=t.micrograph,
-                protocol=t.protocol,
                 attributi=t.attributi.to_json() if t.attributi is not None else None,
                 modified=datetime.datetime.utcnow(),
             )
@@ -700,9 +689,6 @@ class DB:
             sa.update(self.tables.sample)
             .values(
                 name=t.name,
-                compounds=t.compounds,
-                micrograph=t.micrograph,
-                protocol=t.protocol,
                 attributi=t.attributi.to_json() if t.attributi is not None else None,
                 modified=datetime.datetime.utcnow(),
             )

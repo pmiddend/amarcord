@@ -65,9 +65,6 @@ def create_sample_data(db: DB) -> None:
                         id=None,
                         proposal_id=ProposalId(proposal_id),
                         name=f"mpro {i}",
-                        compounds=None,
-                        micrograph=None,
-                        protocol=None,
                         attributi=attributi,
                     ),
                 )
@@ -79,9 +76,6 @@ def create_sample_data(db: DB) -> None:
                 id=None,
                 proposal_id=ProposalId(proposal_id),
                 name="mpro unused",
-                compounds=None,
-                micrograph=None,
-                protocol=None,
                 attributi=RawAttributiMap({}),
             ),
         )

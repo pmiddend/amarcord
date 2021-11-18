@@ -26,9 +26,6 @@ class DBSample:
     proposal_id: ProposalId
     name: str
     attributi: RawAttributiMap
-    compounds: Optional[List[int]] = None
-    micrograph: Optional[str] = None
-    protocol: Optional[str] = None
 
 
 @dataclass(frozen=True)

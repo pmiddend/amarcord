@@ -245,9 +245,6 @@ def action_add_sample() -> None:
                 id=None,
                 proposal_id=PROPOSAL_ID,
                 name=generate_random_string(),
-                compounds=None,
-                micrograph=None,
-                protocol=None,
                 attributi=generate_attributi(
                     db.retrieve_mini_samples(conn, PROPOSAL_ID),
                     db.retrieve_table_attributi(conn, AssociatedTable.SAMPLE),
