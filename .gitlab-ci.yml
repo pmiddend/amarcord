@@ -24,7 +24,9 @@ check-requirements:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
   script:
-    - poetry export --dev -o requirements-new.txt
+    # without-hashes because:
+    # https://github.com/python-poetry/poetry/issues/3472
+    - poetry export --dev --without-hashes -o requirements-new.txt
     - diff requirements.txt requirements-new.txt
 
 pylint-and-mypy:
