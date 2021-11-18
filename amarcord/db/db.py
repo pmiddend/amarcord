@@ -426,6 +426,16 @@ class DB:
             .where(self.tables.proposal.c.id == prop_id)
         )
 
+    def proposal_has_password(self, conn: Connection, prop_id: ProposalId) -> bool:
+        return (
+            conn.execute(
+                sa.select([self.tables.proposal.c.admin_password]).where(
+                    self.tables.proposal.c.id == prop_id
+                )
+            ).one()[0]
+            is not None
+        )
+
     def check_proposal_password(
         self, conn: Connection, prop_id: ProposalId, admin_password_plaintext: str
     ) -> bool:

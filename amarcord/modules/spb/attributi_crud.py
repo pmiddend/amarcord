@@ -358,24 +358,15 @@ class AttributiCrud(QWidget):
         )
         action = menu.exec_(p)
         if action == deleteAction:
-            password = password_check_dialog(
-                f"Delete attributo “{a.attributo.name}”",
-                f"Are you sure you want to delete attributo <b>“{a.attributo.pretty_id()}”</b> from table <b>“{a.table.pretty_id()}”</b>?",
-            )
-
-            if password:
-                with self._db.connect() as conn:
-                    if not self._db.check_proposal_password(
-                        conn, self._proposal_id, password
-                    ):
-                        self._show_invalid_password()
-                    else:
-                        self._db.delete_attributo(
-                            conn,
-                            a.table,
-                            a.attributo.name,
-                        )
-                        self._slot_refresh(conn)
+            with self._db.connect() as conn:
+                if not self._check_password(conn):
+                    return
+                self._db.delete_attributo(
+                    conn,
+                    a.table,
+                    a.attributo.name,
+                )
+                self._slot_refresh(conn)
 
     def _show_invalid_password(self):
         QMessageBox.critical(  # type: ignore
@@ -463,18 +454,27 @@ class AttributiCrud(QWidget):
             return AttributoTypeTags()
         raise Exception(f"unsupported type {value}")
 
+    def _check_password(self, conn: Connection) -> bool:
+        if not self._db.proposal_has_password(conn, self._proposal_id):
+            return True
+
+        password = password_check_dialog(
+            "Add attributo",
+            "Please enter the admin password to add the attributo.",
+        )
+
+        if not password:
+            return False
+
+        if not self._db.check_proposal_password(conn, self._proposal_id, password):
+            self._show_invalid_password()
+            return False
+
+        return True
+
     def _add_attributo(self) -> None:
         with self._db.connect() as conn:
-            password = password_check_dialog(
-                "Add attributo",
-                "Please enter the admin password to add the attributo.",
-            )
-
-            if not password:
-                return
-
-            if not self._db.check_proposal_password(conn, self._proposal_id, password):
-                self._show_invalid_password()
+            if not self._check_password(conn):
                 return
 
             self._db.add_attributo(

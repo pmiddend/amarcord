@@ -5,6 +5,7 @@ from functools import partial
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QMessageBox
+from tap import Tap
 
 import resources
 from amarcord.config import load_user_config
@@ -22,6 +23,7 @@ from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.event_log_daemon import EventLogDaemon
 from amarcord.modules.spb.attributi_crud import AttributiCrud
+from amarcord.modules.spb.factories import create_proposal
 from amarcord.modules.spb.factories import proposal_chooser
 from amarcord.modules.spb.factories import retrieve_proposal_ids
 from amarcord.modules.spb.factories import run_details
@@ -42,8 +44,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class Arguments(Tap):
+    create_proposal: bool = (
+        False  # Create the proposal given in the config if it doesn't exist yet
+    )
+
+
 class XFELGui:
-    def __init__(self) -> None:
+    def __init__(self, args: Arguments) -> None:
         self._ui_context = UIContext(sys.argv)
         self._user_config = load_user_config()
 
@@ -68,14 +76,21 @@ class XFELGui:
             self._tables,
             self._ui_context.main_window,
         )
+        if args.create_proposal and self._user_config.proposal_id is not None:
+            existing_proposals = retrieve_proposal_ids(self._db_context, self._tables)
+            if self._user_config.proposal_id not in existing_proposals:
+                create_proposal(
+                    self._db_context, self._tables, self._user_config.proposal_id
+                )
         self._proposal_ids = retrieve_proposal_ids(self._db_context, self._tables)
 
         if not self._proposal_ids:
             box = QMessageBox(  # type: ignore
                 QMessageBox.Critical,
                 "No proposals",
-                f"<p>There are no proposals in the database! This means it has not been initialized properly.</p><p>If "
-                f"you know how to do "
+                "<p>There are no proposals in the database! This means it has not been initialized "
+                "properly.</p><p>If "
+                "you know how to do "
                 f"that, add a proposal. If you don't know what's going on, please contact:</p>{CONTACT_INFO}",
                 QMessageBox.Ok,
                 None,
@@ -179,12 +194,14 @@ class XFELGui:
 
 
 def mymain():
+    args = Arguments(underscores_to_dashes=True).parse_args()
+
     while True:
-        gui = XFELGui()
+        gui = XFELGui(args)
         gui.exec()
         if not gui.restart:
             break
-        gui = XFELGui()
+        gui = XFELGui(args)
         gui.exec()
 
 

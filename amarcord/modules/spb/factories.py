@@ -25,6 +25,13 @@ def run_details(context: Context, table_data: DBTables, prop_id: ProposalId) -> 
     return RunDetails(context, table_data, prop_id)
 
 
+def create_proposal(context: DBContext, table_data: DBTables, proposal_id: int) -> None:
+    with context.connect() as conn:
+        conn.execute(
+            sa.insert(table_data.proposal).values(id=proposal_id, admin_password=None)
+        )
+
+
 def retrieve_proposal_ids(context: DBContext, table_data: DBTables) -> Set[ProposalId]:
     with context.connect() as conn:
         return set(

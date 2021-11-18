@@ -220,18 +220,6 @@ class DBTables:
                     associated_table=AssociatedTable.SAMPLE,
                     attributo_type=AttributoTypeDateTime(),
                 ),
-                AttributoId("micrograph"): DBAttributo(
-                    name=AttributoId("micrograph"),
-                    description="Micrograph",
-                    associated_table=AssociatedTable.SAMPLE,
-                    attributo_type=AttributoTypeString(),
-                ),
-                AttributoId("protocol"): DBAttributo(
-                    name=AttributoId("protocol"),
-                    description="Protocol",
-                    associated_table=AssociatedTable.SAMPLE,
-                    attributo_type=AttributoTypeString(),
-                ),
             },
             AssociatedTable.RUN: {
                 self.attributo_run_id: DBAttributo(

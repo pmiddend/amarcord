@@ -11,6 +11,7 @@ def test_check_password(db: DB) -> None:
         db.add_proposal(
             conn, PROPOSAL_ID, admin_password_plaintext=ADMIN_PASSWORD_PLAINTEXT
         )
+        assert db.proposal_has_password(conn, PROPOSAL_ID)
         assert db.check_proposal_password(conn, PROPOSAL_ID, ADMIN_PASSWORD_PLAINTEXT)
         assert not db.check_proposal_password(
             conn, PROPOSAL_ID, ADMIN_PASSWORD_PLAINTEXT + "shit"
@@ -29,3 +30,9 @@ def test_change_and_check_password(db: DB) -> None:
         assert db.check_proposal_password(
             conn, PROPOSAL_ID, ADMIN_PASSWORD_PLAINTEXT + "shit"
         )
+
+
+def test_check_no_password(db: DB) -> None:
+    with db.connect() as conn:
+        db.add_proposal(conn, PROPOSAL_ID, admin_password_plaintext=None)
+        assert not db.proposal_has_password(conn, PROPOSAL_ID)
