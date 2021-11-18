@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import re
 from pathlib import Path
 from typing import Callable
@@ -242,3 +243,22 @@ class DontUpdate:
 
 
 TriOptional = Union[T, None, DontUpdate]
+
+
+def sha256_file(p: Path) -> str:
+    with p.open("rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def sha256_file_bytes(p: Path) -> bytes:
+    with p.open("rb") as f:
+        return hashlib.sha256(f.read()).digest()
+
+
+def sha256_files(ps: Iterable[Path]) -> str:
+    return hashlib.sha256(b"".join(sha256_file_bytes(p) for p in ps)).hexdigest()
+
+
+def read_file_to_string(p: Path) -> str:
+    with p.open("r") as f:
+        return f.read()

@@ -80,15 +80,16 @@ def _table_proposal(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_indexing_job_parameter(metadata: sa.MetaData) -> sa.Table:
+def _table_indexing_parameter(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
-        "IndexingJobParameter",
+        "IndexingParameter",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("project_file_creation", sa.DateTime, nullable=False),
+        sa.Column("project_file_first_discovery", sa.DateTime, nullable=False),
         sa.Column("project_file_last_discovery", sa.DateTime, nullable=False),
         sa.Column("project_file_path", Path, nullable=False),
         sa.Column("project_file_content", sa.Text, nullable=False),
+        sa.Column("geometry_file_content", sa.Text, nullable=False),
         sa.Column("project_file_hash", sa.String(length=64), nullable=False),
     )
 
@@ -98,6 +99,9 @@ def _table_indexing_job(metadata: sa.MetaData) -> sa.Table:
         "IndexingJob",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+        sa.Column("started", sa.DateTime, nullable=False),
+        sa.Column("stopped", sa.DateTime, nullable=True),
+        sa.Column("output_directory", Path, nullable=False),
         sa.Column(
             "run_id",
             sa.Integer,
@@ -105,30 +109,20 @@ def _table_indexing_job(metadata: sa.MetaData) -> sa.Table:
             nullable=False,
         ),
         sa.Column(
-            "indexing_job_parameter_id",
+            "indexing_parameter_id",
             sa.Integer,
-            ForeignKey("IndexingJobParameter.id", ondelete="cascade"),
+            ForeignKey("IndexingParameter.id", ondelete="cascade"),
             nullable=False,
         ),
         sa.Column("master_file", Path, nullable=False),
         sa.Column("command_line", sa.Text, nullable=False),
         sa.Column("status", sa.Enum(IndexingJobStatus), nullable=False),
-        sa.Column("slurm_job_id", sa.Integer, nullable=True),
+        sa.Column("slurm_job_id", sa.Integer, nullable=False),
         sa.Column("error_message", sa.Text, nullable=True),
-    )
-
-
-def _table_indexing_job_result(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "IndexingJobResult",
-        metadata,
-        sa.Column(
-            "indexing_job_id", sa.Integer, ForeignKey("IndexingJob.id"), nullable=False
-        ),
         sa.Column(
             "result_file",
             Path,
-            nullable=False,
+            nullable=True,
         ),
     )
 
@@ -138,9 +132,9 @@ def _table_configuration(metadata: sa.MetaData) -> sa.Table:
         "Configuration",
         metadata,
         sa.Column(
-            "latest_indexing_job_parameters_id",
+            "latest_indexing_parameter_id",
             sa.Integer,
-            ForeignKey("IndexingJobParameter.id"),
+            ForeignKey("IndexingParameter.id"),
             nullable=True,
         ),
     )
@@ -189,9 +183,8 @@ class DBTables:
         attributo: sa.Table,
         event_log: sa.Table,
         configuration: sa.Table,
-        indexing_job_parameter: sa.Table,
+        indexing_parameter: sa.Table,
         indexing_job: sa.Table,
-        indexing_job_result: sa.Table,
     ) -> None:
         self.event_log = event_log
         self.sample = sample
@@ -200,9 +193,8 @@ class DBTables:
         self.run_comment = run_comment
         self.attributo = attributo
         self.configuration = configuration
-        self.indexing_job_parameter = indexing_job_parameter
+        self.indexing_parameter = indexing_parameter
         self.indexing_job = indexing_job
-        self.indexing_job_result = indexing_job_result
         self.attributo_run_id = AttributoId("id")
         self.attributo_run_comments = AttributoId("comments")
         self.attributo_run_modified = AttributoId("modified")
@@ -288,9 +280,8 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         attributo=_table_attributo(metadata),
         event_log=_table_event_log(metadata),
         configuration=_table_configuration(metadata),
-        indexing_job_parameter=_table_indexing_job_parameter(metadata),
+        indexing_parameter=_table_indexing_parameter(metadata),
         indexing_job=_table_indexing_job(metadata),
-        indexing_job_result=_table_indexing_job_result(metadata),
     )
 
 

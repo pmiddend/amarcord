@@ -3,9 +3,11 @@ import logging
 import pickle
 import re
 from itertools import groupby
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Final
+from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Union
@@ -28,12 +30,18 @@ from amarcord.db.constants import DB_SOURCE_NAME
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.indexing_job_status import IndexingJobStatus
 from amarcord.db.karabo import Karabo
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
+from amarcord.db.table_classes import DBAugmentedIndexingJobParameter
 from amarcord.db.table_classes import DBEvent
+from amarcord.db.table_classes import DBIndexingJob
+from amarcord.db.table_classes import DBIndexingParameter
+from amarcord.db.table_classes import DBIndexingRunData
 from amarcord.db.table_classes import DBRun
+from amarcord.db.table_classes import DBRunWithIndexingResult
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
@@ -79,6 +87,23 @@ def _sample_to_attributi(
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("micrograph"): s.micrograph})
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("protocol"): s.protocol})
     return result
+
+
+def _convert_job(id_column: str, r) -> DBIndexingJob:
+    return DBIndexingJob(
+        id=r[id_column],
+        started=r["started"],
+        stopped=r["stopped"],
+        run_id=r["run_id"],
+        output_directory=r["output_directory"],
+        indexing_parameter_id=r["indexing_parameter_id"],
+        master_file=r["master_file"],
+        command_line=r["command_line"],
+        status=r["status"],
+        slurm_job_id=r["slurm_job_id"],
+        error_message=r["error_message"],
+        result_file=r["result_file"],
+    )
 
 
 def validate_attributi(
@@ -776,6 +801,275 @@ class DB:
                 )
             )
         return result
+
+    def retrieve_indexing_parameters(
+        self, conn: Connection
+    ) -> Iterable[DBAugmentedIndexingJobParameter]:
+        ijp = self.tables.indexing_parameter.c
+        ij = self.tables.indexing_job.c
+
+        def _convert_parameter(r) -> DBAugmentedIndexingJobParameter:
+            return DBAugmentedIndexingJobParameter(
+                indexing_parameter=DBIndexingParameter(
+                    id=r["id"],
+                    project_file_first_discovery=r["project_file_first_discovery"],
+                    project_file_last_discovery=r["project_file_last_discovery"],
+                    project_file_path=r["project_file_path"],
+                    project_file_hash=r["project_file_hash"],
+                    project_file_content=None,
+                    geometry_file_content=None,
+                ),
+                number_of_jobs=r["number_of_jobs"],
+            )
+
+        return (
+            _convert_parameter(r)
+            for r in conn.execute(
+                sa.select(
+                    [
+                        ijp.id,
+                        ijp.project_file_first_discovery,
+                        ijp.project_file_last_discovery,
+                        ijp.project_file_path,
+                        ijp.project_file_hash,
+                        sa.func.count(ij.id).label("number_of_jobs"),
+                    ]
+                )
+                .join(self.tables.indexing_job, ij.indexing_parameter_id == ijp.id)
+                .group_by(ijp.id)
+            )
+        )
+
+    def add_indexing_parameter(self, conn: Connection, p: DBIndexingParameter) -> int:
+        ijp = self.tables.indexing_parameter
+        existing_result = conn.execute(
+            sa.select([ijp.c.id]).where(ijp.c.project_file_hash == p.project_file_hash)
+        ).one()
+
+        if existing_result is not None:
+            self.update_indexing_parameter_discovery(
+                conn, existing_result[0], datetime.datetime.utcnow()
+            )
+            return existing_result[0]
+
+        return conn.execute(
+            sa.insert(ijp).values(
+                project_file_first_discovery=p.project_file_first_discovery,
+                project_file_last_discovery=p.project_file_last_discovery,
+                project_path=p.project_file_path,
+                project_content=p.project_file_content,
+                project_hash=p.project_file_hash,
+                geometry_file_content=p.geometry_file_content,
+            )
+        ).inserted_primary_key[0]
+
+    def update_indexing_parameter_discovery(
+        self, conn: Connection, parameter_id: int, discovery: datetime.datetime
+    ) -> None:
+        conn.execute(
+            sa.update(self.tables.indexing_parameter)
+            .values(project_file_last_discovery=discovery)
+            .where(self.tables.indexing_parameter.c.id == parameter_id)
+        )
+
+    def add_indexing_job(self, conn: Connection, ij: DBIndexingJob) -> int:
+        return conn.execute(
+            sa.insert(self.tables.indexing_job).values(
+                run_id=ij.run_id,
+                started=ij.started,
+                output_directory=ij.output_directory,
+                stopped=ij.stopped,
+                indexing_parameter_id=ij.indexing_parameter_id,
+                master_file=ij.master_file,
+                command_line=ij.command_line,
+                status=ij.status,
+                slurm_job_id=ij.slurm_job_id,
+                error_message=ij.error_message,
+                result_file=ij.result_file,
+            )
+        ).inserted_primary_key[0]
+
+    def retrieve_indexing_jobs(
+        self, conn: Connection, only_running: bool
+    ) -> Iterable[DBIndexingJob]:
+        ij = self.tables.indexing_job
+        ijc = ij.c
+
+        return (
+            _convert_job("id", r)
+            for r in conn.execute(
+                sa.select(
+                    [
+                        ijc.id,
+                        ijc.started,
+                        ijc.stopped,
+                        ijc.run_id,
+                        ijc.indexing_parameter_id,
+                        ijc.master_file,
+                        ijc.output_directory,
+                        ijc.command_line,
+                        ijc.status,
+                        ijc.slurm_job_id,
+                        ijc.error_message,
+                        ijc.result_file,
+                    ]
+                ).where(
+                    ijc.status == IndexingJobStatus.RUNNING if only_running else True
+                )
+            )
+        )
+
+    def retrieve_latest_indexing_parameter(
+        self, conn: Connection
+    ) -> Optional[DBIndexingParameter]:
+        ipc = self.tables.indexing_parameter.c
+        result = conn.execute(
+            sa.select([ipc]).select_from(
+                self.tables.configuration.join(
+                    self.tables.indexing_parameter,
+                    self.tables.configuration.c.latest_indexing_parameter_id == ipc.id,  # type: ignore
+                )
+            )
+        ).one()
+
+        if result is None:
+            return None
+
+        return DBIndexingParameter(
+            id=result["id"],
+            project_file_first_discovery=result["project_file_first_discovery"],
+            project_file_last_discovery=result["project_file_last_discovery"],
+            project_file_path=result["project_file_path"],
+            project_file_content=None,
+            geometry_file_content=None,
+            project_file_hash=result["project_file_hash"],
+        )
+
+    def set_latest_indexing_parameter_id(self, conn: Connection, id_: int) -> None:
+        config = conn.execute(
+            sa.select([self.tables.configuration.c.latest_indexing_parameter_id])
+        ).one()
+        conn.execute(
+            sa.insert(self.tables.configuration).values(
+                latest_indexing_parameter_id=id_
+            )
+            if config is None
+            else sa.update(self.tables.configuration).values(
+                latest_indexing_parameter_id=id_
+            )
+        )
+
+    def retrieve_runs_with_indexing_results(
+        self, conn: Connection
+    ) -> List[DBRunWithIndexingResult]:
+        result: List[DBRunWithIndexingResult] = []
+        ijc = self.tables.indexing_job.c
+        for _run_id, run_rows in groupby(
+            conn.execute(
+                sa.select(
+                    [
+                        self.tables.run.c.id,
+                        ijc.id.alias("indexing_job_id"),
+                        ijc.started,
+                        ijc.stopped,
+                        ijc.run_id,
+                        ijc.indexing_parameter_id,
+                        ijc.master_file,
+                        ijc.output_directory,
+                        ijc.command_line,
+                        ijc.status,
+                        ijc.slurm_job_id,
+                        ijc.error_message,
+                        ijc.result_file,
+                    ]
+                ).outerjoin(
+                    self.tables.indexing_job,
+                    self.tables.indexing_job.c.run_id == self.tables.run.c.id,
+                )
+            ),
+            lambda x: x["id"],
+        ):
+            rows = list(run_rows)
+            run_meta = rows[0]
+            result.append(
+                DBRunWithIndexingResult(
+                    run_id=run_meta["id"],
+                    indexing_jobs=[_convert_job("indexing_job_id", r) for r in rows],
+                )
+            )
+        return result
+
+    def run_has_indexing_jobs(
+        self, conn: Connection, run_id: int, indexing_parameter_id: int
+    ) -> bool:
+        return (
+            conn.execute(
+                sa.select([]).where(
+                    (self.tables.indexing_job.c.run_id == run_id)
+                    & (
+                        self.tables.indexing_job.c.indexing_parameter_id
+                        == indexing_parameter_id
+                    )
+                )
+            ).one()
+            is not None
+        )
+
+    def finish_indexing_job_successfully(
+        self, conn: Connection, indexing_job_id: int, result_file: Path
+    ) -> None:
+        ij = self.tables.indexing_job
+        conn.execute(
+            sa.update(ij)
+            .values(
+                stopped=datetime.datetime.utcnow(),
+                status=IndexingJobStatus.SUCCESS,
+                result_file=result_file,
+            )
+            .where(ij.c.id == indexing_job_id)
+        )
+
+    def finish_indexing_job_error(
+        self, conn: Connection, indexing_job_id: int, error_message: str
+    ) -> None:
+        ij = self.tables.indexing_job
+        conn.execute(
+            sa.update(ij)
+            .values(
+                stopped=datetime.datetime.utcnow(),
+                status=IndexingJobStatus.FAIL,
+                error_message=error_message,
+            )
+            .where(ij.c.id == indexing_job_id)
+        )
+
+    def add_jobs_for_parameter_and_runs(
+        self,
+        conn: Connection,
+        indexing_parameter_id: int,
+        runs: Iterable[DBIndexingRunData],
+    ):
+        started = datetime.datetime.utcnow()
+        conn.execute(
+            sa.insert(self.tables.indexing_job).values(
+                [
+                    {
+                        "started": started,
+                        "stopped": None,
+                        "run_id": run.run_id,
+                        "output_directory": run.output_directory,
+                        "indexing_parameter_id": indexing_parameter_id,
+                        "master_file": run.master_file,
+                        "command_line": run.command_line,
+                        "status": IndexingJobStatus.RUNNING,
+                        "slurm_job_id": run.slurm_job_id,
+                        "error_message": None,
+                        "result_file": None,
+                    }
+                    for run in runs
+                ]
+            )
+        )
 
 
 def overview_row_to_query_row(

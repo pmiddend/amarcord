@@ -23,7 +23,6 @@ bcrypt = '^3.2'
 lark-parser = '^0.11'
 # for the config file
 PyYAML = '^5.4'
-types-PyYAML = '^5.4'
 # for accessing XDG_CONFIG_HOME in the config file for example
 xdg = '^5.0'
 # For parsing the arguments for programs (always required basically)
@@ -56,6 +55,8 @@ msgpack = "^1.0"
 msgpack-types = "^0.1"
 # for offline ingest
 EXtra-data = "^1.5"
+# for SLURM REST
+requests = "^2.26.0"
 
 [tool.poetry.dev-dependencies]
 black = '21.9b0'
@@ -66,6 +67,10 @@ pytest = '^6.2'
 hypothesis = '^6.3'
 pytest-cov = '^2.11'
 pytest-qt = "^4.0.2"
+# slurm
+types-requests = "^2.26.0"
+# config file
+types-PyYAML = '^5.4'
 
 [tool.poetry.scripts]
 amarcord-daemon = "amarcord.cli.daemon:main"
