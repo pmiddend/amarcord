@@ -7,7 +7,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from PyQt5 import QtCore
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import QVariant
@@ -33,11 +32,6 @@ from amarcord.db.tables import DBTables
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.modules.spb.colors import COLOR_MANUAL_ATTRIBUTO
 from amarcord.modules.spb.comments import Comments
-from amarcord.modules.spb.run_details_tree import RunDetailsTree
-from amarcord.modules.spb.run_details_tree import _dict_to_items
-from amarcord.modules.spb.run_details_tree import _filter_dict
-from amarcord.modules.spb.run_details_tree import _preprocess_dict
-from amarcord.qt.debounced_line_edit import DebouncedLineEdit
 from amarcord.qt.rectangle_widget import RectangleWidget
 from amarcord.util import str_to_int
 
@@ -102,7 +96,6 @@ class RunDetailsInner(QWidget):
         self.runs_metadata = runs_metadata
         self.run_ids = run_ids
         self.sample_ids = samples
-        self._prior_filter: Optional[str] = None
 
         top_row = QWidget()
         top_layout = QHBoxLayout(top_row)
@@ -189,23 +182,9 @@ class RunDetailsInner(QWidget):
         root_splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._root_layout.addWidget(root_splitter)
 
-        details_box = QtWidgets.QGroupBox("Run details")
-        details_column_layout = QtWidgets.QVBoxLayout(details_box)
-        self._details_tree = RunDetailsTree()
-        details_column_layout.addWidget(self._details_tree)
-
         right_column = QtWidgets.QWidget()
         right_column_layout = QtWidgets.QVBoxLayout(right_column)
         right_column_layout.addWidget(comment_column)
-        right_column_layout.addWidget(details_box)
-
-        tree_search_row = QtWidgets.QHBoxLayout()
-        tree_search_row.addWidget(QtWidgets.QLabel("Filter:"))
-        self._tree_filter_line = DebouncedLineEdit()
-        self._tree_filter_line.setClearButtonEnabled(True)
-        self._tree_filter_line.textChanged.connect(self._slot_tree_filter_changed)
-        tree_search_row.addWidget(self._tree_filter_line)
-        details_column_layout.addLayout(tree_search_row)
 
         root_splitter.addWidget(additional_data_column)
         root_splitter.addWidget(right_column)
@@ -294,10 +273,6 @@ class RunDetailsInner(QWidget):
 
         self._comments.set_comments(self.run.id, self.run.comments)
 
-        self._slot_tree_filter_changed(self._tree_filter_line.text())
-        self._details_tree.resizeColumnToContents(0)
-        self._details_tree.resizeColumnToContents(1)
-
         if run_was_modified or metadata_was_modified or sample_ids_was_modified:
             self._attributi_table.data_changed(
                 self._augmented_attributi(),
@@ -312,27 +287,3 @@ class RunDetailsInner(QWidget):
         # then auto-disable the "switch to latest" logic
         if not is_latest and self._auto_switch_to_latest.isChecked():
             self._auto_switch_to_latest.setChecked(False)
-
-    def _slot_tree_filter_changed(self, new_filter: str) -> None:
-        if new_filter == self._prior_filter:
-            return
-        self._prior_filter = new_filter
-        self._details_tree.clear()
-        if self.karabo is None:
-            return
-        self._details_tree.insertTopLevelItems(
-            0,
-            _dict_to_items(
-                _filter_dict(_preprocess_dict(self.karabo[0]), new_filter),
-                parent=None,
-            ),
-        )
-        if self._tree_filter_line.text():
-            mf = QtCore.Qt.MatchContains | QtCore.Qt.MatchRecursive
-            for i in self._details_tree.findItems(self._tree_filter_line.text(), mf):  # type: ignore
-                i.setExpanded(True)
-                p = i.parent()
-                while p is not None:
-                    p.setExpanded(True)
-                    p = p.parent()
-        self._details_tree.resizeColumnToContents(1)
