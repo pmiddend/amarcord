@@ -64,6 +64,11 @@ class AttributoTypeDateTime:
 
 
 @dataclass(frozen=True)
+class AttributoTypeFile:
+    pass
+
+
+@dataclass(frozen=True)
 class AttributoTypeChoice:
     values: List[Tuple[str, Any]]
 
@@ -76,6 +81,7 @@ AttributoType = Union[
     AttributoTypeSample,
     AttributoTypeString,
     AttributoTypeComments,
+    AttributoTypeFile,
     AttributoTypeDateTime,
     AttributoTypeDuration,
     AttributoTypeUserName,

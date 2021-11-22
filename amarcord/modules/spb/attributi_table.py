@@ -2,6 +2,7 @@ import logging
 from copy import deepcopy
 from enum import Enum
 from functools import partial
+from pathlib import Path
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -32,6 +33,7 @@ from amarcord.qt.declarative_table import Column
 from amarcord.qt.declarative_table import Data
 from amarcord.qt.declarative_table import DeclarativeTable
 from amarcord.qt.declarative_table import Row
+from amarcord.qt.image_viewer import display_image_viewer
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +125,7 @@ class AttributiTable(QtWidgets.QWidget):
             attributo_id
         )
         menu = QMenu(self)
+        tryOpenAction = menu.addAction("Open")
         deleteAction = None
         if MANUAL_SOURCE_NAME in per_source:
             deleteAction = menu.addAction(
@@ -136,6 +139,10 @@ class AttributiTable(QtWidgets.QWidget):
         action = menu.exec_(p)
         if action == deleteAction:
             self._remove_manual_attributo(attributo_id)
+        elif action == tryOpenAction:
+            path = per_source.get(MANUAL_SOURCE_NAME, None)
+            if path is not None and isinstance(path, str):
+                display_image_viewer(Path(path), self)
 
     def _update_table(self) -> None:
         display_attributi: List[DBAttributo] = sorted(

@@ -33,6 +33,7 @@ class JSONSchemaStringFormat(Enum):
     DATE_TIME = "date-time"
     DURATION = "duration"
     USER_NAME = "user-name"
+    FILE = "path"
     TAG = "tag"
 
 
@@ -95,6 +96,8 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
             if format_ == "user-name"
             else JSONSchemaStringFormat.TAG
             if format_ == "tag"
+            else JSONSchemaStringFormat.FILE
+            if format_ == "file"
             else None,
         )
 

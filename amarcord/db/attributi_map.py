@@ -14,6 +14,7 @@ from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeDuration
+from amarcord.db.attributo_type import AttributoTypeFile
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
@@ -119,6 +120,11 @@ def _convert_single_attributo_value_from_json(
         assert isinstance(
             v, str
         ), f'expected type str for user name attributo "{i}", got {type(v)}'
+        return v
+    if isinstance(attributo_type.attributo_type, AttributoTypeFile):
+        assert isinstance(
+            v, str
+        ), f'expected type str for file attributo "{i}", got {type(v)}'
         return v
     if isinstance(attributo_type.attributo_type, AttributoTypeList):
         assert isinstance(
