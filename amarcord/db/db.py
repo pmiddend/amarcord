@@ -578,7 +578,13 @@ class DB:
             current_json = {}
         attributi_map = RawAttributiMap(current_json)
         if value is not None:
-            attributi_map.append_single_to_source(source, attributo, value)
+            attributi_map.append_single_to_source(
+                source,
+                attributo,
+                value
+                if not isinstance(value, datetime.datetime)
+                else value.isoformat(),
+            )
         else:
             attributi_map.remove_attributo(attributo, source)
         self.update_run_attributi(conn, run_id, attributi_map)

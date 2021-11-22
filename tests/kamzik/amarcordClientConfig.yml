@@ -1,0 +1,20 @@
+session: &session
+  !Device:kamzik3.devices.deviceSession.DeviceSession
+  device_id: Client_session
+  config:
+    master_server: &Server 127.0.0.1
+    master_port: &Port 60000
+    publisher_port: 50000
+    attributes:
+      !!python/tuple [Allow attribute log, Value ]: False
+      !!python/tuple [Allow gui log, Value ]: False
+      !!python/tuple [Allow console log, Value ]: False
+      !!python/tuple [Allow device log, Value ]: False
+      !!python/tuple [Allow macro log, Value ]: False
+devices:
+  AmarcordClient: !Device:amarcord.amici.kamzik.amarcord_client.AmarcordClient
+    host: *Server
+    port: *Port
+    device_id: Runner
+    database_url: sqlite:////tmp/test2.db
+    proposal_id: 1

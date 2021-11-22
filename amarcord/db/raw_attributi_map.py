@@ -1,3 +1,4 @@
+import datetime
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
@@ -99,6 +100,11 @@ class RawAttributiMap:
             self._sources[source] = new_attributi  # type: ignore
         else:
             source_value.update(new_attributi)  # type: ignore
+
+    def append_single_datetime_to_source(
+        self, source: Source, attributo: AttributoId, value: datetime.datetime
+    ) -> None:
+        self.append_single_to_source(source, attributo, value.isoformat())
 
     def append_single_to_source(
         self, source: Source, attributo: AttributoId, value: JSONValue
