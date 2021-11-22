@@ -50,7 +50,7 @@ class DBIndexingParameter:
 
 
 @dataclass(frozen=True)
-class DBAugmentedIndexingJobParameter:
+class DBAugmentedIndexingParameter:
     indexing_parameter: DBIndexingParameter
     number_of_jobs: int
 

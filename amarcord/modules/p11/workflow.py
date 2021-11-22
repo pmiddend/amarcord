@@ -37,45 +37,55 @@ def extract_geom_from_crystfel_project_file(fp: Path) -> Optional[Path]:
     return None
 
 
-async def project_file_daemon(db: DB, project_file_location: Path) -> None:
+async def project_file_daemon_iteration(
+    db: DB, project_file_location: Path, previous_hash: Optional[str]
+) -> Optional[str]:
+    if not project_file_location.exists():
+        return previous_hash
+
+    geom_file = extract_geom_from_crystfel_project_file(project_file_location)
+
+    if geom_file is None:
+        logger.info(
+            "couldn't find geometry file in %s, not using project file",
+            project_file_location,
+        )
+        return previous_hash
+
+    total_hash = sha256_files([project_file_location, geom_file])
+
+    if total_hash == previous_hash:
+        return previous_hash
+
+    now = datetime.datetime.utcnow()
+    with db.connect() as conn:
+        db.add_indexing_parameter(
+            conn,
+            DBIndexingParameter(
+                id=0,
+                project_file_first_discovery=now,
+                project_file_last_discovery=now,
+                project_file_path=project_file_location,
+                project_file_content=read_file_to_string(project_file_location),
+                geometry_file_content=read_file_to_string(geom_file),
+                project_file_hash=total_hash,
+            ),
+        )
+
+    return total_hash
+
+
+async def project_file_daemon(
+    db: DB, project_file_location: Path, wait_time_seconds: float = 1.0
+) -> None:
     previous_hash: Optional[str] = None
 
     while True:
-        await asyncio.sleep(1)
+        await asyncio.sleep(wait_time_seconds)
 
-        if not project_file_location.exists():
-            continue
-
-        geom_file = extract_geom_from_crystfel_project_file(project_file_location)
-
-        if geom_file is None:
-            logger.info(
-                "couldn't find geometry file in %s, not using project file",
-                project_file_location,
-            )
-            continue
-
-        total_hash = sha256_files([project_file_location, geom_file])
-
-        if total_hash == previous_hash:
-            continue
-
-        previous_hash = total_hash
-
-        now = datetime.datetime.utcnow()
-        with db.connect() as conn:
-            db.add_indexing_parameter(
-                conn,
-                DBIndexingParameter(
-                    id=0,
-                    project_file_first_discovery=now,
-                    project_file_last_discovery=now,
-                    project_file_path=project_file_location,
-                    project_file_content=read_file_to_string(project_file_location),
-                    geometry_file_content=read_file_to_string(geom_file),
-                    project_file_hash=total_hash,
-                ),
-            )
+        previous_hash = await project_file_daemon_iteration(
+            db, project_file_location, previous_hash
+        )
 
 
 @dataclass(frozen=True, eq=True)
@@ -128,17 +138,17 @@ def standard_commandliner(
         "commandliner",
         "--project-file",
         str(params.project_file),
-        "--files-path",
+        "--input",
         str(params.files_path),
-        "--output-stream-file",
+        "--output-stream",
         str(params.output_streamfile),
     ]
     if singularity_file is not None:
-        args = [
-            "singularity",
-            "exec",
-            str(singularity_file),
-        ] + args
+        args.extend(
+            [
+                "--indexamajig-path" f"singularity exec {singularity_file} indexamajig",
+            ]
+        )
     output = subprocess.run(args, check=True, capture_output=True)
     return output.stdout.decode("utf-8")
 
@@ -158,9 +168,7 @@ async def start_indexing_job(
             output_streamfile=relative_sub_path / "output.stream",
         )
     )
-    command_line = (
-        "echo '" + str(master_file.path) + "' > files.lst;\n" + crystfel_command_line
-    )
+    command_line = f"echo '{master_file.path}' > files.lst;\n{crystfel_command_line}"
 
     result = job_controller.start_job(
         relative_sub_path=relative_sub_path,
@@ -179,11 +187,11 @@ async def process_run_master_file(
     job_controller: SlurmRestJobController,
     commandliner: Commandliner,
     current_indexing_parameter: DBIndexingParameter,
-    new_master_file: P11MasterFile,
+    master_file: P11MasterFile,
 ) -> None:
     if db.run_has_indexing_jobs(
         conn,
-        run_id=new_master_file.run_id,
+        run_id=master_file.run_id,
         indexing_parameter_id=current_indexing_parameter.id,
     ):
         return
@@ -192,7 +200,7 @@ async def process_run_master_file(
         job_controller,
         commandliner,
         current_indexing_parameter.project_file_path,
-        new_master_file,
+        master_file,
     )
 
     db.add_indexing_job(
@@ -202,9 +210,9 @@ async def process_run_master_file(
             started=datetime.datetime.utcnow(),
             stopped=None,
             output_directory=start_job_result.output_directory,
-            run_id=new_master_file.run_id,
+            run_id=master_file.run_id,
             indexing_parameter_id=current_indexing_parameter.id,
-            master_file=new_master_file.path,
+            master_file=master_file.path,
             command_line=start_job_result.command_line,
             status=IndexingJobStatus.RUNNING,
             slurm_job_id=start_job_result.job_id,
@@ -214,39 +222,38 @@ async def process_run_master_file(
     )
 
 
+MasterFileProvider = Callable[[], Generator[Optional[P11MasterFile], None, None]]
+
+
 async def run_observing_daemon(
     db: DB,
     commandliner: Commandliner,
-    base_path: Path,
-    output_base_dir: Path,
-    partition: str,
-    jwt_token: str,
-    user_id: int,
-    user_name: str,
+    master_file_provider: MasterFileProvider,
+    job_controller: SlurmRestJobController,
+    wait_time_seconds: float = 5,
 ) -> None:
-    last_master_files = set(
-        r for r in list_p11_master_files(base_path) if r is not None
-    )
+    last_master_files = set(r for r in master_file_provider() if r is not None)
 
-    job_controller = SlurmRestJobController(
-        output_base_dir,
-        partition,
-        jwt_token,
-        user_id,
-        user_name,
-    )
+    # When starting the daemon, we might have missed some master files (the daemon might have crashed or started late)
+    with db.connect() as conn:
+        indexing_parameter = db.retrieve_latest_indexing_parameter(conn)
+        if indexing_parameter is not None:
+            for master_file in last_master_files:
+                await process_run_master_file(
+                    db,
+                    conn,
+                    job_controller,
+                    commandliner,
+                    indexing_parameter,
+                    master_file,
+                )
 
     while True:
-        await asyncio.sleep(5)
+        await asyncio.sleep(wait_time_seconds)
 
-        current_master_files = set(
-            r for r in list_p11_master_files(base_path) if r is not None
-        )
+        current_master_files = set(r for r in master_file_provider() if r is not None)
 
         new_master_files = current_master_files - last_master_files
-
-        if not new_master_files:
-            continue
 
         with db.connect() as conn:
             indexing_parameter = db.retrieve_latest_indexing_parameter(conn)

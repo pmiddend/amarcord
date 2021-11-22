@@ -35,7 +35,7 @@ from amarcord.db.karabo import Karabo
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
-from amarcord.db.table_classes import DBAugmentedIndexingJobParameter
+from amarcord.db.table_classes import DBAugmentedIndexingParameter
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBIndexingJob
 from amarcord.db.table_classes import DBIndexingParameter
@@ -798,14 +798,46 @@ class DB:
             )
         return result
 
+    def retrieve_indexing_parameter(
+        self, conn: Connection, id_: int
+    ) -> DBIndexingParameter:
+        ip = self.tables.indexing_parameter.c
+
+        r = conn.execute(
+            sa.select(
+                [
+                    ip.id,
+                    ip.project_file_first_discovery,
+                    ip.project_file_last_discovery,
+                    ip.project_file_path,
+                    ip.project_file_hash,
+                    ip.project_file_content,
+                    ip.geometry_file_content,
+                ]
+            ).where(ip.id == id_)
+        ).one()
+
+        if r is None:
+            raise Exception(f"couldn't find indexing parameter with id {id}")
+
+        return DBIndexingParameter(
+            id=r["id"],
+            project_file_first_discovery=r["project_file_first_discovery"],
+            project_file_last_discovery=r["project_file_last_discovery"],
+            project_file_path=r["project_file_path"],
+            project_file_hash=r["project_file_hash"],
+            project_file_content=r["project_file_content"],
+            geometry_file_content=r["geometry_file_content"],
+        )
+
     def retrieve_indexing_parameters(
         self, conn: Connection
-    ) -> Iterable[DBAugmentedIndexingJobParameter]:
+    ) -> Iterable[DBAugmentedIndexingParameter]:
         ijp = self.tables.indexing_parameter.c
         ij = self.tables.indexing_job.c
 
-        def _convert_parameter(r) -> DBAugmentedIndexingJobParameter:
-            return DBAugmentedIndexingJobParameter(
+        def _convert_parameter(r) -> DBAugmentedIndexingParameter:
+            return DBAugmentedIndexingParameter(
                 indexing_parameter=DBIndexingParameter(
                     id=r["id"],
                     project_file_first_discovery=r["project_file_first_discovery"],
@@ -831,7 +863,7 @@ class DB:
                         sa.func.count(ij.id).label("number_of_jobs"),
                     ]
                 )
-                .join(self.tables.indexing_job, ij.indexing_parameter_id == ijp.id)
+                .outerjoin(self.tables.indexing_job, ij.indexing_parameter_id == ijp.id)
                 .group_by(ijp.id)
             )
         )
