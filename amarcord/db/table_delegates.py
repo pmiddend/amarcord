@@ -15,9 +15,9 @@ from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeDuration
-from amarcord.db.attributo_type import AttributoTypeFile
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypePath
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_type import AttributoTypeTags
@@ -477,7 +477,7 @@ def delegate_for_attributo_type(
         return DurationItemDelegate(parent)
     if isinstance(proptype, AttributoTypeString):
         return QtWidgets.QStyledItemDelegate(parent=parent)
-    if isinstance(proptype, AttributoTypeFile):
+    if isinstance(proptype, AttributoTypePath):
         return QtWidgets.QStyledItemDelegate(parent=parent)
     if isinstance(proptype, AttributoTypeUserName):
         return QtWidgets.QStyledItemDelegate(parent=parent)

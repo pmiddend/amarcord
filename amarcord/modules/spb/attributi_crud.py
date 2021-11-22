@@ -37,8 +37,8 @@ from amarcord.db.attributi import (
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeDouble
-from amarcord.db.attributo_type import AttributoTypeFile
 from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypePath
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_type import AttributoTypeTags
 from amarcord.db.attributo_type import AttributoTypeUserName
@@ -73,7 +73,7 @@ class TypePreset(Enum):
     INT = "integer"
     DOUBLE = "decimal number"
     STANDARD_UNIT = "standard unit"
-    FILE = "file"
+    PATH = "path"
     TAGS = "list of tags"
     STRING = "string"
     USER_NAME = "user name"
@@ -438,8 +438,8 @@ class AttributiCrud(QWidget):
         value = self._type_selection.current_value()
         if value == TypePreset.INT:
             return AttributoTypeInt()
-        if value == TypePreset.FILE:
-            return AttributoTypeFile()
+        if value == TypePreset.PATH:
+            return AttributoTypePath()
         if value == TypePreset.STANDARD_UNIT:
             return AttributoTypeDouble(
                 range=self._type_specific_metadata.get("range", None),

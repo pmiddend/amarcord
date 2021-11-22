@@ -11,9 +11,9 @@ from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeDuration
-from amarcord.db.attributo_type import AttributoTypeFile
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypePath
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_type import AttributoTypeTags
@@ -100,8 +100,8 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
             return AttributoTypeDuration()
         if parsed_schema.format_ == JSONSchemaStringFormat.USER_NAME:
             return AttributoTypeUserName()
-        if parsed_schema.format_ == JSONSchemaStringFormat.FILE:
-            return AttributoTypeFile()
+        if parsed_schema.format_ == JSONSchemaStringFormat.PATH:
+            return AttributoTypePath()
         return AttributoTypeString()
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
@@ -136,8 +136,8 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
         return {"type": "string"}
     if isinstance(rp, AttributoTypeUserName):
         return {"type": "string", "format": "user-name"}
-    if isinstance(rp, AttributoTypeFile):
-        return {"type": "string", "format": "file"}
+    if isinstance(rp, AttributoTypePath):
+        return {"type": "string", "format": "path"}
     if isinstance(rp, AttributoTypeSample):
         return {"type": "integer", "format": "sample-id"}
     if isinstance(rp, AttributoTypeChoice):
@@ -251,8 +251,8 @@ def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
         return "durations" if plural else "duration"
     if isinstance(pt, AttributoTypeUserName):
         return "user names" if plural else "user name"
-    if isinstance(pt, AttributoTypeFile):
-        return "files" if plural else "file"
+    if isinstance(pt, AttributoTypePath):
+        return "paths" if plural else "path"
     if isinstance(pt, AttributoTypeList):
         return "list of " + attributo_type_to_string(pt.sub_type, plural=True)
     raise Exception(f"invalid property type {type(pt)}")

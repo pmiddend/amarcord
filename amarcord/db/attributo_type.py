@@ -64,7 +64,7 @@ class AttributoTypeDateTime:
 
 
 @dataclass(frozen=True)
-class AttributoTypeFile:
+class AttributoTypePath:
     pass
 
 
@@ -81,7 +81,7 @@ AttributoType = Union[
     AttributoTypeSample,
     AttributoTypeString,
     AttributoTypeComments,
-    AttributoTypeFile,
+    AttributoTypePath,
     AttributoTypeDateTime,
     AttributoTypeDuration,
     AttributoTypeUserName,
