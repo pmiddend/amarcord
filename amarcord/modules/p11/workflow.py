@@ -1,10 +1,12 @@
 import asyncio
 import datetime
+import hashlib
 import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+from typing import Final
 from typing import Generator
 from typing import Optional
 
@@ -17,7 +19,8 @@ from amarcord.modules.p11.job import Job
 from amarcord.modules.p11.job_status import JobStatus
 from amarcord.modules.p11.slurm_rest_job_controller import SlurmRestJobController
 from amarcord.util import read_file_to_string
-from amarcord.util import sha256_files
+from amarcord.util import sha256_combination
+from amarcord.util import sha256_file_bytes
 from amarcord.util import str_to_int
 
 logger = logging.getLogger(__name__)
@@ -37,6 +40,21 @@ def extract_geom_from_crystfel_project_file(fp: Path) -> Optional[Path]:
     return None
 
 
+def project_file_hash(p: Path) -> bytes:
+    with p.open("r") as f:
+        previous_line: Optional[str] = None
+
+        TERMINATOR: Final = "-----"
+        hash = hashlib.sha256()
+        for line in f:
+            if line.strip() == TERMINATOR and previous_line == TERMINATOR:
+                break
+            hash.update(line.encode("utf-8"))
+            previous_line = line
+
+        return hash.digest()
+
+
 async def project_file_daemon_iteration(
     db: DB, project_file_location: Path, previous_hash: Optional[str]
 ) -> Optional[str]:
@@ -52,7 +70,9 @@ async def project_file_daemon_iteration(
         )
         return previous_hash
 
-    total_hash = sha256_files([project_file_location, geom_file])
+    total_hash = sha256_combination(
+        [sha256_file_bytes(geom_file), project_file_hash(project_file_location)]
+    )
 
     if total_hash == previous_hash:
         return previous_hash

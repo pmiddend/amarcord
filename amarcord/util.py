@@ -255,8 +255,12 @@ def sha256_file_bytes(p: Path) -> bytes:
         return hashlib.sha256(f.read()).digest()
 
 
+def sha256_combination(hashes: Iterable[bytes]) -> str:
+    return hashlib.sha256(b"".join(hashes)).hexdigest()
+
+
 def sha256_files(ps: Iterable[Path]) -> str:
-    return hashlib.sha256(b"".join(sha256_file_bytes(p) for p in ps)).hexdigest()
+    return sha256_combination(sha256_file_bytes(p) for p in ps)
 
 
 def read_file_to_string(p: Path) -> str:

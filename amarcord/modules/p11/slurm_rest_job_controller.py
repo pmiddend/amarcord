@@ -1,12 +1,15 @@
 import datetime
 import json
 import logging
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import TypedDict
+from typing import Union
 
 import requests
 from requests import Response
@@ -62,12 +65,68 @@ class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
         return requests.get(url, headers=headers)
 
 
+@dataclass(eq=True, frozen=True)
+class TokenRetrievalError:
+    message: str
+
+
+def retrieve_jwt_token(lifespan_seconds: int) -> Union[str, TokenRetrievalError]:
+    try:
+        result = subprocess.run(
+            ["scontrol", "token", f"lifespan={lifespan_seconds}"],
+            capture_output=True,
+            check=True,
+            encoding="utf-8",
+        )
+
+        if not result.stdout.startswith("SLURM_JWT="):
+            return TokenRetrievalError(
+                f"scontrol output did not start with SLURM_JWT= but was {result.stdout}"
+            )
+
+        return result.stdout[10:].strip()
+    except FileNotFoundError:
+        return TokenRetrievalError(
+            'Couldn\'t find the "scontrol" tool! Are you on Maxwell?'
+        )
+    except subprocess.CalledProcessError as e:
+        return TokenRetrievalError(
+            f"scontrol gave an error trying to get a token! standard output is {e.stdout}, standard error is {e.stderr}"
+        )
+
+
+TokenRetriever = Callable[[], str]
+
+
+class DynamicTokenRetriever:
+    def __init__(
+        self, retriever: Callable[[int], Union[str, TokenRetrievalError]]
+    ) -> None:
+        self._token_lifetime_seconds = 86400
+        self._retriever = retriever
+        token = self._retriever(self._token_lifetime_seconds)
+        if isinstance(token, TokenRetrievalError):
+            raise Exception(f"couldn't retrieve token: {token.message}")
+        self._token: str = token
+        self._last_retrieval = datetime.datetime.utcnow()
+
+    def __call__(self) -> str:
+        now = datetime.datetime.utcnow()
+        if (now - self._last_retrieval).total_seconds() > self._token_lifetime_seconds:
+            logger.info("renewing jwt token")
+            token = self._retriever(self._token_lifetime_seconds)
+            if isinstance(token, TokenRetrievalError):
+                raise Exception(f"couldn't retrieve token: {token.message}")
+            self._token = token
+        return self._token
+
+
 class SlurmRestJobController:
     def __init__(
         self,
         output_base_dir: Path,
         partition: str,
-        jwt_token: str,
+        token_retriever: TokenRetriever,
         user_id: int,
         rest_user: str,
         rest_url: str = "http://max-portal.desy.de/sapi/slurm/v0.0.36",
@@ -76,7 +135,7 @@ class SlurmRestJobController:
         super().__init__()
         self._output_base_dir = output_base_dir
         self._partition = partition
-        self._jwt_token = jwt_token
+        self._token_retriever = token_retriever
         self._rest_url = rest_url
         self._rest_user = rest_user
         self._user_id = user_id
@@ -86,7 +145,7 @@ class SlurmRestJobController:
         return {
             "Content-Type": "application/json",
             "X-SLURM-USER-NAME": self._rest_user,
-            "X-SLURM-USER-TOKEN": self._jwt_token,
+            "X-SLURM-USER-TOKEN": self._token_retriever(),
         }
 
     def start_job(
