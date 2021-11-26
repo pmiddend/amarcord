@@ -9,11 +9,12 @@ default:
   tags:
     - DESY-intern
 
-check-shell-scripts:
-  stage: pretest
-  image: koalaman/shellcheck-alpine:latest
-  script:
-    - shellcheck ci/*.sh
+# We have no shell scripts currently
+#check-shell-scripts:
+#  stage: pretest
+#  image: koalaman/shellcheck-alpine:latest
+#  script:
+#    - shellcheck ci/*.sh
 
 variables:
   AMARCORD_PYTHON_DOCKER: gitlab.desy.de:5555/cfel-sc-public/amarcord/poetry-base-image:v1-1-8

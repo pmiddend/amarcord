@@ -121,7 +121,7 @@ def _step_state_machine(state: _State, input_: _BeamlineInput) -> _StateOutput:
         if isinstance(input_, _InputStatusChange):
             if input_.status == _BeamlineStatus.IDLE:
                 logger.info(
-                    f"no run ID, but got status change to idle, closing prior runs"
+                    "no run ID, but got status change to idle, closing prior runs"
                 )
                 return _StateOutput(
                     new_state=state, outputs=[_OutputClosePriorRuns(None)]

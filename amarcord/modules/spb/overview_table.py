@@ -189,9 +189,15 @@ class OverviewTable(QWidget):
         return [s.technical_id() for s in self._attributi_metadata]
 
     def _create_declarative_data(self):
+        def column_header(x: TabledAttributo) -> str:
+            if isinstance(x.attributo.attributo_type, AttributoTypeDouble):
+                if x.attributo.attributo_type.suffix:
+                    return f"{x.pretty_id()} [{x.attributo.attributo_type.suffix}]"
+            return x.pretty_id()
+
         columns = [
             Column(
-                header_label=c.pretty_id(),
+                header_label=column_header(c),
                 editable=False,
                 header_callback=partial(self._header_menu_callback, c),
                 sort_click_callback=partial(self._sort_clicked, c),
