@@ -188,7 +188,7 @@ class OverviewTable(QWidget):
     def _filter_query_completions(self) -> Iterable[str]:
         return [s.technical_id() for s in self._attributi_metadata]
 
-    def _create_declarative_data(self):
+    def _create_declarative_data(self) -> Data:
         def column_header(x: TabledAttributo) -> str:
             if isinstance(x.attributo.attributo_type, AttributoTypeDouble):
                 if x.attributo.attributo_type.suffix:
@@ -228,7 +228,10 @@ class OverviewTable(QWidget):
                     background_roles={},
                     change_callbacks=[],
                     double_click_callback=partial(self._double_click, c),
-                    right_click_menu=partial(self._right_click, c),
+                    right_click_menu=partial(self._right_click_single, c),
+                    key=c[AssociatedTable.RUN].select_int_unsafe(
+                        self._db.tables.attributo_run_id
+                    ),
                 )
                 for c in self._rows
                 if self._row_not_filtered(c)
@@ -236,16 +239,43 @@ class OverviewTable(QWidget):
             columns=columns,
             row_delegates={},
             column_delegates={},
+            global_right_click_callback=self._right_click_global,
         )
 
-    def _change_sample_for(self, run_id: int, sample_id: Optional[int]) -> None:
+    def _change_sample_for_multiple(
+        self, run_ids: List[int], sample_id: Optional[int]
+    ) -> None:
+        logger.info(f"changing sample to {sample_id} for runs {run_ids}")
+        with self._db.connect() as conn:
+            for run_id in run_ids:
+                self._db.update_run_attributo(
+                    conn, run_id, AttributoId("sample_id"), sample_id
+                )
+        self._slot_refresh(force=True)
+
+    def _change_sample_for_single(self, run_id: int, sample_id: Optional[int]) -> None:
         with self._db.connect() as conn:
             self._db.update_run_attributo(
                 conn, run_id, AttributoId("sample_id"), sample_id
             )
         self._slot_refresh(force=True)
 
-    def _right_click(self, c: OverviewAttributi, p: QPoint) -> None:
+    def _right_click_global(self, run_ids: List[int], p: QPoint) -> None:
+        menu = QMenu(self)
+
+        change_sample_menu = menu.addMenu("Change sample for runs")
+        for s in self._samples:
+            sample_action = change_sample_menu.addAction(s.sample_name)
+            sample_action.triggered.connect(
+                partial(self._change_sample_for_multiple, run_ids, s.sample_id)
+            )
+        sample_none_action = change_sample_menu.addAction("None")
+        sample_none_action.triggered.connect(
+            partial(self._change_sample_for_multiple, run_ids, None)
+        )
+        _action = menu.exec_(p)
+
+    def _right_click_single(self, c: OverviewAttributi, p: QPoint) -> None:
         menu = QMenu(self)
         deleteAction = menu.addAction(
             self.style().standardIcon(QStyle.SP_DialogCancelButton),
@@ -258,11 +288,11 @@ class OverviewTable(QWidget):
         for s in self._samples:
             sample_action = change_sample_menu.addAction(s.sample_name)
             sample_action.triggered.connect(
-                partial(self._change_sample_for, run_id, s.sample_id)
+                partial(self._change_sample_for_single, run_id, s.sample_id)
             )
         sample_none_action = change_sample_menu.addAction("None")
         sample_none_action.triggered.connect(
-            partial(self._change_sample_for, run_id, None)
+            partial(self._change_sample_for_single, run_id, None)
         )
         action = menu.exec_(p)
         if action == deleteAction:

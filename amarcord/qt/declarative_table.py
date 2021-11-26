@@ -9,6 +9,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import cast
 
 from PyQt5.QtCore import QAbstractTableModel
 from PyQt5.QtCore import QModelIndex
@@ -46,6 +47,9 @@ class SortOrder(Enum):
         return Qt.DescendingOrder if self == SortOrder.ASC else Qt.AscendingOrder
 
 
+Key = int
+
+
 @dataclass(frozen=True, eq=True)
 class Row:
     display_roles: List[str]
@@ -56,6 +60,7 @@ class Row:
     )
     double_click_callback: Optional[DoubleClickCallback] = None
     right_click_menu: Optional[RightClickMenuCallback] = None
+    key: Optional[Key] = None
 
 
 @dataclass(frozen=True, eq=True)
@@ -68,6 +73,9 @@ class Column:
     header_callback: Optional[ContextMenuCallback] = None
 
 
+GlobalRightClickCallback = Callable[[List[Key], QPoint], None]
+
+
 @dataclass(frozen=True, eq=True)
 class Data:
     rows: List[Row]
@@ -77,6 +85,7 @@ class Data:
         hash=False, compare=False
     )
     resize_rows: bool = False
+    global_right_click_callback: Optional[GlobalRightClickCallback] = None
 
 
 class DeclarativeTableModel(QAbstractTableModel):
@@ -242,11 +251,25 @@ class DeclarativeTable(QTableView):
             cb(new_value)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
-        current_row = self.currentIndex().row()
+        selected_rows = self.selectionModel().selectedRows()
 
-        right_click_menu = self._data.rows[current_row].right_click_menu
-        if right_click_menu is not None:
-            right_click_menu(self.mapToGlobal(event.pos()))
+        if len(selected_rows) > 1:
+            if self._data.global_right_click_callback is None:
+                return
+            self._data.global_right_click_callback(
+                [
+                    cast(int, self._data.rows[x.row()].key)
+                    for x in selected_rows
+                    if self._data.rows[x.row()].key is not None
+                ],
+                self.mapToGlobal(event.pos()),
+            )
+        else:
+            current_row = self.currentIndex().row()
+
+            right_click_menu = self._data.rows[current_row].right_click_menu
+            if right_click_menu is not None:
+                right_click_menu(self.mapToGlobal(event.pos()))
 
     def scrollTo(
         self,
