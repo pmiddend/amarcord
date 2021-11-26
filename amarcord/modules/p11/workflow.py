@@ -45,14 +45,14 @@ def project_file_hash(p: Path) -> bytes:
         previous_line: Optional[str] = None
 
         TERMINATOR: Final = "-----"
-        hash = hashlib.sha256()
+        hash_ = hashlib.sha256()
         for line in f:
             if line.strip() == TERMINATOR and previous_line == TERMINATOR:
                 break
-            hash.update(line.encode("utf-8"))
+            hash_.update(line.encode("utf-8"))
             previous_line = line
 
-        return hash.digest()
+        return hash_.digest()
 
 
 async def project_file_daemon_iteration(

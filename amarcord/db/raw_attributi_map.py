@@ -58,6 +58,9 @@ class RawAttributiMap:
             )
         return selected
 
+    def select_datetime(self, attributo_id: AttributoId) -> Optional[JSONValue]:
+        pass
+
     def select_value(self, attributo_id: AttributoId) -> Optional[JSONValue]:
         v = self.select(attributo_id)
         return v.value if v is not None else None

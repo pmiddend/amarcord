@@ -12,7 +12,7 @@ session: &session
       !!python/tuple [Allow device log, Value ]: False
       !!python/tuple [Allow macro log, Value ]: False
 devices:
-  AmarcordClient: !Device:amarcord.amici.kamzik.amarcord_client.AmarcordClient
+  AmarcordClient: !Device:amarcord.amici.kamzik.kamzik_client.KamzikClient
     host: *Server
     port: *Port
     device_id: Runner

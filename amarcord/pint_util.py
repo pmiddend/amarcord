@@ -1,0 +1,18 @@
+from typing import Optional
+
+from pint import Quantity
+from pint import UnitRegistry
+
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeDouble
+
+registry = UnitRegistry()
+
+
+def pint_quantity_to_attributo_type(x: Quantity) -> Optional[AttributoType]:
+    # see https://stackoverflow.com/questions/65681490/format-pint-unit-as-short-form-symbol
+    # for an explanation
+    suffix = format(x.units, "~")
+    if suffix == "dimensionless":
+        return AttributoTypeDouble()
+    return AttributoTypeDouble(standard_unit=True, suffix=suffix)
