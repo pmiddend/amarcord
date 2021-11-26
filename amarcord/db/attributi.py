@@ -5,6 +5,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from dateutil import tz
+
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeComments
@@ -185,6 +187,16 @@ def pretty_print_attributo(
         if isinstance(rpt, AttributoTypeSample):
             return next(
                 iter(x.sample_name for x in samples if x.sample_id == value), ""
+            )
+        if isinstance(rpt, AttributoTypeDateTime):
+            assert isinstance(
+                value, datetime.datetime
+            ), f'expected datetime for "{attributo_metadata.name}", got {type(value)}'
+            # correct for UTC time
+            return (
+                value.replace(tzinfo=tz.tzutc())
+                .astimezone(tz.tzlocal())
+                .strftime("%Y-%m-%d %H:%M:%S")
             )
         if isinstance(rpt, AttributoTypeDuration):
             # FIXME

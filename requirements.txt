@@ -68,7 +68,7 @@ pyserial==3.5; python_version >= "3.7"
 pytest-cov==2.12.1; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.5.0")
 pytest-qt==4.0.2; python_version >= "3.6"
 pytest==6.2.5; python_version >= "3.6"
-python-dateutil==2.8.2; python_full_version >= "3.7.1" and python_version >= "3.7" and (python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.3.0" and python_version >= "3.7")
+python-dateutil==2.8.2; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.3.0")
 pytz==2021.3; python_full_version >= "3.7.1" and python_version >= "3.6"
 pyyaml==5.4.1; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.6.0")
 pyzmq==22.3.0; python_version >= "3.6"
@@ -84,6 +84,7 @@ tables==3.6.1; python_version >= "3.7"
 toml==0.10.2; python_version >= "3.6" and python_full_version < "3.0.0" and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.6.0") and python_version < "4.0" or python_version >= "3.6" and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.6.0") and python_full_version >= "3.5.0" and python_version < "4.0"
 tomli==1.2.2; python_version >= "3.7" and python_full_version >= "3.6.2"
 typed-argument-parser==1.7.1
+types-python-dateutil==2.8.3
 types-pyyaml==5.4.12
 types-requests==2.26.0
 typing-extensions==4.0.0; python_version >= "3.6" and python_full_version >= "3.6.2" and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.6.0") and (python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.6.0" and python_version >= "3.6")
