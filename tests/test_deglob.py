@@ -8,15 +8,15 @@ from amarcord.util import deglob_path
 
 
 def test_deglob_path() -> None:
-    assert deglob_path("foo/bar/*.mp3") == Path("foo/bar/")
-    assert deglob_path("foo/bar/*mp3") == Path("foo/bar/")
+    assert deglob_path(Path("foo/bar/*.mp3")) == Path("foo/bar/")
+    assert deglob_path(Path("foo/bar/*mp3")) == Path("foo/bar/")
 
 
 @given(text(alphabet=characters(blacklist_characters="*")))
 def test_deglob_path_nothing(f: str) -> None:
-    assert deglob_path(f) == Path(f)
+    assert deglob_path(Path(f)) == Path(f)
 
 
 @given(text())
 def test_idempotent(f: str) -> None:
-    assert deglob_path(f) == deglob_path(str(deglob_path(f)))
+    assert deglob_path(Path(f)) == deglob_path(deglob_path(Path(f)))

@@ -35,9 +35,9 @@ pylint-and-mypy:
   stage: test
   script:
     - poetry install
-    - poetry run mypy amarcord
+    - poetry run mypy amarcord tests
     - apt-get update -y && apt-get install -y qtbase5-dev
-    - poetry run pylint amarcord
+    - poetry run pylint amarcord tests
 
 run-migrations:
   image: $AMARCORD_PYTHON_DOCKER

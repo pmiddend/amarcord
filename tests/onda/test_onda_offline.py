@@ -75,7 +75,7 @@ def test_process_singleton_batch() -> None:
     assert results == [(HitRate(0.5), RunId(1)), (HitRate(0.5), RunId(1))]
 
 
-def test_process_singleton_batch() -> None:
+def test_process_singleton_batch_averaging_works() -> None:
     """Check if we're really averaging"""
     p = OnDAZeroMQProcessor()
 

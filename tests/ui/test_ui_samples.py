@@ -8,7 +8,7 @@ from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.spb.samples import Samples
 
 
-def test_add_sample(qtbot: Any, monkeypatch) -> None:
+def test_add_sample(qtbot: Any) -> None:
     dbcontext = DBContext("sqlite://")
     uicontext = None
     config = {"filesystem": {"base_path": "/tmp"}}
