@@ -16,5 +16,5 @@ devices:
     host: *Server
     port: *Port
     device_id: Runner
-    database_url: sqlite:////tmp/test2.db
+    database_url: sqlite:////tmp/tape-drive.db
     proposal_id: 1

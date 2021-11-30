@@ -26,6 +26,7 @@ from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_id import sanitize_attributo_id
 from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeInt
@@ -41,9 +42,17 @@ from amarcord.modules.dbcontext import Connection
 from amarcord.modules.dbcontext import DBContext
 from amarcord.pint_util import pint_quantity_to_attributo_type
 
+RUN_STATUS_STOPPED = "stopped"
+
+RUN_STATUS_RUNNING = "running"
+
+RUN_STATUS_UNKNOWN = "unknown"
+
 STOPPED_ATTRIBUTO_ID = AttributoId("stopped")
 
 STARTED_ATTRIBUTO_ID = AttributoId("started")
+
+STATUS_ATTRIBUTO_ID = AttributoId("status")
 
 ATTR_RUN_ID: Final = "Run id"
 ATTR_METADATA: Final = "Metadata"
@@ -255,6 +264,13 @@ class KamzikClient(DeviceClient):
                     o.stopped,
                     ONLINE_SOURCE_NAME,
                 )
+                self._db.update_run_attributo(
+                    conn,
+                    o.run_id,
+                    STATUS_ATTRIBUTO_ID,
+                    RUN_STATUS_STOPPED,
+                    ONLINE_SOURCE_NAME,
+                )
         elif isinstance(o, _OutputAddRun):
             with self._db.connect() as conn:
                 existing_attributi = self._db.retrieve_table_attributi(
@@ -275,6 +291,9 @@ class KamzikClient(DeviceClient):
                 attributi.append_single_to_source(
                     ONLINE_SOURCE_NAME, STARTED_ATTRIBUTO_ID, datetime.datetime.utcnow()
                 )
+                attributi.append_single_to_source(
+                    ONLINE_SOURCE_NAME, STATUS_ATTRIBUTO_ID, RUN_STATUS_RUNNING
+                )
                 for k, v in o.metadata.items():
                     if k in resolved_metadata_keys:
                         resolved_value = v.magnitude if isinstance(v, Quantity) else v
@@ -292,44 +311,48 @@ class KamzikClient(DeviceClient):
         else:
             assert isinstance(o, _OutputClosePriorRuns), f"output was {o}"
 
-            if DO_CLOSE_PRIOR_RUNS:
-                with self._db.connect() as conn:
-                    existing_attributi = self._db.retrieve_table_attributi(
-                        conn, AssociatedTable.RUN
+            with self._db.connect() as conn:
+                existing_attributi = self._db.retrieve_table_attributi(
+                    conn, AssociatedTable.RUN
+                )
+
+                runs_with_stopped: List[Tuple[int, Optional[datetime.datetime]]] = []
+                for run in self._db.retrieve_runs(
+                    conn, ProposalId(self.proposal_id), since=None
+                ):
+                    attributi = AttributiMap(existing_attributi, run.attributi)
+                    runs_with_stopped.append(
+                        (run.id, attributi.select_datetime(STOPPED_ATTRIBUTO_ID))
                     )
 
-                    runs_with_stopped: List[
-                        Tuple[int, Optional[datetime.datetime]]
-                    ] = []
-                    for run in self._db.retrieve_runs(
-                        conn, ProposalId(self.proposal_id), since=None
-                    ):
-                        attributi = AttributiMap(existing_attributi, run.attributi)
-                        runs_with_stopped.append(
-                            (run.id, attributi.select_datetime(STOPPED_ATTRIBUTO_ID))
+                number_of_runs = len(runs_with_stopped)
+                for i in range(number_of_runs):
+                    run_id, stopped = runs_with_stopped[i]
+
+                    if o.run_id is not None and run_id >= o.run_id:
+                        continue
+
+                    if stopped is None:
+                        logger.info(f"closing (prior) run {run_id}")
+
+                        # the last run we have isn't stopped, then stop now
+                        # otherwise, stop at the beginning of next run, keeping things at least monotonous
+                        self._db.update_run_attributo(
+                            conn,
+                            run_id,
+                            STOPPED_ATTRIBUTO_ID,
+                            datetime.datetime.utcnow()
+                            if i == number_of_runs - 1
+                            else runs_with_stopped[i + 1][1],
+                            ONLINE_SOURCE_NAME,
                         )
-
-                    number_of_runs = len(runs_with_stopped)
-                    for i in range(number_of_runs):
-                        run_id, stopped = runs_with_stopped[i]
-
-                        if o.run_id is not None and run_id >= o.run_id:
-                            continue
-
-                        if stopped is None:
-                            logger.info(f"closing (prior) run {run_id}")
-
-                            # the last run we have isn't stopped, then stop now
-                            # otherwise, stop at the beginning of next run, keeping things at least monotonous
-                            self._db.update_run_attributo(
-                                conn,
-                                run_id,
-                                STOPPED_ATTRIBUTO_ID,
-                                datetime.datetime.utcnow()
-                                if i == number_of_runs - 1
-                                else runs_with_stopped[i + 1][1],
-                                ONLINE_SOURCE_NAME,
-                            )
+                        self._db.update_run_attributo(
+                            conn,
+                            run_id,
+                            STATUS_ATTRIBUTO_ID,
+                            RUN_STATUS_UNKNOWN,
+                            ONLINE_SOURCE_NAME,
+                        )
 
     def _add_initial_attributi(self):
         with self._db.connect() as conn:
@@ -353,6 +376,21 @@ class KamzikClient(DeviceClient):
                     "Stopped",
                     AssociatedTable.RUN,
                     AttributoTypeDateTime(),
+                )
+            if STATUS_ATTRIBUTO_ID not in attributi:
+                logger.info(f"attributo {STATUS_ATTRIBUTO_ID} not present, adding")
+                self._db.add_attributo(
+                    conn,
+                    "status",
+                    "Status",
+                    AssociatedTable.RUN,
+                    AttributoTypeChoice(
+                        [
+                            (RUN_STATUS_RUNNING, RUN_STATUS_RUNNING),
+                            (RUN_STATUS_STOPPED, RUN_STATUS_STOPPED),
+                            (RUN_STATUS_UNKNOWN, RUN_STATUS_UNKNOWN),
+                        ]
+                    ),
                 )
 
     def handle_configuration(self):

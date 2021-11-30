@@ -11,19 +11,24 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
+logger = logging.getLogger(__name__)
+
 
 class Arguments(Tap):
     config_file: str  # Kamzik configuration file path
 
 
 def mymain(args: Arguments) -> None:
+    def close_session(_sig, _frame):
+        kamzik3.session.stop()
 
     with Path(args.config_file).open("r") as configFile:
         # this is just magic; it'll create Python classes from the config file
-        _config = yaml.load(configFile, Loader=Loader)
-
-    def close_session(_sig, _frame):
-        kamzik3.session.stop()
+        try:
+            _config = yaml.load(configFile, Loader=Loader)
+        except:
+            logger.exception("Exception initializing daemon")
+            kamzik3.session.stop()
 
     signal.signal(signal.SIGINT, close_session)
 
