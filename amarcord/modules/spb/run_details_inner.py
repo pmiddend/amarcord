@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 from typing import Any
 from typing import Dict
 from typing import Final
@@ -117,6 +118,12 @@ class RunDetailsInner(QWidget):
         top_layout.addWidget(self._auto_refresh)
         top_layout.addWidget(QtWidgets.QLabel("Run:"))
         top_layout.addWidget(self._run_selector)
+        button_prior = QPushButton("<")
+        button_prior.clicked.connect(partial(self._slot_select_diff, -1))
+        button_next = QPushButton(">")
+        button_next.clicked.connect(partial(self._slot_select_diff, 1))
+        top_layout.addWidget(button_prior)
+        top_layout.addWidget(button_next)
         self._switch_to_latest_button = QtWidgets.QPushButton(
             self.style().standardIcon(QtWidgets.QStyle.SP_MediaSeekForward),
             "Switch to latest",
@@ -220,6 +227,20 @@ class RunDetailsInner(QWidget):
 
     def _timed_refresh(self) -> None:
         self.refresh.emit()
+
+    def _slot_select_diff(self, diff: int) -> None:
+        if not self.run_ids:
+            return
+        try:
+            current_run_id = int(self._run_selector.text())
+        except:
+            return
+
+        next_run = current_run_id + diff
+        if next_run < 1 or next_run > max(r for r in self.run_ids):
+            return
+
+        self.current_run_changed.emit(next_run)
 
     def _slot_toggle_auto_refresh(self) -> None:
         if self._update_timer.isActive():

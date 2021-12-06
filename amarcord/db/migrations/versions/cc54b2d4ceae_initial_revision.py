@@ -31,32 +31,6 @@ def upgrade():
         sa.PrimaryKeyConstraint("name", "associated_table"),
     )
     op.create_table(
-        "HitFindingParameters",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("min_peaks", sa.Integer(), nullable=False),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("software", sa.String(length=255), nullable=False),
-        sa.Column("software_version", sa.String(length=255), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "IntegrationParameters",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("software", sa.String(length=255), nullable=False),
-        sa.Column("software_version", sa.String(length=255), nullable=True),
-        sa.Column("method", sa.String(length=255), nullable=True),
-        sa.Column("center_boxes", sa.Boolean(), nullable=True),
-        sa.Column("overpredict", sa.Boolean(), nullable=True),
-        sa.Column("push_res", sa.Float(), nullable=True),
-        sa.Column("radius_inner", sa.Integer(), nullable=True),
-        sa.Column("radius_middle", sa.Integer(), nullable=True),
-        sa.Column("radius_outer", sa.Integer(), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
         "Proposal",
         sa.Column("id", sa.Integer(), autoincrement=False, nullable=False),
         sa.Column("metadata", sa.JSON(), nullable=True),
@@ -67,24 +41,9 @@ def upgrade():
         "Sample",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("proposal_id", sa.Integer(), nullable=False),
-        sa.Column("target_id", sa.Integer(), nullable=True),
         sa.Column("name", sa.String(length=255), nullable=False),
-        sa.Column("compounds", sa.JSON(), nullable=True),
-        sa.Column("micrograph", sa.Text(), nullable=True),
         sa.Column("modified", sa.DateTime(), nullable=False),
         sa.Column("attributi", sa.JSON(), nullable=False),
-        sa.ForeignKeyConstraint(["target_id"], ["Target.id"], use_alter=True),
-        sa.ForeignKeyConstraint(["proposal_id"], ["Proposal.id"], use_alter=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "Target",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("proposal_id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=255), nullable=False),
-        sa.Column("short_name", sa.String(length=255), nullable=False),
-        sa.Column("molecular_weight", sa.Float(), nullable=True),
-        sa.Column("uniprot_id", sa.String(length=64), nullable=True),
         sa.ForeignKeyConstraint(["proposal_id"], ["Proposal.id"], use_alter=True),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -106,23 +65,6 @@ def upgrade():
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
-        "DataSource",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("run_id", sa.Integer(), nullable=False),
-        sa.Column("source", sa.JSON(), nullable=True),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("number_of_frames", sa.Integer(), nullable=True),
-        sa.Column(
-            "created",
-            sa.DateTime(),
-            server_default=sa.func.current_timestamp(),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(["run_id"], ["Run.id"], ondelete="cascade"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
         "RunComment",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("run_id", sa.Integer(), nullable=True),
@@ -135,115 +77,6 @@ def upgrade():
             nullable=False,
         ),
         sa.ForeignKeyConstraint(["run_id"], ["Run.id"], ondelete="cascade"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "PeakSearchParameters",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("method", sa.String(length=255), nullable=False),
-        sa.Column("software", sa.String(length=255), nullable=False),
-        sa.Column("software_version", sa.String(length=255), nullable=True),
-        sa.Column("max_num_peaks", sa.Float(), nullable=True),
-        sa.Column("adc_threshold", sa.Float(), nullable=True),
-        sa.Column("minimum_snr", sa.Float(), nullable=True),
-        sa.Column("min_pixel_count", sa.Integer(), nullable=True),
-        sa.Column("max_pixel_count", sa.Integer(), nullable=True),
-        sa.Column("min_res", sa.Float(), nullable=True),
-        sa.Column("max_res", sa.Float(), nullable=True),
-        sa.Column("bad_pixel_map_filename", sa.Text(), nullable=True),
-        sa.Column("bad_pixel_map_hdf5_path", sa.Text(), nullable=True),
-        sa.Column("local_bg_radius", sa.Float(), nullable=True),
-        sa.Column("min_peak_over_neighbor", sa.Float(), nullable=True),
-        sa.Column("min_snr_biggest_pix", sa.Float(), nullable=True),
-        sa.Column("min_snr_peak_pix", sa.Float(), nullable=True),
-        sa.Column("min_sig", sa.Float(), nullable=True),
-        sa.Column("min_squared_gradient", sa.Float(), nullable=True),
-        sa.Column("geometry", sa.Text(), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "HitFindingResult",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("peak_search_parameters_id", sa.Integer(), nullable=False),
-        sa.Column("hit_finding_parameters_id", sa.Integer(), nullable=False),
-        sa.Column("data_source_id", sa.Integer(), nullable=False),
-        sa.Column(
-            "created",
-            sa.DateTime(),
-            server_default=sa.func.current_timestamp(),
-            nullable=False,
-        ),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("number_of_hits", sa.Integer(), nullable=False),
-        sa.Column("hit_rate", sa.Float(), nullable=False),
-        sa.Column("average_peaks_event", sa.Float(), nullable=False),
-        sa.Column("average_resolution", sa.Float(), nullable=False),
-        sa.Column("result_filename", sa.Text(), nullable=False),
-        sa.Column("result_type", sa.Text(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["hit_finding_parameters_id"],
-            ["HitFindingParameters.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["peak_search_parameters_id"],
-            ["PeakSearchParameters.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["data_source_id"],
-            ["DataSource.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "IndexingParameters",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column("software", sa.String(length=255), nullable=False),
-        sa.Column("software_version", sa.String(length=255), nullable=True),
-        sa.Column("command_line", sa.Text(), nullable=False),
-        sa.Column("parameters", sa.JSON(), nullable=False),
-        sa.Column("methods", sa.JSON(), nullable=True),
-        sa.Column("geometry", sa.Text(), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_table(
-        "IndexingResult",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("hit_finding_result_id", sa.Integer(), nullable=False),
-        sa.Column("peak_search_parameters_id", sa.Integer(), nullable=False),
-        sa.Column("integration_parameters_id", sa.Integer(), nullable=False),
-        sa.Column("indexing_parameters_id", sa.Integer(), nullable=False),
-        sa.Column("tag", sa.String(length=255), nullable=True),
-        sa.Column("comment", sa.String(length=255), nullable=True),
-        sa.Column(
-            "created",
-            sa.DateTime(),
-            server_default=sa.func.current_timestamp(),
-            nullable=False,
-        ),
-        sa.Column("result_filename", sa.Text(), nullable=True),
-        sa.Column("num_indexed", sa.Integer(), nullable=False),
-        sa.Column("num_crystals", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["peak_search_parameters_id"],
-            ["PeakSearchParameters.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["hit_finding_result_id"],
-            ["HitFindingResult.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["indexing_parameters_id"],
-            ["IndexingParameters.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["integration_parameters_id"],
-            ["IntegrationParameters.id"],
-        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
@@ -269,18 +102,11 @@ def upgrade():
 
 def downgrade():
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table("IndexingResults")
-    op.drop_table("IndexingParameters")
-    op.drop_table("HitFindingResults")
-    op.drop_table("PeakSearchParameters")
     op.drop_table("RunComment")
     op.drop_table("DataSource")
     op.drop_table("Run")
-    op.drop_table("Target")
     op.drop_table("Sample")
     op.drop_table("Proposal")
-    op.drop_table("IntegrationParameters")
-    op.drop_table("HitFindingParameters")
     op.drop_table("Attributo")
     op.drop_table("EventLog")
     # ### end Alembic commands ###

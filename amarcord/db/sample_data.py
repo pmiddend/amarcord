@@ -93,6 +93,13 @@ def create_sample_data(db: DB) -> None:
         )
         db.add_attributo(
             conn,
+            "intensity",
+            description="Intensity",
+            associated_table=AssociatedTable.RUN,
+            prop_type=AttributoTypeDouble(),
+        )
+        db.add_attributo(
+            conn,
             "status",
             description="Status",
             associated_table=AssociatedTable.RUN,
@@ -141,6 +148,7 @@ def create_sample_data(db: DB) -> None:
                 {
                     AttributoId("status"): "running_online",
                     AttributoId("repetition_rate"): [randrange(0, 20)],
+                    AttributoId("intensity"): randrange(0, 20),
                     AttributoId("first_train"): current_train + 1,
                     AttributoId("last_train"): current_train + train_count,
                 },

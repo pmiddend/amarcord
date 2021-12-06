@@ -212,6 +212,13 @@ class AttributiMap:
         ), f"attributo {attributo_id} has type {type(v)} instead of int"
         return v if v is not None else None
 
+    def select_string(self, attributo_id: AttributoId) -> Optional[str]:
+        v = self.select_value(attributo_id)
+        assert v is None or isinstance(
+            v, str
+        ), f"attributo {attributo_id} has type {type(v)} instead of string"
+        return v if v is not None else None
+
     def select(self, attributo_id: AttributoId) -> Optional[AttributoValueWithSource]:
         manual_attributi = self._attributi.get(MANUAL_SOURCE_NAME, None)
 

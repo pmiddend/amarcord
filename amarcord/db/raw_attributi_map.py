@@ -8,6 +8,7 @@ from typing import Optional
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
+from amarcord.db.constants import OFFLINE_SOURCE_NAME
 from amarcord.modules.json import JSONArray
 from amarcord.modules.json import JSONDict
 from amarcord.modules.json import JSONValue
@@ -58,9 +59,6 @@ class RawAttributiMap:
             )
         return selected
 
-    def select_datetime(self, attributo_id: AttributoId) -> Optional[JSONValue]:
-        pass
-
     def select_value(self, attributo_id: AttributoId) -> Optional[JSONValue]:
         v = self.select(attributo_id)
         return v.value if v is not None else None
@@ -70,6 +68,13 @@ class RawAttributiMap:
         assert v is None or isinstance(
             v, int
         ), f"attributo {attributo_id} has type {type(v)} instead of int"
+        return v if v is not None else None
+
+    def select_string(self, attributo_id: AttributoId) -> Optional[str]:
+        v = self.select_value(attributo_id)
+        assert v is None or isinstance(
+            v, str
+        ), f"attributo {attributo_id} has type {type(v)} instead of string"
         return v if v is not None else None
 
     def select(
@@ -83,6 +88,15 @@ class RawAttributiMap:
             manual_attributo = manual_attributi.get(attributo_id, None)
             if manual_attributo:
                 return RawAttributoValueWithSource(manual_attributo, MANUAL_SOURCE_NAME)
+
+        offline_attributi = self._sources.get(OFFLINE_SOURCE_NAME, None)
+        assert offline_attributi is None or isinstance(offline_attributi, dict)
+        if offline_attributi is not None:
+            offline_attributo = offline_attributi.get(attributo_id, None)
+            if offline_attributo:
+                return RawAttributoValueWithSource(
+                    offline_attributo, OFFLINE_SOURCE_NAME
+                )
 
         for source, values in self._sources.items():
             assert isinstance(values, dict)

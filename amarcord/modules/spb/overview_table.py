@@ -2,6 +2,7 @@ import datetime
 import logging
 from functools import partial
 from typing import Any
+from typing import Dict
 from typing import Final
 from typing import Iterable
 from typing import List
@@ -14,6 +15,8 @@ from PyQt5.QtCore import QPoint
 from PyQt5.QtCore import QStringListModel
 from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QBrush
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QCheckBox
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtWidgets import QMessageBox
@@ -24,6 +27,7 @@ from PyQt5.QtWidgets import QWidget
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import pretty_print_attributo
 from amarcord.db.attributi import sortable_attributo
+from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeDouble
@@ -36,8 +40,12 @@ from amarcord.db.db import overview_row_to_query_row
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
+from amarcord.modules.attributi_change_dialog import apply_run_changes
+from amarcord.modules.attributi_change_dialog import attributi_change_dialog
 from amarcord.modules.context import Context
 from amarcord.modules.password_check_dialog import password_check_dialog
+from amarcord.modules.spb.colors import PREDEFINED_COLORS_TO_HEX
+from amarcord.modules.spb.colors import name_to_hex
 from amarcord.modules.spb.column_chooser import display_column_chooser
 from amarcord.modules.spb.filter_query_help import filter_query_help
 from amarcord.modules.spb.plot_dialog import PlotDialog
@@ -208,6 +216,18 @@ class OverviewTable(QWidget):
             )
             for c in self._visible_columns
         ]
+        has_colors = self._has_colors()
+        column_count = len(self._visible_columns)
+
+        def row_colors(r: Dict[AssociatedTable, AttributiMap]) -> Dict[int, QBrush]:
+            if not has_colors:
+                return {}
+            color = r[AssociatedTable.RUN].select_string(AttributoId("color"))
+            if color is None:
+                return {}
+            real_color = name_to_hex(color)
+            return {i: QBrush(QColor(real_color)) for i in range(column_count)}
+
         return Data(
             rows=[
                 Row(
@@ -225,7 +245,7 @@ class OverviewTable(QWidget):
                         )
                         for r in self._visible_columns
                     ],
-                    background_roles={},
+                    background_roles=row_colors(c),
                     change_callbacks=[],
                     double_click_callback=partial(self._double_click, c),
                     right_click_menu=partial(self._right_click_single, c),
@@ -242,6 +262,12 @@ class OverviewTable(QWidget):
             global_right_click_callback=self._right_click_global,
         )
 
+    def _has_colors(self) -> bool:
+        return any(
+            x.table == AssociatedTable.RUN and x.attributo.name == "color"
+            for x in self._attributi_metadata
+        )
+
     def _change_sample_for_multiple(
         self, run_ids: List[int], sample_id: Optional[int]
     ) -> None:
@@ -253,10 +279,26 @@ class OverviewTable(QWidget):
                 )
         self._slot_refresh(force=True)
 
+    def _change_color_for_multiple(
+        self, run_ids: List[int], color: Optional[str]
+    ) -> None:
+        logger.info(f"changing color to {color} for runs {run_ids}")
+        with self._db.connect() as conn:
+            for run_id in run_ids:
+                self._db.update_run_attributo(conn, run_id, AttributoId("color"), color)
+        self._slot_refresh(force=True)
+
     def _change_sample_for_single(self, run_id: int, sample_id: Optional[int]) -> None:
         with self._db.connect() as conn:
             self._db.update_run_attributo(
                 conn, run_id, AttributoId("sample_id"), sample_id
+            )
+        self._slot_refresh(force=True)
+
+    def _change_color_for_single(self, run_id: int, color_name: Optional[str]) -> None:
+        with self._db.connect() as conn:
+            self._db.update_run_attributo(
+                conn, run_id, AttributoId("color"), color_name
             )
         self._slot_refresh(force=True)
 
@@ -273,7 +315,97 @@ class OverviewTable(QWidget):
         sample_none_action.triggered.connect(
             partial(self._change_sample_for_multiple, run_ids, None)
         )
-        _action = menu.exec_(p)
+
+        change_color_menu = menu.addMenu("Change color for runs")
+        for color_name in PREDEFINED_COLORS_TO_HEX:
+            color_action = change_color_menu.addAction(color_name)
+            color_action.triggered.connect(
+                partial(self._change_color_for_multiple, run_ids, color_name)
+            )
+        color_none_action = change_color_menu.addAction("None")
+        color_none_action.triggered.connect(
+            partial(self._change_color_for_multiple, run_ids, None)
+        )
+
+        mass_change_action = menu.addAction(
+            self.style().standardIcon(QStyle.SP_DialogResetButton),
+            "Change attributi for runs",
+        )
+
+        deleteAction = menu.addAction(
+            self.style().standardIcon(QStyle.SP_DialogCancelButton),
+            "Delete runs",
+        )
+
+        action = menu.exec_(p)
+
+        if action == deleteAction:
+            with self._db.connect() as conn:
+                if not self._check_password(
+                    conn,
+                    "Are you sure?",
+                    "Really delete runs " + ", ".join(str(x) for x in run_ids) + "?",
+                ):
+                    return
+
+                self._db.delete_runs(conn, run_ids)
+                self._slot_refresh(force=True)
+        elif action == mass_change_action:
+            with self._db.connect() as conn:
+                runs = [
+                    r
+                    for r in self._db.retrieve_runs(conn, self._proposal_id, since=None)
+                    if r.id in run_ids
+                ]
+
+            changes = attributi_change_dialog(
+                runs,
+                {
+                    k.attributo.name: k.attributo
+                    for k in self._attributi_metadata
+                    if k.table == AssociatedTable.RUN
+                },
+                self._samples,
+                self,
+            )
+
+            if changes is not None:
+                with self._db.connect() as conn:
+                    apply_run_changes(self._db, conn, changes)
+                self._slot_refresh(force=True)
+
+    def _check_password(
+        self, conn: Connection, headline: str, description: str
+    ) -> bool:
+        have_password = self._db.proposal_has_password(conn, self._proposal_id)
+
+        if have_password:
+            password = password_check_dialog(
+                headline,
+                description,
+            )
+
+            if not password:
+                return False
+
+            if not self._db.check_proposal_password(conn, self._proposal_id, password):
+                QMessageBox.critical(  # type: ignore
+                    self,
+                    "Invalid password",
+                    "Password was invalid!",
+                    QMessageBox.Ok,
+                )
+                return False
+            return True
+
+        answer = QMessageBox.critical(
+            self,
+            headline,
+            description,
+            QMessageBox.Yes | QMessageBox.Cancel,
+        )
+
+        return answer == QMessageBox.Yes
 
     def _right_click_single(self, c: OverviewAttributi, p: QPoint) -> None:
         menu = QMenu(self)
@@ -294,32 +426,31 @@ class OverviewTable(QWidget):
         sample_none_action.triggered.connect(
             partial(self._change_sample_for_single, run_id, None)
         )
+        change_color_menu = menu.addMenu("Change color")
+        for color_name in PREDEFINED_COLORS_TO_HEX:
+            color_action = change_color_menu.addAction(color_name)
+            color_action.triggered.connect(
+                partial(self._change_color_for_single, run_id, color_name)
+            )
+        color_none_action = change_color_menu.addAction("None")
+        color_none_action.triggered.connect(
+            partial(self._change_color_for_single, run_id, None)
+        )
         action = menu.exec_(p)
         if action == deleteAction:
-            password = password_check_dialog(
-                f"Delete run “{run_id}”",
-                f"Are you sure you want to delete run “{run_id}”?",
-            )
-
-            if not password:
-                return
-
             with self._db.connect() as conn:
-                if not self._db.check_proposal_password(
-                    conn, self._proposal_id, password
+                if not self._check_password(
+                    conn,
+                    f"Delete run “{run_id}”",
+                    f"Are you sure you want to delete run “{run_id}”?",
                 ):
-                    QMessageBox.critical(  # type: ignore
-                        self,
-                        "Invalid password",
-                        "Password was invalid!",
-                        QMessageBox.Ok,
-                    )
-                else:
-                    self._db.delete_run(
-                        conn,
-                        run_id,
-                    )
-                    self._slot_refresh()
+                    return
+
+                self._db.delete_run(
+                    conn,
+                    run_id,
+                )
+                self._slot_refresh()
 
     def _double_click(self, c: OverviewAttributi) -> None:
         self.run_selected.emit(
@@ -390,7 +521,7 @@ class OverviewTable(QWidget):
         self._table_view.set_data(self._create_declarative_data())
 
     def _slot_plot_against(
-        self, type_: _PlotType, x_axis: TabledAttributo, y_axis: TabledAttributo
+        self, type_: _PlotType, y_axis: TabledAttributo, x_axis: TabledAttributo
     ) -> None:
         dialog = QtWidgets.QDialog(self)
         dialog_layout = QtWidgets.QVBoxLayout()

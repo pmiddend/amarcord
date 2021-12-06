@@ -14,8 +14,6 @@ from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.indexing_job_status import IndexingJobStatus
-from amarcord.db.path import Path
 from amarcord.modules.dbcontext import DBContext
 
 logger = logging.getLogger(__name__)
@@ -55,6 +53,32 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
     )
 
 
+def _table_analysis_results(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "AnalysisResults",
+        metadata,
+        sa.Column("directory_name", sa.String(length=255), nullable=False),
+        sa.Column("run_from", sa.Integer, nullable=False),
+        sa.Column("run_to", sa.Integer, nullable=False),
+        sa.Column("resolution", sa.String(length=255), nullable=False),
+        sa.Column("rsplit", sa.Float, nullable=False),
+        sa.Column("cchalf", sa.Float, nullable=False),
+        sa.Column("ccstar", sa.Float, nullable=False),
+        sa.Column("snr", sa.Float, nullable=False),
+        sa.Column("completeness", sa.Float, nullable=False),
+        sa.Column("multiplicity", sa.Float, nullable=False),
+        sa.Column("total_measurements", sa.Integer, nullable=False),
+        sa.Column("unique_reflections", sa.Integer, nullable=False),
+        sa.Column("wilson_b", sa.Float, nullable=False),
+        sa.Column("outer_shell", sa.String(length=255), nullable=False),
+        sa.Column("num_patterns", sa.Integer, nullable=False),
+        sa.Column("num_hits", sa.Integer, nullable=False),
+        sa.Column("indexed_patterns", sa.Integer, nullable=False),
+        sa.Column("indexed_crystals", sa.Integer, nullable=False),
+        sa.Column("comment", sa.String(length=255), nullable=False),
+    )
+
+
 def _table_run_comment(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "RunComment",
@@ -77,64 +101,64 @@ def _table_proposal(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_indexing_parameter(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "IndexingParameter",
-        metadata,
-        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("project_file_first_discovery", sa.DateTime, nullable=False),
-        sa.Column("project_file_last_discovery", sa.DateTime, nullable=False),
-        sa.Column("project_file_path", Path, nullable=False),
-        sa.Column("project_file_content", sa.Text, nullable=False),
-        sa.Column("geometry_file_content", sa.Text, nullable=False),
-        sa.Column("project_file_hash", sa.String(length=64), nullable=False),
-    )
-
-
-def _table_indexing_job(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "IndexingJob",
-        metadata,
-        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("started", sa.DateTime, nullable=False),
-        sa.Column("stopped", sa.DateTime, nullable=True),
-        sa.Column("output_directory", Path, nullable=False),
-        sa.Column(
-            "run_id",
-            sa.Integer,
-            ForeignKey("Run.id", ondelete="cascade"),
-            nullable=False,
-        ),
-        sa.Column(
-            "indexing_parameter_id",
-            sa.Integer,
-            ForeignKey("IndexingParameter.id", ondelete="cascade"),
-            nullable=False,
-        ),
-        sa.Column("master_file", Path, nullable=False),
-        sa.Column("command_line", sa.Text, nullable=False),
-        sa.Column("status", sa.Enum(IndexingJobStatus), nullable=False),
-        sa.Column("slurm_job_id", sa.Integer, nullable=False),
-        sa.Column("error_message", sa.Text, nullable=True),
-        sa.Column(
-            "result_file",
-            Path,
-            nullable=True,
-        ),
-    )
-
-
-def _table_configuration(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "Configuration",
-        metadata,
-        sa.Column(
-            "latest_indexing_parameter_id",
-            sa.Integer,
-            ForeignKey("IndexingParameter.id"),
-            nullable=True,
-        ),
-    )
+# def _table_indexing_parameter(metadata: sa.MetaData) -> sa.Table:
+#     return sa.Table(
+#         "IndexingParameter",
+#         metadata,
+#         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+#         sa.Column("project_file_first_discovery", sa.DateTime, nullable=False),
+#         sa.Column("project_file_last_discovery", sa.DateTime, nullable=False),
+#         sa.Column("project_file_path", Path, nullable=False),
+#         sa.Column("project_file_content", sa.Text, nullable=False),
+#         sa.Column("geometry_file_content", sa.Text, nullable=False),
+#         sa.Column("project_file_hash", sa.String(length=64), nullable=False),
+#     )
+#
+#
+# def _table_indexing_job(metadata: sa.MetaData) -> sa.Table:
+#     return sa.Table(
+#         "IndexingJob",
+#         metadata,
+#         sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+#         sa.Column("started", sa.DateTime, nullable=False),
+#         sa.Column("stopped", sa.DateTime, nullable=True),
+#         sa.Column("output_directory", Path, nullable=False),
+#         sa.Column(
+#             "run_id",
+#             sa.Integer,
+#             ForeignKey("Run.id", ondelete="cascade"),
+#             nullable=False,
+#         ),
+#         sa.Column(
+#             "indexing_parameter_id",
+#             sa.Integer,
+#             ForeignKey("IndexingParameter.id", ondelete="cascade"),
+#             nullable=False,
+#         ),
+#         sa.Column("master_file", Path, nullable=False),
+#         sa.Column("command_line", sa.Text, nullable=False),
+#         sa.Column("status", sa.Enum(IndexingJobStatus), nullable=False),
+#         sa.Column("slurm_job_id", sa.Integer, nullable=False),
+#         sa.Column("error_message", sa.Text, nullable=True),
+#         sa.Column(
+#             "result_file",
+#             Path,
+#             nullable=True,
+#         ),
+#     )
+#
+#
+# def _table_configuration(metadata: sa.MetaData) -> sa.Table:
+#     return sa.Table(
+#         "Configuration",
+#         metadata,
+#         sa.Column(
+#             "latest_indexing_parameter_id",
+#             sa.Integer,
+#             ForeignKey("IndexingParameter.id"),
+#             nullable=True,
+#         ),
+#     )
 
 
 def _table_run(metadata: sa.MetaData) -> sa.Table:
@@ -179,9 +203,10 @@ class DBTables:
         run_comment: sa.Table,
         attributo: sa.Table,
         event_log: sa.Table,
-        configuration: sa.Table,
-        indexing_parameter: sa.Table,
-        indexing_job: sa.Table,
+        analysis_results: sa.Table,
+        # configuration: sa.Table,
+        # indexing_parameter: sa.Table,
+        # indexing_job: sa.Table,
     ) -> None:
         self.event_log = event_log
         self.sample = sample
@@ -189,9 +214,10 @@ class DBTables:
         self.run = run
         self.run_comment = run_comment
         self.attributo = attributo
-        self.configuration = configuration
-        self.indexing_parameter = indexing_parameter
-        self.indexing_job = indexing_job
+        self.analysis_results = analysis_results
+        # self.configuration = configuration
+        # self.indexing_parameter = indexing_parameter
+        # self.indexing_job = indexing_job
         self.attributo_run_id = AttributoId("id")
         self.attributo_run_comments = AttributoId("comments")
         self.attributo_run_modified = AttributoId("modified")
@@ -264,9 +290,10 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         run_comment=_table_run_comment(metadata),
         attributo=_table_attributo(metadata),
         event_log=_table_event_log(metadata),
-        configuration=_table_configuration(metadata),
-        indexing_parameter=_table_indexing_parameter(metadata),
-        indexing_job=_table_indexing_job(metadata),
+        analysis_results=_table_analysis_results(metadata),
+        # configuration=_table_configuration(metadata),
+        # indexing_parameter=_table_indexing_parameter(metadata),
+        # indexing_job=_table_indexing_job(metadata),
     )
 
 

@@ -460,11 +460,19 @@ class AttributiCrud(QWidget):
 
     def _check_password(self, conn: Connection) -> bool:
         if not self._db.proposal_has_password(conn, self._proposal_id):
-            return True
+            return (
+                QMessageBox.critical(
+                    self,
+                    "Are you sure?",
+                    "Are you sure you want to do that?",
+                    QMessageBox.Yes | QMessageBox.Cancel,
+                )
+                == QMessageBox.Yes
+            )
 
         password = password_check_dialog(
-            "Add attributo",
-            "Please enter the admin password to add the attributo.",
+            "Change attributi",
+            "Please enter the admin password",
         )
 
         if not password:
@@ -478,9 +486,6 @@ class AttributiCrud(QWidget):
 
     def _add_attributo(self) -> None:
         with self._db.connect() as conn:
-            if not self._check_password(conn):
-                return
-
             self._db.add_attributo(
                 conn,
                 self._attributo_id_edit.text(),

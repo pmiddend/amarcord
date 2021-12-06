@@ -12,6 +12,7 @@ from typing import Tuple
 from typing import cast
 
 from PyQt5.QtCore import QAbstractTableModel
+from PyQt5.QtCore import QItemSelectionModel
 from PyQt5.QtCore import QModelIndex
 from PyQt5.QtCore import QObject
 from PyQt5.QtCore import QPoint
@@ -299,7 +300,8 @@ class DeclarativeTable(QTableView):
             # noinspection PyTypeChecker
             self.setItemDelegateForColumn(row_idx, QStyledItemDelegate())  # type: ignore
 
-        selected_indexes = next(iter(self.selectedIndexes()), None)
+        current_selection = self.selectionModel().selection()
+        number_of_rows_decreased = len(self._data.rows) > len(data.rows)
 
         self.model().set_data(data)
         self._data = data
@@ -322,8 +324,10 @@ class DeclarativeTable(QTableView):
 
         self._resize()
 
-        if selected_indexes is not None:
-            self.selectRow(selected_indexes.row())
+        # If rows are deleted, keeping the current selection is "unsafe" (we could, of course, check if the rows
+        # deleted were actually selected or something, but that seems a little too clever at this point)
+        if not number_of_rows_decreased:
+            self.selectionModel().select(current_selection, QItemSelectionModel.Select)
 
     # Keep these commented out. Maybe we want to really delete the delegates when
     # we're done with them, instead of keeping them around like idiots.

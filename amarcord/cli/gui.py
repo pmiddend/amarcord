@@ -22,9 +22,10 @@ from amarcord.modules.context import Context
 from amarcord.modules.dbcontext import CreationMode
 from amarcord.modules.dbcontext import DBContext
 from amarcord.modules.event_log_daemon import EventLogDaemon
-from amarcord.modules.spb.analysis_indexing import AnalysisIndexingResults
+from amarcord.modules.p11.analysis_results_tab import AnalysisResultsTab
 from amarcord.modules.spb.attributi_crud import AttributiCrud
-from amarcord.modules.spb.crystfel_analysis import CrystFELProjectFiles
+
+# from amarcord.modules.spb.crystfel_analysis import CrystFELProjectFiles
 from amarcord.modules.spb.factories import create_proposal
 from amarcord.modules.spb.factories import proposal_chooser
 from amarcord.modules.spb.factories import retrieve_proposal_ids
@@ -160,18 +161,24 @@ class XFELGui:
 
         run_table_tab.run_selected.connect(change_run)
 
-        project_files_tab = CrystFELProjectFiles(
+        analysis_results_tab = AnalysisResultsTab(
             self._context, self._tables, self._proposal_id
         )
         self._ui_context.register_tab(
-            "Analysis Project Files", project_files_tab, QIcon(":/icons/book-solid.png")
+            "Analysis Results", analysis_results_tab, QIcon(":/icons/book-solid.png")
         )
-        analysis_indexing_tab = AnalysisIndexingResults(
-            self._context, self._tables, self._proposal_id
-        )
-        self._ui_context.register_tab(
-            "Analysis Indexing", analysis_indexing_tab, QIcon(":/icons/book-solid.png")
-        )
+        # project_files_tab = CrystFELProjectFiles(
+        #     self._context, self._tables, self._proposal_id
+        # )
+        # self._ui_context.register_tab(
+        #     "Analysis Project Files", project_files_tab, QIcon(":/icons/book-solid.png")
+        # )
+        # analysis_indexing_tab = AnalysisIndexingResults(
+        #     self._context, self._tables, self._proposal_id
+        # )
+        # self._ui_context.register_tab(
+        #     "Analysis Indexing", analysis_indexing_tab, QIcon(":/icons/book-solid.png")
+        # )
 
         attributi_crud_tab = AttributiCrud(
             self._context, self._tables, self._proposal_id

@@ -12,6 +12,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+import kamzik3
 from kamzik3.constants import ATTR_STATUS
 from kamzik3.constants import STATUS_BUSY
 from kamzik3.constants import STATUS_DISCONNECTED
@@ -33,6 +34,7 @@ from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.constants import ONLINE_SOURCE_NAME
 from amarcord.db.db import DB
+from amarcord.db.db import RunNotFound
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.proposal_id import ProposalId
@@ -158,8 +160,8 @@ def _step_state_machine(state: _State, input_: _BeamlineInput) -> _StateOutput:
         if input_.status == _BeamlineStatus.IDLE:
             logger.info(f"idle, closing run {state.run_id}")
             return _StateOutput(
-                new_state=replace(state, run_id=None, run_finished=True),
-                outputs=[_OutputCloseRun(state.run_id, datetime.datetime.now())],
+                new_state=replace(state, run_id=state.run_id, run_finished=True),
+                outputs=[_OutputCloseRun(state.run_id, datetime.datetime.utcnow())],
             )
         # has to be BUSY now
         # usually we get a run and then the busy signal, but we just assume the run is busy
@@ -173,7 +175,7 @@ def _step_state_machine(state: _State, input_: _BeamlineInput) -> _StateOutput:
         )
         outputs.append(_OutputCloseRun(state.run_id, datetime.datetime.utcnow()))
     else:
-        logger.info("got new run ID {input_.run_id}")
+        logger.info(f"got new run ID {input_.run_id}")
     outputs.append(
         _OutputAddRun(input_.run_id, datetime.datetime.utcnow(), input_.metadata)
     )
@@ -431,22 +433,35 @@ class KamzikClient(DeviceClient):
 
         metadata_without_run_id = {k: v for k, v in metadata.items() if k != RUN_ID_KEY}
 
-        self._process_input(_InputNewRun(run_id, metadata_without_run_id))
+        try:
+            self._process_input(_InputNewRun(run_id, metadata_without_run_id))
+        except:
+            logger.exception("error in status change, quitting")
+            kamzik3.session.stop()
 
     def _add_run(self, conn: Connection, run_id: int) -> None:
-        attributi_map = RawAttributiMap({})
-        attributi_map.append_single_datetime_to_source(
-            ONLINE_SOURCE_NAME, STARTED_ATTRIBUTO_ID, datetime.datetime.utcnow()
-        )
-        run_is_new = self._db.add_run(
-            conn,
-            ProposalId(self.proposal_id),
-            run_id,
-            sample_id=None,
-            attributi=attributi_map,
-        )
-        if not run_is_new:
-            logger.info(f"run {run_id} already existed, did nothing.")
+        try:
+            # This will raise if not found (Pythonic!)
+            self._db.retrieve_run(conn, ProposalId(self.proposal_id), run_id)
+
+            logger.info(f"run {run_id} already existed, added start.")
+
+            self._db.update_run_attributo(
+                conn, run_id, STARTED_ATTRIBUTO_ID, datetime.datetime.utcnow()
+            )
+        except RunNotFound:
+            attributi_map = RawAttributiMap({})
+            attributi_map.append_single_datetime_to_source(
+                ONLINE_SOURCE_NAME, STARTED_ATTRIBUTO_ID, datetime.datetime.utcnow()
+            )
+            self._db.add_run(
+                conn,
+                ProposalId(self.proposal_id),
+                run_id,
+                sample_id=None,
+                attributi=attributi_map,
+            )
+            logger.info(f"added run {run_id}")
 
     def _add_event(self, level: EventLogLevel, message: str) -> None:
         if level == EventLogLevel.INFO:
@@ -459,21 +474,25 @@ class KamzikClient(DeviceClient):
             self._db.add_event(conn, level, "kamzik", message)
 
     def _event_status_changed(self, status: str) -> None:
-        if status == STATUS_BUSY:
-            self._add_event(EventLogLevel.INFO, "Status change: busy")
-            self._process_input(_InputStatusChange(_BeamlineStatus.BUSY))
-        elif status == STATUS_IDLE:
-            self._add_event(EventLogLevel.INFO, "Status change: idle")
-            self._process_input(_InputStatusChange(_BeamlineStatus.IDLE))
-        elif status == STATUS_DISCONNECTING:
-            self._add_event(EventLogLevel.WARNING, "Status change: disconnecting")
-            self._process_input(_InputStatusChange(_BeamlineStatus.DISCONNECTING))
-        elif status == STATUS_DISCONNECTED:
-            self._add_event(EventLogLevel.WARNING, "Status change: disconnected")
-            self._process_input(_InputStatusChange(_BeamlineStatus.DISCONNECTED))
+        try:
+            if status == STATUS_BUSY:
+                self._add_event(EventLogLevel.INFO, "Status change: busy")
+                self._process_input(_InputStatusChange(_BeamlineStatus.BUSY))
+            elif status == STATUS_IDLE:
+                self._add_event(EventLogLevel.INFO, "Status change: idle")
+                self._process_input(_InputStatusChange(_BeamlineStatus.IDLE))
+            elif status == STATUS_DISCONNECTING:
+                self._add_event(EventLogLevel.WARNING, "Status change: disconnecting")
+                self._process_input(_InputStatusChange(_BeamlineStatus.DISCONNECTING))
+            elif status == STATUS_DISCONNECTED:
+                self._add_event(EventLogLevel.WARNING, "Status change: disconnected")
+                self._process_input(_InputStatusChange(_BeamlineStatus.DISCONNECTED))
 
-            # Detach callbacks, not necessary, but it helps status handling simple
-            self.detach_attribute_callback(ATTR_METADATA, callback=self._event_metadata_changed)  # type: ignore
-            self.detach_attribute_callback(
-                ATTR_STATUS, callback=self._event_status_changed
-            )
+                # Detach callbacks, not necessary, but it helps status handling simple
+                self.detach_attribute_callback(ATTR_METADATA, callback=self._event_metadata_changed)  # type: ignore
+                self.detach_attribute_callback(
+                    ATTR_STATUS, callback=self._event_status_changed
+                )
+        except:
+            logger.exception("error in status change, quitting")
+            kamzik3.session.stop()

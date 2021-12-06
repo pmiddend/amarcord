@@ -72,7 +72,9 @@ class EventLogDaemon(QObject):
     def _output_event(self, e: DBEvent) -> None:
         self._log_output.appendPlainText(
             "{} {}: {}: {}".format(
-                e.created.strftime("%Y-%m-%dT%H:%M:%S"),
+                e.created.replace(tzinfo=datetime.timezone.utc)
+                .astimezone(tz=None)
+                .strftime("%Y-%m-%dT%H:%M:%S"),
                 e.level.name,
                 e.source,
                 e.text,

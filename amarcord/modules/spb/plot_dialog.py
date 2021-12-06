@@ -177,8 +177,8 @@ class PlotDialog(QDialog):
             if self._type == _PlotType.LINE:
                 # noinspection PyArgumentList
                 self._df.plot(ax=self._sc.axes, legend=None)  # type: ignore
-                self._sc.axes.set_xlabel(self._y_axis.pretty_id())
-                self._sc.axes.set_ylabel(self._x_axis.pretty_id())
+                self._sc.axes.set_xlabel(self._x_axis.pretty_id())
+                self._sc.axes.set_ylabel(self._y_axis.pretty_id())
             else:
                 # noinspection PyArgumentList
                 self._df.plot(ax=self._sc.axes, x=0, y=1, kind="scatter")  # type: ignore
@@ -201,14 +201,14 @@ class PlotDialog(QDialog):
         if self._type == _PlotType.LINE:
             return pd.DataFrame(
                 [
-                    r[self._x_axis.table].select_value(self._x_axis.attributo.name)
-                    for r in filtered_rows
-                ],
-                index=[
                     r[self._y_axis.table].select_value(self._y_axis.attributo.name)
                     for r in filtered_rows
                 ],
-                columns=[self._x_axis.attributo.pretty_id()],
+                index=[
+                    r[self._x_axis.table].select_value(self._x_axis.attributo.name)
+                    for r in filtered_rows
+                ],
+                columns=[self._y_axis.attributo.pretty_id()],
             )
         return pd.DataFrame(
             [

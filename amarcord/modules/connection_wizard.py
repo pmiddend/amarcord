@@ -36,7 +36,7 @@ class ConnectionDialog(QWidget):
         description = QLabel(
             "<p>Enter the <i>database connection URL</i> here. It should look something like "
             "this:</p><pre>mysql+pymysql://username:password@cfeld-vm05/xfel-foobar</pre><p>You should have gotten "
-            "this URL from the PI, from Confluence or from Luca and Philipp.</p>"
+            "this URL from the PI, from Confluence or from Philipp.</p>"
         )
         description.setTextFormat(Qt.RichText)
 
