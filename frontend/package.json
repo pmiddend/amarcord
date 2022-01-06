@@ -1,0 +1,22 @@
+{
+			"private": true,
+			"devDependencies": {
+						"cypress": "^8.7.0",
+						"cypress-file-upload": "^5.0.8",
+						"purs-tidy": "^0.6.2"
+			},
+			"scripts": {
+						"build": "spago build",
+						"cypress:open": "cypress open",
+						"cypress:run": "cypress run --headed --no-exit",
+						"cypress:run-headless": "cypress run",
+						"serve": "parcel serve dev/index.html",
+						"build-prod": "mkdir -p prod && cp -R dev/index.html dev/webfonts dev/css dev/favicon.png static/* prod/ && rm -rf dist && spago --no-color bundle-app --to prod/index.js && parcel build prod/index.html"
+			},
+			"dependencies": {
+						"parcel": "^2.0.0",
+						"purescript": "^0.14.4",
+						"spago": "^0.20.3",
+						"xhr2": "^0.2.1"
+			}
+}

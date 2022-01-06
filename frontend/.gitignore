@@ -1,0 +1,7 @@
+.parcel-cache/
+.spago/
+dist/
+node_modules/
+output/
+cypress/videos
+cypress/screenshots

@@ -1,0 +1,125 @@
+body {
+}
+
+.feather {
+    width: 16px;
+    height: 16px;
+    vertical-align: text-bottom;
+}
+
+/*
+ * Sidebar
+ */
+
+.sidebar {
+    /* Indent relative to browser window */
+    position: fixed;
+    padding: 0;
+    top: 0;
+    /* rtl:raw:
+  right: 0;
+   */
+    bottom: 0;
+    /* rtl:remove */
+    left: 0;
+    z-index: 100;
+    /* box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);*/
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15);
+    background-color: rgb(26, 54, 82);
+}
+
+/* Not sure what this does. Better remove it */
+/* @media (max-width: 767.98px) { */
+/*     .sidebar { */
+/* 	top: 5rem; */
+/*     } */
+/* } */
+
+.sidebar-sticky {
+    /* Position relative to its normal position */
+    position: relative;
+    top: 0;
+    /* Take total height of browser window */
+    height: 100vh;
+    padding-top: .5rem;
+    overflow-x: hidden;
+    overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
+}
+
+.sidebar .nav-link {
+    font-weight: 500;
+    color: #cfd0d1;
+}
+
+.sidebar .nav-link .feather {
+    margin-right: 4px;
+    color: #727272;
+}
+
+.sidebar .nav-link.active {
+    color: #fff;
+}
+
+.sidebar .nav-link:hover .feather,
+.sidebar .nav-link.active .feather {
+    color: inherit;
+}
+
+.sidebar-heading {
+    font-size: .75rem;
+    text-transform: uppercase;
+}
+
+.logo {
+    background-color: rgb(242, 248, 253);
+}
+
+.manual-edit {
+    background-color: rgb(242, 248, 253);
+}
+
+.amarcord-logo {
+    height: 2.5em;
+    margin-right: 1em;
+}
+
+.amarcord-section-separator {
+    margin-top: 3em !important;
+}
+
+.amarcord-very-small-button {
+    font-size: 0.6rem;
+}
+
+/* courtesy of https://stackoverflow.com/questions/38970267/bootstrap-4-collapse-show-state-with-font-awesome-icon */
+[aria-expanded="true"] .fa-chevron-circle-up,
+[aria-expanded="false"] .fa-chevron-circle-down {
+    display:none;
+}
+
+[data-tooltip]:before {
+    /* needed - do not touch */
+    content: attr(data-tooltip);
+    position: absolute;
+    opacity: 0;
+    
+    /* customizable */
+    transition: all 0.05s ease;
+    padding: 10px;
+    color: #333;
+    box-shadow: 2px 2px 1px silver;    
+}
+
+[data-tooltip]:hover:before {
+    /* needed - do not touch */
+    opacity: 1;
+    
+    /* customizable */
+    background: #cff4fc;
+    margin-top: -50px;
+    margin-left: 20px;    
+}
+
+[data-tooltip]:not([data-tooltip-persistent]):before {
+    pointer-events: none;
+}
