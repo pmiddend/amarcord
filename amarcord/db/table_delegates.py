@@ -17,11 +17,8 @@ from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeDuration
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypePath
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.db.attributo_type import AttributoTypeTags
-from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.qt.datetime import from_qt_datetime
 from amarcord.qt.datetime import to_qt_datetime
@@ -477,10 +474,6 @@ def delegate_for_attributo_type(
         return DurationItemDelegate(parent)
     if isinstance(proptype, AttributoTypeString):
         return QtWidgets.QStyledItemDelegate(parent=parent)
-    if isinstance(proptype, AttributoTypePath):
-        return QtWidgets.QStyledItemDelegate(parent=parent)
-    if isinstance(proptype, AttributoTypeUserName):
-        return QtWidgets.QStyledItemDelegate(parent=parent)
     if isinstance(proptype, AttributoTypeChoice):
         return ComboItemDelegate(values=proptype.values, parent=parent)
     if isinstance(proptype, AttributoTypeSample):
@@ -491,8 +484,6 @@ def delegate_for_attributo_type(
             values=values,
             parent=parent,
         )
-    if isinstance(proptype, AttributoTypeTags):
-        return TagsItemDelegate(available_tags=[], parent=parent)
     if isinstance(proptype, AttributoTypeDateTime):
         return DateTimeItemDelegate(parent=parent)
     raise Exception(f"invalid property type {proptype}")

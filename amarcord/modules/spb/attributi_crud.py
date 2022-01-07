@@ -38,10 +38,7 @@ from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeInt
-from amarcord.db.attributo_type import AttributoTypePath
 from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.db.attributo_type import AttributoTypeTags
-from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
@@ -438,8 +435,6 @@ class AttributiCrud(QWidget):
         value = self._type_selection.current_value()
         if value == TypePreset.INT:
             return AttributoTypeInt()
-        if value == TypePreset.PATH:
-            return AttributoTypePath()
         if value == TypePreset.STANDARD_UNIT:
             return AttributoTypeDouble(
                 range=self._type_specific_metadata.get("range", None),
@@ -452,10 +447,6 @@ class AttributiCrud(QWidget):
             )
         if value == TypePreset.STRING:
             return AttributoTypeString()
-        if value == TypePreset.USER_NAME:
-            return AttributoTypeUserName()
-        if value == TypePreset.TAGS:
-            return AttributoTypeTags()
         raise Exception(f"unsupported type {value}")
 
     def _check_password(self, conn: Connection) -> bool:

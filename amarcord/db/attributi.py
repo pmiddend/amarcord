@@ -1,11 +1,16 @@
 import datetime
 import logging
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
+from typing import Type
 
 from dateutil import tz
+from isodate import parse_duration
+from pint import UnitRegistry
 
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeChoice
@@ -15,11 +20,8 @@ from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeDuration
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypePath
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.db.attributo_type import AttributoTypeTags
-from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
@@ -36,6 +38,8 @@ from amarcord.modules.json import JSONDict
 from amarcord.modules.json import JSONValue
 from amarcord.numeric_range import NumericRange
 from amarcord.util import print_natural_delta
+from amarcord.util import str_to_float
+from amarcord.util import str_to_int
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +90,6 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
         assert (
             parsed_schema.value_type.enum_ is None
         ), "arrays of enum strings aren't supported yet"
-        if parsed_schema.value_type.format_ == JSONSchemaStringFormat.TAG:
-            return AttributoTypeTags()
         return AttributoTypeList(
             schema_to_attributo_type(parsed_schema.value_type),
             min_length=parsed_schema.min_items,
@@ -100,10 +102,6 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
             return AttributoTypeDateTime()
         if parsed_schema.format_ == JSONSchemaStringFormat.DURATION:
             return AttributoTypeDuration()
-        if parsed_schema.format_ == JSONSchemaStringFormat.USER_NAME:
-            return AttributoTypeUserName()
-        if parsed_schema.format_ == JSONSchemaStringFormat.PATH:
-            return AttributoTypePath()
         return AttributoTypeString()
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
@@ -136,10 +134,6 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
         return result_double
     if isinstance(rp, AttributoTypeString):
         return {"type": "string"}
-    if isinstance(rp, AttributoTypeUserName):
-        return {"type": "string", "format": "user-name"}
-    if isinstance(rp, AttributoTypePath):
-        return {"type": "string", "format": "path"}
     if isinstance(rp, AttributoTypeSample):
         return {"type": "integer", "format": "sample-id"}
     if isinstance(rp, AttributoTypeChoice):
@@ -158,8 +152,6 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
         if rp.max_length is not None:
             base["maxItems"] = rp.max_length
         return base
-    if isinstance(rp, AttributoTypeTags):
-        return {"type": "array", "items": {"type": "string"}}
     if isinstance(rp, AttributoTypeComments):
         return {
             "type": "array",
@@ -249,8 +241,6 @@ def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
             return f"{pt.suffix} ∈ {pt.range}" if pt.range is not None else pt.suffix
         word = "numbers" if plural else "number"
         return f"{word} ∈ {pt.range}" if pt.range is not None else word
-    if isinstance(pt, AttributoTypeTags):
-        return "tags"
     if isinstance(pt, AttributoTypeSample):
         return "Sample IDs" if plural else "Sample ID"
     if isinstance(pt, AttributoTypeString):
@@ -261,10 +251,308 @@ def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
         return "date and time"
     if isinstance(pt, AttributoTypeDuration):
         return "durations" if plural else "duration"
-    if isinstance(pt, AttributoTypeUserName):
-        return "user names" if plural else "user name"
-    if isinstance(pt, AttributoTypePath):
-        return "paths" if plural else "path"
     if isinstance(pt, AttributoTypeList):
         return "list of " + attributo_type_to_string(pt.sub_type, plural=True)
     raise Exception(f"invalid property type {type(pt)}")
+
+
+_AttributoTypeConverter = Callable[
+    [AttributoType, AttributoType, AttributoValue], AttributoValue
+]
+
+_conversion_matrix: Dict[Tuple[Type, Type], _AttributoTypeConverter] = {}
+
+
+def _convert_int_to_int_list(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(after_type, AttributoTypeList)
+    assert isinstance(v, int)
+    if not isinstance(after_type.sub_type, AttributoTypeInt):
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
+            "first, and then to list?)"
+        )
+    if after_type.min_length is not None and after_type.min_length > 1:
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type} because we don't have enough elements"
+        )
+    return [v]
+
+
+def _convert_double_to_double_list(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(after_type, AttributoTypeList)
+    assert isinstance(v, float)
+    if not isinstance(after_type.sub_type, AttributoTypeDouble):
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
+            "first, and then to list?)"
+        )
+    if after_type.min_length is not None and after_type.min_length > 1:
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type} because we don't have enough elements"
+        )
+    return [v]
+
+
+def _convert_string_to_string_list(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(after_type, AttributoTypeList)
+    assert isinstance(v, str)
+    if not isinstance(after_type.sub_type, AttributoTypeString):
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
+            "first, and then to list?)"
+        )
+    if after_type.min_length is not None and after_type.min_length > 1:
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type} because we don't have enough elements"
+        )
+    return [v]
+
+
+def _convert_int_to_int(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeInt)
+    assert isinstance(after_type, AttributoTypeInt)
+    assert isinstance(v, int)
+
+    if after_type.nonNegative and v < 0:
+        raise Exception(
+            f"cannot convert integer, target is non-negative, but value is {v}"
+        )
+
+    if after_type.range is not None:
+        if v < after_type.range[0] or v > after_type.range[1]:
+            raise Exception(
+                f"cannot convert integer, value {v} is not in range [{after_type.range[0]}, {after_type.range[1]}]"
+            )
+
+    return v
+
+
+def _convert_int_to_double(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeInt)
+    assert isinstance(after_type, AttributoTypeDouble)
+    assert isinstance(v, int)
+
+    vd = float(v)
+
+    if after_type.range is not None and not after_type.range.value_is_inside(vd):
+        raise Exception(
+            f"cannot convert integer {v} to double because it's not in the range {after_type.range}"
+        )
+
+    return v
+
+
+def _convert_string_to_int(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeString)
+    assert isinstance(after_type, AttributoTypeInt)
+    assert isinstance(v, str)
+
+    vi = str_to_int(v.strip())
+
+    if vi is None:
+        raise Exception(f'cannot convert string "{v.strip()}" to integer')
+
+    return _convert_int_to_int(AttributoTypeInt(), after_type, vi)
+
+
+def _convert_double_to_int(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeDouble)
+    assert isinstance(after_type, AttributoTypeInt)
+    assert isinstance(v, (int, float))
+
+    if after_type.nonNegative and v < 0:
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type}: {v} is negative"
+        )
+
+    if after_type.range is not None and (
+        v < after_type.range[0] or v > after_type.range[1]
+    ):
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type}: {v} is not in range "
+            f"[{after_type.range[0]}, {after_type.range[1]}]"
+        )
+
+    return int(v)
+
+
+def _convert_double_to_double(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeDouble)
+    assert isinstance(after_type, AttributoTypeDouble)
+    assert isinstance(v, (int, float))
+
+    if after_type.range is not None and not after_type.range.value_is_inside(v):
+        raise Exception(
+            f"cannot convert decimal number {v} because it's not in the range {after_type.range}"
+        )
+
+    if after_type.standard_unit and before_type.standard_unit:
+        return UnitRegistry().Quantity(v, before_type.suffix).to(after_type.suffix).m
+
+    return v
+
+
+def _convert_string_to_duration(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeString)
+    assert isinstance(after_type, AttributoTypeDuration)
+    assert isinstance(v, str)
+
+    try:
+        return parse_duration(v)
+    except:
+        raise Exception(f'cannot convert string "{v}" to duration (not ISO format)')
+
+
+def _convert_string_to_datetime(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeString)
+    assert isinstance(after_type, AttributoTypeDateTime)
+    assert isinstance(v, str)
+
+    try:
+        return datetime.datetime.fromisoformat(v)
+    except:
+        raise Exception(f'cannot convert string "{v}" to datetime (not ISO format)')
+
+
+def _convert_string_to_choice(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeString)
+    assert isinstance(after_type, AttributoTypeChoice)
+    assert isinstance(v, str)
+
+    if not [c[1] for c in after_type.values if c[1] == v]:
+        raise Exception(
+            f'cannot convert string "{v}" to choice with choices '
+            + ",".join(c[1] for c in after_type.values)
+        )
+    return v
+
+
+def _convert_string_to_double(
+    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeString)
+    assert isinstance(after_type, AttributoTypeDouble)
+    assert isinstance(v, str)
+
+    vi = str_to_float(v.strip())
+
+    if vi is None:
+        raise Exception(f'cannot convert string "{v.strip()}" to float')
+
+    return _convert_double_to_double(AttributoTypeDouble(), after_type, vi)
+
+
+def convert_attributo_value(
+    before_type: AttributoType, after_type: AttributoType, value: AttributoValue
+) -> AttributoValue:
+    converter = _conversion_matrix.get((type(before_type), type(after_type)), None)
+
+    if converter is None:
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type}: no converter found"
+        )
+
+    return converter(before_type, after_type, value)
+
+
+def _convert_list_to_list(
+    before_type: AttributoType, after_type: AttributoType, value: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeList)
+    assert isinstance(after_type, AttributoTypeList)
+    assert isinstance(value, list)
+
+    if after_type.max_length is not None and len(value) > after_type.max_length:
+        raise Exception(
+            f"cannot convert {before_type} to {after_type} because {value} has too many elements"
+        )
+
+    if after_type.min_length is not None and len(value) < after_type.min_length:
+        raise Exception(
+            f"cannot convert {before_type} to {after_type} because {value} has too little elements"
+        )
+
+    return [
+        # type error is expected here, since we don't have lists of AttributoValue yet, since that
+        # would mean mypy has support for recursive types.
+        convert_attributo_value(before_type.sub_type, after_type.sub_type, x)  # type: ignore
+        for x in value
+    ]
+
+
+def _convert_choice_to_choice(
+    before_type: AttributoType, after_type: AttributoType, value: AttributoValue
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeChoice)
+    assert isinstance(after_type, AttributoTypeChoice)
+    assert isinstance(value, str)
+
+    if value not in [c[1] for c in after_type.values]:
+        raise Exception(
+            f"cannot convert choice value, {value} is not in choices "
+            + ",".join(c[1] for c in after_type.values)
+        )
+
+    return value
+
+
+_conversion_matrix.update(
+    {
+        # start int
+        (AttributoTypeInt, AttributoTypeInt): _convert_int_to_int,
+        (AttributoTypeInt, AttributoTypeList): _convert_int_to_int_list,
+        (AttributoTypeInt, AttributoTypeDouble): _convert_int_to_double,
+        (AttributoTypeInt, AttributoTypeString): lambda before, after, v: str(v),
+        # start duration
+        (AttributoTypeDuration, AttributoTypeDuration): lambda before, after, v: v,
+        (AttributoTypeDuration, AttributoTypeString): lambda before, after, v: str(v),
+        # start list
+        (AttributoTypeList, AttributoTypeList): _convert_list_to_list,
+        # start string
+        (AttributoTypeString, AttributoTypeString): lambda before, after, v: v,
+        (AttributoTypeString, AttributoTypeInt): _convert_string_to_int,
+        (AttributoTypeString, AttributoTypeDuration): _convert_string_to_duration,
+        (AttributoTypeString, AttributoTypeDateTime): _convert_string_to_datetime,
+        (AttributoTypeString, AttributoTypeChoice): _convert_string_to_choice,
+        (AttributoTypeString, AttributoTypeDouble): _convert_string_to_double,
+        (AttributoTypeString, AttributoTypeList): _convert_string_to_string_list,
+        # start double
+        (AttributoTypeDouble, AttributoTypeDouble): _convert_double_to_double,
+        (AttributoTypeDouble, AttributoTypeInt): _convert_double_to_int,  # type: ignore
+        (AttributoTypeDouble, AttributoTypeList): _convert_double_to_double_list,
+        (AttributoTypeDouble, AttributoTypeString): lambda before, after, v: str(v),
+        # start sample
+        (AttributoTypeSample, AttributoTypeSample): lambda before, after, v: v,
+        # start datetime
+        (AttributoTypeDateTime, AttributoTypeDateTime): lambda before, after, v: v,
+        (
+            AttributoTypeDateTime,
+            AttributoTypeString,
+        ): lambda before, after, v: v.isoformat(),  # type: ignore
+        # start choice
+        (AttributoTypeChoice, AttributoTypeChoice): _convert_choice_to_choice,
+        (AttributoTypeChoice, AttributoTypeString): lambda before, after, v: v,
+    }
+)

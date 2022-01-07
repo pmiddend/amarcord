@@ -19,7 +19,6 @@ from amarcord.db.attributo_type import AttributoTypeDuration
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.db.attributo_type import AttributoTypeTags
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.db import DB
@@ -206,8 +205,6 @@ def generate_attributo(samples: List[DBMiniSample], amd: DBAttributo) -> Attribu
                 days=random.uniform(0, 10), seconds=random.uniform(0, 86399)
             )
         )
-    if isinstance(amd.attributo_type, AttributoTypeTags):
-        return [generate_random_string() for _ in range(random.randrange(0, 10))]
     return None
 
 

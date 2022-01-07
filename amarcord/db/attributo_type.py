@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Any
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -13,10 +12,25 @@ class AttributoTypeInt:
     nonNegative: bool = False
     range: Optional[Tuple[int, int]] = None
 
+    def __str__(self) -> str:
+        if not self.nonNegative and self.range is None:
+            return "int"
+        return (
+            "int ("
+            + ("> 0" if self.nonNegative else "")
+            + (
+                f"in [{self.range[0]}, {self.range[1]}]"
+                if self.range is not None
+                else ""
+            )
+            + ")"
+        )
+
 
 @dataclass(frozen=True)
 class AttributoTypeDuration:
-    pass
+    def __str__(self) -> str:
+        return "duration"
 
 
 @dataclass(frozen=True)
@@ -25,20 +39,26 @@ class AttributoTypeList:
     min_length: Optional[int]
     max_length: Optional[int]
 
+    def __str__(self) -> str:
+        if self.min_length is None and self.max_length is None:
+            return f"list of {self.sub_type}"
+        if self.min_length is not None and self.max_length is not None:
+            return f"list (between {self.min_length} and {self.max_length}) of {self.sub_type}"
+        if self.min_length is not None:
+            return f"list (at least {self.min_length} element(s)) of {self.sub_type}"
+        return f"list (at most {self.max_length} element(s)) of {self.sub_type}"
+
 
 @dataclass(frozen=True)
 class AttributoTypeString:
-    pass
-
-
-@dataclass(frozen=True)
-class AttributoTypeUserName:
-    pass
+    def __str__(self) -> str:
+        return "string"
 
 
 @dataclass(frozen=True)
 class AttributoTypeComments:
-    pass
+    def __str__(self) -> str:
+        return "list of comments"
 
 
 @dataclass(frozen=True)
@@ -47,43 +67,47 @@ class AttributoTypeDouble:
     suffix: Optional[str] = None
     standard_unit: bool = False
 
+    def __str__(self) -> str:
+        if self.range is None and self.suffix is None:
+            return "decimal number"
 
-@dataclass(frozen=True)
-class AttributoTypeTags:
-    pass
+        if self.suffix is not None and self.range is not None:
+            return f"{self.suffix} as decimal number in {repr(self.range)}"
+
+        if self.suffix is not None:
+            return f"{self.suffix} as decimal number"
+
+        return f"decimal number in {repr(self.range)}"
 
 
 @dataclass(frozen=True)
 class AttributoTypeSample:
-    pass
+    def __str__(self) -> str:
+        return "sample"
 
 
 @dataclass(frozen=True)
 class AttributoTypeDateTime:
-    pass
-
-
-@dataclass(frozen=True)
-class AttributoTypePath:
-    pass
+    def __str__(self) -> str:
+        return "date and time"
 
 
 @dataclass(frozen=True)
 class AttributoTypeChoice:
-    values: List[Tuple[str, Any]]
+    values: List[Tuple[str, str]]
+
+    def __str__(self) -> str:
+        return "one of: " + ",".join(f"{x[0]} => {x[1]}" for x in self.values)
 
 
 AttributoType = Union[
     AttributoTypeInt,
     AttributoTypeChoice,
     AttributoTypeDouble,
-    AttributoTypeTags,
     AttributoTypeSample,
     AttributoTypeString,
     AttributoTypeComments,
-    AttributoTypePath,
     AttributoTypeDateTime,
     AttributoTypeDuration,
-    AttributoTypeUserName,
     AttributoTypeList,
 ]

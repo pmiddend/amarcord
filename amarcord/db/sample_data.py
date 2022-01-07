@@ -13,8 +13,6 @@ from amarcord.db.attributo_type import AttributoTypeDuration
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.db.attributo_type import AttributoTypeTags
-from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.db import Connection
 from amarcord.db.db import DB
 from amarcord.db.event_log_level import EventLogLevel
@@ -118,13 +116,6 @@ def create_sample_data(db: DB) -> None:
             description="Last Train",
             associated_table=AssociatedTable.RUN,
             prop_type=AttributoTypeInt(),
-        )
-        db.add_attributo(
-            conn,
-            "tags",
-            description="Tags",
-            associated_table=AssociatedTable.RUN,
-            prop_type=AttributoTypeTags(),
         )
         db.add_attributo(
             conn,
@@ -295,13 +286,6 @@ def add_xfel_2696_attributi(db: DB, conn: Connection) -> None:
         description="Plate Origin",
         associated_table=AssociatedTable.SAMPLE,
         prop_type=AttributoTypeString(),
-    )
-    db.add_attributo(
-        conn,
-        name="creator",
-        description="Creator",
-        associated_table=AssociatedTable.SAMPLE,
-        prop_type=AttributoTypeUserName(),
     )
     db.add_attributo(
         conn,

@@ -8,7 +8,9 @@ from typing import cast
 from isodate import duration_isoformat
 from isodate import parse_duration
 
+from amarcord.db.attributi import convert_attributo_value
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
@@ -16,11 +18,8 @@ from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeDuration
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypePath
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.db.attributo_type import AttributoTypeTags
-from amarcord.db.attributo_type import AttributoTypeUserName
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.attributo_value_with_source import AttributoValueWithSource
 from amarcord.db.comment import DBComment
@@ -94,17 +93,6 @@ def _convert_single_attributo_value_from_json(
             v, str
         ), f'expected type string for duration attributo "{i}", got {type(v)}'
         return parse_duration(v)
-    if isinstance(attributo_type.attributo_type, AttributoTypeTags):
-        assert isinstance(
-            v, list
-        ), f'expected type list for duration attributo "{i}", got {type(v)}'
-        if not v:
-            return cast(List[str], [])
-        first = v[0]
-        assert isinstance(
-            first, str
-        ), f'expected type list of strings for duration attributo "{i}", got {type(first)}'
-        return v
     if isinstance(attributo_type.attributo_type, AttributoTypeChoice):
         assert isinstance(
             v, str
@@ -115,16 +103,6 @@ def _convert_single_attributo_value_from_json(
             raise ValueError(
                 f'value for attributo "{i}" has to be one of {choices_str}, is "{v}"'
             )
-        return v
-    if isinstance(attributo_type.attributo_type, AttributoTypeUserName):
-        assert isinstance(
-            v, str
-        ), f'expected type str for user name attributo "{i}", got {type(v)}'
-        return v
-    if isinstance(attributo_type.attributo_type, AttributoTypePath):
-        assert isinstance(
-            v, str
-        ), f'expected type str for path attributo "{i}", got {type(v)}'
         return v
     if isinstance(attributo_type.attributo_type, AttributoTypeList):
         assert isinstance(
@@ -146,6 +124,7 @@ class AttributiMap:
         raw_attributi: Optional[RawAttributiMap] = None,
     ) -> None:
         self._attributi: AttributiMapImpl = {}
+        self._types = types
         if raw_attributi is not None:
             for source, source_attributi in raw_attributi.items():
                 self._attributi[source] = {
@@ -326,3 +305,19 @@ class AttributiMap:
             if a is not None:
                 result[source] = a
         return result
+
+    def convert_attributo(
+        self,
+        name: AttributoId,
+        after_type: AttributoType,
+    ) -> bool:
+        before_type = self._types[name].attributo_type
+        changed = False
+        for source, value in self.values_per_source(name).items():
+            changed = True
+            self.append_single_to_source(
+                source,
+                AttributoId(name),
+                convert_attributo_value(before_type, after_type, value),
+            )
+        return changed

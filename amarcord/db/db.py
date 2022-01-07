@@ -763,6 +763,59 @@ class DB:
     def delete_runs(self, conn: Connection, rids: Iterable[int]) -> None:
         conn.execute(sa.delete(self.tables.run).where(self.tables.run.c.id.in_(rids)))
 
+    def change_attributo(
+        self, conn: Connection, name: str, new_attributo: DBAttributo
+    ) -> None:
+        current_attributi = self.retrieve_attributi(conn, inherent=False)
+
+        current_attributo = current_attributi[new_attributo.associated_table].get(
+            AttributoId(name), None
+        )
+
+        if current_attributo is None:
+            raise Exception(
+                f"couldn't find attributo for table {new_attributo.associated_table} and name {name}"
+            )
+
+        existing_attributo = next(
+            (
+                (table, attributo_id)
+                for table, attributi in current_attributi.items()
+                for attributo_id in attributi
+                if attributo_id == name
+            ),
+            None,
+        )
+        if new_attributo.name != name and existing_attributo is not None:
+            raise Exception(
+                f"cannot rename {name} to {new_attributo.name} because table {existing_attributo[0]} already has an "
+                f"attributo of that name"
+            )
+
+        with conn.begin():
+            # first, change the attributo itself, then its actual values (if possible)
+            conn.execute(
+                sa.update(self.tables.attributo)
+                .values(
+                    name=new_attributo.name,
+                    description=new_attributo.description,
+                    json_schema=attributo_type_to_schema(new_attributo.attributo_type),
+                )
+                .where(self.tables.attributo.c.name == name)
+            )
+
+            if new_attributo.associated_table == AssociatedTable.RUN:
+                for run in self.retrieve_runs(conn, proposal_id=None, since=None):
+                    changed = AttributiMap(
+                        current_attributi[new_attributo.associated_table], run.attributi
+                    ).convert_attributo(AttributoId(name), new_attributo.attributo_type)
+                    if changed:
+                        self.update_run_attributi(
+                            conn,
+                            run.id,
+                            run.attributi,
+                        )
+
     def delete_attributo(
         self, conn: Connection, table: AssociatedTable, name: AttributoId
     ) -> None:
