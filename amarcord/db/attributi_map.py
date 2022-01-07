@@ -29,8 +29,8 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.karabo import Karabo
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.raw_attributi_map import Source
-from amarcord.modules.json import JSONDict
-from amarcord.modules.json import JSONValue
+from amarcord.json import JSONDict
+from amarcord.json import JSONValue
 from amarcord.query_parser import Row
 
 AttributiMapImpl = Dict[Source, Dict[AttributoId, AttributoValue]]

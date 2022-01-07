@@ -46,7 +46,7 @@ from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
-from amarcord.modules.json import JSONDict
+from amarcord.json import JSONDict
 from amarcord.modules.spb.attributi_table import AttributiTable
 from amarcord.qt.validators import Partial
 from amarcord.util import str_to_int

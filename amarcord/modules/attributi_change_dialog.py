@@ -19,9 +19,9 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBRun
-from amarcord.modules.dbcontext import Connection
-from amarcord.modules.json import JSONValue
-from amarcord.modules.json import json_make_immutable
+from amarcord.db.dbcontext import Connection
+from amarcord.json import JSONValue
+from amarcord.json import json_make_immutable
 from amarcord.modules.spb.attributi_table import AttributiTable
 
 

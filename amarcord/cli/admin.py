@@ -11,7 +11,7 @@ from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.sample_data import add_xfel_2696_attributi
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import DBContext
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO

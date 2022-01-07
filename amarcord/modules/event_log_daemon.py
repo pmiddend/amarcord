@@ -10,9 +10,9 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QPlainTextEdit
 
 from amarcord.db.db import DB
+from amarcord.db.dbcontext import DBContext
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.tables import DBTables
-from amarcord.modules.dbcontext import DBContext
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +70,9 @@ class EventLogDaemon(QObject):
         self._thread.start()
 
     def _output_event(self, e: DBEvent) -> None:
-        self._log_output.appendPlainText(
-            "{} {}: {}: {}".format(
-                e.created.replace(tzinfo=datetime.timezone.utc)
-                .astimezone(tz=None)
-                .strftime("%Y-%m-%dT%H:%M:%S"),
-                e.level.name,
-                e.source,
-                e.text,
-            )
+        time = (
+            e.created.replace(tzinfo=datetime.timezone.utc)
+            .astimezone(tz=None)
+            .strftime("%Y-%m-%dT%H:%M:%S")
         )
+        self._log_output.appendPlainText(f"{time} {e.level.name}: {e.source}: {e.text}")

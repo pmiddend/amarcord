@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 from typing import Optional
 
-from amarcord.modules.json import JSONDict
+from amarcord.json import JSONDict
 
 
 class JSONChecker:

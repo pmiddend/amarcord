@@ -57,24 +57,18 @@ def _parse_attributo(
 
     processor = ai_content.get("processor", None)
     if processor is not None and processor not in [x.value for x in KaraboProcessor]:
+        processor_values = "' or '".join(s.value for s in KaraboProcessor)
         raise ValueError(
-            "Attributo \"{}\": processor must be either '{}', is {}".format(
-                identifier,
-                "' or '".join(s.value for s in KaraboProcessor),
-                processor,
-            )
+            f"Attributo \"{identifier}\": processor must be either '{processor_values}', is {processor}"
         )
     if processor is not None:
         processor = KaraboProcessor(processor)
 
     action = ai_content.get("action", global_action)
     if action is not None and action not in [x.value for x in KaraboAttributoAction]:
+        action_values = "' or '".join(s.value for s in KaraboAttributoAction)
         raise ValueError(
-            "Attributo \"{}\": action must be either '{}', is {}".format(
-                identifier,
-                "' or '".join(s.value for s in KaraboAttributoAction),
-                action,
-            )
+            f"Attributo \"{identifier}\": action must be either '{action_values}', is {action}"
         )
     if action is not None:
         action = KaraboAttributoAction(action)
@@ -90,10 +84,9 @@ def _parse_attributo(
 
     role = ai_content.get("role", None)
     if role is not None and role not in [x.value for x in KaraboSpecialRole]:
+        role_values = "' or '".join(s.value for s in KaraboSpecialRole)
         raise ValueError(
-            "Attributo {}: Role must be either '{}', is {}".format(
-                identifier, "' or '".join(s.value for s in KaraboSpecialRole), role
-            )
+            f"Attributo {identifier}: Role must be either '{role_values}', is {role}"
         )
     if role is not None:
         role = KaraboSpecialRole(role)
@@ -144,7 +137,7 @@ def parse_karabo_configuration(configuration: Dict[str, Any]) -> KaraboConfigura
                 action = ai_content
 
             if isinstance(ai_content, dict):
-                if gi not in attributi.keys():
+                if gi not in attributi:
                     attributi[gi] = {}
 
                 if ai in attributi[gi]:

@@ -9,8 +9,8 @@ from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import DBContext
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO

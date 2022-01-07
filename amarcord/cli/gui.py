@@ -19,8 +19,8 @@ from amarcord.db.sample_data import create_sample_data
 from amarcord.db.tables import create_tables
 from amarcord.modules.connection_wizard import show_connection_dialog
 from amarcord.modules.context import Context
-from amarcord.modules.dbcontext import CreationMode
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import DBContext
 from amarcord.modules.event_log_daemon import EventLogDaemon
 from amarcord.modules.p11.analysis_results_tab import AnalysisResultsTab
 from amarcord.modules.spb.attributi_crud import AttributiCrud

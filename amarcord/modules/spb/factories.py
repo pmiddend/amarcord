@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import QWidget
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import DBTables
 from amarcord.modules.context import Context
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import DBContext
 from amarcord.modules.spb.overview_table import OverviewTable
 from amarcord.modules.spb.run_details import RunDetails
 

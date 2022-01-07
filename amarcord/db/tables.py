@@ -14,7 +14,7 @@ from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import DBContext
 
 logger = logging.getLogger(__name__)
 

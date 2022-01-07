@@ -10,10 +10,7 @@ class QtLoggingHandler(logging.Handler):
         self._text_widget = text_widget
 
     def emit(self, record):
+        t = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(record.created))
         self._text_widget.appendPlainText(
-            "{} {}: {}".format(
-                time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(record.created)),
-                record.levelname,
-                record.getMessage(),
-            )
+            f"{t} {record.levelname}: {record.getMessage()}"
         )

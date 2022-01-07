@@ -14,8 +14,8 @@ from amarcord.cli.daemon import ingest_karabo_action
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import DBContext
 
 PROPOSAL_ID = ProposalId(1)
 

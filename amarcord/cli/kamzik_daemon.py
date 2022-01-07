@@ -22,7 +22,7 @@ def mymain(args: Arguments) -> None:
     def close_session(_sig, _frame):
         kamzik3.session.stop()
 
-    with Path(args.config_file).open("r") as configFile:
+    with Path(args.config_file).open("r", encoding="utf-8") as configFile:
         # this is just magic; it'll create Python classes from the config file
         try:
             _config = yaml.load(configFile, Loader=Loader)

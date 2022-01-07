@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import QWidget
 from sqlalchemy.exc import ArgumentError
 
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import DBContext
 from amarcord.modules.spb.factories import retrieve_proposal_ids
 from amarcord.modules.uicontext import UIContext
 

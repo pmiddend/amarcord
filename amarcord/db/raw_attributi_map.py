@@ -9,9 +9,9 @@ from typing import Optional
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.constants import MANUAL_SOURCE_NAME
 from amarcord.db.constants import OFFLINE_SOURCE_NAME
-from amarcord.modules.json import JSONArray
-from amarcord.modules.json import JSONDict
-from amarcord.modules.json import JSONValue
+from amarcord.json import JSONArray
+from amarcord.json import JSONDict
+from amarcord.json import JSONValue
 
 Source = str
 

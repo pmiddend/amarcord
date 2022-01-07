@@ -189,9 +189,6 @@ MYWORD : /[a-zA-Z]+/
 def parse_query(query_string: str, field_names: Set[str]) -> Query:
     if not query_string:
         return lambda row: True
-    # pylint: disable=global-statement
-    global query_parser
-
     try:
         return QueryToFunction(field_names).transform(query_parser.parse(query_string))
     except le.UnexpectedEOF:

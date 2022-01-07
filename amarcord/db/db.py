@@ -35,13 +35,12 @@ from amarcord.db.mini_sample import DBMiniSample
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBEvent
-from amarcord.db.table_classes import DBIndexingJob
 from amarcord.db.table_classes import DBRun
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tabled_attributo import TabledAttributo
 from amarcord.db.tables import DBTables
-from amarcord.modules.dbcontext import Connection
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import Connection
+from amarcord.db.dbcontext import DBContext
 from amarcord.query_parser import Row as QueryRow
 from amarcord.util import dict_union
 from amarcord.util import remove_duplicates_stable
@@ -80,23 +79,6 @@ def _sample_to_attributi(
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("id"): s.id})
     result.append_to_source(DB_SOURCE_NAME, {AttributoId("name"): s.name})
     return result
-
-
-def _convert_job(id_column: str, r) -> DBIndexingJob:
-    return DBIndexingJob(
-        id=r[id_column],
-        started=r["started"],
-        stopped=r["stopped"],
-        run_id=r["run_id"],
-        output_directory=r["output_directory"],
-        indexing_parameter_id=r["indexing_parameter_id"],
-        master_file=r["master_file"],
-        command_line=r["command_line"],
-        status=r["status"],
-        slurm_job_id=r["slurm_job_id"],
-        error_message=r["error_message"],
-        result_file=r["result_file"],
-    )
 
 
 def validate_attributi(

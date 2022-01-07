@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from amarcord.config import UserConfig
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import DBContext
 from amarcord.modules.uicontext import UIContext
 
 

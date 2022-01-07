@@ -29,9 +29,9 @@ from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode
-from amarcord.modules.dbcontext import DBContext
-from amarcord.modules.json import JSONDict
+from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import DBContext
+from amarcord.json import JSONDict
 from amarcord.numeric_range import NumericRange
 from amarcord.numeric_range import random_from_range
 

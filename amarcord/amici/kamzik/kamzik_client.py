@@ -36,12 +36,12 @@ from amarcord.db.constants import ONLINE_SOURCE_NAME
 from amarcord.db.db import DB
 from amarcord.db.db import RunNotFound
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.dbcontext import Connection
+from amarcord.db.dbcontext import DBContext
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.raw_attributi_map import RawAttributiMap
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import Connection
-from amarcord.modules.dbcontext import DBContext
 from amarcord.pint_util import pint_quantity_to_attributo_type
 
 RUN_STATUS_STOPPED = "stopped"
@@ -151,9 +151,9 @@ def _step_state_machine(state: _State, input_: _BeamlineInput) -> _StateOutput:
             ],
         )
     if isinstance(input_, _InputStatusChange):
-        if (
-            input_.status == _BeamlineStatus.DISCONNECTED
-            or input_.status == _BeamlineStatus.DISCONNECTING
+        if input_.status in (
+            _BeamlineStatus.DISCONNECTED,
+            _BeamlineStatus.DISCONNECTING,
         ):
             logger.info(f"disconnected, clearing run ID {state.run_id}")
             return _StateOutput(new_state=replace(state, run_id=None), outputs=[])

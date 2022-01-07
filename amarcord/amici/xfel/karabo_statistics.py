@@ -33,9 +33,7 @@ class KaraboStatistics:
             return np.mean(data, axis=axis)
         except TypeError as err:
             logger.warning(
-                "{}//{}: Can not compute arithmetic mean on {}:type={} along axis={}".format(
-                    source, key, data, type(data), axis
-                )
+                f"{source}//{key}: Can not compute arithmetic mean on {data}:type={type(data)} along axis={axis}"
             )
 
             raise TypeError(err)
@@ -48,9 +46,7 @@ class KaraboStatistics:
             return np.std(data, axis=axis, ddof=1)
         except TypeError as err:
             logger.warning(
-                "{}//{}: Can not compute standard deviation on {}:type={} along axis={}".format(
-                    source, key, data, type(data), axis
-                )
+                f"{source}//{key}: Can not compute standard deviation on {data}:type={type(data)} along axis={axis}"
             )
 
             raise TypeError(err)

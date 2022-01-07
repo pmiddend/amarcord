@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from amarcord.modules.json_checker import JSONChecker
+from amarcord.json_checker import JSONChecker
 
 
 def test_retrieve_optional_str() -> None:

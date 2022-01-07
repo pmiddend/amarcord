@@ -11,10 +11,10 @@ from amarcord.amici.xfel.karabo_general import ingest_attributi
 from amarcord.amici.xfel.karabo_general import ingest_karabo_action
 from amarcord.db.constants import ONLINE_SOURCE_NAME
 from amarcord.db.db import DB
+from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import DBContext
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode
-from amarcord.modules.dbcontext import DBContext
 from amarcord.util import natural_key
 
 PROPOSAL_ID = ProposalId(900188)

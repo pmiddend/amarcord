@@ -8,7 +8,7 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
-from amarcord.modules.json import JSONDict
+from amarcord.json import JSONDict
 
 logger = logging.getLogger(__name__)
 

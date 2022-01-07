@@ -26,8 +26,8 @@ from amarcord.db.constants import ONLINE_SOURCE_NAME
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import DBContext
 from amarcord.run_id import RunId
 
 logging.basicConfig(

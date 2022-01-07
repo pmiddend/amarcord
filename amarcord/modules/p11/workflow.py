@@ -14,7 +14,7 @@
 # from amarcord.db.indexing_job_status import IndexingJobStatus
 # from amarcord.db.table_classes import DBIndexingJob
 # from amarcord.db.table_classes import DBIndexingParameter
-# from amarcord.modules.dbcontext import Connection
+# from amarcord.db.dbcontext import Connection
 # from amarcord.modules.p11.job import Job
 # from amarcord.modules.p11.job_status import JobStatus
 # from amarcord.modules.p11.slurm_rest_job_controller import SlurmRestJobController

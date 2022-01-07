@@ -26,6 +26,8 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.mini_sample import DBMiniSample
+from amarcord.json import JSONDict
+from amarcord.json import JSONValue
 from amarcord.json_schema import JSONSchemaArray
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaNumber
@@ -34,8 +36,6 @@ from amarcord.json_schema import JSONSchemaString
 from amarcord.json_schema import JSONSchemaStringFormat
 from amarcord.json_schema import JSONSchemaType
 from amarcord.json_schema import parse_schema_type
-from amarcord.modules.json import JSONDict
-from amarcord.modules.json import JSONValue
 from amarcord.numeric_range import NumericRange
 from amarcord.util import print_natural_delta
 from amarcord.util import str_to_float

@@ -14,7 +14,7 @@ from typing import Union
 import requests
 from requests import Response
 
-from amarcord.modules.json import JSONDict
+from amarcord.json import JSONDict
 from amarcord.modules.p11.job import Job
 from amarcord.modules.p11.slurm_util import build_sbatch
 from amarcord.modules.p11.slurm_util import parse_job_state

@@ -1,5 +1,11 @@
 import logging
 from dataclasses import dataclass
+
+# pylint: disable=wrong-import-order
+from enum import Enum
+
+# pylint: disable=wrong-import-order
+from enum import auto
 from typing import Any
 from typing import Dict
 from typing import FrozenSet
@@ -14,12 +20,6 @@ from typing import Union
 from typing import cast
 
 import numpy as np
-
-# pylint: disable=wrong-import-order
-from enum import Enum
-
-# pylint: disable=wrong-import-order
-from enum import auto
 
 from amarcord.amici.xfel.karabo_attributi import KaraboAttributi
 from amarcord.amici.xfel.karabo_attributo import KaraboAttributo
@@ -63,9 +63,7 @@ def compute_statistics(
             )
 
             if removed:
-                logger.warning(
-                    "{}//{}: removed {} entries".format(source, key, removed)
-                )
+                logger.warning(f"{source}//{key}: removed {removed} entries")
 
             # compute statistics
             if attributo.action in (
@@ -95,7 +93,7 @@ def compute_statistics(
             elif attributo.action == KaraboAttributoAction.CHECK_IF_CONSTANT:
                 # noinspection PyArgumentList
                 unique_value, unique_index = np.unique(
-                    np.hstack(cached_data) if cached_data != [] else cached_data,  # type: ignore
+                    np.hstack(cached_data) if not cached_data else cached_data,  # type: ignore
                     return_index=True,
                 )
 

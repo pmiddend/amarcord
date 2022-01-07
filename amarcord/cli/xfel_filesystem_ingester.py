@@ -14,8 +14,8 @@ from amarcord.db.constants import OFFLINE_SOURCE_NAME
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import DBContext
 
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)8s [%(module)s] %(message)s",

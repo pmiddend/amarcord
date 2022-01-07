@@ -139,7 +139,7 @@ def _fill_preset(
             metadata["suffix"] = s
             if not isinstance(s, Partial):
                 # noinspection PyStringFormat
-                l.setText("Normalized: {:H}".format(ureg(s)))  # type: ignore
+                l.setText(f"Normalized: {ureg(s):H}")  # type: ignore
                 metadata["valid"] = True
             else:
                 metadata["valid"] = False

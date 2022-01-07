@@ -9,8 +9,8 @@ from bs4 import BeautifulSoup
 
 from amarcord.db.db import DB
 from amarcord.db.tables import create_tables
-from amarcord.modules.dbcontext import CreationMode
-from amarcord.modules.dbcontext import DBContext
+from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import DBContext
 
 
 def ELOGParser(soup) -> Dict[int, Any]:
