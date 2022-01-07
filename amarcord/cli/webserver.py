@@ -1,21 +1,22 @@
 import os
 import sys
-from typing import Optional
 
 from quart import Quart
-from quart import g
 from quart_cors import cors
 from tap import Tap
+from werkzeug.exceptions import HTTPException
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
-from amarcord.db.tables import create_tables_from_metadata
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type
 from amarcord.quart_utils import CustomJSONEncoder
+from amarcord.quart_utils import QuartDatabases
+from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
 
 app = Quart(
@@ -28,30 +29,20 @@ app = Quart(
 
 app.json_encoder = CustomJSONEncoder
 app = cors(app)
+db = QuartDatabases(app)
 
 
-@app.before_serving
-async def create_db() -> None:
-    context = AsyncDBContext(app.config["DB_URL"], app.config["DB_ECHO"])
-    # pylint: disable=assigning-non-slot
-    g.db = AsyncDB(context, create_tables_from_metadata(context.metadata))
+@app.errorhandler(HTTPException)
+def error_handler_for_exceptions(e):
+    return handle_exception(e)
 
 
-@app.after_serving
-async def dispose_db() -> None:
-    await g.db.dispose()
-
-
-def get_db() -> AsyncDB:
-    return g.db
-
-
-@app.route("/")
-async def add_attributo() -> JSONDict:
+@app.post("/attributi")
+async def create_attributo() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
-    async with get_db().connect() as conn:
-        await get_db().add_attributo(
+    async with db.instance.begin() as conn:
+        await db.instance.add_attributo(
             conn,
             name=r.retrieve_safe_str("name"),
             description=r.retrieve_safe_str("description"),
@@ -62,12 +53,65 @@ async def add_attributo() -> JSONDict:
     return {}
 
 
+@app.patch("/attributi")
+async def change_attributo() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        new_attributo = JSONChecker(r.retrieve_safe("newAttributo"), "newAttributo")
+        await db.instance.change_attributo(
+            conn,
+            name=r.retrieve_safe_str("nameBefore"),
+            new_attributo=DBAttributo(
+                name=AttributoId(new_attributo.retrieve_safe_str("name")),
+                description=new_attributo.retrieve_safe_str("description"),
+                associated_table=AssociatedTable(
+                    new_attributo.retrieve_safe_str("associatedTable")
+                ),
+                attributo_type=schema_to_attributo_type(
+                    parse_schema_type(new_attributo.retrieve_safe("type"))
+                ),
+            ),
+        )
+
+    return {}
+
+
+@app.delete("/attributi")
+async def delete_attributo() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        await db.instance.delete_attributo(
+            conn,
+            name=r.retrieve_safe_str("name"),
+        )
+
+    return {}
+
+
+@app.get("/attributi")
+async def read_attributi() -> JSONDict:
+    async with db.instance.connect() as conn:
+        return {
+            "attributi": [
+                {
+                    "name": a.name,
+                    "description": a.description,
+                    "associatedTable": a.associated_table.value,
+                    "type": attributo_type_to_schema(a.attributo_type),
+                }
+                for a in await db.instance.retrieve_attributi(conn)
+            ]
+        }
+
+
 class Arguments(Tap):
-    port: int
+    port: int = 8080
     host: str = "0.0.0.0"
-    db_url: Optional[str]
+    db_url: str = "sqlite+aiosqlite://"
     db_echo: bool = False
-    debug: bool = False
+    debug: bool = True
 
 
 def main() -> int:

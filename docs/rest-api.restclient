@@ -1,0 +1,41 @@
+# -*- restclient -*-
+#
+# Add a new attributo
+POST http://localhost:8080/attributi
+Content-Type: application/json
+
+{
+  "name": "foo",
+  "description": "bar",
+  "associatedTable": "run",
+  "type": {
+    "type": "string"
+  }
+}
+
+# Retrieve all attributi
+GET http://localhost:8080/attributi
+
+# Remove the attributo
+DELETE http://localhost:8080/attributi
+Content-Type: application/json
+
+{
+  "name": "foo"
+}
+
+# Add a new attributo
+PATCH http://localhost:8080/attributi
+Content-Type: application/json
+
+{
+  "nameBefore": "foo",
+  "newAttributo": {
+    "name": "bar",
+    "description": "bar",
+    "associatedTable": "run",
+    "type": {
+      "type": "string"
+    }
+  }
+}

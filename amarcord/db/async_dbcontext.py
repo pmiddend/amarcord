@@ -15,7 +15,7 @@ class AsyncDBContext:
         #
         # In short, with in-memory databases, we normally get one DB per thread, which is bad if we have
         # background threads updating the DB (in test scenarios, of course).
-        in_memory_db = connection_url == "sqlite://"
+        in_memory_db = connection_url == "sqlite+aiosqlite://"
         self.engine = create_async_engine(
             connection_url,
             echo=echo,
@@ -29,7 +29,7 @@ class AsyncDBContext:
             dbapi_con.execute("pragma foreign_keys=ON")
 
         if "sqlite" in connection_url:
-            event.listen(self.engine, "connect", _fk_pragma_on_connect)
+            event.listen(self.engine.sync_engine, "connect", _fk_pragma_on_connect)
 
         self.metadata = MetaData()
 
@@ -40,6 +40,9 @@ class AsyncDBContext:
                     myengine, checkfirst=creation_mode == CreationMode.CHECK_FIRST
                 )
             )
+
+    def begin(self) -> Connection:
+        return self.engine.begin()
 
     def connect(self) -> Connection:
         return self.engine.connect()
