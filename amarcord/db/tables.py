@@ -36,17 +36,36 @@ def _table_attributo(metadata: sa.MetaData) -> sa.Table:
     )
 
 
+def _table_file(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "File",
+        metadata,
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("type", sa.String(length=255), nullable=False),
+        sa.Column("file_name", sa.String(length=255), nullable=False),
+        sa.Column("sha256", sa.String(length=40), nullable=False),
+        sa.Column("modified", sa.DateTime(), nullable=False),
+        sa.Column("contents", sa.LargeBinary(), nullable=False),
+        sa.Column("description", sa.String(length=255)),
+    )
+
+
+def _table_sample_has_file(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "SampleHasFile",
+        metadata,
+        sa.Column(
+            "sample_id", sa.Integer(), ForeignKey("Sample.id", ondelete="cascade")
+        ),
+        sa.Column("file_id", sa.Integer(), ForeignKey("File.id", ondelete="cascade")),
+    )
+
+
 def _table_sample(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Sample",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column(
-            "proposal_id",
-            sa.Integer,
-            sa.ForeignKey("Proposal.id", use_alter=True),
-            nullable=True,
-        ),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("attributi", sa.JSON, nullable=False),
@@ -88,16 +107,6 @@ def _table_run_comment(metadata: sa.MetaData) -> sa.Table:
         sa.Column("author", sa.String(length=255), nullable=False),
         sa.Column("comment_text", sa.String(length=255), nullable=False),
         sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
-    )
-
-
-def _table_proposal(metadata: sa.MetaData) -> sa.Table:
-    return sa.Table(
-        "Proposal",
-        metadata,
-        sa.Column("id", sa.Integer, primary_key=True, autoincrement=False),
-        sa.Column("metadata", sa.JSON, nullable=True),
-        sa.Column("admin_password", sa.String(length=255), nullable=True),
     )
 
 
@@ -167,12 +176,6 @@ def _table_run(metadata: sa.MetaData) -> sa.Table:
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("modified", sa.DateTime, nullable=False),
-        sa.Column(
-            "proposal_id",
-            sa.Integer,
-            sa.ForeignKey("Proposal.id"),
-            nullable=False,
-        ),
         sa.Column("sample_id", sa.Integer, ForeignKey("Sample.id"), nullable=True),
         sa.Column("attributi", sa.JSON, nullable=False),
     )
@@ -198,31 +201,26 @@ class DBTables:
     def __init__(
         self,
         sample: sa.Table,
-        proposal: sa.Table,
         run: sa.Table,
         run_comment: sa.Table,
         attributo: sa.Table,
         event_log: sa.Table,
         analysis_results: sa.Table,
-        # configuration: sa.Table,
-        # indexing_parameter: sa.Table,
-        # indexing_job: sa.Table,
+        file: sa.Table,
+        sample_has_file: sa.Table,
     ) -> None:
         self.event_log = event_log
         self.sample = sample
-        self.proposal = proposal
         self.run = run
         self.run_comment = run_comment
         self.attributo = attributo
         self.analysis_results = analysis_results
-        # self.configuration = configuration
-        # self.indexing_parameter = indexing_parameter
-        # self.indexing_job = indexing_job
+        self.file = file
+        self.sample_has_file = sample_has_file
         self.attributo_run_id = AttributoId("id")
         self.attributo_run_comments = AttributoId("comments")
         self.attributo_run_modified = AttributoId("modified")
         self.attributo_run_sample_id = AttributoId("sample_id")
-        self.attributo_run_proposal_id = AttributoId("proposal_id")
         self.attributo_run_id = AttributoId("id")
         self.additional_attributi: Dict[
             AssociatedTable, Dict[AttributoId, DBAttributo]
@@ -272,12 +270,6 @@ class DBTables:
                     associated_table=AssociatedTable.RUN,
                     attributo_type=AttributoTypeSample(),
                 ),
-                self.attributo_run_proposal_id: DBAttributo(
-                    name=self.attributo_run_proposal_id,
-                    description="Proposal",
-                    associated_table=AssociatedTable.RUN,
-                    attributo_type=AttributoTypeInt(),
-                ),
             },
         }
 
@@ -285,15 +277,13 @@ class DBTables:
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     return DBTables(
         sample=_table_sample(metadata),
-        proposal=_table_proposal(metadata),
         run=_table_run(metadata),
         run_comment=_table_run_comment(metadata),
         attributo=_table_attributo(metadata),
         event_log=_table_event_log(metadata),
         analysis_results=_table_analysis_results(metadata),
-        # configuration=_table_configuration(metadata),
-        # indexing_parameter=_table_indexing_parameter(metadata),
-        # indexing_job=_table_indexing_job(metadata),
+        file=_table_file(metadata),
+        sample_has_file=_table_sample_has_file(metadata),
     )
 
 

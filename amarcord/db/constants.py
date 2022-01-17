@@ -1,8 +1,5 @@
 from typing import Final
 
-MANUAL_SOURCE_NAME: Final = "manual"
-ONLINE_SOURCE_NAME: Final = "online"
-OFFLINE_SOURCE_NAME: Final = "offline"
 DB_SOURCE_NAME: Final = "db"
 ATTRIBUTO_NAME_REGEX = "[a-z][a-z0-9_]*"
 ATTRIBUTO_NOT_NAME_REGEX = "[^a-z0-9_]"

@@ -13,6 +13,7 @@ from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
+import pytz
 from lark import Token
 from lark import Tree
 from lark import exceptions as le
@@ -266,3 +267,21 @@ def sha256_files(ps: Iterable[Path]) -> str:
 def read_file_to_string(p: Path) -> str:
     with p.open("r") as f:
         return f.read()
+
+
+# see https://stackoverflow.com/questions/79797/how-to-convert-local-time-string-to-utc
+def local_time_to_utc(
+    d: datetime.datetime, current_time_zone: Optional[str] = None
+) -> datetime.datetime:
+    tzname = (
+        current_time_zone
+        if current_time_zone
+        else datetime.datetime.now().astimezone().tzname()
+    )
+    if tzname is None:
+        raise Exception(
+            "couldn't figure out the current system time zone, and none was given"
+        )
+
+    local = pytz.timezone(tzname)
+    return local.localize(d).astimezone(pytz.utc)

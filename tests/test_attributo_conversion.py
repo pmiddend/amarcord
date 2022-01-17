@@ -3,14 +3,12 @@ from dataclasses import replace
 from typing import Final
 
 import pytest
-from isodate import duration_isoformat
 
 from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi import convert_attributo_value
-from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeChoice, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
-from amarcord.db.attributo_type import AttributoTypeDuration
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
@@ -125,32 +123,6 @@ def test_attributo_int_to_list() -> None:
         )
 
 
-def test_attributo_duration_to_duration() -> None:
-    v = datetime.timedelta(minutes=1)
-    assert (
-        convert_attributo_value(
-            AttributoTypeDuration(),
-            AttributoTypeDuration(),
-            _default_flags,
-            v,
-        )
-        == v
-    )
-
-
-def test_attributo_duration_to_string() -> None:
-    v = datetime.timedelta(minutes=1)
-    assert (
-        convert_attributo_value(
-            AttributoTypeDuration(),
-            AttributoTypeString(),
-            _default_flags,
-            v,
-        )
-        == str(v)
-    )
-
-
 def test_attributo_list_to_list() -> None:
     # first, test without length restrictions and the same contained types
     assert (
@@ -231,7 +203,7 @@ def test_attributo_list_to_list() -> None:
                 sub_type=AttributoTypeDouble(), min_length=2, max_length=5
             ),
             AttributoTypeList(
-                sub_type=AttributoTypeDuration(), min_length=2, max_length=4
+                sub_type=AttributoTypeDateTime(), min_length=2, max_length=4
             ),
             _default_flags,
             [1, 2, 3, 4, 5],
@@ -261,19 +233,6 @@ def test_attributo_string_to_int() -> None:
         convert_attributo_value(
             AttributoTypeString(), AttributoTypeInt(), _default_flags, "a"
         )
-
-
-def test_attributo_string_duration() -> None:
-    t = datetime.timedelta(minutes=3)
-    assert (
-        convert_attributo_value(
-            AttributoTypeString(),
-            AttributoTypeDuration(),
-            _default_flags,
-            duration_isoformat(t),
-        )
-        == t
-    )
 
 
 def test_attributo_string_datetime() -> None:
@@ -375,7 +334,7 @@ def test_attributo_string_list() -> None:
         convert_attributo_value(
             AttributoTypeString(),
             AttributoTypeList(
-                sub_type=AttributoTypeDuration(), min_length=None, max_length=None
+                sub_type=AttributoTypeDateTime(), min_length=None, max_length=None
             ),
             _default_flags,
             "abc",
@@ -519,7 +478,7 @@ def test_attributo_double_list() -> None:
         convert_attributo_value(
             AttributoTypeDouble(),
             AttributoTypeList(
-                sub_type=AttributoTypeDuration(), min_length=None, max_length=None
+                sub_type=AttributoTypeDateTime(), min_length=None, max_length=None
             ),
             _default_flags,
             1,
@@ -640,4 +599,106 @@ def test_attributo_choice_to_string() -> None:
             "v1",
         )
         == "v1"
+    )
+
+
+def test_attributo_boolean_to_int() -> None:
+    assert (
+        convert_attributo_value(
+            AttributoTypeBoolean(),
+            AttributoTypeInt(),
+            _default_flags,
+            True,
+        )
+        == 1
+    )
+    assert (
+        convert_attributo_value(
+            AttributoTypeBoolean(),
+            AttributoTypeInt(),
+            _default_flags,
+            False,
+        )
+        == 0
+    )
+
+
+def test_attributo_boolean_to_double() -> None:
+    assert (
+        convert_attributo_value(
+            AttributoTypeBoolean(),
+            AttributoTypeDouble(),
+            _default_flags,
+            True,
+        )
+        == 1.0
+    )
+    assert (
+        convert_attributo_value(
+            AttributoTypeBoolean(),
+            AttributoTypeDouble(),
+            _default_flags,
+            False,
+        )
+        == 0.0
+    )
+    with pytest.raises(Exception):
+        convert_attributo_value(
+            AttributoTypeBoolean(),
+            AttributoTypeDouble(
+                range=NumericRange(
+                    minimum=20,
+                    minimum_inclusive=False,
+                    maximum=None,
+                    maximum_inclusive=False,
+                )
+            ),
+            _default_flags,
+            False,
+        )
+
+
+def test_attributo_boolean_to_string() -> None:
+    assert (
+        convert_attributo_value(
+            AttributoTypeBoolean(),
+            AttributoTypeString(),
+            _default_flags,
+            True,
+        )
+        == "True"
+    )
+
+    assert (
+        convert_attributo_value(
+            AttributoTypeBoolean(),
+            AttributoTypeString(),
+            _default_flags,
+            False,
+        )
+        == "False"
+    )
+
+
+def test_attributo_string_to_boolean() -> None:
+    assert (
+        # pylint: disable=singleton-comparison
+        convert_attributo_value(
+            AttributoTypeString(),
+            AttributoTypeBoolean(),
+            _default_flags,
+            "True",
+        )
+        == True
+    )
+
+    assert (
+        # pylint: disable=singleton-comparison
+        convert_attributo_value(
+            AttributoTypeString(),
+            AttributoTypeBoolean(),
+            _default_flags,
+            "yes",
+        )
+        == True
     )

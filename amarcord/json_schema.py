@@ -12,6 +12,11 @@ class JSONSchemaInteger:
     format: Optional[str]
 
 
+@dataclass(frozen=True)
+class JSONSchemaBoolean:
+    pass
+
+
 class JSONSchemaNumberFormat(Enum):
     STANDARD_UNIT = "standard-unit"
 
@@ -45,7 +50,11 @@ class JSONSchemaArray:
 
 
 JSONSchemaType = Union[
-    JSONSchemaInteger, JSONSchemaNumber, JSONSchemaString, JSONSchemaArray
+    JSONSchemaInteger,
+    JSONSchemaNumber,
+    JSONSchemaString,
+    JSONSchemaArray,
+    JSONSchemaBoolean,
 ]
 
 
@@ -54,12 +63,10 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
     if type_ is None:
         raise Exception("json schema has no type attribute")
     if type_ == "integer":
-        return JSONSchemaInteger(
-            minimum=s.get("minimum", None),
-            maximum=s.get("maximum", None),
-            exclusiveMinimum=s.get("exclusiveMinimum", None),
-            exclusiveMaximum=s.get("exclusiveMaximum", None),
-        )
+        return JSONSchemaInteger(format=None)
+
+    if type_ == "boolean":
+        return JSONSchemaBoolean()
 
     if type_ == "number":
         format_ = s.get("format", None)

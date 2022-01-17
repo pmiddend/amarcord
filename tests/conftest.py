@@ -1,14 +1,15 @@
-import pytest
+import pytest_asyncio
 
-from amarcord.db.db import DB
-from amarcord.db.tables import create_tables
+from amarcord.db.async_dbcontext import AsyncDBContext
+from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.tables import create_tables_from_metadata
 from amarcord.db.dbcontext import CreationMode
-from amarcord.db.dbcontext import DBContext
 
 
-@pytest.fixture
-def db() -> DB:
-    db_context = DBContext("sqlite://", echo=False)
-    tables = create_tables(db_context)
-    db_context.create_all(creation_mode=CreationMode.DONT_CHECK)
-    return DB(db_context, tables)
+@pytest_asyncio.fixture
+async def db() -> AsyncDB:
+    context = AsyncDBContext("sqlite+aiosqlite://")
+    # pylint: disable=assigning-non-slot
+    result = AsyncDB(context, create_tables_from_metadata(context.metadata))
+    await context.create_all(CreationMode.CHECK_FIRST)
+    return result

@@ -11,6 +11,7 @@ AttributoValue = Union[
     float,
     datetime.datetime,
     datetime.timedelta,
+    bool,
     List[int],
     List[str],
     List[float],

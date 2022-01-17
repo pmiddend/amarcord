@@ -3,75 +3,87 @@ stages:
   - test
   - integration
   - deploy
+  - upload-docker
 
 # this is a workaround for etcd runner issues
 default:
   tags:
     - DESY-intern
 
-# We have no shell scripts currently
-#check-shell-scripts:
-#  stage: pretest
-#  image: koalaman/shellcheck-alpine:latest
-#  script:
-#    - shellcheck ci/*.sh
-
 variables:
   AMARCORD_PYTHON_DOCKER: gitlab.desy.de:5555/cfel-sc-public/amarcord/poetry-base-image:v1-1-8
   # this is a workaround for the root CA issue in DESY’s GitLab CI (will be fixed soon (tm))
   GIT_SSL_NO_VERIFY: "true"
 
+check-shell-scripts:
+  stage: pretest
+  image: koalaman/shellcheck-alpine:latest
+  script:
+    - shellcheck ci/*.sh
+
 check-requirements:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
   script:
-    # without-hashes because:
-    # https://github.com/python-poetry/poetry/issues/3472
-    - poetry export --dev --without-hashes -o requirements-new.txt
-    - diff requirements.txt requirements-new.txt
+    - ./ci/check-requirements.sh
 
 pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
   script:
-    - poetry install
-    - poetry run mypy amarcord tests
-    - apt-get update -y && apt-get install -y qtbase5-dev
-    - poetry run pylint amarcord tests
-
-run-migrations:
-  image: $AMARCORD_PYTHON_DOCKER
-  stage: integration
-  script:
-    - poetry install
-    - poetry run amarcord-db-cli --connection-url="sqlite://" migrate
+    - ./ci/pylint-and-mypy.sh
 
 tests:
   image: $AMARCORD_PYTHON_DOCKER
-  stage: integration
-  variables:
-    QT_QPA_PLATFORM: "offscreen"
+  stage: test
   script:
-    - apt-get update -y
-    - apt-get install -y libgl1-mesa-glx qtbase5-dev
-    - poetry install
-    - poetry run pytest --cov=amarcord/ --junitxml=report.xml tests
-    - poetry run coverage xml
+    - ./ci/run-tests.sh
   artifacts:
     when: always
     reports:
       cobertura: coverage.xml
       junit: report.xml
 
-#deploy-pypi:
-#  image: $AMARCORD_PYTHON_DOCKER
-#  stage: deploy
-#  only:
-#    - tags
-#    - master
-#  script:
-#    - poetry install
-#    - pip install wheel twine
-#    - python setup.py sdist bdist_wheel
-#    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --skip-existing --repository-url https://gitlab.desy.de/api/v4/projects/${CI_PROJECT_ID}/packages/pypi dist/*
-#
+build-frontend:
+  image: node:17.4
+  stage: test
+  script:
+    - ./ci/build-frontend.sh
+  artifacts:
+    paths:
+      - frontend/output
+
+
+upload-webserver:
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  stage: upload-docker
+  variables:
+    # To deploy this to main, we need a slug, not an SHA, actually. Need to fix that.
+    IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    IMAGE_COMMIT_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  only:
+    - tags
+    - main
+  script:
+    - ./ci/upload-webserver.sh
+
+upload-webserver-manual:
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  stage: upload-docker
+  variables:
+    # To deploy this to main, we need a slug, not an SHA, actually. Need to fix that.
+    IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    IMAGE_COMMIT_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  when: manual
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "$IMAGE_SLUG_TAG" --destination "$IMAGE_COMMIT_TAG"

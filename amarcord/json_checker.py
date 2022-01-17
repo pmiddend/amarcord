@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 from typing import Optional
 
 from amarcord.json import JSONDict
@@ -99,3 +99,26 @@ class JSONChecker:
         if not isinstance(v, bool):
             raise Exception(f'{self.description} result: value "{key}" not a bool: {v}')
         return v
+
+    def retrieve_safe_object(self, key: str) -> JSONDict:
+        v = self.retrieve_safe(key)
+        if not isinstance(v, dict):
+            raise Exception(
+                f'{self.description} result: value "{key}" not a dictionary: {v}'
+            )
+        return v
+
+    def retrieve_int_array(self, key: str) -> List[int]:
+        json_array = self.d.get(key, None)
+        if json_array is None:
+            raise Exception(f"{self.description}: {key} not found")
+        if not isinstance(json_array, list):
+            raise Exception(f"{self.description}: {key} not an array but: {json_array}")
+        result: List[int] = []
+        for i, number in enumerate(json_array):
+            if not isinstance(number, int):
+                raise Exception(
+                    f"{self.description}: {key}[{i}] contains non-integer: {number}"
+                )
+            result.append(number)
+        return result

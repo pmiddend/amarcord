@@ -55,3 +55,28 @@ Content-Type: application/json
     }
   }
 }
+
+# Add a new sample
+POST http://localhost:5000/api/samples
+Content-Type: application/json
+
+{
+  "name": "firstsample",
+  "attributi": {
+  }
+}
+
+# Retrieve all samples
+GET http://localhost:5000/api/samples
+
+# Update a new sample
+POST http://localhost:5000/api/samples
+Content-Type: application/json
+
+{
+  "id": 1,
+  "name": "firstsample",
+  "attributi": {
+    "somenumber": 3.5
+  }
+}

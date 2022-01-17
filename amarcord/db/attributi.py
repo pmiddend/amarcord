@@ -11,15 +11,13 @@ from typing import Tuple
 from typing import Type
 
 from dateutil import tz
-from isodate import parse_duration
 from pint import UnitRegistry
 
-from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
-from amarcord.db.attributo_type import AttributoTypeDuration
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
@@ -30,7 +28,7 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.json import JSONDict
 from amarcord.json import JSONValue
-from amarcord.json_schema import JSONSchemaArray
+from amarcord.json_schema import JSONSchemaArray, JSONSchemaBoolean
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaNumber
 from amarcord.json_schema import JSONSchemaNumberFormat
@@ -39,7 +37,6 @@ from amarcord.json_schema import JSONSchemaStringFormat
 from amarcord.json_schema import JSONSchemaType
 from amarcord.json_schema import parse_schema_type
 from amarcord.numeric_range import NumericRange
-from amarcord.util import print_natural_delta
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int
 
@@ -73,6 +70,8 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
             suffix=parsed_schema.suffix,
             standard_unit=parsed_schema.format_ == JSONSchemaNumberFormat.STANDARD_UNIT,
         )
+    if isinstance(parsed_schema, JSONSchemaBoolean):
+        return AttributoTypeBoolean()
     if isinstance(parsed_schema, JSONSchemaInteger):
         if parsed_schema.format is not None:
             if parsed_schema.format == _SAMPLE_ID:
@@ -108,8 +107,6 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
             return AttributoTypeChoice(parsed_schema.enum_)
         if parsed_schema.format_ == JSONSchemaStringFormat.DATE_TIME:
             return AttributoTypeDateTime()
-        if parsed_schema.format_ == JSONSchemaStringFormat.DURATION:
-            return AttributoTypeDuration()
         return AttributoTypeString()
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
 
@@ -117,6 +114,8 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
 def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
     if isinstance(rp, AttributoTypeInt):
         return {"type": "integer"}
+    if isinstance(rp, AttributoTypeBoolean):
+        return {"type": "boolean"}
     if isinstance(rp, AttributoTypeDouble):
         result_double: Dict[str, JSONValue] = {"type": "number"}
         if rp.range is not None:
@@ -144,8 +143,6 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
         return {"type": "string", "enum": rp.values}
     if isinstance(rp, AttributoTypeDateTime):
         return {"type": "string", "format": "date-time"}
-    if isinstance(rp, AttributoTypeDuration):
-        return {"type": "string", "format": "duration"}
     if isinstance(rp, AttributoTypeList):
         base: JSONDict = {
             "type": "array",
@@ -194,12 +191,6 @@ def pretty_print_attributo(
                 .astimezone(tz.tzlocal())
                 .strftime("%Y-%m-%d %H:%M:%S")
             )
-        if isinstance(rpt, AttributoTypeDuration):
-            # FIXME
-            assert isinstance(
-                value, datetime.timedelta
-            ), f'expected timedelta for "{attributo_metadata.name}", got {type(value)}'
-            return print_natural_delta(value)
         if isinstance(rpt, AttributoTypeComments):
             assert isinstance(
                 value, list
@@ -253,8 +244,6 @@ def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
         return "comments"
     if isinstance(pt, AttributoTypeDateTime):
         return "date and time"
-    if isinstance(pt, AttributoTypeDuration):
-        return "durations" if plural else "duration"
     if isinstance(pt, AttributoTypeList):
         return "list of " + attributo_type_to_string(pt.sub_type, plural=True)
     raise Exception(f"invalid property type {type(pt)}")
@@ -382,6 +371,84 @@ def _convert_int_to_double(
     return v
 
 
+def _convert_int_to_boolean(
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeInt)
+    assert isinstance(after_type, AttributoTypeBoolean)
+    assert isinstance(v, int)
+
+    return v != 0
+
+
+def _convert_double_to_boolean(
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeDouble)
+    assert isinstance(after_type, AttributoTypeBoolean)
+    assert isinstance(v, (float, int))
+
+    return v != 0
+
+
+def _convert_boolean_to_int(
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeBoolean)
+    assert isinstance(after_type, AttributoTypeInt)
+    assert isinstance(v, bool)
+
+    return 1 if v else 0
+
+
+def _convert_boolean_to_double(
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeBoolean)
+    assert isinstance(after_type, AttributoTypeDouble)
+    assert isinstance(v, bool)
+
+    result = 1.0 if v else 0.0
+    if after_type.range is not None and not after_type.range.value_is_inside(result):
+        raise Exception(
+            f"cannot convert boolean {v} to double: resulting value {result} is not in range {after_type.range}"
+        )
+    return result
+
+
+def _convert_string_to_boolean(
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
+) -> AttributoValue:
+    assert isinstance(before_type, AttributoTypeString)
+    assert isinstance(after_type, AttributoTypeBoolean)
+    assert isinstance(v, str)
+
+    trues = ["true", "1", "yes"]
+    falses = ["false", "0", "no"]
+
+    if v.strip().lower() in trues:
+        return True
+    if v.strip().lower() in falses:
+        return False
+
+    raise Exception(f"cannot convert string {v.strip()} to boolean")
+
+
 def _convert_string_to_int(
     before_type: AttributoType,
     after_type: AttributoType,
@@ -453,22 +520,6 @@ def _convert_double_to_double(
         return UnitRegistry().Quantity(v, before_type.suffix).to(after_type.suffix).m
 
     return v
-
-
-def _convert_string_to_duration(
-    before_type: AttributoType,
-    after_type: AttributoType,
-    _conversion_flags: AttributoConversionFlags,
-    v: AttributoValue,
-) -> AttributoValue:
-    assert isinstance(before_type, AttributoTypeString)
-    assert isinstance(after_type, AttributoTypeDuration)
-    assert isinstance(v, str)
-
-    try:
-        return parse_duration(v)
-    except:
-        raise Exception(f'cannot convert string "{v}" to duration (not ISO format)')
 
 
 def _convert_string_to_datetime(
@@ -579,21 +630,11 @@ _conversion_matrix.update(
         (AttributoTypeInt, AttributoTypeList): _convert_int_to_int_list,
         (AttributoTypeInt, AttributoTypeDouble): _convert_int_to_double,
         (AttributoTypeInt, AttributoTypeString): lambda before, after, flags, v: str(v),
-        # start duration
-        (
-            AttributoTypeDuration,
-            AttributoTypeDuration,
-        ): lambda before, after, flags, v: v,
-        (
-            AttributoTypeDuration,
-            AttributoTypeString,
-        ): lambda before, after, flags, v: str(v),
         # start list
         (AttributoTypeList, AttributoTypeList): _convert_list_to_list,
         # start string
         (AttributoTypeString, AttributoTypeString): lambda before, after, flags, v: v,
         (AttributoTypeString, AttributoTypeInt): _convert_string_to_int,
-        (AttributoTypeString, AttributoTypeDuration): _convert_string_to_duration,
         (AttributoTypeString, AttributoTypeDateTime): _convert_string_to_datetime,
         (AttributoTypeString, AttributoTypeChoice): _convert_string_to_choice,
         (AttributoTypeString, AttributoTypeDouble): _convert_string_to_double,
@@ -605,6 +646,32 @@ _conversion_matrix.update(
         (AttributoTypeDouble, AttributoTypeString): lambda before, after, flags, v: str(
             v
         ),
+        # start bool
+        (AttributoTypeBoolean, AttributoTypeBoolean): lambda before, after, flags, v: v,
+        (
+            AttributoTypeBoolean,
+            AttributoTypeString,
+        ): lambda before, after, flags, v: str(v),
+        (
+            AttributoTypeString,
+            AttributoTypeBoolean,
+        ): _convert_string_to_boolean,
+        (
+            AttributoTypeInt,
+            AttributoTypeBoolean,
+        ): _convert_int_to_boolean,
+        (
+            AttributoTypeDouble,
+            AttributoTypeBoolean,
+        ): _convert_double_to_boolean,
+        (
+            AttributoTypeBoolean,
+            AttributoTypeInt,
+        ): _convert_boolean_to_int,
+        (
+            AttributoTypeBoolean,
+            AttributoTypeDouble,
+        ): _convert_boolean_to_double,
         # start sample
         (AttributoTypeSample, AttributoTypeSample): lambda before, after, flags, v: v,
         # start datetime

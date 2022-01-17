@@ -13,12 +13,6 @@ class AttributoTypeInt:
 
 
 @dataclass(frozen=True)
-class AttributoTypeDuration:
-    def __str__(self) -> str:
-        return "duration"
-
-
-@dataclass(frozen=True)
 class AttributoTypeList:
     sub_type: "AttributoType"
     min_length: Optional[int]
@@ -38,6 +32,12 @@ class AttributoTypeList:
 class AttributoTypeString:
     def __str__(self) -> str:
         return "string"
+
+
+@dataclass(frozen=True)
+class AttributoTypeBoolean:
+    def __str__(self) -> str:
+        return "boolean"
 
 
 @dataclass(frozen=True)
@@ -93,6 +93,6 @@ AttributoType = Union[
     AttributoTypeString,
     AttributoTypeComments,
     AttributoTypeDateTime,
-    AttributoTypeDuration,
     AttributoTypeList,
+    AttributoTypeBoolean,
 ]

@@ -4,11 +4,10 @@ from pathlib import Path
 from typing import List
 from typing import Optional
 
+from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.comment import DBComment
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.indexing_job_status import IndexingJobStatus
-from amarcord.db.proposal_id import ProposalId
-from amarcord.db.raw_attributi_map import RawAttributiMap
 
 
 @dataclass(frozen=True)
@@ -21,16 +20,24 @@ class DBEvent:
 
 
 @dataclass(frozen=True)
+class DBFile:
+    id: Optional[int]
+    description: str
+    type_: str
+    file_name: str
+
+
+@dataclass(frozen=True)
 class DBSample:
     id: Optional[int]
-    proposal_id: ProposalId
     name: str
-    attributi: RawAttributiMap
+    attributi: AttributiMap
+    files: List[DBFile]
 
 
 @dataclass(frozen=True)
 class DBRun:
-    attributi: RawAttributiMap
+    attributi: AttributiMap
     id: int
     sample_id: Optional[int]
     proposal_id: int
