@@ -1,21 +1,13 @@
-module App.Components.Router where
+module App.Components.Router
+  ( Query(..)
+  , component
+  ) where
 
-import App.Components.Analysis as Analysis
-import App.Components.Beamline as Beamline
-import App.Components.Compounds as Compounds
-import App.Components.Crystals as Crystals
-import App.Components.JobList as JobList
-import App.Components.Pucks as Pucks
-import App.Components.SingleJob as SingleJob
-import App.Components.Targets as Targets
-import App.Components.P11Ingest as P11Ingest
-import App.Components.Tools as Tools
-import App.Components.ToolsAdmin as ToolsAdmin
-import App.Halogen.FontAwesome (icon)
+import App.FontAwesome (icon)
 import App.HalogenUtils (classList, singleClass)
-import App.Root as Root
-import App.Route (Route(..), SelectedColumns(..), routeCodec, sameRoute, createLink)
-import App.SortOrder (SortOrder(..))
+import App.Components.Root as Root
+import App.Components.Attributi (attributiComponent)
+import App.Route (Route(..), sameRoute, createLink, routeCodec)
 import Control.Bind (discard, pure, when)
 import Control.Monad (bind)
 import Data.Either (hush)
@@ -44,35 +36,21 @@ import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 amarcordProgramVersion :: String
 amarcordProgramVersion = "latest"
 
-type State
-  =
+type State =
   { route :: Maybe Route
   }
 
-data Query a
-  = Navigate Route a
+data Query a = Navigate Route a
 
 data Action
   = Initialize
   | GoTo Route MouseEvent
 
-type OpaqueSlot slot
-  = forall query. H.Slot query Void slot
+type OpaqueSlot slot = forall query. H.Slot query Void slot
 
-type ChildSlots
-  =
+type ChildSlots =
   ( root :: OpaqueSlot Unit
-  , crystals :: OpaqueSlot Unit
-  , p11ingest :: OpaqueSlot Unit
-  , pucks :: OpaqueSlot Unit
-  , targets :: OpaqueSlot Unit
-  , beamline :: OpaqueSlot Unit
-  , compounds :: OpaqueSlot Unit
-  , analysis :: OpaqueSlot Unit
-  , tools :: OpaqueSlot Unit
-  , toolsadmin :: OpaqueSlot Unit
-  , jobs :: OpaqueSlot Unit
-  , job :: OpaqueSlot Unit
+  , attributi :: OpaqueSlot Unit
   )
 
 component :: forall i o m. MonadAff m => H.Component Query i o m
@@ -121,20 +99,9 @@ render st =
         Nothing -> HH.h1_ [ HH.text "Oh no! That page wasn't found!" ]
         Just route -> case route of
           Root -> HH.slot (Proxy :: _ "root") unit Root.component unit absurd
-          Crystals -> HH.slot (Proxy :: _ "crystals") unit Crystals.component { sortColumn: Just "created", sortOrder: Descending } absurd
-          P11Ingest -> HH.slot (Proxy :: _ "p11ingest") unit P11Ingest.component {} absurd
-          Pucks -> HH.slot (Proxy :: _ "pucks") unit Pucks.component {} absurd
-          Targets -> HH.slot (Proxy :: _ "targets") unit Targets.component {} absurd
-          Jobs input -> HH.slot (Proxy :: _ "jobs") unit JobList.component input absurd
-          CompoundOverview -> HH.slot (Proxy :: _ "compounds") unit Compounds.component unit absurd
-          Job input -> HH.slot (Proxy :: _ "job") unit SingleJob.component input absurd
-          ToolsAdmin -> HH.slot (Proxy :: _ "toolsadmin") unit ToolsAdmin.component unit absurd
-          Analysis input -> HH.slot (Proxy :: _ "analysis") unit Analysis.component input absurd
-          Tools input -> HH.slot (Proxy :: _ "tools") unit Tools.component input absurd
-          Beamline input -> HH.slot (Proxy :: _ "beamline") unit Beamline.component input absurd
+          Attributi -> HH.slot (Proxy :: _ "attributi") unit attributiComponent unit absurd
 
-type NavItemData
-  =
+type NavItemData =
   { fa :: String
   , link :: Route
   , title :: String
@@ -147,35 +114,11 @@ data NavItem
 navItems
   :: Array NavItem
 navItems =
-  [ NestedNavItem { fa: "vial", title: "Sample" }
-      [ { title: "Compounds", link: CompoundOverview, fa: "atom" }
-      , { title: "Crystals", link: Crystals, fa: "gem" }
-      , { title: "Pucks", link: Pucks, fa: "hockey-puck" }
-      , { title: "Targets", link: Targets, fa: "bullseye" }
-      ]
-  , AtomicNavItem
-      { title: "Beamline"
-      , link: Beamline { puckId: Nothing, crystalId: Nothing }
-      , fa: "radiation"
+  [ AtomicNavItem
+      { title: "Attributi"
+      , link: Attributi
+      , fa: "clipboard"
       }
-  , AtomicNavItem
-      { title: "Analysis"
-      , link:
-          Analysis
-            { sortOrder: Descending
-            , sortColumn: Nothing
-            , filterQuery: ""
-            , selectedColumns: SelectedColumns []
-            , limit: 500
-            }
-      , fa: "table"
-      }
-  , NestedNavItem { fa: "tools", title: "Processing" }
-      [ { title: "Run tools", link: Tools {}, fa: "running" }
-      , { title: "View jobs", link: Jobs { limit: 200, statusFilter: Nothing, tagFilter: Nothing, durationFilter: Nothing }, fa: "tasks" }
-      , { title: "Administer tools", link: ToolsAdmin, fa: "screwdriver" }
-      , { title: "P11 Ingest", link: P11Ingest, fa: "box-open" }
-      ]
   ]
 
 makeNavItem
@@ -249,9 +192,7 @@ navbar route =
       ]
 
 contentView :: forall t150 t151. HH.HTML t151 t150 -> HH.HTML t151 t150
-contentView html =
-  HH.main [ HPA.role "main" ]
-    [ html ]
+contentView html = HH.main [ HPA.role "main" ] [ html ]
 
 skeleton :: forall a. Maybe Route -> HH.HTML a Action -> HH.HTML a Action
 skeleton route html =
@@ -268,7 +209,5 @@ skeleton route html =
             , HH.ul [ singleClass "nav nav-pills" ] (makeNavItem route <$> navItems)
             ]
         ]
-    , HH.div [ singleClass "container-fluid" ]
-        [ contentView html
-        ]
+    , HH.div [ singleClass "container-fluid" ] [ contentView html ]
     ]

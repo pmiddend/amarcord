@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from amarcord.numeric_range import NumericRange
@@ -9,22 +8,8 @@ from amarcord.numeric_range import NumericRange
 
 @dataclass(frozen=True)
 class AttributoTypeInt:
-    nonNegative: bool = False
-    range: Optional[Tuple[int, int]] = None
-
     def __str__(self) -> str:
-        if not self.nonNegative and self.range is None:
-            return "int"
-        return (
-            "int ("
-            + ("> 0" if self.nonNegative else "")
-            + (
-                f"in [{self.range[0]}, {self.range[1]}]"
-                if self.range is not None
-                else ""
-            )
-            + ")"
-        )
+        return "integer"
 
 
 @dataclass(frozen=True)
@@ -94,10 +79,10 @@ class AttributoTypeDateTime:
 
 @dataclass(frozen=True)
 class AttributoTypeChoice:
-    values: List[Tuple[str, str]]
+    values: List[str]
 
     def __str__(self) -> str:
-        return "one of: " + ",".join(f"{x[0]} => {x[1]}" for x in self.values)
+        return "one of: " + ",".join(self.values)
 
 
 AttributoType = Union[

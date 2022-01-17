@@ -119,10 +119,17 @@ let additions =
 
 -- let upstream = https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20201021/packages.dhall sha256:55ebdbda1bd6ede4d5307fbc1ef19988c80271b4225d833c8d6fb9b6fb1aa6d8
 let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.14.4-20210905/packages.dhall sha256:140f3630801f2b02d5f3a405d4872e0af317e4ef187016a6b00f97d59d6275c6
+      https://github.com/purescript/package-sets/releases/download/psc-0.14.5-20220110/packages.dhall
+        sha256:8dbf71bfc6c7a11043619eebe90ff85f7d884541048aa8cc48eef1ee781cbc0e
 
 let overrides = {=}
 
-let additions = {=}
+let additions =
+      { convertable-options =
+        { dependencies = [ "console", "effect", "maybe", "record" ]
+        , repo = "https://github.com/natefaubion/purescript-convertable-options"
+        , version = "v1.0.0"
+        }
+      }
 
 in  upstream // overrides // additions

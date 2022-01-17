@@ -93,3 +93,9 @@ class JSONChecker:
                 f'{self.description} result: value "{key}" not a string: {v}'
             )
         return v
+
+    def retrieve_safe_boolean(self, key: str) -> bool:
+        v = self.retrieve_safe(key)
+        if not isinstance(v, bool):
+            raise Exception(f'{self.description} result: value "{key}" not a bool: {v}')
+        return v

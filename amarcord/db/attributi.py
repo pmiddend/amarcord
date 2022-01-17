@@ -1,8 +1,10 @@
 import datetime
 import logging
+from dataclasses import dataclass
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Final
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -41,6 +43,8 @@ from amarcord.util import print_natural_delta
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int
 
+_SAMPLE_ID: Final = "sample-id"
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +74,11 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
             standard_unit=parsed_schema.format_ == JSONSchemaNumberFormat.STANDARD_UNIT,
         )
     if isinstance(parsed_schema, JSONSchemaInteger):
-        return AttributoTypeInt(range=None)
+        if parsed_schema.format is not None:
+            if parsed_schema.format == _SAMPLE_ID:
+                return AttributoTypeSample()
+            raise Exception(f'integer with format "{parsed_schema.format}" invalid')
+        return AttributoTypeInt()
     if isinstance(parsed_schema, JSONSchemaArray):
         if isinstance(parsed_schema.value_type, JSONSchemaNumber):
             return AttributoTypeList(
@@ -97,7 +105,7 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
         )
     if isinstance(parsed_schema, JSONSchemaString):
         if parsed_schema.enum_ is not None:
-            return AttributoTypeChoice([(s, s) for s in parsed_schema.enum_])
+            return AttributoTypeChoice(parsed_schema.enum_)
         if parsed_schema.format_ == JSONSchemaStringFormat.DATE_TIME:
             return AttributoTypeDateTime()
         if parsed_schema.format_ == JSONSchemaStringFormat.DURATION:
@@ -108,11 +116,7 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
 
 def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
     if isinstance(rp, AttributoTypeInt):
-        result_int: Dict[str, JSONValue] = {"type": "integer"}
-        if rp.range is not None:
-            result_int["minimum"] = rp.range[0]
-            result_int["maximum"] = rp.range[1]
-        return result_int
+        return {"type": "integer"}
     if isinstance(rp, AttributoTypeDouble):
         result_double: Dict[str, JSONValue] = {"type": "number"}
         if rp.range is not None:
@@ -135,9 +139,9 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
     if isinstance(rp, AttributoTypeString):
         return {"type": "string"}
     if isinstance(rp, AttributoTypeSample):
-        return {"type": "integer", "format": "sample-id"}
+        return {"type": "integer", "format": _SAMPLE_ID}
     if isinstance(rp, AttributoTypeChoice):
-        return {"type": "string", "enum": [v[1] for v in rp.values]}
+        return {"type": "string", "enum": rp.values}
     if isinstance(rp, AttributoTypeDateTime):
         return {"type": "string", "format": "date-time"}
     if isinstance(rp, AttributoTypeDuration):
@@ -256,15 +260,40 @@ def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
     raise Exception(f"invalid property type {type(pt)}")
 
 
+@dataclass(frozen=True)
+class AttributoConversionFlags:
+    ignore_units: bool
+
+
 _AttributoTypeConverter = Callable[
-    [AttributoType, AttributoType, AttributoValue], AttributoValue
+    [AttributoType, AttributoType, AttributoConversionFlags, AttributoValue],
+    AttributoValue,
 ]
 
 _conversion_matrix: Dict[Tuple[Type, Type], _AttributoTypeConverter] = {}
 
 
+def convert_attributo_value(
+    before_type: AttributoType,
+    after_type: AttributoType,
+    conversion_flags: AttributoConversionFlags,
+    value: AttributoValue,
+) -> AttributoValue:
+    converter = _conversion_matrix.get((type(before_type), type(after_type)), None)
+
+    if converter is None:
+        raise Exception(
+            f"cannot convert from {before_type} to {after_type}: no converter found"
+        )
+
+    return converter(before_type, after_type, conversion_flags, value)
+
+
 def _convert_int_to_int_list(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(after_type, AttributoTypeList)
     assert isinstance(v, int)
@@ -281,7 +310,10 @@ def _convert_int_to_int_list(
 
 
 def _convert_double_to_double_list(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(after_type, AttributoTypeList)
     assert isinstance(v, float)
@@ -298,7 +330,10 @@ def _convert_double_to_double_list(
 
 
 def _convert_string_to_string_list(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(after_type, AttributoTypeList)
     assert isinstance(v, str)
@@ -315,28 +350,23 @@ def _convert_string_to_string_list(
 
 
 def _convert_int_to_int(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeInt)
     assert isinstance(after_type, AttributoTypeInt)
     assert isinstance(v, int)
 
-    if after_type.nonNegative and v < 0:
-        raise Exception(
-            f"cannot convert integer, target is non-negative, but value is {v}"
-        )
-
-    if after_type.range is not None:
-        if v < after_type.range[0] or v > after_type.range[1]:
-            raise Exception(
-                f"cannot convert integer, value {v} is not in range [{after_type.range[0]}, {after_type.range[1]}]"
-            )
-
     return v
 
 
 def _convert_int_to_double(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeInt)
     assert isinstance(after_type, AttributoTypeDouble)
@@ -353,7 +383,10 @@ def _convert_int_to_double(
 
 
 def _convert_string_to_int(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeString)
     assert isinstance(after_type, AttributoTypeInt)
@@ -364,52 +397,69 @@ def _convert_string_to_int(
     if vi is None:
         raise Exception(f'cannot convert string "{v.strip()}" to integer')
 
-    return _convert_int_to_int(AttributoTypeInt(), after_type, vi)
+    return _convert_int_to_int(AttributoTypeInt(), after_type, _conversion_flags, vi)
 
 
 def _convert_double_to_int(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeDouble)
     assert isinstance(after_type, AttributoTypeInt)
     assert isinstance(v, (int, float))
 
-    if after_type.nonNegative and v < 0:
-        raise Exception(
-            f"cannot convert from {before_type} to {after_type}: {v} is negative"
-        )
-
-    if after_type.range is not None and (
-        v < after_type.range[0] or v > after_type.range[1]
-    ):
-        raise Exception(
-            f"cannot convert from {before_type} to {after_type}: {v} is not in range "
-            f"[{after_type.range[0]}, {after_type.range[1]}]"
-        )
-
     return int(v)
 
 
 def _convert_double_to_double(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeDouble)
     assert isinstance(after_type, AttributoTypeDouble)
     assert isinstance(v, (int, float))
 
-    if after_type.range is not None and not after_type.range.value_is_inside(v):
+    # If we ignore units, the range has to be correct afterwards as well
+    if (
+        (conversion_flags.ignore_units or not after_type.standard_unit)
+        and after_type.range is not None
+        and not after_type.range.value_is_inside(v)
+    ):
         raise Exception(
             f"cannot convert decimal number {v} because it's not in the range {after_type.range}"
         )
 
-    if after_type.standard_unit and before_type.standard_unit:
+    # If we want to convert units, the range needs to fit after conversion.
+    # Think about a conversion from MHz to Hz.
+    if (
+        after_type.standard_unit
+        and before_type.standard_unit
+        and not conversion_flags.ignore_units
+    ):
+        magnitude_after = (
+            UnitRegistry().Quantity(v, before_type.suffix).to(after_type.suffix).m
+        )
+        if after_type.range is not None and not after_type.range.value_is_inside(
+            magnitude_after
+        ):
+            raise Exception(
+                f"cannot convert decimal number {v} because after unit conversion, the value {magnitude_after} it's "
+                f"not in the range {after_type.range} "
+            )
         return UnitRegistry().Quantity(v, before_type.suffix).to(after_type.suffix).m
 
     return v
 
 
 def _convert_string_to_duration(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeString)
     assert isinstance(after_type, AttributoTypeDuration)
@@ -422,7 +472,10 @@ def _convert_string_to_duration(
 
 
 def _convert_string_to_datetime(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeString)
     assert isinstance(after_type, AttributoTypeDateTime)
@@ -435,22 +488,28 @@ def _convert_string_to_datetime(
 
 
 def _convert_string_to_choice(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeString)
     assert isinstance(after_type, AttributoTypeChoice)
     assert isinstance(v, str)
 
-    if not [c[1] for c in after_type.values if c[1] == v]:
+    if v not in after_type.values:
         raise Exception(
             f'cannot convert string "{v}" to choice with choices '
-            + ",".join(c[1] for c in after_type.values)
+            + ",".join(after_type.values)
         )
     return v
 
 
 def _convert_string_to_double(
-    before_type: AttributoType, after_type: AttributoType, v: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeString)
     assert isinstance(after_type, AttributoTypeDouble)
@@ -461,24 +520,16 @@ def _convert_string_to_double(
     if vi is None:
         raise Exception(f'cannot convert string "{v.strip()}" to float')
 
-    return _convert_double_to_double(AttributoTypeDouble(), after_type, vi)
-
-
-def convert_attributo_value(
-    before_type: AttributoType, after_type: AttributoType, value: AttributoValue
-) -> AttributoValue:
-    converter = _conversion_matrix.get((type(before_type), type(after_type)), None)
-
-    if converter is None:
-        raise Exception(
-            f"cannot convert from {before_type} to {after_type}: no converter found"
-        )
-
-    return converter(before_type, after_type, value)
+    return _convert_double_to_double(
+        AttributoTypeDouble(), after_type, _conversion_flags, vi
+    )
 
 
 def _convert_list_to_list(
-    before_type: AttributoType, after_type: AttributoType, value: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    value: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeList)
     assert isinstance(after_type, AttributoTypeList)
@@ -497,22 +548,25 @@ def _convert_list_to_list(
     return [
         # type error is expected here, since we don't have lists of AttributoValue yet, since that
         # would mean mypy has support for recursive types.
-        convert_attributo_value(before_type.sub_type, after_type.sub_type, x)  # type: ignore
+        convert_attributo_value(before_type.sub_type, after_type.sub_type, _conversion_flags, x)  # type: ignore
         for x in value
     ]
 
 
 def _convert_choice_to_choice(
-    before_type: AttributoType, after_type: AttributoType, value: AttributoValue
+    before_type: AttributoType,
+    after_type: AttributoType,
+    _conversion_flags: AttributoConversionFlags,
+    value: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeChoice)
     assert isinstance(after_type, AttributoTypeChoice)
     assert isinstance(value, str)
 
-    if value not in [c[1] for c in after_type.values]:
+    if value not in after_type.values:
         raise Exception(
             f"cannot convert choice value, {value} is not in choices "
-            + ",".join(c[1] for c in after_type.values)
+            + ",".join(after_type.values)
         )
 
     return value
@@ -524,14 +578,20 @@ _conversion_matrix.update(
         (AttributoTypeInt, AttributoTypeInt): _convert_int_to_int,
         (AttributoTypeInt, AttributoTypeList): _convert_int_to_int_list,
         (AttributoTypeInt, AttributoTypeDouble): _convert_int_to_double,
-        (AttributoTypeInt, AttributoTypeString): lambda before, after, v: str(v),
+        (AttributoTypeInt, AttributoTypeString): lambda before, after, flags, v: str(v),
         # start duration
-        (AttributoTypeDuration, AttributoTypeDuration): lambda before, after, v: v,
-        (AttributoTypeDuration, AttributoTypeString): lambda before, after, v: str(v),
+        (
+            AttributoTypeDuration,
+            AttributoTypeDuration,
+        ): lambda before, after, flags, v: v,
+        (
+            AttributoTypeDuration,
+            AttributoTypeString,
+        ): lambda before, after, flags, v: str(v),
         # start list
         (AttributoTypeList, AttributoTypeList): _convert_list_to_list,
         # start string
-        (AttributoTypeString, AttributoTypeString): lambda before, after, v: v,
+        (AttributoTypeString, AttributoTypeString): lambda before, after, flags, v: v,
         (AttributoTypeString, AttributoTypeInt): _convert_string_to_int,
         (AttributoTypeString, AttributoTypeDuration): _convert_string_to_duration,
         (AttributoTypeString, AttributoTypeDateTime): _convert_string_to_datetime,
@@ -542,17 +602,22 @@ _conversion_matrix.update(
         (AttributoTypeDouble, AttributoTypeDouble): _convert_double_to_double,
         (AttributoTypeDouble, AttributoTypeInt): _convert_double_to_int,  # type: ignore
         (AttributoTypeDouble, AttributoTypeList): _convert_double_to_double_list,
-        (AttributoTypeDouble, AttributoTypeString): lambda before, after, v: str(v),
+        (AttributoTypeDouble, AttributoTypeString): lambda before, after, flags, v: str(
+            v
+        ),
         # start sample
-        (AttributoTypeSample, AttributoTypeSample): lambda before, after, v: v,
+        (AttributoTypeSample, AttributoTypeSample): lambda before, after, flags, v: v,
         # start datetime
-        (AttributoTypeDateTime, AttributoTypeDateTime): lambda before, after, v: v,
+        (
+            AttributoTypeDateTime,
+            AttributoTypeDateTime,
+        ): lambda before, after, flags, v: v,
         (
             AttributoTypeDateTime,
             AttributoTypeString,
-        ): lambda before, after, v: v.isoformat(),  # type: ignore
+        ): lambda before, after, flags, v: v.isoformat(),  # type: ignore
         # start choice
         (AttributoTypeChoice, AttributoTypeChoice): _convert_choice_to_choice,
-        (AttributoTypeChoice, AttributoTypeString): lambda before, after, v: v,
+        (AttributoTypeChoice, AttributoTypeString): lambda before, after, flags, v: v,
     }
 )

@@ -188,22 +188,6 @@ class DateTimeItemDelegate(QtWidgets.QStyledItemDelegate):
 
 
 class IntItemDelegate(QtWidgets.QStyledItemDelegate):
-    def __init__(
-        self,
-        non_negative: bool,
-        value_range: Optional[Tuple[int, int]],
-        parent: Optional[QtCore.QObject],
-    ) -> None:
-        super().__init__(parent)
-        self._nonNegative = non_negative
-        self._range = (
-            value_range
-            if value_range is not None
-            else [0, 2 ** 30]
-            if non_negative
-            else None
-        )
-
     # pylint: disable=no-self-use
     def createEditor(
         self,
@@ -463,7 +447,7 @@ def delegate_for_attributo_type(
     parent: Optional[QtCore.QObject] = None,
 ) -> QtWidgets.QAbstractItemDelegate:
     if isinstance(proptype, AttributoTypeInt):
-        return IntItemDelegate(proptype.nonNegative, proptype.range, parent)
+        return IntItemDelegate(parent)
     if isinstance(proptype, AttributoTypeDouble):
         return DoubleItemDelegate(proptype.range, proptype.suffix, parent)
     if isinstance(proptype, AttributoTypeList):
@@ -475,7 +459,9 @@ def delegate_for_attributo_type(
     if isinstance(proptype, AttributoTypeString):
         return QtWidgets.QStyledItemDelegate(parent=parent)
     if isinstance(proptype, AttributoTypeChoice):
-        return ComboItemDelegate(values=proptype.values, parent=parent)
+        return ComboItemDelegate(
+            values=[(s, s) for s in proptype.values], parent=parent
+        )
     if isinstance(proptype, AttributoTypeSample):
         values: List[Tuple[str, Optional[int]]] = [
             ("None", cast(Optional[int], None))

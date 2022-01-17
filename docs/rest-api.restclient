@@ -1,23 +1,39 @@
 # -*- restclient -*-
 #
-# Add a new attributo
-POST http://localhost:8080/attributi
+# Add a new attributo (just a string)
+POST http://localhost:5000/api/attributi
 Content-Type: application/json
 
 {
-  "name": "foo",
-  "description": "bar",
+  "name": "somestring",
+  "description": "a plain string",
   "associatedTable": "run",
   "type": {
     "type": "string"
   }
 }
 
+# Add a new attributo (number with unit and range)
+POST http://localhost:5000/api/attributi
+Content-Type: application/json
+
+{
+  "name": "somenumber",
+  "description": "a number with a range",
+  "associatedTable": "sample",
+  "type": {
+    "type": "number",
+    "format": "standard-unit",
+    "suffix": "MHz",
+    "minimum": 3
+  }
+}
+
 # Retrieve all attributi
-GET http://localhost:8080/attributi
+GET http://localhost:5000/api/attributi
 
 # Remove the attributo
-DELETE http://localhost:8080/attributi
+DELETE http://localhost:5000/api/attributi
 Content-Type: application/json
 
 {
@@ -25,7 +41,7 @@ Content-Type: application/json
 }
 
 # Add a new attributo
-PATCH http://localhost:8080/attributi
+PATCH http://localhost:5000/api/attributi
 Content-Type: application/json
 
 {

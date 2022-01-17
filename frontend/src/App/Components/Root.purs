@@ -1,4 +1,4 @@
-module App.Root where
+module App.Components.Root(component) where
 
 import App.HalogenUtils (singleClass)
 import Halogen as H

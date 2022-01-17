@@ -1,8 +1,11 @@
 import datetime
+from dataclasses import replace
+from typing import Final
 
 import pytest
 from isodate import duration_isoformat
 
+from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi import convert_attributo_value
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
@@ -14,56 +17,63 @@ from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.numeric_range import NumericRange
 
+_default_flags: Final = AttributoConversionFlags(ignore_units=False)
+
 
 def test_attributo_int_to_int_conversion() -> None:
     # first, no restrictions on the int, should just work
-    assert convert_attributo_value(AttributoTypeInt(), AttributoTypeInt(), 1) == 1
-    assert convert_attributo_value(AttributoTypeInt(), AttributoTypeInt(), -1) == -1
-
-    # next, we convert to a non-negative integer, this might fail
     assert (
         convert_attributo_value(
-            AttributoTypeInt(), AttributoTypeInt(nonNegative=True), 1
+            AttributoTypeInt(), AttributoTypeInt(), _default_flags, 1
         )
         == 1
     )
-
-    with pytest.raises(Exception):
-        convert_attributo_value(
-            AttributoTypeInt(), AttributoTypeInt(nonNegative=True), -1
-        )
-
-    # converting _from_ a non-negative integer is fine though
     assert (
         convert_attributo_value(
-            AttributoTypeInt(nonNegative=True), AttributoTypeInt(), 1
+            AttributoTypeInt(), AttributoTypeInt(), _default_flags, -1
         )
-        == 1
+        == -1
     )
 
 
 def test_attributo_int_to_string() -> None:
     # next, int to string. no problem
-    assert convert_attributo_value(AttributoTypeInt(), AttributoTypeString(), 1) == "1"
     assert (
-        convert_attributo_value(AttributoTypeInt(), AttributoTypeString(), -1) == "-1"
+        convert_attributo_value(
+            AttributoTypeInt(), AttributoTypeString(), _default_flags, 1
+        )
+        == "1"
+    )
+    assert (
+        convert_attributo_value(
+            AttributoTypeInt(), AttributoTypeString(), _default_flags, -1
+        )
+        == "-1"
     )
     # try a bigger value so we check for thousand separators
     assert (
-        convert_attributo_value(AttributoTypeInt(), AttributoTypeString(), 1000000)
+        convert_attributo_value(
+            AttributoTypeInt(), AttributoTypeString(), _default_flags, 1000000
+        )
         == "1000000"
     )
 
 
 def test_attributo_int_to_double() -> None:
     # next int to double: no problem if the double range is proper; first, no restrictions
-    assert convert_attributo_value(AttributoTypeInt(), AttributoTypeDouble(), 1) == 1.0
+    assert (
+        convert_attributo_value(
+            AttributoTypeInt(), AttributoTypeDouble(), _default_flags, 1
+        )
+        == 1.0
+    )
 
     # now we restrict, successfully...
     assert (
         convert_attributo_value(
             AttributoTypeInt(),
             AttributoTypeDouble(range=NumericRange(0, False, 10, False)),
+            _default_flags,
             5,
         )
         == 5.0
@@ -73,6 +83,7 @@ def test_attributo_int_to_double() -> None:
         convert_attributo_value(
             AttributoTypeInt(),
             AttributoTypeDouble(range=NumericRange(0, False, 10, False)),
+            _default_flags,
             20,
         )
 
@@ -85,6 +96,7 @@ def test_attributo_int_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeInt(), min_length=None, max_length=None
             ),
+            _default_flags,
             1,
         )
         == [1]
@@ -97,6 +109,7 @@ def test_attributo_int_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeInt(), min_length=2, max_length=None
             ),
+            _default_flags,
             1,
         )
 
@@ -107,6 +120,7 @@ def test_attributo_int_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDouble(), min_length=None, max_length=None
             ),
+            _default_flags,
             1,
         )
 
@@ -117,6 +131,7 @@ def test_attributo_duration_to_duration() -> None:
         convert_attributo_value(
             AttributoTypeDuration(),
             AttributoTypeDuration(),
+            _default_flags,
             v,
         )
         == v
@@ -129,6 +144,7 @@ def test_attributo_duration_to_string() -> None:
         convert_attributo_value(
             AttributoTypeDuration(),
             AttributoTypeString(),
+            _default_flags,
             v,
         )
         == str(v)
@@ -145,6 +161,7 @@ def test_attributo_list_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDouble(), min_length=None, max_length=None
             ),
+            _default_flags,
             [1, 2, 3],
         )
         == [1, 2, 3]
@@ -159,6 +176,7 @@ def test_attributo_list_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDouble(), min_length=None, max_length=None
             ),
+            _default_flags,
             [1, 2, 3, 4, 5, 6],
         )
         == [1, 2, 3, 4, 5, 6]
@@ -174,6 +192,7 @@ def test_attributo_list_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDouble(), min_length=3, max_length=10
             ),
+            _default_flags,
             [1, 2],
         )
 
@@ -186,6 +205,7 @@ def test_attributo_list_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDouble(), min_length=2, max_length=4
             ),
+            _default_flags,
             [1, 2, 3, 4, 5],
         )
 
@@ -198,6 +218,7 @@ def test_attributo_list_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeInt(), min_length=None, max_length=None
             ),
+            _default_flags,
             [1, 2, 3, 4, 5],
         )
         == [1.0, 2.0, 3.0, 4.0, 5.0]
@@ -212,37 +233,33 @@ def test_attributo_list_to_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDuration(), min_length=2, max_length=4
             ),
+            _default_flags,
             [1, 2, 3, 4, 5],
         )
 
 
 def test_attributo_string_to_string() -> None:
     assert (
-        convert_attributo_value(AttributoTypeString(), AttributoTypeString(), "foo")
+        convert_attributo_value(
+            AttributoTypeString(), AttributoTypeString(), _default_flags, "foo"
+        )
         == "foo"
     )
 
 
 def test_attributo_string_to_int() -> None:
     # no restrictions, valid string
-    assert convert_attributo_value(AttributoTypeString(), AttributoTypeInt(), "3") == 3
-
-    # no restrictions, invalid string
-    with pytest.raises(Exception):
-        convert_attributo_value(AttributoTypeString(), AttributoTypeInt(), "a")
-
-    # restrictions, still valid
     assert (
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeInt(nonNegative=True), "3"
+            AttributoTypeString(), AttributoTypeInt(), _default_flags, "3"
         )
         == 3
     )
 
-    # restrictions, invalid
+    # no restrictions, invalid string
     with pytest.raises(Exception):
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeInt(nonNegative=True), "-3"
+            AttributoTypeString(), AttributoTypeInt(), _default_flags, "a"
         )
 
 
@@ -250,7 +267,10 @@ def test_attributo_string_duration() -> None:
     t = datetime.timedelta(minutes=3)
     assert (
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeDuration(), duration_isoformat(t)
+            AttributoTypeString(),
+            AttributoTypeDuration(),
+            _default_flags,
+            duration_isoformat(t),
         )
         == t
     )
@@ -260,7 +280,10 @@ def test_attributo_string_datetime() -> None:
     t = datetime.datetime.now()
     assert (
         convert_attributo_value(
-            AttributoTypeString(), AttributoTypeDateTime(), t.isoformat()
+            AttributoTypeString(),
+            AttributoTypeDateTime(),
+            _default_flags,
+            t.isoformat(),
         )
         == t
     )
@@ -270,7 +293,8 @@ def test_attributo_string_choice() -> None:
     assert (
         convert_attributo_value(
             AttributoTypeString(),
-            AttributoTypeChoice(values=[("pretty", "v1"), ("pretty2", "v2")]),
+            AttributoTypeChoice(values=["v1", "v2"]),
+            _default_flags,
             "v1",
         )
         == "v1"
@@ -279,7 +303,8 @@ def test_attributo_string_choice() -> None:
     with pytest.raises(Exception):
         convert_attributo_value(
             AttributoTypeString(),
-            AttributoTypeChoice(values=[("pretty", "v1"), ("pretty2", "v2")]),
+            AttributoTypeChoice(values=["v1", "v2"]),
+            _default_flags,
             "v3",
         )
 
@@ -287,19 +312,24 @@ def test_attributo_string_choice() -> None:
 def test_attributo_string_double() -> None:
     # no restrictions, valid string
     assert (
-        convert_attributo_value(AttributoTypeString(), AttributoTypeDouble(), "3.5")
+        convert_attributo_value(
+            AttributoTypeString(), AttributoTypeDouble(), _default_flags, "3.5"
+        )
         == 3.5
     )
 
     # no restrictions, invalid string
     with pytest.raises(Exception):
-        convert_attributo_value(AttributoTypeString(), AttributoTypeDouble(), "a")
+        convert_attributo_value(
+            AttributoTypeString(), AttributoTypeDouble(), _default_flags, "a"
+        )
 
     # restrictions, valid string, valid value
     assert (
         convert_attributo_value(
             AttributoTypeString(),
             AttributoTypeDouble(range=NumericRange(1.0, False, 5.0, False)),
+            _default_flags,
             "3.5",
         )
         == 3.5
@@ -310,6 +340,7 @@ def test_attributo_string_double() -> None:
         convert_attributo_value(
             AttributoTypeString(),
             AttributoTypeDouble(range=NumericRange(1.0, False, 5.0, False)),
+            _default_flags,
             "13.5",
         )
 
@@ -322,6 +353,7 @@ def test_attributo_string_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeString(), min_length=None, max_length=None
             ),
+            _default_flags,
             "abc",
         )
         == ["abc"]
@@ -334,6 +366,7 @@ def test_attributo_string_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeString(), min_length=2, max_length=None
             ),
+            _default_flags,
             "abc",
         )
 
@@ -344,6 +377,7 @@ def test_attributo_string_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDuration(), min_length=None, max_length=None
             ),
+            _default_flags,
             "abc",
         )
 
@@ -354,6 +388,7 @@ def test_attributo_double_to_double() -> None:
         convert_attributo_value(
             AttributoTypeDouble(),
             AttributoTypeDouble(),
+            _default_flags,
             1.5,
         )
         == 1.5
@@ -364,6 +399,7 @@ def test_attributo_double_to_double() -> None:
         convert_attributo_value(
             AttributoTypeDouble(range=NumericRange(1.0, False, 5.0, False)),
             AttributoTypeDouble(range=NumericRange(0.0, False, 10.0, False)),
+            _default_flags,
             1.5,
         )
         == 1.5
@@ -374,6 +410,7 @@ def test_attributo_double_to_double() -> None:
         convert_attributo_value(
             AttributoTypeDouble(range=NumericRange(1.0, False, 5.0, False)),
             AttributoTypeDouble(range=NumericRange(3.0, False, 5.0, False)),
+            _default_flags,
             3.5,
         )
         == 3.5
@@ -385,6 +422,7 @@ def test_attributo_double_to_double() -> None:
             convert_attributo_value(
                 AttributoTypeDouble(range=NumericRange(1.0, False, 5.0, False)),
                 AttributoTypeDouble(range=NumericRange(3.0, False, 5.0, False)),
+                _default_flags,
                 1.5,
             )
             == 1.5
@@ -395,9 +433,21 @@ def test_attributo_double_to_double() -> None:
         convert_attributo_value(
             AttributoTypeDouble(standard_unit=True, suffix="MHz"),
             AttributoTypeDouble(standard_unit=True, suffix="kHz"),
+            _default_flags,
             1.5,
         )
         == 1500.0
+    )
+
+    # double conversion with units, but without actual conversion
+    assert (
+        convert_attributo_value(
+            AttributoTypeDouble(standard_unit=True, suffix="MHz"),
+            AttributoTypeDouble(standard_unit=True, suffix="kHz"),
+            replace(_default_flags, ignore_units=True),
+            1.5,
+        )
+        == 1.5
     )
 
     # now invalid unit conversion
@@ -405,7 +455,24 @@ def test_attributo_double_to_double() -> None:
         convert_attributo_value(
             AttributoTypeDouble(standard_unit=True, suffix="MHz"),
             AttributoTypeDouble(standard_unit=True, suffix="degF"),
+            _default_flags,
             1.5,
+        )
+
+    with pytest.raises(Exception):
+        # unit conversion with a range requirement
+        assert (
+            convert_attributo_value(
+                AttributoTypeDouble(standard_unit=True, suffix="MHz"),
+                AttributoTypeDouble(
+                    standard_unit=True,
+                    suffix="kHz",
+                    range=NumericRange(3.0, False, 5.0, False),
+                ),
+                _default_flags,
+                1.5,
+            )
+            == 1500.0
         )
 
 
@@ -415,46 +482,11 @@ def test_attributo_double_to_int() -> None:
         convert_attributo_value(
             AttributoTypeDouble(),
             AttributoTypeInt(),
+            _default_flags,
             1.5,
         )
         == 1
     )
-
-    # now with restrictions, valid
-    assert (
-        convert_attributo_value(
-            AttributoTypeDouble(),
-            AttributoTypeInt(nonNegative=True),
-            1.5,
-        )
-        == 1
-    )
-
-    # now with restrictions, invalid
-    with pytest.raises(Exception):
-        convert_attributo_value(
-            AttributoTypeDouble(),
-            AttributoTypeInt(nonNegative=True),
-            -1.5,
-        )
-
-    # now with restrictions on the range, valid
-    assert (
-        convert_attributo_value(
-            AttributoTypeDouble(),
-            AttributoTypeInt(range=(10, 20)),
-            15.5,
-        )
-        == 15
-    )
-
-    # now with restrictions, invalid
-    with pytest.raises(Exception):
-        convert_attributo_value(
-            AttributoTypeDouble(),
-            AttributoTypeInt(range=(10, 20)),
-            30.0,
-        )
 
 
 def test_attributo_double_list() -> None:
@@ -465,6 +497,7 @@ def test_attributo_double_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDouble(), min_length=None, max_length=None
             ),
+            _default_flags,
             1.5,
         )
         == [1.5]
@@ -477,6 +510,7 @@ def test_attributo_double_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDouble(), min_length=2, max_length=None
             ),
+            _default_flags,
             1.0,
         )
 
@@ -487,6 +521,7 @@ def test_attributo_double_list() -> None:
             AttributoTypeList(
                 sub_type=AttributoTypeDuration(), min_length=None, max_length=None
             ),
+            _default_flags,
             1,
         )
 
@@ -496,6 +531,7 @@ def test_attributo_double_string() -> None:
         convert_attributo_value(
             AttributoTypeDouble(),
             AttributoTypeString(),
+            _default_flags,
             1.5,
         )
         == "1.5"
@@ -506,6 +542,7 @@ def test_attributo_double_string() -> None:
         convert_attributo_value(
             AttributoTypeDouble(),
             AttributoTypeString(),
+            _default_flags,
             1000000.0,
         )
         == "1000000.0"
@@ -517,6 +554,7 @@ def test_attributo_sample_to_sample() -> None:
         convert_attributo_value(
             AttributoTypeSample(),
             AttributoTypeSample(),
+            _default_flags,
             1,
         )
         == 1
@@ -529,6 +567,7 @@ def test_attributo_datetime_to_datetime() -> None:
         convert_attributo_value(
             AttributoTypeDateTime(),
             AttributoTypeDateTime(),
+            _default_flags,
             d,
         )
         == d
@@ -541,6 +580,7 @@ def test_attributo_datetime_to_string() -> None:
         convert_attributo_value(
             AttributoTypeDateTime(),
             AttributoTypeString(),
+            _default_flags,
             d,
         )
         == d.isoformat()
@@ -551,8 +591,9 @@ def test_attributo_choice_to_choice() -> None:
     # first, valid choice to same choice
     assert (
         convert_attributo_value(
-            AttributoTypeChoice(values=[("pretty1", "v1"), ("pretty2", "v2")]),
-            AttributoTypeChoice(values=[("pretty1", "v1"), ("pretty2", "v2")]),
+            AttributoTypeChoice(values=["v1", "v2"]),
+            AttributoTypeChoice(values=["v1", "v2"]),
+            _default_flags,
             "v1",
         )
         == "v1"
@@ -561,10 +602,9 @@ def test_attributo_choice_to_choice() -> None:
     # then loosen choices
     assert (
         convert_attributo_value(
-            AttributoTypeChoice(values=[("pretty1", "v1"), ("pretty2", "v2")]),
-            AttributoTypeChoice(
-                values=[("pretty1", "v1"), ("pretty2", "v2"), ("pretty3", "v3")]
-            ),
+            AttributoTypeChoice(values=["v1", "v2"]),
+            AttributoTypeChoice(values=["v1", "v2", "v3"]),
+            _default_flags,
             "v1",
         )
         == "v1"
@@ -573,8 +613,9 @@ def test_attributo_choice_to_choice() -> None:
     # now tighten choices but stay valid
     assert (
         convert_attributo_value(
-            AttributoTypeChoice(values=[("pretty1", "v1"), ("pretty2", "v2")]),
-            AttributoTypeChoice(values=[("pretty1", "v1")]),
+            AttributoTypeChoice(values=["v1", "v1"]),
+            AttributoTypeChoice(values=["v1"]),
+            _default_flags,
             "v1",
         )
         == "v1"
@@ -583,8 +624,9 @@ def test_attributo_choice_to_choice() -> None:
     # now tighten choices but become invalid
     with pytest.raises(Exception):
         convert_attributo_value(
-            AttributoTypeChoice(values=[("pretty1", "v1"), ("pretty2", "v2")]),
-            AttributoTypeChoice(values=[("pretty1", "v1")]),
+            AttributoTypeChoice(values=["v1", "v1"]),
+            AttributoTypeChoice(values=["v1"]),
+            _default_flags,
             "v2",
         )
 
@@ -592,8 +634,9 @@ def test_attributo_choice_to_choice() -> None:
 def test_attributo_choice_to_string() -> None:
     assert (
         convert_attributo_value(
-            AttributoTypeChoice(values=[("pretty1", "v1"), ("pretty2", "v2")]),
+            AttributoTypeChoice(values=["v1", "v1"]),
             AttributoTypeString(),
+            _default_flags,
             "v1",
         )
         == "v1"

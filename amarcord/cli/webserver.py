@@ -1,12 +1,14 @@
 import os
 import sys
 
+from pint import UnitRegistry
 from quart import Quart
 from quart_cors import cors
 from tap import Tap
 from werkzeug.exceptions import HTTPException
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributo_id import AttributoId
@@ -16,6 +18,7 @@ from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type
 from amarcord.quart_utils import CustomJSONEncoder
 from amarcord.quart_utils import QuartDatabases
+from amarcord.quart_utils import create_quart_standard_error
 from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
 
@@ -37,7 +40,7 @@ def error_handler_for_exceptions(e):
     return handle_exception(e)
 
 
-@app.post("/attributi")
+@app.post("/api/attributi")
 async def create_attributo() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
@@ -53,15 +56,21 @@ async def create_attributo() -> JSONDict:
     return {}
 
 
-@app.patch("/attributi")
+@app.patch("/api/attributi")
 async def change_attributo() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
         new_attributo = JSONChecker(r.retrieve_safe("newAttributo"), "newAttributo")
+        conversion_flags = JSONChecker(
+            r.retrieve_safe("conversionFlags"), "conversionFlags"
+        )
         await db.instance.change_attributo(
             conn,
             name=r.retrieve_safe_str("nameBefore"),
+            conversion_flags=AttributoConversionFlags(
+                ignore_units=conversion_flags.retrieve_safe_boolean("ignoreUnits")
+            ),
             new_attributo=DBAttributo(
                 name=AttributoId(new_attributo.retrieve_safe_str("name")),
                 description=new_attributo.retrieve_safe_str("description"),
@@ -77,7 +86,21 @@ async def change_attributo() -> JSONDict:
     return {}
 
 
-@app.delete("/attributi")
+@app.post("/api/unit")
+async def check_standard_unit() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    unit_input = r.retrieve_safe_str("input")
+
+    try:
+        return {"normalized": f"{UnitRegistry()(unit_input):P}"}
+    except:
+        return create_quart_standard_error(
+            code=None, title="Invalid unit", description=None
+        )
+
+
+@app.delete("/api/attributi")
 async def delete_attributo() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
@@ -90,7 +113,7 @@ async def delete_attributo() -> JSONDict:
     return {}
 
 
-@app.get("/attributi")
+@app.get("/api/attributi")
 async def read_attributi() -> JSONDict:
     async with db.instance.connect() as conn:
         return {
@@ -107,7 +130,7 @@ async def read_attributi() -> JSONDict:
 
 
 class Arguments(Tap):
-    port: int = 8080
+    port: int = 5000
     host: str = "0.0.0.0"
     db_url: str = "sqlite+aiosqlite://"
     db_echo: bool = False

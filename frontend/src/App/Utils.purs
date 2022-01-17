@@ -1,13 +1,14 @@
 module App.Utils where
 
+import Control.Monad (class Monad, bind)
 import Data.Argonaut.Core as Argonaut
-import Data.Array (find, groupAllBy, head, singleton, uncons, (:))
+import Data.Array (find, groupAllBy, head, uncons, (:))
 import Data.Array.NonEmpty as NE
 import Data.Boolean (otherwise)
-import Data.Either (Either, either)
+import Data.Either (Either(..), either)
 import Data.Eq ((==))
-import Data.Filterable (filter)
-import Data.Foldable (foldMap)
+import Data.Filterable (class Filterable, filter, partitionMap)
+import Data.Foldable (foldMap, class Foldable)
 import Data.FoldableWithIndex (foldrWithIndex)
 import Data.Function ((<<<))
 import Data.Functor (class Functor)
@@ -22,8 +23,12 @@ import Data.Semigroup (append)
 import Data.Set (Set, delete, insert, member)
 import Data.String (CodePoint)
 import Data.String as String
+import Data.Traversable (for_)
 import Data.Tuple (Tuple(..))
+import Data.Unfoldable (singleton, class Unfoldable)
+import Data.Unit (Unit, unit)
 import Foreign.Object (Object, fromFoldable)
+import Network.RemoteData (RemoteData(..))
 import Prelude (class Apply, class Eq, eq, identity, map, (<$>), (<*>), (>>>))
 
 type Endo a = a -> a
@@ -104,3 +109,30 @@ stringReplicate = replicate' ""
   where
     replicate' acc n c | n <= 0 = acc
                        | otherwise = replicate' (stringCons c acc) (n - 1) c
+
+mapEither :: forall f a r l. Filterable f => Monoid (f l) => Eq (f l) => (a -> Either l r) -> f a -> Either (f l) (f r)
+mapEither f xs =
+  let
+    { left, right } = partitionMap f xs
+  in
+    if left == mempty then Right right
+    else Left left
+
+maybeSingleton :: forall a x f g. Monoid (f a) => Unfoldable f => Foldable g => (x -> a) -> g x -> f a
+maybeSingleton f = foldMap (singleton <<< f)
+
+remoteDataChurch :: forall e a x. RemoteData e a -> (Unit -> x) -> (Unit -> x) -> (e -> x) -> (a -> x) -> x
+remoteDataChurch NotAsked notAsked _loading _failure _success = notAsked unit
+remoteDataChurch Loading _notAsked loading _failure _success = loading unit
+remoteDataChurch (Failure e) _notAsked _loading failure _success = failure e
+remoteDataChurch (Success a) _notAsked _loading _failure success = success a
+
+emptyStringToMaybe :: String -> Maybe String
+emptyStringToMaybe "" = Nothing
+emptyStringToMaybe x = Just x
+
+forM_ :: forall m a b. Monad m => m (Maybe a) -> (a -> m b) -> m Unit
+forM_ v f = do
+  r <- v
+  for_ r f
+

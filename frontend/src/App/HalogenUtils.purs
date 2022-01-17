@@ -1,4 +1,23 @@
-module App.HalogenUtils where
+module App.HalogenUtils
+  ( AlertType(..)
+  , classList
+  , classes
+  , dismiss
+  , errorText
+  , faIcon
+  , faIconRotate
+  , makeAlert
+  , makeAlertFromRemoteData
+  , makeAlertHtml
+  , makeRequestResult
+  , orderingToIcon
+  , plainTd
+  , plainTh
+  , scope
+  , singleClass
+  , whenConfirmed
+  )
+  where
 
 import Prelude
 
@@ -33,6 +52,15 @@ singleClass ::
     )
     t54
 singleClass s = classList [ s ]
+
+classes :: forall t53 t54.
+  String
+  -> IProp
+       ( class :: String
+       | t53
+       )
+       t54
+classes = singleClass
 
 plainTh :: forall w i. String -> HH.HTML w i
 plainTh x = HH.th_ [ HH.text x ]

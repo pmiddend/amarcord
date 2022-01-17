@@ -9,10 +9,7 @@ from typing import Union
 
 @dataclass(frozen=True)
 class JSONSchemaInteger:
-    minimum: Optional[int]
-    maximum: Optional[int]
-    exclusiveMinimum: Optional[int]
-    exclusiveMaximum: Optional[int]
+    format: Optional[str]
 
 
 class JSONSchemaNumberFormat(Enum):

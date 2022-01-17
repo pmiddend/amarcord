@@ -5,6 +5,7 @@ import sqlalchemy as sa
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
+from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_json_to_attributo_type
 from amarcord.db.attributo_id import AttributoId
@@ -85,7 +86,11 @@ class AsyncDB:
         )
 
     async def change_attributo(
-        self, conn: Connection, name: str, new_attributo: DBAttributo
+        self,
+        conn: Connection,
+        name: str,
+        conversion_flags: AttributoConversionFlags,
+        new_attributo: DBAttributo,
     ) -> None:
         current_attributi = await self.retrieve_attributi(conn)
 

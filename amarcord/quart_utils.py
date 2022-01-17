@@ -35,6 +35,12 @@ def format_exception_single_string(e: Any) -> str:
     return "\n".join(format_exception(type(e), e, e.__traceback__))
 
 
+def create_quart_standard_error(
+    code: Optional[int], title: str, description: Optional[str]
+) -> JSONDict:
+    return {"code": code, "title": title, "description": description}
+
+
 def handle_exception(e):
     """Return JSON instead of HTML for HTTP errors."""
     # start with the correct headers and status code from the error
@@ -42,14 +48,14 @@ def handle_exception(e):
     # replace the body with JSON
     response.data = json.dumps(
         {
-            "error": {
-                "code": e.code,
-                "name": e.name,
-                "description": "original exception: "
+            "error": create_quart_standard_error(
+                e.code,
+                e.name,
+                "original exception: "
                 + format_exception_single_string(e.original_exception)
                 if hasattr(e, "original_exception") and e.original_exception is not None
                 else "no original exception",
-            }
+            )
         }
     )
     response.content_type = "application/json"

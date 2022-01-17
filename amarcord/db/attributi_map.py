@@ -58,10 +58,6 @@ def _convert_single_attributo_value_from_json(
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
-        if attributo_type.attributo_type.nonNegative and v < 0:
-            raise ValueError(
-                f'attributo "{i}" is supposed to be non-negative, but is {v}'
-            )
         return v
     if isinstance(attributo_type.attributo_type, AttributoTypeString):
         assert isinstance(
