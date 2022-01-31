@@ -132,7 +132,6 @@ def print_natural_delta(td: datetime.timedelta) -> str:
     return ", ".join(parts)
 
 
-
 class UnexpectedEOF(Exception):
     def __init__(self) -> None:
         super().__init__("Unexpected EOF")
@@ -211,3 +210,13 @@ def local_time_to_utc(
 
     local = pytz.timezone(tzname)
     return local.localize(d).astimezone(pytz.utc)
+
+
+def last_line_of_file(p: Path) -> str:
+    with p.open("r") as f:
+        # Be dumb for now, probably use this solution if the need arises:
+        # https://stackoverflow.com/questions/3346430/what-is-the-most-efficient-way-to-get-first-and-last-line-of-a-text-file/3346788
+        lines = f.readlines()
+        if lines:
+            return lines[-1]
+        return ""

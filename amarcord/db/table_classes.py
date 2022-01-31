@@ -7,7 +7,6 @@ from typing import Optional
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.comment import DBComment
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.indexing_job_status import IndexingJobStatus
 
 
 @dataclass(frozen=True)
@@ -60,28 +59,6 @@ class DBIndexingParameter:
 class DBAugmentedIndexingParameter:
     indexing_parameter: DBIndexingParameter
     number_of_jobs: int
-
-
-@dataclass(frozen=True)
-class DBIndexingJob:
-    id: int
-    started: datetime.datetime
-    stopped: Optional[datetime.datetime]
-    output_directory: Path
-    run_id: int
-    indexing_parameter_id: int
-    master_file: Path
-    command_line: str
-    status: IndexingJobStatus
-    slurm_job_id: int
-    result_file: Optional[Path]
-    error_message: Optional[str]
-
-
-@dataclass(frozen=True)
-class DBRunWithIndexingResult:
-    run_id: int
-    indexing_jobs: List[DBIndexingJob]
 
 
 @dataclass(frozen=True)

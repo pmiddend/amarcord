@@ -21,6 +21,8 @@ from amarcord.db.attributo_type import AttributoType
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
+from amarcord.db.indexing_job import DBIndexingJob
+from amarcord.db.job_status import DBJobStatus
 from amarcord.db.table_classes import DBSample, DBFile
 from amarcord.db.tables import DBTables
 from amarcord.util import sha256_file
@@ -350,11 +352,11 @@ class AsyncDB:
         self, conn: Connection, delete_after_run_id: Optional[int] = None
     ) -> None:
         if delete_after_run_id is None:
-            conn.execute(sa.delete(self.tables.analysis_results))
+            conn.execute(sa.delete(self.tables.cfel_analysis_results))
         else:
             conn.execute(
-                sa.delete(self.tables.analysis_results).where(
-                    self.tables.analysis_results.c.run_from > delete_after_run_id
+                sa.delete(self.tables.cfel_analysis_results).where(
+                    self.tables.cfel_analysis_results.c.run_from > delete_after_run_id
                 )
             )
 
@@ -362,7 +364,7 @@ class AsyncDB:
         self, conn: Connection, r: DBCFELAnalysisResult
     ) -> None:
         conn.execute(
-            sa.insert(self.tables.analysis_results).values(
+            sa.insert(self.tables.cfel_analysis_results).values(
                 directory_name=r.directory_name,
                 run_from=r.run_from,
                 run_to=r.run_to,
@@ -388,7 +390,7 @@ class AsyncDB:
     async def retrieve_cfel_analysis_results(
         self, conn: Connection
     ) -> Iterable[DBCFELAnalysisResult]:
-        ar = self.tables.analysis_results.c
+        ar = self.tables.cfel_analysis_results.c
         return (
             DBCFELAnalysisResult(
                 r["directory_name"],
@@ -442,3 +444,56 @@ class AsyncDB:
         self, conn: Connection, run_id: int, attributi: AttributiMap
     ) -> None:
         pass
+
+    async def retrieve_indexing_jobs(
+        self, conn: Connection, statuses: List[DBJobStatus]
+    ) -> List[DBIndexingJob]:
+        ij = self.tables.indexing_jobs
+        select_stmt = sa.select(
+            [
+                ij.c.id,
+                ij.c.run_Id,
+                ij.c.status,
+                ij.c.started,
+                ij.c.stopped,
+                ij.c.metadata,
+            ]
+        )
+        if statuses:
+            select_stmt.where(ij.c.status.in_(statuses))
+        return [
+            DBIndexingJob(
+                id=row[0],
+                run_id=row[1],
+                status=row[3],
+                started_utc=row[4],
+                stopped_utc=row[5],
+                metadata=row[6],
+            )
+            for row in await conn.execute(select_stmt)
+        ]
+
+    async def retrieve_runs_without_indexing_jobs(self, conn: Connection) -> List[int]:
+        runs = self.tables.run.alias("runs")
+
+        return [
+            row[0]
+            for row in await conn.execute(
+                sa.select([runs.c.id])
+                .select_from(runs)
+                .where(
+                    ~(
+                        sa.select([self.tables.indexing_jobs.c.id])
+                        .where(
+                            (self.tables.indexing_jobs.c.run_id == runs.c.run_id)
+                            & (
+                                self.tables.indexing_jobs.c.status.in_(
+                                    [DBJobStatus.RUNNING, DBJobStatus.SUCCESS]
+                                )
+                            )
+                        )
+                        .exists()
+                    )
+                )
+            )
+        ]
