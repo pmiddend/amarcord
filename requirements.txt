@@ -59,7 +59,7 @@ setuptools-scm==6.4.2; python_version >= "3.7"
 six==1.16.0; python_full_version >= "3.7.1"
 sqlalchemy2-stubs==0.0.2a19; python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.6.0" and python_version >= "3.6"
 sqlalchemy==1.4.31; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.6.0")
-toml==0.10.2; python_full_version >= "3.7.0" and python_version >= "3.7"
+toml==0.10.2; (python_version >= "2.6" and python_full_version < "3.0.0") or (python_full_version >= "3.3.0")
 tomli==1.2.3; python_version >= "3.7" and (python_version >= "2.7" and python_full_version < "3.0.0" or python_full_version >= "3.6.0")
 tqdm==4.62.3; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0")
 typed-argument-parser==1.7.2
