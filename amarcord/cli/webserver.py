@@ -52,7 +52,7 @@ async def create_sample() -> JSONDict:
         sample_id = await db.instance.create_sample(
             conn,
             name=r.retrieve_safe_str("name"),
-            attributi=AttributiMap(
+            attributi=AttributiMap.from_types_and_json(
                 await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE),
                 r.retrieve_safe_object("attributi"),
             ),
@@ -74,7 +74,7 @@ async def update_sample() -> JSONDict:
             conn,
             id_=sample_id,
             name=r.retrieve_safe_str("name"),
-            attributi=AttributiMap(
+            attributi=AttributiMap.from_types_and_json(
                 await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE),
                 r.retrieve_safe_object("attributi"),
             ),
@@ -111,7 +111,7 @@ async def read_samples() -> JSONDict:
                 {
                     "id": a.id,
                     "name": a.name,
-                    "attributi": a.attributi.to_raw(),
+                    "attributi": a.attributi.to_json(),
                     "files": [
                         {
                             "id": f.id,

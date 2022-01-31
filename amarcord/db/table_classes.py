@@ -5,7 +5,6 @@ from typing import List
 from typing import Optional
 
 from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.comment import DBComment
 from amarcord.db.event_log_level import EventLogLevel
 
 
@@ -38,10 +37,6 @@ class DBSample:
 class DBRun:
     attributi: AttributiMap
     id: int
-    sample_id: Optional[int]
-    proposal_id: int
-    modified: datetime.datetime
-    comments: List[DBComment]
 
 
 @dataclass(frozen=True)

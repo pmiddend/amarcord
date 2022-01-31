@@ -23,7 +23,7 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
 from amarcord.db.indexing_job import DBIndexingJob
 from amarcord.db.job_status import DBJobStatus
-from amarcord.db.table_classes import DBSample, DBFile
+from amarcord.db.table_classes import DBSample, DBFile, DBRun
 from amarcord.db.tables import DBTables
 from amarcord.util import sha256_file
 
@@ -102,7 +102,7 @@ class AsyncDB:
                 self.tables.sample.insert().values(
                     name=name,
                     modified=datetime.datetime.utcnow(),
-                    attributi=attributi.to_raw(),
+                    attributi=attributi.to_json(),
                 )
             )
         ).inserted_primary_key[0]
@@ -119,7 +119,7 @@ class AsyncDB:
             .values(
                 name=name,
                 modified=datetime.datetime.utcnow(),
-                attributi=attributi.to_raw(),
+                attributi=attributi.to_json(),
             )
             .where(self.tables.sample.c.id == id_)
         )
@@ -177,7 +177,7 @@ class AsyncDB:
             DBSample(
                 id=a["id"],
                 name=a["name"],
-                attributi=AttributiMap(
+                attributi=AttributiMap.from_types_and_json(
                     types=attributi,
                     raw_attributi=a["attributi"],
                 ),
@@ -497,3 +497,26 @@ class AsyncDB:
                 )
             )
         ]
+
+    async def retrieve_run(
+        self, conn: Connection, id_: int, attributi: List[DBAttributo]
+    ) -> Optional[DBRun]:
+        rc = self.tables.run.c
+        r = await conn.execute(
+            sa.select([rc.id, rc.attributi]).where(rc.id == id_)
+        ).one()
+        if r is None:
+            return None
+        return DBRun(
+            id=r["id"],
+            attributi=AttributiMap.from_types_and_json(attributi, r["attributi"]),
+        )
+
+    async def update_run_attributi(
+        self, conn: Connection, id_: int, attributi: AttributiMap
+    ) -> None:
+        await conn.execute(
+            sa.update(self.tables.run)
+            .values(attributi=attributi.to_json())
+            .where(self.tables.run.c.id == id_)
+        )

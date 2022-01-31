@@ -24,9 +24,9 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.json import JSONValue
 from amarcord.util import local_time_to_utc
 
-RawAttributiMap = Dict[str, JSONValue]
+JsonAttributiMap = Dict[str, JSONValue]
 
-AttributiMapImpl = Dict[str, AttributoValue]
+UntypedAttributiMap = Dict[str, AttributoValue]
 
 
 def _check_type(name: str, type_: AttributoType, value: AttributoValue) -> None:
@@ -191,17 +191,29 @@ def _convert_single_attributo_value_from_json(
 
 class AttributiMap:
     def __init__(
-        self, types: List[DBAttributo], raw_attributi: RawAttributiMap
+        self, types_dict: Dict[str, DBAttributo], impl: UntypedAttributiMap
     ) -> None:
-        self._attributi: AttributiMapImpl = {}
-        self._types = {a.name: a for a in types}
+        self._attributi = impl
+        self._types = types_dict
+
+    @staticmethod
+    def from_types_and_json(
+        types: List[DBAttributo], raw_attributi: JsonAttributiMap
+    ) -> "AttributiMap":
+        attributi: UntypedAttributiMap = {}
+        types_dict = {a.name: a for a in types}
         if raw_attributi is not None:
             for attributo_name, attributo_value in raw_attributi.items():
                 v = _convert_single_attributo_value_from_json(
-                    attributo_name, attributo_value, self._types
+                    attributo_name, attributo_value, types_dict
                 )
                 if v is not None:
-                    self._attributi[attributo_name] = v
+                    attributi[attributo_name] = v
+
+        return AttributiMap(types_dict, attributi)
+
+    def copy(self) -> "AttributiMap":
+        return AttributiMap(types_dict=self._types.copy(), impl=self._attributi.copy())
 
     def select_int_unsafe(self, attributo_id: AttributoId) -> int:
         selected = self.select_unsafe(attributo_id)
@@ -255,7 +267,7 @@ class AttributiMap:
     def select(self, attributo_id: AttributoId) -> AttributoValue:
         return self._attributi.get(attributo_id, None)
 
-    def append(self, new_attributi: Dict[AttributoId, AttributoValue]) -> None:
+    def extend(self, new_attributi: Dict[AttributoId, AttributoValue]) -> None:
         _check_types(self._types, new_attributi)
         for k, v in new_attributi.items():
             if v is not None:
@@ -263,16 +275,16 @@ class AttributiMap:
 
     def append_single(self, attributo: AttributoId, value: AttributoValue) -> None:
         if value is not None:
-            self.append({attributo: value})
+            self.extend({attributo: value})
 
     def remove(self, attributo: AttributoId) -> bool:
         previous = self._attributi.pop(attributo, None)
-        # remove from types as well so we're consistent when typing
+        # remove from types as well, so we're consistent when typing
         if previous is not None:
             self._types.pop(attributo, None)
         return previous is not None
 
-    def to_raw(self, ignore_comments: bool = True) -> RawAttributiMap:
+    def to_json(self, ignore_comments: bool = True) -> JsonAttributiMap:
         json_dict: Dict[str, JSONValue] = {}
         for attributo_id, value in self._attributi.items():
             if value is None or isinstance(value, (str, int, float, bool)):

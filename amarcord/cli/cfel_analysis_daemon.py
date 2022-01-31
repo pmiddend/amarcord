@@ -459,7 +459,7 @@ async def main_loop_iteration(
                         await db.add_run(
                             conn,
                             run_id,
-                            attributi=AttributiMap(
+                            attributi=AttributiMap.from_types_and_json(
                                 await db.retrieve_attributi(conn, AssociatedTable.RUN),
                                 {},
                             ),
