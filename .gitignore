@@ -5,3 +5,4 @@ __pycache__
 /.coverage
 /frontend/main.js
 /frontend/elm-stuff/
+/frontend/node_modules/
