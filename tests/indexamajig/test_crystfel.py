@@ -4,8 +4,8 @@ from shutil import copyfileobj
 
 import pytest
 
-from amarcord.amici.crystfel.parser import read_crystfel_streams
-from amarcord.amici.crystfel.parser import read_harvest_json
+from amarcord.amici.crystfel.harvest_parser import read_crystfel_streams
+from amarcord.amici.crystfel.harvest_parser import read_harvest_json
 
 
 def _extract_file(tmp_path: Path, source: str) -> Path:

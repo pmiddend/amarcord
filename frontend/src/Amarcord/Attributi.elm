@@ -11,7 +11,7 @@ import Amarcord.Parser exposing (deadEndsToHtml)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
 import Amarcord.Util exposing (httpDelete, httpPatch)
 import Html exposing (..)
-import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, scope, selected, style, type_, value)
+import Html.Attributes exposing (attribute, checked, class, disabled, for, id, placeholder, scope, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (jsonBody)
 import Json.Decode as Decode
@@ -878,7 +878,7 @@ viewEditForm model attributiList attributo =
                     " Confirm edit"
                 )
             ]
-        , button [ class "btn btn-secondary me-3 mb-3", onClick EditAttributoCancel ]
+        , button [ class "btn btn-secondary me-3 mb-3", type_ "button", onClick EditAttributoCancel ]
             [ icon { name = "x-lg" }, text " Cancel" ]
         ]
 
@@ -897,6 +897,28 @@ viewInner model =
 
         Success attributiListReal ->
             let
+                help =
+                    div [ class "accordion mb-3" ]
+                        [ div [ class "accordion-item" ]
+                            [ h2 [ class "accordion-header" ]
+                                [ button
+                                    [ class "accordion-button btn-light"
+                                    , type_ "button"
+                                    , attribute "data-bs-toggle" "collapse"
+                                    , attribute "data-bs-target" "#collapseHelp"
+                                    ]
+                                    [ i [ class "bi-question-circle me-3" ] []
+                                    , text " What are attributi?"
+                                    ]
+                                ]
+                            , div [ id "collapseHelp", class "accordion-collapse collapse" ]
+                                [ div [ class "accordion-body" ]
+                                    [ p_ [ text "Every experiment is a little different. Different detectors, different samples, you name it!" ]
+                                    ]
+                                ]
+                            ]
+                        ]
+
                 prefix =
                     case model.editAttributo of
                         Nothing ->
@@ -937,7 +959,8 @@ viewInner model =
                                 [ makeAlert AlertSuccess [ text "Deletion successful!" ]
                                 ]
             in
-            prefix
+            help
+                :: prefix
                 :: modifyRequestResult
                 :: deleteRequestResult
                 :: [ table [ class "table table-striped" ]
