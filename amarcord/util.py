@@ -42,15 +42,6 @@ def rfind_regex(s: str, regex: str, start: int) -> int:
     return len(s) - r - 1
 
 
-def word_under_cursor(s: str, pos: int) -> str:
-    eow = r"[><!& /]"
-    before_ws = rfind_regex(s, eow, max(0, pos - 1))
-    after_ws = find_regex(s, eow, pos)
-    if after_ws < 0:
-        after_ws = len(s)
-    return s[before_ws + 1 : after_ws]
-
-
 # See https://stackoverflow.com/a/17016257
 def remove_duplicates_stable(seq: Iterable[T]) -> List[T]:
     return list(dict.fromkeys(seq))
@@ -63,10 +54,6 @@ def dict_union(a: Sequence[Dict[K, V]]) -> Dict[K, V]:
     for v in a[1:]:
         result.update(v)
     return result
-
-
-def capitalized_decamelized(s: str) -> str:
-    return s.replace("_", " ").capitalize()
 
 
 def str_to_float(s: str) -> Optional[float]:
@@ -108,28 +95,6 @@ def create_intervals(xs: List[int]) -> Generator[Tuple[int, int], None, None]:
             interval_start = x
         last_element = x
     yield interval_start, sorted_xs[-1]
-
-
-def print_natural_delta(td: datetime.timedelta) -> str:
-    def maybe_pluralize(t: Union[float, int], s: str) -> str:
-        return str(t) + " " + s + ("s" if t > 1 else "")
-
-    hours = td.seconds // (60 * 60)
-    minutes = (td.seconds % (60 * 60)) // 60
-    seconds = td.seconds % 60
-    milliseconds = td.microseconds // 1000
-    parts: List[str] = []
-    if td.days > 0:
-        parts.append(maybe_pluralize(td.days, "day"))
-    if hours > 0:
-        parts.append(maybe_pluralize(hours, "hour"))
-    if minutes > 0:
-        parts.append(maybe_pluralize(minutes, "minute"))
-    if seconds > 0:
-        parts.append(maybe_pluralize(seconds, "second"))
-    if milliseconds > 0:
-        parts.append(maybe_pluralize(milliseconds, "millisecond"))
-    return ", ".join(parts)
 
 
 class UnexpectedEOF(Exception):
