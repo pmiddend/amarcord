@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class DBAnalysisResult:
+class DBCFELAnalysisResult:
     directory_name: str
     run_from: int
     run_to: int

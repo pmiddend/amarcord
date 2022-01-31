@@ -3,12 +3,13 @@ import itertools
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, cast, Tuple, Dict
+from typing import List, cast, Tuple, Dict, Iterable
 from typing import Optional
 
 import magic
 import sqlalchemy as sa
 
+from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.attributi import AttributoConversionFlags
@@ -336,3 +337,108 @@ class AsyncDB:
                 self.tables.sample_has_file.c.sample_id == sample_id
             )
         )
+
+    async def retrieve_run_ids(self, conn: Connection) -> List[int]:
+        return [
+            row[0]
+            for row in conn.execute(
+                sa.select([self.tables.run.c.id]).order_by(self.tables.run.c.id)
+            ).fetchall()
+        ]
+
+    async def clear_cfel_analysis_results(
+        self, conn: Connection, delete_after_run_id: Optional[int] = None
+    ) -> None:
+        if delete_after_run_id is None:
+            conn.execute(sa.delete(self.tables.analysis_results))
+        else:
+            conn.execute(
+                sa.delete(self.tables.analysis_results).where(
+                    self.tables.analysis_results.c.run_from > delete_after_run_id
+                )
+            )
+
+    async def add_cfel_analysis_result(
+        self, conn: Connection, r: DBCFELAnalysisResult
+    ) -> None:
+        conn.execute(
+            sa.insert(self.tables.analysis_results).values(
+                directory_name=r.directory_name,
+                run_from=r.run_from,
+                run_to=r.run_to,
+                resolution=r.resolution,
+                rsplit=r.rsplit,
+                cchalf=r.cchalf,
+                ccstar=r.ccstar,
+                snr=r.snr,
+                completeness=r.completeness,
+                multiplicity=r.multiplicity,
+                total_measurements=r.total_measurements,
+                unique_reflections=r.unique_reflections,
+                wilson_b=r.wilson_b,
+                outer_shell=r.outer_shell,
+                num_patterns=r.num_patterns,
+                num_hits=r.num_hits,
+                indexed_patterns=r.indexed_patterns,
+                indexed_crystals=r.indexed_crystals,
+                comment=r.comment,
+            )
+        )
+
+    async def retrieve_cfel_analysis_results(
+        self, conn: Connection
+    ) -> Iterable[DBCFELAnalysisResult]:
+        ar = self.tables.analysis_results.c
+        return (
+            DBCFELAnalysisResult(
+                r["directory_name"],
+                r["run_from"],
+                r["run_to"],
+                r["resolution"],
+                r["rsplit"],
+                r["cchalf"],
+                r["ccstar"],
+                r["snr"],
+                r["completeness"],
+                r["multiplicity"],
+                r["total_measurements"],
+                r["unique_reflections"],
+                r["wilson_b"],
+                r["outer_shell"],
+                r["num_patterns"],
+                r["num_hits"],
+                r["indexed_patterns"],
+                r["indexed_crystals"],
+                r["comment"],
+            )
+            for r in conn.execute(
+                sa.select(
+                    [
+                        ar.directory_name,
+                        ar.run_from,
+                        ar.run_to,
+                        ar.resolution,
+                        ar.rsplit,
+                        ar.cchalf,
+                        ar.ccstar,
+                        ar.snr,
+                        ar.completeness,
+                        ar.multiplicity,
+                        ar.total_measurements,
+                        ar.unique_reflections,
+                        ar.wilson_b,
+                        ar.outer_shell,
+                        ar.num_patterns,
+                        ar.num_hits,
+                        ar.indexed_patterns,
+                        ar.indexed_crystals,
+                        ar.comment,
+                    ]
+                )
+            )
+        )
+
+    async def add_run(
+        self, conn: Connection, run_id: int, attributi: AttributiMap
+    ) -> None:
+        pass
