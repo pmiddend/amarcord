@@ -1,13 +1,17 @@
-FROM python:3.8-slim
+# bullseye is actually important here: we want to use certain binaries (e.g. for asyncmy) and
+# these depend on the glibc version used. 3.9-slim at time of writing had a version that's too low.
+FROM python:3.9-slim-bullseye
 
 RUN mkdir /app
 COPY . /app
 WORKDIR /app
 
-ENV POETRY_NO_INTERACTION=1
-ENV POETRY_VIRTUALENVS_CREATE=false
-ENV PATH="$PATH:/root/.poetry/bin"
-RUN pip install 'poetry==1.1.*'
-RUN poetry install --no-interaction --no-dev
+RUN apt-get update && apt-get install --no-install-recommends -y libmagic1 && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# check glibc version
+RUN ldd --version
+# --only-binary because we don't want to build anything in the container, this would blow up its size
+RUN pip install  --only-binary ':all:' --no-binary 'blinker' --no-binary 'karabo_bridge' --no-binary 'typed-argument-parser' -r requirements.txt
+
+ENV PYTHONPATH="/app:$PYTHONPATH"
 ENV AMARCORD_STATIC_FOLDER=/app/frontend/output

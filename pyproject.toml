@@ -17,8 +17,6 @@ cryptography = '3.4.8'
 alembic = '1.7.5'
 # for attributi: parsing/printing a delta
 isodate = '0.6.0'
-# to pretty-print attributi (yeah, it's a bit overkill)
-lark-parser = '0.11.3'
 # for the config file
 PyYAML = '5.4.1'
 # for accessing XDG_CONFIG_HOME in the config file for example
@@ -33,8 +31,6 @@ numpy = { version = '1.21.4' }
 pyzmq = '22.3.0'
 # for plotting
 pandas = '1.3.4'
-# for validating pubchemids
-PubChemPy = '1.0.4'
 # For printing "x second(s) ago" in the comments
 humanize = '3.12.0'
 # For validating units
@@ -49,7 +45,9 @@ msgpack-types = "0.1.0"
 EXtra-data = "1.8.1"
 # for SLURM REST
 requests = "2.26.0"
-kamzik3 = "0.7.7"
+
+# disabled for now, it's a huge dependency
+# kamzik3 = "0.7.7"
 
 # for correcting UTC timezone for dates
 python-dateutil = "2.8.2"

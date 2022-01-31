@@ -29,7 +29,7 @@ from amarcord.quart_utils import quart_safe_json_dict
 app = Quart(
     __name__,
     static_folder=os.environ.get(
-        "AMARCORD_STATIC_FOLDER", os.getcwd() + "/frontend/prod"
+        "AMARCORD_STATIC_FOLDER", os.getcwd() + "/frontend/output"
     ),
     static_url_path="/",
 )

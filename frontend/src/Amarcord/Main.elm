@@ -2,6 +2,7 @@ module Amarcord.Main exposing (main)
 
 import Amarcord.Attributi as Attributi
 import Amarcord.Bootstrap exposing (icon)
+import Amarcord.Html exposing (h1_)
 import Amarcord.Route as Route exposing (Route, makeLink, parseUrl)
 import Amarcord.Samples as Samples
 import Browser exposing (Document, UrlRequest)
@@ -109,7 +110,7 @@ currentView : Model -> Html Msg
 currentView model =
     case model.page of
         RootPage ->
-            text "root"
+            div [ class "container" ] [ h1_ [ text "Welcome to AMARCORD!" ], p [ class "lead" ] [ text "Depending on what you want to do, check out the sections at the top." ] ]
 
         AttributiPage pageModel ->
             div []

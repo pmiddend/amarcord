@@ -14,10 +14,6 @@ from typing import TypeVar
 from typing import Union
 
 import pytz
-from lark import Token
-from lark import Tree
-from lark import exceptions as le
-from lark.lark import Lark
 
 T = TypeVar("T")
 
@@ -136,80 +132,10 @@ def print_natural_delta(td: datetime.timedelta) -> str:
     return ", ".join(parts)
 
 
-natural_delta_parser = Lark(
-    r"""
-start: atom ("," atom)*
-atom: NUMBER delta_keyword
-delta_keyword: DAYS | HOURS | MINUTES | MILLISECONDS | SECONDS
-
-DAYS : /days?/
-HOURS : /hours?/
-MINUTES : /minutes?/
-MILLISECONDS : /milliseconds?/
-SECONDS : /seconds?/
-
-%import common.NUMBER    -> NUMBER
-%ignore " "
-  """
-)
-
 
 class UnexpectedEOF(Exception):
     def __init__(self) -> None:
         super().__init__("Unexpected EOF")
-
-
-def parse_natural_delta(s: str) -> Union[None, str, datetime.timedelta]:
-    try:
-        if s == "":
-            return datetime.timedelta()
-        atoms = natural_delta_parser.parse(s).children
-        days: Optional[int] = None
-        hours: Optional[int] = None
-        minutes: Optional[int] = None
-        seconds: Optional[int] = None
-        milliseconds: Optional[int] = None
-        for atom_pair in atoms:
-            assert isinstance(atom_pair, Tree)
-            atom_value = atom_pair.children[0]
-            keyword = atom_pair.children[1]
-            assert isinstance(atom_value, Token)
-            assert isinstance(keyword, Tree)
-            assert isinstance(keyword.children[0], Token)
-
-            if keyword.children[0].type == "DAYS":
-                if days is not None:
-                    return None
-                days = int(atom_value.value)
-            elif keyword.children[0].type == "HOURS":
-                if hours is not None:
-                    return None
-                hours = int(atom_value.value)
-            elif keyword.children[0].type == "MINUTES":
-                if minutes is not None:
-                    return None
-                minutes = int(atom_value.value)
-            elif keyword.children[0].type == "SECONDS":
-                if seconds is not None:
-                    return None
-                seconds = int(atom_value.value)
-            elif keyword.children[0].type == "MILLISECONDS":
-                if milliseconds is not None:
-                    return None
-                milliseconds = int(atom_value.value)
-            else:
-                return None
-        return datetime.timedelta(
-            days=days if days is not None else 0,
-            hours=hours if hours is not None else 0,
-            minutes=minutes if minutes is not None else 0,
-            seconds=seconds if seconds is not None else 0,
-            milliseconds=milliseconds if milliseconds is not None else 0,
-        )
-    except le.UnexpectedEOF:
-        return s
-    except Exception:
-        return None
 
 
 def find_by(xs: List[T], by: Callable[[T], bool]) -> Optional[T]:
