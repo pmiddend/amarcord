@@ -37,6 +37,7 @@ class DBSample:
 class DBRun:
     attributi: AttributiMap
     id: int
+    files: List[DBFile]
 
 
 @dataclass(frozen=True)

@@ -4,6 +4,7 @@ import Amarcord.Attributi as Attributi
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (h1_)
 import Amarcord.Route as Route exposing (Route, makeLink, parseUrl)
+import Amarcord.RunOverview as RunOverview
 import Amarcord.Samples as Samples
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
@@ -28,6 +29,7 @@ main =
 type Msg
     = AttributiPageMsg Attributi.Msg
     | SamplesPageMsg Samples.Msg
+    | RunOverviewPageMsg RunOverview.Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
 
@@ -36,6 +38,7 @@ type Page
     = RootPage
     | AttributiPage Attributi.Model
     | SamplesPage Samples.Model
+    | RunOverviewPage RunOverview.Model
 
 
 type alias Model =
@@ -68,6 +71,21 @@ view model =
                         ]
                     , ul [ class "nav nav-pills" ]
                         [ li [ class "nav-item" ]
+                            [ a
+                                [ href (makeLink Route.RunOverview)
+                                , class
+                                    ((if model.route == Route.RunOverview then
+                                        "active "
+
+                                      else
+                                        ""
+                                     )
+                                        ++ "nav-link"
+                                    )
+                                ]
+                                [ icon { name = "card-list" }, text " Overview" ]
+                            ]
+                        , li [ class "nav-item" ]
                             [ a
                                 [ href (makeLink Route.Samples)
                                 , class
@@ -124,6 +142,12 @@ currentView model =
                     |> Html.map SamplesPageMsg
                 ]
 
+        RunOverviewPage pageModel ->
+            div []
+                [ RunOverview.view pageModel
+                    |> Html.map RunOverviewPageMsg
+                ]
+
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -144,6 +168,15 @@ update msg model =
             in
             ( { model | page = SamplesPage updatedPageModel }
             , Cmd.map SamplesPageMsg updatedCmd
+            )
+
+        ( RunOverviewPageMsg subMsg, RunOverviewPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    RunOverview.update subMsg pageModel
+            in
+            ( { model | page = RunOverviewPage updatedPageModel }
+            , Cmd.map RunOverviewPageMsg updatedCmd
             )
 
         ( LinkClicked urlRequest, _ ) ->
@@ -193,5 +226,12 @@ initCurrentPage ( model, existingCmds ) =
                             Samples.init ()
                     in
                     ( SamplesPage pageModel, Cmd.map SamplesPageMsg pageCmds )
+
+                Route.RunOverview ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            RunOverview.init ()
+                    in
+                    ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
     in
     ( { model | page = currentPage }, Cmd.batch [ existingCmds, mappedPageCmds ] )

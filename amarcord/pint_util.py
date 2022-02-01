@@ -4,7 +4,7 @@ from pint import Quantity
 from pint import UnitRegistry
 
 from amarcord.db.attributo_type import AttributoType
-from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDecimal
 
 registry = UnitRegistry()
 
@@ -14,5 +14,5 @@ def pint_quantity_to_attributo_type(x: Quantity) -> Optional[AttributoType]:
     # for an explanation
     suffix = format(x.units, "~")
     if suffix == "dimensionless":
-        return AttributoTypeDouble()
-    return AttributoTypeDouble(standard_unit=True, suffix=suffix)
+        return AttributoTypeDecimal()
+    return AttributoTypeDecimal(standard_unit=True, suffix=suffix)

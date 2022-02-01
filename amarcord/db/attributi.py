@@ -14,7 +14,7 @@ from pint import UnitRegistry
 from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
-from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
@@ -36,7 +36,7 @@ from amarcord.numeric_range import NumericRange
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int
 
-_SAMPLE_ID: Final = "sample-id"
+JSON_SCHEMA_INTEGER_SAMPLE_ID: Final = "sample-id"
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def schema_json_to_attributo_type(json_schema: JSONDict) -> AttributoType:
 
 def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
     if isinstance(parsed_schema, JSONSchemaNumber):
-        return AttributoTypeDouble(
+        return AttributoTypeDecimal(
             range=None
             if parsed_schema.minimum is None
             and parsed_schema.maximum is None
@@ -70,7 +70,7 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
         return AttributoTypeBoolean()
     if isinstance(parsed_schema, JSONSchemaInteger):
         if parsed_schema.format is not None:
-            if parsed_schema.format == _SAMPLE_ID:
+            if parsed_schema.format == JSON_SCHEMA_INTEGER_SAMPLE_ID:
                 return AttributoTypeSample()
             raise Exception(f'integer with format "{parsed_schema.format}" invalid')
         return AttributoTypeInt()
@@ -112,7 +112,7 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
         return {"type": "integer"}
     if isinstance(rp, AttributoTypeBoolean):
         return {"type": "boolean"}
-    if isinstance(rp, AttributoTypeDouble):
+    if isinstance(rp, AttributoTypeDecimal):
         result_double: Dict[str, JSONValue] = {"type": "number"}
         if rp.range is not None:
             if rp.range.minimum is not None:
@@ -134,7 +134,7 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
     if isinstance(rp, AttributoTypeString):
         return {"type": "string"}
     if isinstance(rp, AttributoTypeSample):
-        return {"type": "integer", "format": _SAMPLE_ID}
+        return {"type": "integer", "format": JSON_SCHEMA_INTEGER_SAMPLE_ID}
     if isinstance(rp, AttributoTypeChoice):
         return {"type": "string", "enum": rp.values}
     if isinstance(rp, AttributoTypeDateTime):
@@ -189,7 +189,7 @@ def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
         return "integers" if plural else "integer"
     if isinstance(pt, AttributoTypeChoice):
         return "choices" if plural else "choice"
-    if isinstance(pt, AttributoTypeDouble):
+    if isinstance(pt, AttributoTypeDecimal):
         if pt.suffix:
             return f"{pt.suffix} ∈ {pt.range}" if pt.range is not None else pt.suffix
         word = "numbers" if plural else "number"
@@ -262,7 +262,7 @@ def _convert_double_to_double_list(
 ) -> AttributoValue:
     assert isinstance(after_type, AttributoTypeList)
     assert isinstance(v, float)
-    if not isinstance(after_type.sub_type, AttributoTypeDouble):
+    if not isinstance(after_type.sub_type, AttributoTypeDecimal):
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
             "first, and then to list?)"
@@ -314,7 +314,7 @@ def _convert_int_to_double(
     v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeInt)
-    assert isinstance(after_type, AttributoTypeDouble)
+    assert isinstance(after_type, AttributoTypeDecimal)
     assert isinstance(v, int)
 
     vd = float(v)
@@ -346,7 +346,7 @@ def _convert_double_to_boolean(
     _conversion_flags: AttributoConversionFlags,
     v: AttributoValue,
 ) -> AttributoValue:
-    assert isinstance(before_type, AttributoTypeDouble)
+    assert isinstance(before_type, AttributoTypeDecimal)
     assert isinstance(after_type, AttributoTypeBoolean)
     assert isinstance(v, (float, int))
 
@@ -373,7 +373,7 @@ def _convert_boolean_to_double(
     v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeBoolean)
-    assert isinstance(after_type, AttributoTypeDouble)
+    assert isinstance(after_type, AttributoTypeDecimal)
     assert isinstance(v, bool)
 
     result = 1.0 if v else 0.0
@@ -429,7 +429,7 @@ def _convert_double_to_int(
     _conversion_flags: AttributoConversionFlags,
     v: AttributoValue,
 ) -> AttributoValue:
-    assert isinstance(before_type, AttributoTypeDouble)
+    assert isinstance(before_type, AttributoTypeDecimal)
     assert isinstance(after_type, AttributoTypeInt)
     assert isinstance(v, (int, float))
 
@@ -442,8 +442,8 @@ def _convert_double_to_double(
     conversion_flags: AttributoConversionFlags,
     v: AttributoValue,
 ) -> AttributoValue:
-    assert isinstance(before_type, AttributoTypeDouble)
-    assert isinstance(after_type, AttributoTypeDouble)
+    assert isinstance(before_type, AttributoTypeDecimal)
+    assert isinstance(after_type, AttributoTypeDecimal)
     assert isinstance(v, (int, float))
 
     # If we ignore units, the range has to be correct afterwards as well
@@ -519,7 +519,7 @@ def _convert_string_to_double(
     v: AttributoValue,
 ) -> AttributoValue:
     assert isinstance(before_type, AttributoTypeString)
-    assert isinstance(after_type, AttributoTypeDouble)
+    assert isinstance(after_type, AttributoTypeDecimal)
     assert isinstance(v, str)
 
     vi = str_to_float(v.strip())
@@ -528,7 +528,7 @@ def _convert_string_to_double(
         raise Exception(f'cannot convert string "{v.strip()}" to float')
 
     return _convert_double_to_double(
-        AttributoTypeDouble(), after_type, _conversion_flags, vi
+        AttributoTypeDecimal(), after_type, _conversion_flags, vi
     )
 
 
@@ -584,7 +584,7 @@ _conversion_matrix.update(
         # start int
         (AttributoTypeInt, AttributoTypeInt): _convert_int_to_int,
         (AttributoTypeInt, AttributoTypeList): _convert_int_to_int_list,
-        (AttributoTypeInt, AttributoTypeDouble): _convert_int_to_double,
+        (AttributoTypeInt, AttributoTypeDecimal): _convert_int_to_double,
         (AttributoTypeInt, AttributoTypeString): lambda before, after, flags, v: str(v),
         # start list
         (AttributoTypeList, AttributoTypeList): _convert_list_to_list,
@@ -593,15 +593,16 @@ _conversion_matrix.update(
         (AttributoTypeString, AttributoTypeInt): _convert_string_to_int,
         (AttributoTypeString, AttributoTypeDateTime): _convert_string_to_datetime,
         (AttributoTypeString, AttributoTypeChoice): _convert_string_to_choice,
-        (AttributoTypeString, AttributoTypeDouble): _convert_string_to_double,
+        (AttributoTypeString, AttributoTypeDecimal): _convert_string_to_double,
         (AttributoTypeString, AttributoTypeList): _convert_string_to_string_list,
         # start double
-        (AttributoTypeDouble, AttributoTypeDouble): _convert_double_to_double,
-        (AttributoTypeDouble, AttributoTypeInt): _convert_double_to_int,  # type: ignore
-        (AttributoTypeDouble, AttributoTypeList): _convert_double_to_double_list,
-        (AttributoTypeDouble, AttributoTypeString): lambda before, after, flags, v: str(
-            v
-        ),
+        (AttributoTypeDecimal, AttributoTypeDecimal): _convert_double_to_double,
+        (AttributoTypeDecimal, AttributoTypeInt): _convert_double_to_int,  # type: ignore
+        (AttributoTypeDecimal, AttributoTypeList): _convert_double_to_double_list,
+        (
+            AttributoTypeDecimal,
+            AttributoTypeString,
+        ): lambda before, after, flags, v: str(v),
         # start bool
         (AttributoTypeBoolean, AttributoTypeBoolean): lambda before, after, flags, v: v,
         (
@@ -617,7 +618,7 @@ _conversion_matrix.update(
             AttributoTypeBoolean,
         ): _convert_int_to_boolean,
         (
-            AttributoTypeDouble,
+            AttributoTypeDecimal,
             AttributoTypeBoolean,
         ): _convert_double_to_boolean,
         (
@@ -626,7 +627,7 @@ _conversion_matrix.update(
         ): _convert_boolean_to_int,
         (
             AttributoTypeBoolean,
-            AttributoTypeDouble,
+            AttributoTypeDecimal,
         ): _convert_boolean_to_double,
         # start sample
         (AttributoTypeSample, AttributoTypeSample): lambda before, after, flags, v: v,

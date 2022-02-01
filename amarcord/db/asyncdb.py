@@ -199,10 +199,62 @@ class AsyncDB:
     async def retrieve_runs(
         self, conn: Connection, attributi: List[DBAttributo]
     ) -> List[DBRun]:
-        rc = self.tables.run.c
+        fc = self.tables.file.c
+        file_results = (
+            await conn.execute(
+                sa.select(
+                    [
+                        self.tables.run_has_file.c.run_id,
+                        fc.id,
+                        fc.description,
+                        fc.file_name,
+                        fc.type,
+                    ]
+                )
+                .select_from(
+                    self.tables.sample_has_file.join(
+                        self.tables.file,
+                        self.tables.run_has_file.c.file_id == self.tables.file.c.id,
+                    )
+                )
+                .order_by(self.tables.run_has_file.c.run_id)
+            )
+        ).fetchall()
+
+        run_to_files: Dict[int, List[DBFile]] = {}
+
+        for key, group in itertools.groupby(
+            file_results, key=lambda row: row["run_id"]
+        ):
+            run_to_files[key] = [
+                DBFile(
+                    id=row["id"],
+                    description=row["description"],
+                    type_=row["type"],
+                    file_name=row["file_name"],
+                )
+                for row in group
+            ]
+
+        select_stmt = sa.select(
+            [
+                self.tables.run.c.id,
+                self.tables.run.c.attributi,
+            ]
+        ).order_by(self.tables.run.c.name)
+
+        result = await conn.execute(select_stmt)
+
         return [
-            DBRun(id=x[0], attributi=AttributiMap.from_types_and_json(attributi, x[1]))
-            for x in await conn.execute(sa.select([rc.id, rc.attributi]))
+            DBRun(
+                id=a["id"],
+                attributi=AttributiMap.from_types_and_json(
+                    types=attributi,
+                    raw_attributi=a["attributi"],
+                ),
+                files=run_to_files.get(a["id"], []),
+            )
+            for a in result
         ]
 
     async def delete_sample(
@@ -546,6 +598,7 @@ class AsyncDB:
         return DBRun(
             id=r["id"],
             attributi=AttributiMap.from_types_and_json(attributi, r["attributi"]),
+            files=[],
         )
 
     async def update_run_attributi(

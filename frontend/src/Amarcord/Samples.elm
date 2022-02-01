@@ -3,6 +3,7 @@ module Amarcord.Samples exposing (..)
 import Amarcord.Attributo as Attributo exposing (Attributo, AttributoMap, AttributoName(..), AttributoType(..), AttributoValue(..), attributoDecoder, attributoMapDecoder, attributoTypeDecoder, createAnnotatedAttributoMap, emptyAttributoMap, encodeAttributoMap, fromAttributoName, mapAttributo, retrieveAttributoValue, toAttributoName, updateAttributoMap)
 import Amarcord.Bootstrap exposing (AlertType(..), icon, makeAlert, showHttpError)
 import Amarcord.Dialog as Dialog
+import Amarcord.File exposing (File, fileDecoder, httpCreateFile)
 import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
 import Amarcord.Route exposing (makeFilesLink)
@@ -14,7 +15,7 @@ import File.Select
 import Html exposing (..)
 import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, selected, step, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (filePart, jsonBody, multipartBody, stringPart)
+import Http exposing (jsonBody)
 import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import Json.Encode as Encode
@@ -54,14 +55,6 @@ type AttributoEditValue
         , editValue : String
         }
     | EditValueChoice { choiceValues : List String, editValue : String }
-
-
-type alias File =
-    { id : Int
-    , type_ : String
-    , fileName : String
-    , description : String
-    }
 
 
 type alias Sample idType attributiType fileType =
@@ -157,16 +150,6 @@ type Msg
     | EditNewFileOpenSelector
 
 
-fileDecoder : Decode.Decoder File
-fileDecoder =
-    Decode.map4
-        File
-        (Decode.field "id" Decode.int)
-        (Decode.field "type_" Decode.string)
-        (Decode.field "fileName" Decode.string)
-        (Decode.field "description" Decode.string)
-
-
 sampleDecoder : Decode.Decoder (Sample SampleId (AttributoMap AttributoValue) File)
 sampleDecoder =
     Decode.map4
@@ -205,19 +188,6 @@ httpCreateSample a =
         { url = "/api/samples"
         , expect = Http.expectJson EditSampleFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
         , body = jsonBody (encodeSample a)
-        }
-
-
-httpCreateFile : String -> ElmFile.File -> Cmd Msg
-httpCreateFile description file =
-    Http.post
-        { url = "/api/files"
-        , expect = Http.expectJson EditFileUploadFinished fileDecoder
-        , body =
-            multipartBody
-                [ filePart "file" file
-                , stringPart "metadata" (Encode.encode 0 <| Encode.object [ ( "description", Encode.string description ) ])
-                ]
         }
 
 
@@ -1233,7 +1203,7 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just fileToUpload ->
-                    ( { model | fileUploadRequest = Loading }, httpCreateFile model.newFileUpload.description fileToUpload )
+                    ( { model | fileUploadRequest = Loading }, httpCreateFile EditFileUploadFinished model.newFileUpload.description fileToUpload )
 
         EditFileUploadFinished result ->
             case result of

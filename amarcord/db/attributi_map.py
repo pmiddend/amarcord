@@ -12,7 +12,7 @@ from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
-from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
@@ -46,7 +46,7 @@ def _check_type(name: str, type_: AttributoType, value: AttributoValue) -> None:
             raise Exception(
                 f'attributo "{name}": should have type bool, but got value {value}'
             )
-    elif isinstance(type_, AttributoTypeDouble):
+    elif isinstance(type_, AttributoTypeDecimal):
         assert isinstance(
             value, (float, int)
         ), f'attributo "{name}": expected type float but got value {value}'
@@ -123,7 +123,7 @@ def _convert_single_attributo_value_from_json(
             v, str
         ), f'expected type string for attributo "{i}", got {type(v)}'
         return v
-    if isinstance(attributo_type.attributo_type, AttributoTypeDouble):
+    if isinstance(attributo_type.attributo_type, AttributoTypeDecimal):
         assert isinstance(
             v, (float, int)
         ), f'expected type float for attributo "{i}", got {type(v)}'

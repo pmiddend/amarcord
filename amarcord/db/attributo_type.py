@@ -41,7 +41,7 @@ class AttributoTypeBoolean:
 
 
 @dataclass(frozen=True)
-class AttributoTypeDouble:
+class AttributoTypeDecimal:
     range: Optional[NumericRange] = None
     suffix: Optional[str] = None
     standard_unit: bool = False
@@ -82,7 +82,7 @@ class AttributoTypeChoice:
 AttributoType = Union[
     AttributoTypeInt,
     AttributoTypeChoice,
-    AttributoTypeDouble,
+    AttributoTypeDecimal,
     AttributoTypeSample,
     AttributoTypeString,
     AttributoTypeDateTime,

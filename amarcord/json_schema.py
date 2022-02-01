@@ -63,7 +63,9 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
     if type_ is None:
         raise Exception("json schema has no type attribute")
     if type_ == "integer":
-        return JSONSchemaInteger(format=None)
+        format_ = s.get("format", None)
+        assert format_ is None or isinstance(format_, str)
+        return JSONSchemaInteger(format=format_)
 
     if type_ == "boolean":
         return JSONSchemaBoolean()
@@ -77,7 +79,7 @@ def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
             exclusiveMaximum=s.get("exclusiveMaximum", None),
             suffix=s.get("suffix", None),
             format_=JSONSchemaNumberFormat.STANDARD_UNIT
-            if format_ == "standard-unit"
+            if format_ == JSONSchemaNumberFormat.STANDARD_UNIT.value
             else None,
         )
 

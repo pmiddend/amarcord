@@ -6,7 +6,6 @@ from sqlalchemy import MetaData
 from sqlalchemy.sql import ColumnElement
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributo_id import AttributoId
 from amarcord.db.dbcontext import DBContext
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.job_status import DBJobStatus
@@ -61,6 +60,25 @@ def _table_sample_has_file(
             "sample_id",
             sa.Integer(),
             ForeignKey(_fk_identifier(sample.c.id), ondelete="cascade"),
+        ),
+        sa.Column(
+            "file_id",
+            sa.Integer(),
+            ForeignKey(_fk_identifier(file.c.id), ondelete="cascade"),
+        ),
+    )
+
+
+def _table_run_has_file(
+    metadata: sa.MetaData, run: sa.Table, file: sa.Table
+) -> sa.Table:
+    return sa.Table(
+        "RunHasFile",
+        metadata,
+        sa.Column(
+            "run_id",
+            sa.Integer(),
+            ForeignKey(_fk_identifier(run.c.id), ondelete="cascade"),
         ),
         sa.Column(
             "file_id",
@@ -165,8 +183,10 @@ class DBTables:
         cfel_analysis_results: sa.Table,
         file: sa.Table,
         sample_has_file: sa.Table,
+        run_has_file: sa.Table,
         indexing_jobs: sa.Table,
     ) -> None:
+        self.run_has_file = run_has_file
         self.event_log = event_log
         self.sample = sample
         self.run = run
@@ -174,10 +194,6 @@ class DBTables:
         self.cfel_analysis_results = cfel_analysis_results
         self.file = file
         self.sample_has_file = sample_has_file
-        self.attributo_run_id = AttributoId("id")
-        self.attributo_run_modified = AttributoId("modified")
-        self.attributo_run_sample_id = AttributoId("sample_id")
-        self.attributo_run_id = AttributoId("id")
         self.indexing_jobs = indexing_jobs
 
 
@@ -193,6 +209,7 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         cfel_analysis_results=_table_cfel_analysis_results(metadata),
         file=file,
         sample_has_file=_table_sample_has_file(metadata, sample, file),
+        run_has_file=_table_run_has_file(metadata, run, file),
         indexing_jobs=_table_indexing_jobs(metadata, run),
     )
 

@@ -19,7 +19,7 @@ from amarcord.db.attributi_map import AttributiMap, UntypedAttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeDateTime
-from amarcord.db.attributo_type import AttributoTypeDouble
+from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
@@ -109,9 +109,9 @@ def _unit_to_type(type_str: str, unit_str: Optional[str]) -> AttributoType:
     if type_str == "int":
         return AttributoTypeInt()
     if type_str == "decimal":
-        return AttributoTypeDouble(suffix=unit_str)
+        return AttributoTypeDecimal(suffix=unit_str)
     if type_str == "unit_type":
-        return AttributoTypeDouble(suffix=unit_str, standard_unit=True)
+        return AttributoTypeDecimal(suffix=unit_str, standard_unit=True)
     if type_str == "list[str]":
         return AttributoTypeList(
             AttributoTypeString(), min_length=None, max_length=None

@@ -6,7 +6,7 @@ from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeString,
     AttributoTypeBoolean,
-    AttributoTypeDouble,
+    AttributoTypeDecimal,
     AttributoType,
 )
 from amarcord.db.dbattributo import DBAttributo
@@ -97,13 +97,13 @@ def test_attributi_map_check_type_for_double() -> None:
     # Give an string for a double attributo, should fail
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
-            [_create_attributo(AttributoTypeDouble())],
+            [_create_attributo(AttributoTypeDecimal())],
             {TEST_ATTRIBUTO_ID: "foo"},
         )
 
     # Give a proper double for an double attributo, should work
     am = AttributiMap.from_types_and_json(
-        [_create_attributo(AttributoTypeDouble())],
+        [_create_attributo(AttributoTypeDecimal())],
         {TEST_ATTRIBUTO_ID: 4.5},
     )
 
@@ -114,7 +114,7 @@ def test_attributi_map_check_type_for_double() -> None:
         AttributiMap.from_types_and_json(
             [
                 _create_attributo(
-                    AttributoTypeDouble(range=NumericRange(1.0, False, 2.0, False))
+                    AttributoTypeDecimal(range=NumericRange(1.0, False, 2.0, False))
                 )
             ],
             {TEST_ATTRIBUTO_ID: 4.5},

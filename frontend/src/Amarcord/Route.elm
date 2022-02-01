@@ -7,6 +7,7 @@ import Url.Parser exposing (Parser, map, oneOf, parse, s, top)
 type Route
     = Root
     | Samples
+    | RunOverview
     | Attributi
 
 
@@ -29,6 +30,9 @@ makeLink x =
         Attributi ->
             "/attributi"
 
+        RunOverview ->
+            "/runoverview"
+
         Samples ->
             "/samples"
 
@@ -44,4 +48,5 @@ matchRoute =
         [ map Root top
         , map Attributi (s "attributi")
         , map Samples (s "samples")
+        , map RunOverview (s "runoverview")
         ]
