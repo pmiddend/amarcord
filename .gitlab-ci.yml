@@ -14,6 +14,7 @@ variables:
   AMARCORD_PYTHON_DOCKER: gitlab.desy.de:5555/cfel-sc-public/amarcord/poetry-base-image:v1-1-8
   # this is a workaround for the root CA issue in DESY’s GitLab CI (will be fixed soon (tm))
   GIT_SSL_NO_VERIFY: "true"
+  ELM_HOME: "$CI_PROJECT_DIR/.cache/elm"
 
 check-shell-scripts:
   stage: pretest
@@ -49,6 +50,10 @@ build-frontend:
   stage: test
   script:
     - ./ci/build-frontend.sh
+  cache:
+    key: elm
+    paths:
+      - .cache/elm
   artifacts:
     paths:
       - frontend/output
