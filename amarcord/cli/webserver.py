@@ -186,6 +186,7 @@ async def create_attributo() -> JSONDict:
             conn,
             name=r.retrieve_safe_str("name"),
             description=r.retrieve_safe_str("description"),
+            group=r.retrieve_safe_str("group"),
             associated_table=AssociatedTable(r.retrieve_safe_str("associatedTable")),
             type_=schema_to_attributo_type(parse_schema_type(r.retrieve_safe("type"))),
         )
@@ -207,6 +208,7 @@ async def change_attributo() -> JSONDict:
         new_attributo = DBAttributo(
             name=AttributoId(new_attributo_json.retrieve_safe_str("name")),
             description=new_attributo_json.retrieve_safe_str("description"),
+            group=new_attributo_json.retrieve_safe_str("group"),
             associated_table=AssociatedTable(
                 new_attributo_json.retrieve_safe_str("associatedTable")
             ),
@@ -276,6 +278,7 @@ def _encode_attributo(a: DBAttributo) -> JSONDict:
     return {
         "name": a.name,
         "description": a.description,
+        "group": a.group,
         "associatedTable": a.associated_table.value,
         "type": attributo_type_to_schema(a.attributo_type),
     }

@@ -1,5 +1,4 @@
 import logging
-from typing import Dict
 
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey
@@ -8,11 +7,6 @@ from sqlalchemy.sql import ColumnElement
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoTypeDateTime
-from amarcord.db.attributo_type import AttributoTypeInt
-from amarcord.db.attributo_type import AttributoTypeSample
-from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import DBContext
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.job_status import DBJobStatus
@@ -31,8 +25,8 @@ def _table_attributo(metadata: sa.MetaData) -> sa.Table:
         "Attributo",
         metadata,
         sa.Column("name", sa.String(length=255), primary_key=True),
-        sa.Column("description", sa.String(length=255)),
-        sa.Column("suffix", sa.String(length=255)),
+        sa.Column("description", sa.String(length=255), nullable=False),
+        sa.Column("group", sa.String(length=255), nullable=False),
         sa.Column(
             "associated_table",
             sa.Enum(AssociatedTable),
@@ -113,7 +107,7 @@ def _table_cfel_analysis_results(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_run(metadata: sa.MetaData, sample: sa.Table) -> sa.Table:
+def _table_run(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Run",
         metadata,
@@ -185,49 +179,11 @@ class DBTables:
         self.attributo_run_sample_id = AttributoId("sample_id")
         self.attributo_run_id = AttributoId("id")
         self.indexing_jobs = indexing_jobs
-        self.additional_attributi: Dict[
-            AssociatedTable, Dict[AttributoId, DBAttributo]
-        ] = {
-            AssociatedTable.SAMPLE: {
-                AttributoId("id"): DBAttributo(
-                    name=AttributoId("id"),
-                    description="Sample ID",
-                    associated_table=AssociatedTable.SAMPLE,
-                    attributo_type=AttributoTypeInt(),
-                ),
-                AttributoId("name"): DBAttributo(
-                    name=AttributoId("name"),
-                    description="Name",
-                    associated_table=AssociatedTable.SAMPLE,
-                    attributo_type=AttributoTypeString(),
-                ),
-                AttributoId("created"): DBAttributo(
-                    name=AttributoId("created"),
-                    description="Created",
-                    associated_table=AssociatedTable.SAMPLE,
-                    attributo_type=AttributoTypeDateTime(),
-                ),
-            },
-            AssociatedTable.RUN: {
-                self.attributo_run_id: DBAttributo(
-                    name=self.attributo_run_id,
-                    description="Run ID",
-                    associated_table=AssociatedTable.RUN,
-                    attributo_type=AttributoTypeInt(),
-                ),
-                self.attributo_run_modified: DBAttributo(
-                    name=self.attributo_run_modified,
-                    description="Modified",
-                    associated_table=AssociatedTable.RUN,
-                    attributo_type=AttributoTypeDateTime(),
-                ),
-            },
-        }
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     sample = _table_sample(metadata)
-    run = _table_run(metadata, sample)
+    run = _table_run(metadata)
     file = _table_file(metadata)
     return DBTables(
         sample=sample,

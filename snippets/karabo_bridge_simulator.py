@@ -9,8 +9,8 @@ from typing import Dict
 import yaml
 
 from amarcord.amici.karabo_online import KaraboBridgeSlicer
-from amarcord.cli.karabo_bridge_deamon import ingest_attributi
-from amarcord.cli.karabo_bridge_deamon import ingest_karabo_action
+from amarcord.cli.karabo_bridge_daemon import ingest_attributi
+from amarcord.cli.karabo_bridge_daemon import ingest_karabo_action
 from amarcord.db.db import DB
 from amarcord.db.proposal_id import ProposalId
 from amarcord.db.tables import create_tables

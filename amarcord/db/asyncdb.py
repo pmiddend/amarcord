@@ -66,25 +66,26 @@ class AsyncDB:
     async def retrieve_attributi(
         self, conn: Connection, associated_table: Optional[AssociatedTable]
     ) -> List[DBAttributo]:
+        ac = self.tables.attributo.c
         select_stmt = sa.select(
             [
-                self.tables.attributo.c.name,
-                self.tables.attributo.c.description,
-                self.tables.attributo.c.json_schema,
-                self.tables.attributo.c.associated_table,
+                ac.name,
+                ac.description,
+                ac.group,
+                ac.json_schema,
+                ac.associated_table,
             ]
-        ).order_by(self.tables.attributo.c.associated_table)
+        ).order_by(ac.associated_table)
 
         if associated_table is not None:
-            select_stmt = select_stmt.where(
-                self.tables.attributo.c.associated_table == associated_table
-            )
+            select_stmt = select_stmt.where(ac.associated_table == associated_table)
 
         result = await conn.execute(select_stmt)
         return [
             DBAttributo(
                 name=AttributoId(a["name"]),
                 description=a["description"],
+                group=a["group"],
                 associated_table=a["associated_table"],
                 attributo_type=schema_json_to_attributo_type(a["json_schema"]),
             )
@@ -237,6 +238,7 @@ class AsyncDB:
         conn: Connection,
         name: str,
         description: str,
+        group: str,
         associated_table: AssociatedTable,
         type_: AttributoType,
     ) -> None:
@@ -254,6 +256,7 @@ class AsyncDB:
                 name=name,
                 description=description,
                 associated_table=associated_table,
+                group=group,
                 json_schema=attributo_type_to_schema(type_),
             )
         )
@@ -344,6 +347,7 @@ class AsyncDB:
             .values(
                 name=new_attributo.name,
                 description=new_attributo.description,
+                group=new_attributo.group,
                 json_schema=attributo_type_to_schema(new_attributo.attributo_type),
             )
             .where(self.tables.attributo.c.name == name)

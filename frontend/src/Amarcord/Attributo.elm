@@ -8,7 +8,6 @@ module Amarcord.Attributo exposing
     , attributoIsNumber
     , attributoIsString
     , attributoMapDecoder
-    , attributoNameDecoder
     , attributoTypeDecoder
     , attributoValueDecoder
     , createAnnotatedAttributoMap
@@ -22,7 +21,6 @@ module Amarcord.Attributo exposing
     , mapAttributo
     , mapAttributoMaybe
     , removeAttributoFromMap
-    , resultAttributo
     , retrieveAttributoValue
     , toAttributoName
     , updateAttributoMap
@@ -92,11 +90,6 @@ type AttributoName
     = AttributoName String
 
 
-attributoNameDecoder : Decode.Decoder AttributoName
-attributoNameDecoder =
-    Decode.map AttributoName Decode.string
-
-
 encodeAttributoName : AttributoName -> Encode.Value
 encodeAttributoName (AttributoName n) =
     Encode.string n
@@ -105,6 +98,7 @@ encodeAttributoName (AttributoName n) =
 type alias Attributo a =
     { name : AttributoName
     , description : String
+    , group : String
     , associatedTable : AssociatedTable
     , type_ : a
     }
@@ -155,36 +149,27 @@ attributoMapDecoder =
 
 
 mapAttributo : (a -> b) -> Attributo a -> Attributo b
-mapAttributo f { name, description, associatedTable, type_ } =
-    { name = name, description = description, associatedTable = associatedTable, type_ = f type_ }
+mapAttributo f { name, description, group, associatedTable, type_ } =
+    { name = name, description = description, group = group, associatedTable = associatedTable, type_ = f type_ }
 
 
 mapAttributoMaybe : (a -> Maybe b) -> Attributo a -> Maybe (Attributo b)
-mapAttributoMaybe f { name, description, associatedTable, type_ } =
+mapAttributoMaybe f { name, description, group, associatedTable, type_ } =
     case f type_ of
         Nothing ->
             Nothing
 
         Just converted ->
-            Just { name = name, description = description, associatedTable = associatedTable, type_ = converted }
-
-
-resultAttributo : (a -> Result e b) -> Attributo a -> Result e (Attributo b)
-resultAttributo f a =
-    case f a.type_ of
-        Err e ->
-            Err e
-
-        Ok v ->
-            Ok { name = a.name, description = a.description, associatedTable = a.associatedTable, type_ = v }
+            Just { name = name, description = description, group = group, associatedTable = associatedTable, type_ = converted }
 
 
 attributoDecoder : Decode.Decoder a -> Decode.Decoder (Attributo a)
 attributoDecoder typeDecoder =
-    Decode.map4
+    Decode.map5
         Attributo
         (Decode.map AttributoName (Decode.field "name" Decode.string))
         (Decode.field "description" Decode.string)
+        (Decode.field "group" Decode.string)
         (Decode.field "associatedTable" associatedTableDecoder)
         (Decode.field "type" typeDecoder)
 

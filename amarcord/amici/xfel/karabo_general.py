@@ -170,6 +170,7 @@ async def ingest_attributi(db: AsyncDB, attributi: KaraboExpectedAttributi) -> N
                 conn,
                 n,
                 a.description,
+                "Karabo",
                 AssociatedTable.RUN,
                 type_,
             )

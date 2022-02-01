@@ -153,32 +153,36 @@ numericRangeExclusiveMaximum (NumericRange { maximum }) =
 
 coparseRange : NumericRange -> String
 coparseRange n =
-    case n of
-        NumericRange { minimum, maximum } ->
-            let
-                prefix =
-                    case minimum of
-                        Missing ->
-                            "(oo"
+    if n == emptyNumericRange then
+        ""
 
-                        Inclusive x ->
-                            "[" ++ fromFloat x
+    else
+        case n of
+            NumericRange { minimum, maximum } ->
+                let
+                    prefix =
+                        case minimum of
+                            Missing ->
+                                "(oo"
 
-                        Exclusive x ->
-                            "(" ++ fromFloat x
+                            Inclusive x ->
+                                "[" ++ fromFloat x
 
-                suffix =
-                    case maximum of
-                        Missing ->
-                            "oo)"
+                            Exclusive x ->
+                                "(" ++ fromFloat x
 
-                        Inclusive x ->
-                            fromFloat x ++ "]"
+                    suffix =
+                        case maximum of
+                            Missing ->
+                                "oo)"
 
-                        Exclusive x ->
-                            fromFloat x ++ ")"
-            in
-            prefix ++ "," ++ suffix
+                            Inclusive x ->
+                                fromFloat x ++ "]"
+
+                            Exclusive x ->
+                                fromFloat x ++ ")"
+                in
+                prefix ++ "," ++ suffix
 
 
 rangeFromJsonSchema : Maybe Float -> Maybe Float -> Maybe Float -> Maybe Float -> NumericRange

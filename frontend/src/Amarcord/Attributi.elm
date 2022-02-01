@@ -174,7 +174,7 @@ attributoAugTypeToEnum x =
 
 emptyAugAttributo : Attributo AttributoTypeAug
 emptyAugAttributo =
-    { name = toAttributoName "", description = "", associatedTable = Sample, type_ = AugSimple String }
+    { name = toAttributoName "", description = "", group = "manual", associatedTable = Sample, type_ = AugSimple String }
 
 
 type alias ConversionFlags =
@@ -361,6 +361,7 @@ encodeAttributo typeEncoder a =
     Encode.object
         [ ( "name", encodeAttributoName a.name )
         , ( "description", Encode.string a.description )
+        , ( "group", Encode.string a.group )
         , ( "associatedTable", encodeAssociatedTable a.associatedTable )
         , ( "type", typeEncoder a.type_ )
         ]
@@ -494,9 +495,10 @@ attributoTypeToHtml x =
 
 
 viewAttributoRow : Attributo AttributoType -> Html Msg
-viewAttributoRow { name, description, associatedTable, type_ } =
+viewAttributoRow { name, description, group, associatedTable, type_ } =
     tr_
         [ th [ scope "row", style "white-space" "nowrap" ] [ text (associatedTableToString associatedTable ++ "." ++ fromAttributoName name) ]
+        , td [ style "white-space" "nowrap" ] [ text group ]
         , td_ [ text description ]
         , td [ style "white-space" "nowrap" ] (attributoTypeToHtml type_)
         , td [ style "white-space" "nowrap" ]
@@ -968,6 +970,7 @@ viewInner model =
                         [ thead_
                             [ tr_
                                 [ th_ [ text "Name" ]
+                                , th_ [ text "Group" ]
                                 , th [ style "width" "100%" ] [ text "Description" ]
                                 , th_ [ text "Type" ]
                                 , th_ [ text "Actions" ]

@@ -9,6 +9,7 @@ from amarcord.db.attributo_type import AttributoType
 class DBAttributo:
     name: AttributoId
     description: str
+    group: str
     associated_table: AssociatedTable
     attributo_type: AttributoType
 

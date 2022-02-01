@@ -7,6 +7,7 @@ from amarcord.db.attributo_type import (
     AttributoTypeString,
     AttributoTypeBoolean,
     AttributoTypeDouble,
+    AttributoType,
 )
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.numeric_range import NumericRange
@@ -14,31 +15,27 @@ from amarcord.numeric_range import NumericRange
 TEST_ATTRIBUTO_ID = "test"
 
 
+def _create_attributo(t: AttributoType) -> DBAttributo:
+    return DBAttributo(
+        TEST_ATTRIBUTO_ID,
+        "description",
+        "manual",
+        AssociatedTable.RUN,
+        t,
+    )
+
+
 def test_attributi_map_check_type_for_int() -> None:
     # Give a string for an integer attributo, should fail
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
-            [
-                DBAttributo(
-                    TEST_ATTRIBUTO_ID,
-                    "description",
-                    AssociatedTable.RUN,
-                    AttributoTypeInt(),
-                )
-            ],
+            [_create_attributo(AttributoTypeInt())],
             {TEST_ATTRIBUTO_ID: "foo"},
         )
 
     # Give a proper integer for an integer attributo, should work
     am = AttributiMap.from_types_and_json(
-        [
-            DBAttributo(
-                TEST_ATTRIBUTO_ID,
-                "description",
-                AssociatedTable.RUN,
-                AttributoTypeInt(),
-            )
-        ],
+        [_create_attributo(AttributoTypeInt())],
         {TEST_ATTRIBUTO_ID: 3},
     )
 
@@ -58,27 +55,13 @@ def test_attributi_map_check_type_for_string() -> None:
     # Give an integer for a string attributo, should fail
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
-            [
-                DBAttributo(
-                    TEST_ATTRIBUTO_ID,
-                    "description",
-                    AssociatedTable.RUN,
-                    AttributoTypeString(),
-                )
-            ],
+            [_create_attributo(AttributoTypeString())],
             {TEST_ATTRIBUTO_ID: 3},
         )
 
     # Give a proper integer for an integer attributo, should work
     am = AttributiMap.from_types_and_json(
-        [
-            DBAttributo(
-                TEST_ATTRIBUTO_ID,
-                "description",
-                AssociatedTable.RUN,
-                AttributoTypeString(),
-            )
-        ],
+        [_create_attributo(AttributoTypeString())],
         {TEST_ATTRIBUTO_ID: "foo"},
     )
 
@@ -95,31 +78,18 @@ def test_attributi_map_check_type_for_boolean() -> None:
     # Give an integer for a boolean attributo, should fail
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
-            [
-                DBAttributo(
-                    TEST_ATTRIBUTO_ID,
-                    "description",
-                    AssociatedTable.RUN,
-                    AttributoTypeBoolean(),
-                )
-            ],
+            [_create_attributo(AttributoTypeBoolean())],
             {TEST_ATTRIBUTO_ID: 3},
         )
 
     # Give a proper integer for an integer attributo, should work
     am = AttributiMap.from_types_and_json(
-        [
-            DBAttributo(
-                TEST_ATTRIBUTO_ID,
-                "description",
-                AssociatedTable.RUN,
-                AttributoTypeBoolean(),
-            )
-        ],
+        [_create_attributo(AttributoTypeBoolean())],
         {TEST_ATTRIBUTO_ID: True},
     )
 
     # Then try to retrieve the attributo
+    # pylint: disable=singleton-comparison
     assert am.select(TEST_ATTRIBUTO_ID) == True
 
 
@@ -127,27 +97,13 @@ def test_attributi_map_check_type_for_double() -> None:
     # Give an string for a double attributo, should fail
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
-            [
-                DBAttributo(
-                    TEST_ATTRIBUTO_ID,
-                    "description",
-                    AssociatedTable.RUN,
-                    AttributoTypeDouble(),
-                )
-            ],
+            [_create_attributo(AttributoTypeDouble())],
             {TEST_ATTRIBUTO_ID: "foo"},
         )
 
     # Give a proper double for an double attributo, should work
     am = AttributiMap.from_types_and_json(
-        [
-            DBAttributo(
-                TEST_ATTRIBUTO_ID,
-                "description",
-                AssociatedTable.RUN,
-                AttributoTypeDouble(),
-            )
-        ],
+        [_create_attributo(AttributoTypeDouble())],
         {TEST_ATTRIBUTO_ID: 4.5},
     )
 
@@ -155,13 +111,10 @@ def test_attributi_map_check_type_for_double() -> None:
 
     # Give a value that is out of range
     with pytest.raises(Exception):
-        am2 = AttributiMap.from_types_and_json(
+        AttributiMap.from_types_and_json(
             [
-                DBAttributo(
-                    TEST_ATTRIBUTO_ID,
-                    "description",
-                    AssociatedTable.RUN,
-                    AttributoTypeDouble(range=NumericRange(1.0, False, 2.0, False)),
+                _create_attributo(
+                    AttributoTypeDouble(range=NumericRange(1.0, False, 2.0, False))
                 )
             ],
             {TEST_ATTRIBUTO_ID: 4.5},
