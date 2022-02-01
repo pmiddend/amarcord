@@ -8,7 +8,6 @@ from sqlalchemy.sql import ColumnElement
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeSample
@@ -114,22 +113,6 @@ def _table_cfel_analysis_results(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_run_comment(metadata: sa.MetaData, run: sa.Table) -> sa.Table:
-    return sa.Table(
-        "RunComment",
-        metadata,
-        sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column(
-            "run_id",
-            sa.Integer,
-            sa.ForeignKey(_fk_identifier(run.c.id), ondelete="cascade"),
-        ),
-        sa.Column("author", sa.String(length=255), nullable=False),
-        sa.Column("comment_text", sa.String(length=255), nullable=False),
-        sa.Column("created", sa.DateTime, nullable=False, server_default=sa.func.now()),
-    )
-
-
 def _table_run(metadata: sa.MetaData, sample: sa.Table) -> sa.Table:
     return sa.Table(
         "Run",
@@ -189,7 +172,6 @@ class DBTables:
         self,
         sample: sa.Table,
         run: sa.Table,
-        run_comment: sa.Table,
         attributo: sa.Table,
         event_log: sa.Table,
         cfel_analysis_results: sa.Table,
@@ -200,13 +182,11 @@ class DBTables:
         self.event_log = event_log
         self.sample = sample
         self.run = run
-        self.run_comment = run_comment
         self.attributo = attributo
         self.cfel_analysis_results = cfel_analysis_results
         self.file = file
         self.sample_has_file = sample_has_file
         self.attributo_run_id = AttributoId("id")
-        self.attributo_run_comments = AttributoId("comments")
         self.attributo_run_modified = AttributoId("modified")
         self.attributo_run_sample_id = AttributoId("sample_id")
         self.attributo_run_id = AttributoId("id")
@@ -241,12 +221,6 @@ class DBTables:
                     associated_table=AssociatedTable.RUN,
                     attributo_type=AttributoTypeInt(),
                 ),
-                self.attributo_run_comments: DBAttributo(
-                    name=self.attributo_run_comments,
-                    description="Comments",
-                    associated_table=AssociatedTable.RUN,
-                    attributo_type=AttributoTypeComments(),
-                ),
                 self.attributo_run_modified: DBAttributo(
                     name=self.attributo_run_modified,
                     description="Modified",
@@ -270,7 +244,6 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     return DBTables(
         sample=sample,
         run=run,
-        run_comment=_table_run_comment(metadata, run),
         attributo=_table_attributo(metadata),
         event_log=_table_event_log(metadata),
         cfel_analysis_results=_table_cfel_analysis_results(metadata),

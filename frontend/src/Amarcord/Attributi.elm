@@ -60,7 +60,6 @@ type AttributoTypeEnum
     | ATBoolean
     | ATSample
     | ATString
-    | ATComments
     | ATList
     | ATNumber
     | ATChoice
@@ -80,9 +79,6 @@ attributoTypeEnumToString x =
 
         ATString ->
             "string"
-
-        ATComments ->
-            "comments"
 
         ATList ->
             "list"
@@ -111,9 +107,6 @@ attributoTypeToEnum x =
 
         String ->
             ATString
-
-        Comments ->
-            ATComments
 
         List _ ->
             ATList
@@ -155,9 +148,6 @@ initialAttributoAugType x =
 
         ATString ->
             AugSimple String
-
-        ATComments ->
-            AugSimple Comments
 
         ATList ->
             AugList { subType = String, minLengthInput = "", maxLengthInput = "" }
@@ -206,9 +196,6 @@ attributoTypeToJsonSchema x =
 
         String ->
             JsonSchemaString { enum = Nothing, format = Nothing }
-
-        Comments ->
-            JsonSchemaInteger { format = Nothing }
 
         List { subType, minLength, maxLength } ->
             JsonSchemaArray { minItems = minLength, maxItems = maxLength, items = attributoTypeToJsonSchema subType, format = Nothing }
@@ -452,9 +439,6 @@ attributoTypeToHtml x =
 
         Boolean ->
             [ text "boolean" ]
-
-        Comments ->
-            [ text "comments" ]
 
         List { subType, minLength, maxLength } ->
             case ( minLength, maxLength ) of

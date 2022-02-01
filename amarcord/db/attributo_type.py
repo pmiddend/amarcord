@@ -41,12 +41,6 @@ class AttributoTypeBoolean:
 
 
 @dataclass(frozen=True)
-class AttributoTypeComments:
-    def __str__(self) -> str:
-        return "list of comments"
-
-
-@dataclass(frozen=True)
 class AttributoTypeDouble:
     range: Optional[NumericRange] = None
     suffix: Optional[str] = None
@@ -91,7 +85,6 @@ AttributoType = Union[
     AttributoTypeDouble,
     AttributoTypeSample,
     AttributoTypeString,
-    AttributoTypeComments,
     AttributoTypeDateTime,
     AttributoTypeList,
     AttributoTypeBoolean,

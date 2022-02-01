@@ -55,7 +55,6 @@ type AttributoType
     | SampleId
     | String
     | Boolean
-    | Comments
     | List
         { subType : AttributoType
         , minLength : Maybe Int
@@ -223,9 +222,6 @@ jsonSchemaToAttributoType x =
 
         JsonSchemaArray { minItems, maxItems, items, format } ->
             case format of
-                Just "comments" ->
-                    Ok Comments
-
                 Just unknown ->
                     Err <| "unknown array format \"" ++ unknown ++ "\""
 

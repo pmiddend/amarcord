@@ -41,7 +41,6 @@ type AttributoEditValue
     | EditValueBoolean Bool
     | EditValueSampleId
     | EditValueString String
-    | EditValueComments
     | EditValueList
         { subType : AttributoType
         , minLength : Maybe Int
@@ -910,9 +909,6 @@ emptyEditValue a =
         Attributo.String ->
             EditValueString ""
 
-        Attributo.Comments ->
-            EditValueComments
-
         Attributo.List { subType, minLength, maxLength } ->
             EditValueList { subType = subType, minLength = minLength, maxLength = maxLength, editValue = "" }
 
@@ -984,9 +980,6 @@ editValueToValue x =
 
         EditValueString string ->
             Ok (ValueString string)
-
-        EditValueComments ->
-            Ok (ValueInt 0)
 
         EditValueList { minLength, maxLength, subType, editValue } ->
             let

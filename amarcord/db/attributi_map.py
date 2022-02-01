@@ -11,7 +11,6 @@ from amarcord.db.attributi import convert_attributo_value, AttributoConversionFl
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
-from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeInt
@@ -137,8 +136,6 @@ def _convert_single_attributo_value_from_json(
                 f"value is {v}"
             )
         return float(v)
-    if isinstance(attributo_type.attributo_type, AttributoTypeComments):
-        raise Exception(f"cannot deserialize comments from JSON for attributo {i}")
     if isinstance(attributo_type.attributo_type, AttributoTypeDateTime):
         assert isinstance(
             v, str

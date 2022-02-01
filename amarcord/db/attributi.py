@@ -1,12 +1,10 @@
 import datetime
 import logging
 from dataclasses import dataclass
-from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Final
 from typing import List
-from typing import Optional
 from typing import Tuple
 from typing import Type
 
@@ -15,7 +13,6 @@ from pint import UnitRegistry
 
 from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
-from amarcord.db.attributo_type import AttributoTypeComments
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDouble
 from amarcord.db.attributo_type import AttributoTypeInt
@@ -23,7 +20,6 @@ from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.mini_sample import DBMiniSample
 from amarcord.json import JSONDict
@@ -153,20 +149,6 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
         if rp.max_length is not None:
             base["maxItems"] = rp.max_length
         return base
-    if isinstance(rp, AttributoTypeComments):
-        return {
-            "type": "array",
-            "format": "comments",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "integer"},
-                    "text": {"type": "string"},
-                    "created": {"type": "string", "format": "date-time"},
-                    "author": {"type": "string"},
-                },
-            },
-        }
     raise Exception(f"invalid property type {type(rp)}")
 
 
@@ -191,20 +173,6 @@ def pretty_print_attributo(
                 .astimezone(tz.tzlocal())
                 .strftime("%Y-%m-%d %H:%M:%S")
             )
-        if isinstance(rpt, AttributoTypeComments):
-            assert isinstance(
-                value, list
-            ), f"Comment column isn't a list but {type(value)}"
-            if not value:
-                return ""
-            last_comment = value[-1]
-            assert isinstance(last_comment, DBComment)
-            last_comment_text = f"{last_comment.author}: {last_comment.text}"
-            return (
-                last_comment_text
-                if len(value) == 1
-                else f"{last_comment_text} [+{len(value)} more]"
-            )
     if isinstance(value, list):
         if not value:
             return ""
@@ -214,16 +182,6 @@ def pretty_print_attributo(
     if isinstance(value, float):
         return f"{value:.2f}"
     return str(value) if value is not None else ""
-
-
-def sortable_attributo(attributo_metadata: Optional[DBAttributo], value: Any) -> Any:
-    if attributo_metadata is not None and isinstance(
-        attributo_metadata.attributo_type, AttributoTypeComments
-    ):
-        return len(value)
-    if isinstance(value, list):
-        return len(value)
-    return value
 
 
 def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
@@ -240,8 +198,6 @@ def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
         return "Sample IDs" if plural else "Sample ID"
     if isinstance(pt, AttributoTypeString):
         return "texts" if plural else "text"
-    if isinstance(pt, AttributoTypeComments):
-        return "comments"
     if isinstance(pt, AttributoTypeDateTime):
         return "date and time"
     if isinstance(pt, AttributoTypeList):
