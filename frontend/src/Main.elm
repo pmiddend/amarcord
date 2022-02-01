@@ -1,4 +1,8 @@
-module Amarcord.Main exposing (main)
+-- Certain tools (elm2nix, for example) assume that Main is directly below src/, so it's here.
+-- In case you're wondering...
+
+
+module Main exposing (main)
 
 import Amarcord.Attributi as Attributi
 import Amarcord.Bootstrap exposing (icon)

@@ -45,19 +45,28 @@ tests:
       cobertura: coverage.xml
       junit: report.xml
 
+# Using nodejs, deprecated since the elm caching issue
+#build-frontend:
+#  image: node:17.4
+#  stage: test
+#  script:
+#    - ./ci/build-frontend.sh
+#  cache:
+#    key: elm
+#    paths:
+#      - .cache/elm
+#  artifacts:
+#    paths:
+#      - frontend/output
+
 build-frontend:
-  image: node:17.4
+  image: nixos/nix:2.6.0
   stage: test
   script:
-    - ./ci/build-frontend.sh
-  cache:
-    key: elm
-    paths:
-      - .cache/elm
+    - ./ci/build-frontend-using-nix.sh
   artifacts:
     paths:
       - frontend/output
-
 
 upload-webserver:
   image:
@@ -89,7 +98,6 @@ upload-webserver-manual:
     DOCKER_TLS_CERTDIR: ""
   when: manual
   script:
-    - ls frontend/output
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "$IMAGE_SLUG_TAG" --destination "$IMAGE_COMMIT_TAG"
