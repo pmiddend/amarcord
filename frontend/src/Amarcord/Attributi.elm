@@ -4,7 +4,7 @@ import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableTo
 import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, encodeAttributoName, fromAttributoName, httpGetAndDecodeAttributi, mapAttributo, mapAttributoMaybe, toAttributoName)
 import Amarcord.Bootstrap exposing (AlertType(..), icon, makeAlert, showHttpError)
 import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (div_, form_, h4_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (div_, em_, form_, h4_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.JsonSchema exposing (JsonSchema(..), encodeJsonSchema)
 import Amarcord.NumericRange exposing (NumericRange(..), NumericRangeValue(..), coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
@@ -587,6 +587,9 @@ viewTypeSpecificForm x =
                     ]
                 ]
 
+        AugSimple SampleId ->
+            p_ [ text "A run can have one or more ", em_ [ text "sample" ], text " attributi. In the simplest case, just give one sample attributo to signify the sample that is to be screened. But it's up to you designing the experiment." ]
+
         AugSimple _ ->
             text ""
 
@@ -706,8 +709,22 @@ viewTypeSpecificForm x =
                 ]
 
 
-viewTypeForm : AttributoTypeAug -> Html Msg
-viewTypeForm a =
+attributoTypesForTable : AssociatedTable -> List AttributoTypeEnum
+attributoTypesForTable x =
+    let
+        baseTypes =
+            [ ATInt, ATBoolean, ATDateTime, ATString, ATList, ATNumber, ATChoice ]
+    in
+    case x of
+        Run ->
+            ATSample :: baseTypes
+
+        Sample ->
+            baseTypes
+
+
+viewTypeForm : AssociatedTable -> AttributoTypeAug -> Html Msg
+viewTypeForm table a =
     let
         makeTypeRadio : AttributoTypeEnum -> Html Msg
         makeTypeRadio e =
@@ -725,7 +742,7 @@ viewTypeForm a =
     div []
         [ div []
             [ div [ class "form-check form-check-inline" ]
-                (List.map makeTypeRadio [ ATInt, ATBoolean, ATDateTime, ATString, ATList, ATNumber, ATChoice ])
+                (List.map makeTypeRadio <| attributoTypesForTable table)
             , viewTypeSpecificForm a
             ]
         ]
@@ -840,7 +857,7 @@ viewEditForm model attributiList attributo =
             ]
         , div [ class "mb-3" ]
             [ label [ for "type", class "form-label" ] [ text "Type" ]
-            , viewTypeForm attributo.type_
+            , viewTypeForm attributo.associatedTable attributo.type_
             ]
         , if isNothing model.editAttributoOriginalName then
             text ""

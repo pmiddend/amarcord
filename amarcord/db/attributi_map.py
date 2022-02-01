@@ -247,6 +247,9 @@ class AttributiMap:
         ), f'expected datetime for attributo "{attributo_id}", got {type(v)}'
         return v
 
+    def select_sample_id(self, attributo_id: AttributoId) -> Optional[int]:
+        return self.select_int(attributo_id)
+
     def select_int(self, attributo_id: AttributoId) -> Optional[int]:
         v = self.select(attributo_id)
         assert v is None or isinstance(

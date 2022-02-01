@@ -17,7 +17,7 @@ from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_json_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoType, AttributoTypeSample
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
@@ -195,11 +195,39 @@ class AsyncDB:
             sa.delete(self.tables.file).where(self.tables.file.c.id == id_)
         )
 
+    async def retrieve_runs(
+        self, conn: Connection, attributi: List[DBAttributo]
+    ) -> List[DBRun]:
+        rc = self.tables.run.c
+        return [
+            DBRun(id=x[0], attributi=AttributiMap.from_types_and_json(attributi, x[1]))
+            for x in await conn.execute(sa.select([rc.id, rc.attributi]))
+        ]
+
     async def delete_sample(
         self,
         conn: Connection,
         id_: int,
     ) -> None:
+        attributi = await self.retrieve_attributi(conn, AssociatedTable.RUN)
+
+        # check if we have a sample attributo in runs and then do integrity checking
+        sample_attributi = [
+            x for x in attributi if isinstance(x.attributo_type, AttributoTypeSample)
+        ]
+
+        if sample_attributi:
+            for r in await self.retrieve_runs(conn, attributi):
+                run_attributi = r.attributi
+                changed = False
+                for sample_attributo in sample_attributi:
+                    run_sample = r.attributi.select_sample_id(sample_attributo.name)
+                    if run_sample == id_:
+                        run_attributi.remove(sample_attributo.name)
+                        changed = True
+                if changed:
+                    await self.update_run_attributi(conn, r.id, run_attributi)
+
         await conn.execute(
             sa.delete(self.tables.sample).where(self.tables.sample.c.id == id_)
         )
@@ -217,6 +245,10 @@ class AsyncDB:
                 f'attributo name "{name}" contains invalid characters (maybe a number at the beginning '
                 f"or a dash?)"
             )
+        if associated_table == AssociatedTable.SAMPLE and isinstance(
+            type_, AttributoTypeSample
+        ):
+            raise ValueError("Samples can't have attributi of type sample")
         await conn.execute(
             self.tables.attributo.insert().values(
                 name=name,

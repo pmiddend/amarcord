@@ -119,12 +119,6 @@ def _table_run(metadata: sa.MetaData, sample: sa.Table) -> sa.Table:
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("modified", sa.DateTime, nullable=False),
-        sa.Column(
-            "sample_id",
-            sa.Integer,
-            ForeignKey(_fk_identifier(sample.c.id)),
-            nullable=True,
-        ),
         sa.Column("attributi", sa.JSON, nullable=False),
     )
 
@@ -226,12 +220,6 @@ class DBTables:
                     description="Modified",
                     associated_table=AssociatedTable.RUN,
                     attributo_type=AttributoTypeDateTime(),
-                ),
-                self.attributo_run_sample_id: DBAttributo(
-                    name=self.attributo_run_sample_id,
-                    description="Sample ID",
-                    associated_table=AssociatedTable.RUN,
-                    attributo_type=AttributoTypeSample(),
                 ),
             },
         }
