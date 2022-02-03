@@ -15,6 +15,7 @@ import Browser.Navigation as Nav
 import Html as Html exposing (..)
 import Html.Attributes exposing (..)
 import String exposing (startsWith)
+import Time
 import Url as URL exposing (Url)
 
 
@@ -24,7 +25,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = \_ -> Time.every 10000 (always RefreshMsg)
         , onUrlRequest = LinkClicked
         , onUrlChange = UrlChanged
         }
@@ -36,6 +37,7 @@ type Msg
     | RunOverviewPageMsg RunOverview.Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
+    | RefreshMsg
 
 
 type Page
@@ -178,6 +180,15 @@ update msg model =
             let
                 ( updatedPageModel, updatedCmd ) =
                     RunOverview.update subMsg pageModel
+            in
+            ( { model | page = RunOverviewPage updatedPageModel }
+            , Cmd.map RunOverviewPageMsg updatedCmd
+            )
+
+        ( RefreshMsg, RunOverviewPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    RunOverview.update RunOverview.Refresh pageModel
             in
             ( { model | page = RunOverviewPage updatedPageModel }
             , Cmd.map RunOverviewPageMsg updatedCmd

@@ -4,7 +4,7 @@ import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, extractDateTime, makeAttributoCell, makeAttributoHeader, retrieveAttributoValue, toAttributoName)
 import Amarcord.Bootstrap exposing (AlertType(..), loadingBar, makeAlert, showHttpError, spinner)
 import Amarcord.File exposing (File, fileDecoder)
-import Amarcord.Html exposing (strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (div_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleDecoder)
 import Amarcord.Util exposing (formatPosixTimeOfDayHumanFriendly, posixBefore)
 import Dict exposing (Dict)
@@ -15,7 +15,7 @@ import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import List exposing (head)
 import Parser exposing (deadEndsToString)
-import RemoteData exposing (RemoteData(..), fromResult)
+import RemoteData exposing (RemoteData(..), fromResult, isSuccess)
 import String exposing (fromInt)
 import Task
 import Time exposing (Posix, Zone, here)
@@ -96,17 +96,19 @@ httpGetRuns f =
 type Msg
     = RunsReceived RunsResponse
     | TimeZoneReceived Zone
+    | Refresh
 
 
 type alias Model =
     { runs : RemoteData Http.Error RunsResponseContent
     , myTimeZone : Maybe Zone
+    , refreshRequest : RemoteData Http.Error ()
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { runs = Loading, myTimeZone = Nothing }, Task.perform TimeZoneReceived here )
+    ( { runs = Loading, myTimeZone = Nothing, refreshRequest = NotAsked }, Task.perform TimeZoneReceived here )
 
 
 attributiColumnHeaders : List (Attributo AttributoType) -> List (Html msg)
@@ -205,7 +207,12 @@ view model =
                         makeAlert AlertDanger <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ] ] ++ showHttpError e
 
                     Success a ->
-                        viewInner zone a
+                        case model.refreshRequest of
+                            Loading ->
+                                div_ [ viewInner zone a, loadingBar "Refreshing..." ]
+
+                            _ ->
+                                viewInner zone a
         ]
 
 
@@ -213,7 +220,20 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         RunsReceived response ->
-            ( { model | runs = fromResult response }, Cmd.none )
+            ( { model
+                | runs = fromResult response
+                , refreshRequest =
+                    if isSuccess model.runs then
+                        Success ()
+
+                    else
+                        model.refreshRequest
+              }
+            , Cmd.none
+            )
 
         TimeZoneReceived zone ->
             ( { model | myTimeZone = Just zone }, httpGetRuns RunsReceived )
+
+        Refresh ->
+            ( { model | refreshRequest = Loading }, httpGetRuns RunsReceived )
