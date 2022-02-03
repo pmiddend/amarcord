@@ -1,31 +1,50 @@
 module Amarcord.Samples exposing (..)
 
-import Amarcord.Attributo as Attributo exposing (Attributo, AttributoMap, AttributoName(..), AttributoType(..), AttributoValue(..), attributoDecoder, attributoMapDecoder, attributoTypeDecoder, createAnnotatedAttributoMap, emptyAttributoMap, encodeAttributoMap, fromAttributoName, mapAttributo, retrieveAttributoValue, toAttributoName, updateAttributoMap)
-import Amarcord.Bootstrap exposing (AlertType(..), icon, makeAlert, showHttpError)
+import Amarcord.Attributo as Attributo
+    exposing
+        ( Attributo
+        , AttributoMap
+        , AttributoName(..)
+        , AttributoType(..)
+        , AttributoValue(..)
+        , attributoDecoder
+        , attributoTypeDecoder
+        , createAnnotatedAttributoMap
+        , emptyAttributoMap
+        , fromAttributoName
+        , makeAttributoCell
+        , makeAttributoHeader
+        , mapAttributo
+        , mutedSubheader
+        , toAttributoName
+        , updateAttributoMap
+        )
+import Amarcord.Bootstrap exposing (AlertType(..), icon, loadingBar, makeAlert, showHttpError)
 import Amarcord.Dialog as Dialog
-import Amarcord.File exposing (File, fileDecoder, httpCreateFile)
+import Amarcord.File exposing (File, httpCreateFile)
 import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
 import Amarcord.Route exposing (makeFilesLink)
+import Amarcord.Sample exposing (Sample, SampleId, encodeSample, sampleDecoder, sampleMapAttributi, sampleMapId)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, httpDelete, httpPatch)
+import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, httpDelete, httpPatch)
 import Dict exposing (Dict)
 import File as ElmFile
 import File.Select
 import Html exposing (..)
-import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, selected, step, style, type_, value)
+import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, selected, step, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (jsonBody)
 import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import Json.Encode as Encode
-import List exposing (intersperse, length, singleton)
+import List exposing (length, singleton)
 import List.Extra as List
 import Maybe exposing (withDefault)
-import Maybe.Extra as Maybe exposing (isJust, isNothing, traverse, unwrap)
+import Maybe.Extra as Maybe exposing (isJust, isNothing, traverse)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Set
-import String exposing (fromFloat, fromInt, join, split, toInt, trim)
+import String exposing (fromInt, join, split, toInt, trim)
 import Task
 import Time exposing (Month(..), Posix, Zone, here)
 import Tuple exposing (first, second)
@@ -55,24 +74,6 @@ type AttributoEditValue
         , editValue : String
         }
     | EditValueChoice { choiceValues : List String, editValue : String }
-
-
-type alias Sample idType attributiType fileType =
-    { id : idType
-    , name : String
-    , attributi : attributiType
-    , files : List fileType
-    }
-
-
-sampleMapAttributi : (b -> c) -> Sample a b x -> Sample a c x
-sampleMapAttributi f { id, name, attributi, files } =
-    { id = id, name = name, attributi = f attributi, files = files }
-
-
-sampleMapId : (a -> b) -> Sample a c x -> Sample b c x
-sampleMapId f { id, name, attributi, files } =
-    { id = f id, name = name, attributi = attributi, files = files }
 
 
 type alias EditableAttributo =
@@ -123,10 +124,6 @@ type ValueUpdate
     | IgnoreValue
 
 
-type alias SampleId =
-    Int
-
-
 type Msg
     = SamplesReceived SamplesResponse
     | CancelDelete
@@ -148,26 +145,6 @@ type Msg
     | EditFileDelete Int
     | EditResetNewFileUpload
     | EditNewFileOpenSelector
-
-
-sampleDecoder : Decode.Decoder (Sample SampleId (AttributoMap AttributoValue) File)
-sampleDecoder =
-    Decode.map4
-        Sample
-        (Decode.field "id" Decode.int)
-        (Decode.field "name" Decode.string)
-        (Decode.field "attributi" attributoMapDecoder)
-        (Decode.field "files" (Decode.list fileDecoder))
-
-
-encodeSample : Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Encode.Value
-encodeSample s =
-    Encode.object <|
-        [ ( "name", Encode.string s.name )
-        , ( "attributi", encodeAttributoMap s.attributi )
-        , ( "fileIds", Encode.list Encode.int s.files )
-        ]
-            ++ unwrap [] (\id -> [ ( "id", Encode.int id ) ]) s.id
 
 
 httpGetSamples : (SamplesResponse -> msg) -> Cmd msg
@@ -539,52 +516,6 @@ viewEditForm submitErrorsList newFileUpload sample =
                ]
 
 
-viewAttributoValue : Zone -> AttributoType -> AttributoValue -> Html Msg
-viewAttributoValue zone type_ value =
-    case value of
-        ValueBoolean bool ->
-            if bool then
-                icon { name = "check-lg" }
-
-            else
-                text ""
-
-        ValueInt int ->
-            text (fromInt int)
-
-        ValueString string ->
-            case type_ of
-                DateTime ->
-                    case toTime string of
-                        Err _ ->
-                            text <| "Error converting time string " ++ string
-
-                        Ok v ->
-                            text <| formatPosixHumanFriendly zone v
-
-                _ ->
-                    text string
-
-        ValueList attributoValues ->
-            case type_ of
-                List { subType } ->
-                    case subType of
-                        Number _ ->
-                            span_ <| [ text "(" ] ++ List.map (viewAttributoValue zone subType) attributoValues ++ [ text ")" ]
-
-                        String ->
-                            span_ <| intersperse (text ",") <| List.map (viewAttributoValue zone subType) attributoValues
-
-                        _ ->
-                            text "unsupported list element type"
-
-                _ ->
-                    text "unsupported list type"
-
-        ValueNumber float ->
-            text (fromFloat float)
-
-
 typeToIcon : String -> Html Msg
 typeToIcon type_ =
     icon
@@ -615,16 +546,6 @@ typeToIcon type_ =
 viewSampleRow : Zone -> List (Attributo AttributoType) -> Sample SampleId (AttributoMap AttributoValue) File -> Html Msg
 viewSampleRow zone attributi sample =
     let
-        makeAttributoCell { name, type_ } =
-            td []
-                [ case retrieveAttributoValue name sample.attributi of
-                    Nothing ->
-                        text ""
-
-                    Just v ->
-                        viewAttributoValue zone type_ v
-                ]
-
         viewFile { id, type_, fileName, description } =
             li [ class "list-group-item" ]
                 [ typeToIcon type_
@@ -644,7 +565,7 @@ viewSampleRow zone attributi sample =
         [ td_ [ text (fromInt sample.id) ]
         , td_ [ text sample.name ]
         ]
-            ++ List.map makeAttributoCell attributi
+            ++ List.map (makeAttributoCell { shortDateTime = False } zone Dict.empty sample.attributi) attributi
             ++ [ td_ [ files ]
                ]
             ++ [ td_
@@ -657,26 +578,6 @@ viewSampleRow zone attributi sample =
 viewSampleTable : Zone -> List (Sample SampleId (AttributoMap AttributoValue) File) -> List (Attributo AttributoType) -> Html Msg
 viewSampleTable zone samples attributi =
     let
-        mutedSubheader t =
-            span [ class "text-muted fst-italic", style "font-size" "0.8rem" ] [ text t ]
-
-        makeAttributoHeader : Attributo AttributoType -> List (Html msg)
-        makeAttributoHeader a =
-            case a.type_ of
-                Number { suffix } ->
-                    case suffix of
-                        Just realSuffix ->
-                            [ text (fromAttributoName a.name)
-                            , br_
-                            , mutedSubheader realSuffix
-                            ]
-
-                        _ ->
-                            [ text (fromAttributoName a.name) ]
-
-                _ ->
-                    [ text (fromAttributoName a.name) ]
-
         attributiColumns : List (Html msg)
         attributiColumns =
             List.map (th_ << makeAttributoHeader) attributi
@@ -699,66 +600,68 @@ viewSampleTable zone samples attributi =
 
 viewInner : Model -> List (Html Msg)
 viewInner model =
-    case ( model.samples, model.myTimeZone ) of
-        ( NotAsked, _ ) ->
-            singleton <| text ""
+    case model.myTimeZone of
+        Nothing ->
+            singleton <| loadingBar "Loading time zone information..."
 
-        ( Loading, _ ) ->
-            singleton <| text "Loading..."
+        Just zone ->
+            case model.samples of
+                NotAsked ->
+                    singleton <| text ""
 
-        ( Failure e, _ ) ->
-            singleton <| makeAlert AlertDanger <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
+                Loading ->
+                    singleton <| loadingBar "Loading samples..."
 
-        ( Success { samples, attributi }, Nothing ) ->
-            [ text "Waiting for time zone..." ]
+                Failure e ->
+                    singleton <| makeAlert AlertDanger <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
 
-        ( Success { samples, attributi }, Just zone ) ->
-            let
-                prefix =
-                    case model.editSample of
-                        Nothing ->
-                            button [ class "btn btn-primary", onClick AddSample ] [ icon { name = "plus-lg" }, text " Add sample" ]
+                Success { samples, attributi } ->
+                    let
+                        prefix =
+                            case model.editSample of
+                                Nothing ->
+                                    button [ class "btn btn-primary", onClick AddSample ] [ icon { name = "plus-lg" }, text " Add sample" ]
 
-                        Just ea ->
-                            viewEditForm model.submitErrors model.newFileUpload ea
+                                Just ea ->
+                                    viewEditForm model.submitErrors model.newFileUpload ea
 
-                modifyRequestResult =
-                    case model.modifyRequest of
-                        NotAsked ->
-                            text ""
+                        modifyRequestResult =
+                            case model.modifyRequest of
+                                NotAsked ->
+                                    text ""
 
-                        Loading ->
-                            p [] [ text "Request in progress..." ]
+                                Loading ->
+                                    p [] [ text "Request in progress..." ]
 
-                        Failure e ->
-                            div [] [ makeAlert AlertDanger (showHttpError e) ]
+                                Failure e ->
+                                    div [] [ makeAlert AlertDanger (showHttpError e) ]
 
-                        Success _ ->
-                            div [ class "mt-3" ]
-                                [ makeAlert AlertSuccess [ text "Request successful!" ]
-                                ]
+                                Success _ ->
+                                    div [ class "mt-3" ]
+                                        [ makeAlert AlertSuccess [ text "Request successful!" ]
+                                        ]
 
-                deleteRequestResult =
-                    case model.sampleDeleteRequest of
-                        NotAsked ->
-                            text ""
+                        deleteRequestResult =
+                            case model.sampleDeleteRequest of
+                                NotAsked ->
+                                    text ""
 
-                        Loading ->
-                            p [] [ text "Request in progress..." ]
+                                Loading ->
+                                    p [] [ text "Request in progress..." ]
 
-                        Failure e ->
-                            div [] [ makeAlert AlertDanger (showHttpError e) ]
+                                Failure e ->
+                                    div [] [ makeAlert AlertDanger (showHttpError e) ]
 
-                        Success _ ->
-                            div [ class "mt-3" ]
-                                [ makeAlert AlertSuccess [ text "Deletion successful!" ]
-                                ]
-            in
-            prefix
-                :: modifyRequestResult
-                :: deleteRequestResult
-                :: viewSampleTable zone samples attributi
-                :: []
+                                Success _ ->
+                                    div [ class "mt-3" ]
+                                        [ makeAlert AlertSuccess [ text "Deletion successful!" ]
+                                        ]
+                    in
+                    prefix
+                        :: modifyRequestResult
+                        :: deleteRequestResult
+                        :: viewSampleTable zone samples attributi
+                        :: []
 
 
 view : Model -> Html Msg

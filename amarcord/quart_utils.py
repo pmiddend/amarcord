@@ -10,6 +10,7 @@ from quart.json import JSONEncoder
 
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.attributi import datetime_to_attributo_string
 from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.json import JSONDict
@@ -27,7 +28,7 @@ class CustomJSONEncoder(JSONEncoder):
     def default(self, object_):
         # The default ISO-format for JSON encoding isn't well-parseable, better to use good olde ISO!
         if isinstance(object_, datetime.datetime):
-            return object_.isoformat(sep=" ", timespec="seconds")
+            return datetime_to_attributo_string(object_)
         return JSONEncoder.default(self, object_)
 
 

@@ -16,6 +16,7 @@ from typing import Union
 import pytz
 
 T = TypeVar("T")
+U = TypeVar("U")
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -185,3 +186,11 @@ def last_line_of_file(p: Path) -> str:
         if lines:
             return lines[-1]
         return ""
+
+
+def safe_max(xs: Iterable[T], key: Callable[[T], U]) -> Optional[T]:
+    try:
+        # mypy wants Callable[[T], Union[SupportsDunderLT, SupportsDunderGT]] but that's internal
+        return max(xs, key=key)  # type: ignore
+    except ValueError:
+        return None

@@ -16,3 +16,11 @@ def pint_quantity_to_attributo_type(x: Quantity) -> Optional[AttributoType]:
     if suffix == "dimensionless":
         return AttributoTypeDecimal()
     return AttributoTypeDecimal(standard_unit=True, suffix=suffix)
+
+
+def valid_pint_unit(s: str) -> bool:
+    try:
+        UnitRegistry()(s)
+        return True
+    except:
+        return False

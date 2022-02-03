@@ -5,9 +5,11 @@ from typing import List
 from typing import Optional
 from typing import cast
 
-from isodate import duration_isoformat
-
-from amarcord.db.attributi import convert_attributo_value, AttributoConversionFlags
+from amarcord.db.attributi import (
+    convert_attributo_value,
+    AttributoConversionFlags,
+    datetime_to_attributo_string,
+)
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
@@ -85,9 +87,6 @@ def _check_types(
         if type_ is None:
             raise Exception(f'attributo "{name}" not found!')
         _check_type(name, type_.attributo_type, value)
-
-    # FIXME
-    raise Exception("unimplemented")
 
 
 def _convert_single_attributo_value_from_json(
@@ -220,6 +219,14 @@ class AttributiMap:
             )
         return selected
 
+    def select_datetime_unsafe(self, attributo_id: AttributoId) -> datetime.datetime:
+        selected = self.select_unsafe(attributo_id)
+        if not isinstance(selected, datetime.datetime):
+            raise Exception(
+                f"Attributo {attributo_id} is not a datetime but {type(selected)}"
+            )
+        return selected
+
     def select_comments_unsafe(self, attributo_id: AttributoId) -> List[DBComment]:
         selected = self.select_unsafe(attributo_id)
         if (
@@ -284,31 +291,19 @@ class AttributiMap:
             self._types.pop(attributo, None)
         return previous is not None
 
-    def to_json(self, ignore_comments: bool = True) -> JsonAttributiMap:
+    def to_json(self) -> JsonAttributiMap:
         json_dict: Dict[str, JSONValue] = {}
         for attributo_id, value in self._attributi.items():
             if value is None or isinstance(value, (str, int, float, bool)):
                 json_dict[attributo_id] = value
             if isinstance(value, datetime.datetime):
-                json_dict[attributo_id] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
-            if isinstance(value, datetime.timedelta):
-                json_dict[attributo_id] = duration_isoformat(value)
+                json_dict[attributo_id] = datetime_to_attributo_string(value)
             if isinstance(value, list):
                 if not value:
                     json_dict[attributo_id] = cast(List[str], [])
                 else:
                     if isinstance(value[0], (str, int, float)):
                         json_dict[attributo_id] = value
-                    elif isinstance(value[0], DBComment) and not ignore_comments:
-                        json_dict[attributo_id] = [
-                            {
-                                "id": c.id,
-                                "author": c.author,
-                                "text": c.text,
-                                "created": c.created.isoformat(),
-                            }
-                            for c in cast(List[DBComment], value)
-                        ]
         return json_dict
 
     def convert_attributo(

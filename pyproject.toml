@@ -68,6 +68,10 @@ types-pytz = "2021.3.4"
 python-magic = "0.4.24"
 # to parse/coparse toml files for xwiz
 toml = "0.10.2"
+# For the experiment simulator
+randomname = "0.1.5"
+# For the experiment simulator
+essential-generators = "1.0"
 
 [tool.poetry.dev-dependencies]
 black = '21.9b0'

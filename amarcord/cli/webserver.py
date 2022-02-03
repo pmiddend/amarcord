@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import sys
@@ -12,12 +13,13 @@ from tap import Tap
 from werkzeug.exceptions import HTTPException
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import AttributoConversionFlags
+from amarcord.db.attributi import AttributoConversionFlags, datetime_to_attributo_string
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.table_classes import DBFile, DBEvent, DBSample
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type
@@ -100,6 +102,24 @@ async def delete_sample() -> JSONDict:
     return {}
 
 
+def _encode_file(f: DBFile) -> JSONDict:
+    return {
+        "id": f.id,
+        "description": f.description,
+        "type_": f.type_,
+        "fileName": f.file_name,
+    }
+
+
+def _encode_sample(a: DBSample) -> JSONDict:
+    return {
+        "id": a.id,
+        "name": a.name,
+        "attributi": a.attributi.to_json(),
+        "files": [_encode_file(f) for f in a.files],
+    }
+
+
 @app.get("/api/samples")
 async def read_samples() -> JSONDict:
     async with db.instance.begin() as conn:
@@ -108,24 +128,54 @@ async def read_samples() -> JSONDict:
         )
         result = {
             "samples": [
+                _encode_sample(a)
+                for a in await db.instance.retrieve_samples(conn, attributi)
+            ],
+            "attributi": [_encode_attributo(a) for a in attributi],
+        }
+        if _has_artificial_delay():
+            await asyncio.sleep(3)
+        return result  # type: ignore
+
+
+def _encode_event(e: DBEvent) -> JSONDict:
+    return {
+        "id": e.id,
+        "text": e.text,
+        "source": e.source,
+        "created": datetime_to_attributo_string(e.created),
+        "level": e.level.value,
+    }
+
+
+def _has_artificial_delay() -> bool:
+    return bool(app.config.get("ARTIFICIAL_DELAY", False))
+
+
+@app.get("/api/runs")
+async def read_runs() -> JSONDict:
+    async with db.instance.begin() as conn:
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        result = {
+            "runs": [
                 {
                     "id": a.id,
-                    "name": a.name,
                     "attributi": a.attributi.to_json(),
-                    "files": [
-                        {
-                            "id": f.id,
-                            "description": f.description,
-                            "type_": f.type_,
-                            "fileName": f.file_name,
-                        }
-                        for f in a.files
-                    ],
+                    "files": [_encode_file(f) for f in a.files],
                 }
+                for a in await db.instance.retrieve_runs(conn, attributi)
+            ],
+            "attributi": [_encode_attributo(a) for a in attributi],
+            "events": [
+                _encode_event(e) for e in await db.instance.retrieve_events(conn)
+            ],
+            "samples": [
+                _encode_sample(a)
                 for a in await db.instance.retrieve_samples(conn, attributi)
-            ]
+            ],
         }
-        result.update({"attributi": [_encode_attributo(a) for a in attributi]})  # type: ignore
+        if _has_artificial_delay():
+            await asyncio.sleep(3)
         return result  # type: ignore
 
 
@@ -304,6 +354,8 @@ async def read_file(file_id: int):
 @app.get("/api/attributi")
 async def read_attributi() -> JSONDict:
     async with db.instance.connect() as conn:
+        if _has_artificial_delay():
+            await asyncio.sleep(3)
         return {
             "attributi": [
                 _encode_attributo(a)
@@ -317,14 +369,21 @@ async def read_attributi() -> JSONDict:
 class Arguments(Tap):
     port: int = 5000
     host: str = "0.0.0.0"
-    db_url: str = "sqlite+aiosqlite://"
+    db_connection_url: str = "sqlite+aiosqlite://"
     db_echo: bool = False
     debug: bool = True
+    delay: bool = False
 
 
 def main() -> int:
     args = Arguments(underscores_to_dashes=True).parse_args()
-    app.config.update({"DB_URL": args.db_url, "DB_ECHO": args.db_echo})
+    app.config.update(
+        {
+            "DB_URL": args.db_connection_url,
+            "DB_ECHO": args.db_echo,
+            "HAS_ARTIFICIAL_DELAY": args.delay,
+        },
+    )
     app.run(host=args.host, port=args.port, debug=args.debug, use_reloader=args.debug)
     return 0
 

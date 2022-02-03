@@ -81,11 +81,11 @@ class AttributoTypeChoice:
 
 AttributoType = Union[
     AttributoTypeInt,
+    AttributoTypeBoolean,
+    AttributoTypeString,
+    AttributoTypeSample,
     AttributoTypeChoice,
     AttributoTypeDecimal,
-    AttributoTypeSample,
-    AttributoTypeString,
     AttributoTypeDateTime,
     AttributoTypeList,
-    AttributoTypeBoolean,
 ]

@@ -2,10 +2,11 @@ module Amarcord.Util exposing (..)
 
 import Dict
 import Http
+import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import List exposing (foldr)
 import String exposing (padLeft)
-import Time exposing (Month(..), Posix, Zone, toDay, toHour, toMinute, toMonth, toYear)
+import Time exposing (Month(..), Posix, Zone, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
 
 
 collectResults : List (Result e b) -> Result (List e) (List b)
@@ -134,6 +135,21 @@ formatPosixDateTimeCompatible zone posix =
     year ++ "-" ++ month ++ "-" ++ day ++ "T" ++ hour ++ ":" ++ minute
 
 
+formatPosixTimeOfDayHumanFriendly : Zone -> Posix -> String
+formatPosixTimeOfDayHumanFriendly zone posix =
+    let
+        hour =
+            padLeft 2 '0' <| String.fromInt <| toHour zone posix
+
+        minute =
+            padLeft 2 '0' <| String.fromInt <| toMinute zone posix
+
+        second =
+            padLeft 2 '0' <| String.fromInt <| toSecond zone posix
+    in
+    hour ++ ":" ++ minute ++ ":" ++ second
+
+
 formatPosixHumanFriendly : Zone -> Posix -> String
 formatPosixHumanFriendly zone posix =
     let
@@ -151,5 +167,18 @@ formatPosixHumanFriendly zone posix =
 
         minute =
             padLeft 2 '0' <| String.fromInt <| toMinute zone posix
+
+        second =
+            padLeft 2 '0' <| String.fromInt <| toSecond zone posix
     in
-    year ++ "/" ++ month ++ "/" ++ day ++ " " ++ hour ++ ":" ++ minute
+    year ++ "/" ++ month ++ "/" ++ day ++ " " ++ hour ++ ":" ++ minute ++ ":" ++ second
+
+
+toTimeMaybe : String -> Maybe Posix
+toTimeMaybe =
+    Result.toMaybe << toTime
+
+
+posixBefore : Posix -> Posix -> Bool
+posixBefore a b =
+    posixToMillis a < posixToMillis b

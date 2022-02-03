@@ -15,6 +15,7 @@ from amarcord.amici.xfel.karabo_image import KaraboImage
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.asyncdb import Connection
+from amarcord.db.attributi import datetime_to_attributo_string
 from amarcord.db.attributi_map import AttributiMap, UntypedAttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
@@ -66,7 +67,7 @@ def karabo_attributi_to_attributi_map(
                         )
                         continue
                 result[a.identifier] = (
-                    value.isoformat()
+                    datetime_to_attributo_string(value)
                     if isinstance(a.value, datetime.datetime)
                     else value
                 )
@@ -90,7 +91,7 @@ async def ingest_karabo_action(
     )
     run = await db.retrieve_run(conn, action.run_id, attributi)
     if run is None:
-        await db.add_run(
+        await db.create_run(
             conn,
             action.run_id,
             AttributiMap.from_types_and_json(attributi, karabo_attributi),

@@ -34,3 +34,7 @@
 [data-tooltip]:not([data-tooltip-persistent]):before {
     pointer-events: none;
 }
+
+/* see https://stackoverflow.com/questions/21168521/table-fixed-header-and-scrollable-body */
+.amarcord-table-fix-head          { overflow: auto; height: 100px; }
+.amarcord-table-fix-head thead th { position: sticky; top: 0; z-index: 1; background: white; }

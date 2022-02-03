@@ -36,6 +36,8 @@ from amarcord.numeric_range import NumericRange
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int
 
+ATTRIBUTO_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
 JSON_SCHEMA_INTEGER_SAMPLE_ID: Final = "sample-id"
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,14 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
             return AttributoTypeDateTime()
         return AttributoTypeString()
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
+
+
+def datetime_to_attributo_string(d: datetime.datetime) -> str:
+    return d.strftime(ATTRIBUTO_DATETIME_FORMAT)
+
+
+def datetime_from_attributo_string(d: str) -> datetime.datetime:
+    return datetime.datetime.strptime(d, ATTRIBUTO_DATETIME_FORMAT)
 
 
 def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
@@ -489,7 +499,7 @@ def _convert_string_to_datetime(
     assert isinstance(v, str)
 
     try:
-        return datetime.datetime.fromisoformat(v)
+        return datetime_from_attributo_string(v)
     except:
         raise Exception(f'cannot convert string "{v}" to datetime (not ISO format)')
 
@@ -639,7 +649,9 @@ _conversion_matrix.update(
         (
             AttributoTypeDateTime,
             AttributoTypeString,
-        ): lambda before, after, flags, v: v.isoformat(),  # type: ignore
+        ): lambda before, after, flags, v: datetime_to_attributo_string(
+            v  # type: ignore
+        ),
         # start choice
         (AttributoTypeChoice, AttributoTypeChoice): _convert_choice_to_choice,
         (AttributoTypeChoice, AttributoTypeString): lambda before, after, flags, v: v,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PATH="$PWD:${PATH}" npx elm-live src/Amarcord/Main.elm\
+PATH="$PWD:${PATH}" npx elm-live src/Main.elm\
     --pushstate\
     --start-page=src/index.html\
     --proxy-prefix "/api"\

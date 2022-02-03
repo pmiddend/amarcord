@@ -4,7 +4,7 @@ from typing import Final
 
 import pytest
 
-from amarcord.db.attributi import AttributoConversionFlags
+from amarcord.db.attributi import AttributoConversionFlags, datetime_to_attributo_string
 from amarcord.db.attributi import convert_attributo_value
 from amarcord.db.attributo_type import AttributoTypeChoice, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeDateTime
@@ -236,13 +236,14 @@ def test_attributo_string_to_int() -> None:
 
 
 def test_attributo_string_datetime() -> None:
-    t = datetime.datetime.now()
+    # We are not storing microseconds in the JSON (not needed until now)
+    t = datetime.datetime.now().replace(microsecond=0)
     assert (
         convert_attributo_value(
             AttributoTypeString(),
             AttributoTypeDateTime(),
             _default_flags,
-            t.isoformat(),
+            datetime_to_attributo_string(t),
         )
         == t
     )
@@ -542,7 +543,7 @@ def test_attributo_datetime_to_string() -> None:
             _default_flags,
             d,
         )
-        == d.isoformat()
+        == datetime_to_attributo_string(d)
     )
 
 

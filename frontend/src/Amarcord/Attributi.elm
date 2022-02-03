@@ -2,7 +2,7 @@ module Amarcord.Attributi exposing (Model, Msg, init, update, view)
 
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, encodeAttributoName, fromAttributoName, httpGetAndDecodeAttributi, mapAttributo, mapAttributoMaybe, toAttributoName)
-import Amarcord.Bootstrap exposing (AlertType(..), icon, makeAlert, showHttpError)
+import Amarcord.Bootstrap exposing (AlertType(..), icon, loadingBar, makeAlert, showHttpError)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (div_, em_, form_, h4_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.JsonSchema exposing (JsonSchema(..), encodeJsonSchema)
@@ -893,7 +893,7 @@ viewInner model =
             singleton <| text ""
 
         Loading ->
-            singleton <| text "Loading..."
+            singleton <| loadingBar "Loading attributi..."
 
         Failure e ->
             singleton <| makeAlert AlertDanger <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ showHttpError e

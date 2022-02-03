@@ -17,14 +17,20 @@ from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_json_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoType, AttributoTypeSample
+from amarcord.db.attributo_type import (
+    AttributoType,
+    AttributoTypeSample,
+    AttributoTypeDecimal,
+)
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.indexing_job import DBIndexingJob
 from amarcord.db.job_status import DBJobStatus
-from amarcord.db.table_classes import DBSample, DBFile, DBRun
+from amarcord.db.table_classes import DBSample, DBFile, DBRun, DBEvent
 from amarcord.db.tables import DBTables
+from amarcord.pint_util import valid_pint_unit
 from amarcord.util import sha256_file
 
 
@@ -196,6 +202,31 @@ class AsyncDB:
             sa.delete(self.tables.file).where(self.tables.file.c.id == id_)
         )
 
+    async def retrieve_events(self, conn: Connection) -> List[DBEvent]:
+        ec = self.tables.event_log.c
+        return [
+            DBEvent(row["id"], row["created"], row["level"], row["source"], row["text"])
+            for row in await conn.execute(
+                sa.select([ec.id, ec.created, ec.level, ec.source, ec.text]).order_by(
+                    ec.created
+                )
+            )
+        ]
+
+    async def create_event(
+        self, conn: Connection, level: EventLogLevel, source: str, text: str
+    ) -> int:
+        return (
+            await conn.execute(
+                self.tables.event_log.insert().values(
+                    created=datetime.datetime.utcnow(),
+                    level=level,
+                    source=source,
+                    text=text,
+                )
+            )
+        ).inserted_primary_key[0]
+
     async def retrieve_runs(
         self, conn: Connection, attributi: List[DBAttributo]
     ) -> List[DBRun]:
@@ -241,7 +272,7 @@ class AsyncDB:
                 self.tables.run.c.id,
                 self.tables.run.c.attributi,
             ]
-        ).order_by(self.tables.run.c.name)
+        ).order_by(self.tables.run.c.id)
 
         result = await conn.execute(select_stmt)
 
@@ -303,6 +334,11 @@ class AsyncDB:
             type_, AttributoTypeSample
         ):
             raise ValueError("Samples can't have attributi of type sample")
+        if isinstance(type_, AttributoTypeDecimal) and type_.standard_unit:
+            if type_.suffix is None:
+                raise ValueError("Got a standard unit, but no suffix")
+            if not valid_pint_unit(type_.suffix):
+                raise ValueError(f"Unit {type_.suffix} not a valid unit")
         await conn.execute(
             self.tables.attributo.insert().values(
                 name=name,
@@ -528,10 +564,16 @@ class AsyncDB:
             )
         )
 
-    async def add_run(
+    async def create_run(
         self, conn: Connection, run_id: int, attributi: AttributiMap
     ) -> None:
-        pass
+        await conn.execute(
+            sa.insert(self.tables.run).values(
+                id=run_id,
+                attributi=attributi.to_json(),
+                modified=datetime.datetime.utcnow(),
+            )
+        )
 
     async def retrieve_indexing_jobs(
         self, conn: Connection, statuses: List[DBJobStatus]

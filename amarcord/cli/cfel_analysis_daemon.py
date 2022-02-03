@@ -456,7 +456,7 @@ async def main_loop_iteration(
                 if run_id not in run_ids and args.debug:
                     if args.debug:
                         logger.info("adding run %s", run_id)
-                        await db.add_run(
+                        await db.create_run(
                             conn,
                             run_id,
                             attributi=AttributiMap.from_types_and_json(

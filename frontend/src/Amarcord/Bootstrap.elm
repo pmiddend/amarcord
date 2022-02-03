@@ -1,7 +1,8 @@
-module Amarcord.Bootstrap exposing (AlertType(..), Button, ButtonType, Icon, button, icon, makeAlert, showHttpError)
+module Amarcord.Bootstrap exposing (AlertType(..), Button, ButtonType, Icon, button, icon, loadingBar, makeAlert, showHttpError, spinner)
 
-import Html as Html exposing (Html, div, h5, i, pre, text)
-import Html.Attributes exposing (class)
+import Amarcord.Html exposing (h4_)
+import Html as Html exposing (Html, div, h5, i, pre, span, text)
+import Html.Attributes exposing (attribute, class)
 import Html.Events exposing (onClick)
 import Http
 import List exposing (singleton)
@@ -19,6 +20,16 @@ type alias Button msg =
 
 type ButtonType
     = ButtonPrimary
+
+
+spinner : Html msg
+spinner =
+    div [ class "spinner-border", attribute "role" "status" ] [ span [ class "visually-hidden" ] [] ]
+
+
+loadingBar : String.String -> Html msg
+loadingBar message =
+    div [ class "d-flex align-items-center justify-content-center" ] [ div [ class "text-end me-3" ] [ spinner ], div [] [ h4_ [ text message ] ] ]
 
 
 buttonTypeToString : ButtonType -> String

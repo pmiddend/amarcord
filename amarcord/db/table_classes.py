@@ -10,7 +10,7 @@ from amarcord.db.event_log_level import EventLogLevel
 
 @dataclass(frozen=True)
 class DBEvent:
-    id: Optional[int]
+    id: int
     created: datetime.datetime
     level: EventLogLevel
     source: str
@@ -27,7 +27,7 @@ class DBFile:
 
 @dataclass(frozen=True)
 class DBSample:
-    id: Optional[int]
+    id: int
     name: str
     attributi: AttributiMap
     files: List[DBFile]
@@ -35,8 +35,8 @@ class DBSample:
 
 @dataclass(frozen=True)
 class DBRun:
-    attributi: AttributiMap
     id: int
+    attributi: AttributiMap
     files: List[DBFile]
 
 
