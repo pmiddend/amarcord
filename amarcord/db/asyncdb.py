@@ -208,7 +208,7 @@ class AsyncDB:
             DBEvent(row["id"], row["created"], row["level"], row["source"], row["text"])
             for row in await conn.execute(
                 sa.select([ec.id, ec.created, ec.level, ec.source, ec.text]).order_by(
-                    ec.created
+                    ec.created.desc()
                 )
             )
         ]
@@ -248,7 +248,7 @@ class AsyncDB:
                         self.tables.run_has_file.c.file_id == self.tables.file.c.id,
                     )
                 )
-                .order_by(self.tables.run_has_file.c.run_id)
+                .order_by(self.tables.run_has_file.c.run_id.desc())
             )
         ).fetchall()
 
@@ -272,7 +272,7 @@ class AsyncDB:
                 self.tables.run.c.id,
                 self.tables.run.c.attributi,
             ]
-        ).order_by(self.tables.run.c.id)
+        ).order_by(self.tables.run.c.id.desc())
 
         result = await conn.execute(select_stmt)
 

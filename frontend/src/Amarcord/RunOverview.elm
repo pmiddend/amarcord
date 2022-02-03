@@ -121,18 +121,18 @@ attributiColumns zone sampleIds attributi run =
     List.map (makeAttributoCell { shortDateTime = True } zone sampleIds run.attributi) <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi
 
 
-makeRunRow : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
-makeRunRow zone sampleIds attributi r =
+viewRunRow : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
+viewRunRow zone sampleIds attributi r =
     tr_ <| td_ [ text (fromInt r.id) ] :: attributiColumns zone sampleIds attributi r ++ [ td_ [] ]
 
 
-makeEventRow : Zone -> Int -> Event -> Html Msg
-makeEventRow zone attributoColumnCount e =
-    tr_ [ td_ [], td_ [ text <| formatPosixTimeOfDayHumanFriendly zone e.created ], td [ colspan attributoColumnCount ] [ strongText e.source, text ": ", text e.text ] ]
+viewEventRow : Zone -> Int -> Event -> Html Msg
+viewEventRow zone attributoColumnCount e =
+    tr_ [ td_ [], td_ [ text <| formatPosixTimeOfDayHumanFriendly zone e.created ], td [ colspan attributoColumnCount ] [ strongText <| "[" ++ e.source ++ "] ", text e.text ] ]
 
 
-makeRunRows : Zone -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
-makeRunRows zone sampleIds attributi runs events =
+viewRunAndEventRows : Zone -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
+viewRunAndEventRows zone sampleIds attributi runs events =
     case ( head runs, head events ) of
         -- No elements, neither runs nor events, left anymore
         ( Nothing, Nothing ) ->
@@ -140,25 +140,25 @@ makeRunRows zone sampleIds attributi runs events =
 
         -- Only runs left
         ( Just _, Nothing ) ->
-            List.map (makeRunRow zone sampleIds attributi) runs
+            List.map (viewRunRow zone sampleIds attributi) runs
 
         -- Only events left
         ( Nothing, Just _ ) ->
-            List.map (makeEventRow zone (List.length attributi)) events
+            List.map (viewEventRow zone (List.length attributi)) events
 
         -- We have events and runs and have to compare the dates
         ( Just run, Just event ) ->
             case Maybe.andThen extractDateTime <| retrieveAttributoValue (toAttributoName "started") run.attributi of
                 Just runStarted ->
-                    if posixBefore runStarted event.created then
-                        makeRunRow zone sampleIds attributi run :: makeRunRows zone sampleIds attributi (List.drop 1 runs) events
+                    if posixBefore event.created runStarted then
+                        viewRunRow zone sampleIds attributi run :: viewRunAndEventRows zone sampleIds attributi (List.drop 1 runs) events
 
                     else
-                        makeEventRow zone (List.length attributi) event :: makeRunRows zone sampleIds attributi runs (List.drop 1 events)
+                        viewEventRow zone (List.length attributi) event :: viewRunAndEventRows zone sampleIds attributi runs (List.drop 1 events)
 
                 -- We don't have a start time...take the run
                 Nothing ->
-                    makeRunRow zone sampleIds attributi run :: makeRunRows zone sampleIds attributi (List.drop 1 runs) events
+                    viewRunRow zone sampleIds attributi run :: viewRunAndEventRows zone sampleIds attributi (List.drop 1 runs) events
 
 
 viewRunsTable : Zone -> RunsResponseContent -> Html Msg
@@ -170,9 +170,9 @@ viewRunsTable zone { runs, attributi, events, samples } =
 
         runRows : List (Html Msg)
         runRows =
-            makeRunRows zone sampleIds attributi runs events
+            viewRunAndEventRows zone sampleIds attributi runs events
     in
-    table [ class "table table-striped table-sm amarcord-table-fix-head table-bordered" ]
+    table [ class "table amarcord-table-fix-head table-bordered" ]
         [ thead_
             [ tr [ class "align-top" ] <|
                 th_ [ text "ID" ]
