@@ -3,7 +3,7 @@ import itertools
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, cast, Tuple, Dict, Iterable
+from typing import List, cast, Tuple, Dict, Iterable, Any
 from typing import Optional
 
 import magic
@@ -131,36 +131,40 @@ class AsyncDB:
             .where(self.tables.sample.c.id == id_)
         )
 
-    async def retrieve_samples(
-        self, conn: Connection, attributi: List[DBAttributo]
-    ) -> List[DBSample]:
-        file_results = (
-            await conn.execute(
-                sa.select(
-                    [
-                        self.tables.sample_has_file.c.sample_id,
-                        self.tables.file.c.id,
-                        self.tables.file.c.description,
-                        self.tables.file.c.file_name,
-                        self.tables.file.c.type,
-                    ]
-                )
-                .select_from(
-                    self.tables.sample_has_file.join(
-                        self.tables.file,
-                        self.tables.sample_has_file.c.file_id == self.tables.file.c.id,
-                    )
-                )
-                .order_by(self.tables.sample_has_file.c.sample_id)
+    async def _retrieve_files(
+        self,
+        conn: Connection,
+        association_column: sa.Column,
+        where_clause: Optional[Any] = None,
+    ) -> Dict[int, List[DBFile]]:
+        select_stmt = (
+            sa.select(
+                [
+                    association_column,
+                    self.tables.file.c.id,
+                    self.tables.file.c.description,
+                    self.tables.file.c.file_name,
+                    self.tables.file.c.type,
+                ]
             )
-        ).fetchall()
+            .select_from(
+                association_column.table.join(
+                    self.tables.file,
+                    association_column.table.c.file_id == self.tables.file.c.id,
+                )
+            )
+            .order_by(association_column)
+        )
+        if where_clause is not None:
+            select_stmt = select_stmt.where(where_clause)
+        file_results = (await conn.execute(select_stmt)).fetchall()
 
-        sample_to_files: Dict[int, List[DBFile]] = {}
+        result: Dict[int, List[DBFile]] = {}
 
         for key, group in itertools.groupby(
-            file_results, key=lambda row: row["sample_id"]
+            file_results, key=lambda row: row[association_column.name]
         ):
-            sample_to_files[key] = [
+            result[key] = [
                 DBFile(
                     id=row["id"],
                     description=row["description"],
@@ -169,6 +173,15 @@ class AsyncDB:
                 )
                 for row in group
             ]
+
+        return result
+
+    async def retrieve_samples(
+        self, conn: Connection, attributi: List[DBAttributo]
+    ) -> List[DBSample]:
+        sample_to_files = await self._retrieve_files(
+            conn, self.tables.sample_has_file.c.sample_id
+        )
 
         select_stmt = sa.select(
             [
@@ -230,42 +243,9 @@ class AsyncDB:
     async def retrieve_runs(
         self, conn: Connection, attributi: List[DBAttributo]
     ) -> List[DBRun]:
-        fc = self.tables.file.c
-        file_results = (
-            await conn.execute(
-                sa.select(
-                    [
-                        self.tables.run_has_file.c.run_id,
-                        fc.id,
-                        fc.description,
-                        fc.file_name,
-                        fc.type,
-                    ]
-                )
-                .select_from(
-                    self.tables.sample_has_file.join(
-                        self.tables.file,
-                        self.tables.run_has_file.c.file_id == self.tables.file.c.id,
-                    )
-                )
-                .order_by(self.tables.run_has_file.c.run_id.desc())
-            )
-        ).fetchall()
-
-        run_to_files: Dict[int, List[DBFile]] = {}
-
-        for key, group in itertools.groupby(
-            file_results, key=lambda row: row["run_id"]
-        ):
-            run_to_files[key] = [
-                DBFile(
-                    id=row["id"],
-                    description=row["description"],
-                    type_=row["type"],
-                    file_name=row["file_name"],
-                )
-                for row in group
-            ]
+        run_to_files = await self._retrieve_files(
+            conn, self.tables.run_has_file.c.run_id
+        )
 
         select_stmt = sa.select(
             [
@@ -635,12 +615,15 @@ class AsyncDB:
         r = await conn.execute(
             sa.select([rc.id, rc.attributi]).where(rc.id == id_)
         ).one()
+        files = await self._retrieve_files(
+            conn, self.tables.run.c.run_id, (self.tables.run.c.run_id == id_)
+        )
         if r is None:
             return None
         return DBRun(
-            id=r["id"],
+            id=id_,
             attributi=AttributiMap.from_types_and_json(attributi, r["attributi"]),
-            files=[],
+            files=files.get(id_, []),
         )
 
     async def update_run_attributi(

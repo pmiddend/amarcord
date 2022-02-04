@@ -345,7 +345,7 @@ async def read_file(file_id: int):
     headers = {"Content-Type": mime_type}
     # Content-Disposition makes it so the browser opens a "Save file as" dialog. For images, PDFs, ..., we can just
     # display them in the browser instead.
-    dont_do_disposition = ["image", "application/pdf"]
+    dont_do_disposition = ["image", "application/pdf", "text/plain"]
     if all(not mime_type.startswith(x) for x in dont_do_disposition):
         headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
     return async_generator(), 200, headers
@@ -375,8 +375,33 @@ class Arguments(Tap):
     delay: bool = False
 
 
+def parse_args_from_env_vars() -> Arguments:
+    args = Arguments()
+    host = os.environ.get("AMARCORD_HOST", None)
+    if host is not None:
+        args.host = host
+    else:
+        args.host = "0.0.0.0"
+    port = os.environ.get("AMARCORD_PORT", None)
+    if port is not None:
+        args.port = int(port)
+    else:
+        args.port = 5000
+    url = os.environ.get("AMARCORD_DB_CONNECTION_URL", None)
+    if url is not None:
+        args.db_connection_url = url
+    else:
+        args.db_connection_url = "sqlite+aiosqlite://"
+    return args
+
+
 def main() -> int:
-    args = Arguments(underscores_to_dashes=True).parse_args()
+    # For debugging purposes, we don't want to use command line arguments, since hypercorn (which belongs to quart)
+    # cannot hot-reload when you give it command line parameters. So we also use env vars.
+    if "AMARCORD_DB_CONNECTION_URL" in os.environ:
+        args = parse_args_from_env_vars()
+    else:
+        args = Arguments(underscores_to_dashes=True).parse_args()
     app.config.update(
         {
             "DB_URL": args.db_connection_url,

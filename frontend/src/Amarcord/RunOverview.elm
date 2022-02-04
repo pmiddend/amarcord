@@ -128,7 +128,11 @@ viewRunRow zone sampleIds attributi r =
 
 viewEventRow : Zone -> Int -> Event -> Html Msg
 viewEventRow zone attributoColumnCount e =
-    tr_ [ td_ [], td_ [ text <| formatPosixTimeOfDayHumanFriendly zone e.created ], td [ colspan attributoColumnCount ] [ strongText <| "[" ++ e.source ++ "] ", text e.text ] ]
+    tr [ class "bg-light" ]
+        [ td_ []
+        , td_ [ text <| formatPosixTimeOfDayHumanFriendly zone e.created ]
+        , td [ colspan attributoColumnCount ] [ strongText <| "[" ++ e.source ++ "] ", text e.text ]
+        ]
 
 
 viewRunAndEventRows : Zone -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
@@ -172,7 +176,7 @@ viewRunsTable zone { runs, attributi, events, samples } =
         runRows =
             viewRunAndEventRows zone sampleIds attributi runs events
     in
-    table [ class "table amarcord-table-fix-head table-bordered" ]
+    table [ class "table amarcord-table-fix-head table-bordered table-hover" ]
         [ thead_
             [ tr [ class "align-top" ] <|
                 th_ [ text "ID" ]
