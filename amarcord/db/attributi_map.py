@@ -30,9 +30,18 @@ JsonAttributiMap = Dict[str, JSONValue]
 UntypedAttributiMap = Dict[str, AttributoValue]
 
 
-def _check_type(name: str, type_: AttributoType, value: AttributoValue) -> None:
+def _check_type(
+    name: str, sample_ids: List[int], type_: AttributoType, value: AttributoValue
+) -> None:
     if value is None:
         return
+    if isinstance(type_, AttributoTypeSample):
+        if not isinstance(value, int):
+            raise Exception(
+                f'attributo "{name}": should have type int, but got value {value}'
+            )
+        if value not in sample_ids:
+            raise Exception(f'attributo "{name}": invalid sample ID {value}')
     if isinstance(type_, (AttributoTypeInt, AttributoTypeSample)):
         if not isinstance(value, int):
             raise Exception(
@@ -76,23 +85,26 @@ def _check_type(name: str, type_: AttributoType, value: AttributoValue) -> None:
         ), f'attributo "{name}": list max length is {type_.min_length}, got {len(value)} element(s)'
 
         for i, v in enumerate(value):
-            _check_type(name + f"[{i}]", type_.sub_type, v)  # type: ignore
+            _check_type(name + f"[{i}]", sample_ids, type_.sub_type, v)  # type: ignore
 
 
 def _check_types(
-    types: Dict[AttributoId, DBAttributo], d: Dict[AttributoId, AttributoValue]
+    types: Dict[AttributoId, DBAttributo],
+    sample_ids: List[int],
+    d: Dict[AttributoId, AttributoValue],
 ) -> None:
     for name, value in d.items():
         type_ = types.get(name, None)
         if type_ is None:
             raise Exception(f'attributo "{name}" not found!')
-        _check_type(name, type_.attributo_type, value)
+        _check_type(name, sample_ids, type_.attributo_type, value)
 
 
 def _convert_single_attributo_value_from_json(
     i: AttributoId,
     v: JSONValue,
     types: Dict[AttributoId, DBAttributo],
+    sample_ids: List[int],
 ) -> AttributoValue:
     attributo_type = types.get(i, None)
     if attributo_type is None:
@@ -106,6 +118,8 @@ def _convert_single_attributo_value_from_json(
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
+        if v not in sample_ids:
+            raise Exception(f"{v} is not a valid sample ID")
         return v
     if isinstance(attributo_type.attributo_type, AttributoTypeBoolean):
         assert isinstance(
@@ -187,29 +201,37 @@ def _convert_single_attributo_value_from_json(
 
 class AttributiMap:
     def __init__(
-        self, types_dict: Dict[str, DBAttributo], impl: UntypedAttributiMap
+        self,
+        types_dict: Dict[str, DBAttributo],
+        sample_ids: List[int],
+        impl: UntypedAttributiMap,
     ) -> None:
         self._attributi = impl
         self._types = types_dict
+        self._sample_ids = sample_ids
 
     @staticmethod
     def from_types_and_json(
-        types: List[DBAttributo], raw_attributi: JsonAttributiMap
+        types: List[DBAttributo], sample_ids: List[int], raw_attributi: JsonAttributiMap
     ) -> "AttributiMap":
         attributi: UntypedAttributiMap = {}
         types_dict = {a.name: a for a in types}
         if raw_attributi is not None:
             for attributo_name, attributo_value in raw_attributi.items():
                 v = _convert_single_attributo_value_from_json(
-                    attributo_name, attributo_value, types_dict
+                    attributo_name, attributo_value, types_dict, sample_ids
                 )
                 if v is not None:
                     attributi[attributo_name] = v
 
-        return AttributiMap(types_dict, attributi)
+        return AttributiMap(types_dict, sample_ids, attributi)
 
     def copy(self) -> "AttributiMap":
-        return AttributiMap(types_dict=self._types.copy(), impl=self._attributi.copy())
+        return AttributiMap(
+            types_dict=self._types.copy(),
+            sample_ids=self._sample_ids.copy(),
+            impl=self._attributi.copy(),
+        )
 
     def select_int_unsafe(self, attributo_id: AttributoId) -> int:
         selected = self.select_unsafe(attributo_id)
@@ -275,7 +297,7 @@ class AttributiMap:
         return self._attributi.get(attributo_id, None)
 
     def extend(self, new_attributi: Dict[AttributoId, AttributoValue]) -> None:
-        _check_types(self._types, new_attributi)
+        _check_types(self._types, self._sample_ids, new_attributi)
         for k, v in new_attributi.items():
             if v is not None:
                 self._attributi[k] = v
@@ -309,13 +331,25 @@ class AttributiMap:
     def convert_attributo(
         self,
         conversion_flags: AttributoConversionFlags,
-        name: AttributoId,
+        old_name: AttributoId,
+        new_name: AttributoId,
         after_type: AttributoType,
     ) -> None:
-        before_type = self._types[name].attributo_type
-        before_value = self._attributi.get(name, None)
+        before_type = self._types[old_name].attributo_type
+        before_value = self._attributi.get(old_name, None)
         after_value = convert_attributo_value(
             before_type, after_type, conversion_flags, before_value
         )
-        self._types[name] = replace(self._types[name], attributo_type=after_type)
-        self.append_single(name, after_value)
+        # Change types
+        self._types[new_name] = replace(
+            self._types[old_name], attributo_type=after_type
+        )
+        if new_name != old_name:
+            del self._types[old_name]
+
+        # Change value
+        if new_name == old_name:
+            self.append_single(old_name, after_value)
+        else:
+            self.remove(old_name)
+            self.append_single(new_name, after_value)

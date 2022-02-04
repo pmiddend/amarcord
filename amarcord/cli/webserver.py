@@ -71,7 +71,8 @@ async def create_sample() -> JSONDict:
             name=r.retrieve_safe_str("name"),
             attributi=AttributiMap.from_types_and_json(
                 await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE),
-                r.retrieve_safe_object("attributi"),
+                sample_ids=[],
+                raw_attributi=r.retrieve_safe_object("attributi"),
             ),
         )
         file_ids = r.retrieve_int_array("fileIds")
@@ -93,7 +94,8 @@ async def update_sample() -> JSONDict:
             name=r.retrieve_safe_str("name"),
             attributi=AttributiMap.from_types_and_json(
                 await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE),
-                r.retrieve_safe_object("attributi"),
+                sample_ids=[],
+                raw_attributi=r.retrieve_safe_object("attributi"),
             ),
         )
         await db.instance.remove_files_from_sample(conn, sample_id)
@@ -110,8 +112,7 @@ async def delete_sample() -> JSONDict:
 
     async with db.instance.begin() as conn:
         await db.instance.delete_sample(
-            conn,
-            id_=r.retrieve_safe_int("id"),
+            conn, id_=r.retrieve_safe_int("id"), delete_in_runs=False
         )
 
     return {}

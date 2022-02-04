@@ -199,6 +199,8 @@ class AsyncDB:
                 name=a["name"],
                 attributi=AttributiMap.from_types_and_json(
                     types=attributi,
+                    # Sample IDs not needed since samples cannot refer to themselves (yet!)
+                    sample_ids=[],
                     raw_attributi=a["attributi"],
                 ),
                 files=sample_to_files.get(a["id"], []),
@@ -265,11 +267,14 @@ class AsyncDB:
 
         result = await conn.execute(select_stmt)
 
+        sample_ids = await self.retrieve_sample_ids(conn)
+
         return [
             DBRun(
                 id=a["id"],
                 attributi=AttributiMap.from_types_and_json(
                     types=attributi,
+                    sample_ids=sample_ids,
                     raw_attributi=a["attributi"],
                 ),
                 files=run_to_files.get(a["id"], []),
@@ -278,9 +283,7 @@ class AsyncDB:
         ]
 
     async def delete_sample(
-        self,
-        conn: Connection,
-        id_: int,
+        self, conn: Connection, id_: int, delete_in_runs: bool
     ) -> None:
         attributi = await self.retrieve_attributi(conn, AssociatedTable.RUN)
 
@@ -296,8 +299,11 @@ class AsyncDB:
                 for sample_attributo in sample_attributi:
                     run_sample = r.attributi.select_sample_id(sample_attributo.name)
                     if run_sample == id_:
-                        run_attributi.remove(sample_attributo.name)
-                        changed = True
+                        if delete_in_runs:
+                            run_attributi.remove(sample_attributo.name)
+                            changed = True
+                        else:
+                            raise Exception(f"run {r.id} still has sample {id_}")
                 if changed:
                     await self.update_run_attributi(conn, r.id, run_attributi)
 
@@ -360,9 +366,15 @@ class AsyncDB:
                 # Then remove the attributo from the sample and the accompanying types, and update.
                 s.attributi.remove(name)
                 await self.update_sample(conn, cast(int, s.id), s.name, s.attributi)
+        elif found_attributo.associated_table == AssociatedTable.RUN:
+            # Explanation, see above for samples
+            for r in await self.retrieve_runs(conn, attributi):
+                r.attributi.remove(name)
+                await self.update_run_attributi(conn, r.id, r.attributi)
         else:
-            # FIXME: do this for runs
-            pass
+            raise Exception(
+                f"unimplemented: is there a new associated table {found_attributo.associated_table}?"
+            )
 
     async def create_file(
         self,
@@ -433,9 +445,25 @@ class AsyncDB:
         if new_attributo.associated_table == AssociatedTable.SAMPLE:
             for s in await self.retrieve_samples(conn, current_attributi):
                 s.attributi.convert_attributo(
-                    conversion_flags, name, new_attributo.attributo_type
+                    conversion_flags=conversion_flags,
+                    old_name=name,
+                    new_name=new_attributo.name,
+                    after_type=new_attributo.attributo_type,
                 )
                 await self.update_sample(conn, cast(int, s.id), s.name, s.attributi)
+        elif new_attributo.associated_table == AssociatedTable.RUN:
+            for r in await self.retrieve_runs(conn, current_attributi):
+                r.attributi.convert_attributo(
+                    conversion_flags=conversion_flags,
+                    old_name=name,
+                    new_name=new_attributo.name,
+                    after_type=new_attributo.attributo_type,
+                )
+                await self.update_run_attributi(conn, r.id, r.attributi)
+        else:
+            raise Exception(
+                f"unimplemented: is there a new associated table {new_attributo.associated_table}?"
+            )
 
     async def add_file_to_sample(
         self, conn: Connection, file_id: int, sample_id: int
@@ -631,7 +659,9 @@ class AsyncDB:
             return None
         return DBRun(
             id=id_,
-            attributi=AttributiMap.from_types_and_json(attributi, r["attributi"]),
+            attributi=AttributiMap.from_types_and_json(
+                attributi, await self.retrieve_sample_ids(conn), r["attributi"]
+            ),
             files=files.get(id_, []),
         )
 
@@ -643,3 +673,6 @@ class AsyncDB:
             .values(attributi=attributi.to_json())
             .where(self.tables.run.c.id == id_)
         )
+
+    async def retrieve_sample_ids(self, conn: Connection) -> List[int]:
+        return [r[0] for r in await conn.execute(sa.select([self.tables.sample.c.id]))]

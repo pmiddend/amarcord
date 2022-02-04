@@ -8,6 +8,7 @@ from amarcord.db.attributo_type import (
     AttributoTypeBoolean,
     AttributoTypeDecimal,
     AttributoType,
+    AttributoTypeSample,
 )
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.numeric_range import NumericRange
@@ -25,17 +26,39 @@ def _create_attributo(t: AttributoType) -> DBAttributo:
     )
 
 
+def test_attributi_map_check_type_for_sample() -> None:
+    with pytest.raises(Exception):
+        # Give a wrong sample ID for a sample attributo, should not work
+        AttributiMap.from_types_and_json(
+            [_create_attributo(AttributoTypeSample())],
+            [1],
+            {TEST_ATTRIBUTO_ID: 2},
+        )
+
+    # Give a valid sample ID for a sample attributo, should work
+    am = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeSample())],
+        [1],
+        {TEST_ATTRIBUTO_ID: 1},
+    )
+
+    # Then try to retrieve the attributo
+    assert am.select(TEST_ATTRIBUTO_ID) == 1
+
+
 def test_attributi_map_check_type_for_int() -> None:
     # Give a string for an integer attributo, should fail
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
             [_create_attributo(AttributoTypeInt())],
+            [],
             {TEST_ATTRIBUTO_ID: "foo"},
         )
 
     # Give a proper integer for an integer attributo, should work
     am = AttributiMap.from_types_and_json(
         [_create_attributo(AttributoTypeInt())],
+        [],
         {TEST_ATTRIBUTO_ID: 3},
     )
 
@@ -56,12 +79,14 @@ def test_attributi_map_check_type_for_string() -> None:
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
             [_create_attributo(AttributoTypeString())],
+            [],
             {TEST_ATTRIBUTO_ID: 3},
         )
 
     # Give a proper integer for an integer attributo, should work
     am = AttributiMap.from_types_and_json(
         [_create_attributo(AttributoTypeString())],
+        [],
         {TEST_ATTRIBUTO_ID: "foo"},
     )
 
@@ -79,12 +104,14 @@ def test_attributi_map_check_type_for_boolean() -> None:
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
             [_create_attributo(AttributoTypeBoolean())],
+            [],
             {TEST_ATTRIBUTO_ID: 3},
         )
 
     # Give a proper integer for an integer attributo, should work
     am = AttributiMap.from_types_and_json(
         [_create_attributo(AttributoTypeBoolean())],
+        [],
         {TEST_ATTRIBUTO_ID: True},
     )
 
@@ -98,12 +125,14 @@ def test_attributi_map_check_type_for_double() -> None:
     with pytest.raises(Exception):
         AttributiMap.from_types_and_json(
             [_create_attributo(AttributoTypeDecimal())],
+            [],
             {TEST_ATTRIBUTO_ID: "foo"},
         )
 
     # Give a proper double for an double attributo, should work
     am = AttributiMap.from_types_and_json(
         [_create_attributo(AttributoTypeDecimal())],
+        [],
         {TEST_ATTRIBUTO_ID: 4.5},
     )
 
@@ -117,5 +146,6 @@ def test_attributi_map_check_type_for_double() -> None:
                     AttributoTypeDecimal(range=NumericRange(1.0, False, 2.0, False))
                 )
             ],
+            [],
             {TEST_ATTRIBUTO_ID: 4.5},
         )

@@ -461,6 +461,7 @@ async def main_loop_iteration(
                             run_id,
                             attributi=AttributiMap.from_types_and_json(
                                 await db.retrieve_attributi(conn, AssociatedTable.RUN),
+                                await db.retrieve_sample_ids(conn),
                                 {},
                             ),
                         )

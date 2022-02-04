@@ -105,7 +105,9 @@ def _generate_attributo_value(
     raise Exception(f"invalid attributo type {a}")
 
 
-def _generate_attributi_map(attributi: List[DBAttributo]) -> AttributiMap:
+def _generate_attributi_map(
+    attributi: List[DBAttributo], sample_ids: List[int]
+) -> AttributiMap:
     values: UntypedAttributiMap = {}
     for a in attributi:
         # in 20% of cases, leave attributo out of the equation
@@ -114,7 +116,9 @@ def _generate_attributi_map(attributi: List[DBAttributo]) -> AttributiMap:
 
         values[a.name] = _generate_attributo_value(a.attributo_type, [])
 
-    return AttributiMap(types_dict={a.name: a for a in attributi}, impl=values)
+    return AttributiMap(
+        types_dict={a.name: a for a in attributi}, sample_ids=sample_ids, impl=values
+    )
 
 
 def mymain(args: Arguments) -> None:
@@ -230,7 +234,8 @@ async def _initialize_db(db: AsyncDB) -> None:
                 sample_name,
                 AttributiMap.from_types_and_json(
                     attributi,
-                    {
+                    sample_ids=[],
+                    raw_attributi={
                         "producer": random_person_name(),
                         "compound": randomname.generate("n/minerals"),
                     },
@@ -256,7 +261,8 @@ async def _start_run(
             run_id=previous_run_id + 1,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
-                {
+                sample_ids=sample_ids,
+                raw_attributi={
                     ATTRIBUTO_STARTED: datetime_to_attributo_string(
                         datetime.datetime.utcnow()
                     ),

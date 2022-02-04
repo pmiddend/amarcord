@@ -93,8 +93,10 @@ async def ingest_karabo_action(
     if run is None:
         await db.create_run(
             conn,
-            action.run_id,
-            AttributiMap.from_types_and_json(attributi, karabo_attributi),
+            run_id=action.run_id,
+            attributi=AttributiMap.from_types_and_json(
+                attributi, await db.retrieve_sample_ids(conn), karabo_attributi
+            ),
         )
     else:
         final_attributi = run.attributi
