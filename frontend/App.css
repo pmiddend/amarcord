@@ -40,3 +40,5 @@
 .amarcord-table-fix-head thead th { position: sticky; top: 0; z-index: 1; background: white; }
 
 .amarcord-alert-small { padding: 0.5rem !important; }
+
+.amarcord-small-link-button { padding: 0 !important; }

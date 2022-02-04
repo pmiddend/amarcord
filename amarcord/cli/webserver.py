@@ -232,6 +232,16 @@ async def create_file() -> JSONDict:
     }
 
 
+@app.delete("/api/events")
+async def delete_event() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        await db.instance.delete_event(conn, r.retrieve_safe_int("id"))
+
+    return {}
+
+
 @app.delete("/api/files")
 async def delete_file() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")

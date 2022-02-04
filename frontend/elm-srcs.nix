@@ -1,8 +1,18 @@
 {
 
+      "elm-community/html-extra" = {
+        sha256 = "0nysjwhlvcc3rsc6mq9g9j81xq4jdyx92m5y02mwsnlyblfd773k";
+        version = "3.4.0";
+      };
+
       "krisajenkins/remotedata" = {
         sha256 = "0m5bk0qhsjv14vajqrkph386696pnhj5rn51kgma8lwyvvx9ihw1";
         version = "6.0.1";
+      };
+
+      "kmbn/elm-hotkeys" = {
+        sha256 = "0aiys6w8vi2wvnf7dl9z4pv7qs5ili2a49b0nln11jg426xrvdkv";
+        version = "1.1.1";
       };
 
       "elm/html" = {
@@ -40,6 +50,11 @@
         version = "1.1.3";
       };
 
+      "cuducos/elm-format-number" = {
+        sha256 = "0d78ghd3km0w6aarr54fqgdq21wv7m4q1xc9qy8d7fsw1sa1f1wf";
+        version = "9.0.1";
+      };
+
       "elm/parser" = {
         sha256 = "0a3cxrvbm7mwg9ykynhp7vjid58zsw03r63qxipxp3z09qks7512";
         version = "1.1.0";
@@ -68,6 +83,16 @@
       "rtfeldman/elm-iso8601-date-strings" = {
         sha256 = "1ah491kgyicgvy1c9myylqvhzb7ya9kgmn0hcsv23ymvqgaf6b1a";
         version = "1.1.4";
+      };
+
+      "elm/regex" = {
+        sha256 = "0lijsp50w7n1n57mjg6clpn9phly8vvs07h0qh2rqcs0f1jqvsa2";
+        version = "1.0.0";
+      };
+
+      "myrho/elm-round" = {
+        sha256 = "1ghw75fq2p316gw95b3mknfhkq7196fc6ziy6c5ic34gxfb03zvg";
+        version = "1.0.4";
       };
 
       "elm/virtual-dom" = {

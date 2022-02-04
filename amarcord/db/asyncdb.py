@@ -206,6 +206,15 @@ class AsyncDB:
             for a in result
         ]
 
+    async def delete_event(
+        self,
+        conn: Connection,
+        id_: int,
+    ) -> None:
+        await conn.execute(
+            sa.delete(self.tables.event_log).where(self.tables.event_log.c.id == id_)
+        )
+
     async def delete_file(
         self,
         conn: Connection,

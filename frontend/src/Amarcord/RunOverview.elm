@@ -7,10 +7,10 @@ import Amarcord.File exposing (File, fileDecoder)
 import Amarcord.Html exposing (h5_, input_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleDecoder)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (formatPosixTimeOfDayHumanFriendly, posixBefore)
+import Amarcord.Util exposing (formatPosixTimeOfDayHumanFriendly, httpDelete, posixBefore)
 import Dict exposing (Dict)
 import Hotkeys exposing (onEnter)
-import Html exposing (Html, button, div, form, h4, table, td, text, tr)
+import Html exposing (Html, a, button, div, form, h4, table, td, text, tr)
 import Html.Attributes exposing (class, colspan, disabled, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (jsonBody)
@@ -97,6 +97,15 @@ httpCreateEvent source text =
         }
 
 
+httpDeleteEvent : Int -> Cmd Msg
+httpDeleteEvent eventId =
+    httpDelete
+        { url = "/api/events"
+        , body = jsonBody (Encode.object [ ( "id", Encode.int eventId ) ])
+        , expect = Http.expectJson EventDeleteFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
+        }
+
+
 httpGetRuns : (RunsResponse -> msg) -> Cmd msg
 httpGetRuns f =
     Http.get
@@ -118,6 +127,8 @@ type Msg
     | EventFormChange EventForm
     | EventFormSubmit
     | EventFormSubmitFinished (Result Http.Error (Maybe UserError))
+    | EventDelete Int
+    | EventDeleteFinished (Result Http.Error (Maybe UserError))
 
 
 type alias EventForm =
@@ -177,7 +188,11 @@ viewEventRow zone attributoColumnCount e =
     tr [ class "bg-light" ]
         [ td_ []
         , td_ [ text <| formatPosixTimeOfDayHumanFriendly zone e.created ]
-        , td [ colspan attributoColumnCount ] [ strongText <| "[" ++ e.source ++ "] ", text e.text ]
+        , td [ colspan attributoColumnCount ]
+            [ button [ class "btn btn-sm btn-link amarcord-small-link-button", type_ "button", onClick (EventDelete e.id) ] [ icon { name = "trash" } ]
+            , strongText <| " [" ++ e.source ++ "] "
+            , text <| e.text ++ " "
+            ]
         ]
 
 
@@ -359,3 +374,14 @@ update msg model =
 
                 Ok Nothing ->
                     ( { model | eventRequest = Success (), eventForm = { userName = model.eventForm.userName, message = "" } }, httpGetRuns RunsReceived )
+
+        EventDelete eventId ->
+            ( model, httpDeleteEvent eventId )
+
+        EventDeleteFinished result ->
+            case result of
+                Ok Nothing ->
+                    ( model, httpGetRuns RunsReceived )
+
+                _ ->
+                    ( model, Cmd.none )
