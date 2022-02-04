@@ -54,6 +54,7 @@ type AlertProperty
     | AlertLight
     | AlertDark
     | AlertSmall
+    | AlertDismissible
 
 
 alertPropToCss : AlertProperty -> String
@@ -61,6 +62,9 @@ alertPropToCss x =
     case x of
         AlertSmall ->
             "amarcord-alert-small"
+
+        AlertDismissible ->
+            "alert-dismissible"
 
         AlertPrimary ->
             "alert-primary"

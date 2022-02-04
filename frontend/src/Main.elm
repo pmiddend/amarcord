@@ -10,12 +10,14 @@ import Amarcord.Html exposing (h1_)
 import Amarcord.Route as Route exposing (Route, makeLink, parseUrl)
 import Amarcord.RunOverview as RunOverview
 import Amarcord.Samples as Samples
+import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html as Html exposing (..)
 import Html.Attributes exposing (..)
 import String exposing (startsWith)
-import Time
+import Task
+import Time exposing (Posix, Zone)
 import Url as URL exposing (Url)
 
 
@@ -25,7 +27,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Time.every 10000 (always RefreshMsg)
+        , subscriptions = \_ -> Time.every 10000 RefreshMsg
         , onUrlRequest = LinkClicked
         , onUrlChange = UrlChanged
         }
@@ -37,7 +39,8 @@ type Msg
     | RunOverviewPageMsg RunOverview.Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
-    | RefreshMsg
+    | RefreshMsg Posix
+    | HereAndNowReceived HereAndNow
 
 
 type Page
@@ -51,6 +54,7 @@ type alias Model =
     { route : Route
     , page : Page
     , navKey : Nav.Key
+    , hereAndNow : Maybe HereAndNow
     }
 
 
@@ -58,9 +62,13 @@ init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init _ url navKey =
     let
         model =
-            { route = parseUrl url, page = RootPage, navKey = navKey }
+            { route = parseUrl url
+            , page = RootPage
+            , navKey = navKey
+            , hereAndNow = Nothing
+            }
     in
-    initCurrentPage ( model, Cmd.none )
+    ( model, Task.perform HereAndNowReceived <| retrieveHereAndNow )
 
 
 view : Model -> Document Msg
@@ -157,6 +165,21 @@ currentView model =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    case msg of
+        HereAndNowReceived hereAndNow ->
+            initCurrentPage hereAndNow ( { model | hereAndNow = Just hereAndNow }, Cmd.none )
+
+        _ ->
+            case model.hereAndNow of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just hereAndNow ->
+                    updateInner hereAndNow msg model
+
+
+updateInner : HereAndNow -> Msg -> Model -> ( Model, Cmd Msg )
+updateInner hereAndNow msg model =
     case ( msg, model.page ) of
         ( AttributiPageMsg subMsg, AttributiPage pageModel ) ->
             let
@@ -185,10 +208,10 @@ update msg model =
             , Cmd.map RunOverviewPageMsg updatedCmd
             )
 
-        ( RefreshMsg, RunOverviewPage pageModel ) ->
+        ( RefreshMsg t, RunOverviewPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
-                    RunOverview.update RunOverview.Refresh pageModel
+                    RunOverview.update (RunOverview.Refresh t) pageModel
             in
             ( { model | page = RunOverviewPage updatedPageModel }
             , Cmd.map RunOverviewPageMsg updatedCmd
@@ -214,14 +237,14 @@ update msg model =
                     Route.parseUrl url
             in
             ( { model | route = newRoute }, Cmd.none )
-                |> initCurrentPage
+                |> initCurrentPage hereAndNow
 
         ( _, _ ) ->
             ( model, Cmd.none )
 
 
-initCurrentPage : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-initCurrentPage ( model, existingCmds ) =
+initCurrentPage : HereAndNow -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+initCurrentPage hereAndNow ( model, existingCmds ) =
     let
         ( currentPage, mappedPageCmds ) =
             case model.route of
@@ -231,21 +254,21 @@ initCurrentPage ( model, existingCmds ) =
                 Route.Attributi ->
                     let
                         ( pageModel, pageCmds ) =
-                            Attributi.init ()
+                            Attributi.init hereAndNow
                     in
                     ( AttributiPage pageModel, Cmd.map AttributiPageMsg pageCmds )
 
                 Route.Samples ->
                     let
                         ( pageModel, pageCmds ) =
-                            Samples.init ()
+                            Samples.init hereAndNow
                     in
                     ( SamplesPage pageModel, Cmd.map SamplesPageMsg pageCmds )
 
                 Route.RunOverview ->
                     let
                         ( pageModel, pageCmds ) =
-                            RunOverview.init ()
+                            RunOverview.init hereAndNow
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
     in

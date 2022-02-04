@@ -27,7 +27,7 @@ import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericR
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, SampleId, encodeSample, sampleDecoder, sampleMapAttributi, sampleMapId)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, httpDelete, httpPatch)
+import Amarcord.Util exposing (HereAndNow, collectResults, formatPosixDateTimeCompatible, httpDelete, httpPatch)
 import Dict exposing (Dict)
 import File as ElmFile
 import File.Select
@@ -45,8 +45,7 @@ import Maybe.Extra as Maybe exposing (isJust, isNothing, traverse)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Set
 import String exposing (fromInt, join, split, toInt, trim)
-import Task
-import Time exposing (Month(..), Posix, Zone, here)
+import Time exposing (Month(..), Posix, Zone)
 import Tuple exposing (first, second)
 
 
@@ -109,7 +108,7 @@ type alias Model =
     , fileUploadRequest : RemoteData Http.Error ()
     , editSample : Maybe (Sample (Maybe Int) EditableAttributiAndOriginal File)
     , modifyRequest : RemoteData Http.Error ()
-    , myTimeZone : Maybe Zone
+    , myTimeZone : Zone
     , submitErrors : List String
     , newFileUpload : NewFileUpload
     }
@@ -127,7 +126,6 @@ type ValueUpdate
 type Msg
     = SamplesReceived SamplesResponse
     | CancelDelete
-    | TimeZoneReceived Zone
     | AskDelete String SampleId
     | InitiateEdit (Sample Int (AttributoMap AttributoValue) File)
     | ConfirmDelete SampleId
@@ -186,19 +184,19 @@ httpDeleteSample sampleId =
         }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
+init : HereAndNow -> ( Model, Cmd Msg )
+init { zone } =
     ( { samples = Loading
       , deleteModalOpen = Nothing
       , sampleDeleteRequest = NotAsked
       , modifyRequest = NotAsked
       , fileUploadRequest = NotAsked
       , editSample = Nothing
-      , myTimeZone = Nothing
+      , myTimeZone = zone
       , submitErrors = []
       , newFileUpload = { file = Nothing, description = "" }
       }
-    , Task.perform TimeZoneReceived here
+    , httpGetSamples SamplesReceived
     )
 
 
@@ -600,68 +598,63 @@ viewSampleTable zone samples attributi =
 
 viewInner : Model -> List (Html Msg)
 viewInner model =
-    case model.myTimeZone of
-        Nothing ->
-            singleton <| loadingBar "Loading time zone information..."
+    case model.samples of
+        NotAsked ->
+            singleton <| text ""
 
-        Just zone ->
-            case model.samples of
-                NotAsked ->
-                    singleton <| text ""
+        Loading ->
+            singleton <| loadingBar "Loading samples..."
 
-                Loading ->
-                    singleton <| loadingBar "Loading samples..."
+        Failure e ->
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
 
-                Failure e ->
-                    singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
+        Success { samples, attributi } ->
+            let
+                prefix =
+                    case model.editSample of
+                        Nothing ->
+                            button [ class "btn btn-primary", onClick AddSample ] [ icon { name = "plus-lg" }, text " Add sample" ]
 
-                Success { samples, attributi } ->
-                    let
-                        prefix =
-                            case model.editSample of
-                                Nothing ->
-                                    button [ class "btn btn-primary", onClick AddSample ] [ icon { name = "plus-lg" }, text " Add sample" ]
+                        Just ea ->
+                            viewEditForm model.submitErrors model.newFileUpload ea
 
-                                Just ea ->
-                                    viewEditForm model.submitErrors model.newFileUpload ea
+                modifyRequestResult =
+                    case model.modifyRequest of
+                        NotAsked ->
+                            text ""
 
-                        modifyRequestResult =
-                            case model.modifyRequest of
-                                NotAsked ->
-                                    text ""
+                        Loading ->
+                            p [] [ text "Request in progress..." ]
 
-                                Loading ->
-                                    p [] [ text "Request in progress..." ]
+                        Failure e ->
+                            div [] [ makeAlert [ AlertDanger ] (showHttpError e) ]
 
-                                Failure e ->
-                                    div [] [ makeAlert [ AlertDanger ] (showHttpError e) ]
+                        Success _ ->
+                            div [ class "mt-3" ]
+                                [ makeAlert [ AlertSuccess ] [ text "Request successful!" ]
+                                ]
 
-                                Success _ ->
-                                    div [ class "mt-3" ]
-                                        [ makeAlert [ AlertSuccess ] [ text "Request successful!" ]
-                                        ]
+                deleteRequestResult =
+                    case model.sampleDeleteRequest of
+                        NotAsked ->
+                            text ""
 
-                        deleteRequestResult =
-                            case model.sampleDeleteRequest of
-                                NotAsked ->
-                                    text ""
+                        Loading ->
+                            p [] [ text "Request in progress..." ]
 
-                                Loading ->
-                                    p [] [ text "Request in progress..." ]
+                        Failure e ->
+                            div [] [ makeAlert [ AlertDanger ] (showHttpError e) ]
 
-                                Failure e ->
-                                    div [] [ makeAlert [ AlertDanger ] (showHttpError e) ]
-
-                                Success _ ->
-                                    div [ class "mt-3" ]
-                                        [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
-                                        ]
-                    in
-                    prefix
-                        :: modifyRequestResult
-                        :: deleteRequestResult
-                        :: viewSampleTable zone samples attributi
-                        :: []
+                        Success _ ->
+                            div [ class "mt-3" ]
+                                [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
+                                ]
+            in
+            prefix
+                :: modifyRequestResult
+                :: deleteRequestResult
+                :: viewSampleTable model.myTimeZone samples attributi
+                :: []
 
 
 view : Model -> Html Msg
@@ -978,9 +971,9 @@ update msg model =
 
         -- The user pressed the "Add new object" button
         AddSample ->
-            case ( model.samples, model.myTimeZone ) of
-                ( Success { attributi }, Just zone ) ->
-                    ( { model | editSample = Just (editSampleFromAttributiAndValues zone attributi emptySample) }, Cmd.none )
+            case model.samples of
+                Success { attributi } ->
+                    ( { model | editSample = Just (editSampleFromAttributiAndValues model.myTimeZone attributi emptySample) }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -1076,15 +1069,12 @@ update msg model =
             ( { model | deleteModalOpen = Just ( sampleName, sampleId ) }, Cmd.none )
 
         InitiateEdit sample ->
-            case ( model.samples, model.myTimeZone ) of
-                ( Success { attributi }, Just zone ) ->
-                    ( { model | editSample = Just (editSampleFromAttributiAndValues zone attributi (sampleMapId Just sample)) }, Cmd.none )
+            case model.samples of
+                Success { attributi } ->
+                    ( { model | editSample = Just (editSampleFromAttributiAndValues model.myTimeZone attributi (sampleMapId Just sample)) }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
-
-        TimeZoneReceived zone ->
-            ( { model | myTimeZone = Just zone }, httpGetSamples SamplesReceived )
 
         EditNewFileDescription newDescription ->
             let

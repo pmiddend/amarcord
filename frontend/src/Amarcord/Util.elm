@@ -5,8 +5,9 @@ import Http
 import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import List exposing (foldr)
-import String exposing (padLeft)
-import Time exposing (Month(..), Posix, Zone, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
+import String exposing (fromInt, padLeft)
+import Task
+import Time exposing (Month(..), Posix, Zone, here, now, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
 
 
 collectResults : List (Result e b) -> Result (List e) (List b)
@@ -135,6 +136,27 @@ formatPosixDateTimeCompatible zone posix =
     year ++ "-" ++ month ++ "-" ++ day ++ "T" ++ hour ++ ":" ++ minute
 
 
+posixDiffHumanFriendly : Posix -> Posix -> String
+posixDiffHumanFriendly p1 p2 =
+    let
+        diffSeconds =
+            abs (posixToMillis p1 - posixToMillis p2) // 1000
+    in
+    if diffSeconds < 60 then
+        fromInt diffSeconds ++ " seconds"
+
+    else
+        let
+            diffMinutes =
+                diffSeconds // 60
+        in
+        if diffMinutes == 1 then
+            "1 minute"
+
+        else
+            fromInt diffMinutes ++ " minutes"
+
+
 formatPosixTimeOfDayHumanFriendly : Zone -> Posix -> String
 formatPosixTimeOfDayHumanFriendly zone posix =
     let
@@ -182,3 +204,14 @@ toTimeMaybe =
 posixBefore : Posix -> Posix -> Bool
 posixBefore a b =
     posixToMillis a < posixToMillis b
+
+
+type alias HereAndNow =
+    { zone : Zone
+    , now : Posix
+    }
+
+
+retrieveHereAndNow : Task.Task x HereAndNow
+retrieveHereAndNow =
+    Task.andThen (\zone -> Task.map (\startTime -> HereAndNow zone startTime) now) here

@@ -26,6 +26,7 @@ module Amarcord.Attributo exposing
     , mutedSubheader
     , removeAttributoFromMap
     , retrieveAttributoValue
+    , retrieveDateTimeAttributoValue
     , toAttributoName
     , updateAttributoMap
     )
@@ -268,6 +269,11 @@ emptyAttributoMap =
 retrieveAttributoValue : AttributoName -> AttributoMap a -> Maybe a
 retrieveAttributoValue (AttributoName name) (AttributoMap m) =
     Dict.get name m
+
+
+retrieveDateTimeAttributoValue : AttributoName -> AttributoMap AttributoValue -> Maybe Posix
+retrieveDateTimeAttributoValue name m =
+    Maybe.andThen extractDateTime <| retrieveAttributoValue name m
 
 
 fromAttributoName : AttributoName -> String

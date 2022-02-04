@@ -39,6 +39,15 @@
 .amarcord-table-fix-head          { overflow: auto; height: 100px; }
 .amarcord-table-fix-head thead th { position: sticky; top: 0; z-index: 1; background: white; }
 
-.amarcord-alert-small { padding: 0.5rem !important; }
+.amarcord-alert-small {
+    padding: 0.5rem !important;
+}
 
-.amarcord-small-link-button { padding: 0 !important; }
+/* This needs some more work. */
+/*.amarcord-alert-small .btn-close {*/
+/*    font-size: 0.5rem !important;*/
+/*}*/
+
+.amarcord-small-link-button {
+    padding: 0 !important;
+}

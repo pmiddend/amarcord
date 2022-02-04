@@ -1,16 +1,16 @@
 module Amarcord.RunOverview exposing (..)
 
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, extractDateTime, makeAttributoCell, makeAttributoHeader, retrieveAttributoValue, toAttributoName)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, extractDateTime, makeAttributoCell, makeAttributoHeader, retrieveAttributoValue, retrieveDateTimeAttributoValue, toAttributoName)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, spinner)
 import Amarcord.File exposing (File, fileDecoder)
-import Amarcord.Html exposing (h5_, input_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (h1_, h5_, input_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleDecoder)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (formatPosixTimeOfDayHumanFriendly, httpDelete, posixBefore)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, httpDelete, posixBefore, posixDiffHumanFriendly)
 import Dict exposing (Dict)
 import Hotkeys exposing (onEnter)
-import Html exposing (Html, a, button, div, form, h4, table, td, text, tr)
+import Html exposing (Html, a, button, div, form, h4, p, span, table, td, text, tr)
 import Html.Attributes exposing (class, colspan, disabled, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (jsonBody)
@@ -21,8 +21,7 @@ import List exposing (head)
 import Parser exposing (deadEndsToString)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import String exposing (fromInt)
-import Task
-import Time exposing (Posix, Zone, here)
+import Time exposing (Posix, Zone)
 
 
 type alias Run =
@@ -122,13 +121,13 @@ httpGetRuns f =
 
 type Msg
     = RunsReceived RunsResponse
-    | TimeZoneReceived Zone
-    | Refresh
+    | Refresh Posix
     | EventFormChange EventForm
     | EventFormSubmit
     | EventFormSubmitFinished (Result Http.Error (Maybe UserError))
     | EventDelete Int
     | EventDeleteFinished (Result Http.Error (Maybe UserError))
+    | EventFormSubmitDismiss
 
 
 type alias EventForm =
@@ -149,22 +148,24 @@ eventFormValid { userName, message } =
 
 type alias Model =
     { runs : RemoteData Http.Error RunsResponseContent
-    , myTimeZone : Maybe Zone
+    , myTimeZone : Zone
     , refreshRequest : RemoteData Http.Error ()
     , eventForm : EventForm
     , eventRequest : RemoteData Http.Error ()
+    , now : Posix
     }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
+init : HereAndNow -> ( Model, Cmd Msg )
+init { zone, now } =
     ( { runs = Loading
-      , myTimeZone = Nothing
+      , myTimeZone = zone
       , refreshRequest = NotAsked
       , eventForm = emptyEventForm
       , eventRequest = NotAsked
+      , now = now
       }
-    , Task.perform TimeZoneReceived here
+    , httpGetRuns RunsReceived
     )
 
 
@@ -196,6 +197,16 @@ viewEventRow zone attributoColumnCount e =
         ]
 
 
+attributoStarted : Amarcord.Attributo.AttributoName
+attributoStarted =
+    toAttributoName "started"
+
+
+attributoStopped : Amarcord.Attributo.AttributoName
+attributoStopped =
+    toAttributoName "stopped"
+
+
 viewRunAndEventRows : Zone -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
 viewRunAndEventRows zone sampleIds attributi runs events =
     case ( head runs, head events ) of
@@ -213,7 +224,7 @@ viewRunAndEventRows zone sampleIds attributi runs events =
 
         -- We have events and runs and have to compare the dates
         ( Just run, Just event ) ->
-            case Maybe.andThen extractDateTime <| retrieveAttributoValue (toAttributoName "started") run.attributi of
+            case Maybe.andThen extractDateTime <| retrieveAttributoValue attributoStarted run.attributi of
                 Just runStarted ->
                     if posixBefore event.created runStarted then
                         viewRunRow zone sampleIds attributi run :: viewRunAndEventRows zone sampleIds attributi (List.drop 1 runs) events
@@ -254,7 +265,7 @@ viewEventForm eventRequest { userName, message } =
         eventError =
             case eventRequest of
                 Success _ ->
-                    makeAlert [ AlertSuccess, AlertSmall ] <| [ text "Message added!" ]
+                    makeAlert [ AlertSuccess, AlertSmall, AlertDismissible ] <| [ text "Message added!", button [ class "btn-close", type_ "button", onClick EventFormSubmitDismiss ] [] ]
 
                 Failure e ->
                     makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
@@ -300,36 +311,52 @@ viewEventForm eventRequest { userName, message } =
         ]
 
 
-viewInner : Zone -> RemoteData Http.Error () -> EventForm -> RunsResponseContent -> List (Html Msg)
-viewInner zone eventRequest eventForm rrc =
-    [ viewEventForm eventRequest eventForm, viewRunsTable zone rrc ]
+viewCurrentRun : Zone -> Posix -> RunsResponseContent -> List (Html Msg)
+viewCurrentRun zone now { runs } =
+    -- Here, we assume runs are ordered so the first one is the latest one.
+    case head runs of
+        Nothing ->
+            List.singleton <| text ""
+
+        Just { id, attributi } ->
+            case ( retrieveDateTimeAttributoValue attributoStarted attributi, retrieveDateTimeAttributoValue attributoStopped attributi ) of
+                ( Just started, Nothing ) ->
+                    [ h1_ [ span [ class "text-success" ] [ spinner ], text <| " Run " ++ fromInt id ], p [ class "lead text-success" ] [ text <| "Running for " ++ posixDiffHumanFriendly now started ] ]
+
+                ( Just started, Just stopped ) ->
+                    [ h1_ [ text <| " Run " ++ fromInt id ], p [ class "lead" ] [ text <| "Stopped, " ++ posixDiffHumanFriendly started now ++ " ago (duration " ++ posixDiffHumanFriendly started stopped ++ ")" ] ]
+
+                _ ->
+                    []
+
+
+viewInner : Zone -> Posix -> RemoteData Http.Error () -> EventForm -> RunsResponseContent -> List (Html Msg)
+viewInner zone now eventRequest eventForm rrc =
+    [ div [ class "row" ] <| viewCurrentRun zone now rrc ++ [ viewEventForm eventRequest eventForm ]
+    , viewRunsTable zone rrc
+    ]
 
 
 view : Model -> Html Msg
 view model =
     div [ class "container" ] <|
-        case model.myTimeZone of
-            Nothing ->
-                [ spinner ]
+        case model.runs of
+            NotAsked ->
+                List.singleton <| text "Impossible state reached: time zone, but no runs in progress?"
 
-            Just zone ->
-                case model.runs of
-                    NotAsked ->
-                        List.singleton <| text "Impossible state reached: time zone, but no runs in progress?"
+            Loading ->
+                List.singleton <| loadingBar "Loading runs..."
 
+            Failure e ->
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ] ] ++ showHttpError e
+
+            Success a ->
+                case model.refreshRequest of
                     Loading ->
-                        List.singleton <| loadingBar "Loading runs..."
+                        viewInner model.myTimeZone model.now model.eventRequest model.eventForm a ++ [ loadingBar "Refreshing..." ]
 
-                    Failure e ->
-                        List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ] ] ++ showHttpError e
-
-                    Success a ->
-                        case model.refreshRequest of
-                            Loading ->
-                                viewInner zone model.eventRequest model.eventForm a ++ [ loadingBar "Refreshing..." ]
-
-                            _ ->
-                                viewInner zone model.eventRequest model.eventForm a
+                    _ ->
+                        viewInner model.myTimeZone model.now model.eventRequest model.eventForm a
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -348,11 +375,8 @@ update msg model =
             , Cmd.none
             )
 
-        TimeZoneReceived zone ->
-            ( { model | myTimeZone = Just zone }, httpGetRuns RunsReceived )
-
-        Refresh ->
-            ( { model | refreshRequest = Loading }, httpGetRuns RunsReceived )
+        Refresh now ->
+            ( { model | refreshRequest = Loading, now = now }, httpGetRuns RunsReceived )
 
         EventFormChange eventForm ->
             ( { model | eventForm = eventForm }, Cmd.none )
@@ -385,3 +409,6 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
+
+        EventFormSubmitDismiss ->
+            ( { model | eventRequest = NotAsked }, Cmd.none )
