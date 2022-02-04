@@ -2,7 +2,7 @@ module Amarcord.Attributi exposing (Model, Msg, init, update, view)
 
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, encodeAttributoName, fromAttributoName, httpGetAndDecodeAttributi, mapAttributo, mapAttributoMaybe, toAttributoName)
-import Amarcord.Bootstrap exposing (AlertType(..), icon, loadingBar, makeAlert, showHttpError)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (div_, em_, form_, h4_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.JsonSchema exposing (JsonSchema(..), encodeJsonSchema)
@@ -896,7 +896,7 @@ viewInner model =
             singleton <| loadingBar "Loading attributi..."
 
         Failure e ->
-            singleton <| makeAlert AlertDanger <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ showHttpError e
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ showHttpError e
 
         Success attributiListReal ->
             let
@@ -939,11 +939,11 @@ viewInner model =
                             p_ [ text "Request in progress..." ]
 
                         Failure e ->
-                            div_ [ makeAlert AlertDanger (showHttpError e) ]
+                            div_ [ makeAlert [ AlertDanger ] (showHttpError e) ]
 
                         Success _ ->
                             div [ class "mt-3" ]
-                                [ makeAlert AlertSuccess [ text "Request successful!" ]
+                                [ makeAlert [ AlertSuccess ] [ text "Request successful!" ]
                                 ]
 
                 deleteRequestResult =
@@ -955,11 +955,11 @@ viewInner model =
                             p_ [ text "Request in progress..." ]
 
                         Failure e ->
-                            div_ [ makeAlert AlertDanger (showHttpError e) ]
+                            div_ [ makeAlert [ AlertDanger ] (showHttpError e) ]
 
                         Success _ ->
                             div [ class "mt-3" ]
-                                [ makeAlert AlertSuccess [ text "Deletion successful!" ]
+                                [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
                                 ]
             in
             help

@@ -19,6 +19,7 @@ from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.table_classes import DBFile, DBEvent, DBSample
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
@@ -44,6 +45,20 @@ db = QuartDatabases(app)
 @app.errorhandler(HTTPException)
 def error_handler_for_exceptions(e):
     return handle_exception(e)
+
+
+@app.post("/api/events")
+async def create_event() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        event_id = await db.instance.create_event(
+            conn,
+            level=EventLogLevel.INFO,
+            source=r.retrieve_safe_str("source"),
+            text=r.retrieve_safe_str("text"),
+        )
+        return {"id": event_id}
 
 
 @app.post("/api/samples")

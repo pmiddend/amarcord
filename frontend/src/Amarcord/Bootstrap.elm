@@ -1,8 +1,8 @@
-module Amarcord.Bootstrap exposing (AlertType(..), Button, ButtonType, Icon, button, icon, loadingBar, makeAlert, showHttpError, spinner)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Button, ButtonType, Icon, icon, loadingBar, makeAlert, showHttpError, spinner)
 
 import Amarcord.Html exposing (h4_)
 import Html as Html exposing (Html, div, h5, i, pre, span, text)
-import Html.Attributes exposing (attribute, class)
+import Html.Attributes exposing (attribute, class, classList)
 import Html.Events exposing (onClick)
 import Http
 import List exposing (singleton)
@@ -44,16 +44,7 @@ icon { name } =
     i [ class ("bi-" ++ name) ] []
 
 
-button : Button msg -> Html msg
-button b =
-    Html.button
-        [ class ("btn btn-" ++ buttonTypeToString b.type_)
-        , onClick b.onClick
-        ]
-        (unwrap [] (\x -> [ icon x ]) b.icon ++ b.content)
-
-
-type AlertType
+type AlertProperty
     = AlertPrimary
     | AlertSecondary
     | AlertSuccess
@@ -62,11 +53,15 @@ type AlertType
     | AlertInfo
     | AlertLight
     | AlertDark
+    | AlertSmall
 
 
-alertClass : AlertType -> String
-alertClass x =
+alertPropToCss : AlertProperty -> String
+alertPropToCss x =
     case x of
+        AlertSmall ->
+            "amarcord-alert-small"
+
         AlertPrimary ->
             "alert-primary"
 
@@ -92,9 +87,9 @@ alertClass x =
             "alert-dark"
 
 
-makeAlert : AlertType -> List (Html msg) -> Html msg
-makeAlert at content =
-    div [ class <| "alert " ++ alertClass at ] content
+makeAlert : List AlertProperty -> List (Html msg) -> Html msg
+makeAlert props content =
+    div [ classList <| ( "alert", True ) :: List.map (\x -> ( alertPropToCss x, True )) props ] content
 
 
 showHttpError : Http.Error -> List (Html msg)

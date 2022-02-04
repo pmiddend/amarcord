@@ -19,7 +19,7 @@ import Amarcord.Attributo as Attributo
         , toAttributoName
         , updateAttributoMap
         )
-import Amarcord.Bootstrap exposing (AlertType(..), icon, loadingBar, makeAlert, showHttpError)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File, httpCreateFile)
 import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
@@ -613,7 +613,7 @@ viewInner model =
                     singleton <| loadingBar "Loading samples..."
 
                 Failure e ->
-                    singleton <| makeAlert AlertDanger <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
+                    singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
 
                 Success { samples, attributi } ->
                     let
@@ -634,11 +634,11 @@ viewInner model =
                                     p [] [ text "Request in progress..." ]
 
                                 Failure e ->
-                                    div [] [ makeAlert AlertDanger (showHttpError e) ]
+                                    div [] [ makeAlert [ AlertDanger ] (showHttpError e) ]
 
                                 Success _ ->
                                     div [ class "mt-3" ]
-                                        [ makeAlert AlertSuccess [ text "Request successful!" ]
+                                        [ makeAlert [ AlertSuccess ] [ text "Request successful!" ]
                                         ]
 
                         deleteRequestResult =
@@ -650,11 +650,11 @@ viewInner model =
                                     p [] [ text "Request in progress..." ]
 
                                 Failure e ->
-                                    div [] [ makeAlert AlertDanger (showHttpError e) ]
+                                    div [] [ makeAlert [ AlertDanger ] (showHttpError e) ]
 
                                 Success _ ->
                                     div [ class "mt-3" ]
-                                        [ makeAlert AlertSuccess [ text "Deletion successful!" ]
+                                        [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
                                         ]
                     in
                     prefix

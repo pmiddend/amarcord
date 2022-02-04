@@ -2,20 +2,24 @@ module Amarcord.RunOverview exposing (..)
 
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, extractDateTime, makeAttributoCell, makeAttributoHeader, retrieveAttributoValue, toAttributoName)
-import Amarcord.Bootstrap exposing (AlertType(..), loadingBar, makeAlert, showHttpError, spinner)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, spinner)
 import Amarcord.File exposing (File, fileDecoder)
-import Amarcord.Html exposing (div_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (h5_, input_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleDecoder)
+import Amarcord.UserError exposing (UserError, userErrorDecoder)
 import Amarcord.Util exposing (formatPosixTimeOfDayHumanFriendly, posixBefore)
 import Dict exposing (Dict)
-import Html exposing (Html, div, h4, table, td, text, tr)
-import Html.Attributes exposing (class, colspan)
-import Http
+import Hotkeys exposing (onEnter)
+import Html exposing (Html, button, div, form, h4, table, td, text, tr)
+import Html.Attributes exposing (class, colspan, disabled, placeholder, style, type_, value)
+import Html.Events exposing (onClick, onInput)
+import Http exposing (jsonBody)
 import Iso8601 exposing (toTime)
 import Json.Decode as Decode
+import Json.Encode as Encode
 import List exposing (head)
 import Parser exposing (deadEndsToString)
-import RemoteData exposing (RemoteData(..), fromResult, isSuccess)
+import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import String exposing (fromInt)
 import Task
 import Time exposing (Posix, Zone, here)
@@ -79,6 +83,20 @@ eventDecoder =
         )
 
 
+encodeEvent : String.String -> String.String -> Encode.Value
+encodeEvent source text =
+    Encode.object [ ( "source", Encode.string source ), ( "text", Encode.string text ) ]
+
+
+httpCreateEvent : String -> String -> Cmd Msg
+httpCreateEvent source text =
+    Http.post
+        { url = "/api/events"
+        , expect = Http.expectJson EventFormSubmitFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
+        , body = jsonBody (encodeEvent source text)
+        }
+
+
 httpGetRuns : (RunsResponse -> msg) -> Cmd msg
 httpGetRuns f =
     Http.get
@@ -97,18 +115,46 @@ type Msg
     = RunsReceived RunsResponse
     | TimeZoneReceived Zone
     | Refresh
+    | EventFormChange EventForm
+    | EventFormSubmit
+    | EventFormSubmitFinished (Result Http.Error (Maybe UserError))
+
+
+type alias EventForm =
+    { userName : String
+    , message : String
+    }
+
+
+emptyEventForm : EventForm
+emptyEventForm =
+    EventForm "P11User" ""
+
+
+eventFormValid : EventForm -> Bool
+eventFormValid { userName, message } =
+    userName /= "" && message /= ""
 
 
 type alias Model =
     { runs : RemoteData Http.Error RunsResponseContent
     , myTimeZone : Maybe Zone
     , refreshRequest : RemoteData Http.Error ()
+    , eventForm : EventForm
+    , eventRequest : RemoteData Http.Error ()
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { runs = Loading, myTimeZone = Nothing, refreshRequest = NotAsked }, Task.perform TimeZoneReceived here )
+    ( { runs = Loading
+      , myTimeZone = Nothing
+      , refreshRequest = NotAsked
+      , eventForm = emptyEventForm
+      , eventRequest = NotAsked
+      }
+    , Task.perform TimeZoneReceived here
+    )
 
 
 attributiColumnHeaders : List (Attributo AttributoType) -> List (Html msg)
@@ -187,37 +233,88 @@ viewRunsTable zone { runs, attributi, events, samples } =
         ]
 
 
-viewInner : Zone -> RunsResponseContent -> Html Msg
-viewInner zone rrc =
-    viewRunsTable zone rrc
+viewEventForm : RemoteData Http.Error () -> EventForm -> Html Msg
+viewEventForm eventRequest { userName, message } =
+    let
+        eventError =
+            case eventRequest of
+                Success _ ->
+                    makeAlert [ AlertSuccess, AlertSmall ] <| [ text "Message added!" ]
+
+                Failure e ->
+                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
+
+                _ ->
+                    text ""
+    in
+    form [ class "col-6" ]
+        [ h5_ [ text "Did something happen just now? Tell us!" ]
+        , div
+            [ class "mb-3 row" ]
+            [ div [ class "col-sm" ]
+                [ input_
+                    [ value userName
+                    , type_ "text"
+                    , class "form-control form-control-sm"
+                    , placeholder "User name"
+                    , onInput (\e -> EventFormChange { userName = e, message = message })
+                    ]
+                ]
+            , div [ class "col-sm-7" ]
+                [ input_
+                    [ value message
+                    , type_ "text"
+                    , class "form-control form-control-sm"
+                    , placeholder "What happened? What did you do?"
+                    , onEnter EventFormSubmit
+                    , onInput (\e -> EventFormChange { userName = userName, message = e })
+                    ]
+                ]
+            , div [ class "col-sm" ]
+                [ button
+                    [ onClick EventFormSubmit
+                    , disabled (isLoading eventRequest || userName == "" || message == "")
+                    , type_ "button"
+                    , class "btn btn-primary btn-sm"
+                    , style "white-space" "nowrap"
+                    ]
+                    [ icon { name = "plus" }, text " Add message" ]
+                ]
+            ]
+        , eventError
+        ]
+
+
+viewInner : Zone -> RemoteData Http.Error () -> EventForm -> RunsResponseContent -> List (Html Msg)
+viewInner zone eventRequest eventForm rrc =
+    [ viewEventForm eventRequest eventForm, viewRunsTable zone rrc ]
 
 
 view : Model -> Html Msg
 view model =
-    div [ class "container" ]
-        [ case model.myTimeZone of
+    div [ class "container" ] <|
+        case model.myTimeZone of
             Nothing ->
-                spinner
+                [ spinner ]
 
             Just zone ->
                 case model.runs of
                     NotAsked ->
-                        text "Impossible state reached: time zone, but no runs in progress?"
+                        List.singleton <| text "Impossible state reached: time zone, but no runs in progress?"
 
                     Loading ->
-                        loadingBar "Loading runs..."
+                        List.singleton <| loadingBar "Loading runs..."
 
                     Failure e ->
-                        makeAlert AlertDanger <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ] ] ++ showHttpError e
+                        List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ] ] ++ showHttpError e
 
                     Success a ->
                         case model.refreshRequest of
                             Loading ->
-                                div_ [ viewInner zone a, loadingBar "Refreshing..." ]
+                                viewInner zone model.eventRequest model.eventForm a ++ [ loadingBar "Refreshing..." ]
 
                             _ ->
-                                viewInner zone a
-        ]
+                                viewInner zone model.eventRequest model.eventForm a
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -241,3 +338,24 @@ update msg model =
 
         Refresh ->
             ( { model | refreshRequest = Loading }, httpGetRuns RunsReceived )
+
+        EventFormChange eventForm ->
+            ( { model | eventForm = eventForm }, Cmd.none )
+
+        EventFormSubmit ->
+            if eventFormValid model.eventForm then
+                ( { model | eventRequest = Loading }, httpCreateEvent model.eventForm.userName model.eventForm.message )
+
+            else
+                ( model, Cmd.none )
+
+        EventFormSubmitFinished result ->
+            case result of
+                Err e ->
+                    ( { model | eventRequest = Failure e }, Cmd.none )
+
+                Ok (Just userError) ->
+                    ( { model | eventRequest = Failure (Http.BadBody userError.title) }, Cmd.none )
+
+                Ok Nothing ->
+                    ( { model | eventRequest = Success (), eventForm = { userName = model.eventForm.userName, message = "" } }, httpGetRuns RunsReceived )
