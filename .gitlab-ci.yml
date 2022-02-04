@@ -31,6 +31,10 @@ check-requirements:
 pylint-and-mypy:
   image: $AMARCORD_PYTHON_DOCKER
   stage: test
+  cache:
+    key: poetry
+    paths:
+      - .cache/pypoetry
   script:
     - ./ci/pylint-and-mypy.sh
 
