@@ -46,27 +46,28 @@ tests:
       junit: report.xml
 
 # Using nodejs, deprecated since the elm caching issue
-#build-frontend:
-#  image: node:17.4
-#  stage: test
-#  script:
-#    - ./ci/build-frontend.sh
-#  cache:
-#    key: elm
-#    paths:
-#      - .cache/elm
-#  artifacts:
-#    paths:
-#      - frontend/output
-
 build-frontend:
-  image: nixos/nix:2.6.0
+  image: node:17.4
   stage: test
   script:
-    - ./ci/build-frontend-using-nix.sh
+    - ./ci/build-frontend.sh
+  cache:
+    key: elm
+    paths:
+      - .cache/elm
   artifacts:
     paths:
       - frontend/output
+
+# Using Nix - a fallback for caching issues
+#build-frontend:
+#  image: nixos/nix:2.6.0
+#  stage: test
+#  script:
+#    - ./ci/build-frontend-using-nix.sh
+#  artifacts:
+#    paths:
+#      - frontend/output
 
 upload-webserver:
   image:
