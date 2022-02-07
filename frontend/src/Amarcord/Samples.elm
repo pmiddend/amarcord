@@ -1,6 +1,6 @@
-module Amarcord.Samples exposing (..)
+module Amarcord.Samples exposing (Model, Msg, init, update, view)
 
-import Amarcord.Attributo as Attributo
+import Amarcord.Attributo
     exposing
         ( Attributo
         , AttributoMap
@@ -9,84 +9,33 @@ import Amarcord.Attributo as Attributo
         , AttributoValue(..)
         , attributoDecoder
         , attributoTypeDecoder
-        , createAnnotatedAttributoMap
         , emptyAttributoMap
         , fromAttributoName
-        , makeAttributoCell
-        , makeAttributoHeader
-        , mapAttributo
-        , mutedSubheader
-        , toAttributoName
-        , updateAttributoMap
         )
+import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoCell, makeAttributoHeader, mutedSubheader, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File, httpCreateFile)
 import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
-import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, SampleId, encodeSample, sampleDecoder, sampleMapAttributi, sampleMapId)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (HereAndNow, collectResults, formatPosixDateTimeCompatible, httpDelete, httpPatch)
+import Amarcord.Util exposing (HereAndNow, httpDelete, httpPatch)
 import Dict exposing (Dict)
 import File as ElmFile
 import File.Select
 import Html exposing (..)
-import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, selected, step, type_, value)
+import Html.Attributes exposing (attribute, class, disabled, for, href, id, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (jsonBody)
-import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List exposing (length, singleton)
-import List.Extra as List
-import Maybe exposing (withDefault)
-import Maybe.Extra as Maybe exposing (isJust, isNothing, traverse)
+import Maybe
+import Maybe.Extra as Maybe exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
-import Set
-import String exposing (fromInt, join, split, toInt, trim)
+import String exposing (fromInt, split)
 import Time exposing (Month(..), Posix, Zone)
-import Tuple exposing (first, second)
-
-
-type EditStatus
-    = Edited
-    | Unchanged
-
-
-type AttributoEditValue
-    = EditValueInt String
-    | EditValueDateTime String
-    | EditValueBoolean Bool
-    | EditValueSampleId
-    | EditValueString String
-    | EditValueList
-        { subType : AttributoType
-        , minLength : Maybe Int
-        , maxLength : Maybe Int
-        , editValue : String
-        }
-    | EditValueNumber
-        { range : NumericRange
-        , suffix : Maybe String
-        , standardUnit : Bool
-        , editValue : String
-        }
-    | EditValueChoice { choiceValues : List String, editValue : String }
-
-
-type alias EditableAttributo =
-    Attributo ( EditStatus, AttributoEditValue )
-
-
-type alias EditableAttributi =
-    List EditableAttributo
-
-
-type alias EditableAttributiAndOriginal =
-    { editableAttributi : EditableAttributi
-    , originalAttributi : AttributoMap AttributoValue
-    }
 
 
 type alias SamplesAndAttributi =
@@ -118,11 +67,6 @@ type alias SamplesResponse =
     Result Http.Error ( List (Sample SampleId (AttributoMap AttributoValue) File), List (Attributo AttributoType) )
 
 
-type ValueUpdate
-    = SetValue AttributoEditValue
-    | IgnoreValue
-
-
 type Msg
     = SamplesReceived SamplesResponse
     | CancelDelete
@@ -135,7 +79,7 @@ type Msg
     | EditSampleSubmit
     | EditSampleCancel
     | EditSampleFinished (Result Http.Error (Maybe UserError))
-    | EditSampleAttributo AttributoName ValueUpdate
+    | EditSampleAttributo AttributoNameWithValueUpdate
     | EditNewFileDescription String
     | EditNewFileFile ElmFile.File
     | EditFileUpload
@@ -166,8 +110,8 @@ httpCreateSample a =
         }
 
 
-httpEditSample : Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd Msg
-httpEditSample a =
+httpUpdateSample : Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd Msg
+httpUpdateSample a =
     httpPatch
         { url = "/api/samples"
         , expect = Http.expectJson EditSampleFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
@@ -198,171 +142,6 @@ init { zone } =
       }
     , httpGetSamples SamplesReceived
     )
-
-
-viewAttributoForm : Attributo ( EditStatus, AttributoEditValue ) -> Html Msg
-viewAttributoForm a =
-    case second a.type_ of
-        EditValueString s ->
-            div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
-                , input_
-                    [ type_ "text"
-                    , class "form-control"
-                    , id ("attributo-" ++ fromAttributoName a.name)
-                    , value s
-                    , onInput (EditValueString >> SetValue >> EditSampleAttributo a.name)
-                    ]
-                ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ text a.description ]
-
-                         else
-                            text ""
-                       ]
-
-        EditValueInt s ->
-            div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
-                , div [ class "w-50" ]
-                    [ input_
-                        [ type_ "number"
-                        , class "form-control"
-                        , id ("attributo-" ++ fromAttributoName a.name)
-                        , value s
-                        , onInput (EditSampleAttributo a.name << SetValue << EditValueInt)
-                        ]
-                    ]
-                ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ text a.description ]
-
-                         else
-                            text ""
-                       ]
-
-        EditValueList l ->
-            div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
-                , input_
-                    [ type_ "text"
-                    , class "form-control"
-                    , id ("attributo-" ++ fromAttributoName a.name)
-                    , value l.editValue
-                    , onInput (\newInput -> EditSampleAttributo a.name <| SetValue <| EditValueList { l | editValue = newInput })
-                    ]
-                ]
-                    ++ [ div [ class "form-text text-muted" ] [ strong [] [ text "Note on editing" ], text ": This is a list, but you can just insert the list elements, comma-separated in the text field." ] ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ strong [] [ text "Description: " ], text a.description ]
-
-                         else
-                            text ""
-                       ]
-
-        EditValueChoice { choiceValues, editValue } ->
-            let
-                makeOption choiceValue =
-                    option
-                        [ selected (editValue == choiceValue)
-                        ]
-                        [ text
-                            (if choiceValue == "" then
-                                "«no value»"
-
-                             else
-                                choiceValue
-                            )
-                        ]
-            in
-            div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
-                , select
-                    [ id ("attributo-" ++ fromAttributoName a.name)
-                    , class "form-select"
-                    , onInput (\newInput -> EditSampleAttributo a.name <| SetValue <| EditValueChoice { choiceValues = choiceValues, editValue = newInput })
-                    ]
-                    (List.map makeOption ("" :: choiceValues))
-                ]
-
-        EditValueNumber n ->
-            let
-                inputGroupText =
-                    withDefault "" n.suffix
-                        ++ (if n.range == emptyNumericRange then
-                                ""
-
-                            else
-                                " ∈ " ++ numericRangeToString n.range
-                           )
-            in
-            div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
-                , div [ class "w-50 input-group" ]
-                    [ input_
-                        [ type_ "number"
-                        , step "0.01"
-                        , class "form-control"
-                        , id ("attributo-" ++ fromAttributoName a.name)
-                        , value n.editValue
-                        , onInput (\newValue -> EditSampleAttributo a.name <| SetValue <| EditValueNumber { n | editValue = newValue })
-                        ]
-                    , if inputGroupText == "" then
-                        text ""
-
-                      else
-                        span [ class "input-group-text" ] [ text inputGroupText ]
-                    ]
-                ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ text a.description ]
-
-                         else
-                            text ""
-                       ]
-
-        EditValueDateTime x ->
-            div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
-                , div [ class "w-50" ]
-                    [ input_
-                        [ type_ "datetime-local"
-                        , class "form-control"
-                        , id ("attributo-" ++ fromAttributoName a.name)
-                        , value x
-                        , onInput (EditSampleAttributo a.name << SetValue << EditValueDateTime)
-                        ]
-                    ]
-                ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ text a.description ]
-
-                         else
-                            text ""
-                       ]
-
-        EditValueBoolean x ->
-            div [ class "mb-3" ] <|
-                [ div [ class "form-check" ] <|
-                    [ input_
-                        [ type_ "checkbox"
-                        , class "form-check-input"
-                        , id ("attributo-" ++ fromAttributoName a.name)
-                        , checked x
-                        , onInput (always <| EditSampleAttributo a.name <| SetValue <| EditValueBoolean (not x))
-                        ]
-                    , label [ for ("attributo-" ++ fromAttributoName a.name), class "form-check-label" ] [ text (fromAttributoName a.name) ]
-                    ]
-                        ++ [ if a.description /= "" then
-                                div [ class "form-text" ] [ text a.description ]
-
-                             else
-                                text ""
-                           ]
-                ]
-
-        _ ->
-            text "type not supported to edit"
 
 
 viewFiles : NewFileUpload -> List File -> List (Html Msg)
@@ -442,7 +221,7 @@ viewEditForm : List String -> NewFileUpload -> Sample (Maybe Int) EditableAttrib
 viewEditForm submitErrorsList newFileUpload sample =
     let
         attributiFormEntries =
-            List.map viewAttributoForm sample.attributi.editableAttributi
+            List.map (\attributo -> Html.map EditSampleAttributo (viewAttributoForm [] attributo)) sample.attributi.editableAttributi
 
         submitErrors =
             case submitErrorsList of
@@ -680,258 +459,9 @@ view model =
     div [ class "container" ] (maybeDeleteModal ++ viewInner model)
 
 
-attributoValueToEditValue : Zone -> AttributoName -> List (Attributo AttributoType) -> AttributoValue -> Maybe AttributoEditValue
-attributoValueToEditValue zone attributoName attributi value =
-    let
-        attributoFound : Maybe (Attributo AttributoType)
-        attributoFound =
-            List.find (\x -> x.name == attributoName) attributi
-
-        --| This is used for the comma-separated "list of xy" input field
-        attributoValueToString : AttributoValue -> String
-        attributoValueToString x =
-            case x of
-                ValueBoolean bool ->
-                    if bool then
-                        "true"
-
-                    else
-                        "false"
-
-                ValueInt int ->
-                    String.fromInt int
-
-                ValueString string ->
-                    string
-
-                ValueList attributoValues ->
-                    join "," <| List.map attributoValueToString attributoValues
-
-                ValueNumber float ->
-                    String.fromFloat float
-
-        convert : Attributo AttributoType -> Maybe AttributoEditValue
-        convert a =
-            case ( a.type_, value ) of
-                ( Attributo.Int, ValueInt x ) ->
-                    Just (EditValueInt (String.fromInt x))
-
-                ( Attributo.String, ValueString x ) ->
-                    Just (EditValueString x)
-
-                ( Attributo.DateTime, ValueString x ) ->
-                    case toTime x of
-                        Err _ ->
-                            Nothing
-
-                        Ok posix ->
-                            Just (EditValueDateTime (formatPosixDateTimeCompatible zone posix))
-
-                ( Attributo.Choice { choiceValues }, ValueString x ) ->
-                    Just (EditValueChoice { editValue = x, choiceValues = choiceValues })
-
-                ( Attributo.Number { range, suffix, standardUnit }, ValueNumber x ) ->
-                    Just (EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = String.fromFloat x })
-
-                ( Attributo.Number { range, suffix, standardUnit }, ValueInt x ) ->
-                    Just (EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = String.fromInt x })
-
-                ( Attributo.List { minLength, maxLength, subType }, ValueList xs ) ->
-                    Just
-                        (EditValueList
-                            { subType = subType
-                            , minLength = minLength
-                            , maxLength = maxLength
-                            , editValue = join "," <| List.map attributoValueToString xs
-                            }
-                        )
-
-                ( Attributo.Boolean, ValueBoolean x ) ->
-                    Just (EditValueBoolean x)
-
-                _ ->
-                    Nothing
-
-        -- Debug.log (Debug.toString x) Nothing
-    in
-    Maybe.andThen convert attributoFound
-
-
-emptyEditValue : AttributoType -> AttributoEditValue
-emptyEditValue a =
-    case a of
-        Attributo.Int ->
-            EditValueInt ""
-
-        Attributo.Boolean ->
-            EditValueBoolean False
-
-        Attributo.DateTime ->
-            EditValueDateTime ""
-
-        Attributo.SampleId ->
-            EditValueSampleId
-
-        Attributo.String ->
-            EditValueString ""
-
-        Attributo.List { subType, minLength, maxLength } ->
-            EditValueList { subType = subType, minLength = minLength, maxLength = maxLength, editValue = "" }
-
-        Attributo.Number { range, suffix, standardUnit } ->
-            EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = "" }
-
-        Attributo.Choice { choiceValues } ->
-            EditValueChoice { choiceValues = choiceValues, editValue = "" }
-
-
 editSampleFromAttributiAndValues : Zone -> List (Attributo AttributoType) -> Sample (Maybe Int) (AttributoMap AttributoValue) a -> Sample (Maybe Int) EditableAttributiAndOriginal a
-editSampleFromAttributiAndValues zone attributi s =
-    -- two steps:
-    -- 1. convert existing values into "best" manual values
-    -- 2. add missing attributo and add as empty attributi, too
-    let
-        mapAttributi : AttributoMap AttributoValue -> EditableAttributiAndOriginal
-        mapAttributi m =
-            let
-                -- Convert attributo metadata, as well as an attributo value, into an "editable attributo"
-                convertToEditValues : String -> Attributo ( AttributoType, AttributoValue ) -> Dict String (Attributo ( EditStatus, AttributoEditValue )) -> Dict String (Attributo ( EditStatus, AttributoEditValue ))
-                convertToEditValues attributoName a prev =
-                    case attributoValueToEditValue zone (toAttributoName attributoName) attributi (second a.type_) of
-                        Nothing ->
-                            prev
-
-                        Just finishedEditValue ->
-                            Dict.insert attributoName (mapAttributo (always ( Unchanged, finishedEditValue )) a) prev
-
-                existingAttributiMap : Dict String EditableAttributo
-                existingAttributiMap =
-                    Dict.foldr convertToEditValues Dict.empty (createAnnotatedAttributoMap attributi m)
-
-                totalAttributoNames : Set.Set String
-                totalAttributoNames =
-                    Set.fromList (List.map (.name >> fromAttributoName) attributi)
-
-                missingKeys : Set.Set String
-                missingKeys =
-                    Set.diff totalAttributoNames <| Set.fromList (Dict.keys existingAttributiMap)
-
-                missingAttributi : List (Attributo AttributoType)
-                missingAttributi =
-                    List.filter (\x -> Set.member (fromAttributoName x.name) missingKeys) attributi
-
-                missingAttributiMap : Dict String EditableAttributo
-                missingAttributiMap =
-                    Dict.fromList <| List.map (\a -> ( fromAttributoName a.name, mapAttributo (\type_ -> ( Unchanged, emptyEditValue type_ )) a )) <| missingAttributi
-            in
-            { originalAttributi = m, editableAttributi = Dict.values <| Dict.union existingAttributiMap missingAttributiMap }
-    in
-    sampleMapAttributi mapAttributi s
-
-
-editValueToValue : AttributoEditValue -> Result String AttributoValue
-editValueToValue x =
-    case x of
-        EditValueInt string ->
-            Maybe.unwrap (Err "not an integer") (Ok << ValueInt) <| toInt string
-
-        EditValueBoolean boolValue ->
-            Ok (ValueBoolean boolValue)
-
-        EditValueDateTime string ->
-            Ok (ValueString string)
-
-        EditValueSampleId ->
-            Ok (ValueInt 0)
-
-        EditValueString string ->
-            Ok (ValueString string)
-
-        EditValueList { minLength, maxLength, subType, editValue } ->
-            let
-                parts =
-                    List.map trim <| split "," editValue
-
-                noParts =
-                    List.length parts
-            in
-            if Maybe.orElse (Maybe.map (\ml -> noParts < ml) minLength) (Maybe.map (\ml -> noParts > ml) maxLength) == Just True then
-                Err "invalid range"
-
-            else
-                case subType of
-                    String ->
-                        Ok (ValueList <| List.map ValueString parts)
-
-                    Number _ ->
-                        Maybe.unwrap (Err "invalid number in list") Ok <| Maybe.map ValueList <| traverse (String.toFloat >> Maybe.map ValueNumber) parts
-
-                    _ ->
-                        Err "invalid list subtype"
-
-        EditValueNumber { range, editValue } ->
-            case String.toFloat editValue of
-                Nothing ->
-                    Err "invalid decimal number"
-
-                Just inputNumeric ->
-                    if valueInRange range inputNumeric then
-                        Ok (ValueNumber inputNumeric)
-
-                    else
-                        Err "value not in range"
-
-        EditValueChoice { choiceValues, editValue } ->
-            let
-                choiceValid =
-                    editValue == "" || List.member editValue choiceValues
-            in
-            if choiceValid then
-                Ok (ValueString editValue)
-
-            else
-                Err "invalid choice"
-
-
-convertEditValues : EditableAttributiAndOriginal -> Result (List ( AttributoName, String )) (AttributoMap AttributoValue)
-convertEditValues { originalAttributi, editableAttributi } =
-    let
-        -- first, filter for manually edited values (the other ones we don't care about here)
-        manuallyEdited : List ( AttributoName, AttributoEditValue )
-        manuallyEdited =
-            List.foldr
-                (\attributo prev ->
-                    if first attributo.type_ == Edited then
-                        ( attributo.name, second attributo.type_ ) :: prev
-
-                    else
-                        prev
-                )
-                []
-                editableAttributi
-
-        -- Convert the edited value to the real value (with optional error)
-        convertSingle : ( AttributoName, AttributoEditValue ) -> Result ( AttributoName, String ) ( AttributoName, AttributoValue )
-        convertSingle ( name, v ) =
-            case editValueToValue v of
-                Err e ->
-                    -- add attributo name to error for better display later
-                    Err ( name, e )
-
-                Ok value ->
-                    Ok ( name, value )
-
-        -- Convert _all_ edited values, optionally failing
-        converted : Result (List ( AttributoName, String )) (List ( AttributoName, AttributoValue ))
-        converted =
-            collectResults (List.map convertSingle manuallyEdited)
-
-        -- Combine result of editing with original map
-        combineWithOriginal : List ( AttributoName, AttributoValue ) -> AttributoMap AttributoValue
-        combineWithOriginal =
-            List.foldr (\( name, value ) -> updateAttributoMap name value) originalAttributi
-    in
-    Result.map combineWithOriginal converted
+editSampleFromAttributiAndValues zone attributi =
+    sampleMapAttributi (createEditableAttributi zone attributi)
 
 
 emptySample : Sample (Maybe Int) (AttributoMap a) b
@@ -997,7 +527,7 @@ update msg model =
                     let
                         -- either edit or create, depending on the ID
                         operation =
-                            Maybe.unwrap httpCreateSample (always httpEditSample) editSample.id
+                            Maybe.unwrap httpCreateSample (always httpUpdateSample) editSample.id
                     in
                     if model.newFileUpload.description /= "" || isJust model.newFileUpload.file then
                         ( { model | submitErrors = [ "There is still a file in the upload form. Submit or clear the form!" ] }, Cmd.none )
@@ -1032,33 +562,16 @@ update msg model =
                 Ok Nothing ->
                     ( { model | modifyRequest = Success (), editSample = Nothing }, httpGetSamples SamplesReceived )
 
-        EditSampleAttributo attributoName attributoValue ->
-            case ( model.editSample, attributoValue ) of
+        EditSampleAttributo v ->
+            case model.editSample of
                 -- This is the unlikely case that we have an "attributo was edited" message, but sample is edited
-                ( Nothing, _ ) ->
+                Nothing ->
                     ( model, Cmd.none )
 
-                -- An attributo was changed, but the change should be ignored
-                ( _, IgnoreValue ) ->
-                    ( model, Cmd.none )
-
-                -- An attributo was changed, and the change is "relevant"
-                -- Note that "editSample" is a sample with the pair "original attributi, editable attributi" as attributi
-                -- attribute (damn this is confusing!)
-                ( Just editSample, SetValue newValue ) ->
+                Just editSample ->
                     let
-                        -- Update the value if it exists (if it doesn't, this is weird!), and set the state to "edited"
-                        -- so when the object is stored, it's added to the manually edited attributes list
-                        updateValue : Attributo ( EditStatus, AttributoEditValue ) -> Attributo ( EditStatus, AttributoEditValue )
-                        updateValue x =
-                            if x.name == attributoName then
-                                mapAttributo (always ( Edited, newValue )) x
-
-                            else
-                                x
-
                         newEditable =
-                            List.map updateValue editSample.attributi.editableAttributi
+                            editEditableAttributi editSample.attributi.editableAttributi v
 
                         newSample =
                             { editSample | attributi = { originalAttributi = editSample.attributi.originalAttributi, editableAttributi = newEditable } }

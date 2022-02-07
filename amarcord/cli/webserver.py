@@ -168,6 +168,25 @@ def _has_artificial_delay() -> bool:
     return bool(app.config.get("ARTIFICIAL_DELAY", False))
 
 
+@app.patch("/api/runs")
+async def update_run() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        run_id = r.retrieve_safe_int("id")
+        await db.instance.update_run_attributi(
+            conn,
+            id_=run_id,
+            attributi=AttributiMap.from_types_and_json(
+                await db.instance.retrieve_attributi(conn, AssociatedTable.RUN),
+                sample_ids=await db.instance.retrieve_sample_ids(conn),
+                raw_attributi=r.retrieve_safe_object("attributi"),
+            ),
+        )
+
+    return {}
+
+
 @app.get("/api/runs")
 async def read_runs() -> JSONDict:
     async with db.instance.begin() as conn:

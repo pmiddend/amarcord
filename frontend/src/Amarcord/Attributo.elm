@@ -17,14 +17,9 @@ module Amarcord.Attributo exposing
     , extractDateTime
     , fromAttributoName
     , httpGetAndDecodeAttributi
-    , httpGetAttributi
     , jsonSchemaToAttributoType
-    , makeAttributoCell
-    , makeAttributoHeader
     , mapAttributo
     , mapAttributoMaybe
-    , mutedSubheader
-    , removeAttributoFromMap
     , retrieveAttributoValue
     , retrieveDateTimeAttributoValue
     , toAttributoName
@@ -32,25 +27,18 @@ module Amarcord.Attributo exposing
     )
 
 import Amarcord.AssociatedTable exposing (AssociatedTable, associatedTableDecoder)
-import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Html exposing (br_, span_, td_)
 import Amarcord.JsonSchema exposing (JsonSchema(..), jsonSchemaDecoder)
 import Amarcord.NumericRange exposing (NumericRange, rangeFromJsonSchema)
-import Amarcord.Util exposing (formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, resultToJsonDecoder, toTimeMaybe)
-import Dict exposing (Dict, get)
-import FormatNumber exposing (format)
-import FormatNumber.Locales exposing (Decimals(..), Locale, usLocale)
-import Html exposing (Html, span, text)
-import Html.Attributes exposing (class, style)
+import Amarcord.Util exposing (resultToJsonDecoder, toTimeMaybe)
+import Dict exposing (Dict)
 import Http
-import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import Json.Encode as Encode
-import List exposing (intersperse)
-import Maybe exposing (withDefault)
+import List
+import Maybe
 import Maybe.Extra as MaybeExtra
 import Result
-import String exposing (fromInt)
+import String
 import Time exposing (Posix, Zone)
 
 
@@ -189,14 +177,6 @@ attributoDecoder typeDecoder =
         (Decode.field "type" typeDecoder)
 
 
-httpGetAttributi : (Result Http.Error (List (Attributo JsonSchema)) -> msg) -> Cmd msg
-httpGetAttributi f =
-    Http.get
-        { url = "/api/attributi"
-        , expect = Http.expectJson f (Decode.field "attributi" (Decode.list (attributoDecoder jsonSchemaDecoder)))
-        }
-
-
 jsonSchemaToAttributoType : JsonSchema -> Result String AttributoType
 jsonSchemaToAttributoType x =
     case x of
@@ -286,11 +266,6 @@ toAttributoName =
     AttributoName
 
 
-removeAttributoFromMap : AttributoName -> AttributoMap a -> AttributoMap a
-removeAttributoFromMap (AttributoName name) (AttributoMap m) =
-    AttributoMap <| Dict.remove name m
-
-
 updateAttributoMap : AttributoName -> a -> AttributoMap a -> AttributoMap a
 updateAttributoMap (AttributoName name) value (AttributoMap m) =
     AttributoMap <| Dict.insert name value m
@@ -308,106 +283,6 @@ createAnnotatedAttributoMap attributi values =
             MaybeExtra.values <| List.map bestValueMapper attributi
     in
     Dict.fromList bestValues
-
-
-mutedSubheader : String.String -> Html.Html msg
-mutedSubheader t =
-    span [ class "text-muted fst-italic", style "font-size" "0.8rem" ] [ text t ]
-
-
-makeAttributoHeader : Attributo AttributoType -> List (Html msg)
-makeAttributoHeader a =
-    case a.type_ of
-        Number { suffix } ->
-            case suffix of
-                Just realSuffix ->
-                    [ text (fromAttributoName a.name)
-                    , br_
-                    , mutedSubheader realSuffix
-                    ]
-
-                _ ->
-                    [ text (fromAttributoName a.name) ]
-
-        _ ->
-            [ text (fromAttributoName a.name) ]
-
-
-type alias ViewAttributoValueProperties =
-    { shortDateTime : Bool
-    }
-
-
-makeAttributoCell : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
-makeAttributoCell props zone sampleIds attributiValues { name, type_ } =
-    td_
-        [ case retrieveAttributoValue name attributiValues of
-            Nothing ->
-                text ""
-
-            Just v ->
-                viewAttributoValue props zone sampleIds type_ v
-        ]
-
-
-viewAttributoValue : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoType -> AttributoValue -> Html msg
-viewAttributoValue props zone sampleIds type_ value =
-    case value of
-        ValueBoolean bool ->
-            if bool then
-                icon { name = "check-lg" }
-
-            else
-                text ""
-
-        ValueInt int ->
-            case type_ of
-                SampleId ->
-                    text <| withDefault (fromInt int) <| get int sampleIds
-
-                _ ->
-                    text (fromInt int)
-
-        ValueString string ->
-            case type_ of
-                DateTime ->
-                    case toTime string of
-                        Err _ ->
-                            text <| "Error converting time string " ++ string
-
-                        Ok v ->
-                            if props.shortDateTime then
-                                text <| formatPosixTimeOfDayHumanFriendly zone v
-
-                            else
-                                text <| formatPosixHumanFriendly zone v
-
-                _ ->
-                    text string
-
-        ValueList attributoValues ->
-            case type_ of
-                List { subType } ->
-                    case subType of
-                        Number _ ->
-                            span_ <| [ text "(" ] ++ List.map (viewAttributoValue props zone sampleIds subType) attributoValues ++ [ text ")" ]
-
-                        String ->
-                            span_ <| intersperse (text ",") <| List.map (viewAttributoValue props zone sampleIds subType) attributoValues
-
-                        _ ->
-                            text "unsupported list element type"
-
-                _ ->
-                    text "unsupported list type"
-
-        ValueNumber float ->
-            let
-                locale : Locale
-                locale =
-                    { usLocale | decimals = Max 2 }
-            in
-            text (format locale float)
 
 
 extractString : AttributoValue -> Maybe String

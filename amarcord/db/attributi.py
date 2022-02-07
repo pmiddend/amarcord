@@ -241,6 +241,8 @@ def convert_attributo_value(
             f"cannot convert from {before_type} to {after_type}: no converter found"
         )
 
+    if value is None:
+        return None
     return converter(before_type, after_type, conversion_flags, value)
 
 

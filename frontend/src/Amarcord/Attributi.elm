@@ -3,6 +3,7 @@ module Amarcord.Attributi exposing (Model, Msg, init, update, view)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, encodeAttributoName, fromAttributoName, httpGetAndDecodeAttributi, mapAttributo, mapAttributoMaybe, toAttributoName)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
+import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (div_, em_, form_, h4_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.JsonSchema exposing (JsonSchema(..), encodeJsonSchema)
@@ -174,7 +175,7 @@ attributoAugTypeToEnum x =
 
 emptyAugAttributo : Attributo AttributoTypeAug
 emptyAugAttributo =
-    { name = toAttributoName "", description = "", group = "manual", associatedTable = Sample, type_ = AugSimple String }
+    { name = toAttributoName "", description = "", group = manualAttributiGroup, associatedTable = Sample, type_ = AugSimple String }
 
 
 type alias ConversionFlags =
