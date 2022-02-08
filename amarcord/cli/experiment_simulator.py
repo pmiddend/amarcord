@@ -12,7 +12,9 @@ from tap import Tap
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import datetime_to_attributo_string
+from amarcord.db.attributi import (
+    datetime_to_attributo_int,
+)
 from amarcord.db.attributi_map import AttributiMap, UntypedAttributiMap
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
@@ -263,7 +265,7 @@ async def _start_run(
                 attributi,
                 sample_ids=sample_ids,
                 raw_attributi={
-                    ATTRIBUTO_STARTED: datetime_to_attributo_string(
+                    ATTRIBUTO_STARTED: datetime_to_attributo_int(
                         datetime.datetime.utcnow()
                     ),
                     ATTRIBUTO_TRASH: random.uniform(0, 1) < 0.1,

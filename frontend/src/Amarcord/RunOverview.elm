@@ -1,7 +1,7 @@
 module Amarcord.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, encodeAttributoMap, extractDateTime, fromAttributoName, retrieveAttributoValue, retrieveDateTimeAttributoValue, toAttributoName)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, encodeAttributoMap, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoCell, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, spinner)
 import Amarcord.Constants exposing (manualAttributiGroup)
@@ -16,15 +16,13 @@ import Html exposing (Html, a, button, div, form, h4, p, span, table, td, text, 
 import Html.Attributes exposing (class, colspan, disabled, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (jsonBody)
-import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import List exposing (head)
 import Maybe
-import Parser exposing (deadEndsToString)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import String exposing (fromInt)
-import Time exposing (Posix, Zone)
+import Time exposing (Posix, Zone, millisToPosix)
 
 
 type alias Run =
@@ -72,17 +70,7 @@ eventDecoder =
         (Decode.field "text" Decode.string)
         (Decode.field "source" Decode.string)
         (Decode.field "level" Decode.string)
-        (Decode.field "created" Decode.string
-            |> Decode.andThen
-                (\timeString ->
-                    case toTime timeString of
-                        Ok v ->
-                            Decode.succeed v
-
-                        Err e ->
-                            Decode.fail (deadEndsToString e)
-                )
-        )
+        (Decode.field "created" (Decode.map millisToPosix Decode.int))
 
 
 encodeEvent : String.String -> String.String -> Encode.Value
@@ -248,12 +236,12 @@ viewEventRow zone attributoColumnCount e =
 
 attributoStarted : Amarcord.Attributo.AttributoName
 attributoStarted =
-    toAttributoName "started"
+    "started"
 
 
 attributoStopped : Amarcord.Attributo.AttributoName
 attributoStopped =
-    toAttributoName "stopped"
+    "stopped"
 
 
 viewRunAndEventRows : Zone -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
@@ -388,7 +376,7 @@ viewRunAttributiForm latestRun submitErrorsList runEditRequest samples rei =
         Just { runId, editableAttributi } ->
             let
                 filteredAttributi =
-                    List.filter (\a -> a.associatedTable == AssociatedTable.Run && a.group == manualAttributiGroup && not (List.member a.name [ toAttributoName "started", toAttributoName "stopped" ])) editableAttributi.editableAttributi
+                    List.filter (\a -> a.associatedTable == AssociatedTable.Run && a.group == manualAttributiGroup && not (List.member a.name [ "started", "stopped" ])) editableAttributi.editableAttributi
 
                 submitErrors =
                     case submitErrorsList of
@@ -599,7 +587,7 @@ update msg model =
                 Just runEditInfo ->
                     case convertEditValues runEditInfo.editableAttributi of
                         Err errorList ->
-                            ( { model | submitErrors = List.map (\( name, errorMessage ) -> fromAttributoName name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+                            ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
                         Ok editedAttributi ->
                             let

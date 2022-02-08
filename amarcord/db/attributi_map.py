@@ -8,7 +8,8 @@ from typing import cast
 from amarcord.db.attributi import (
     convert_attributo_value,
     AttributoConversionFlags,
-    datetime_to_attributo_string,
+    datetime_to_attributo_int,
+    datetime_from_attributo_int,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
@@ -23,7 +24,6 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.json import JSONValue
-from amarcord.util import local_time_to_utc
 
 JsonAttributiMap = Dict[str, JSONValue]
 
@@ -86,6 +86,10 @@ def _check_type(
 
         for i, v in enumerate(value):
             _check_type(name + f"[{i}]", sample_ids, type_.sub_type, v)  # type: ignore
+    elif isinstance(type, AttributoTypeDateTime):
+        assert isinstance(
+            value, int
+        ), f'attributo "{name}": expected type int but got value {value}'
 
 
 def _check_types(
@@ -154,26 +158,10 @@ def _convert_single_attributo_value_from_json(
         return float(v)
     if isinstance(attributo_type.attributo_type, AttributoTypeDateTime):
         assert isinstance(
-            v, str
-        ), f'expected type string for datetime attributo "{i}", got {type(v)}'
-        # This is a hack: if the datetime string ends with "Z", we're good: this is UTC.
-        # If it doesn't end with Z, we have a local time (probably from the UI) and need to adapt it to UTC
-        if v.endswith("Z"):
-            return datetime.datetime.strptime(v, "%Y-%m-%dT%H:%M:%SZ")
-        format_strings = ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"]
-        parsed: Optional[datetime.datetime] = None
-        for format_string in format_strings:
-            try:
-                parsed = datetime.datetime.strptime(v, format_string)
-                if parsed is not None:
-                    break
-            except ValueError:
-                # Ignore parse error and handle below
-                pass
-        if parsed is None:
-            raise ValueError(f'attributo {i}: date-time string "{v}" not recognized')
-        # We now have the time in local time and need to convert to UTC
-        return local_time_to_utc(parsed)
+            v, int
+        ), f'expected type int for datetime attributo "{i}", got {type(v)}'
+
+        return datetime_from_attributo_int(v)
 
     if isinstance(attributo_type.attributo_type, AttributoTypeChoice):
         assert isinstance(
@@ -322,7 +310,7 @@ class AttributiMap:
             if value is None or isinstance(value, (str, int, float, bool)):
                 json_dict[attributo_id] = value
             if isinstance(value, datetime.datetime):
-                json_dict[attributo_id] = datetime_to_attributo_string(value)
+                json_dict[attributo_id] = datetime_to_attributo_int(value)
             if isinstance(value, list):
                 if not value:
                     json_dict[attributo_id] = cast(List[str], [])

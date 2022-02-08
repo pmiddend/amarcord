@@ -16,7 +16,7 @@ type JsonSchema
         , suffix : Maybe String
         , format : Maybe String
         }
-    | JsonSchemaString { enum : Maybe (List String), format : Maybe String }
+    | JsonSchemaString { enum : Maybe (List String) }
     | JsonSchemaArray { minItems : Maybe Int, maxItems : Maybe Int, items : JsonSchema, format : Maybe String }
 
 
@@ -42,9 +42,8 @@ jsonSchemaDecoder =
                         (Decode.maybe (Decode.field "format" Decode.string))
 
                 "string" ->
-                    Decode.map2 (\enum format -> JsonSchemaString { enum = enum, format = format })
+                    Decode.map (\enum -> JsonSchemaString { enum = enum })
                         (Decode.maybe (Decode.field "enum" (Decode.list Decode.string)))
-                        (Decode.maybe (Decode.field "format" Decode.string))
 
                 "array" ->
                     Decode.map4 (\items minItems maxItems format -> JsonSchemaArray { items = items, minItems = minItems, maxItems = maxItems, format = format })
@@ -106,7 +105,7 @@ encodeJsonSchema x =
         JsonSchemaArray { minItems, maxItems, format, items } ->
             Encode.object <| [ ( "type", Encode.string "array" ) ] ++ encodeInt "minItems" minItems ++ encodeInt "maxItems" maxItems ++ encodeString "format" format ++ [ ( "items", encodeJsonSchema items ) ]
 
-        JsonSchemaString { enum, format } ->
+        JsonSchemaString { enum } ->
             let
                 enumList =
                     case enum of
@@ -119,7 +118,7 @@ encodeJsonSchema x =
                         Just xs ->
                             [ ( "enum", Encode.list Encode.string xs ) ]
             in
-            Encode.object <| [ ( "type", Encode.string "string" ) ] ++ encodeString "format" format ++ enumList
+            Encode.object <| [ ( "type", Encode.string "string" ) ] ++ enumList
 
         JsonSchemaBoolean ->
             Encode.object <| [ ( "type", Encode.string "boolean" ) ]

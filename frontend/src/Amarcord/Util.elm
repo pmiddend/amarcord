@@ -71,11 +71,6 @@ httpPatch { url, body, expect } =
         }
 
 
-dictMapValues : (a -> b) -> Dict.Dict k a -> Dict.Dict k b
-dictMapValues f =
-    Dict.map (\_ value -> f value)
-
-
 monthToNumericString : Month -> String
 monthToNumericString x =
     case x of

@@ -4,11 +4,9 @@ from dataclasses import dataclass
 from typing import Callable
 from typing import Dict
 from typing import Final
-from typing import List
 from typing import Tuple
 from typing import Type
 
-from dateutil import tz
 from pint import UnitRegistry
 
 from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
@@ -20,8 +18,6 @@ from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.mini_sample import DBMiniSample
 from amarcord.json import JSONDict
 from amarcord.json import JSONValue
 from amarcord.json_schema import JSONSchemaArray, JSONSchemaBoolean
@@ -29,7 +25,6 @@ from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaNumber
 from amarcord.json_schema import JSONSchemaNumberFormat
 from amarcord.json_schema import JSONSchemaString
-from amarcord.json_schema import JSONSchemaStringFormat
 from amarcord.json_schema import JSONSchemaType
 from amarcord.json_schema import parse_schema_type
 from amarcord.numeric_range import NumericRange
@@ -39,6 +34,8 @@ from amarcord.util import str_to_int
 ATTRIBUTO_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 JSON_SCHEMA_INTEGER_SAMPLE_ID: Final = "sample-id"
+
+JSON_SCHEMA_INTEGER_DATE_TIME: Final = "date-time"
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +71,8 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
         if parsed_schema.format is not None:
             if parsed_schema.format == JSON_SCHEMA_INTEGER_SAMPLE_ID:
                 return AttributoTypeSample()
+            if parsed_schema.format == JSON_SCHEMA_INTEGER_DATE_TIME:
+                return AttributoTypeDateTime()
             raise Exception(f'integer with format "{parsed_schema.format}" invalid')
         return AttributoTypeInt()
     if isinstance(parsed_schema, JSONSchemaArray):
@@ -103,10 +102,19 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
     if isinstance(parsed_schema, JSONSchemaString):
         if parsed_schema.enum_ is not None:
             return AttributoTypeChoice(parsed_schema.enum_)
-        if parsed_schema.format_ == JSONSchemaStringFormat.DATE_TIME:
-            return AttributoTypeDateTime()
         return AttributoTypeString()
     raise Exception(f'invalid schema type "{type(parsed_schema)}"')
+
+
+def datetime_to_attributo_int(d: datetime.datetime) -> int:
+    return int(d.replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
+
+
+def datetime_from_attributo_int(d: int) -> datetime.datetime:
+    # seehttps://stackoverflow.com/questions/748491/how-do-i-create-a-datetime-in-python-from-milliseconds
+    return datetime.datetime.utcfromtimestamp(d // 1000).replace(
+        microsecond=d % 1000 * 1000
+    )
 
 
 def datetime_to_attributo_string(d: datetime.datetime) -> str:
@@ -148,7 +156,7 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
     if isinstance(rp, AttributoTypeChoice):
         return {"type": "string", "enum": rp.values}
     if isinstance(rp, AttributoTypeDateTime):
-        return {"type": "string", "format": "date-time"}
+        return {"type": "integer", "format": "date-time"}
     if isinstance(rp, AttributoTypeList):
         base: JSONDict = {
             "type": "array",
@@ -160,59 +168,6 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
             base["maxItems"] = rp.max_length
         return base
     raise Exception(f"invalid property type {type(rp)}")
-
-
-def pretty_print_attributo(
-    attributo_metadata: DBAttributo, value: AttributoValue, samples: List[DBMiniSample]
-) -> str:
-    if value is None:
-        return ""
-    rpt = attributo_metadata.attributo_type if attributo_metadata is not None else None
-    if rpt is not None:
-        if isinstance(rpt, AttributoTypeSample):
-            return next(
-                iter(x.sample_name for x in samples if x.sample_id == value), ""
-            )
-        if isinstance(rpt, AttributoTypeDateTime):
-            assert isinstance(
-                value, datetime.datetime
-            ), f'expected datetime for "{attributo_metadata.name}", got {type(value)}'
-            # correct for UTC time
-            return (
-                value.replace(tzinfo=tz.tzutc())
-                .astimezone(tz.tzlocal())
-                .strftime("%Y-%m-%d %H:%M:%S")
-            )
-    if isinstance(value, list):
-        if not value:
-            return ""
-        if isinstance(value[0], float):
-            return ", ".join(f"{s:.2f}" for s in value)
-        return ", ".join(str(s) for s in value)
-    if isinstance(value, float):
-        return f"{value:.2f}"
-    return str(value) if value is not None else ""
-
-
-def attributo_type_to_string(pt: AttributoType, plural: bool = False) -> str:
-    if isinstance(pt, AttributoTypeInt):
-        return "integers" if plural else "integer"
-    if isinstance(pt, AttributoTypeChoice):
-        return "choices" if plural else "choice"
-    if isinstance(pt, AttributoTypeDecimal):
-        if pt.suffix:
-            return f"{pt.suffix} ∈ {pt.range}" if pt.range is not None else pt.suffix
-        word = "numbers" if plural else "number"
-        return f"{word} ∈ {pt.range}" if pt.range is not None else word
-    if isinstance(pt, AttributoTypeSample):
-        return "Sample IDs" if plural else "Sample ID"
-    if isinstance(pt, AttributoTypeString):
-        return "texts" if plural else "text"
-    if isinstance(pt, AttributoTypeDateTime):
-        return "date and time"
-    if isinstance(pt, AttributoTypeList):
-        return "list of " + attributo_type_to_string(pt.sub_type, plural=True)
-    raise Exception(f"invalid property type {type(pt)}")
 
 
 @dataclass(frozen=True)

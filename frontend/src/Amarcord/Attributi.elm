@@ -1,7 +1,7 @@
 module Amarcord.Attributi exposing (Model, Msg, init, update, view)
 
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
-import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, encodeAttributoName, fromAttributoName, httpGetAndDecodeAttributi, mapAttributo, mapAttributoMaybe, toAttributoName)
+import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, httpGetAndDecodeAttributi, mapAttributo, mapAttributoMaybe)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
@@ -175,7 +175,7 @@ attributoAugTypeToEnum x =
 
 emptyAugAttributo : Attributo AttributoTypeAug
 emptyAugAttributo =
-    { name = toAttributoName "", description = "", group = manualAttributiGroup, associatedTable = Sample, type_ = AugSimple String }
+    { name = "", description = "", group = manualAttributiGroup, associatedTable = Sample, type_ = AugSimple String }
 
 
 type alias ConversionFlags =
@@ -190,13 +190,13 @@ attributoTypeToJsonSchema x =
             JsonSchemaInteger { format = Nothing }
 
         DateTime ->
-            JsonSchemaString { enum = Nothing, format = Just "date-time" }
+            JsonSchemaInteger { format = Just "date-time" }
 
         SampleId ->
             JsonSchemaInteger { format = Just "sample-id" }
 
         String ->
-            JsonSchemaString { enum = Nothing, format = Nothing }
+            JsonSchemaString { enum = Nothing }
 
         List { subType, minLength, maxLength } ->
             JsonSchemaArray { minItems = minLength, maxItems = maxLength, items = attributoTypeToJsonSchema subType, format = Nothing }
@@ -217,7 +217,7 @@ attributoTypeToJsonSchema x =
                 }
 
         Choice { choiceValues } ->
-            JsonSchemaString { format = Nothing, enum = Just choiceValues }
+            JsonSchemaString { enum = Just choiceValues }
 
         Boolean ->
             JsonSchemaBoolean
@@ -342,7 +342,7 @@ httpDeleteAttributo : AttributoName -> Cmd Msg
 httpDeleteAttributo attributoName =
     httpDelete
         { url = "/api/attributi"
-        , body = jsonBody (Encode.object [ ( "name", encodeAttributoName attributoName ) ])
+        , body = jsonBody (Encode.object [ ( "name", Encode.string attributoName ) ])
         , expect = Http.expectJson DeleteFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
         }
 
@@ -360,7 +360,7 @@ encodeAssociatedTable x =
 encodeAttributo : (a -> Encode.Value) -> Attributo a -> Encode.Value
 encodeAttributo typeEncoder a =
     Encode.object
-        [ ( "name", encodeAttributoName a.name )
+        [ ( "name", Encode.string a.name )
         , ( "description", Encode.string a.description )
         , ( "group", Encode.string a.group )
         , ( "associatedTable", encodeAssociatedTable a.associatedTable )
@@ -405,7 +405,7 @@ httpEditAttributo conversionFlags nameBefore a =
     httpPatch
         { url = "/api/attributi"
         , expect = Http.expectJson EditSubmitFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        , body = jsonBody (Encode.object [ ( "newAttributo", encodeAttributo encodeJsonSchema a ), ( "nameBefore", encodeAttributoName nameBefore ), ( "conversionFlags", encodeConversionFlags conversionFlags ) ])
+        , body = jsonBody (Encode.object [ ( "newAttributo", encodeAttributo encodeJsonSchema a ), ( "nameBefore", Encode.string nameBefore ), ( "conversionFlags", encodeConversionFlags conversionFlags ) ])
         }
 
 
@@ -498,7 +498,7 @@ attributoTypeToHtml x =
 viewAttributoRow : Attributo AttributoType -> Html Msg
 viewAttributoRow { name, description, group, associatedTable, type_ } =
     tr_
-        [ th [ scope "row", style "white-space" "nowrap" ] [ text (associatedTableToString associatedTable ++ "." ++ fromAttributoName name) ]
+        [ th [ scope "row", style "white-space" "nowrap" ] [ text (associatedTableToString associatedTable ++ "." ++ name) ]
         , td [ style "white-space" "nowrap" ] [ text group ]
         , td_ [ text description ]
         , td [ style "white-space" "nowrap" ] (attributoTypeToHtml type_)
@@ -753,7 +753,7 @@ viewTypeForm table a =
 
 nameInvalidReason : Maybe.Maybe AttributoName -> AttributoName -> List { a | name : AttributoName } -> Maybe String
 nameInvalidReason originalName newName attributiList =
-    if fromAttributoName newName == "" then
+    if newName == "" then
         Just "Name is mandatory"
 
     else if Just newName == originalName || List.all (\a -> a.name /= newName) attributiList then
@@ -830,8 +830,8 @@ viewEditForm model attributiList attributo =
                                )
                         )
                     , id "name"
-                    , value (fromAttributoName attributo.name)
-                    , onInput (EditAttributoName << toAttributoName)
+                    , value attributo.name
+                    , onInput EditAttributoName
                     ]
                     []
                 ]
@@ -995,7 +995,7 @@ view model =
                     [ Dialog.view
                         (Just
                             { header = Nothing
-                            , body = Just (span_ [ text "Really delete attributo ", strongText (fromAttributoName attributoName), text "?" ])
+                            , body = Just (span_ [ text "Really delete attributo ", strongText attributoName, text "?" ])
                             , closeMessage = Just CancelDelete
                             , containerClass = Nothing
                             , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete attributoName) ] [ text "Really delete!" ])

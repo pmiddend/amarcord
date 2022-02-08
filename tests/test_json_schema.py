@@ -7,7 +7,6 @@ from amarcord.json_schema import (
     JSONSchemaNumber,
     JSONSchemaNumberFormat,
     JSONSchemaString,
-    JSONSchemaStringFormat,
     JSONSchemaArray,
 )
 
@@ -22,6 +21,9 @@ def test_parse_schema_type_integer() -> None:
     assert parse_schema_type(
         {"type": "integer", "format": "sample-id"}
     ) == JSONSchemaInteger(format="sample-id")
+    assert parse_schema_type(
+        {"type": "integer", "format": "date-time"}
+    ) == JSONSchemaInteger(format="date-time")
 
 
 def test_parse_schema_type_boolean() -> None:
@@ -51,12 +53,7 @@ def test_parse_schema_type_number() -> None:
 
 
 def test_parse_schema_type_string() -> None:
-    assert parse_schema_type({"type": "string"}) == JSONSchemaString(
-        enum_=None, format_=None
-    )
-    assert parse_schema_type(
-        {"type": "string", "format": "date-time"}
-    ) == JSONSchemaString(enum_=None, format_=JSONSchemaStringFormat.DATE_TIME)
+    assert parse_schema_type({"type": "string"}) == JSONSchemaString(enum_=None)
 
 
 def test_parse_schema_type_array() -> None:

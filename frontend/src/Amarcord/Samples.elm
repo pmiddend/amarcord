@@ -4,13 +4,11 @@ import Amarcord.Attributo
     exposing
         ( Attributo
         , AttributoMap
-        , AttributoName(..)
         , AttributoType(..)
         , AttributoValue(..)
         , attributoDecoder
         , attributoTypeDecoder
         , emptyAttributoMap
-        , fromAttributoName
         )
 import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoCell, makeAttributoHeader, mutedSubheader, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
@@ -535,7 +533,7 @@ update msg model =
                     else
                         case convertEditValues editSample.attributi of
                             Err errorList ->
-                                ( { model | submitErrors = List.map (\( name, errorMessage ) -> fromAttributoName name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+                                ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
                             Ok editedAttributi ->
                                 let

@@ -1,6 +1,6 @@
 module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoCell, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoForm)
 
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, fromAttributoName, mapAttributo, retrieveAttributoValue, toAttributoName, updateAttributoMap)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (br_, input_, span_, strongText, td_)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
@@ -19,7 +19,7 @@ import Maybe exposing (withDefault)
 import Maybe.Extra exposing (isNothing, orElse, traverse, unwrap)
 import Set
 import String exposing (fromInt, join, split, toInt, trim)
-import Time exposing (Zone)
+import Time exposing (Zone, millisToPosix)
 import Tuple exposing (first, mapFirst, second)
 
 
@@ -34,16 +34,16 @@ makeAttributoHeader a =
         Number { suffix } ->
             case suffix of
                 Just realSuffix ->
-                    [ text (fromAttributoName a.name)
+                    [ text a.name
                     , br_
                     , mutedSubheader realSuffix
                     ]
 
                 _ ->
-                    [ text (fromAttributoName a.name) ]
+                    [ text a.name ]
 
         _ ->
-            [ text (fromAttributoName a.name) ]
+            [ text a.name ]
 
 
 type alias ViewAttributoValueProperties =
@@ -78,25 +78,22 @@ viewAttributoValue props zone sampleIds type_ value =
                 SampleId ->
                     text <| withDefault (fromInt int) <| get int sampleIds
 
+                DateTime ->
+                    text <|
+                        (if props.shortDateTime then
+                            formatPosixTimeOfDayHumanFriendly
+
+                         else
+                            formatPosixHumanFriendly
+                        )
+                            zone
+                            (millisToPosix int)
+
                 _ ->
                     text (fromInt int)
 
         ValueString string ->
-            case type_ of
-                DateTime ->
-                    case toTime string of
-                        Err _ ->
-                            text <| "Error converting time string " ++ string
-
-                        Ok v ->
-                            if props.shortDateTime then
-                                text <| formatPosixTimeOfDayHumanFriendly zone v
-
-                            else
-                                text <| formatPosixHumanFriendly zone v
-
-                _ ->
-                    text string
+            text string
 
         ValueList attributoValues ->
             case type_ of
@@ -165,11 +162,11 @@ viewAttributoForm samples a =
     case second a.type_ of
         EditValueString s ->
             div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
+                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
                 , input_
                     [ type_ "text"
                     , class "form-control"
-                    , id ("attributo-" ++ fromAttributoName a.name)
+                    , id ("attributo-" ++ a.name)
                     , value s
                     , onInput (EditValueString >> SetValue >> AttributoNameWithValueUpdate a.name)
                     ]
@@ -183,12 +180,12 @@ viewAttributoForm samples a =
 
         EditValueInt s ->
             div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
+                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
                 , div [ class "w-50" ]
                     [ input_
                         [ type_ "number"
                         , class "form-control"
-                        , id ("attributo-" ++ fromAttributoName a.name)
+                        , id ("attributo-" ++ a.name)
                         , value s
                         , onInput (AttributoNameWithValueUpdate a.name << SetValue << EditValueInt)
                         ]
@@ -203,11 +200,11 @@ viewAttributoForm samples a =
 
         EditValueList l ->
             div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
+                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
                 , input_
                     [ type_ "text"
                     , class "form-control"
-                    , id ("attributo-" ++ fromAttributoName a.name)
+                    , id ("attributo-" ++ a.name)
                     , value l.editValue
                     , onInput (\newInput -> AttributoNameWithValueUpdate a.name <| SetValue <| EditValueList { l | editValue = newInput })
                     ]
@@ -237,9 +234,9 @@ viewAttributoForm samples a =
                         ]
             in
             div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
+                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
                 , select
-                    [ id ("attributo-" ++ fromAttributoName a.name)
+                    [ id ("attributo-" ++ a.name)
                     , class "form-select"
                     , onInput (\newInput -> AttributoNameWithValueUpdate a.name <| SetValue <| EditValueChoice { choiceValues = choiceValues, editValue = newInput })
                     ]
@@ -258,13 +255,13 @@ viewAttributoForm samples a =
                            )
             in
             div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
+                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
                 , div [ class "w-75 input-group" ]
                     [ input_
                         [ type_ "number"
                         , step "0.01"
                         , class "form-control"
-                        , id ("attributo-" ++ fromAttributoName a.name)
+                        , id ("attributo-" ++ a.name)
                         , value n.editValue
                         , onInput (\newValue -> AttributoNameWithValueUpdate a.name <| SetValue <| EditValueNumber { n | editValue = newValue })
                         ]
@@ -284,12 +281,12 @@ viewAttributoForm samples a =
 
         EditValueDateTime x ->
             div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
+                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
                 , div [ class "w-50" ]
                     [ input_
                         [ type_ "datetime-local"
                         , class "form-control"
-                        , id ("attributo-" ++ fromAttributoName a.name)
+                        , id ("attributo-" ++ a.name)
                         , value x
                         , onInput (AttributoNameWithValueUpdate a.name << SetValue << EditValueDateTime)
                         ]
@@ -308,11 +305,11 @@ viewAttributoForm samples a =
                     [ input_
                         [ type_ "checkbox"
                         , class "form-check-input"
-                        , id ("attributo-" ++ fromAttributoName a.name)
+                        , id ("attributo-" ++ a.name)
                         , checked x
                         , onInput (always <| AttributoNameWithValueUpdate a.name <| SetValue <| EditValueBoolean (not x))
                         ]
-                    , label [ for ("attributo-" ++ fromAttributoName a.name), class "form-check-label" ] [ text (fromAttributoName a.name) ]
+                    , label [ for ("attributo-" ++ a.name), class "form-check-label" ] [ text a.name ]
                     ]
                         ++ [ if a.description /= "" then
                                 div [ class "form-text" ] [ text a.description ]
@@ -328,9 +325,9 @@ viewAttributoForm samples a =
                     option [ selected (Just id == selectedId), value (fromInt id) ] [ text name ]
             in
             div [ class "mb-3" ] <|
-                [ label [ for ("attributo-" ++ fromAttributoName a.name), class "form-label" ] [ text (fromAttributoName a.name) ]
+                [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
                 , select
-                    [ id ("attributo-" ++ fromAttributoName a.name)
+                    [ id ("attributo-" ++ a.name)
                     , class "form-select"
                     , onInput (AttributoNameWithValueUpdate a.name << SetValue << EditValueSampleId << String.toInt)
                     ]
@@ -371,7 +368,7 @@ createEditableAttributi zone attributi m =
         -- Convert attributo metadata, as well as an attributo value, into an "editable attributo"
         convertToEditValues : String -> Attributo ( AttributoType, AttributoValue ) -> Dict String (Attributo ( EditStatus, AttributoEditValue )) -> Dict String (Attributo ( EditStatus, AttributoEditValue ))
         convertToEditValues attributoName a prev =
-            case attributoValueToEditValue zone (toAttributoName attributoName) attributi (second a.type_) of
+            case attributoValueToEditValue zone attributoName attributi (second a.type_) of
                 Nothing ->
                     prev
 
@@ -384,7 +381,7 @@ createEditableAttributi zone attributi m =
 
         totalAttributoNames : Set.Set String
         totalAttributoNames =
-            Set.fromList (List.map (.name >> fromAttributoName) attributi)
+            Set.fromList (List.map .name attributi)
 
         missingKeys : Set.Set String
         missingKeys =
@@ -392,11 +389,11 @@ createEditableAttributi zone attributi m =
 
         missingAttributi : List (Attributo AttributoType)
         missingAttributi =
-            List.filter (\x -> Set.member (fromAttributoName x.name) missingKeys) attributi
+            List.filter (\x -> Set.member x.name missingKeys) attributi
 
         missingAttributiMap : Dict String EditableAttributo
         missingAttributiMap =
-            Dict.fromList <| List.map (\a -> ( fromAttributoName a.name, mapAttributo (\type_ -> ( Unchanged, emptyEditValue type_ )) a )) <| missingAttributi
+            Dict.fromList <| List.map (\a -> ( a.name, mapAttributo (\type_ -> ( Unchanged, emptyEditValue type_ )) a )) <| missingAttributi
     in
     { originalAttributi = m, editableAttributi = Dict.values <| Dict.union existingAttributiMap missingAttributiMap }
 

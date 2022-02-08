@@ -13,23 +13,20 @@ module Amarcord.Attributo exposing
     , createAnnotatedAttributoMap
     , emptyAttributoMap
     , encodeAttributoMap
-    , encodeAttributoName
     , extractDateTime
-    , fromAttributoName
     , httpGetAndDecodeAttributi
     , jsonSchemaToAttributoType
     , mapAttributo
     , mapAttributoMaybe
     , retrieveAttributoValue
     , retrieveDateTimeAttributoValue
-    , toAttributoName
     , updateAttributoMap
     )
 
 import Amarcord.AssociatedTable exposing (AssociatedTable, associatedTableDecoder)
 import Amarcord.JsonSchema exposing (JsonSchema(..), jsonSchemaDecoder)
 import Amarcord.NumericRange exposing (NumericRange, rangeFromJsonSchema)
-import Amarcord.Util exposing (resultToJsonDecoder, toTimeMaybe)
+import Amarcord.Util exposing (resultToJsonDecoder)
 import Dict exposing (Dict)
 import Http
 import Json.Decode as Decode
@@ -39,7 +36,7 @@ import Maybe
 import Maybe.Extra as MaybeExtra
 import Result
 import String
-import Time exposing (Posix, Zone)
+import Time exposing (Posix, Zone, millisToPosix)
 
 
 type AttributoValue
@@ -89,13 +86,8 @@ attributoIsString x =
             False
 
 
-type AttributoName
-    = AttributoName String
-
-
-encodeAttributoName : AttributoName -> Encode.Value
-encodeAttributoName (AttributoName n) =
-    Encode.string n
+type alias AttributoName =
+    String
 
 
 type alias Attributo a =
@@ -170,7 +162,7 @@ attributoDecoder : Decode.Decoder a -> Decode.Decoder (Attributo a)
 attributoDecoder typeDecoder =
     Decode.map5
         Attributo
-        (Decode.map AttributoName (Decode.field "name" Decode.string))
+        (Decode.field "name" Decode.string)
         (Decode.field "description" Decode.string)
         (Decode.field "group" Decode.string)
         (Decode.field "associatedTable" associatedTableDecoder)
@@ -194,6 +186,9 @@ jsonSchemaToAttributoType x =
                 Just "sample-id" ->
                     Ok SampleId
 
+                Just "date-time" ->
+                    Ok DateTime
+
                 Just unknown ->
                     Err <| "invalid integer format \"" ++ unknown ++ "\""
 
@@ -208,21 +203,13 @@ jsonSchemaToAttributoType x =
                 Nothing ->
                     jsonSchemaToAttributoType items |> Result.andThen (\subType -> Ok (List { minLength = minItems, maxLength = maxItems, subType = subType }))
 
-        JsonSchemaString { enum, format } ->
-            case format of
+        JsonSchemaString { enum } ->
+            case enum of
                 Nothing ->
-                    case enum of
-                        Nothing ->
-                            Ok String
+                    Ok String
 
-                        Just choices ->
-                            Ok (Choice { choiceValues = choices })
-
-                Just "date-time" ->
-                    Ok DateTime
-
-                Just unknown ->
-                    Err <| "unknown string format \"" ++ unknown ++ "\""
+                Just choices ->
+                    Ok (Choice { choiceValues = choices })
 
         JsonSchemaBoolean ->
             Ok Boolean
@@ -247,7 +234,7 @@ emptyAttributoMap =
 
 
 retrieveAttributoValue : AttributoName -> AttributoMap a -> Maybe a
-retrieveAttributoValue (AttributoName name) (AttributoMap m) =
+retrieveAttributoValue name (AttributoMap m) =
     Dict.get name m
 
 
@@ -256,18 +243,8 @@ retrieveDateTimeAttributoValue name m =
     Maybe.andThen extractDateTime <| retrieveAttributoValue name m
 
 
-fromAttributoName : AttributoName -> String
-fromAttributoName (AttributoName n) =
-    n
-
-
-toAttributoName : String -> AttributoName
-toAttributoName =
-    AttributoName
-
-
 updateAttributoMap : AttributoName -> a -> AttributoMap a -> AttributoMap a
-updateAttributoMap (AttributoName name) value (AttributoMap m) =
+updateAttributoMap name value (AttributoMap m) =
     AttributoMap <| Dict.insert name value m
 
 
@@ -276,7 +253,7 @@ createAnnotatedAttributoMap attributi values =
     let
         bestValueMapper : Attributo x -> Maybe ( String, Attributo ( x, a ) )
         bestValueMapper a =
-            Maybe.map (\value -> ( fromAttributoName a.name, mapAttributo (\attributoType -> ( attributoType, value )) a )) <| retrieveAttributoValue a.name values
+            Maybe.map (\value -> ( a.name, mapAttributo (\attributoType -> ( attributoType, value )) a )) <| retrieveAttributoValue a.name values
 
         bestValues : List ( String, Attributo ( x, a ) )
         bestValues =
@@ -295,6 +272,16 @@ extractString x =
             Nothing
 
 
+extractInt : AttributoValue -> Maybe Int
+extractInt x =
+    case x of
+        ValueInt s ->
+            Just s
+
+        _ ->
+            Nothing
+
+
 extractDateTime : AttributoValue -> Maybe Posix
 extractDateTime =
-    Maybe.andThen toTimeMaybe << extractString
+    Maybe.map millisToPosix << extractInt

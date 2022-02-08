@@ -13,7 +13,10 @@ from tap import Tap
 from werkzeug.exceptions import HTTPException
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi import AttributoConversionFlags, datetime_to_attributo_string
+from amarcord.db.attributi import (
+    AttributoConversionFlags,
+    datetime_to_attributo_int,
+)
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
@@ -159,7 +162,7 @@ def _encode_event(e: DBEvent) -> JSONDict:
         "id": e.id,
         "text": e.text,
         "source": e.source,
-        "created": datetime_to_attributo_string(e.created),
+        "created": datetime_to_attributo_int(e.created),
         "level": e.level.value,
     }
 

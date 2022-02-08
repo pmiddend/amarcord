@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from amarcord.db.associated_table import AssociatedTable
@@ -9,6 +11,7 @@ from amarcord.db.attributo_type import (
     AttributoTypeDecimal,
     AttributoType,
     AttributoTypeSample,
+    AttributoTypeDateTime,
 )
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.numeric_range import NumericRange
@@ -149,3 +152,14 @@ def test_attributi_map_check_type_for_double() -> None:
             [],
             {TEST_ATTRIBUTO_ID: 4.5},
         )
+
+
+def test_attributi_map_check_type_for_datetime() -> None:
+    assert (
+        AttributiMap.from_types_and_json(
+            [_create_attributo(AttributoTypeDateTime())],
+            [],
+            {TEST_ATTRIBUTO_ID: 1644317029000},
+        ).select_datetime_unsafe(TEST_ATTRIBUTO_ID)
+        == datetime(2022, 2, 8, 10, 43, 49)
+    )
