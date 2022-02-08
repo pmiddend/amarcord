@@ -118,6 +118,9 @@ def _convert_single_attributo_value_from_json(
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
+        if v == 0:
+            # special case: 0 is the "no sample ID" sample ID
+            return None
         if v not in sample_ids:
             raise Exception(f"{v} is not a valid sample ID")
         return v
