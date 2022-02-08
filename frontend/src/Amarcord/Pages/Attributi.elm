@@ -1,4 +1,4 @@
-module Amarcord.Attributi exposing (Model, Msg, init, update, view)
+module Amarcord.Pages.Attributi exposing (Model, Msg, init, update, view)
 
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
 import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, httpGetAndDecodeAttributi, mapAttributo, mapAttributoMaybe)

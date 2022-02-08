@@ -1,4 +1,4 @@
-module Amarcord.RunOverview exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, encodeAttributoMap, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue)

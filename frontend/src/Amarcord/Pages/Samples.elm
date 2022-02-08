@@ -1,4 +1,4 @@
-module Amarcord.Samples exposing (Model, Msg, init, update, view)
+module Amarcord.Pages.Samples exposing (Model, Msg, init, update, view)
 
 import Amarcord.Attributo
     exposing

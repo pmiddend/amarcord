@@ -4,12 +4,12 @@
 
 module Main exposing (main)
 
-import Amarcord.Attributi as Attributi
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (h1_)
+import Amarcord.Pages.Attributi as Attributi
+import Amarcord.Pages.RunOverview as RunOverview
+import Amarcord.Pages.Samples as Samples
 import Amarcord.Route as Route exposing (Route, makeLink, parseUrl)
-import Amarcord.RunOverview as RunOverview
-import Amarcord.Samples as Samples
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
