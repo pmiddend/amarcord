@@ -1,5 +1,6 @@
 module Amarcord.Util exposing (..)
 
+import Browser.Dom
 import Dict
 import Http
 import Iso8601 exposing (toTime)
@@ -215,3 +216,8 @@ type alias HereAndNow =
 retrieveHereAndNow : Task.Task x HereAndNow
 retrieveHereAndNow =
     Task.andThen (\zone -> Task.map (\startTime -> HereAndNow zone startTime) now) here
+
+
+scrollToTop : (() -> msg) -> Cmd msg
+scrollToTop f =
+    Task.perform f <| Browser.Dom.setViewport 0 0

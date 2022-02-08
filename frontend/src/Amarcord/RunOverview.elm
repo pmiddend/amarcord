@@ -9,7 +9,7 @@ import Amarcord.File exposing (File, fileDecoder)
 import Amarcord.Html exposing (form_, h1_, h2_, h5_, input_, li_, p_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleDecoder)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, httpDelete, httpPatch, posixBefore, posixDiffHumanFriendly)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, httpDelete, httpPatch, posixBefore, posixDiffHumanFriendly, scrollToTop)
 import Dict exposing (Dict)
 import Hotkeys exposing (onEnter)
 import Html exposing (Html, a, button, div, form, h4, p, span, table, td, text, tr, ul)
@@ -150,6 +150,7 @@ type Msg
     | RunEditFinished (Result Http.Error (Maybe UserError))
     | RunInitiateEdit Run
     | RunEditCancel
+    | Nop
 
 
 type alias EventForm =
@@ -651,7 +652,7 @@ update msg model =
                                 , initiatedManually = True
                                 }
                       }
-                    , Cmd.none
+                    , scrollToTop (always Nop)
                     )
 
                 _ ->
@@ -664,3 +665,6 @@ update msg model =
 
                 _ ->
                     ( { model | runEditInfo = Nothing }, Cmd.none )
+
+        Nop ->
+            ( model, Cmd.none )
