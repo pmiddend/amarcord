@@ -2,12 +2,12 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, encodeAttributoMap, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoCell, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, spinner)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.File exposing (File, fileDecoder)
 import Amarcord.Html exposing (form_, h1_, h2_, h5_, input_, li_, p_, strongText, tbody_, td_, th_, thead_, tr_)
-import Amarcord.Sample exposing (Sample, sampleDecoder)
+import Amarcord.Sample exposing (Sample, sampleDecoder, sampleIdDict)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, httpDelete, httpPatch, posixBefore, posixDiffHumanFriendly, scrollToTop)
 import Dict exposing (Dict)
@@ -203,7 +203,7 @@ attributiColumnHeaders =
 
 attributiColumns : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> List (Html Msg)
 attributiColumns zone sampleIds attributi run =
-    List.map (makeAttributoCell { shortDateTime = True } zone sampleIds run.attributi) <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi
+    List.map (viewAttributoCell { shortDateTime = True } zone sampleIds run.attributi) <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi
 
 
 viewRunRow : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
@@ -277,13 +277,9 @@ viewRunAndEventRows zone sampleIds attributi runs events =
 viewRunsTable : Zone -> RunsResponseContent -> Html Msg
 viewRunsTable zone { runs, attributi, events, samples } =
     let
-        sampleIds : Dict.Dict Int String
-        sampleIds =
-            List.foldr (\s -> Dict.insert s.id s.name) Dict.empty samples
-
         runRows : List (Html Msg)
         runRows =
-            viewRunAndEventRows zone sampleIds attributi runs events
+            viewRunAndEventRows zone (sampleIdDict samples) attributi runs events
     in
     table [ class "table amarcord-table-fix-head table-bordered table-hover" ]
         [ thead_

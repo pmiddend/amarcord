@@ -6,6 +6,7 @@ module Main exposing (main)
 
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (h1_)
+import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.RunOverview as RunOverview
 import Amarcord.Pages.Samples as Samples
@@ -37,6 +38,7 @@ type Msg
     = AttributiPageMsg Attributi.Msg
     | SamplesPageMsg Samples.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | AnalysisPageMsg Analysis.Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
     | RefreshMsg Posix
@@ -48,6 +50,7 @@ type Page
     | AttributiPage Attributi.Model
     | SamplesPage Samples.Model
     | RunOverviewPage RunOverview.Model
+    | AnalysisPage Analysis.Model
 
 
 type alias Model =
@@ -129,6 +132,21 @@ view model =
                                 ]
                                 [ icon { name = "card-list" }, text " Attributi" ]
                             ]
+                        , li [ class "nav-item" ]
+                            [ a
+                                [ href (makeLink Route.Analysis)
+                                , class
+                                    ((if model.route == Route.Analysis then
+                                        "active "
+
+                                      else
+                                        ""
+                                     )
+                                        ++ "nav-link"
+                                    )
+                                ]
+                                [ icon { name = "bar-chart-steps" }, text " Analysis" ]
+                            ]
                         ]
                     ]
                 ]
@@ -160,6 +178,12 @@ currentView model =
             div []
                 [ RunOverview.view pageModel
                     |> Html.map RunOverviewPageMsg
+                ]
+
+        AnalysisPage pageModel ->
+            div []
+                [ Analysis.view pageModel
+                    |> Html.map AnalysisPageMsg
                 ]
 
 
@@ -206,6 +230,15 @@ updateInner hereAndNow msg model =
             in
             ( { model | page = RunOverviewPage updatedPageModel }
             , Cmd.map RunOverviewPageMsg updatedCmd
+            )
+
+        ( AnalysisPageMsg subMsg, AnalysisPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Analysis.update subMsg pageModel
+            in
+            ( { model | page = AnalysisPage updatedPageModel }
+            , Cmd.map AnalysisPageMsg updatedCmd
             )
 
         ( RefreshMsg t, RunOverviewPage pageModel ) ->
@@ -271,5 +304,12 @@ initCurrentPage hereAndNow ( model, existingCmds ) =
                             RunOverview.init hereAndNow
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
+
+                Route.Analysis ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Analysis.init hereAndNow
+                    in
+                    ( AnalysisPage pageModel, Cmd.map AnalysisPageMsg pageCmds )
     in
     ( { model | page = currentPage }, Cmd.batch [ existingCmds, mappedPageCmds ] )

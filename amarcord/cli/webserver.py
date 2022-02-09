@@ -1,10 +1,12 @@
 import asyncio
+import datetime
 import json
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import cast
+import typing
 
 from pint import UnitRegistry
 from quart import Quart, request
@@ -21,9 +23,10 @@ from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.table_classes import DBFile, DBEvent, DBSample
+from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type
@@ -363,7 +366,7 @@ async def delete_attributo() -> JSONDict:
             for s in await db.instance.retrieve_samples(conn, attributi):
                 s.attributi.remove(attributo_name)
                 await db.instance.update_sample(
-                    conn, cast(int, s.id), s.name, s.attributi
+                    conn, typing.cast(int, s.id), s.name, s.attributi
                 )
         else:
             # FIXME: do this for runs
@@ -411,6 +414,79 @@ async def read_attributi() -> JSONDict:
                     conn, associated_table=None
                 )
             ]
+        }
+
+
+@app.post("/api/analysis/grouped-runs")
+async def get_grouped_runs() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        attributi_names = r.retrieve_string_array("attributi")
+
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        samples = await db.instance.retrieve_samples(conn, attributi)
+
+        runs = await db.instance.retrieve_runs(conn, attributi)
+
+        @dataclass
+        class RunGroup:
+            run_ids: typing.List[int]
+            total_minutes: int
+            attributi_values: typing.Dict[AttributoId, AttributoValue]
+
+        def run_duration(run: DBRun) -> datetime.timedelta:
+            stopped = run.attributi.select_datetime("stopped")
+            started = run.attributi.select_datetime("started")
+            return (
+                datetime.timedelta()
+                if stopped is None or started is None
+                else stopped - started
+            )
+
+        groups: typing.List[RunGroup] = []
+        # Try to fit each run into a group
+        for run in runs:
+            # Fill this run's attributi value combination
+            attributi_values: typing.Dict[AttributoId, AttributoValue] = {}
+            for a in attributi_names:
+                attributi_values[a] = run.attributi.select(a)
+
+            this_run_minutes = int(run_duration(run).total_seconds() / 60)
+
+            # Try to find its group
+            found = False
+            for group in groups:
+                if attributi_values == group.attributi_values:
+                    group.run_ids.append(run.id)
+                    group.total_minutes += this_run_minutes
+                    found = True
+                    break
+
+            if not found:
+                groups.append(
+                    RunGroup(
+                        run_ids=[run.id],
+                        attributi_values=attributi_values,
+                        total_minutes=this_run_minutes,
+                    )
+                )
+
+        return {
+            "groups": [
+                {
+                    "runIds": g.run_ids,
+                    "totalMinutes": g.total_minutes,
+                    "attributi": AttributiMap(
+                        types_dict={t.name: t for t in attributi},
+                        sample_ids=[s.id for s in samples],
+                        impl=g.attributi_values,
+                    ).to_json(),
+                }
+                for g in groups
+            ],
+            "samples": [_encode_sample(s) for s in samples],
+            "attributi": [_encode_attributo(a) for a in attributi],
         }
 
 

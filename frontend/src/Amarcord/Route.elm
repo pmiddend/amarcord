@@ -9,6 +9,7 @@ type Route
     | Samples
     | RunOverview
     | Attributi
+    | Analysis
 
 
 parseUrl : Url.Url -> Route
@@ -36,6 +37,9 @@ makeLink x =
         Samples ->
             "/samples"
 
+        Analysis ->
+            "/analysis"
+
 
 makeFilesLink : Int -> String
 makeFilesLink id =
@@ -49,4 +53,5 @@ matchRoute =
         , map Attributi (s "attributi")
         , map Samples (s "samples")
         , map RunOverview (s "runoverview")
+        , map Analysis (s "analysis")
         ]

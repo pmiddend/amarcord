@@ -1,8 +1,10 @@
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, TypeVar
 from typing import Optional
 
 from amarcord.json import JSONDict
+
+T = TypeVar("T")
 
 
 class JSONChecker:
@@ -108,12 +110,16 @@ class JSONChecker:
             )
         return v
 
-    def retrieve_int_array(self, key: str) -> List[int]:
+    def retrieve_array(self, key: str) -> List[T]:
         json_array = self.d.get(key, None)
         if json_array is None:
             raise Exception(f"{self.description}: {key} not found")
         if not isinstance(json_array, list):
             raise Exception(f"{self.description}: {key} not an array but: {json_array}")
+        return json_array
+
+    def retrieve_int_array(self, key: str) -> List[int]:
+        json_array: List[Any] = self.retrieve_array(key)
         result: List[int] = []
         for i, number in enumerate(json_array):
             if not isinstance(number, int):
@@ -121,4 +127,15 @@ class JSONChecker:
                     f"{self.description}: {key}[{i}] contains non-integer: {number}"
                 )
             result.append(number)
+        return result
+
+    def retrieve_string_array(self, key: str) -> List[str]:
+        json_array: List[Any] = self.retrieve_array(key)
+        result: List[str] = []
+        for i, s in enumerate(json_array):
+            if not isinstance(s, str):
+                raise Exception(
+                    f"{self.description}: {key}[{i}] contains non-string: {s}"
+                )
+            result.append(s)
         return result

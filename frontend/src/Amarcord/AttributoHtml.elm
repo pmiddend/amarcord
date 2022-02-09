@@ -1,4 +1,4 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoCell, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoForm)
+module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Bootstrap exposing (icon)
@@ -51,8 +51,8 @@ type alias ViewAttributoValueProperties =
     }
 
 
-makeAttributoCell : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
-makeAttributoCell props zone sampleIds attributiValues { name, type_ } =
+viewAttributoCell : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
+viewAttributoCell props zone sampleIds attributiValues { name, type_ } =
     td_
         [ case retrieveAttributoValue name attributiValues of
             Nothing ->

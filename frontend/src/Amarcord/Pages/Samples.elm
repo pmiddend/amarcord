@@ -10,7 +10,7 @@ import Amarcord.Attributo
         , attributoTypeDecoder
         , emptyAttributoMap
         )
-import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoCell, makeAttributoHeader, mutedSubheader, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File, httpCreateFile)
@@ -340,7 +340,7 @@ viewSampleRow zone attributi sample =
         [ td_ [ text (fromInt sample.id) ]
         , td_ [ text sample.name ]
         ]
-            ++ List.map (makeAttributoCell { shortDateTime = False } zone Dict.empty sample.attributi) attributi
+            ++ List.map (viewAttributoCell { shortDateTime = False } zone Dict.empty sample.attributi) attributi
             ++ [ td_ [ files ]
                ]
             ++ [ td_

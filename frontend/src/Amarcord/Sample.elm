@@ -2,6 +2,7 @@ module Amarcord.Sample exposing (..)
 
 import Amarcord.Attributo exposing (AttributoMap, AttributoValue, attributoMapDecoder, encodeAttributoMap)
 import Amarcord.File exposing (File, fileDecoder)
+import Dict
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Maybe.Extra exposing (unwrap)
@@ -47,3 +48,8 @@ encodeSample s =
         , ( "fileIds", Encode.list Encode.int s.files )
         ]
             ++ unwrap [] (\id -> [ ( "id", Encode.int id ) ]) s.id
+
+
+sampleIdDict : List (Sample Int b c) -> Dict.Dict Int String
+sampleIdDict =
+    List.foldr (\s -> Dict.insert s.id s.name) Dict.empty
