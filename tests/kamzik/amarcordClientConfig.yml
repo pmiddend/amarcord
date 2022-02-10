@@ -2,7 +2,7 @@ session: &session
   !Device:kamzik3.devices.deviceSession.DeviceSession
   device_id: Client_session
   config:
-    master_server: &Server 131.169.93.49
+    master_server: &Server 127.0.0.1
     master_port: &Port 30000
     publisher_port: 30001
     attributes:
@@ -16,5 +16,4 @@ devices:
     host: *Server
     port: *Port
     device_id: Runner
-    database_url: sqlite:////tmp/tape-drive.db
-    proposal_id: 1
+    database_url: sqlite+aiosqlite:////tmp/kamzik.db

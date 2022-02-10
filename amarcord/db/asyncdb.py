@@ -649,11 +649,11 @@ class AsyncDB:
         self, conn: Connection, id_: int, attributi: List[DBAttributo]
     ) -> Optional[DBRun]:
         rc = self.tables.run.c
-        r = await conn.execute(
-            sa.select([rc.id, rc.attributi]).where(rc.id == id_)
-        ).one()
+        r = (
+            await conn.execute(sa.select([rc.id, rc.attributi]).where(rc.id == id_))
+        ).fetchone()
         files = await self._retrieve_files(
-            conn, self.tables.run.c.run_id, (self.tables.run.c.run_id == id_)
+            conn, self.tables.run_has_file.c.run_id, (self.tables.run.c.id == id_)
         )
         if r is None:
             return None
