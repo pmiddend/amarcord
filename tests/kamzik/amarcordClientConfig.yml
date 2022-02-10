@@ -1,6 +1,6 @@
 session: &session
   !Device:kamzik3.devices.deviceSession.DeviceSession
-  device_id: Client_session
+  device_id: client_session
   config:
     master_server: &Server 127.0.0.1
     master_port: &Port 30000

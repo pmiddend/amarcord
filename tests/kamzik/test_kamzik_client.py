@@ -2,7 +2,7 @@ from typing import Tuple
 
 import pytest
 
-from amarcord.amici.kamzik.kamzik_client import process_kamzik_metadata
+from amarcord.cli.kamzik_zmq_async_daemon import ingest_kamzik_metadata
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
@@ -36,12 +36,14 @@ async def test_process_kamzik_metadata(
         input_type, input_value = input_type_and_value
 
         name = "aname"
-        await process_kamzik_metadata(
+        await ingest_kamzik_metadata(
             db,
             conn,
-            1,
-            {name: attributo_type_to_schema(input_type)},
-            {name: input_value},
+            {
+                "run_id": 1,
+                "attributi-schema": {name: attributo_type_to_schema(input_type)},
+                "attributi-values": {name: input_value},
+            },
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)

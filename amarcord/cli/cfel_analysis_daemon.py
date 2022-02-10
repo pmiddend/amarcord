@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
-    proposal_id: int  # proposal ID to use
     base_directory: str  # Base directory for raw-processed
     wait_time_seconds: float = 10.0  # How much to wait between analysis runs
     debug: bool = False  # Enable debug mode (creating the database, adding runs instead of assuming they exist)

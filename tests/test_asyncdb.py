@@ -290,7 +290,7 @@ async def test_create_attributo_and_sample_then_delete_attributo() -> None:
         assert samples[0].attributi.select_int(TEST_ATTRIBUTO_NAME) is None
 
 
-async def test_create_and_retrieve_run() -> None:
+async def test_create_and_retrieve_runs() -> None:
     """Create an attributo, then a run, and then retrieve that"""
 
     db = await _get_db()
@@ -325,6 +325,43 @@ async def test_create_and_retrieve_run() -> None:
         assert (
             runs[0].attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME)
             == TEST_ATTRIBUTO_VALUE
+        )
+
+
+async def test_create_and_retrieve_run() -> None:
+    """Create an attributo, then a run, and then retrieve just that run"""
+
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        await db.create_attributo(
+            conn,
+            TEST_ATTRIBUTO_NAME,
+            TEST_ATTRIBUTO_DESCRIPTION,
+            TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeInt(),
+        )
+
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+
+        await db.create_run(
+            conn,
+            run_id=TEST_RUN_ID,
+            attributi=AttributiMap.from_types_and_json(
+                attributi,
+                sample_ids=await db.retrieve_sample_ids(conn),
+                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+            ),
+        )
+
+        run = await db.retrieve_run(conn, TEST_RUN_ID, attributi)
+
+        assert run is not None
+        assert run.id == TEST_RUN_ID
+        assert not run.files
+        assert (
+            run.attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME) == TEST_ATTRIBUTO_VALUE
         )
 
 

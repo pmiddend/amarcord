@@ -47,7 +47,7 @@ EXtra-data = "1.8.1"
 requests = "2.26.0"
 
 # disabled for now, it's a huge dependency
-kamzik3 = "0.7.7"
+# kamzik3 = "0.7.7"
 
 # for correcting UTC timezone for dates
 python-dateutil = "2.8.2"
@@ -91,7 +91,7 @@ pytest-asyncio = "0.17.2"
 amarcord-karabo-bridge-daemon = "amarcord.cli.karabo_bridge_daemon:main"
 amarcord-cfel-analysis-daemon = "amarcord.cli.cfel_analysis_daemon:main"
 amarcord-webserver = "amarcord.cli.webserver:main"
-amarcord-kamzik-daemon = "amarcord.cli.kamzik_daemon:main"
+amarcord-kamzik-daemon = "amarcord.cli.kamzik_zmq_async_daemon:main"
 amarcord-xfel-filesystem-ingester = "amarcord.cli.xfel_filesystem_ingester:main"
 amarcord-karabo-online-ingester = "amarcord.cli.karabo_online_ingester:main"
 amarcord-karabo-bridge-dumper = "amarcord.cli.karabo_bridge_dumper:main"

@@ -653,7 +653,9 @@ class AsyncDB:
             await conn.execute(sa.select([rc.id, rc.attributi]).where(rc.id == id_))
         ).fetchone()
         files = await self._retrieve_files(
-            conn, self.tables.run_has_file.c.run_id, (self.tables.run.c.id == id_)
+            conn,
+            self.tables.run_has_file.c.run_id,
+            (self.tables.run_has_file.c.run_id == id_),
         )
         if r is None:
             return None
