@@ -1,4 +1,4 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Bootstrap exposing (icon)
@@ -112,12 +112,17 @@ viewAttributoValue props zone sampleIds type_ value =
                     text "unsupported list type"
 
         ValueNumber float ->
-            let
-                locale : Locale
-                locale =
-                    { usLocale | decimals = Max 2 }
-            in
-            text (format locale float)
+            text (formatFloatHumanFriendly float)
+
+
+formatFloatHumanFriendly : Float -> String
+formatFloatHumanFriendly float =
+    let
+        locale : Locale
+        locale =
+            { usLocale | decimals = Max 2 }
+    in
+    format locale float
 
 
 type EditStatus

@@ -1,12 +1,10 @@
 import asyncio
-import datetime
 import json
 import os
 import sys
-from dataclasses import dataclass
+import typing
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-import typing
 
 from pint import UnitRegistry
 from quart import Quart, request
@@ -15,6 +13,7 @@ from tap import Tap
 from werkzeug.exceptions import HTTPException
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.asyncdb import create_run_groups
 from amarcord.db.attributi import (
     AttributoConversionFlags,
     datetime_to_attributo_int,
@@ -23,10 +22,9 @@ from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
+from amarcord.db.table_classes import DBFile, DBEvent, DBSample
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type
@@ -417,8 +415,42 @@ async def read_attributi() -> JSONDict:
         }
 
 
+@app.get("/api/analysis/cfel-results")
+async def read_cfel_results() -> JSONDict:
+    async with db.instance.begin() as conn:
+        return {
+            "results": [
+                {
+                    "directoryName": k.directory_name,
+                    "runFrom": k.run_from,
+                    "runTo": k.run_to,
+                    "resolution": k.resolution,
+                    "rsplit": k.rsplit,
+                    "cchalf": k.cchalf,
+                    "ccstar": k.ccstar,
+                    "snr": k.snr,
+                    "completeness": k.completeness,
+                    "multiplicity": k.multiplicity,
+                    "totalMeasurements": k.total_measurements,
+                    "uniqueReflections": k.unique_reflections,
+                    "wilsonB": k.wilson_b,
+                    "outerShell": k.outer_shell,
+                    "numPatterns": k.num_patterns,
+                    "numHits": k.num_hits,
+                    "indexedPatterns": k.indexed_patterns,
+                    "indexedCrystals": k.indexed_crystals,
+                    "comment": k.comment,
+                }
+                for k in sorted(
+                    await db.instance.retrieve_cfel_analysis_results(conn),
+                    key=lambda r: r.run_from,
+                )
+            ]
+        }
+
+
 @app.post("/api/analysis/grouped-runs")
-async def get_grouped_runs() -> JSONDict:
+async def read_grouped_runs() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
@@ -426,51 +458,7 @@ async def get_grouped_runs() -> JSONDict:
 
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
         samples = await db.instance.retrieve_samples(conn, attributi)
-
         runs = await db.instance.retrieve_runs(conn, attributi)
-
-        @dataclass
-        class RunGroup:
-            run_ids: typing.List[int]
-            total_minutes: int
-            attributi_values: typing.Dict[AttributoId, AttributoValue]
-
-        def run_duration(run: DBRun) -> datetime.timedelta:
-            stopped = run.attributi.select_datetime("stopped")
-            started = run.attributi.select_datetime("started")
-            return (
-                datetime.timedelta()
-                if stopped is None or started is None
-                else stopped - started
-            )
-
-        groups: typing.List[RunGroup] = []
-        # Try to fit each run into a group
-        for run in runs:
-            # Fill this run's attributi value combination
-            attributi_values: typing.Dict[AttributoId, AttributoValue] = {}
-            for a in attributi_names:
-                attributi_values[a] = run.attributi.select(a)
-
-            this_run_minutes = int(run_duration(run).total_seconds() / 60)
-
-            # Try to find its group
-            found = False
-            for group in groups:
-                if attributi_values == group.attributi_values:
-                    group.run_ids.append(run.id)
-                    group.total_minutes += this_run_minutes
-                    found = True
-                    break
-
-            if not found:
-                groups.append(
-                    RunGroup(
-                        run_ids=[run.id],
-                        attributi_values=attributi_values,
-                        total_minutes=this_run_minutes,
-                    )
-                )
 
         return {
             "groups": [
@@ -483,7 +471,7 @@ async def get_grouped_runs() -> JSONDict:
                         impl=g.attributi_values,
                     ).to_json(),
                 }
-                for g in groups
+                for g in create_run_groups(attributi_names, runs)
             ],
             "samples": [_encode_sample(s) for s in samples],
             "attributi": [_encode_attributo(a) for a in attributi],

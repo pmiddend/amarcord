@@ -8,6 +8,7 @@ module Amarcord.Attributo exposing
     , attributoIsNumber
     , attributoIsString
     , attributoMapDecoder
+    , attributoRequestDecoder
     , attributoTypeDecoder
     , attributoValueDecoder
     , createAnnotatedAttributoMap
@@ -220,11 +221,16 @@ attributoTypeDecoder =
     Decode.andThen (\x -> resultToJsonDecoder (jsonSchemaToAttributoType x)) jsonSchemaDecoder
 
 
+attributoRequestDecoder : Decode.Decoder (List (Attributo AttributoType))
+attributoRequestDecoder =
+    Decode.field "attributi" (Decode.list (attributoDecoder attributoTypeDecoder))
+
+
 httpGetAndDecodeAttributi : (Result Http.Error (List (Attributo AttributoType)) -> msg) -> Cmd msg
 httpGetAndDecodeAttributi f =
     Http.get
         { url = "/api/attributi"
-        , expect = Http.expectJson f (Decode.field "attributi" (Decode.list (attributoDecoder attributoTypeDecoder)))
+        , expect = Http.expectJson f attributoRequestDecoder
         }
 
 

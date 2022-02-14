@@ -9,9 +9,10 @@ from essential_generators import DocumentGenerator
 from randomname import generate
 from tap import Tap
 
+from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.asyncdb import AsyncDB, create_run_groups
 from amarcord.db.attributi import (
     datetime_to_attributo_int,
 )
@@ -29,12 +30,12 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.dbcontext import CreationMode
+from amarcord.db.dbcontext import CreationMode, Connection
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.table_classes import DBRun
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.numeric_range import NumericRange
-from amarcord.util import safe_max
+from amarcord.util import safe_max, create_intervals
 
 ATTRIBUTO_TRASH = "trash"
 
@@ -270,7 +271,7 @@ async def _start_run(
                     ),
                     ATTRIBUTO_TRASH: random.uniform(0, 1) < 0.1,
                     ATTRIBUTO_PH: random.uniform(0, 14),
-                    ATTRIBUTO_FLOW_RATE: random.uniform(0, 5),
+                    ATTRIBUTO_FLOW_RATE: int(random.uniform(0, 5)),
                     ATTRIBUTO_COMMENT: random_gibberish()
                     if random.uniform(0, 100) > 70
                     else "",
@@ -296,6 +297,43 @@ gen = DocumentGenerator()
 
 def random_gibberish() -> str:
     return gen.sentence()
+
+
+async def _generate_cfel_results(db: AsyncDB, conn: Connection) -> None:
+    grouped_runs = create_run_groups(
+        [ATTRIBUTO_SAMPLE],
+        await db.retrieve_runs(
+            conn, await db.retrieve_attributi(conn, associated_table=None)
+        ),
+    )
+
+    await db.clear_analysis_results(conn, delete_after_run_id=None)
+    for run_group in grouped_runs:
+        for run_from, run_to in create_intervals(sorted(run_group.run_ids)):
+            await db.create_cfel_analysis_result(
+                conn,
+                DBCFELAnalysisResult(
+                    directory_name="/gpfs/cfel/foo/bar/baz",
+                    run_from=run_from,
+                    run_to=run_to,
+                    resolution=f"{random.uniform(1, 5):.2f}A",
+                    rsplit=random.uniform(1, 2),
+                    cchalf=random.uniform(1, 2),
+                    ccstar=random.uniform(1, 2),
+                    snr=random.uniform(1, 2),
+                    completeness=random.uniform(1, 2),
+                    multiplicity=random.uniform(1, 2),
+                    total_measurements=int(random.uniform(1, 30000)),
+                    unique_reflections=int(random.uniform(1, 30000)),
+                    wilson_b=random.uniform(1, 2),
+                    outer_shell="",
+                    num_patterns=int(random.uniform(1, 30000)),
+                    num_hits=int(random.uniform(1, 30000)),
+                    indexed_patterns=int(random.uniform(1, 30000)),
+                    indexed_crystals=int(random.uniform(1, 30000)),
+                    comment=random_gibberish(),
+                ),
+            )
 
 
 async def main_loop(args: Arguments, db: AsyncDB) -> None:
@@ -348,6 +386,9 @@ async def main_loop(args: Arguments, db: AsyncDB) -> None:
                 await db.create_event(
                     conn, EventLogLevel.INFO, random_person_name(), random_gibberish()
                 )
+
+        async with db.begin() as conn:
+            await _generate_cfel_results(db, conn)
 
         await asyncio.sleep(args.wait_time_seconds)
 

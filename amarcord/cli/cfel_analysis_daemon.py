@@ -475,7 +475,7 @@ async def main_loop_iteration(
             await db.clear_cfel_analysis_results(conn, args.process_after_run_id)
             for analysis_result in analysis_results:
                 logger.info("adding %s", analysis_result)
-                await db.add_cfel_analysis_result(
+                await db.create_cfel_analysis_result(
                     conn,
                     replace(
                         analysis_result,

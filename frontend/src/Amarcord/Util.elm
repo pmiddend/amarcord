@@ -1,7 +1,6 @@
 module Amarcord.Util exposing (..)
 
 import Browser.Dom
-import Dict
 import Http
 import Iso8601 exposing (toTime)
 import Json.Decode as Decode
@@ -210,7 +209,7 @@ type alias HereAndNow =
 
 retrieveHereAndNow : Task.Task x HereAndNow
 retrieveHereAndNow =
-    Task.andThen (\zone -> Task.map (\startTime -> HereAndNow zone startTime) now) here
+    Task.map2 HereAndNow here now
 
 
 scrollToTop : (() -> msg) -> Cmd msg
