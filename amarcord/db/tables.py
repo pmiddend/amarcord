@@ -43,6 +43,7 @@ def _table_file(metadata: sa.MetaData) -> sa.Table:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("type", sa.String(length=255), nullable=False),
         sa.Column("file_name", sa.String(length=255), nullable=False),
+        sa.Column("size_in_bytes", sa.Integer(), nullable=False),
         sa.Column("sha256", sa.String(length=40), nullable=False),
         sa.Column("modified", sa.DateTime(), nullable=False),
         sa.Column("contents", sa.LargeBinary(), nullable=False),

@@ -23,6 +23,7 @@ class DBFile:
     description: str
     type_: str
     file_name: str
+    size_in_bytes: int
 
 
 @dataclass(frozen=True)

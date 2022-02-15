@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from amarcord.db.associated_table import AssociatedTable
@@ -494,3 +496,26 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
 
         runs = await db.retrieve_runs(conn, attributi)
         assert runs[0].attributi.select_sample_id(TEST_ATTRIBUTO_NAME) is None
+
+
+async def test_create_and_retrieve_file() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        result = await db.create_file(
+            conn, "name.txt", "my description", Path(__file__).parent / "test-file.txt"
+        )
+
+        assert result.id > 0
+        assert result.type_ == "text/plain"
+
+        (
+            file_name,
+            mime_type,
+            _contents,
+            file_size_in_bytes,
+        ) = await db.retrieve_file(conn, result.id)
+
+        assert file_name == "name.txt"
+        assert mime_type == "text/plain"
+        assert file_size_in_bytes == 17

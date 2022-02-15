@@ -386,7 +386,12 @@ def _encode_attributo(a: DBAttributo) -> JSONDict:
 @app.get("/api/files/<int:file_id>")
 async def read_file(file_id: int):
     async with db.instance.connect() as conn:
-        file_name, mime_type, contents = await db.instance.retrieve_file(conn, file_id)
+        (
+            file_name,
+            mime_type,
+            contents,
+            _file_size_in_bytes,
+        ) = await db.instance.retrieve_file(conn, file_id)
 
     async def async_generator():
         yield contents

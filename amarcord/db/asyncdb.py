@@ -1,5 +1,6 @@
 import datetime
 import itertools
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -101,13 +102,14 @@ class AsyncDB:
 
     async def retrieve_file(
         self, conn: Connection, file_id: int
-    ) -> Tuple[str, str, bytes]:
+    ) -> Tuple[str, str, bytes, int]:
         result = await conn.execute(
             sa.select(
                 [
                     self.tables.file.c.file_name,
                     self.tables.file.c.type,
                     self.tables.file.c.contents,
+                    self.tables.file.c.size_in_bytes,
                 ]
             ).where(self.tables.file.c.id == file_id)
         )
@@ -190,6 +192,7 @@ class AsyncDB:
                     self.tables.file.c.description,
                     self.tables.file.c.file_name,
                     self.tables.file.c.type,
+                    self.tables.file.c.size_in_bytes,
                 ]
             )
             .select_from(
@@ -215,6 +218,7 @@ class AsyncDB:
                     description=row["description"],
                     type_=row["type"],
                     file_name=row["file_name"],
+                    size_in_bytes=row["size_in_bytes"],
                 )
                 for row in group
             ]
@@ -432,6 +436,11 @@ class AsyncDB:
 
         sha256 = sha256_file(contents_location)
         with contents_location.open("rb") as f:
+            old_file_position = f.tell()
+            f.seek(0, os.SEEK_END)
+            size_in_bytes = f.tell()
+            f.seek(old_file_position, os.SEEK_SET)
+
             return CreateFileResult(
                 id=(
                     await conn.execute(
@@ -443,6 +452,7 @@ class AsyncDB:
                             file_name=file_name,
                             description=description,
                             sha256=sha256,
+                            size_in_bytes=size_in_bytes,
                         )
                     )
                 ).inserted_primary_key[0],
