@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from getpass import getuser
 from os import getuid
-from pathlib import Path
-from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -11,7 +9,10 @@ from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
 from amarcord.amici.slurm.job_controller import JobController
-from amarcord.amici.slurm.slurm_rest_job_controller import ConstantTokenRetriever
+from amarcord.amici.slurm.slurm_rest_job_controller import (
+    ConstantTokenRetriever,
+    TokenRetriever,
+)
 from amarcord.amici.slurm.slurm_rest_job_controller import DynamicTokenRetriever
 from amarcord.amici.slurm.slurm_rest_job_controller import SlurmRestJobController
 from amarcord.amici.slurm.slurm_rest_job_controller import retrieve_jwt_token
@@ -19,8 +20,7 @@ from amarcord.amici.slurm.slurm_rest_job_controller import retrieve_jwt_token
 
 @dataclass(frozen=True)
 class LocalJobControllerConfig:
-    sqliteFile: Path
-    tag: Optional[str]
+    pass
 
 
 @dataclass(frozen=True)
@@ -64,10 +64,7 @@ def parse_job_controller(
         return result[0]
 
     if jcc.scheme == "local":
-        return LocalJobControllerConfig(
-            Path(get_raise_missing("sqliteFile")),
-            tag=get_or_none("tag"),
-        )
+        return LocalJobControllerConfig()
     if jcc.scheme in ("slurmrest", "slurmrestsecure"):
         partition = get_raise_missing("partition")
         tag = get_or_none("tag")
@@ -93,15 +90,15 @@ def create_job_controller(
 ) -> JobController:
     if isinstance(config, LocalJobControllerConfig):
         raise Exception("local job controller not supported right now")
-    token_retriever: Callable[[], str]
+    token_retriever: TokenRetriever
     if config.jwtToken is not None:
         token_retriever = ConstantTokenRetriever(config.jwtToken)
     else:
         token_retriever = DynamicTokenRetriever(retrieve_jwt_token)
     return SlurmRestJobController(
-        config.partition,
-        token_retriever,
-        config.user_id,
-        config.url,
-        config.user,
+        partition=config.partition,
+        token_retriever=token_retriever,
+        user_id=config.user_id,
+        rest_url=config.url,
+        rest_user=config.user,
     )

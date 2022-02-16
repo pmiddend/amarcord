@@ -39,19 +39,14 @@ pint = '0.16.1'
 karabo-bridge = "0.6.1"
 # for the daemon
 msgpack = "1.0.2"
-# for the daemon
-msgpack-types = "0.1.0"
 # for offline ingest
 EXtra-data = "1.8.1"
-# for SLURM REST
-requests = "2.26.0"
 
 # disabled for now, it's a huge dependency
 # kamzik3 = "0.7.7"
 
 # for correcting UTC timezone for dates
 python-dateutil = "2.8.2"
-types-python-dateutil = "2.8.3"
 tqdm = "4.62.3"
 # for the webserver
 quart = "0.16.2"
@@ -63,7 +58,6 @@ aiosqlite = "0.17.0"
 asyncmy = "0.2.3"
 # for time zone detection and conversion of timestamps in attributi
 pytz = "2021.3"
-types-pytz = "2021.3.4"
 # to test incoming files for their mime types
 python-magic = "0.4.24"
 # to parse/coparse toml files for xwiz
@@ -72,20 +66,27 @@ toml = "0.10.2"
 randomname = "0.1.5"
 # For the experiment simulator
 essential-generators = "1.0"
+# For http requests
+aiohttp = "3.8.1"
 
 [tool.poetry.dev-dependencies]
 black = '21.9b0'
 mypy = '0.930'
+types-pytz = "2021.3.4"
 pylint = '2.12.2'
 pyfakefs = '4.5.3'
+# for the daemon
+msgpack-types = "0.1.0"
 pytest = '6.2.5'
 hypothesis = '6.27.1'
 pytest-cov = '2.12.1'
+types-python-dateutil = "2.8.3"
 # slurm
 types-requests = "2.26.0"
 # config file
 types-PyYAML = '5.4.12'
 pytest-asyncio = "0.17.2"
+pytest-subprocess = "1.4.1"
 
 [tool.poetry.scripts]
 amarcord-karabo-bridge-daemon = "amarcord.cli.karabo_bridge_daemon:main"

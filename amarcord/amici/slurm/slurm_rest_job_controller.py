@@ -1,27 +1,29 @@
+import asyncio
 import datetime
 import json
 import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Optional
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import TypedDict
 from typing import Union
 
-import requests
-from requests import Response
+import aiohttp
 
-from amarcord.json import JSONDict
-from amarcord.util import last_line_of_file
-from amarcord.amici.slurm.job import Job
+from amarcord.amici.slurm.job import Job, JobMetadata
 from amarcord.amici.slurm.job_controller import JobController
 from amarcord.amici.slurm.job_controller import JobStartError
 from amarcord.amici.slurm.job_controller import JobStartResult
 from amarcord.amici.slurm.slurm_util import build_sbatch
 from amarcord.amici.slurm.slurm_util import parse_job_state
+from amarcord.json import JSONDict
+from amarcord.util import last_line_of_file
+
+_DESY_SLURM_URL = "https://max-portal.desy.de/sapi/slurm/v0.0.36"
 
 logger = logging.getLogger(__name__)
 
@@ -31,70 +33,92 @@ class TokenRetrievalError:
     message: str
 
 
-def retrieve_jwt_token(lifespan_seconds: int) -> Union[str, TokenRetrievalError]:
+def slurm_token_command(lifespan_minutes: Union[int, float]) -> List[str]:
+    return ["slurm_token", "-l", str(int(lifespan_minutes))]
+
+
+async def retrieve_jwt_token(lifespan_seconds: int) -> Union[str, TokenRetrievalError]:
     try:
-        result = subprocess.run(
-            ["scontrol", "token", f"lifespan={lifespan_seconds}"],
-            capture_output=True,
-            check=True,
-            encoding="utf-8",
+        result = await (
+            asyncio.create_subprocess_shell(
+                " ".join(slurm_token_command(lifespan_seconds // 60)),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
         )
 
-        if not result.stdout.startswith("SLURM_JWT="):
+        stdout, stderr = await result.communicate()
+
+        if result.returncode != 0:
+            return TokenRetrievalError(
+                f"slurm_token gave an error trying to get a token! standard output is {stdout.decode('utf-8')}, standard error is {stderr.decode('utf-8')}"
+            )
+
+        PREFIX = "SLURM_TOKEN="
+        if not stdout.startswith(PREFIX.encode("utf-8")):
             return TokenRetrievalError(
                 f"scontrol output did not start with SLURM_JWT= but was {result.stdout}"
             )
 
-        return result.stdout[10:].strip()
+        return stdout.decode("utf-8")[len(PREFIX) :].strip()
     except FileNotFoundError:
         return TokenRetrievalError(
-            'Couldn\'t find the "scontrol" tool! Are you on Maxwell?'
-        )
-    except subprocess.CalledProcessError as e:
-        return TokenRetrievalError(
-            f"scontrol gave an error trying to get a token! standard output is {e.stdout}, standard error is {e.stderr}"
+            'Couldn\'t find the "slurm_token" tool! Are you on Maxwell?'
         )
 
 
-TokenRetriever = Callable[[], str]
+TokenRetriever = Callable[[], Awaitable[str]]
 
 
 class ConstantTokenRetriever:
     def __init__(self, token: str) -> None:
         self.token = token
 
-    def __call__(self) -> str:
+    async def __call__(self) -> str:
         return self.token
 
 
 class DynamicTokenRetriever:
     def __init__(
-        self, retriever: Callable[[int], Union[str, TokenRetrievalError]]
+        self, retriever: Callable[[int], Awaitable[Union[str, TokenRetrievalError]]]
     ) -> None:
         self._token_lifetime_seconds = 86400
         self._retriever = retriever
-        token = self._retriever(self._token_lifetime_seconds)
-        if isinstance(token, TokenRetrievalError):
-            raise Exception(f"couldn't retrieve token: {token.message}")
-        self._token: str = token
+        self._token: Optional[str] = None
         self._last_retrieval = datetime.datetime.utcnow()
 
-    def __call__(self) -> str:
+    async def __call__(self) -> str:
         now = datetime.datetime.utcnow()
-        if (now - self._last_retrieval).total_seconds() > self._token_lifetime_seconds:
+        if (
+            self._token is None
+            or (now - self._last_retrieval).total_seconds()
+            > self._token_lifetime_seconds
+        ):
             logger.info("renewing jwt token")
-            token = self._retriever(self._token_lifetime_seconds)
+            token = await self._retriever(self._token_lifetime_seconds)
             if isinstance(token, TokenRetrievalError):
                 raise Exception(f"couldn't retrieve token: {token.message}")
             self._token = token
         return self._token
 
 
-def _convert_job(job: Dict[str, Any]) -> Job:
+def _convert_job(job: JSONDict) -> Optional[Job]:
+    job_state = job.get("job_state", None)
+    if job_state is None:
+        return None
+    assert isinstance(job_state, str)
+    job_start_time = job.get("start_time", None)
+    if job_start_time is None:
+        return None
+    assert isinstance(job_start_time, (float, int)), f"start time is {job_start_time}"
+    job_id = job.get("job_id", None)
+    if job_id is None:
+        return None
+    assert isinstance(job_id, int)
     return Job(
-        status=parse_job_state(job["job_state"]),
-        started=datetime.datetime.utcfromtimestamp(job["start_time"]),
-        metadata={"job_id": job["job_id"]},
+        status=parse_job_state(job_state),
+        started=datetime.datetime.utcfromtimestamp(job_start_time),
+        metadata=JobMetadata({"job_id": job_id}),
     )
 
 
@@ -105,20 +129,24 @@ class SlurmError(TypedDict):
 
 class SlurmHttpWrapper:
     # pylint: disable=unused-argument,no-self-use
-    def post(self, url: str, headers: Dict[str, Any], data: str) -> Response:
+    async def post(self, url: str, headers: Dict[str, Any], data: JSONDict) -> JSONDict:
         ...
 
     # pylint: disable=unused-argument,no-self-use
-    def get(self, url: str, headers: Dict[str, Any]) -> Response:
+    async def get(self, url: str, headers: Dict[str, Any]) -> JSONDict:
         ...
 
 
 class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
-    def post(self, url: str, headers: Dict[str, Any], data: str) -> Response:
-        return requests.post(url, headers=headers, data=data)
+    async def post(self, url: str, headers: Dict[str, Any], data: JSONDict) -> JSONDict:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=data) as response:
+                return await response.json()
 
-    def get(self, url: str, headers: Dict[str, Any]) -> Response:
-        return requests.get(url, headers=headers)
+    async def get(self, url: str, headers: Dict[str, Any]) -> JSONDict:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                return await response.json()
 
 
 def slurm_file_contains_preemption(p: Path) -> bool:
@@ -128,16 +156,17 @@ def slurm_file_contains_preemption(p: Path) -> bool:
 
 
 class SlurmRestJobController(JobController):
+    # Super class is Protocol which gives an error (protocols aren't instantiated)
+    # pylint: disable=super-init-not-called
     def __init__(
         self,
         partition: str,
         token_retriever: TokenRetriever,
         user_id: int,
-        rest_url: str = "http://max-portal.desy.de/sapi/slurm/v0.0.36",
-        rest_user: str = "pmidden",
+        rest_user: str,
+        rest_url: str = _DESY_SLURM_URL,
         request_wrapper: SlurmHttpWrapper = SlurmRequestsHttpWrapper(),
     ) -> None:
-        super().__init__()
         self._partition = partition
         self._token_retriever = token_retriever
         self._rest_url = rest_url
@@ -145,21 +174,22 @@ class SlurmRestJobController(JobController):
         self._user_id = user_id
         self._request_wrapper = request_wrapper
 
-    def _headers(self) -> Dict[str, str]:
+    async def _headers(self) -> Dict[str, str]:
         return {
             "Content-Type": "application/json",
             "X-SLURM-USER-NAME": self._rest_user,
-            "X-SLURM-USER-TOKEN": self._token_retriever(),
+            "X-SLURM-USER-TOKEN": await self._token_retriever(),
         }
 
     def should_restart(self, job_id: int, output_directory: Path) -> bool:
         return slurm_file_contains_preemption(output_directory / "stderr.txt")
 
-    def start_job(
+    async def start_job(
         self,
         path: Path,
         executable: Path,
         command_line: str,
+        time_limit: datetime.timedelta,
         extra_files: List[Path],
     ) -> JobStartResult:
         # the path may be non-empty due to preemption and restart (see next line why we're not doing that in the script
@@ -167,9 +197,9 @@ class SlurmRestJobController(JobController):
         if path.is_dir():
             path.rmdir()
 
-        # Long-term, this is bad, because the reason we're using the REST API is because we then don't
+        # Long-term, this is bad, because the reason we're using the REST API is that we then don't
         # need real physical access to the file system. This mkdir call enforces it, however.
-        # The reason this is here is because if we don't create the basedir, we have to have a location for
+        # The reason this is here is that if we don't create the basedir, we have to have a location for
         # the slurm.out file (which predates the shell mkdir call below)
         path.mkdir(parents=True, exist_ok=True)
 
@@ -187,16 +217,15 @@ class SlurmRestJobController(JobController):
         logger.info(
             "sending the following sbatch script to %s (headers %s): %s",
             url,
-            json.dumps(self._headers()),
+            json.dumps(await self._headers()),
             sbatch_content,
         )
-        json_request = {
+        json_request: JSONDict = {
             "script": sbatch_content,
             "job": {
                 "nodes": 1,
                 "current_working_directory": str(path),
-                # Hard-coded right now for no reason in particular.
-                "time_limit": 24 * 60,
+                "time_limit": int(time_limit.total_seconds()) // 60,
                 "requeue": True,
                 "environment": {
                     "SHELL": "/bin/bash",
@@ -208,12 +237,18 @@ class SlurmRestJobController(JobController):
                 "standard_error": str(path / "stderr.txt"),
             },
         }
-        response = self._request_wrapper.post(
-            url, headers=self._headers(), data=json.dumps(json_request)
+        logger.info(
+            f"sending the following request: {json_request}",
         )
-        logger.info("response was %s: %s", response.status_code, response.text)
-        response_json = response.json()
-        errors: List[SlurmError] = response_json.get("errors", None)
+        try:
+            response = await self._request_wrapper.post(
+                url, headers=await self._headers(), data=json_request
+            )
+        except Exception as e:
+            raise JobStartError(f"error starting job {e}")
+        logger.info("response was %s", json.dumps(response))
+        response_json = response
+        errors: List[SlurmError] = response_json.get("errors", None)  # type: ignore
         if errors is not None and errors:
             raise JobStartError(
                 "there were slurm errors: "
@@ -224,40 +259,45 @@ class SlurmRestJobController(JobController):
             raise JobStartError(
                 "slurm response didn't contain a job ID: " + json.dumps(response_json)
             )
-        return JobStartResult({"job_id": job_id, "user_id": self._user_id}, path)
+        return JobStartResult(
+            JobMetadata({"job_id": job_id, "user_id": self._user_id}), path
+        )
 
-    def job_matches(self, job: Dict[str, Any]) -> bool:
+    def job_matches(self, job: JSONDict) -> bool:
         """Check if the given job dict (from SLURM) is "relevant for us" """
         return job.get("user_id", 0) == self._user_id
 
-    def list_jobs(self) -> List[Job]:
-        response_raw = self._request_wrapper.get(
-            f"{self._rest_url}/jobs", headers=self._headers()
+    async def list_jobs(self) -> List[Job]:
+        response = await self._request_wrapper.get(
+            f"{self._rest_url}/jobs", headers=await self._headers()
         )
-        try:
-            response = response_raw.json()
-        except:
-            logger.exception("couldn't decode json response %s", response_raw.text)
-            raise
         errors = response.get("errors", None)
+        assert errors is None or isinstance(errors, list)
         if errors is not None and errors:
-            raise Exception("list job request contained errors: " + ",".join(errors))
+            raise Exception("list job request contained errors: " + ",".join(errors))  # type: ignore
         if "jobs" not in response:
             raise Exception(
                 "didn't get any jobs in the response: " + json.dumps(response)
             )
         jobs = response.get("jobs", [])
+        assert isinstance(jobs, list)
         if not jobs:
             logger.info(
                 "jobs array actually empty (token expired probably): %s",
                 json.dumps(response),
             )
             raise Exception("jobs array empty, token expired?")
-        return [_convert_job(job) for job in jobs if self.job_matches(job)]
+        return [
+            j
+            for j in (_convert_job(job) for job in jobs if self.job_matches(job))
+            if j is not None
+        ]
 
-    def equals(self, metadata_a: JSONDict, metadata_b: JSONDict) -> bool:
+    def equals(self, metadata_a: JobMetadata, metadata_b: JobMetadata) -> bool:
         """This is used to bring together jobs in the database and jobs coming from SLURM"""
         return metadata_a.get("job_id", None) == metadata_b.get("job_id", None)
 
-    def is_our_job(self, metadata_a: JSONDict) -> bool:
-        return metadata_a.get("user_id", None) == self._user_id
+    def is_our_job(self, metadata_a: JobMetadata) -> bool:
+        # Used to be that we get all sorts of jobs from Maxwell. Now we only get our own, so no check needed anymore
+        return True
+        # return metadata_a.get("user_id", None) == self._user_id
