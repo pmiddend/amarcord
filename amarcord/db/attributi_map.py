@@ -255,7 +255,13 @@ class AttributiMap:
     def select_unsafe(self, attributo_id: AttributoId) -> AttributoValue:
         selected = self.select(attributo_id)
         if selected is None:
-            raise Exception(f'Tried to retrieve "{attributo_id}", but didn\'t find it!')
+            if attributo_id not in self._types:
+                raise Exception(
+                    f'Tried to retrieve "{attributo_id}", but I don\'t even know the attributo!'
+                )
+            raise Exception(
+                f'Tried to retrieve "{attributo_id}" value, but didn\'t find the value!'
+            )
         return selected
 
     def select_datetime(self, attributo_id: AttributoId) -> Optional[datetime.datetime]:

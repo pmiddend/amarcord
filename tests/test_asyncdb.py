@@ -366,6 +366,15 @@ async def test_create_and_retrieve_run() -> None:
             run.attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME) == TEST_ATTRIBUTO_VALUE
         )
 
+        run = await db.retrieve_latest_run(conn, attributi)
+
+        assert run is not None
+        assert run.id == TEST_RUN_ID
+        assert not run.files
+        assert (
+            run.attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME) == TEST_ATTRIBUTO_VALUE
+        )
+
 
 async def test_create_attributo_and_run_then_change_attributo() -> None:
     """Create an attributo, then a run, then change the attributo. Should propagate to the run"""

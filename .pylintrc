@@ -130,7 +130,7 @@ min-similarity-lines=4
 contextmanager-decorators=contextlib.contextmanager
 
 # See https://github.com/zeromq/pyzmq/issues/1018
-generated-members=SUB,SUBSCRIBE,EVENT_DISCONNECTED,EVENT_HANDSHAKE_SUCCEEDED,REQ,RCVTIMEO,EVENT_CONNECTED
+generated-members=SUB,SUBSCRIBE,EVENT_DISCONNECTED,EVENT_HANDSHAKE_SUCCEEDED,REQ,RCVTIMEO,EVENT_CONNECTED,PUB
 
 # Tells whether missing members accessed in mixin class should be ignored. A
 # mixin class is detected if its name ends with "mixin" (case insensitive).

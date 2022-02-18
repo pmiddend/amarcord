@@ -702,6 +702,18 @@ class AsyncDB:
             )
         ]
 
+    async def retrieve_latest_run(
+        self, conn: Connection, attributi: List[DBAttributo]
+    ) -> Optional[DBRun]:
+        maximum_id = (
+            await conn.execute(sa.select([sa.func.max(self.tables.run.c.id)]))
+        ).fetchone()
+
+        if maximum_id is None:
+            return None
+
+        return await self.retrieve_run(conn, maximum_id[0], attributi)
+
     async def retrieve_run(
         self, conn: Connection, id_: int, attributi: List[DBAttributo]
     ) -> Optional[DBRun]:

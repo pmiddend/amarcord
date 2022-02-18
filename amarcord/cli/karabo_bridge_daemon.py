@@ -12,11 +12,11 @@ from karabo_bridge import deserialize
 from tap import Tap
 from zmq.asyncio import Context
 
-from amarcord.amici.onda.zeromq import TrainRange
 from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
 from amarcord.amici.xfel.karabo_configuration import parse_karabo_configuration_file
 from amarcord.amici.xfel.karabo_general import ingest_attributi
 from amarcord.amici.xfel.karabo_general import ingest_karabo_action
+from amarcord.amici.xfel.train_range import TrainRange
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.dbcontext import CreationMode
