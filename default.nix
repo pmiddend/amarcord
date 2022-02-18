@@ -200,7 +200,6 @@ in pythonPkgs.buildPythonApplication rec {
       pyzmq
       pandas
       pubchempy
-      humanize
       matplotlib
       pint
       karabo-bridge

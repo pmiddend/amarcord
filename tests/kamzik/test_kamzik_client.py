@@ -2,7 +2,7 @@ from typing import Tuple
 
 import pytest
 
-from amarcord.cli.kamzik_zmq_async_daemon import ingest_kamzik_metadata
+from amarcord.amici.kamzik.kamzik_zmq_client import ingest_kamzik_metadata
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB

@@ -10,6 +10,7 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributo_type import AttributoTypeInt
 
+
 ATTRIBUTO_STOPPED = "stopped"
 ATTRIBUTO_NUMBER_OF_HITS = "hits"
 ATTRIBUTO_NUMBER_OF_FRAMES = "frames"

@@ -3,23 +3,20 @@ import json
 import logging
 import pickle
 from asyncio import FIRST_COMPLETED
+from typing import Final, Dict, Any, Optional
 from base64 import b64decode
-from typing import Any, Dict, Final, Optional
 
 import numpy as np
 import zmq
 import zmq.asyncio
 from pint import UnitRegistry
-from tap import Tap
 from zmq.utils.monitor import parse_monitor_message
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.dbcontext import CreationMode, Connection
-from amarcord.db.tables import create_tables_from_metadata
+from amarcord.db.dbcontext import Connection
 from amarcord.json import JSONDict
 from amarcord.json_schema import parse_schema_type
 
@@ -40,13 +37,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-
-class Arguments(Tap):
-    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
-    kamzik_host: str
-    kamzik_port: int
-    kamzik_device_id: str = "Runner"
 
 
 def JsonKamzikHook(dct: Dict[str, Any]) -> Any:
@@ -179,27 +169,24 @@ async def ingest_kamzik_metadata(
         await db.create_run(conn, run_id, attributi_map)
 
 
-async def _main_loop(args: Arguments) -> None:
+async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None:
     ctx = zmq.asyncio.Context()
     socket = ctx.socket(zmq.REQ)
     socket.setsockopt(zmq.RCVTIMEO, 20000)
-    socket.connect(f"tcp://{args.kamzik_host}:{args.kamzik_port}")
+    socket.connect(socket_url)
     monitor_socket = socket.get_monitor_socket()
-    db_context = AsyncDBContext(args.db_connection_url)
-    db = AsyncDB(db_context, create_tables_from_metadata(db_context.metadata))
-    await db_context.create_all(CreationMode.CHECK_FIRST)
 
-    logger.info(f"waiting for connection to {args.kamzik_host}:{args.kamzik_port}...")
+    logger.info(f"waiting for connection to {socket_url}...")
 
     while True:
         message = parse_monitor_message(await monitor_socket.recv_multipart())
         if message["event"] == zmq.EVENT_CONNECTED:
             break
 
-    logger.info(f"connected to {args.kamzik_host}:{args.kamzik_port}")
+    logger.info(f"connected to {socket_url}")
 
     await socket.send_multipart(
-        [INSTRUCTION_INIT, args.kamzik_device_id.encode(encoding="utf-8")], copy=False
+        [INSTRUCTION_INIT, device_id.encode(encoding="utf-8")], copy=False
     )
 
     logger.info("waiting for initial package")
@@ -254,7 +241,7 @@ async def _main_loop(args: Arguments) -> None:
     subscriber_socket.setsockopt(zmq.LINGER, 0)
     subscriber_socket.connect(f"tcp://{publisher_host}:{publisher_port}")
 
-    token = _get_token(args.kamzik_device_id, TOKEN_ATTRIBUTE)
+    token = _get_token(device_id, TOKEN_ATTRIBUTE)
 
     subscriber_socket.setsockopt_string(zmq.SUBSCRIBE, token)
 
@@ -269,7 +256,3 @@ async def _main_loop(args: Arguments) -> None:
         ),
         return_when=FIRST_COMPLETED,
     )
-
-
-if __name__ == "__main__":
-    asyncio.run(_main_loop(Arguments(underscores_to_dashes=True).parse_args()))

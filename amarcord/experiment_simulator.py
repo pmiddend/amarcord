@@ -11,7 +11,6 @@ from tap import Tap
 
 from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB, create_run_groups
 from amarcord.db.attributi import (
     datetime_to_attributo_int,
@@ -30,10 +29,9 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.dbcontext import CreationMode, Connection
+from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.table_classes import DBRun
-from amarcord.db.tables import create_tables_from_metadata
 from amarcord.numeric_range import NumericRange
 from amarcord.util import safe_max, create_intervals
 
@@ -124,25 +122,13 @@ def _generate_attributi_map(
     )
 
 
-def mymain(args: Arguments) -> None:
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    dbcontext = AsyncDBContext(args.db_connection_url, echo=False)
-    db = AsyncDB(dbcontext, create_tables_from_metadata(dbcontext.metadata))
-    asyncio.run(dbcontext.create_all(CreationMode.CHECK_FIRST))
-
-    asyncio.run(_initialize_db(db))
-    asyncio.run(main_loop(args, db))
-
-
 def random_person_name() -> str:
     return random.choice(
         ["Henry", "Alessa", "Dominik", "Sasa", "Jerome", "Vivi", "Aida"]
     )
 
 
-async def _initialize_db(db: AsyncDB) -> None:
+async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
     async with db.begin() as conn:
         if await db.retrieve_attributi(conn, associated_table=None):
             return
@@ -336,7 +322,8 @@ async def _generate_cfel_results(db: AsyncDB, conn: Connection) -> None:
             )
 
 
-async def main_loop(args: Arguments, db: AsyncDB) -> None:
+async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> None:
+    logger.info("starting experiment simulator loop")
     while True:
         async with db.connect() as conn:
             attributi = await db.retrieve_attributi(conn, associated_table=None)
@@ -390,8 +377,4 @@ async def main_loop(args: Arguments, db: AsyncDB) -> None:
         async with db.begin() as conn:
             await _generate_cfel_results(db, conn)
 
-        await asyncio.sleep(args.wait_time_seconds)
-
-
-if __name__ == "__main__":
-    mymain(Arguments(underscores_to_dashes=True).parse_args())
+        await asyncio.sleep(delay_seconds)

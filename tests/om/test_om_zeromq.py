@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from amarcord.amici.om.zeromq import (
+from amarcord.amici.om.client import (
     OmZMQProcessor,
     ATTRIBUTO_NUMBER_OF_HITS,
     ATTRIBUTO_NUMBER_OF_FRAMES,
