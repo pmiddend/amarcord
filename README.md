@@ -80,9 +80,11 @@ And point your browser to http://localhost:8000.
 You can also just build the latest version without any node.js shenenigans by executing:
 
 ```
+cd frontend
 mkdir output
 elm make src/Main.elm --optimize --output output/main.js
-cp App.css index.html output
+cp App.css src/index.html output
 ```
 
-And then opening `index.html` in your browser.
+Then run `amarcord-webserver` (as described above) and go to http://localhost:5000/index.html
+in your browser.
