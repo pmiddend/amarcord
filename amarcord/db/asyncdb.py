@@ -25,9 +25,11 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
+from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.indexing_job import DBIndexingJob
 from amarcord.db.job_status import DBJobStatus
 from amarcord.db.run_group import RunGroup
@@ -520,6 +522,15 @@ class AsyncDB:
                 f"unimplemented: is there a new associated table {new_attributo.associated_table}?"
             )
 
+        for ds in await self.retrieve_data_sets(conn, current_attributi):
+            ds.attributi.convert_attributo(
+                conversion_flags=conversion_flags,
+                old_name=name,
+                new_name=new_attributo.name,
+                after_type=new_attributo.attributo_type,
+            )
+            await self.update_data_set_attributi(conn, ds.id, ds.attributi)
+
     async def add_file_to_sample(
         self, conn: Connection, file_id: int, sample_id: int
     ) -> None:
@@ -840,4 +851,122 @@ class AsyncDB:
                     )
                 )
             ).fetchall()
+        )
+
+    async def create_experiment_type(
+        self, conn: Connection, name: str, experiment_attributi_names: Iterable[str]
+    ) -> None:
+        existing_attributi_names = {
+            a.name for a in await self.retrieve_attributi(conn, associated_table=None)
+        }
+
+        not_found = [
+            a for a in experiment_attributi_names if a not in existing_attributi_names
+        ]
+
+        if not_found:
+            raise Exception(
+                "couldn't find the following attributi: "
+                + ", ".join(experiment_attributi_names)
+            )
+
+        await conn.execute(
+            self.tables.experiment_has_attributo.insert().values(
+                [
+                    {"experiment_type": name, "attributo_name": a}
+                    for a in experiment_attributi_names
+                ]
+            )
+        )
+
+    async def delete_experiment_type(self, conn: Connection, name: str) -> None:
+        await conn.execute(
+            self.tables.experiment_has_attributo.delete().where(
+                self.tables.experiment_has_attributo.c.experiment_type == name
+            )
+        )
+
+    async def retrieve_experiment_types(
+        self, conn: Connection
+    ) -> Iterable[DBExperimentType]:
+        result: List[DBExperimentType] = []
+        etc = self.tables.experiment_has_attributo.c
+        for key, group in itertools.groupby(
+            await conn.execute(
+                sa.select([etc.experiment_type, etc.attributo_name]).order_by(
+                    etc.experiment_type
+                )
+            ),
+            key=lambda row: row["experiment_type"],
+        ):
+            result.append(
+                DBExperimentType(key, [row["attributo_name"] for row in group])
+            )
+        return result
+
+    async def create_data_set(
+        self, conn: Connection, experiment_type: str, attributi: AttributiMap
+    ) -> int:
+        matching_experiment_type: Optional[DBExperimentType] = next(
+            (
+                x
+                for x in await self.retrieve_experiment_types(conn)
+                if x.name == experiment_type
+            ),
+            None,
+        )
+        if matching_experiment_type is None:
+            raise Exception(
+                f'couldn\'t find experiment type named "{matching_experiment_type}"'
+            )
+
+        existing_attributo_names = matching_experiment_type.attributo_names
+
+        superfluous_attributi = attributi.names().difference(existing_attributo_names)
+
+        if superfluous_attributi:
+            raise Exception(
+                "the following attributi are not part of the data set definition: "
+                + ", ".join(superfluous_attributi)
+            )
+
+        return (
+            await conn.execute(
+                self.tables.data_set.insert().values(
+                    experiment_type=experiment_type,
+                    attributi=attributi.to_json(),
+                )
+            )
+        ).inserted_primary_key[0]
+
+    async def delete_data_set(self, conn: Connection, id_: int) -> None:
+        await conn.execute(
+            self.tables.data_set.delete().where(self.tables.data_set.c.id == id_)
+        )
+
+    async def retrieve_data_sets(
+        self, conn: Connection, attributi: List[DBAttributo]
+    ) -> Iterable[DBDataSet]:
+        dc = self.tables.data_set.c
+        return (
+            DBDataSet(
+                id=r["id"],
+                experiment_type=r["experiment_type"],
+                attributi=AttributiMap.from_types_and_json(
+                    attributi, sample_ids=[], raw_attributi=r["attributi"]
+                ),
+            )
+            for r in await conn.execute(
+                sa.select([dc.id, dc.experiment_type, dc.attributi])
+            )
+        )
+
+    async def update_data_set_attributi(
+        self, conn: Connection, id_: int, attributi: AttributiMap
+    ) -> None:
+        dc = self.tables.data_set.c
+        await conn.execute(
+            sa.update(self.tables.data_set)
+            .values(attributi=attributi.to_json())
+            .where(dc.id == id_)
         )

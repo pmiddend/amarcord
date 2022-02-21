@@ -1,6 +1,6 @@
 import datetime
 from dataclasses import replace
-from typing import Dict
+from typing import Dict, Set
 from typing import List
 from typing import Optional
 from typing import cast
@@ -350,3 +350,6 @@ class AttributiMap:
         else:
             self.remove(old_name)
             self.append_single(new_name, after_value)
+
+    def names(self) -> Set[str]:
+        return set(self._attributi.keys())

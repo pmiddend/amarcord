@@ -22,8 +22,10 @@ from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.table_classes import DBFile, DBEvent, DBSample
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
@@ -254,6 +256,108 @@ async def create_file() -> JSONDict:
         "description": description,
         "type_": create_result.type_,
     }
+
+
+@app.post("/api/experiment-types")
+async def create_experiment_type() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        await db.instance.create_experiment_type(
+            conn,
+            name=r.retrieve_safe_str("name"),
+            experiment_attributi_names=r.retrieve_string_array("attributi-names"),
+        )
+
+    return {}
+
+
+def _encode_experiment_type(a: DBExperimentType) -> JSONDict:
+    return {
+        "name": a.name,
+        "attributo-names": a.attributo_names,
+    }
+
+
+@app.get("/api/experiment-types")
+async def read_experiment_types() -> JSONDict:
+    async with db.instance.connect() as conn:
+        if _has_artificial_delay():
+            await asyncio.sleep(3)
+        return {
+            "experiment-types": [
+                _encode_experiment_type(a)
+                for a in await db.instance.retrieve_experiment_types(conn)
+            ]
+        }
+
+
+@app.delete("/api/experiment-types")
+async def delete_experiment_type() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        await db.instance.delete_experiment_type(
+            conn,
+            name=r.retrieve_safe_str("name"),
+        )
+
+    return {}
+
+
+@app.post("/api/data-sets")
+async def create_data_set() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        data_set_id = await db.instance.create_data_set(
+            conn,
+            experiment_type=r.retrieve_safe_str("experiemnt-type"),
+            attributi=AttributiMap.from_types_and_json(
+                await db.instance.retrieve_attributi(conn, associated_table=None),
+                await db.instance.retrieve_sample_ids(conn),
+                r.retrieve_safe_object("attributi"),
+            ),
+        )
+
+    return {"id": data_set_id}
+
+
+def _encode_data_set(a: DBDataSet) -> JSONDict:
+    return {
+        "id": a.id,
+        "experiment-type": a.experiment_type,
+        "attributi": a.attributi.to_json(),
+    }
+
+
+@app.get("/api/data-sets")
+async def read_data_sets() -> JSONDict:
+    async with db.instance.connect() as conn:
+        if _has_artificial_delay():
+            await asyncio.sleep(3)
+        return {
+            "data-sets": [
+                _encode_data_set(a)
+                for a in await db.instance.retrieve_data_sets(
+                    conn,
+                    await db.instance.retrieve_attributi(conn, associated_table=None),
+                )
+            ]
+        }
+
+
+@app.delete("/api/data-sets")
+async def delete_data_set() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        await db.instance.delete_data_set(
+            conn,
+            id_=r.retrieve_safe_int("id"),
+        )
+
+    return {}
 
 
 @app.delete("/api/events")

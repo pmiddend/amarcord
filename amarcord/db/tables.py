@@ -30,7 +30,6 @@ def _table_attributo(metadata: sa.MetaData) -> sa.Table:
             "associated_table",
             sa.Enum(AssociatedTable),
             nullable=False,
-            primary_key=True,
         ),
         sa.Column("json_schema", sa.JSON, nullable=False),
     )
@@ -48,6 +47,32 @@ def _table_file(metadata: sa.MetaData) -> sa.Table:
         sa.Column("modified", sa.DateTime(), nullable=False),
         sa.Column("contents", sa.LargeBinary(), nullable=False),
         sa.Column("description", sa.String(length=255)),
+    )
+
+
+def _table_experiment_has_attributo(
+    metadata: sa.MetaData, attributo: sa.Table
+) -> sa.Table:
+    return sa.Table(
+        "ExperimentHasAttributo",
+        metadata,
+        sa.Column("experiment_type", sa.String(length=255), nullable=False),
+        sa.Column(
+            "attributo_name",
+            sa.String(length=255),
+            ForeignKey(_fk_identifier(attributo.c.name), ondelete="cascade"),
+            nullable=False,
+        ),
+    )
+
+
+def _table_data_set(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "DataSet",
+        metadata,
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("experiment_type", sa.String(length=255), nullable=False),
+        sa.Column("attributi", sa.JSON, nullable=False),
     )
 
 
@@ -182,11 +207,15 @@ class DBTables:
         attributo: sa.Table,
         event_log: sa.Table,
         cfel_analysis_results: sa.Table,
+        experiment_has_attributo: sa.Table,
         file: sa.Table,
+        data_set: sa.Table,
         sample_has_file: sa.Table,
         run_has_file: sa.Table,
         indexing_jobs: sa.Table,
     ) -> None:
+        self.data_set = data_set
+        self.experiment_has_attributo = experiment_has_attributo
         self.run_has_file = run_has_file
         self.event_log = event_log
         self.sample = sample
@@ -202,12 +231,17 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     sample = _table_sample(metadata)
     run = _table_run(metadata)
     file = _table_file(metadata)
+    table_attributo = _table_attributo(metadata)
     return DBTables(
         sample=sample,
         run=run,
-        attributo=_table_attributo(metadata),
+        attributo=table_attributo,
         event_log=_table_event_log(metadata),
         cfel_analysis_results=_table_cfel_analysis_results(metadata),
+        experiment_has_attributo=_table_experiment_has_attributo(
+            metadata, table_attributo
+        ),
+        data_set=_table_data_set(metadata),
         file=file,
         sample_has_file=_table_sample_has_file(metadata, sample, file),
         run_has_file=_table_run_has_file(metadata, run, file),

@@ -528,3 +528,161 @@ async def test_create_and_retrieve_file() -> None:
         assert file_name == "name.txt"
         assert mime_type == "text/plain"
         assert file_size_in_bytes == 17
+
+
+async def test_create_and_retrieve_experiment_types() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        first_name = "a1"
+        await db.create_attributo(
+            conn,
+            name=first_name,
+            description="",
+            group="manual",
+            associated_table=AssociatedTable.RUN,
+            type_=AttributoTypeInt(),
+        )
+        second_name = "a2"
+        await db.create_attributo(
+            conn,
+            name=second_name,
+            description="",
+            group="manual",
+            associated_table=AssociatedTable.RUN,
+            type_=AttributoTypeString(),
+        )
+
+        # First try with a nonexistent attributo name
+        e_type_name = "e1"
+        with pytest.raises(Exception):
+            await db.create_experiment_type(
+                conn, e_type_name, [first_name, second_name + "lol"]
+            )
+
+        # Create the experiment type, then retrieve it, then delete it again and check if that worked
+        await db.create_experiment_type(conn, e_type_name, [first_name, second_name])
+
+        e_types = list(await db.retrieve_experiment_types(conn))
+        assert len(e_types) == 1
+        assert e_types[0].name == e_type_name
+        assert e_types[0].attributo_names == [first_name, second_name]
+
+        # Now delete it again
+        await db.delete_experiment_type(conn, e_type_name)
+
+        assert not (await db.retrieve_experiment_types(conn))
+
+
+async def test_create_and_retrieve_data_sets() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        first_name = "a1"
+        await db.create_attributo(
+            conn,
+            name=first_name,
+            description="",
+            group="manual",
+            associated_table=AssociatedTable.RUN,
+            type_=AttributoTypeInt(),
+        )
+        second_name = "a2"
+        await db.create_attributo(
+            conn,
+            name=second_name,
+            description="",
+            group="manual",
+            associated_table=AssociatedTable.RUN,
+            type_=AttributoTypeString(),
+        )
+
+        # Create experiment type
+        e_type_name = "e1"
+        await db.create_experiment_type(conn, e_type_name, [first_name, second_name])
+
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+
+        raw_attributi = {first_name: 1, second_name: "f"}
+        id_ = await db.create_data_set(
+            conn,
+            e_type_name,
+            AttributiMap.from_types_and_json(
+                types=attributi,
+                sample_ids=await db.retrieve_sample_ids(conn),
+                raw_attributi=raw_attributi,
+            ),
+        )
+
+        assert id_ > 0
+
+        data_sets = list(await db.retrieve_data_sets(conn, attributi))
+
+        assert len(data_sets) == 1
+        assert data_sets[0].id == id_
+        assert data_sets[0].experiment_type == e_type_name
+        assert data_sets[0].attributi.to_json() == raw_attributi
+
+        await db.delete_data_set(conn, id_)
+        assert not list(await db.retrieve_data_sets(conn, attributi))
+
+
+async def test_create_data_set_and_and_change_attributo_type() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        first_name = "a1"
+        await db.create_attributo(
+            conn,
+            name=first_name,
+            description="",
+            group="manual",
+            associated_table=AssociatedTable.RUN,
+            type_=AttributoTypeInt(),
+        )
+        second_name = "a2"
+        await db.create_attributo(
+            conn,
+            name=second_name,
+            description="",
+            group="manual",
+            associated_table=AssociatedTable.RUN,
+            type_=AttributoTypeString(),
+        )
+
+        # Create experiment type
+        e_type_name = "e1"
+        await db.create_experiment_type(conn, e_type_name, [first_name, second_name])
+
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+
+        raw_attributi = {first_name: 1, second_name: "f"}
+        id_ = await db.create_data_set(
+            conn,
+            e_type_name,
+            AttributiMap.from_types_and_json(
+                types=attributi,
+                sample_ids=await db.retrieve_sample_ids(conn),
+                raw_attributi=raw_attributi,
+            ),
+        )
+
+        await db.update_attributo(
+            conn,
+            first_name,
+            AttributoConversionFlags(ignore_units=False),
+            new_attributo=DBAttributo(
+                name=first_name,
+                description="",
+                group="manual",
+                associated_table=AssociatedTable.RUN,
+                attributo_type=AttributoTypeString(),
+            ),
+        )
+
+        data_sets = list(
+            await db.retrieve_data_sets(
+                conn, await db.retrieve_attributi(conn, associated_table=None)
+            )
+        )
+        assert data_sets[0].attributi.select_string(first_name)
