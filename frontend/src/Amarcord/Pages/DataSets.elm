@@ -1,0 +1,193 @@
+module Amarcord.Pages.DataSets exposing (..)
+
+import Amarcord.API.Requests exposing (DataSet, DataSetResult, ExperimentType, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoMapNames, emptyAttributoMap)
+import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoCell, viewAttributoForm)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, viewRemoteData)
+import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Sample exposing (Sample, sampleIdDict)
+import Html exposing (Html, button, div, h4, option, select, table, text)
+import Html.Attributes exposing (class, selected, type_)
+import Html.Events exposing (onClick, onInput)
+import Http exposing (Error(..), Response(..))
+import List.Extra exposing (find)
+import Maybe.Extra exposing (isNothing)
+import RemoteData exposing (RemoteData(..), fromResult)
+import String
+import Time exposing (Zone)
+
+
+type DataSetMsg
+    = DataSetCreated (Result Http.Error ())
+    | DataSetDeleted (Result Http.Error ())
+    | DataSetsReceived (Result Http.Error DataSetResult)
+    | DataSetDeleteSubmit Int
+    | DataSetExperimentTypeChange String
+    | DataSetAttributiChange AttributoNameWithValueUpdate
+    | DataSetSubmit
+
+
+type alias DataSetModel =
+    { createRequest : RemoteData Http.Error ()
+    , deleteRequest : RemoteData Http.Error ()
+    , dataSets : RemoteData Http.Error DataSetResult
+    , newDataSetExperimentType : Maybe String
+    , newDataSetAttributi : EditableAttributiAndOriginal
+    , submitErrors : List String
+    , zone : Zone
+    }
+
+
+initDataSet : Zone -> ( DataSetModel, Cmd DataSetMsg )
+initDataSet zone =
+    ( { createRequest = NotAsked
+      , deleteRequest = NotAsked
+      , dataSets = Loading
+      , newDataSetExperimentType = Nothing
+      , submitErrors = []
+      , newDataSetAttributi = emptyEditableAttributiAndOriginal
+      , zone = zone
+      }
+    , httpGetDataSets DataSetsReceived
+    )
+
+
+updateDataSet : DataSetMsg -> DataSetModel -> ( DataSetModel, Cmd DataSetMsg )
+updateDataSet msg model =
+    case msg of
+        DataSetCreated result ->
+            ( { model | createRequest = fromResult result }, httpGetDataSets DataSetsReceived )
+
+        DataSetDeleted result ->
+            ( { model | deleteRequest = fromResult result }, httpGetDataSets DataSetsReceived )
+
+        DataSetsReceived result ->
+            ( { model | dataSets = fromResult result }, Cmd.none )
+
+        DataSetDeleteSubmit dataSetId ->
+            ( { model | deleteRequest = Loading }, httpDeleteDataSet DataSetDeleted dataSetId )
+
+        DataSetAttributiChange update ->
+            ( { model
+                | newDataSetAttributi =
+                    { originalAttributi = model.newDataSetAttributi.originalAttributi
+                    , editableAttributi = editEditableAttributi model.newDataSetAttributi.editableAttributi update
+                    }
+              }
+            , Cmd.none
+            )
+
+        DataSetSubmit ->
+            case model.newDataSetExperimentType of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just experimentType ->
+                    case convertEditValues model.newDataSetAttributi of
+                        Err errorList ->
+                            ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+
+                        Ok editedAttributi ->
+                            ( { model | createRequest = Loading }, httpCreateDataSet DataSetCreated experimentType editedAttributi )
+
+        DataSetExperimentTypeChange newExperimentType ->
+            case model.dataSets of
+                Success { attributi, experimentTypes } ->
+                    let
+                        matchingExperimentType : Maybe ExperimentType
+                        matchingExperimentType =
+                            find (\et -> et.name == newExperimentType) experimentTypes
+
+                        attributoInExperimentType : Attributo AttributoType -> Bool
+                        attributoInExperimentType attributo =
+                            case matchingExperimentType of
+                                Nothing ->
+                                    False
+
+                                Just et ->
+                                    List.member attributo.name et.attributeNames
+                    in
+                    ( { model
+                        | newDataSetExperimentType = Just newExperimentType
+                        , newDataSetAttributi = createEditableAttributi model.zone (List.filter attributoInExperimentType attributi) emptyAttributoMap
+                      }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+
+viewEditForm : List (Sample Int a b) -> EditableAttributiAndOriginal -> List (Html DataSetMsg)
+viewEditForm samples =
+    List.map (\attributo -> Html.map DataSetAttributiChange (viewAttributoForm samples attributo)) << .editableAttributi
+
+
+viewDataSet : DataSetModel -> List (Html DataSetMsg)
+viewDataSet model =
+    case model.dataSets of
+        NotAsked ->
+            List.singleton <| text ""
+
+        Loading ->
+            List.singleton <| loadingBar "Loading data set..."
+
+        Failure e ->
+            List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ] ] ++ showHttpError e
+
+        Success { samples, attributi, dataSets, experimentTypes } ->
+            let
+                viewAttributiValueRow : AttributoMap AttributoValue -> String -> Html msg
+                viewAttributiValueRow attributoValues name =
+                    case find (\a -> a.name == name) attributi of
+                        Nothing ->
+                            tr_ []
+
+                        Just attributo ->
+                            tr_ [ td_ [ text attributo.name ], td_ [ viewAttributoCell { shortDateTime = False } model.zone (sampleIdDict samples) attributoValues attributo ] ]
+
+                viewAttributiValues : DataSet -> Html msg
+                viewAttributiValues ds =
+                    table [ class "table table-sm" ]
+                        [ thead_ [ tr_ [ th_ [ text "Name" ], th_ [ text "Value" ] ] ]
+                        , tbody_ (List.map (viewAttributiValueRow ds.attributi) (attributoMapNames ds.attributi))
+                        ]
+
+                viewRow : DataSet -> Html DataSetMsg
+                viewRow ds =
+                    tr_
+                        [ td_ [ text (String.fromInt ds.id) ]
+                        , td_ [ text ds.experimentType ]
+                        , td_ [ viewAttributiValues ds ]
+                        , td_ [ button [ class "btn btn-danger btn-sm", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
+                        ]
+
+                viewExperimentTypeOption et =
+                    option [ selected (model.newDataSetExperimentType == Just et.name) ] [ text et.name ]
+            in
+            [ h1_ [ text "Data Sets" ]
+            , form_
+                ([ h5_ [ text "New data set" ]
+                 , div [ class "mb-3" ]
+                    [ select [ class "form-select", onInput DataSetExperimentTypeChange ]
+                        (option [ selected (isNothing model.newDataSetExperimentType) ] [ text "«no value»" ] :: List.map viewExperimentTypeOption experimentTypes)
+                    ]
+                 ]
+                    ++ viewEditForm samples model.newDataSetAttributi
+                    ++ [ button [ type_ "button", class "btn btn-primary mb-3", onClick DataSetSubmit ] [ text "Add type" ]
+                       ]
+                )
+            , viewRemoteData "Deletion successful!" model.deleteRequest
+            , viewRemoteData "Creation successful!" model.createRequest
+            , table [ class "table table-striped" ]
+                [ thead_
+                    [ tr_
+                        [ th_ [ text "ID" ]
+                        , th_ [ text "Experiment Type" ]
+                        , th_ [ text "Attributi" ]
+                        , th_ [ text "Actions" ]
+                        ]
+                    ]
+                , tbody_ (List.map viewRow dataSets)
+                ]
+            ]

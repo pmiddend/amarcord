@@ -312,7 +312,7 @@ async def create_data_set() -> JSONDict:
     async with db.instance.begin() as conn:
         data_set_id = await db.instance.create_data_set(
             conn,
-            experiment_type=r.retrieve_safe_str("experiemnt-type"),
+            experiment_type=r.retrieve_safe_str("experiment-type"),
             attributi=AttributiMap.from_types_and_json(
                 await db.instance.retrieve_attributi(conn, associated_table=None),
                 await db.instance.retrieve_sample_ids(conn),
@@ -336,14 +336,21 @@ async def read_data_sets() -> JSONDict:
     async with db.instance.connect() as conn:
         if _has_artificial_delay():
             await asyncio.sleep(3)
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        samples = await db.instance.retrieve_samples(conn, attributi)
+        experiment_types = await db.instance.retrieve_experiment_types(conn)
         return {
             "data-sets": [
                 _encode_data_set(a)
                 for a in await db.instance.retrieve_data_sets(
                     conn,
-                    await db.instance.retrieve_attributi(conn, associated_table=None),
+                    [s.id for s in samples],
+                    attributi,
                 )
-            ]
+            ],
+            "samples": [_encode_sample(s) for s in samples],
+            "attributi": [_encode_attributo(a) for a in attributi],
+            "experiment-types": [_encode_experiment_type(a) for a in experiment_types],
         }
 
 

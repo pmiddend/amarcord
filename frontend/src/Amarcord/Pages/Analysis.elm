@@ -6,6 +6,7 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, viewAttributoC
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert, showHttpError)
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (div_, h1_, h2_, h3_, input_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Pages.DataSets exposing (DataSetModel, DataSetMsg, initDataSet, updateDataSet, viewDataSet)
 import Amarcord.Pages.ExperimentTypes exposing (ExperimentTypeModel, ExperimentTypeMsg, initExperimentType, updateExperimentType, viewExperimentType)
 import Amarcord.Sample exposing (Sample, sampleDecoder, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow)
@@ -21,7 +22,7 @@ import List.Extra as ListExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import String exposing (join)
 import Task exposing (Task)
-import Tuple exposing (first, second)
+import Tuple exposing (first, mapBoth, second)
 
 
 type alias GroupedRun =
@@ -50,6 +51,7 @@ type Msg
     = InitialRequest (Result Http.Error InitialRequestResponse)
     | ToggleAttributo (Attributo AttributoType)
     | ExperimentTypeMsg ExperimentTypeMsg
+    | DataSetMsg DataSetMsg
     | GroupedRunsReceived (Result Http.Error GroupedRunResponse)
     | GroupedRunsSubmit
 
@@ -67,6 +69,7 @@ type alias Model =
     , selectedAttributi : List (Attributo AttributoType)
     , groupedRunsRequest : RemoteData Http.Error GroupedRunResponse
     , experimentTypeModel : ExperimentTypeModel
+    , dataSetModel : DataSetModel
     }
 
 
@@ -179,6 +182,7 @@ init hereAndNow =
       , selectedAttributi = []
       , groupedRunsRequest = NotAsked
       , experimentTypeModel = first initExperimentType
+      , dataSetModel = first (initDataSet hereAndNow.zone)
       }
     , Cmd.batch
         [ Task.attempt InitialRequest <|
@@ -187,6 +191,7 @@ init hereAndNow =
                 (httpJsonTaskEmptyBody "GET" "/api/attributi" attributoRequestDecoder)
                 (httpJsonTaskEmptyBody "GET" "/api/analysis/cfel-results" cfelResultsDecoder)
         , Cmd.map ExperimentTypeMsg <| second initExperimentType
+        , Cmd.map DataSetMsg <| second (initDataSet hereAndNow.zone)
         ]
     )
 
@@ -355,6 +360,7 @@ view : Model -> Html Msg
 view model =
     div [ class "container" ] <|
         (List.map (Html.map ExperimentTypeMsg) <| viewExperimentType model.experimentTypeModel)
+            ++ (List.map (Html.map DataSetMsg) <| viewDataSet model.dataSetModel)
             ++ (case model.initialRequest of
                     NotAsked ->
                         List.singleton <| text ""
@@ -400,8 +406,7 @@ update msg model =
             ( { model | groupedRunsRequest = Loading }, httpGetGroupedRuns (List.map .name model.selectedAttributi) )
 
         ExperimentTypeMsg experimentTypeMsg ->
-            let
-                ( newModel, cmds ) =
-                    updateExperimentType experimentTypeMsg model.experimentTypeModel
-            in
-            ( { model | experimentTypeModel = newModel }, Cmd.map ExperimentTypeMsg cmds )
+            mapBoth (\newModel -> { model | experimentTypeModel = newModel }) (Cmd.map ExperimentTypeMsg) <| updateExperimentType experimentTypeMsg model.experimentTypeModel
+
+        DataSetMsg dataSetMsg ->
+            mapBoth (\newModel -> { model | dataSetModel = newModel }) (Cmd.map DataSetMsg) <| updateDataSet dataSetMsg model.dataSetModel

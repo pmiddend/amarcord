@@ -1,5 +1,8 @@
-module Amarcord.API.Requests exposing (ExperimentType, httpCreateExperimentType, httpDeleteExperimentType, httpGetExperimentTypes)
+module Amarcord.API.Requests exposing (DataSet, DataSetResult, ExperimentType, httpCreateDataSet, httpCreateExperimentType, httpDeleteDataSet, httpDeleteExperimentType, httpGetDataSets, httpGetExperimentTypes)
 
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, encodeAttributoMap)
+import Amarcord.File exposing (File)
+import Amarcord.Sample exposing (Sample, SampleId, sampleDecoder)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
 import Amarcord.Util exposing (httpDelete)
 import Http exposing (jsonBody)
@@ -30,12 +33,6 @@ maybeErrorToResult x =
             Err error
 
 
-type alias ExperimentType =
-    { name : String
-    , attributeNames : List String
-    }
-
-
 errorDecoder : Decode.Decoder UserError
 errorDecoder =
     Decode.field "error" userErrorDecoder
@@ -44,6 +41,30 @@ errorDecoder =
 maybeErrorDecoder : Decode.Decoder (Maybe UserError)
 maybeErrorDecoder =
     Decode.maybe errorDecoder
+
+
+valueOrError : Decode.Decoder value -> Decode.Decoder (Result UserError value)
+valueOrError valueDecoder =
+    Decode.oneOf [ Decode.map Err errorDecoder, Decode.map Ok valueDecoder ]
+
+
+userErrorOrHttpError : Result Http.Error (Result UserError value) -> Result Http.Error value
+userErrorOrHttpError x =
+    case x of
+        Err y ->
+            Err y
+
+        Ok (Err y) ->
+            Err (userErrorToHttpError y)
+
+        Ok (Ok y) ->
+            Ok y
+
+
+type alias ExperimentType =
+    { name : String
+    , attributeNames : List String
+    }
 
 
 experimentTypeDecoder : Decode.Decoder ExperimentType
@@ -76,27 +97,72 @@ httpDeleteExperimentType f experimentTypeName =
         }
 
 
-valueOrError : Decode.Decoder value -> Decode.Decoder (Result UserError value)
-valueOrError valueDecoder =
-    Decode.oneOf [ Decode.map Err errorDecoder, Decode.map Ok valueDecoder ]
-
-
-userErrorOrHttpError : Result Http.Error (Result UserError value) -> Result Http.Error value
-userErrorOrHttpError x =
-    case x of
-        Err y ->
-            Err y
-
-        Ok (Err y) ->
-            Err (userErrorToHttpError y)
-
-        Ok (Ok y) ->
-            Ok y
-
-
 httpGetExperimentTypes : (Result Http.Error (List ExperimentType) -> msg) -> Cmd msg
 httpGetExperimentTypes f =
     Http.get
         { url = "/api/experiment-types"
         , expect = Http.expectJson (f << userErrorOrHttpError) (valueOrError <| Decode.field "experiment-types" <| Decode.list experimentTypeDecoder)
+        }
+
+
+type alias DataSet =
+    { id : Int
+    , experimentType : String
+    , attributi : AttributoMap AttributoValue
+    }
+
+
+dataSetDecoder : Decode.Decoder DataSet
+dataSetDecoder =
+    Decode.map3 DataSet (Decode.field "id" Decode.int) (Decode.field "experiment-type" Decode.string) (Decode.field "attributi" attributoMapDecoder)
+
+
+httpCreateDataSet : (Result Http.Error () -> msg) -> String -> AttributoMap AttributoValue -> Cmd msg
+httpCreateDataSet f experimentType attributi =
+    Http.post
+        { url = "/api/data-sets"
+        , expect =
+            Http.expectJson (f << maybeErrorToResult) maybeErrorDecoder
+        , body =
+            jsonBody
+                (Encode.object
+                    [ ( "experiment-type", Encode.string experimentType )
+                    , ( "attributi", encodeAttributoMap attributi )
+                    ]
+                )
+        }
+
+
+httpDeleteDataSet : (Result Http.Error () -> msg) -> Int -> Cmd msg
+httpDeleteDataSet f id =
+    httpDelete
+        { url = "/api/data-sets"
+        , body = jsonBody (Encode.object [ ( "id", Encode.int id ) ])
+        , expect = Http.expectJson (f << maybeErrorToResult) maybeErrorDecoder
+        }
+
+
+type alias DataSetResult =
+    { dataSets : List DataSet
+    , attributi : List (Attributo AttributoType)
+    , samples : List (Sample SampleId (AttributoMap AttributoValue) File)
+    , experimentTypes : List ExperimentType
+    }
+
+
+dataSetResultDecoder : Decode.Decoder DataSetResult
+dataSetResultDecoder =
+    Decode.map4
+        DataSetResult
+        (Decode.field "data-sets" <| Decode.list dataSetDecoder)
+        (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
+        (Decode.field "samples" <| Decode.list sampleDecoder)
+        (Decode.field "experiment-types" <| Decode.list experimentTypeDecoder)
+
+
+httpGetDataSets : (Result Http.Error DataSetResult -> msg) -> Cmd msg
+httpGetDataSets f =
+    Http.get
+        { url = "/api/data-sets"
+        , expect = Http.expectJson (f << userErrorOrHttpError) (valueOrError <| dataSetResultDecoder)
         }

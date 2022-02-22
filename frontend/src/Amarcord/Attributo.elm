@@ -8,6 +8,7 @@ module Amarcord.Attributo exposing
     , attributoIsNumber
     , attributoIsString
     , attributoMapDecoder
+    , attributoMapNames
     , attributoRequestDecoder
     , attributoTypeDecoder
     , attributoValueDecoder
@@ -102,6 +103,11 @@ type alias Attributo a =
 
 type AttributoMap a
     = AttributoMap (Dict String a)
+
+
+attributoMapNames : AttributoMap a -> List String
+attributoMapNames (AttributoMap x) =
+    Dict.keys x
 
 
 encodeAttributoMap : AttributoMap AttributoValue -> Encode.Value

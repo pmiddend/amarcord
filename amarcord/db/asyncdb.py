@@ -945,7 +945,7 @@ class AsyncDB:
         )
 
     async def retrieve_data_sets(
-        self, conn: Connection, attributi: List[DBAttributo]
+        self, conn: Connection, sample_ids: List[int], attributi: List[DBAttributo]
     ) -> Iterable[DBDataSet]:
         dc = self.tables.data_set.c
         return (
@@ -953,7 +953,7 @@ class AsyncDB:
                 id=r["id"],
                 experiment_type=r["experiment_type"],
                 attributi=AttributiMap.from_types_and_json(
-                    attributi, sample_ids=[], raw_attributi=r["attributi"]
+                    attributi, sample_ids=sample_ids, raw_attributi=r["attributi"]
                 ),
             )
             for r in await conn.execute(

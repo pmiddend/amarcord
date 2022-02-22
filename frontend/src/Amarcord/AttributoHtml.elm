@@ -1,6 +1,6 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (br_, input_, span_, strongText, td_)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
@@ -357,6 +357,11 @@ type alias EditableAttributiAndOriginal =
     { editableAttributi : EditableAttributi
     , originalAttributi : AttributoMap AttributoValue
     }
+
+
+emptyEditableAttributiAndOriginal : EditableAttributiAndOriginal
+emptyEditableAttributiAndOriginal =
+    { editableAttributi = [], originalAttributi = emptyAttributoMap }
 
 
 unsavedAttributoChanges : EditableAttributi -> Bool
