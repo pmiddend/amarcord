@@ -1,12 +1,13 @@
-module Amarcord.Bootstrap exposing (AlertProperty(..), Button, ButtonType, Icon, icon, loadingBar, makeAlert, showHttpError, spinner)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Button, ButtonType, Icon, icon, loadingBar, makeAlert, showHttpError, spinner, viewRemoteData)
 
-import Amarcord.Html exposing (h4_)
+import Amarcord.Html exposing (div_, h4_, p_)
 import Html as Html exposing (Html, div, h5, i, pre, span, text)
 import Html.Attributes exposing (attribute, class, classList)
 import Html.Events exposing (onClick)
 import Http
 import List exposing (singleton)
 import Maybe.Extra exposing (unwrap)
+import RemoteData exposing (RemoteData(..))
 import String exposing (fromInt)
 
 
@@ -94,6 +95,24 @@ alertPropToCss x =
 makeAlert : List AlertProperty -> List (Html msg) -> Html msg
 makeAlert props content =
     div [ classList <| ( "alert", True ) :: List.map (\x -> ( alertPropToCss x, True )) props ] content
+
+
+viewRemoteData : String.String -> RemoteData Http.Error a -> Html msg
+viewRemoteData message x =
+    case x of
+        NotAsked ->
+            text ""
+
+        Loading ->
+            p_ [ text "Request in progress..." ]
+
+        Failure e ->
+            div_ [ makeAlert [ AlertDanger ] (showHttpError e) ]
+
+        Success _ ->
+            div [ class "mt-3" ]
+                [ makeAlert [ AlertSuccess ] [ text message ]
+                ]
 
 
 showHttpError : Http.Error -> List (Html msg)

@@ -5,11 +5,12 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, Attr
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, viewAttributoCell)
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert, showHttpError)
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, input_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (div_, h1_, h2_, h3_, input_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Pages.ExperimentTypes exposing (ExperimentTypeModel, ExperimentTypeMsg, initExperimentType, updateExperimentType, viewExperimentType)
 import Amarcord.Sample exposing (Sample, sampleDecoder, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
-import Html exposing (Html, button, div, form, h4, hr, label, p, table, td, text)
+import Html exposing (Html, button, div, form, h4, label, p, table, td, text)
 import Html.Attributes exposing (checked, class, disabled, for, id, style, type_)
 import Html.Events exposing (onClick, onInput)
 import Http exposing (Error(..), Response(..), emptyBody, jsonBody, stringResolver)
@@ -19,7 +20,8 @@ import Json.Encode as Encode
 import List.Extra as ListExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import String exposing (join)
-import Task
+import Task exposing (Task)
+import Tuple exposing (first, second)
 
 
 type alias GroupedRun =
@@ -47,6 +49,7 @@ type alias InitialRequestResponse =
 type Msg
     = InitialRequest (Result Http.Error InitialRequestResponse)
     | ToggleAttributo (Attributo AttributoType)
+    | ExperimentTypeMsg ExperimentTypeMsg
     | GroupedRunsReceived (Result Http.Error GroupedRunResponse)
     | GroupedRunsSubmit
 
@@ -63,6 +66,7 @@ type alias Model =
     , initialRequest : RemoteData Http.Error InitialRequestResponse
     , selectedAttributi : List (Attributo AttributoType)
     , groupedRunsRequest : RemoteData Http.Error GroupedRunResponse
+    , experimentTypeModel : ExperimentTypeModel
     }
 
 
@@ -104,8 +108,8 @@ jsonResolver decoder =
     stringResolver (httpResponseToResult (Result.mapError Decode.errorToString << Decode.decodeString decoder))
 
 
-httpJsonTask : String.String -> String.String -> Decode.Decoder a -> Task.Task Error a
-httpJsonTask method url decoder =
+httpJsonTaskEmptyBody : String.String -> String.String -> Decode.Decoder a -> Task.Task Error a
+httpJsonTaskEmptyBody method url decoder =
     Http.task
         { method = method
         , headers = []
@@ -174,12 +178,16 @@ init hereAndNow =
       , initialRequest = Loading
       , selectedAttributi = []
       , groupedRunsRequest = NotAsked
+      , experimentTypeModel = first initExperimentType
       }
-    , Task.attempt InitialRequest <|
-        Task.map2
-            InitialRequestResponse
-            (httpJsonTask "GET" "/api/attributi" attributoRequestDecoder)
-            (httpJsonTask "GET" "/api/analysis/cfel-results" cfelResultsDecoder)
+    , Cmd.batch
+        [ Task.attempt InitialRequest <|
+            Task.map2
+                InitialRequestResponse
+                (httpJsonTaskEmptyBody "GET" "/api/attributi" attributoRequestDecoder)
+                (httpJsonTaskEmptyBody "GET" "/api/analysis/cfel-results" cfelResultsDecoder)
+        , Cmd.map ExperimentTypeMsg <| second initExperimentType
+        ]
     )
 
 
@@ -202,7 +210,8 @@ viewInner model attributi results =
         checkboxes =
             List.map viewCheckbox (List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi)
     in
-    [ div [ class "row" ]
+    [ h1_ [ text "Grouped Runs" ]
+    , div [ class "row" ]
         [ div [ class "col-6" ]
             [ h3_ [ text "Select attributi" ]
             , form [ class "mb-3" ]
@@ -345,18 +354,20 @@ viewResults model =
 view : Model -> Html Msg
 view model =
     div [ class "container" ] <|
-        case model.initialRequest of
-            NotAsked ->
-                List.singleton <| text ""
+        (List.map (Html.map ExperimentTypeMsg) <| viewExperimentType model.experimentTypeModel)
+            ++ (case model.initialRequest of
+                    NotAsked ->
+                        List.singleton <| text ""
 
-            Loading ->
-                List.singleton <| loadingBar "Loading attributi and table..."
+                    Loading ->
+                        List.singleton <| loadingBar "Loading attributi and table..."
 
-            Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ showHttpError e
+                    Failure e ->
+                        List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ showHttpError e
 
-            Success { attributi, results } ->
-                viewInner model attributi results
+                    Success { attributi, results } ->
+                        viewInner model attributi results
+               )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -387,3 +398,10 @@ update msg model =
 
         GroupedRunsSubmit ->
             ( { model | groupedRunsRequest = Loading }, httpGetGroupedRuns (List.map .name model.selectedAttributi) )
+
+        ExperimentTypeMsg experimentTypeMsg ->
+            let
+                ( newModel, cmds ) =
+                    updateExperimentType experimentTypeMsg model.experimentTypeModel
+            in
+            ( { model | experimentTypeModel = newModel }, Cmd.map ExperimentTypeMsg cmds )

@@ -37,6 +37,11 @@ async def _main_loop(args: Arguments) -> None:
     await db_context.create_all(CreationMode.CHECK_FIRST)
 
     awaitables: List[Awaitable[None]] = []
+
+    if args.experiment_simulator_enabled:
+        await experiment_simulator_initialize_db(db)
+        awaitables.append(experiment_simulator_main_loop(db, delay_seconds=5.0))
+
     if args.kamzik_socket_url is not None:
         awaitables.append(
             kamzik_main_loop(db, args.kamzik_socket_url, args.kamzik_device_id)
@@ -53,10 +58,6 @@ async def _main_loop(args: Arguments) -> None:
 
     if args.om_simulator_port is not None:
         awaitables.append(om_simulator_loop(zmq_ctx, 5.0, args.om_simulator_port))
-
-    if args.experiment_simulator_enabled:
-        await experiment_simulator_initialize_db(db)
-        awaitables.append(experiment_simulator_main_loop(db, delay_seconds=5.0))
 
     await asyncio.wait(
         awaitables,
