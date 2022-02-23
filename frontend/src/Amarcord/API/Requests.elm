@@ -1,13 +1,14 @@
-module Amarcord.API.Requests exposing (DataSet, DataSetResult, ExperimentType, httpCreateDataSet, httpCreateExperimentType, httpDeleteDataSet, httpDeleteExperimentType, httpGetDataSets, httpGetExperimentTypes)
+module Amarcord.API.Requests exposing (DataSet, DataSetResult, Event, ExperimentType, Run, RunsResponse, RunsResponseContent, httpCreateDataSet, httpCreateEvent, httpCreateExperimentType, httpDeleteDataSet, httpDeleteEvent, httpDeleteExperimentType, httpGetDataSets, httpGetExperimentTypes, httpGetRuns, httpUpdateRun)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, encodeAttributoMap)
-import Amarcord.File exposing (File)
+import Amarcord.File exposing (File, fileDecoder)
 import Amarcord.Sample exposing (Sample, SampleId, sampleDecoder)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (httpDelete)
+import Amarcord.Util exposing (httpDelete, httpPatch)
 import Http exposing (jsonBody)
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Time exposing (Posix, millisToPosix)
 
 
 userErrorToHttpError : { a | title : String } -> Http.Error
@@ -165,4 +166,105 @@ httpGetDataSets f =
     Http.get
         { url = "/api/data-sets"
         , expect = Http.expectJson (f << userErrorOrHttpError) (valueOrError <| dataSetResultDecoder)
+        }
+
+
+type alias Run =
+    { id : Int
+    , attributi : AttributoMap AttributoValue
+    , files : List File
+    }
+
+
+type alias Event =
+    { id : Int
+    , text : String
+    , source : String
+    , level : String
+    , created : Posix
+    }
+
+
+type alias RunsResponseContent =
+    { runs : List Run
+    , attributi : List (Attributo AttributoType)
+    , events : List Event
+    , samples : List (Sample Int (AttributoMap AttributoValue) File)
+    , dataSets : List DataSet
+    }
+
+
+httpGetRuns : (RunsResponse -> msg) -> Cmd msg
+httpGetRuns f =
+    Http.get
+        { url = "/api/runs"
+        , expect =
+            Http.expectJson f <|
+                Decode.map5 RunsResponseContent
+                    (Decode.field "runs" <| Decode.list runDecoder)
+                    (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
+                    (Decode.field "events" <| Decode.list eventDecoder)
+                    (Decode.field "samples" <| Decode.list sampleDecoder)
+                    (Decode.field "data-sets" <| Decode.list dataSetDecoder)
+        }
+
+
+type alias RunsResponse =
+    Result Http.Error RunsResponseContent
+
+
+runDecoder : Decode.Decoder Run
+runDecoder =
+    Decode.map3
+        Run
+        (Decode.field "id" Decode.int)
+        (Decode.field "attributi" attributoMapDecoder)
+        (Decode.field "files" (Decode.list fileDecoder))
+
+
+eventDecoder : Decode.Decoder Event
+eventDecoder =
+    Decode.map5
+        Event
+        (Decode.field "id" Decode.int)
+        (Decode.field "text" Decode.string)
+        (Decode.field "source" Decode.string)
+        (Decode.field "level" Decode.string)
+        (Decode.field "created" (Decode.map millisToPosix Decode.int))
+
+
+encodeEvent : String.String -> String.String -> Encode.Value
+encodeEvent source text =
+    Encode.object [ ( "source", Encode.string source ), ( "text", Encode.string text ) ]
+
+
+encodeRun : Run -> Encode.Value
+encodeRun run =
+    Encode.object [ ( "id", Encode.int run.id ), ( "attributi", encodeAttributoMap run.attributi ) ]
+
+
+httpCreateEvent : (Result Http.Error (Maybe UserError) -> msg) -> String -> String -> Cmd msg
+httpCreateEvent f source text =
+    Http.post
+        { url = "/api/events"
+        , expect = Http.expectJson f (Decode.maybe (Decode.field "error" userErrorDecoder))
+        , body = jsonBody (encodeEvent source text)
+        }
+
+
+httpUpdateRun : (Result Http.Error (Maybe UserError) -> msg) -> Run -> Cmd msg
+httpUpdateRun f a =
+    httpPatch
+        { url = "/api/runs"
+        , expect = Http.expectJson f (Decode.maybe (Decode.field "error" userErrorDecoder))
+        , body = jsonBody (encodeRun a)
+        }
+
+
+httpDeleteEvent : (Result Http.Error (Maybe UserError) -> msg) -> Int -> Cmd msg
+httpDeleteEvent f eventId =
+    httpDelete
+        { url = "/api/events"
+        , body = jsonBody (Encode.object [ ( "id", Encode.int eventId ) ])
+        , expect = Http.expectJson f (Decode.maybe (Decode.field "error" userErrorDecoder))
         }

@@ -1,127 +1,26 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
+import Amarcord.API.Requests exposing (Event, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, encodeAttributoMap, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, spinner)
 import Amarcord.Constants exposing (manualAttributiGroup)
-import Amarcord.File exposing (File, fileDecoder)
 import Amarcord.Html exposing (form_, h1_, h2_, h5_, input_, li_, p_, strongText, tbody_, td_, th_, thead_, tr_)
-import Amarcord.Sample exposing (Sample, sampleDecoder, sampleIdDict)
-import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, httpDelete, httpPatch, posixBefore, posixDiffHumanFriendly, scrollToTop)
+import Amarcord.Sample exposing (Sample, sampleIdDict)
+import Amarcord.UserError exposing (UserError)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, scrollToTop)
 import Dict exposing (Dict)
 import Hotkeys exposing (onEnter)
 import Html exposing (Html, a, button, div, form, h4, p, span, table, td, text, tr, ul)
 import Html.Attributes exposing (class, colspan, disabled, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (jsonBody)
-import Json.Decode as Decode
-import Json.Encode as Encode
+import Http
 import List exposing (head)
 import Maybe
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import String exposing (fromInt)
-import Time exposing (Posix, Zone, millisToPosix)
-
-
-type alias Run =
-    { id : Int
-    , attributi : AttributoMap AttributoValue
-    , files : List File
-    }
-
-
-type alias Event =
-    { id : Int
-    , text : String
-    , source : String
-    , level : String
-    , created : Posix
-    }
-
-
-type alias RunsResponseContent =
-    { runs : List Run
-    , attributi : List (Attributo AttributoType)
-    , events : List Event
-    , samples : List (Sample Int (AttributoMap AttributoValue) File)
-    }
-
-
-type alias RunsResponse =
-    Result Http.Error RunsResponseContent
-
-
-runDecoder : Decode.Decoder Run
-runDecoder =
-    Decode.map3
-        Run
-        (Decode.field "id" Decode.int)
-        (Decode.field "attributi" attributoMapDecoder)
-        (Decode.field "files" (Decode.list fileDecoder))
-
-
-eventDecoder : Decode.Decoder Event
-eventDecoder =
-    Decode.map5
-        Event
-        (Decode.field "id" Decode.int)
-        (Decode.field "text" Decode.string)
-        (Decode.field "source" Decode.string)
-        (Decode.field "level" Decode.string)
-        (Decode.field "created" (Decode.map millisToPosix Decode.int))
-
-
-encodeEvent : String.String -> String.String -> Encode.Value
-encodeEvent source text =
-    Encode.object [ ( "source", Encode.string source ), ( "text", Encode.string text ) ]
-
-
-encodeRun : Run -> Encode.Value
-encodeRun run =
-    Encode.object [ ( "id", Encode.int run.id ), ( "attributi", encodeAttributoMap run.attributi ) ]
-
-
-httpCreateEvent : String -> String -> Cmd Msg
-httpCreateEvent source text =
-    Http.post
-        { url = "/api/events"
-        , expect = Http.expectJson EventFormSubmitFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        , body = jsonBody (encodeEvent source text)
-        }
-
-
-httpUpdateRun : Run -> Cmd Msg
-httpUpdateRun a =
-    httpPatch
-        { url = "/api/runs"
-        , expect = Http.expectJson RunEditFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        , body = jsonBody (encodeRun a)
-        }
-
-
-httpDeleteEvent : Int -> Cmd Msg
-httpDeleteEvent eventId =
-    httpDelete
-        { url = "/api/events"
-        , body = jsonBody (Encode.object [ ( "id", Encode.int eventId ) ])
-        , expect = Http.expectJson EventDeleteFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        }
-
-
-httpGetRuns : (RunsResponse -> msg) -> Cmd msg
-httpGetRuns f =
-    Http.get
-        { url = "/api/runs"
-        , expect =
-            Http.expectJson f <|
-                Decode.map4 RunsResponseContent
-                    (Decode.field "runs" <| Decode.list runDecoder)
-                    (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
-                    (Decode.field "events" <| Decode.list eventDecoder)
-                    (Decode.field "samples" <| Decode.list sampleDecoder)
-        }
+import Time exposing (Posix, Zone)
 
 
 type Msg
@@ -529,7 +428,7 @@ update msg model =
 
         EventFormSubmit ->
             if eventFormValid model.eventForm then
-                ( { model | eventRequest = Loading }, httpCreateEvent model.eventForm.userName model.eventForm.message )
+                ( { model | eventRequest = Loading }, httpCreateEvent EventFormSubmitFinished model.eventForm.userName model.eventForm.message )
 
             else
                 ( model, Cmd.none )
@@ -546,7 +445,7 @@ update msg model =
                     ( { model | eventRequest = Success (), eventForm = { userName = model.eventForm.userName, message = "" } }, httpGetRuns RunsReceived )
 
         EventDelete eventId ->
-            ( model, httpDeleteEvent eventId )
+            ( model, httpDeleteEvent EventDeleteFinished eventId )
 
         EventDeleteFinished result ->
             case result of
@@ -593,7 +492,7 @@ update msg model =
                                     , files = []
                                     }
                             in
-                            ( { model | runEditRequest = Loading }, httpUpdateRun run )
+                            ( { model | runEditRequest = Loading }, httpUpdateRun RunEditFinished run )
 
         RunEditFinished result ->
             case result of

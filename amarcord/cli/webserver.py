@@ -197,6 +197,7 @@ async def update_run() -> JSONDict:
 async def read_runs() -> JSONDict:
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        samples = await db.instance.retrieve_samples(conn, attributi)
         result = {
             "runs": [
                 {
@@ -207,13 +208,16 @@ async def read_runs() -> JSONDict:
                 for a in await db.instance.retrieve_runs(conn, attributi)
             ],
             "attributi": [_encode_attributo(a) for a in attributi],
+            "data-sets": [
+                _encode_data_set(a)
+                for a in await db.instance.retrieve_data_sets(
+                    conn, [s.id for s in samples], attributi
+                )
+            ],
             "events": [
                 _encode_event(e) for e in await db.instance.retrieve_events(conn)
             ],
-            "samples": [
-                _encode_sample(a)
-                for a in await db.instance.retrieve_samples(conn, attributi)
-            ],
+            "samples": [_encode_sample(a) for a in samples],
         }
         if _has_artificial_delay():
             await asyncio.sleep(3)
@@ -478,8 +482,9 @@ async def delete_attributo() -> JSONDict:
                     conn, typing.cast(int, s.id), s.name, s.attributi
                 )
         else:
-            # FIXME: do this for runs
-            pass
+            for run in await db.instance.retrieve_runs(conn, attributi):
+                run.attributi.remove(attributo_name)
+                await db.instance.update_run_attributi(conn, run.id, run.attributi)
 
     return {}
 
