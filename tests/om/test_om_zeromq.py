@@ -33,17 +33,17 @@ async def test_process_data_without_runs():
     # Send first frame, will be ignored
     await processor.process_data(
         {
-            "total_hits": 0,
-            "total_frames": 0,
-            "timestamp": 100,
+            "num_hits": 0,
+            "num_events": 0,
+            "start_timestamp": 100,
         }
     )
     # Second frame, but we have no runs. Shouldn't crash at least
     await processor.process_data(
         {
-            "total_hits": 10,
-            "total_frames": 100,
-            "timestamp": 100,
+            "num_hits": 10,
+            "num_events": 100,
+            "start_timestamp": 100,
         }
     )
 
@@ -79,17 +79,17 @@ async def test_process_data_latest_run():
     # Send first frame, will be ignored
     await processor.process_data(
         {
-            "total_hits": 3,
-            "total_frames": 5,
-            "timestamp": 100,
+            "num_hits": 3,
+            "num_events": 5,
+            "start_timestamp": 100,
         }
     )
     # Second frame
     await processor.process_data(
         {
-            "total_hits": 7,
-            "total_frames": 11,
-            "timestamp": 100,
+            "num_hits": 7,
+            "num_events": 11,
+            "start_timestamp": 100,
         }
     )
 
@@ -110,9 +110,9 @@ async def test_process_data_latest_run():
 
     await processor.process_data(
         {
-            "total_hits": 9,
-            "total_frames": 13,
-            "timestamp": 100,
+            "num_hits": 9,
+            "num_events": 13,
+            "start_timestamp": 100,
         }
     )
 

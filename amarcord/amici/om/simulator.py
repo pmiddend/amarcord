@@ -23,9 +23,9 @@ async def om_simulator_loop(zmq_ctx: Context, delay_seconds: float, port: int) -
         await publisher.send_string("view:omdata", zmq.SNDMORE)
         await publisher.send_pyobj(
             {
-                "total_hits": total_hits,
-                "total_frames": total_frames,
-                "timestamp": timestamp,
+                "num_hits": total_hits,
+                "num_events": total_frames,
+                "start_timestamp": timestamp,
             }
         )
         new_frames = int(uniform(0, 1000))

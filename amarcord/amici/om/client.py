@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 
 class OmZMQData(BaseModel):
-    total_hits: int
-    total_frames: int
-    timestamp: float
+    num_hits: int
+    num_events: int
+    start_timestamp: float
 
 
 def validate_om_zmq_entry(d: Any) -> Union[str, OmZMQData]:
@@ -98,7 +98,7 @@ class OmZMQProcessor:
         if (
             last_zeromq_data is not None
             and current_zeromq_data is not None
-            and last_zeromq_data.timestamp != current_zeromq_data.timestamp
+            and last_zeromq_data.start_timestamp != current_zeromq_data.start_timestamp
         ):
             logger.info("Detected an Om restart, skipping the initial frame...")
             return
@@ -125,10 +125,8 @@ class OmZMQProcessor:
 
             # Useless check, but mypy demands it
             assert current_zeromq_data is not None
-            new_hits = current_zeromq_data.total_hits - last_zeromq_data.total_hits
-            new_frames = (
-                current_zeromq_data.total_frames - last_zeromq_data.total_frames
-            )
+            new_hits = current_zeromq_data.num_hits - last_zeromq_data.num_hits
+            new_frames = current_zeromq_data.num_events - last_zeromq_data.num_events
             current_hits = latest_run.attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS)
             current_frames = latest_run.attributi.select_int(ATTRIBUTO_NUMBER_OF_FRAMES)
             latest_run.attributi.append_single(
