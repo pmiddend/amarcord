@@ -330,7 +330,7 @@ viewCurrentRun zone now rrc =
 
                         ( Just started, Just stopped ) ->
                             [ h1_ [ text <| " Run " ++ fromInt id ]
-                            , p [ class "lead" ] [ text <| "Stopped, " ++ posixDiffHumanFriendly started now ++ " ago (duration " ++ posixDiffHumanFriendly started stopped ++ ")" ]
+                            , p [ class "lead" ] [ text <| "Stopped, " ++ posixDiffHumanFriendly stopped now ++ " ago (duration " ++ posixDiffHumanFriendly started stopped ++ ")" ]
                             ]
 
                         _ ->
