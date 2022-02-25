@@ -2,9 +2,10 @@ import asyncio
 import json
 import os
 import sys
-import typing
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Dict, cast, List, Optional
 
 from pint import UnitRegistry
 from quart import Quart, request
@@ -26,7 +27,7 @@ from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
-from amarcord.db.table_classes import DBFile, DBEvent, DBSample
+from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type
@@ -145,8 +146,10 @@ def _encode_sample(a: DBSample) -> JSONDict:
 @app.get("/api/samples")
 async def read_samples() -> JSONDict:
     async with db.instance.begin() as conn:
-        attributi = await db.instance.retrieve_attributi(
-            conn, associated_table=AssociatedTable.SAMPLE
+        attributi = list(
+            await db.instance.retrieve_attributi(
+                conn, associated_table=AssociatedTable.SAMPLE
+            )
         )
         result = {
             "samples": [
@@ -193,26 +196,74 @@ async def update_run() -> JSONDict:
     return {}
 
 
+def _run_matches_dataset(
+    run_attributi: AttributiMap, data_set_attributi: AttributiMap
+) -> bool:
+    for name, value in data_set_attributi.items():
+        if run_attributi.select(name) != value:
+            return False
+    return True
+
+
+@dataclass
+class DataSetSummary:
+    numberOfRuns: int
+    frames: int
+    hits: int
+
+
+def build_run_summary(matching_runs: List[DBRun]) -> DataSetSummary:
+    result: DataSetSummary = DataSetSummary(
+        numberOfRuns=len(matching_runs), frames=0, hits=0
+    )
+    for run in matching_runs:
+        hit_result = run.attributi.select_int("hits")
+        if hit_result is not None:
+            result.hits += hit_result
+        frames_result = run.attributi.select_int("frames")
+        if frames_result is not None:
+            result.frames += frames_result
+    return result
+
+
 @app.get("/api/runs")
 async def read_runs() -> JSONDict:
     async with db.instance.begin() as conn:
-        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
-        samples = await db.instance.retrieve_samples(conn, attributi)
+        attributi = list(
+            await db.instance.retrieve_attributi(conn, associated_table=None)
+        )
+        samples = list(await db.instance.retrieve_samples(conn, attributi))
+        data_sets = list(
+            await db.instance.retrieve_data_sets(
+                conn, [s.id for s in samples], attributi
+            )
+        )
+        runs = list(await db.instance.retrieve_runs(conn, attributi))
+        data_set_id_to_grouped: Dict[int, DataSetSummary] = {}
+        for ds in data_sets:
+            matching_runs = [
+                r for r in runs if _run_matches_dataset(r.attributi, ds.attributi)
+            ]
+            data_set_id_to_grouped[ds.id] = build_run_summary(matching_runs)
+
         result = {
             "runs": [
                 {
-                    "id": a.id,
-                    "attributi": a.attributi.to_json(),
-                    "files": [_encode_file(f) for f in a.files],
+                    "id": r.id,
+                    "attributi": r.attributi.to_json(),
+                    "files": [_encode_file(f) for f in r.files],
+                    "data-sets": [
+                        ds.id
+                        for ds in data_sets
+                        if _run_matches_dataset(r.attributi, ds.attributi)
+                    ],
                 }
-                for a in await db.instance.retrieve_runs(conn, attributi)
+                for r in runs
             ],
             "attributi": [_encode_attributo(a) for a in attributi],
             "data-sets": [
-                _encode_data_set(a)
-                for a in await db.instance.retrieve_data_sets(
-                    conn, [s.id for s in samples], attributi
-                )
+                _encode_data_set(a, data_set_id_to_grouped.get(a.id, None))
+                for a in data_sets
             ],
             "events": [
                 _encode_event(e) for e in await db.instance.retrieve_events(conn)
@@ -327,12 +378,19 @@ async def create_data_set() -> JSONDict:
     return {"id": data_set_id}
 
 
-def _encode_data_set(a: DBDataSet) -> JSONDict:
-    return {
+def _encode_data_set(a: DBDataSet, summary: Optional[DataSetSummary]) -> JSONDict:
+    result = {
         "id": a.id,
         "experiment-type": a.experiment_type,
         "attributi": a.attributi.to_json(),
     }
+    if summary is not None:
+        result["summary"] = {
+            "number-of-runs": summary.numberOfRuns,
+            "hits": summary.hits,
+            "frames": summary.frames,
+        }
+    return result
 
 
 @app.get("/api/data-sets")
@@ -340,12 +398,14 @@ async def read_data_sets() -> JSONDict:
     async with db.instance.connect() as conn:
         if _has_artificial_delay():
             await asyncio.sleep(3)
-        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        attributi = list(
+            await db.instance.retrieve_attributi(conn, associated_table=None)
+        )
         samples = await db.instance.retrieve_samples(conn, attributi)
         experiment_types = await db.instance.retrieve_experiment_types(conn)
         return {
             "data-sets": [
-                _encode_data_set(a)
+                _encode_data_set(a, summary=None)
                 for a in await db.instance.retrieve_data_sets(
                     conn,
                     [s.id for s in samples],
@@ -464,7 +524,9 @@ async def delete_attributo() -> JSONDict:
     async with db.instance.begin() as conn:
         attributo_name = r.retrieve_safe_str("name")
 
-        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        attributi = list(
+            await db.instance.retrieve_attributi(conn, associated_table=None)
+        )
 
         found_attributo = next((x for x in attributi if x.name == attributo_name), None)
         if found_attributo is None:
@@ -479,7 +541,7 @@ async def delete_attributo() -> JSONDict:
             for s in await db.instance.retrieve_samples(conn, attributi):
                 s.attributi.remove(attributo_name)
                 await db.instance.update_sample(
-                    conn, typing.cast(int, s.id), s.name, s.attributi
+                    conn, cast(int, s.id), s.name, s.attributi
                 )
         else:
             for run in await db.instance.retrieve_runs(conn, attributi):
@@ -577,8 +639,10 @@ async def read_grouped_runs() -> JSONDict:
     async with db.instance.begin() as conn:
         attributi_names = r.retrieve_string_array("attributi")
 
-        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
-        samples = await db.instance.retrieve_samples(conn, attributi)
+        attributi = list(
+            await db.instance.retrieve_attributi(conn, associated_table=None)
+        )
+        samples = list(await db.instance.retrieve_samples(conn, attributi))
         runs = await db.instance.retrieve_runs(conn, attributi)
 
         return {

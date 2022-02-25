@@ -1,11 +1,13 @@
 module Amarcord.Pages.DataSets exposing (..)
 
-import Amarcord.API.Requests exposing (DataSet, DataSetResult, ExperimentType, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoMapNames, emptyAttributoMap)
-import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoCell, viewAttributoForm)
+import Amarcord.API.Requests exposing (DataSetResult, ExperimentType, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, emptyAttributoMap)
+import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, viewRemoteData)
+import Amarcord.DataSet exposing (DataSet)
+import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
-import Amarcord.Sample exposing (Sample, sampleIdDict)
+import Amarcord.Sample exposing (Sample)
 import Html exposing (Html, button, div, h4, option, select, table, text)
 import Html.Attributes exposing (class, selected, type_)
 import Html.Events exposing (onClick, onInput)
@@ -137,28 +139,12 @@ viewDataSet model =
 
         Success { samples, attributi, dataSets, experimentTypes } ->
             let
-                viewAttributiValueRow : AttributoMap AttributoValue -> String -> Html msg
-                viewAttributiValueRow attributoValues name =
-                    case find (\a -> a.name == name) attributi of
-                        Nothing ->
-                            tr_ []
-
-                        Just attributo ->
-                            tr_ [ td_ [ text attributo.name ], td_ [ viewAttributoCell { shortDateTime = False } model.zone (sampleIdDict samples) attributoValues attributo ] ]
-
-                viewAttributiValues : DataSet -> Html msg
-                viewAttributiValues ds =
-                    table [ class "table table-sm" ]
-                        [ thead_ [ tr_ [ th_ [ text "Name" ], th_ [ text "Value" ] ] ]
-                        , tbody_ (List.map (viewAttributiValueRow ds.attributi) (attributoMapNames ds.attributi))
-                        ]
-
                 viewRow : DataSet -> Html DataSetMsg
                 viewRow ds =
                     tr_
                         [ td_ [ text (String.fromInt ds.id) ]
                         , td_ [ text ds.experimentType ]
-                        , td_ [ viewAttributiValues ds ]
+                        , td_ [ viewDataSetTable attributi model.zone samples ds Nothing ]
                         , td_ [ button [ class "btn btn-danger btn-sm", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 

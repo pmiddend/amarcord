@@ -1,6 +1,6 @@
 import datetime
 from dataclasses import replace
-from typing import Dict, Set
+from typing import Dict, Set, Tuple, Iterable
 from typing import List
 from typing import Optional
 from typing import cast
@@ -203,7 +203,9 @@ class AttributiMap:
 
     @staticmethod
     def from_types_and_json(
-        types: List[DBAttributo], sample_ids: List[int], raw_attributi: JsonAttributiMap
+        types: Iterable[DBAttributo],
+        sample_ids: List[int],
+        raw_attributi: JsonAttributiMap,
     ) -> "AttributiMap":
         attributi: UntypedAttributiMap = {}
         types_dict = {a.name: a for a in types}
@@ -353,3 +355,6 @@ class AttributiMap:
 
     def names(self) -> Set[str]:
         return set(self._attributi.keys())
+
+    def items(self) -> Iterable[Tuple[str, AttributoValue]]:
+        return self._attributi.items()  # type: ignore

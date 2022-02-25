@@ -29,7 +29,7 @@ async def om_simulator_loop(zmq_ctx: Context, delay_seconds: float, port: int) -
             }
         )
         new_frames = int(uniform(0, 1000))
-        new_hits = int(uniform(0, new_frames))
+        new_hits = int(uniform(0, 3) / 100.0 * new_frames)
         total_frames += new_frames
         total_hits += new_hits
         await asyncio.sleep(delay_seconds)

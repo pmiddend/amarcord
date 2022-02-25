@@ -228,8 +228,8 @@ class AsyncDB:
         return result
 
     async def retrieve_samples(
-        self, conn: Connection, attributi: List[DBAttributo]
-    ) -> List[DBSample]:
+        self, conn: Connection, attributi_iterable: Iterable[DBAttributo]
+    ) -> Iterable[DBSample]:
         sample_to_files = await self._retrieve_files(
             conn, self.tables.sample_has_file.c.sample_id
         )
@@ -244,7 +244,8 @@ class AsyncDB:
 
         result = await conn.execute(select_stmt)
 
-        return [
+        attributi = list(attributi_iterable)
+        return (
             DBSample(
                 id=a["id"],
                 name=a["name"],
@@ -257,7 +258,7 @@ class AsyncDB:
                 files=sample_to_files.get(a["id"], []),
             )
             for a in result
-        ]
+        )
 
     async def delete_event(
         self,
@@ -303,7 +304,7 @@ class AsyncDB:
         ).inserted_primary_key[0]
 
     async def retrieve_runs(
-        self, conn: Connection, attributi: List[DBAttributo]
+        self, conn: Connection, attributi_iterable: Iterable[DBAttributo]
     ) -> List[DBRun]:
         run_to_files = await self._retrieve_files(
             conn, self.tables.run_has_file.c.run_id
@@ -320,6 +321,7 @@ class AsyncDB:
 
         sample_ids = await self.retrieve_sample_ids(conn)
 
+        attributi = list(attributi_iterable)
         return [
             DBRun(
                 id=a["id"],
@@ -469,7 +471,9 @@ class AsyncDB:
         conversion_flags: AttributoConversionFlags,
         new_attributo: DBAttributo,
     ) -> None:
-        current_attributi = await self.retrieve_attributi(conn, associated_table=None)
+        current_attributi = list(
+            await self.retrieve_attributi(conn, associated_table=None)
+        )
 
         current_attributo = next((x for x in current_attributi if x.name == name), None)
 
@@ -522,7 +526,8 @@ class AsyncDB:
                 f"unimplemented: is there a new associated table {new_attributo.associated_table}?"
             )
 
-        for ds in await self.retrieve_data_sets(conn, current_attributi):
+        sample_ids = await self.retrieve_sample_ids(conn)
+        for ds in await self.retrieve_data_sets(conn, sample_ids, current_attributi):
             ds.attributi.convert_attributo(
                 conversion_flags=conversion_flags,
                 old_name=name,
@@ -945,9 +950,13 @@ class AsyncDB:
         )
 
     async def retrieve_data_sets(
-        self, conn: Connection, sample_ids: List[int], attributi: List[DBAttributo]
+        self,
+        conn: Connection,
+        sample_ids: List[int],
+        iterable_attributi: Iterable[DBAttributo],
     ) -> Iterable[DBDataSet]:
         dc = self.tables.data_set.c
+        attributi = list(iterable_attributi)
         return (
             DBDataSet(
                 id=r["id"],

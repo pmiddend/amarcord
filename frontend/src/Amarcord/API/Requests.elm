@@ -1,6 +1,7 @@
-module Amarcord.API.Requests exposing (DataSet, DataSetResult, Event, ExperimentType, Run, RunsResponse, RunsResponseContent, httpCreateDataSet, httpCreateEvent, httpCreateExperimentType, httpDeleteDataSet, httpDeleteEvent, httpDeleteExperimentType, httpGetDataSets, httpGetExperimentTypes, httpGetRuns, httpUpdateRun)
+module Amarcord.API.Requests exposing (DataSetResult, Event, ExperimentType, Run, RunsResponse, RunsResponseContent, httpCreateDataSet, httpCreateEvent, httpCreateExperimentType, httpDeleteDataSet, httpDeleteEvent, httpDeleteExperimentType, httpGetDataSets, httpGetExperimentTypes, httpGetRuns, httpUpdateRun)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoDecoder, attributoMapDecoder, attributoTypeDecoder, encodeAttributoMap)
+import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.File exposing (File, fileDecoder)
 import Amarcord.Sample exposing (Sample, SampleId, sampleDecoder)
 import Amarcord.UserError exposing (UserError, userErrorDecoder)
@@ -106,16 +107,23 @@ httpGetExperimentTypes f =
         }
 
 
-type alias DataSet =
-    { id : Int
-    , experimentType : String
-    , attributi : AttributoMap AttributoValue
-    }
+dataSetSummaryDecoder : Decode.Decoder DataSetSummary
+dataSetSummaryDecoder =
+    Decode.map3
+        DataSetSummary
+        (Decode.field "number-of-runs" Decode.int)
+        (Decode.field "hits" Decode.int)
+        (Decode.field "frames" Decode.int)
 
 
 dataSetDecoder : Decode.Decoder DataSet
 dataSetDecoder =
-    Decode.map3 DataSet (Decode.field "id" Decode.int) (Decode.field "experiment-type" Decode.string) (Decode.field "attributi" attributoMapDecoder)
+    Decode.map4
+        DataSet
+        (Decode.field "id" Decode.int)
+        (Decode.field "experiment-type" Decode.string)
+        (Decode.field "attributi" attributoMapDecoder)
+        (Decode.maybe <| Decode.field "summary" dataSetSummaryDecoder)
 
 
 httpCreateDataSet : (Result Http.Error () -> msg) -> String -> AttributoMap AttributoValue -> Cmd msg
@@ -173,6 +181,7 @@ type alias Run =
     { id : Int
     , attributi : AttributoMap AttributoValue
     , files : List File
+    , dataSets : List Int
     }
 
 
@@ -215,11 +224,12 @@ type alias RunsResponse =
 
 runDecoder : Decode.Decoder Run
 runDecoder =
-    Decode.map3
+    Decode.map4
         Run
         (Decode.field "id" Decode.int)
         (Decode.field "attributi" attributoMapDecoder)
         (Decode.field "files" (Decode.list fileDecoder))
+        (Decode.field "data-sets" (Decode.list Decode.int))
 
 
 eventDecoder : Decode.Decoder Event

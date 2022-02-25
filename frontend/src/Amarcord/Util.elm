@@ -131,11 +131,11 @@ formatPosixDateTimeCompatible zone posix =
     year ++ "-" ++ month ++ "-" ++ day ++ "T" ++ hour ++ ":" ++ minute
 
 
-posixDiffHumanFriendly : Posix -> Posix -> String
-posixDiffHumanFriendly p1 p2 =
+millisDiffHumanFriendly : Int -> String
+millisDiffHumanFriendly diffMillis =
     let
         diffSeconds =
-            abs (posixToMillis p1 - posixToMillis p2) // 1000
+            diffMillis // 1000
     in
     if diffSeconds < 60 then
         fromInt diffSeconds ++ " seconds"
@@ -148,8 +148,23 @@ posixDiffHumanFriendly p1 p2 =
         if diffMinutes == 1 then
             "1 minute"
 
+        else if diffMinutes > 60 then
+            let
+                diffHours =
+                    diffMinutes // 60
+
+                diffRemMinutes =
+                    modBy 60 diffMinutes
+            in
+            fromInt diffHours ++ " hours, " ++ fromInt diffRemMinutes ++ " minutes"
+
         else
             fromInt diffMinutes ++ " minutes"
+
+
+posixDiffHumanFriendly : Posix -> Posix -> String
+posixDiffHumanFriendly p1 p2 =
+    millisDiffHumanFriendly <| abs (posixToMillis p1 - posixToMillis p2)
 
 
 formatPosixTimeOfDayHumanFriendly : Zone -> Posix -> String
@@ -215,3 +230,8 @@ retrieveHereAndNow =
 scrollToTop : (() -> msg) -> Cmd msg
 scrollToTop f =
     Task.perform f <| Browser.Dom.setViewport 0 0
+
+
+posixDiffMillis : Posix -> Posix -> Int
+posixDiffMillis after before =
+    posixToMillis after - posixToMillis before

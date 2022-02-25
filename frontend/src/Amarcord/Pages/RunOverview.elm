@@ -2,22 +2,26 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.Requests exposing (Event, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
+import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, spinner)
 import Amarcord.Constants exposing (manualAttributiGroup)
-import Amarcord.Html exposing (form_, h1_, h2_, h5_, input_, li_, p_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.DataSet exposing (DataSetSummary)
+import Amarcord.DataSetHtml exposing (viewDataSetTable)
+import Amarcord.Html exposing (form_, h1_, h2_, h3_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.UserError exposing (UserError)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, scrollToTop)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, scrollToTop)
 import Dict exposing (Dict)
 import Hotkeys exposing (onEnter)
-import Html exposing (Html, a, button, div, form, h4, p, span, table, td, text, tr, ul)
+import Html exposing (Html, a, button, div, form, h4, p, span, table, td, text, tfoot, tr, ul)
 import Html.Attributes exposing (class, colspan, disabled, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http
 import List exposing (head)
+import List.Extra exposing (find)
 import Maybe
+import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import String exposing (fromInt)
 import Time exposing (Posix, Zone)
@@ -138,6 +142,16 @@ attributoStarted =
     "started"
 
 
+attributoFrames : Amarcord.Attributo.AttributoName
+attributoFrames =
+    "frames"
+
+
+attributoHits : Amarcord.Attributo.AttributoName
+attributoHits =
+    "hits"
+
+
 attributoStopped : Amarcord.Attributo.AttributoName
 attributoStopped =
     "stopped"
@@ -243,23 +257,143 @@ viewEventForm eventRequest { userName, message } =
         ]
 
 
+calculateEta : Int -> Int -> Int -> Int -> String
+calculateEta totalHits framesInRun hitsInRun runLengthMillis =
+    if runLengthMillis == 0 || framesInRun == 0 then
+        ""
+
+    else
+        let
+            framesPerSecond =
+                toFloat framesInRun / toFloat runLengthMillis * 1000.0
+
+            hitRate =
+                toFloat hitsInRun / toFloat framesInRun
+
+            hitsPerSecond =
+                framesPerSecond * hitRate
+
+            targetHits =
+                max 0 <| 10000 - totalHits
+
+            secondsNeeded =
+                toFloat targetHits / hitsPerSecond
+        in
+        millisDiffHumanFriendly <| round <| secondsNeeded * 1000.0
+
+
 viewCurrentRun : Zone -> Posix -> RunsResponseContent -> List (Html Msg)
-viewCurrentRun zone now { runs } =
+viewCurrentRun zone now rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
-    case head runs of
+    case head rrc.runs of
         Nothing ->
             List.singleton <| text ""
 
-        Just { id, attributi } ->
-            case ( retrieveDateTimeAttributoValue attributoStarted attributi, retrieveDateTimeAttributoValue attributoStopped attributi ) of
-                ( Just started, Nothing ) ->
-                    [ h1_ [ span [ class "text-success" ] [ spinner ], text <| " Run " ++ fromInt id ], p [ class "lead text-success" ] [ text <| "Running for " ++ posixDiffHumanFriendly now started ] ]
+        Just { id, attributi, dataSets } ->
+            let
+                runStarted : Maybe Posix
+                runStarted =
+                    retrieveDateTimeAttributoValue attributoStarted attributi
 
-                ( Just started, Just stopped ) ->
-                    [ h1_ [ text <| " Run " ++ fromInt id ], p [ class "lead" ] [ text <| "Stopped, " ++ posixDiffHumanFriendly started now ++ " ago (duration " ++ posixDiffHumanFriendly started stopped ++ ")" ] ]
+                runStopped : Maybe Posix
+                runStopped =
+                    retrieveDateTimeAttributoValue attributoStopped attributi
 
-                _ ->
-                    []
+                stoppedOrNow : Posix
+                stoppedOrNow =
+                    Maybe.withDefault now runStopped
+
+                runLengthMillis : Maybe Int
+                runLengthMillis =
+                    Maybe.map (posixDiffMillis stoppedOrNow) runStarted
+
+                runFrames : Maybe Int
+                runFrames =
+                    retrieveIntAttributoValue attributoFrames attributi
+
+                runHits : Maybe Int
+                runHits =
+                    retrieveIntAttributoValue attributoHits attributi
+
+                isRunning =
+                    isNothing runStopped
+
+                header =
+                    case ( runStarted, runStopped ) of
+                        ( Just started, Nothing ) ->
+                            [ h1_
+                                [ span [ class "text-success" ] [ spinner ]
+                                , text <| " Run " ++ fromInt id
+                                ]
+                            , p [ class "lead text-success" ] [ text <| "Running for " ++ posixDiffHumanFriendly now started ]
+                            ]
+
+                        ( Just started, Just stopped ) ->
+                            [ h1_ [ text <| " Run " ++ fromInt id ]
+                            , p [ class "lead" ] [ text <| "Stopped, " ++ posixDiffHumanFriendly started now ++ " ago (duration " ++ posixDiffHumanFriendly started stopped ++ ")" ]
+                            ]
+
+                        _ ->
+                            []
+
+                dataSetInformation =
+                    case Maybe.andThen (\dsId -> find (\ds -> ds.id == dsId) rrc.dataSets) <| List.head dataSets of
+                        Nothing ->
+                            [ h3_ [ text "Not part of any data set" ] ]
+
+                        Just ds ->
+                            let
+                                footer : DataSetSummary -> Html msg
+                                footer { numberOfRuns, hits, frames } =
+                                    let
+                                        eta : Maybe String
+                                        eta =
+                                            Maybe.map3 (calculateEta hits) runFrames runHits runLengthMillis
+                                    in
+                                    tfoot []
+                                        [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
+                                        , tr_ [ td_ [ text "Frames" ], td_ [ text (String.fromInt frames) ] ]
+                                        , tr_
+                                            [ td_ [ text "Hits" ]
+                                            , td_
+                                                [ text (String.fromInt hits)
+                                                , div [ class "progress" ]
+                                                    [ div
+                                                        [ class
+                                                            ("progress-bar progress-bar-striped bg-success"
+                                                                ++ (if isRunning then
+                                                                        " progress-bar-animated"
+
+                                                                    else
+                                                                        ""
+                                                                   )
+                                                            )
+                                                        , style "width" (String.fromInt (floor <| toFloat hits * 100.0 / 10000.0) ++ "%")
+                                                        ]
+                                                        []
+                                                    ]
+                                                , MaybeExtra.unwrap (text "") (\realEta -> span_ [ text <| "Time until 10k hits: " ++ realEta ]) eta
+                                                ]
+                                            ]
+                                        , tr_
+                                            [ td_ [ text "Hit Rate" ]
+                                            , td_
+                                                [ text
+                                                    (if frames /= 0 then
+                                                        formatFloatHumanFriendly (toFloat hits / toFloat frames * 100.0) ++ "%"
+
+                                                     else
+                                                        ""
+                                                    )
+                                                ]
+                                            ]
+                                        ]
+                            in
+                            [ h3_ [ text "Data set" ]
+                            , viewDataSetTable rrc.attributi zone rrc.samples ds (Maybe.map footer ds.summary)
+                            ]
+            in
+            header ++ dataSetInformation
 
 
 viewRunAttributiForm : Maybe Run -> List String -> RemoteData Http.Error () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
@@ -490,6 +624,7 @@ update msg model =
                                     { id = runEditInfo.runId
                                     , attributi = editedAttributi
                                     , files = []
+                                    , dataSets = []
                                     }
                             in
                             ( { model | runEditRequest = Loading }, httpUpdateRun RunEditFinished run )
