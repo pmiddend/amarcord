@@ -35,6 +35,10 @@ from amarcord.db.table_classes import DBRun
 from amarcord.numeric_range import NumericRange
 from amarcord.util import safe_max, create_intervals
 
+TIME_RESOLVED = "time-resolved"
+
+SAMPLE_BASED = "sample-based"
+
 ATTRIBUTO_TRASH = "trash"
 
 ATTRIBUTO_COMMENT = "comment"
@@ -212,13 +216,19 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
         sample_names: List[str] = []
+
+        await db.create_experiment_type(conn, SAMPLE_BASED, [ATTRIBUTO_SAMPLE])
+        await db.create_experiment_type(
+            conn, TIME_RESOLVED, [ATTRIBUTO_SAMPLE, ATTRIBUTO_FLOW_RATE]
+        )
+
         for _ in range(random.randrange(3, 10)):
             sample_name = randomname.generate(
                 "a/materials", ("n/plants", "n/food"), sep=" "
             )
             while sample_name in sample_names:
                 sample_name = generate("n/plants")
-            await db.create_sample(
+            sample_id = await db.create_sample(
                 conn,
                 sample_name,
                 AttributiMap.from_types_and_json(
@@ -230,6 +240,26 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
                     },
                 ),
             )
+            await db.create_data_set(
+                conn,
+                SAMPLE_BASED,
+                AttributiMap.from_types_and_json(
+                    attributi, [sample_id], {ATTRIBUTO_SAMPLE: sample_id}
+                ),
+            )
+            for current_flow_rate in range(0, 4):
+                await db.create_data_set(
+                    conn,
+                    TIME_RESOLVED,
+                    AttributiMap.from_types_and_json(
+                        attributi,
+                        [sample_id],
+                        {
+                            ATTRIBUTO_SAMPLE: sample_id,
+                            ATTRIBUTO_FLOW_RATE: current_flow_rate,
+                        },
+                    ),
+                )
 
 
 async def _start_run(
