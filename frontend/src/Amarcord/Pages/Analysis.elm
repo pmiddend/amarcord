@@ -11,7 +11,7 @@ import Amarcord.Pages.DataSets exposing (DataSetModel, DataSetMsg, initDataSet, 
 import Amarcord.Pages.ExperimentTypes exposing (ExperimentTypeModel, ExperimentTypeMsg, initExperimentType, updateExperimentType, viewExperimentType)
 import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
-import Html exposing (Html, div, h4, table, td, text)
+import Html exposing (Html, div, h4, table, td, text, tr)
 import Html.Attributes exposing (class, colspan, style)
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult)
@@ -135,8 +135,8 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                         []
 
                     else
-                        [ tr_
-                            [ td [ colspan 2 ]
+                        [ tr [ class "table-secondary" ]
+                            [ td [ colspan 5 ]
                                 [ table [ class "table table-sm" ]
                                     [ thead_
                                         [ tr_
@@ -151,14 +151,14 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
     in
     div_
         [ h2_ [ text (first experimentTypeAndDataSets) ]
-        , table [ class "table table-striped" ]
+        , table [ class "table" ]
             [ thead_
                 [ tr_
-                    [ td_ [ text "Data Set ID" ]
-                    , td_ [ text "Attributi" ]
-                    , td_ [ text "Number of Runs" ]
-                    , td_ [ text "Frames" ]
-                    , td_ [ text "Hits" ]
+                    [ th_ [ text "Data Set ID" ]
+                    , th_ [ text "Attributi" ]
+                    , th_ [ text "Number of Runs" ]
+                    , th_ [ text "Frames" ]
+                    , th_ [ text "Hits" ]
                     ]
                 ]
             , tbody_ (List.concatMap viewResultRow (second experimentTypeAndDataSets))
