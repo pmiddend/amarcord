@@ -130,18 +130,24 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.frames)) dataSet.summary ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.hits)) dataSet.summary ]
                 ]
-            , tr_
-                [ td [ colspan 2 ]
-                    [ table [ class "table table-sm" ]
-                        [ thead_
-                            [ tr_
-                                (List.map (\header -> th_ [ text header ]) headerNamesAnalysisResults)
-                            ]
-                        , tbody_ (List.map viewCfelAnalysisResultRow analysisResults)
-                        ]
-                    ]
-                ]
             ]
+                ++ (if List.isEmpty analysisResults then
+                        []
+
+                    else
+                        [ tr_
+                            [ td [ colspan 2 ]
+                                [ table [ class "table table-sm" ]
+                                    [ thead_
+                                        [ tr_
+                                            (List.map (\header -> th_ [ text header ]) headerNamesAnalysisResults)
+                                        ]
+                                    , tbody_ (List.map viewCfelAnalysisResultRow analysisResults)
+                                    ]
+                                ]
+                            ]
+                        ]
+                   )
     in
     div_
         [ h2_ [ text (first experimentTypeAndDataSets) ]
