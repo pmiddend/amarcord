@@ -14,8 +14,8 @@ import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, scrollToTop)
 import Dict exposing (Dict)
 import Hotkeys exposing (onEnter)
-import Html exposing (Html, a, button, div, form, h4, p, span, table, td, text, tfoot, tr, ul)
-import Html.Attributes exposing (class, colspan, disabled, placeholder, style, type_, value)
+import Html exposing (Html, a, button, div, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
+import Html.Attributes exposing (class, colspan, disabled, for, placeholder, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
 import List.Extra exposing (find)
@@ -41,6 +41,7 @@ type Msg
     | RunInitiateEdit Run
     | RunEditCancel
     | Nop
+    | CurrentExperimentTypeChanged String
 
 
 type alias EventForm =
@@ -79,6 +80,7 @@ type alias Model =
     , runEditInfo : Maybe RunEditInfo
     , runEditRequest : RemoteData RequestError ()
     , submitErrors : List String
+    , currentExperimentType : Maybe String
     }
 
 
@@ -93,6 +95,7 @@ init { zone, now } =
       , runEditInfo = Nothing
       , runEditRequest = NotAsked
       , submitErrors = []
+      , currentExperimentType = Nothing
       }
     , httpGetRuns RunsReceived
     )
@@ -281,8 +284,8 @@ calculateEta totalHits framesInRun hitsInRun runLengthMillis =
         millisDiffHumanFriendly <| round <| secondsNeeded * 1000.0
 
 
-viewCurrentRun : Zone -> Posix -> RunsResponseContent -> List (Html Msg)
-viewCurrentRun zone now rrc =
+viewCurrentRun : Zone -> Posix -> Maybe String -> RunsResponseContent -> List (Html Msg)
+viewCurrentRun zone now currentExperimentType rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
     case head rrc.runs of
         Nothing ->
@@ -335,8 +338,33 @@ viewCurrentRun zone now rrc =
                         _ ->
                             []
 
+                viewExperimentTypeOption experimentType =
+                    option [ selected (Just experimentType == currentExperimentType), value experimentType ] [ text experimentType ]
+
+                dataSetSelection =
+                    [ form_
+                        [ div [ class "mb-3" ]
+                            [ label [ for "current-experiment-type" ] [ text "Experiment Type" ]
+                            , select
+                                [ class "form-select"
+                                , Html.Attributes.id "current-experiment-type"
+                                , onInput CurrentExperimentTypeChanged
+                                ]
+                                (option [ selected (isNothing currentExperimentType) ] [ text "«no value»" ] :: List.map viewExperimentTypeOption rrc.experimentTypes)
+                            ]
+                        ]
+                    ]
+
+                currentRunDataSet =
+                    case currentExperimentType of
+                        Nothing ->
+                            Maybe.andThen (\dsId -> find (\ds -> ds.id == dsId) rrc.dataSets) <| List.head dataSets
+
+                        Just experimentType ->
+                            find (\ds -> ds.experimentType == experimentType && List.member ds.id dataSets) rrc.dataSets
+
                 dataSetInformation =
-                    case Maybe.andThen (\dsId -> find (\ds -> ds.id == dsId) rrc.dataSets) <| List.head dataSets of
+                    case currentRunDataSet of
                         Nothing ->
                             [ h3_ [ text "Not part of any data set" ] ]
 
@@ -392,7 +420,7 @@ viewCurrentRun zone now rrc =
                             , viewDataSetTable rrc.attributi zone (sampleIdDict rrc.samples) ds (Maybe.map footer ds.summary)
                             ]
             in
-            header ++ dataSetInformation
+            header ++ dataSetSelection ++ dataSetInformation
 
 
 viewRunAttributiForm : Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
@@ -465,7 +493,7 @@ viewInner model rrc =
     [ div
         [ class "row" ]
         [ div [ class "col-6" ]
-            (viewCurrentRun model.myTimeZone model.now rrc ++ [ viewEventForm model.eventRequest model.eventForm ])
+            (viewCurrentRun model.myTimeZone model.now model.currentExperimentType rrc ++ [ viewEventForm model.eventRequest model.eventForm ])
         , div [ class "col-6" ] (viewRunAttributiForm (head rrc.runs) model.submitErrors model.runEditRequest rrc.samples model.runEditInfo)
         ]
     , div [ class "row" ] [ viewRunsTable model.myTimeZone rrc ]
@@ -679,3 +707,15 @@ update msg model =
 
         Nop ->
             ( model, Cmd.none )
+
+        CurrentExperimentTypeChanged string ->
+            ( { model
+                | currentExperimentType =
+                    if string == "" then
+                        Nothing
+
+                    else
+                        Just string
+              }
+            , Cmd.none
+            )

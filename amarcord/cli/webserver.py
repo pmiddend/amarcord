@@ -230,14 +230,11 @@ def build_run_summary(matching_runs: List[DBRun]) -> DataSetSummary:
 @app.get("/api/runs")
 async def read_runs() -> JSONDict:
     async with db.instance.begin() as conn:
-        attributi = list(
-            await db.instance.retrieve_attributi(conn, associated_table=None)
-        )
-        samples = list(await db.instance.retrieve_samples(conn, attributi))
-        data_sets = list(
-            await db.instance.retrieve_data_sets(
-                conn, [s.id for s in samples], attributi
-            )
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        samples = await db.instance.retrieve_samples(conn, attributi)
+        experiment_types = await db.instance.retrieve_experiment_types(conn)
+        data_sets = await db.instance.retrieve_data_sets(
+            conn, [s.id for s in samples], attributi
         )
         runs = await db.instance.retrieve_runs(conn, attributi)
         data_set_id_to_grouped: Dict[int, DataSetSummary] = {}
@@ -262,6 +259,7 @@ async def read_runs() -> JSONDict:
                 for r in runs
             ],
             "attributi": [_encode_attributo(a) for a in attributi],
+            "experiment-types": [a.name for a in experiment_types],
             "data-sets": [
                 _encode_data_set(a, data_set_id_to_grouped.get(a.id, None))
                 for a in data_sets

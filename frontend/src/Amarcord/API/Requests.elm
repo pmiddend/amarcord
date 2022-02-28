@@ -312,6 +312,7 @@ type alias RunsResponseContent =
     , events : List Event
     , samples : List (Sample Int (AttributoMap AttributoValue) File)
     , dataSets : List DataSet
+    , experimentTypes : List String
     }
 
 
@@ -322,12 +323,13 @@ httpGetRuns f =
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError <|
-                    Decode.map5 RunsResponseContent
+                    Decode.map6 RunsResponseContent
                         (Decode.field "runs" <| Decode.list runDecoder)
                         (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
                         (Decode.field "events" <| Decode.list eventDecoder)
                         (Decode.field "samples" <| Decode.list sampleDecoder)
                         (Decode.field "data-sets" <| Decode.list dataSetDecoder)
+                        (Decode.field "experiment-types" <| Decode.list Decode.string)
         }
 
 
