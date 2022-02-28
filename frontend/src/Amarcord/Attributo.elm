@@ -7,16 +7,11 @@ module Amarcord.Attributo exposing
     , attributoDecoder
     , attributoIsNumber
     , attributoIsString
-    , attributoMapDecoder
     , attributoMapNames
-    , attributoRequestDecoder
     , attributoTypeDecoder
-    , attributoValueDecoder
     , createAnnotatedAttributoMap
     , emptyAttributoMap
-    , encodeAttributoMap
     , extractDateTime
-    , httpGetAndDecodeAttributi
     , jsonSchemaToAttributoType
     , mapAttributo
     , mapAttributoMaybe
@@ -31,9 +26,7 @@ import Amarcord.JsonSchema exposing (JsonSchema(..), jsonSchemaDecoder)
 import Amarcord.NumericRange exposing (NumericRange, rangeFromJsonSchema)
 import Amarcord.Util exposing (resultToJsonDecoder)
 import Dict exposing (Dict)
-import Http
 import Json.Decode as Decode
-import Json.Encode as Encode
 import List
 import Maybe
 import Maybe.Extra as MaybeExtra
@@ -102,53 +95,13 @@ type alias Attributo a =
     }
 
 
-type AttributoMap a
-    = AttributoMap (Dict String a)
+type alias AttributoMap a =
+    Dict String a
 
 
 attributoMapNames : AttributoMap a -> List String
-attributoMapNames (AttributoMap x) =
-    Dict.keys x
-
-
-encodeAttributoMap : AttributoMap AttributoValue -> Encode.Value
-encodeAttributoMap (AttributoMap d) =
-    Encode.dict identity encodeAttributoValue d
-
-
-encodeAttributoValue : AttributoValue -> Encode.Value
-encodeAttributoValue x =
-    case x of
-        ValueInt int ->
-            Encode.int int
-
-        ValueString string ->
-            Encode.string string
-
-        ValueList attributoValues ->
-            Encode.list encodeAttributoValue attributoValues
-
-        ValueNumber float ->
-            Encode.float float
-
-        ValueBoolean bool ->
-            Encode.bool bool
-
-
-attributoValueDecoder : Decode.Decoder AttributoValue
-attributoValueDecoder =
-    Decode.oneOf
-        [ Decode.map ValueString Decode.string
-        , Decode.map ValueInt Decode.int
-        , Decode.map ValueNumber Decode.float
-        , Decode.map ValueBoolean Decode.bool
-        , Decode.map ValueList (Decode.list (Decode.lazy (\_ -> attributoValueDecoder)))
-        ]
-
-
-attributoMapDecoder : Decode.Decoder (AttributoMap AttributoValue)
-attributoMapDecoder =
-    Decode.map AttributoMap <| Decode.dict attributoValueDecoder
+attributoMapNames =
+    Dict.keys
 
 
 mapAttributo : (a -> b) -> Attributo a -> Attributo b
@@ -228,26 +181,13 @@ attributoTypeDecoder =
     Decode.andThen (\x -> resultToJsonDecoder (jsonSchemaToAttributoType x)) jsonSchemaDecoder
 
 
-attributoRequestDecoder : Decode.Decoder (List (Attributo AttributoType))
-attributoRequestDecoder =
-    Decode.field "attributi" (Decode.list (attributoDecoder attributoTypeDecoder))
-
-
-httpGetAndDecodeAttributi : (Result Http.Error (List (Attributo AttributoType)) -> msg) -> Cmd msg
-httpGetAndDecodeAttributi f =
-    Http.get
-        { url = "/api/attributi"
-        , expect = Http.expectJson f attributoRequestDecoder
-        }
-
-
 emptyAttributoMap : AttributoMap a
 emptyAttributoMap =
-    AttributoMap Dict.empty
+    Dict.empty
 
 
 retrieveAttributoValue : AttributoName -> AttributoMap a -> Maybe a
-retrieveAttributoValue name (AttributoMap m) =
+retrieveAttributoValue name m =
     Dict.get name m
 
 
@@ -262,8 +202,8 @@ retrieveDateTimeAttributoValue name m =
 
 
 updateAttributoMap : AttributoName -> a -> AttributoMap a -> AttributoMap a
-updateAttributoMap name value (AttributoMap m) =
-    AttributoMap <| Dict.insert name value m
+updateAttributoMap name value m =
+    Dict.insert name value m
 
 
 createAnnotatedAttributoMap : List (Attributo x) -> AttributoMap a -> Dict String (Attributo ( x, a ))

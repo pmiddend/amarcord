@@ -1,4 +1,4 @@
-module Amarcord.Dialog exposing (Config, view, map, mapMaybe)
+module Amarcord.Dialog exposing (Config, view, map)
 
 {-| Elm Modal Dialogs.
 
@@ -167,13 +167,6 @@ map f config =
     , body = Maybe.map (Html.map f) config.body
     , footer = Maybe.map (Html.map f) config.footer
     }
-
-
-{-| For convenience, a variant of `map` which assumes you're dealing with a `Maybe (Config a)`, which is often the case.
--}
-mapMaybe : (a -> b) -> Maybe (Config a) -> Maybe (Config b)
-mapMaybe =
-    Maybe.map << map
 
 
 empty : Html msg

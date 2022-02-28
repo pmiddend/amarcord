@@ -1,20 +1,20 @@
 module Amarcord.Pages.ExperimentTypes exposing (..)
 
-import Amarcord.API.Requests exposing (ExperimentType, httpCreateExperimentType, httpDeleteExperimentType, httpGetExperimentTypes)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, showHttpError, viewRemoteData)
+import Amarcord.API.Requests exposing (ExperimentType, RequestError, httpCreateExperimentType, httpDeleteExperimentType, httpGetExperimentTypes)
+import Amarcord.API.RequestsHtml exposing (showRequestError)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewRemoteData)
 import Amarcord.Html exposing (form_, h1_, h5_, input_, tbody_, td_, th_, thead_, tr_)
 import Html exposing (Html, button, div, h4, label, table, text)
 import Html.Attributes exposing (class, for, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (Error(..), Response(..))
 import RemoteData exposing (RemoteData(..), fromResult)
 import String exposing (join, split, trim)
 
 
 type ExperimentTypeMsg
-    = ExperimentTypeCreated (Result Http.Error ())
-    | ExperimentTypeDeleted (Result Http.Error ())
-    | ExperimentTypesReceived (Result Http.Error (List ExperimentType))
+    = ExperimentTypeCreated (Result RequestError ())
+    | ExperimentTypeDeleted (Result RequestError ())
+    | ExperimentTypesReceived (Result RequestError (List ExperimentType))
     | ExperimentTypeNameChange String
     | ExperimentTypeDeleteSubmit String
     | ExperimentTypeAttributiChange String
@@ -22,9 +22,9 @@ type ExperimentTypeMsg
 
 
 type alias ExperimentTypeModel =
-    { createRequest : RemoteData Http.Error ()
-    , deleteRequest : RemoteData Http.Error ()
-    , experimentTypes : RemoteData Http.Error (List ExperimentType)
+    { createRequest : RemoteData RequestError ()
+    , deleteRequest : RemoteData RequestError ()
+    , experimentTypes : RemoteData RequestError (List ExperimentType)
     , newExperimentTypeName : String
     , newExperimentTypeAttributi : String
     }
@@ -96,7 +96,7 @@ viewExperimentType model =
     , viewRemoteData "Creation successful!" model.createRequest
     , case model.experimentTypes of
         Failure e ->
-            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ] ] ++ showHttpError e
+            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ] ] ++ [ showRequestError e ]
 
         Success experimentTypes ->
             table [ class "table table-striped" ] [ thead_ [ tr_ [ th_ [ text "Name" ], th_ [ text "Attributi" ], th_ [ text "Actions" ] ] ], tbody_ (List.map viewRow experimentTypes) ]

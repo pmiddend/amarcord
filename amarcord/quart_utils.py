@@ -42,10 +42,35 @@ def create_quart_standard_error(
     return {"code": code, "title": title, "description": description}
 
 
+class CustomWebException(Exception):
+    def __init__(self, code: int, title: str, description: str) -> None:
+        super().__init__(title)
+        self.description = description
+        self.title = title
+        self.code = code
+
+
 def handle_exception(e):
     """Return JSON instead of HTML for HTTP errors."""
-    # start with the correct headers and status code from the error
     response = e.get_response()
+    if e.original_exception is not None and isinstance(
+        e.original_exception, CustomWebException
+    ):
+        response.data = json.dumps(
+            {
+                "error": create_quart_standard_error(
+                    e.original_exception.code,
+                    e.original_exception.title,
+                    e.original_exception.description,
+                )
+            }
+        )
+        # Yes, this looks weird, returning 200 from a failed request. It's, however, a failure of the Elm HTTP framework
+        # where you lose the HTTP body if the response code isn't successful. I'm okay with that for now.
+        response.status_code = 200
+        response.content_type = "application/json"
+        return response
+    # start with the correct headers and status code from the error
     # replace the body with JSON
     response.data = json.dumps(
         {

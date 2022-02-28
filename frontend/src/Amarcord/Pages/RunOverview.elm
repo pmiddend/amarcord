@@ -1,23 +1,22 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
+import Amarcord.API.Requests exposing (Event, RequestError, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
+import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, spinner)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, spinner)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.DataSet exposing (DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h2_, h3_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
-import Amarcord.UserError exposing (UserError)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, scrollToTop)
 import Dict exposing (Dict)
 import Hotkeys exposing (onEnter)
 import Html exposing (Html, a, button, div, form, h4, p, span, table, td, text, tfoot, tr, ul)
 import Html.Attributes exposing (class, colspan, disabled, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List exposing (head)
 import List.Extra exposing (find)
 import Maybe
@@ -32,13 +31,13 @@ type Msg
     | Refresh Posix
     | EventFormChange EventForm
     | EventFormSubmit
-    | EventFormSubmitFinished (Result Http.Error (Maybe UserError))
+    | EventFormSubmitFinished (Result RequestError ())
     | EventDelete Int
-    | EventDeleteFinished (Result Http.Error (Maybe UserError))
+    | EventDeleteFinished (Result RequestError ())
     | EventFormSubmitDismiss
     | RunEditInfoValueUpdate AttributoNameWithValueUpdate
     | RunEditSubmit
-    | RunEditFinished (Result Http.Error (Maybe UserError))
+    | RunEditFinished (Result RequestError ())
     | RunInitiateEdit Run
     | RunEditCancel
     | Nop
@@ -71,14 +70,14 @@ type alias RunEditInfo =
 
 
 type alias Model =
-    { runs : RemoteData Http.Error RunsResponseContent
+    { runs : RemoteData RequestError RunsResponseContent
     , myTimeZone : Zone
-    , refreshRequest : RemoteData Http.Error ()
+    , refreshRequest : RemoteData RequestError ()
     , eventForm : EventForm
-    , eventRequest : RemoteData Http.Error ()
+    , eventRequest : RemoteData RequestError ()
     , now : Posix
     , runEditInfo : Maybe RunEditInfo
-    , runEditRequest : RemoteData Http.Error ()
+    , runEditRequest : RemoteData RequestError ()
     , submitErrors : List String
     }
 
@@ -205,7 +204,7 @@ viewRunsTable zone { runs, attributi, events, samples } =
         ]
 
 
-viewEventForm : RemoteData Http.Error () -> EventForm -> Html Msg
+viewEventForm : RemoteData RequestError () -> EventForm -> Html Msg
 viewEventForm eventRequest { userName, message } =
     let
         eventError =
@@ -214,7 +213,7 @@ viewEventForm eventRequest { userName, message } =
                     p [ class "text-success" ] [ text "Message added!" ]
 
                 Failure e ->
-                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ] ] ++ showHttpError e
+                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ] ] ++ [ showRequestError e ]
 
                 _ ->
                     text ""
@@ -390,13 +389,13 @@ viewCurrentRun zone now rrc =
                                         ]
                             in
                             [ h3_ [ text "Data set" ]
-                            , viewDataSetTable rrc.attributi zone rrc.samples ds (Maybe.map footer ds.summary)
+                            , viewDataSetTable rrc.attributi zone (sampleIdDict rrc.samples) ds (Maybe.map footer ds.summary)
                             ]
             in
             header ++ dataSetInformation
 
 
-viewRunAttributiForm : Maybe Run -> List String -> RemoteData Http.Error () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
+viewRunAttributiForm : Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
 viewRunAttributiForm latestRun submitErrorsList runEditRequest samples rei =
     case rei of
         Nothing ->
@@ -484,7 +483,7 @@ view model =
                 List.singleton <| loadingBar "Loading runs..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ] ] ++ showHttpError e
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ] ] ++ [ showRequestError e ]
 
             Success a ->
                 case model.refreshRequest of
@@ -572,10 +571,7 @@ update msg model =
                 Err e ->
                     ( { model | eventRequest = Failure e }, Cmd.none )
 
-                Ok (Just userError) ->
-                    ( { model | eventRequest = Failure (Http.BadBody userError.title) }, Cmd.none )
-
-                Ok Nothing ->
+                Ok _ ->
                     ( { model | eventRequest = Success (), eventForm = { userName = model.eventForm.userName, message = "" } }, httpGetRuns RunsReceived )
 
         EventDelete eventId ->
@@ -583,7 +579,7 @@ update msg model =
 
         EventDeleteFinished result ->
             case result of
-                Ok Nothing ->
+                Ok _ ->
                     ( model, httpGetRuns RunsReceived )
 
                 _ ->
@@ -634,10 +630,7 @@ update msg model =
                 Err e ->
                     ( { model | runEditRequest = Failure e }, Cmd.none )
 
-                Ok (Just userError) ->
-                    ( { model | runEditRequest = Failure (Http.BadBody userError.title) }, Cmd.none )
-
-                Ok Nothing ->
+                Ok _ ->
                     case model.runs of
                         Success _ ->
                             let

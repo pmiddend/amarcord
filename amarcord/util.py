@@ -194,3 +194,15 @@ def safe_max(xs: Iterable[T], key: Callable[[T], U]) -> Optional[T]:
         return max(xs, key=key)  # type: ignore
     except ValueError:
         return None
+
+
+def group_by(xs: Iterable[T], key: Callable[[T], U]) -> Dict[U, List[T]]:
+    result: Dict[U, List[T]] = {}
+    for x in xs:
+        key_value = key(x)
+        previous_values = result.get(key_value, None)
+        if previous_values is None:
+            result[key_value] = [x]
+        else:
+            previous_values.append(x)
+    return result

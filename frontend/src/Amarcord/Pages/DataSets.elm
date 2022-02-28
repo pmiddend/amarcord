@@ -1,17 +1,17 @@
 module Amarcord.Pages.DataSets exposing (..)
 
-import Amarcord.API.Requests exposing (DataSetResult, ExperimentType, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
+import Amarcord.API.Requests exposing (DataSetResult, ExperimentType, RequestError, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
+import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, emptyAttributoMap)
 import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError, viewRemoteData)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
 import Amarcord.DataSet exposing (DataSet)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
-import Amarcord.Sample exposing (Sample)
+import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Html exposing (Html, button, div, h4, option, select, table, text)
 import Html.Attributes exposing (class, selected, type_)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (Error(..), Response(..))
 import List.Extra exposing (find)
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
@@ -20,9 +20,9 @@ import Time exposing (Zone)
 
 
 type DataSetMsg
-    = DataSetCreated (Result Http.Error ())
-    | DataSetDeleted (Result Http.Error ())
-    | DataSetsReceived (Result Http.Error DataSetResult)
+    = DataSetCreated (Result RequestError ())
+    | DataSetDeleted (Result RequestError ())
+    | DataSetsReceived (Result RequestError DataSetResult)
     | DataSetDeleteSubmit Int
     | DataSetExperimentTypeChange String
     | DataSetAttributiChange AttributoNameWithValueUpdate
@@ -30,9 +30,9 @@ type DataSetMsg
 
 
 type alias DataSetModel =
-    { createRequest : RemoteData Http.Error ()
-    , deleteRequest : RemoteData Http.Error ()
-    , dataSets : RemoteData Http.Error DataSetResult
+    { createRequest : RemoteData RequestError ()
+    , deleteRequest : RemoteData RequestError ()
+    , dataSets : RemoteData RequestError DataSetResult
     , newDataSetExperimentType : Maybe String
     , newDataSetAttributi : EditableAttributiAndOriginal
     , submitErrors : List String
@@ -135,7 +135,7 @@ viewDataSet model =
             List.singleton <| loadingBar "Loading data set..."
 
         Failure e ->
-            List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ] ] ++ showHttpError e
+            List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ] ] ++ [ showRequestError e ]
 
         Success { samples, attributi, dataSets, experimentTypes } ->
             let
@@ -144,7 +144,7 @@ viewDataSet model =
                     tr_
                         [ td_ [ text (String.fromInt ds.id) ]
                         , td_ [ text ds.experimentType ]
-                        , td_ [ viewDataSetTable attributi model.zone samples ds Nothing ]
+                        , td_ [ viewDataSetTable attributi model.zone (sampleIdDict samples) ds Nothing ]
                         , td_ [ button [ class "btn btn-danger btn-sm", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 

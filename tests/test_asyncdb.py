@@ -571,7 +571,7 @@ async def test_create_and_retrieve_experiment_types() -> None:
         # Now delete it again
         await db.delete_experiment_type(conn, e_type_name)
 
-        assert not (await db.retrieve_experiment_types(conn))
+        assert not await db.retrieve_experiment_types(conn)
 
 
 async def test_create_and_retrieve_data_sets() -> None:
@@ -616,7 +616,9 @@ async def test_create_and_retrieve_data_sets() -> None:
 
         assert id_ > 0
 
-        data_sets = list(await db.retrieve_data_sets(conn, attributi))
+        data_sets = await db.retrieve_data_sets(
+            conn, await db.retrieve_sample_ids(conn), attributi
+        )
 
         assert len(data_sets) == 1
         assert data_sets[0].id == id_
@@ -624,7 +626,11 @@ async def test_create_and_retrieve_data_sets() -> None:
         assert data_sets[0].attributi.to_json() == raw_attributi
 
         await db.delete_data_set(conn, id_)
-        assert not list(await db.retrieve_data_sets(conn, attributi))
+        assert not (
+            await db.retrieve_data_sets(
+                conn, await db.retrieve_sample_ids(conn), attributi
+            )
+        )
 
 
 async def test_create_data_set_and_and_change_attributo_type() -> None:
@@ -657,7 +663,7 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         raw_attributi = {first_name: 1, second_name: "f"}
-        id_ = await db.create_data_set(
+        await db.create_data_set(
             conn,
             e_type_name,
             AttributiMap.from_types_and_json(
@@ -682,7 +688,9 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
 
         data_sets = list(
             await db.retrieve_data_sets(
-                conn, await db.retrieve_attributi(conn, associated_table=None)
+                conn,
+                await db.retrieve_sample_ids(conn),
+                await db.retrieve_attributi(conn, associated_table=None),
             )
         )
         assert data_sets[0].attributi.select_string(first_name)

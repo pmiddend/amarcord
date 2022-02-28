@@ -76,7 +76,12 @@ viewAttributoValue props zone sampleIds type_ value =
         ValueInt int ->
             case type_ of
                 SampleId ->
-                    text <| withDefault (fromInt int) <| get int sampleIds
+                    case get int sampleIds of
+                        Nothing ->
+                            text "invalid sample ID"
+
+                        Just sid ->
+                            text sid
 
                 DateTime ->
                     text <|

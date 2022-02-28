@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, List, Optional
+from typing import Dict, cast, List, Optional, Set
 
 from pint import UnitRegistry
 from quart import Quart, request
@@ -13,8 +13,8 @@ from quart_cors import cors
 from tap import Tap
 from werkzeug.exceptions import HTTPException
 
+from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.asyncdb import create_run_groups
 from amarcord.db.attributi import (
     AttributoConversionFlags,
     datetime_to_attributo_int,
@@ -31,10 +31,11 @@ from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type
-from amarcord.quart_utils import CustomJSONEncoder
+from amarcord.quart_utils import CustomJSONEncoder, CustomWebException
 from amarcord.quart_utils import QuartDatabases
 from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
+from amarcord.util import group_by
 
 app = Quart(
     __name__,
@@ -238,7 +239,7 @@ async def read_runs() -> JSONDict:
                 conn, [s.id for s in samples], attributi
             )
         )
-        runs = list(await db.instance.retrieve_runs(conn, attributi))
+        runs = await db.instance.retrieve_runs(conn, attributi)
         data_set_id_to_grouped: Dict[int, DataSetSummary] = {}
         for ds in data_sets:
             matching_runs = [
@@ -365,13 +366,33 @@ async def create_data_set() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        sample_ids = await db.instance.retrieve_sample_ids(conn)
+        previous_data_sets = await db.instance.retrieve_data_sets(
+            conn, sample_ids, attributi
+        )
+
+        experiment_type = r.retrieve_safe_str("experiment-type")
+        data_set_attributi = r.retrieve_safe_object("attributi")
+        if any(
+            x
+            for x in previous_data_sets
+            if x.experiment_type == experiment_type
+            and x.attributi.to_json() == data_set_attributi
+        ):
+            raise CustomWebException(
+                code=500,
+                title="Data set duplicate",
+                description="This data set already exists!",
+            )
+
         data_set_id = await db.instance.create_data_set(
             conn,
-            experiment_type=r.retrieve_safe_str("experiment-type"),
+            experiment_type=experiment_type,
             attributi=AttributiMap.from_types_and_json(
-                await db.instance.retrieve_attributi(conn, associated_table=None),
-                await db.instance.retrieve_sample_ids(conn),
-                r.retrieve_safe_object("attributi"),
+                attributi,
+                sample_ids,
+                data_set_attributi,
             ),
         )
 
@@ -524,9 +545,7 @@ async def delete_attributo() -> JSONDict:
     async with db.instance.begin() as conn:
         attributo_name = r.retrieve_safe_str("name")
 
-        attributi = list(
-            await db.instance.retrieve_attributi(conn, associated_table=None)
-        )
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
 
         found_attributo = next((x for x in attributi if x.name == attributo_name), None)
         if found_attributo is None:
@@ -598,69 +617,83 @@ async def read_attributi() -> JSONDict:
         }
 
 
-@app.get("/api/analysis/cfel-results")
-async def read_cfel_results() -> JSONDict:
+@app.get("/api/analysis/analysis-results")
+async def read_analysis_results() -> JSONDict:
     async with db.instance.begin() as conn:
-        return {
-            "results": [
-                {
-                    "directoryName": k.directory_name,
-                    "runFrom": k.run_from,
-                    "runTo": k.run_to,
-                    "resolution": k.resolution,
-                    "rsplit": k.rsplit,
-                    "cchalf": k.cchalf,
-                    "ccstar": k.ccstar,
-                    "snr": k.snr,
-                    "completeness": k.completeness,
-                    "multiplicity": k.multiplicity,
-                    "totalMeasurements": k.total_measurements,
-                    "uniqueReflections": k.unique_reflections,
-                    "wilsonB": k.wilson_b,
-                    "outerShell": k.outer_shell,
-                    "numPatterns": k.num_patterns,
-                    "numHits": k.num_hits,
-                    "indexedPatterns": k.indexed_patterns,
-                    "indexedCrystals": k.indexed_crystals,
-                    "comment": k.comment,
-                }
-                for k in sorted(
-                    await db.instance.retrieve_cfel_analysis_results(conn),
-                    key=lambda r: r.run_from,
-                )
-            ]
-        }
-
-
-@app.post("/api/analysis/grouped-runs")
-async def read_grouped_runs() -> JSONDict:
-    r = JSONChecker(await quart_safe_json_dict(), "request")
-
-    async with db.instance.begin() as conn:
-        attributi_names = r.retrieve_string_array("attributi")
-
-        attributi = list(
-            await db.instance.retrieve_attributi(conn, associated_table=None)
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        samples = await db.instance.retrieve_samples(conn, attributi)
+        data_sets = await db.instance.retrieve_data_sets(
+            conn, [x.id for x in samples], attributi
         )
-        samples = list(await db.instance.retrieve_samples(conn, attributi))
+        data_sets_by_experiment_type: Dict[str, List[DBDataSet]] = group_by(
+            data_sets,
+            lambda ds: ds.experiment_type,
+        )
         runs = await db.instance.retrieve_runs(conn, attributi)
+        data_set_to_runs: Dict[int, List[DBRun]] = {
+            ds.id: [r for r in runs if _run_matches_dataset(r.attributi, ds.attributi)]
+            for ds in data_sets
+        }
+        data_set_to_run_ids: Dict[int, Set[int]] = {
+            ds_id: {r.id for r in runs} for ds_id, runs in data_set_to_runs.items()
+        }
+        cfel_analysis_results = await db.instance.retrieve_cfel_analysis_results(conn)
+        data_set_to_analysis_results: Dict[int, List[DBCFELAnalysisResult]] = {
+            ds_id: [
+                a
+                for a in cfel_analysis_results
+                if any(a.run_from <= run_id <= a.run_to for run_id in run_ids)
+            ]
+            for ds_id, run_ids in data_set_to_run_ids.items()
+        }
 
         return {
-            "groups": [
-                {
-                    "runIds": g.run_ids,
-                    "totalMinutes": g.total_minutes,
-                    "attributi": AttributiMap(
-                        types_dict={t.name: t for t in attributi},
-                        sample_ids=[s.id for s in samples],
-                        impl=g.attributi_values,
-                    ).to_json(),
-                }
-                for g in create_run_groups(attributi_names, runs)
-            ],
-            "samples": [_encode_sample(s) for s in samples],
             "attributi": [_encode_attributo(a) for a in attributi],
+            "sample-id-to-name": [[x.id, x.name] for x in samples],
+            "experiment-types": {
+                experiment_type: [
+                    {
+                        "data-set": _encode_data_set(
+                            ds,
+                            build_run_summary(data_set_to_runs.get(ds.id, [])),
+                        ),
+                        "analysis-results": [
+                            _encode_cfel_analysis_result(k)
+                            for k in sorted(
+                                data_set_to_analysis_results.get(ds.id, []),
+                                key=lambda r: r.run_from,
+                            )
+                        ],
+                    }
+                    for ds in data_sets
+                ]
+                for experiment_type, data_sets in data_sets_by_experiment_type.items()
+            },
         }
+
+
+def _encode_cfel_analysis_result(k: DBCFELAnalysisResult) -> JSONDict:
+    return {
+        "directoryName": k.directory_name,
+        "runFrom": k.run_from,
+        "runTo": k.run_to,
+        "resolution": k.resolution,
+        "rsplit": k.rsplit,
+        "cchalf": k.cchalf,
+        "ccstar": k.ccstar,
+        "snr": k.snr,
+        "completeness": k.completeness,
+        "multiplicity": k.multiplicity,
+        "totalMeasurements": k.total_measurements,
+        "uniqueReflections": k.unique_reflections,
+        "wilsonB": k.wilson_b,
+        "outerShell": k.outer_shell,
+        "numPatterns": k.num_patterns,
+        "numHits": k.num_hits,
+        "indexedPatterns": k.indexed_patterns,
+        "indexedCrystals": k.indexed_crystals,
+        "comment": k.comment,
+    }
 
 
 class Arguments(Tap):
@@ -706,7 +739,7 @@ def main() -> int:
             "HAS_ARTIFICIAL_DELAY": args.delay,
         },
     )
-    app.run(host=args.host, port=args.port, debug=args.debug, use_reloader=args.debug)
+    app.run(host=args.host, port=args.port, debug=False, use_reloader=args.debug)
     return 0
 
 

@@ -1,7 +1,6 @@
 module Amarcord.DataSet exposing (..)
 
 import Amarcord.Attributo exposing (AttributoMap, AttributoValue)
-import Dict exposing (Dict)
 
 
 type alias DataSetSummary =

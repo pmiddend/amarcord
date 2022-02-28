@@ -228,8 +228,8 @@ class AsyncDB:
         return result
 
     async def retrieve_samples(
-        self, conn: Connection, attributi_iterable: Iterable[DBAttributo]
-    ) -> Iterable[DBSample]:
+        self, conn: Connection, attributi: List[DBAttributo]
+    ) -> List[DBSample]:
         sample_to_files = await self._retrieve_files(
             conn, self.tables.sample_has_file.c.sample_id
         )
@@ -244,8 +244,7 @@ class AsyncDB:
 
         result = await conn.execute(select_stmt)
 
-        attributi = list(attributi_iterable)
-        return (
+        return [
             DBSample(
                 id=a["id"],
                 name=a["name"],
@@ -258,7 +257,7 @@ class AsyncDB:
                 files=sample_to_files.get(a["id"], []),
             )
             for a in result
-        )
+        ]
 
     async def delete_event(
         self,
@@ -304,7 +303,7 @@ class AsyncDB:
         ).inserted_primary_key[0]
 
     async def retrieve_runs(
-        self, conn: Connection, attributi_iterable: Iterable[DBAttributo]
+        self, conn: Connection, attributi: List[DBAttributo]
     ) -> List[DBRun]:
         run_to_files = await self._retrieve_files(
             conn, self.tables.run_has_file.c.run_id
@@ -321,7 +320,6 @@ class AsyncDB:
 
         sample_ids = await self.retrieve_sample_ids(conn)
 
-        attributi = list(attributi_iterable)
         return [
             DBRun(
                 id=a["id"],
@@ -601,9 +599,9 @@ class AsyncDB:
 
     async def retrieve_cfel_analysis_results(
         self, conn: Connection
-    ) -> Iterable[DBCFELAnalysisResult]:
+    ) -> List[DBCFELAnalysisResult]:
         ar = self.tables.cfel_analysis_results.c
-        return (
+        return [
             DBCFELAnalysisResult(
                 r["directory_name"],
                 r["run_from"],
@@ -652,7 +650,7 @@ class AsyncDB:
                     )
                 )
             )
-        )
+        ]
 
     async def create_run(
         self, conn: Connection, run_id: int, attributi: AttributiMap
@@ -805,9 +803,9 @@ class AsyncDB:
 
     async def retrieve_analysis_results(
         self, conn: Connection
-    ) -> Iterable[DBCFELAnalysisResult]:
+    ) -> List[DBCFELAnalysisResult]:
         ar = self.tables.cfel_analysis_results.c
-        return (
+        return [
             DBCFELAnalysisResult(
                 r["directory_name"],
                 r["run_from"],
@@ -856,7 +854,7 @@ class AsyncDB:
                     )
                 )
             ).fetchall()
-        )
+        ]
 
     async def create_experiment_type(
         self, conn: Connection, name: str, experiment_attributi_names: Iterable[str]
@@ -893,7 +891,7 @@ class AsyncDB:
 
     async def retrieve_experiment_types(
         self, conn: Connection
-    ) -> Iterable[DBExperimentType]:
+    ) -> List[DBExperimentType]:
         result: List[DBExperimentType] = []
         etc = self.tables.experiment_has_attributo.c
         for key, group in itertools.groupby(
@@ -953,11 +951,10 @@ class AsyncDB:
         self,
         conn: Connection,
         sample_ids: List[int],
-        iterable_attributi: Iterable[DBAttributo],
-    ) -> Iterable[DBDataSet]:
+        attributi: List[DBAttributo],
+    ) -> List[DBDataSet]:
         dc = self.tables.data_set.c
-        attributi = list(iterable_attributi)
-        return (
+        return [
             DBDataSet(
                 id=r["id"],
                 experiment_type=r["experiment_type"],
@@ -968,7 +965,7 @@ class AsyncDB:
             for r in await conn.execute(
                 sa.select([dc.id, dc.experiment_type, dc.attributi])
             )
-        )
+        ]
 
     async def update_data_set_attributi(
         self, conn: Connection, id_: int, attributi: AttributiMap

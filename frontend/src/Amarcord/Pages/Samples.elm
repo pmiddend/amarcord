@@ -1,33 +1,29 @@
 module Amarcord.Pages.Samples exposing (Model, Msg, init, update, view)
 
+import Amarcord.API.Requests exposing (RequestError, SamplesResponse, httpCreateFile, httpCreateSample, httpDeleteSample, httpGetSamples, httpUpdateSample)
+import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo
     exposing
         ( Attributo
         , AttributoMap
         , AttributoType(..)
         , AttributoValue(..)
-        , attributoDecoder
-        , attributoTypeDecoder
         , emptyAttributoMap
         )
 import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Dialog as Dialog
-import Amarcord.File exposing (File, httpCreateFile)
+import Amarcord.File exposing (File)
 import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Sample exposing (Sample, SampleId, encodeSample, sampleDecoder, sampleMapAttributi, sampleMapId)
-import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (HereAndNow, httpDelete, httpPatch)
+import Amarcord.Sample exposing (Sample, SampleId, sampleMapAttributi, sampleMapId)
+import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
 import File as ElmFile
 import File.Select
 import Html exposing (..)
 import Html.Attributes exposing (attribute, class, disabled, for, href, id, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (jsonBody)
-import Json.Decode as Decode
-import Json.Encode as Encode
 import List exposing (length, singleton)
 import Maybe
 import Maybe.Extra as Maybe exposing (isJust, isNothing)
@@ -49,20 +45,16 @@ type alias NewFileUpload =
 
 
 type alias Model =
-    { samples : RemoteData Http.Error SamplesAndAttributi
+    { samples : RemoteData RequestError SamplesAndAttributi
     , deleteModalOpen : Maybe ( String, SampleId )
-    , sampleDeleteRequest : RemoteData Http.Error ()
-    , fileUploadRequest : RemoteData Http.Error ()
+    , sampleDeleteRequest : RemoteData RequestError ()
+    , fileUploadRequest : RemoteData RequestError ()
     , editSample : Maybe (Sample (Maybe Int) EditableAttributiAndOriginal File)
-    , modifyRequest : RemoteData Http.Error ()
+    , modifyRequest : RemoteData RequestError ()
     , myTimeZone : Zone
     , submitErrors : List String
     , newFileUpload : NewFileUpload
     }
-
-
-type alias SamplesResponse =
-    Result Http.Error ( List (Sample SampleId (AttributoMap AttributoValue) File), List (Attributo AttributoType) )
 
 
 type Msg
@@ -73,57 +65,18 @@ type Msg
     | ConfirmDelete SampleId
     | AddSample
     | EditSampleName String
-    | SampleDeleteFinished (Result Http.Error (Maybe UserError))
+    | SampleDeleteFinished (Result RequestError ())
     | EditSampleSubmit
     | EditSampleCancel
-    | EditSampleFinished (Result Http.Error (Maybe UserError))
+    | EditSampleFinished (Result RequestError ())
     | EditSampleAttributo AttributoNameWithValueUpdate
     | EditNewFileDescription String
     | EditNewFileFile ElmFile.File
     | EditFileUpload
-    | EditFileUploadFinished (Result Http.Error File)
+    | EditFileUploadFinished (Result RequestError File)
     | EditFileDelete Int
     | EditResetNewFileUpload
     | EditNewFileOpenSelector
-
-
-httpGetSamples : (SamplesResponse -> msg) -> Cmd msg
-httpGetSamples f =
-    Http.get
-        { url = "/api/samples"
-        , expect =
-            Http.expectJson f <|
-                Decode.map2 (\samples attributi -> ( samples, attributi ))
-                    (Decode.field "samples" <| Decode.list sampleDecoder)
-                    (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
-        }
-
-
-httpCreateSample : Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd Msg
-httpCreateSample a =
-    Http.post
-        { url = "/api/samples"
-        , expect = Http.expectJson EditSampleFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        , body = jsonBody (encodeSample a)
-        }
-
-
-httpUpdateSample : Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd Msg
-httpUpdateSample a =
-    httpPatch
-        { url = "/api/samples"
-        , expect = Http.expectJson EditSampleFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        , body = jsonBody (encodeSample a)
-        }
-
-
-httpDeleteSample : Int -> Cmd Msg
-httpDeleteSample sampleId =
-    httpDelete
-        { url = "/api/samples"
-        , body = jsonBody (Encode.object [ ( "id", Encode.int sampleId ) ])
-        , expect = Http.expectJson SampleDeleteFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        }
 
 
 init : HereAndNow -> ( Model, Cmd Msg )
@@ -383,7 +336,7 @@ viewInner model =
             singleton <| loadingBar "Loading samples..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ showHttpError e
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ [ showRequestError e ]
 
         Success { samples, attributi } ->
             let
@@ -404,7 +357,7 @@ viewInner model =
                             p [] [ text "Request in progress..." ]
 
                         Failure e ->
-                            div [] [ makeAlert [ AlertDanger ] (showHttpError e) ]
+                            div [] [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -420,7 +373,7 @@ viewInner model =
                             p [] [ text "Request in progress..." ]
 
                         Failure e ->
-                            div [] [ makeAlert [ AlertDanger ] (showHttpError e) ]
+                            div [] [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -479,7 +432,7 @@ update msg model =
 
         -- The user pressed "yes, really delete!" in the modal
         ConfirmDelete sampleId ->
-            ( { model | sampleDeleteRequest = Loading, deleteModalOpen = Nothing }, httpDeleteSample sampleId )
+            ( { model | sampleDeleteRequest = Loading, deleteModalOpen = Nothing }, httpDeleteSample SampleDeleteFinished sampleId )
 
         -- The user closed the "Really delete?" modal
         CancelDelete ->
@@ -491,10 +444,7 @@ update msg model =
                 Err e ->
                     ( { model | sampleDeleteRequest = Failure e }, Cmd.none )
 
-                Ok (Just userError) ->
-                    ( { model | sampleDeleteRequest = Failure (Http.BadBody userError.title) }, Cmd.none )
-
-                Ok Nothing ->
+                Ok _ ->
                     ( { model | sampleDeleteRequest = Success () }, httpGetSamples SamplesReceived )
 
         -- The user pressed the "Add new object" button
@@ -544,7 +494,7 @@ update msg model =
                                         , files = List.map .id editSample.files
                                         }
                                 in
-                                ( { model | modifyRequest = Loading }, operation sampleToSend )
+                                ( { model | modifyRequest = Loading }, operation EditSampleFinished sampleToSend )
 
         EditSampleCancel ->
             ( { model | editSample = Nothing, newFileUpload = emptyNewFileUpload }, Cmd.none )
@@ -554,10 +504,7 @@ update msg model =
                 Err e ->
                     ( { model | modifyRequest = Failure e }, Cmd.none )
 
-                Ok (Just userError) ->
-                    ( { model | modifyRequest = Failure (Http.BadBody userError.title) }, Cmd.none )
-
-                Ok Nothing ->
+                Ok _ ->
                     ( { model | modifyRequest = Success (), editSample = Nothing }, httpGetSamples SamplesReceived )
 
         EditSampleAttributo v ->

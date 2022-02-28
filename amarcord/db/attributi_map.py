@@ -1,6 +1,6 @@
 import datetime
 from dataclasses import replace
-from typing import Dict, Set, Tuple, Iterable
+from typing import Dict, Set, Tuple, Iterable, Any
 from typing import List
 from typing import Optional
 from typing import cast
@@ -358,3 +358,11 @@ class AttributiMap:
 
     def items(self) -> Iterable[Tuple[str, AttributoValue]]:
         return self._attributi.items()  # type: ignore
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, AttributiMap):
+            return self._attributi == other._attributi
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self._attributi)

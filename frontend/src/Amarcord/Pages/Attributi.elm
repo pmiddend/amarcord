@@ -1,22 +1,20 @@
 module Amarcord.Pages.Attributi exposing (Model, Msg, init, update, view)
 
+import Amarcord.API.Requests exposing (ConversionFlags, RequestError, StandardUnitCheckResult(..), httpCheckStandardUnit, httpCreateAttributo, httpDeleteAttributo, httpEditAttributo, httpGetAndDecodeAttributi)
+import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
-import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, httpGetAndDecodeAttributi, mapAttributo, mapAttributoMaybe)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, showHttpError)
+import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, mapAttributo, mapAttributoMaybe)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (div_, em_, form_, h4_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
-import Amarcord.JsonSchema exposing (JsonSchema(..), encodeJsonSchema)
+import Amarcord.JsonSchema exposing (JsonSchema(..))
 import Amarcord.NumericRange exposing (NumericRange(..), NumericRangeValue(..), coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
-import Amarcord.UserError exposing (UserError, userErrorDecoder)
-import Amarcord.Util exposing (HereAndNow, httpDelete, httpPatch)
+import Amarcord.Util exposing (HereAndNow)
 import Html exposing (..)
 import Html.Attributes exposing (attribute, checked, class, disabled, for, id, placeholder, scope, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http exposing (jsonBody)
-import Json.Decode as Decode
-import Json.Encode as Encode
 import List exposing (singleton)
 import List.Extra exposing (find)
 import Maybe as Maybe exposing (andThen, withDefault)
@@ -178,11 +176,6 @@ emptyAugAttributo =
     { name = "", description = "", group = manualAttributiGroup, associatedTable = Sample, type_ = AugSimple String }
 
 
-type alias ConversionFlags =
-    { ignoreUnits : Bool
-    }
-
-
 attributoTypeToJsonSchema : AttributoType -> JsonSchema
 attributoTypeToJsonSchema x =
     case x of
@@ -301,13 +294,8 @@ attributoAugTypeToType x =
             Result.toMaybe <| Result.map2 (\min max -> List { subType = subType, minLength = min, maxLength = max }) minLength maxLength
 
 
-type StandardUnitCheckResult
-    = StandardUnitValid { input : String, normalized : String }
-    | StandardUnitInvalid { input : String, error : String }
-
-
 type Msg
-    = AttributiReceived (Result Http.Error (List (Attributo AttributoType)))
+    = AttributiReceived (Result RequestError (List (Attributo AttributoType)))
     | AddAttributo
     | EditAttributoAssociatedTable AssociatedTable
     | EditAttributoName AttributoName
@@ -317,96 +305,25 @@ type Msg
     | EditAttributoDescription String
     | EditConversionFlags ConversionFlags
     | EditAttributoAugChange AttributoTypeAug
-    | EditSubmitFinished (Result Http.Error (Maybe UserError))
-    | CheckStandardUnitFinished (Result Http.Error StandardUnitCheckResult)
+    | EditSubmitFinished (Result RequestError ())
+    | CheckStandardUnitFinished (Result RequestError StandardUnitCheckResult)
     | AskDelete AttributoName
     | ConfirmDelete AttributoName
     | CancelDelete
-    | DeleteFinished (Result Http.Error (Maybe UserError))
+    | DeleteFinished (Result RequestError ())
     | InitiateEdit AttributoName
 
 
 type alias Model =
-    { attributiList : RemoteData Http.Error (List (Attributo AttributoType))
+    { attributiList : RemoteData RequestError (List (Attributo AttributoType))
     , editAttributo : Maybe (Attributo AttributoTypeAug)
     , editAttributoOriginalName : Maybe AttributoName
     , conversionFlags : ConversionFlags
-    , modifyRequest : RemoteData Http.Error ()
-    , deleteRequest : RemoteData Http.Error ()
+    , modifyRequest : RemoteData RequestError ()
+    , deleteRequest : RemoteData RequestError ()
     , deleteModalOpen : Maybe AttributoName
-    , unitValidationRequest : RemoteData Http.Error ()
+    , unitValidationRequest : RemoteData RequestError ()
     }
-
-
-httpDeleteAttributo : AttributoName -> Cmd Msg
-httpDeleteAttributo attributoName =
-    httpDelete
-        { url = "/api/attributi"
-        , body = jsonBody (Encode.object [ ( "name", Encode.string attributoName ) ])
-        , expect = Http.expectJson DeleteFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        }
-
-
-encodeAssociatedTable : AssociatedTable -> Encode.Value
-encodeAssociatedTable x =
-    case x of
-        Run ->
-            Encode.string "run"
-
-        Sample ->
-            Encode.string "sample"
-
-
-encodeAttributo : (a -> Encode.Value) -> Attributo a -> Encode.Value
-encodeAttributo typeEncoder a =
-    Encode.object
-        [ ( "name", Encode.string a.name )
-        , ( "description", Encode.string a.description )
-        , ( "group", Encode.string a.group )
-        , ( "associatedTable", encodeAssociatedTable a.associatedTable )
-        , ( "type", typeEncoder a.type_ )
-        ]
-
-
-httpCreateAttributo : Attributo JsonSchema -> Cmd Msg
-httpCreateAttributo a =
-    Http.post
-        { url = "/api/attributi"
-        , expect = Http.expectJson EditSubmitFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        , body = jsonBody (encodeAttributo encodeJsonSchema a)
-        }
-
-
-httpCheckStandardUnit : String -> Cmd Msg
-httpCheckStandardUnit unit =
-    let
-        decodeCheckUnitResult input normalized error =
-            case normalized of
-                Nothing ->
-                    StandardUnitInvalid { input = input, error = withDefault "unknown error" error }
-
-                Just normalizedReal ->
-                    StandardUnitValid { input = input, normalized = normalizedReal }
-    in
-    Http.post
-        { url = "/api/unit"
-        , expect = Http.expectJson CheckStandardUnitFinished (Decode.map3 decodeCheckUnitResult (Decode.field "input" Decode.string) (Decode.maybe (Decode.field "normalized" Decode.string)) (Decode.maybe (Decode.field "error" Decode.string)))
-        , body = jsonBody (Encode.object [ ( "input", Encode.string unit ) ])
-        }
-
-
-encodeConversionFlags : ConversionFlags -> Encode.Value
-encodeConversionFlags { ignoreUnits } =
-    Encode.object [ ( "ignoreUnits", Encode.bool ignoreUnits ) ]
-
-
-httpEditAttributo : ConversionFlags -> AttributoName -> Attributo JsonSchema -> Cmd Msg
-httpEditAttributo conversionFlags nameBefore a =
-    httpPatch
-        { url = "/api/attributi"
-        , expect = Http.expectJson EditSubmitFinished (Decode.maybe (Decode.field "error" userErrorDecoder))
-        , body = jsonBody (Encode.object [ ( "newAttributo", encodeAttributo encodeJsonSchema a ), ( "nameBefore", Encode.string nameBefore ), ( "conversionFlags", encodeConversionFlags conversionFlags ) ])
-        }
 
 
 init : HereAndNow -> ( Model, Cmd Msg )
@@ -897,7 +814,7 @@ viewInner model =
             singleton <| loadingBar "Loading attributi..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ showHttpError e
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ [ showRequestError e ]
 
         Success attributiListReal ->
             let
@@ -940,7 +857,7 @@ viewInner model =
                             p_ [ text "Request in progress..." ]
 
                         Failure e ->
-                            div_ [ makeAlert [ AlertDanger ] (showHttpError e) ]
+                            div_ [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -956,7 +873,7 @@ viewInner model =
                             p_ [ text "Request in progress..." ]
 
                         Failure e ->
-                            div_ [ makeAlert [ AlertDanger ] (showHttpError e) ]
+                            div_ [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -1136,7 +1053,7 @@ update msg model =
                         newCmd =
                             case changeResult of
                                 CheckUnit newSuffix ->
-                                    httpCheckStandardUnit newSuffix
+                                    httpCheckStandardUnit CheckStandardUnitFinished newSuffix
 
                                 _ ->
                                     Cmd.none
@@ -1177,14 +1094,14 @@ update msg model =
                                             ( { model | unitValidationRequest = Success (), editAttributo = Just { editAttributo | type_ = AugNumber { rangeInput = rangeInput, suffixInput = suffixInput, standardUnit = standardUnit, suffixNormalized = ValidSuffix normalized } } }, Cmd.none )
 
                                         else
-                                            ( model, httpCheckStandardUnit suffixInput )
+                                            ( model, httpCheckStandardUnit CheckStandardUnitFinished suffixInput )
 
                                     Ok (StandardUnitInvalid { input }) ->
                                         if input == suffixInput then
                                             ( { model | unitValidationRequest = Success (), editAttributo = Just { editAttributo | type_ = AugNumber { rangeInput = rangeInput, suffixInput = suffixInput, standardUnit = standardUnit, suffixNormalized = InvalidSuffix } } }, Cmd.none )
 
                                         else
-                                            ( model, httpCheckStandardUnit suffixInput )
+                                            ( model, httpCheckStandardUnit CheckStandardUnitFinished suffixInput )
 
                                     Err x ->
                                         ( { model | unitValidationRequest = Failure x, editAttributo = Just { editAttributo | type_ = AugNumber { rangeInput = rangeInput, suffixInput = suffixInput, standardUnit = standardUnit, suffixNormalized = InvalidSuffix } } }, Cmd.none )
@@ -1206,10 +1123,10 @@ update msg model =
                         Just baseAttributo ->
                             case model.editAttributoOriginalName of
                                 Nothing ->
-                                    ( { model | modifyRequest = Loading }, httpCreateAttributo baseAttributo )
+                                    ( { model | modifyRequest = Loading }, httpCreateAttributo EditSubmitFinished baseAttributo )
 
                                 Just originalName ->
-                                    ( { model | modifyRequest = Loading }, httpEditAttributo model.conversionFlags originalName baseAttributo )
+                                    ( { model | modifyRequest = Loading }, httpEditAttributo EditSubmitFinished model.conversionFlags originalName baseAttributo )
 
         EditAttributoCancel ->
             ( { model | editAttributo = Nothing, editAttributoOriginalName = Nothing }, Cmd.none )
@@ -1219,17 +1136,14 @@ update msg model =
                 Err e ->
                     ( { model | modifyRequest = Failure e }, Cmd.none )
 
-                Ok (Just userError) ->
-                    ( { model | modifyRequest = Failure (Http.BadBody userError.title) }, Cmd.none )
-
-                Ok Nothing ->
+                Ok _ ->
                     ( { model | modifyRequest = Success (), editAttributo = Nothing, editAttributoOriginalName = Nothing }, httpGetAndDecodeAttributi AttributiReceived )
 
         AskDelete attributoName ->
             ( { model | deleteModalOpen = Just attributoName }, Cmd.none )
 
         ConfirmDelete attributoName ->
-            ( { model | deleteRequest = Loading, deleteModalOpen = Nothing }, httpDeleteAttributo attributoName )
+            ( { model | deleteRequest = Loading, deleteModalOpen = Nothing }, httpDeleteAttributo DeleteFinished attributoName )
 
         CancelDelete ->
             ( { model | deleteModalOpen = Nothing }, Cmd.none )
@@ -1239,10 +1153,7 @@ update msg model =
                 Err e ->
                     ( { model | deleteRequest = Failure e }, Cmd.none )
 
-                Ok (Just userError) ->
-                    ( { model | deleteRequest = Failure (Http.BadBody userError.title) }, Cmd.none )
-
-                Ok Nothing ->
+                Ok _ ->
                     ( { model | deleteRequest = Success () }, httpGetAndDecodeAttributi AttributiReceived )
 
         InitiateEdit attributoName ->
