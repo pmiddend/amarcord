@@ -387,15 +387,30 @@ viewCurrentRun zone now currentExperimentType rrc =
                                                         "bg-success"
                                                 )
                                                 eta
-                                    in
-                                    tfoot []
-                                        [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
-                                        , tr_ [ td_ [ text "Frames" ], td_ [ text (String.fromInt frames) ] ]
-                                        , tr_
-                                            [ td_ [ text "Hits" ]
-                                            , td_ <|
-                                                [ text (String.fromInt hits)
-                                                , div [ class "progress" ]
+
+                                        etaDisplay =
+                                            MaybeExtra.unwrap []
+                                                (\realEta ->
+                                                    if realEta > 0 then
+                                                        [ span_ [ text "Time until 10k hits:" ]
+                                                        , br_
+                                                        , em_ [ text <| millisDiffHumanFriendly realEta ]
+                                                        ]
+
+                                                    else
+                                                        []
+                                                )
+                                                eta
+
+                                        toGoalPercent =
+                                            floor <| toFloat hits * 100.0 / 10000.0
+
+                                        overshootPercent =
+                                            floor <| 100.0 / toFloat toGoalPercent * 100.0
+
+                                        progressBar =
+                                            if toGoalPercent <= 100 then
+                                                div [ class "progress" ]
                                                     [ div
                                                         [ class
                                                             ("progress-bar progress-bar-striped "
@@ -407,19 +422,35 @@ viewCurrentRun zone now currentExperimentType rrc =
                                                                         ""
                                                                    )
                                                             )
-                                                        , style "width" (String.fromInt (floor <| toFloat hits * 100.0 / 10000.0) ++ "%")
+                                                        , style "width" (String.fromInt toGoalPercent ++ "%")
                                                         ]
                                                         []
                                                     ]
+
+                                            else
+                                                div [ class "progress" ]
+                                                    [ div
+                                                        [ class "progress-bar progress-bar-striped bg-success"
+                                                        , style "width" (String.fromInt overshootPercent ++ "%")
+                                                        ]
+                                                        []
+                                                    , div
+                                                        [ class "progress-bar progress-bar-striped"
+                                                        , style "width" (String.fromInt (100 - overshootPercent) ++ "%")
+                                                        ]
+                                                        []
+                                                    ]
+                                    in
+                                    tfoot []
+                                        [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
+                                        , tr_ [ td_ [ text "Frames" ], td_ [ text (String.fromInt frames) ] ]
+                                        , tr_
+                                            [ td_ [ text "Hits" ]
+                                            , td_ <|
+                                                [ text (String.fromInt hits)
+                                                , progressBar
                                                 ]
-                                                    ++ MaybeExtra.unwrap []
-                                                        (\realEta ->
-                                                            [ span_ [ text "Time until 10k hits:" ]
-                                                            , br_
-                                                            , em_ [ text <| millisDiffHumanFriendly realEta ]
-                                                            ]
-                                                        )
-                                                        eta
+                                                    ++ etaDisplay
                                             ]
                                         , tr_
                                             [ td_ [ text "Hit Rate" ]
