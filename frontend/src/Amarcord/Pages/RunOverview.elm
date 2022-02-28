@@ -9,7 +9,7 @@ import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAle
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.DataSet exposing (DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (form_, h1_, h2_, h3_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, em_, form_, h1_, h2_, h3_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, scrollToTop)
 import Dict exposing (Dict)
@@ -259,10 +259,10 @@ viewEventForm eventRequest { userName, message } =
         ]
 
 
-calculateEta : Int -> Int -> Int -> Int -> String
-calculateEta totalHits framesInRun hitsInRun runLengthMillis =
+calculateEtaMillis : Int -> Int -> Int -> Int -> Maybe Int
+calculateEtaMillis totalHits framesInRun hitsInRun runLengthMillis =
     if runLengthMillis == 0 || framesInRun == 0 then
-        ""
+        Nothing
 
     else
         let
@@ -281,7 +281,7 @@ calculateEta totalHits framesInRun hitsInRun runLengthMillis =
             secondsNeeded =
                 toFloat targetHits / hitsPerSecond
         in
-        millisDiffHumanFriendly <| round <| secondsNeeded * 1000.0
+        Just <| round <| secondsNeeded * 1000.0
 
 
 viewCurrentRun : Zone -> Posix -> Maybe String -> RunsResponseContent -> List (Html Msg)
@@ -373,21 +373,33 @@ viewCurrentRun zone now currentExperimentType rrc =
                                 footer : DataSetSummary -> Html msg
                                 footer { numberOfRuns, hits, frames } =
                                     let
-                                        eta : Maybe String
+                                        eta : Maybe Int
                                         eta =
-                                            Maybe.map3 (calculateEta hits) runFrames runHits runLengthMillis
+                                            MaybeExtra.join <| Maybe.map3 (calculateEtaMillis hits) runFrames runHits runLengthMillis
+
+                                        etaWarning =
+                                            MaybeExtra.unwrap "bg-success"
+                                                (\realEta ->
+                                                    if realEta > 12 * 60 * 60 * 1000 then
+                                                        "bg-warning"
+
+                                                    else
+                                                        "bg-success"
+                                                )
+                                                eta
                                     in
                                     tfoot []
                                         [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
                                         , tr_ [ td_ [ text "Frames" ], td_ [ text (String.fromInt frames) ] ]
                                         , tr_
                                             [ td_ [ text "Hits" ]
-                                            , td_
+                                            , td_ <|
                                                 [ text (String.fromInt hits)
                                                 , div [ class "progress" ]
                                                     [ div
                                                         [ class
-                                                            ("progress-bar progress-bar-striped bg-success"
+                                                            ("progress-bar progress-bar-striped "
+                                                                ++ etaWarning
                                                                 ++ (if isRunning then
                                                                         " progress-bar-animated"
 
@@ -399,8 +411,15 @@ viewCurrentRun zone now currentExperimentType rrc =
                                                         ]
                                                         []
                                                     ]
-                                                , MaybeExtra.unwrap (text "") (\realEta -> span_ [ text <| "Time until 10k hits: " ++ realEta ]) eta
                                                 ]
+                                                    ++ MaybeExtra.unwrap []
+                                                        (\realEta ->
+                                                            [ span_ [ text "Time until 10k hits:" ]
+                                                            , br_
+                                                            , em_ [ text <| millisDiffHumanFriendly realEta ]
+                                                            ]
+                                                        )
+                                                        eta
                                             ]
                                         , tr_
                                             [ td_ [ text "Hit Rate" ]
