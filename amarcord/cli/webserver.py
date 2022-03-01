@@ -8,7 +8,7 @@ from tempfile import NamedTemporaryFile
 from typing import Dict, cast, List, Optional, Set
 
 from pint import UnitRegistry
-from quart import Quart, request
+from quart import Quart, request, redirect, Response
 from quart_cors import cors
 from tap import Tap
 from werkzeug.exceptions import HTTPException
@@ -67,6 +67,11 @@ async def create_event() -> JSONDict:
             text=r.retrieve_safe_str("text"),
         )
         return {"id": event_id}
+
+
+@app.get("/")
+async def index() -> Response:
+    return redirect("/index.html")
 
 
 @app.post("/api/samples")

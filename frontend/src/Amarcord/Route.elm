@@ -1,7 +1,7 @@
 module Amarcord.Route exposing (..)
 
-import Url
-import Url.Parser exposing (Parser, map, oneOf, parse, s, top)
+import Url exposing (Protocol(..))
+import Url.Parser exposing (Parser, fragment, map, oneOf, parse, s, top)
 
 
 type Route
@@ -10,6 +10,28 @@ type Route
     | RunOverview
     | Attributi
     | Analysis
+
+
+
+-- This is the main entrypoint for parsing the current URL. It looks a bit weird - why parse the
+-- fragment "recursively"? If we parse the URL directly, we have URLs like this:
+-- http://localhost/run_overview
+-- Which needs extra work on the web server side. It basically needs to reroute every request it doesn't know
+-- to the index.html page somehow? Or we need specific rewrite rules.
+--
+-- Instead, we "nest" the real URL in the fragment part, as in: index.html#/foo/bar?baz=qux.
+-- So here, we first check if we have a fragment, and if so, parse it like it's the real path + query string.
+-- This needs minimal work on the web server - it just has to redirect "/" to "/index.html"
+
+
+parseUrlFragment : Url.Url -> Route
+parseUrlFragment url =
+    case Maybe.andThen (\fragment -> Url.fromString ("http://localhost" ++ fragment)) url.fragment of
+        Just subUrl ->
+            parseUrl subUrl
+
+        Nothing ->
+            Root
 
 
 parseUrl : Url.Url -> Route
@@ -22,23 +44,27 @@ parseUrl url =
             Root
 
 
+routePrefix =
+    "index.html#"
+
+
 makeLink : Route -> String
 makeLink x =
     case x of
         Root ->
-            "/"
+            routePrefix ++ "/"
 
         Attributi ->
-            "/attributi"
+            routePrefix ++ "/attributi"
 
         RunOverview ->
-            "/runoverview"
+            routePrefix ++ "/runoverview"
 
         Samples ->
-            "/samples"
+            routePrefix ++ "/samples"
 
         Analysis ->
-            "/analysis"
+            routePrefix ++ "/analysis"
 
 
 makeFilesLink : Int -> String

@@ -10,7 +10,7 @@ import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.RunOverview as RunOverview
 import Amarcord.Pages.Samples as Samples
-import Amarcord.Route as Route exposing (Route, makeLink, parseUrl)
+import Amarcord.Route as Route exposing (Route, makeLink)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
@@ -65,7 +65,7 @@ init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init _ url navKey =
     let
         model =
-            { route = parseUrl url
+            { route = Route.parseUrlFragment url
             , page = RootPage
             , navKey = navKey
             , hereAndNow = Nothing
@@ -267,7 +267,7 @@ updateInner hereAndNow msg model =
         ( UrlChanged url, _ ) ->
             let
                 newRoute =
-                    Route.parseUrl url
+                    Route.parseUrlFragment url
             in
             ( { model | route = newRoute }, Cmd.none )
                 |> initCurrentPage hereAndNow
