@@ -224,36 +224,33 @@ viewEventForm eventRequest { userName, message } =
     form_
         [ h5_ [ text "Did something happen just now? Tell us!" ]
         , div
-            [ class "mb-3 row" ]
-            [ div [ class "col-sm" ]
-                [ input_
-                    [ value userName
-                    , type_ "text"
-                    , class "form-control form-control-sm"
-                    , placeholder "User name"
-                    , onInput (\e -> EventFormChange { userName = e, message = message })
-                    ]
+            [ class "input-group mb-3" ]
+            [ input_
+                [ value userName
+                , type_ "text"
+                , class "form-control form-control-sm"
+                , style "width" "15%"
+                , placeholder "User name"
+                , onInput (\e -> EventFormChange { userName = e, message = message })
                 ]
-            , div [ class "col-sm-7" ]
-                [ input_
-                    [ value message
-                    , type_ "text"
-                    , class "form-control form-control-sm"
-                    , placeholder "What happened? What did you do?"
-                    , onEnter EventFormSubmit
-                    , onInput (\e -> EventFormChange { userName = userName, message = e })
-                    ]
+            , input_
+                [ value message
+                , type_ "text"
+                , class "form-control form-control-sm"
+                , placeholder "What happened? What did you do?"
+                , style "width" "70%"
+                , onEnter EventFormSubmit
+                , onInput (\e -> EventFormChange { userName = userName, message = e })
                 ]
-            , div [ class "col-sm" ]
-                [ button
-                    [ onClick EventFormSubmit
-                    , disabled (isLoading eventRequest || userName == "" || message == "")
-                    , type_ "button"
-                    , class "btn btn-primary btn-sm"
-                    , style "white-space" "nowrap"
-                    ]
-                    [ icon { name = "plus" }, text " Add message" ]
+            , button
+                [ onClick EventFormSubmit
+                , disabled (isLoading eventRequest || userName == "" || message == "")
+                , type_ "button"
+                , class "btn btn-primary btn-sm"
+                , style "width" "15%"
+                , style "white-space" "nowrap"
                 ]
+                [ icon { name = "send" }, text " Post" ]
             ]
         , eventError
         ]
