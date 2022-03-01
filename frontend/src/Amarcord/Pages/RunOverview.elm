@@ -508,7 +508,7 @@ viewRunAttributiForm latestRun submitErrorsList runEditRequest samples rei =
                         , type_ "button"
                         , onClick RunEditSubmit
                         ]
-                        [ icon { name = "send" }, text " Save changes" ]
+                        [ icon { name = "save" }, text " Save changes" ]
                     , button
                         [ class "btn btn-outline-secondary"
                         , type_ "button"
