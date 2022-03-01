@@ -312,4 +312,4 @@ initCurrentPage hereAndNow ( model, existingCmds ) =
                     in
                     ( AnalysisPage pageModel, Cmd.map AnalysisPageMsg pageCmds )
     in
-    ( { model | page = currentPage }, Cmd.batch [ existingCmds, mappedPageCmds ] )
+    ( { model | page = currentPage, hereAndNow = Just hereAndNow }, Cmd.batch [ existingCmds, mappedPageCmds ] )
