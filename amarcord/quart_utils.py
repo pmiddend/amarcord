@@ -53,8 +53,10 @@ class CustomWebException(Exception):
 def handle_exception(e):
     """Return JSON instead of HTML for HTTP errors."""
     response = e.get_response()
-    if e.original_exception is not None and isinstance(
-        e.original_exception, CustomWebException
+    if (
+        hasattr(e, "original_exception")
+        and e.original_exception is not None
+        and isinstance(e.original_exception, CustomWebException)
     ):
         response.data = json.dumps(
             {
@@ -94,17 +96,20 @@ class QuartDatabases:
         self._app = app
         self._instance: Optional[AsyncDB] = None
 
-    def init_app(self, app: Quart) -> None:
-        app.before_serving(self._before_serving)
-        app.after_serving(self._after_serving)
-
-    async def _before_serving(self) -> None:
+    async def initialize_db(self) -> None:
         context = AsyncDBContext(
             self._app.config["DB_URL"], self._app.config["DB_ECHO"]
         )
         # pylint: disable=assigning-non-slot
         self._instance = AsyncDB(context, create_tables_from_metadata(context.metadata))
         await context.create_all(CreationMode.CHECK_FIRST)
+
+    def init_app(self, app: Quart) -> None:
+        app.before_serving(self._before_serving)
+        app.after_serving(self._after_serving)
+
+    async def _before_serving(self) -> None:
+        await self.initialize_db()
 
     async def _after_serving(self) -> None:
         if self._instance is not None:

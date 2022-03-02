@@ -1,14 +1,4 @@
 # Syntax described here: https://coverage.readthedocs.io/en/latest/source.html#source
 [run]
-# The stuff here is exclusively GUI stuff that we cannot test adequately.
-# pytest-qt isn't powerful enough.
 omit =
-     amarcord/modules/spb/*
-     amarcord/modules/qt/*
-     amarcord/simple_gui.py
-     amarcord/xfel_gui.py
-     amarcord/db/table_delegates.py
-     amarcord/modules/connection_wizard.py
-     amarcord/modules/event_log_daemon.py
-     amarcord/modules/password_check_dialog.py
-     amarcord/modules/uicontext.py
+     amarcord/experiment_simulator.py

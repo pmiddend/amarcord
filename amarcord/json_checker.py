@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any, List, TypeVar
 from typing import Optional
 
-from amarcord.json import JSONDict
+from amarcord.json import JSONDict, JSONArray
 
 T = TypeVar("T")
 
@@ -86,6 +86,12 @@ class JSONChecker:
         v = self.retrieve_safe(key)
         if not isinstance(v, dict):
             raise Exception(f'{self.description} result: value "{key}" not a dict: {v}')
+        return v
+
+    def retrieve_safe_list(self, key: str) -> JSONArray:
+        v = self.retrieve_safe(key)
+        if not isinstance(v, list):
+            raise Exception(f'{self.description} result: value "{key}" not a list: {v}')
         return v
 
     def retrieve_safe_str(self, key: str) -> str:
