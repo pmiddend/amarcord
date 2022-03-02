@@ -5,7 +5,7 @@
 module Main exposing (main)
 
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Html exposing (br_, h1_)
+import Amarcord.Html exposing (h1_)
 import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.RunOverview as RunOverview
@@ -75,6 +75,25 @@ init _ url navKey =
     ( model, Task.perform HereAndNowReceived <| retrieveHereAndNow )
 
 
+viewNavItem : Route -> Route -> String.String -> String.String -> Html msg
+viewNavItem modelRoute route description iconName =
+    li [ class "nav-item" ]
+        [ a
+            [ href (makeLink route)
+            , class
+                ((if modelRoute == route then
+                    "active "
+
+                  else
+                    ""
+                 )
+                    ++ "nav-link"
+                )
+            ]
+            [ icon { name = iconName }, text <| " " ++ description ]
+        ]
+
+
 view : Model -> Document Msg
 view model =
     { title = "AMARCORD"
@@ -89,66 +108,10 @@ view model =
                         , span [ class "text-muted" ] [ sub [] [ text version ] ]
                         ]
                     , ul [ class "nav nav-pills" ]
-                        [ li [ class "nav-item" ]
-                            [ a
-                                [ href (makeLink Route.RunOverview)
-                                , class
-                                    ((if model.route == Route.RunOverview then
-                                        "active "
-
-                                      else
-                                        ""
-                                     )
-                                        ++ "nav-link"
-                                    )
-                                ]
-                                [ icon { name = "card-list" }, text " Overview" ]
-                            ]
-                        , li [ class "nav-item" ]
-                            [ a
-                                [ href (makeLink Route.Samples)
-                                , class
-                                    ((if model.route == Route.Samples then
-                                        "active "
-
-                                      else
-                                        ""
-                                     )
-                                        ++ "nav-link"
-                                    )
-                                ]
-                                [ icon { name = "gem" }, text " Samples" ]
-                            ]
-                        , li [ class "nav-item" ]
-                            [ a
-                                [ href (makeLink Route.Attributi)
-                                , class
-                                    ((if model.route == Route.Attributi then
-                                        "active "
-
-                                      else
-                                        ""
-                                     )
-                                        ++ "nav-link"
-                                    )
-                                ]
-                                [ icon { name = "card-list" }, text " Attributi" ]
-                            ]
-                        , li [ class "nav-item" ]
-                            [ a
-                                [ href (makeLink Route.Analysis)
-                                , class
-                                    ((if model.route == Route.Analysis then
-                                        "active "
-
-                                      else
-                                        ""
-                                     )
-                                        ++ "nav-link"
-                                    )
-                                ]
-                                [ icon { name = "bar-chart-steps" }, text " Analysis" ]
-                            ]
+                        [ viewNavItem model.route Route.RunOverview "Overview" "card-list"
+                        , viewNavItem model.route Route.Samples "Samples" "gem"
+                        , viewNavItem model.route Route.Attributi "Attributi" "card-list"
+                        , viewNavItem model.route Route.Analysis "Analysis" "bar-chart-steps"
                         ]
                     ]
                 ]
