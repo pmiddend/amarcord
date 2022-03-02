@@ -152,10 +152,8 @@ def _encode_sample(a: DBSample) -> JSONDict:
 @app.get("/api/samples")
 async def read_samples() -> JSONDict:
     async with db.instance.begin() as conn:
-        attributi = list(
-            await db.instance.retrieve_attributi(
-                conn, associated_table=AssociatedTable.SAMPLE
-            )
+        attributi = await db.instance.retrieve_attributi(
+            conn, associated_table=AssociatedTable.SAMPLE
         )
         result = {
             "samples": [

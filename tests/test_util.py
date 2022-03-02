@@ -10,6 +10,7 @@ from amarcord.util import (
     sha256_file_bytes,
     sha256_files,
     local_time_to_utc,
+    group_by,
 )
 
 
@@ -65,3 +66,8 @@ def test_local_time_to_utc():
         ).hour
         != hour_before
     )
+
+
+def test_group_by() -> None:
+    result = group_by([(1, "foo"), (2, "bar"), (1, "baz")], lambda x: x[0])
+    assert result == {1: [(1, "foo"), (1, "baz")], 2: [(2, "bar")]}

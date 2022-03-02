@@ -104,9 +104,7 @@ class OmZMQProcessor:
             return
 
         async with self._db.begin() as conn:
-            attributi = list(
-                await self._db.retrieve_attributi(conn, associated_table=None)
-            )
+            attributi = await self._db.retrieve_attributi(conn, associated_table=None)
 
             # we have no "stopped" attributo? we can't really work like this!
             if not any(x for x in attributi if x.name == ATTRIBUTO_STOPPED):
