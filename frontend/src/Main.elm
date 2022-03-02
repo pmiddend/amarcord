@@ -5,13 +5,14 @@
 module Main exposing (main)
 
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Html exposing (h1_)
+import Amarcord.Html exposing (br_, h1_)
 import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.RunOverview as RunOverview
 import Amarcord.Pages.Samples as Samples
 import Amarcord.Route as Route exposing (Route, makeLink)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
+import Amarcord.Version exposing (version)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html as Html exposing (..)
@@ -85,6 +86,7 @@ view model =
                     [ img [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "img-fluid amarcord-logo" ] []
                     , a [ class "d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none" ]
                         [ span [ class "fs-4" ] [ text "AMARCORD" ]
+                        , span [ class "text-muted" ] [ sub [] [ text version ] ]
                         ]
                     , ul [ class "nav nav-pills" ]
                         [ li [ class "nav-item" ]
