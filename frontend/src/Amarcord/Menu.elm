@@ -51,7 +51,7 @@ viewMenuNode modelRoute x =
 
 menu =
     [ Leaf { route = Route.RunOverview, description = "Overview", iconName = "card-list" }
-    , Dropdown "Setup"
+    , Dropdown "Library"
         "collection"
         [ { route = Route.Samples, description = "Samples", iconName = "gem" }
         , { route = Route.DataSets, description = "Data Sets", iconName = "folder2" }
