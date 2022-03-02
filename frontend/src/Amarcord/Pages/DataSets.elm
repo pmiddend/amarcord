@@ -9,6 +9,7 @@ import Amarcord.DataSet exposing (DataSet)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
+import Amarcord.Util exposing (HereAndNow)
 import Html exposing (Html, button, div, h4, option, select, table, text)
 import Html.Attributes exposing (class, selected, type_)
 import Html.Events exposing (onClick, onInput)
@@ -40,15 +41,15 @@ type alias DataSetModel =
     }
 
 
-initDataSet : Zone -> ( DataSetModel, Cmd DataSetMsg )
-initDataSet zone =
+initDataSet : HereAndNow -> ( DataSetModel, Cmd DataSetMsg )
+initDataSet hereAndNow =
     ( { createRequest = NotAsked
       , deleteRequest = NotAsked
       , dataSets = Loading
       , newDataSetExperimentType = Nothing
       , submitErrors = []
       , newDataSetAttributi = emptyEditableAttributiAndOriginal
-      , zone = zone
+      , zone = hereAndNow.zone
       }
     , httpGetDataSets DataSetsReceived
     )
@@ -123,6 +124,11 @@ updateDataSet msg model =
 viewEditForm : List (Sample Int a b) -> EditableAttributiAndOriginal -> List (Html DataSetMsg)
 viewEditForm samples =
     List.map (\attributo -> Html.map DataSetAttributiChange (viewAttributoForm samples attributo)) << .editableAttributi
+
+
+view : DataSetModel -> Html DataSetMsg
+view model =
+    div [ class "container" ] <| viewDataSet model
 
 
 viewDataSet : DataSetModel -> List (Html DataSetMsg)

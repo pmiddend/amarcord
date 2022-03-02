@@ -4,13 +4,15 @@
 
 module Main exposing (main)
 
-import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (h1_)
+import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
+import Amarcord.Pages.DataSets as DataSets
+import Amarcord.Pages.ExperimentTypes as ExperimentTypes
 import Amarcord.Pages.RunOverview as RunOverview
 import Amarcord.Pages.Samples as Samples
-import Amarcord.Route as Route exposing (Route, makeLink)
+import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (version)
 import Browser exposing (Document, UrlRequest)
@@ -39,6 +41,8 @@ type Msg
     = AttributiPageMsg Attributi.Msg
     | SamplesPageMsg Samples.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | DataSetsMsg DataSets.DataSetMsg
+    | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
     | AnalysisPageMsg Analysis.Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
@@ -51,6 +55,8 @@ type Page
     | AttributiPage Attributi.Model
     | SamplesPage Samples.Model
     | RunOverviewPage RunOverview.Model
+    | DataSetsPage DataSets.DataSetModel
+    | ExperimentTypesPage ExperimentTypes.ExperimentTypeModel
     | AnalysisPage Analysis.Model
 
 
@@ -75,25 +81,6 @@ init _ url navKey =
     ( model, Task.perform HereAndNowReceived <| retrieveHereAndNow )
 
 
-viewNavItem : Route -> Route -> String.String -> String.String -> Html msg
-viewNavItem modelRoute route description iconName =
-    li [ class "nav-item" ]
-        [ a
-            [ href (makeLink route)
-            , class
-                ((if modelRoute == route then
-                    "active "
-
-                  else
-                    ""
-                 )
-                    ++ "nav-link"
-                )
-            ]
-            [ icon { name = iconName }, text <| " " ++ description ]
-        ]
-
-
 view : Model -> Document Msg
 view model =
     { title = "AMARCORD"
@@ -107,12 +94,7 @@ view model =
                         [ span [ class "fs-4" ] [ text "AMARCORD" ]
                         , span [ class "text-muted" ] [ sub [] [ text version ] ]
                         ]
-                    , ul [ class "nav nav-pills" ]
-                        [ viewNavItem model.route Route.RunOverview "Overview" "card-list"
-                        , viewNavItem model.route Route.Samples "Samples" "gem"
-                        , viewNavItem model.route Route.Attributi "Attributi" "card-list"
-                        , viewNavItem model.route Route.Analysis "Analysis" "bar-chart-steps"
-                        ]
+                    , viewMenu model.route
                     ]
                 ]
             , currentView model
@@ -149,6 +131,18 @@ currentView model =
             div []
                 [ Analysis.view pageModel
                     |> Html.map AnalysisPageMsg
+                ]
+
+        DataSetsPage dataSetModel ->
+            div []
+                [ DataSets.view dataSetModel
+                    |> Html.map DataSetsMsg
+                ]
+
+        ExperimentTypesPage experimentTypeModel ->
+            div []
+                [ ExperimentTypes.view experimentTypeModel
+                    |> Html.map ExperimentTypesMsg
                 ]
 
 
@@ -197,6 +191,24 @@ updateInner hereAndNow msg model =
             , Cmd.map RunOverviewPageMsg updatedCmd
             )
 
+        ( DataSetsMsg subMsg, DataSetsPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    DataSets.updateDataSet subMsg pageModel
+            in
+            ( { model | page = DataSetsPage updatedPageModel }
+            , Cmd.map DataSetsMsg updatedCmd
+            )
+
+        ( ExperimentTypesMsg subMsg, ExperimentTypesPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    ExperimentTypes.updateExperimentType subMsg pageModel
+            in
+            ( { model | page = ExperimentTypesPage updatedPageModel }
+            , Cmd.map ExperimentTypesMsg updatedCmd
+            )
+
         ( AnalysisPageMsg subMsg, AnalysisPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -225,6 +237,12 @@ updateInner hereAndNow msg model =
 
                     else
                         ( model, Nav.pushUrl model.navKey (URL.toString url) )
+
+                -- So we can create links without a href attribute and do things like open the navigation popup menu
+                -- at the top. Solution taken from here:
+                -- https://stackoverflow.com/questions/52708345/a-elements-without-href-or-with-an-empty-href-causes-page-reload-when-using-br
+                Browser.External "" ->
+                    ( model, Cmd.none )
 
                 Browser.External url ->
                     ( model, Nav.load url )
@@ -276,5 +294,19 @@ initCurrentPage hereAndNow ( model, existingCmds ) =
                             Analysis.init hereAndNow
                     in
                     ( AnalysisPage pageModel, Cmd.map AnalysisPageMsg pageCmds )
+
+                Route.DataSets ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            DataSets.initDataSet hereAndNow
+                    in
+                    ( DataSetsPage pageModel, Cmd.map DataSetsMsg pageCmds )
+
+                Route.ExperimentTypes ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            ExperimentTypes.initExperimentType
+                    in
+                    ( ExperimentTypesPage pageModel, Cmd.map ExperimentTypesMsg pageCmds )
     in
     ( { model | page = currentPage, hereAndNow = Just hereAndNow }, Cmd.batch [ existingCmds, mappedPageCmds ] )

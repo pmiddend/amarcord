@@ -3,6 +3,10 @@
     margin-right: 1em;
 }
 
+a:hover {
+  cursor:pointer;
+}
+
 [data-tooltip]:before {
     /* needed - do not touch */
     content: attr(data-tooltip);

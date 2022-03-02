@@ -7,8 +7,6 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (div_, h2_, tbody_, td_, th_, thead_, tr_)
-import Amarcord.Pages.DataSets exposing (DataSetModel, DataSetMsg, initDataSet, updateDataSet, viewDataSet)
-import Amarcord.Pages.ExperimentTypes exposing (ExperimentTypeModel, ExperimentTypeMsg, initExperimentType, updateExperimentType, viewExperimentType)
 import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
 import Html exposing (Html, div, h4, table, td, text, tr)
@@ -17,20 +15,16 @@ import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult)
 import String
 import Time exposing (Zone)
-import Tuple exposing (first, mapBoth, second)
+import Tuple exposing (first, second)
 
 
 type Msg
     = AnalysisResultsReceived (Result RequestError AnalysisResultsRoot)
-    | ExperimentTypeMsg ExperimentTypeMsg
-    | DataSetMsg DataSetMsg
 
 
 type alias Model =
     { hereAndNow : HereAndNow
     , analysisRequest : RemoteData RequestError AnalysisResultsRoot
-    , experimentTypeModel : ExperimentTypeModel
-    , dataSetModel : DataSetModel
     }
 
 
@@ -38,14 +32,8 @@ init : HereAndNow -> ( Model, Cmd Msg )
 init hereAndNow =
     ( { hereAndNow = hereAndNow
       , analysisRequest = Loading
-      , experimentTypeModel = first initExperimentType
-      , dataSetModel = first (initDataSet hereAndNow.zone)
       }
-    , Cmd.batch
-        [ httpGetAnalysisResults AnalysisResultsReceived
-        , Cmd.map ExperimentTypeMsg <| second initExperimentType
-        , Cmd.map DataSetMsg <| second (initDataSet hereAndNow.zone)
-        ]
+    , httpGetAnalysisResults AnalysisResultsReceived
     )
 
 
@@ -169,21 +157,18 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
 view : Model -> Html Msg
 view model =
     div [ class "container" ] <|
-        (List.map (Html.map ExperimentTypeMsg) <| viewExperimentType model.experimentTypeModel)
-            ++ (List.map (Html.map DataSetMsg) <| viewDataSet model.dataSetModel)
-            ++ (case model.analysisRequest of
-                    NotAsked ->
-                        List.singleton <| text ""
+        case model.analysisRequest of
+            NotAsked ->
+                List.singleton <| text ""
 
-                    Loading ->
-                        List.singleton <| loadingBar "Loading analysis results..."
+            Loading ->
+                List.singleton <| loadingBar "Loading analysis results..."
 
-                    Failure e ->
-                        List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ [ showRequestError e ]
+            Failure e ->
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ [ showRequestError e ]
 
-                    Success r ->
-                        viewInner model.hereAndNow.zone r
-               )
+            Success r ->
+                viewInner model.hereAndNow.zone r
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -191,9 +176,3 @@ update msg model =
     case msg of
         AnalysisResultsReceived analysisResults ->
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
-
-        ExperimentTypeMsg experimentTypeMsg ->
-            mapBoth (\newModel -> { model | experimentTypeModel = newModel }) (Cmd.map ExperimentTypeMsg) <| updateExperimentType experimentTypeMsg model.experimentTypeModel
-
-        DataSetMsg dataSetMsg ->
-            mapBoth (\newModel -> { model | dataSetModel = newModel }) (Cmd.map DataSetMsg) <| updateDataSet dataSetMsg model.dataSetModel

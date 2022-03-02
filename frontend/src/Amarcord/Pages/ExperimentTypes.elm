@@ -67,6 +67,11 @@ updateExperimentType msg model =
             ( { model | createRequest = Loading }, httpCreateExperimentType ExperimentTypeCreated model.newExperimentTypeName (List.map trim <| split "," model.newExperimentTypeAttributi) )
 
 
+view : ExperimentTypeModel -> Html ExperimentTypeMsg
+view model =
+    div [ class "container" ] <| viewExperimentType model
+
+
 viewExperimentType : ExperimentTypeModel -> List (Html ExperimentTypeMsg)
 viewExperimentType model =
     let

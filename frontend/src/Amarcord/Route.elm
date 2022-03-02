@@ -7,6 +7,8 @@ import Url.Parser exposing (Parser, fragment, map, oneOf, parse, s, top)
 type Route
     = Root
     | Samples
+    | DataSets
+    | ExperimentTypes
     | RunOverview
     | Attributi
     | Analysis
@@ -66,6 +68,12 @@ makeLink x =
         Analysis ->
             routePrefix ++ "/analysis"
 
+        DataSets ->
+            routePrefix ++ "/datasets"
+
+        ExperimentTypes ->
+            routePrefix ++ "/experimenttypes"
+
 
 makeFilesLink : Int -> String
 makeFilesLink id =
@@ -80,4 +88,6 @@ matchRoute =
         , map Samples (s "samples")
         , map RunOverview (s "runoverview")
         , map Analysis (s "analysis")
+        , map DataSets (s "datasets")
+        , map ExperimentTypes (s "experimenttypes")
         ]
