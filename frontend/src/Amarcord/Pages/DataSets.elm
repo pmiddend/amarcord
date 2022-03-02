@@ -11,7 +11,7 @@ import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow)
 import Html exposing (Html, button, div, h4, option, select, table, text)
-import Html.Attributes exposing (class, selected, type_)
+import Html.Attributes exposing (class, disabled, selected, type_)
 import Html.Events exposing (onClick, onInput)
 import List.Extra exposing (find)
 import Maybe.Extra exposing (isNothing)
@@ -150,8 +150,8 @@ viewDataSet model =
                     tr_
                         [ td_ [ text (String.fromInt ds.id) ]
                         , td_ [ text ds.experimentType ]
-                        , td_ [ viewDataSetTable attributi model.zone (sampleIdDict samples) ds Nothing ]
-                        , td_ [ button [ class "btn btn-danger btn-sm", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
+                        , td_ [ viewDataSetTable attributi model.zone (sampleIdDict samples) ds False Nothing ]
+                        , td_ [ button [ class "btn btn-link", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 
                 viewExperimentTypeOption et =
@@ -166,7 +166,13 @@ viewDataSet model =
                     ]
                  ]
                     ++ viewEditForm samples model.newDataSetAttributi
-                    ++ [ button [ type_ "button", class "btn btn-primary mb-3", onClick DataSetSubmit ] [ text "Add type" ]
+                    ++ [ button
+                            [ type_ "button"
+                            , class "btn btn-primary mb-3"
+                            , onClick DataSetSubmit
+                            , disabled (model.newDataSetExperimentType == Nothing)
+                            ]
+                            [ icon { name = "plus" }, text " Add Data Set" ]
                        ]
                 )
             , viewRemoteData "Deletion successful!" model.deleteRequest

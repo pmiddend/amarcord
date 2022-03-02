@@ -387,6 +387,13 @@ async def create_data_set() -> JSONDict:
                 description="This data set already exists!",
             )
 
+        if not data_set_attributi:
+            raise CustomWebException(
+                code=500,
+                title="Invalid data set",
+                description="You have to set a least one attributo value",
+            )
+
         data_set_id = await db.instance.create_data_set(
             conn,
             experiment_type=experiment_type,

@@ -118,7 +118,7 @@ viewRunRow zone sampleIds attributi r =
             :: attributiColumns zone sampleIds attributi r
             ++ [ td_
                     [ button
-                        [ class "btn btn-sm btn-link amarcord-small-link-button"
+                        [ class "btn btn-link amarcord-small-link-button"
                         , onClick (RunInitiateEdit r)
                         ]
                         [ icon { name = "pencil-square" } ]
@@ -464,7 +464,12 @@ viewCurrentRun zone now currentExperimentType rrc =
                                         ]
                             in
                             [ h3_ [ text "Data set" ]
-                            , viewDataSetTable rrc.attributi zone (sampleIdDict rrc.samples) ds (Maybe.map footer ds.summary)
+                            , viewDataSetTable rrc.attributi
+                                zone
+                                (sampleIdDict rrc.samples)
+                                ds
+                                True
+                                (Maybe.map footer ds.summary)
                             ]
             in
             header ++ dataSetSelection ++ dataSetInformation

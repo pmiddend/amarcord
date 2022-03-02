@@ -823,6 +823,9 @@ class AsyncDB:
                 + ", ".join(superfluous_attributi)
             )
 
+        if not attributi.items():
+            raise Exception("You have to assign at least one value to an attributo")
+
         return (
             await conn.execute(
                 self.tables.data_set.insert().values(

@@ -297,8 +297,8 @@ viewSampleRow zone attributi sample =
             ++ [ td_ [ files ]
                ]
             ++ [ td_
-                    [ button [ class "btn btn-sm btn-danger me-1", onClick (AskDelete sample.name sample.id) ] [ icon { name = "trash" } ]
-                    , button [ class "btn btn-sm btn-info", onClick (InitiateEdit sample) ] [ icon { name = "pencil-square" } ]
+                    [ button [ class "btn btn-lnk btn-sm me-1", onClick (AskDelete sample.name sample.id) ] [ icon { name = "trash" } ]
+                    , button [ class "btn btn-link btn-sm", onClick (InitiateEdit sample) ] [ icon { name = "pencil-square" } ]
                     ]
                ]
 

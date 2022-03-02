@@ -635,6 +635,11 @@ async def test_create_and_retrieve_data_sets() -> None:
             )
         )
 
+        with pytest.raises(Exception):
+            await db.create_data_set(
+                conn, e_type_name, AttributiMap.from_types_and_json(attributi, [], {})
+            )
+
 
 async def test_create_data_set_and_and_change_attributo_type() -> None:
     db = await _get_db()

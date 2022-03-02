@@ -113,7 +113,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
         viewResultRow { dataSet, analysisResults } =
             [ tr_
                 [ td_ [ text (String.fromInt dataSet.id) ]
-                , td_ [ viewDataSetTable attributi zone sampleIds dataSet Nothing ]
+                , td_ [ viewDataSetTable attributi zone sampleIds dataSet False Nothing ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.numberOfRuns)) dataSet.summary ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.frames)) dataSet.summary ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.hits)) dataSet.summary ]
