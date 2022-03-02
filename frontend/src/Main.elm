@@ -4,7 +4,7 @@
 
 module Main exposing (main)
 
-import Amarcord.Html exposing (h1_)
+import Amarcord.Html exposing (br_, h1_, p_)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
@@ -92,12 +92,14 @@ view model =
                     [ img [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "img-fluid amarcord-logo" ] []
                     , a [ class "d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none" ]
                         [ span [ class "fs-4" ] [ text "AMARCORD" ]
-                        , span [ class "text-muted" ] [ sub [] [ text version ] ]
                         ]
                     , viewMenu model.route
                     ]
                 ]
             , currentView model
+            , div [ class "container mt-5 text-center" ]
+                [ p [ class "text-muted" ] [ text <| "AMARCORD Version: " ++ version ]
+                ]
             ]
         ]
     }
