@@ -14,7 +14,10 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import CreationMode
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.tables import create_tables_from_metadata
+
+EVENT_SOURCE = "P11User"
 
 TEST_ATTRIBUTO_VALUE = 3
 
@@ -694,3 +697,29 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
             )
         )
         assert data_sets[0].attributi.select_string(first_name)
+
+
+async def test_create_read_delete_events() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        event_text = "hihi"
+        event_level = EventLogLevel.INFO
+        event_id = await db.create_event(conn, event_level, EVENT_SOURCE, event_text)
+
+        assert event_id > 0
+
+        events = await db.retrieve_events(conn)
+
+        assert len(events) == 1
+
+        assert events[0].id == event_id
+        assert events[0].source == EVENT_SOURCE
+        assert events[0].text == event_text
+        assert events[0].level == event_level
+
+        await db.create_event(conn, event_level, EVENT_SOURCE, event_text)
+
+        await db.delete_event(conn, event_id)
+
+        assert len(await db.retrieve_events(conn)) == 1

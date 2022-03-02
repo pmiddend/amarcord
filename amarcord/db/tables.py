@@ -8,7 +8,6 @@ from sqlalchemy.sql import ColumnElement
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.dbcontext import DBContext
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.job_status import DBJobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -177,28 +176,6 @@ def _table_event_log(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_indexing_jobs(metadata: sa.MetaData, run: sa.Table) -> sa.Table:
-    return sa.Table(
-        "IndexingJob",
-        metadata,
-        sa.Column(
-            "id",
-            sa.Integer,
-            primary_key=True,
-        ),
-        sa.Column("started", sa.DateTime, nullable=False, server_default=sa.func.now()),
-        sa.Column("stopped", sa.DateTime, nullable=True),
-        sa.Column("status", sa.Enum(DBJobStatus), nullable=False),
-        sa.Column("metadata", sa.JSON, nullable=False),
-        sa.Column(
-            "run_id",
-            sa.Integer,
-            ForeignKey(_fk_identifier(run.c.id), ondelete="cascade"),
-            nullable=False,
-        ),
-    )
-
-
 class DBTables:
     def __init__(
         self,
@@ -212,7 +189,6 @@ class DBTables:
         data_set: sa.Table,
         sample_has_file: sa.Table,
         run_has_file: sa.Table,
-        indexing_jobs: sa.Table,
     ) -> None:
         self.data_set = data_set
         self.experiment_has_attributo = experiment_has_attributo
@@ -224,7 +200,6 @@ class DBTables:
         self.cfel_analysis_results = cfel_analysis_results
         self.file = file
         self.sample_has_file = sample_has_file
-        self.indexing_jobs = indexing_jobs
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
@@ -245,7 +220,6 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         file=file,
         sample_has_file=_table_sample_has_file(metadata, sample, file),
         run_has_file=_table_run_has_file(metadata, run, file),
-        indexing_jobs=_table_indexing_jobs(metadata, run),
     )
 
 

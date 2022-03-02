@@ -30,8 +30,6 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
-from amarcord.db.indexing_job import DBIndexingJob
-from amarcord.db.job_status import DBJobStatus
 from amarcord.db.run_group import RunGroup
 from amarcord.db.table_classes import DBSample, DBFile, DBRun, DBEvent
 from amarcord.db.tables import DBTables
@@ -663,59 +661,6 @@ class AsyncDB:
             )
         )
 
-    async def retrieve_indexing_jobs(
-        self, conn: Connection, statuses: List[DBJobStatus]
-    ) -> List[DBIndexingJob]:
-        ij = self.tables.indexing_jobs
-        select_stmt = sa.select(
-            [
-                ij.c.id,
-                ij.c.run_Id,
-                ij.c.status,
-                ij.c.started,
-                ij.c.stopped,
-                ij.c.metadata,
-            ]
-        )
-        if statuses:
-            select_stmt.where(ij.c.status.in_(statuses))
-        return [
-            DBIndexingJob(
-                id=row[0],
-                run_id=row[1],
-                status=row[3],
-                started_utc=row[4],
-                stopped_utc=row[5],
-                metadata=row[6],
-            )
-            for row in await conn.execute(select_stmt)
-        ]
-
-    async def retrieve_runs_without_indexing_jobs(self, conn: Connection) -> List[int]:
-        runs = self.tables.run.alias("runs")
-
-        return [
-            row[0]
-            for row in await conn.execute(
-                sa.select([runs.c.id])
-                .select_from(runs)
-                .where(
-                    ~(
-                        sa.select([self.tables.indexing_jobs.c.id])
-                        .where(
-                            (self.tables.indexing_jobs.c.run_id == runs.c.run_id)
-                            & (
-                                self.tables.indexing_jobs.c.status.in_(
-                                    [DBJobStatus.RUNNING, DBJobStatus.SUCCESS]
-                                )
-                            )
-                        )
-                        .exists()
-                    )
-                )
-            )
-        ]
-
     async def retrieve_latest_run(
         self, conn: Connection, attributi: List[DBAttributo]
     ) -> Optional[DBRun]:
@@ -800,61 +745,6 @@ class AsyncDB:
                 comment=r.comment,
             )
         )
-
-    async def retrieve_analysis_results(
-        self, conn: Connection
-    ) -> List[DBCFELAnalysisResult]:
-        ar = self.tables.cfel_analysis_results.c
-        return [
-            DBCFELAnalysisResult(
-                r["directory_name"],
-                r["run_from"],
-                r["run_to"],
-                r["resolution"],
-                r["rsplit"],
-                r["cchalf"],
-                r["ccstar"],
-                r["snr"],
-                r["completeness"],
-                r["multiplicity"],
-                r["total_measurements"],
-                r["unique_reflections"],
-                r["wilson_b"],
-                r["outer_shell"],
-                r["num_patterns"],
-                r["num_hits"],
-                r["indexed_patterns"],
-                r["indexed_crystals"],
-                r["comment"],
-            )
-            for r in (
-                await conn.execute(
-                    sa.select(
-                        [
-                            ar.directory_name,
-                            ar.run_from,
-                            ar.run_to,
-                            ar.resolution,
-                            ar.rsplit,
-                            ar.cchalf,
-                            ar.ccstar,
-                            ar.snr,
-                            ar.completeness,
-                            ar.multiplicity,
-                            ar.total_measurements,
-                            ar.unique_reflections,
-                            ar.wilson_b,
-                            ar.outer_shell,
-                            ar.num_patterns,
-                            ar.num_hits,
-                            ar.indexed_patterns,
-                            ar.indexed_crystals,
-                            ar.comment,
-                        ]
-                    )
-                )
-            ).fetchall()
-        ]
 
     async def create_experiment_type(
         self, conn: Connection, name: str, experiment_attributi_names: Iterable[str]
