@@ -18,6 +18,8 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     AttributoConversionFlags,
     datetime_to_attributo_int,
+    ATTRIBUTO_STARTED,
+    ATTRIBUTO_STOPPED,
 )
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
@@ -35,7 +37,7 @@ from amarcord.quart_utils import CustomJSONEncoder, CustomWebException
 from amarcord.quart_utils import QuartDatabases
 from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
-from amarcord.util import group_by
+from amarcord.util import group_by, now_utc_unix_integer_millis
 
 app = Quart(
     __name__,
@@ -179,6 +181,48 @@ def _encode_event(e: DBEvent) -> JSONDict:
 
 def _has_artificial_delay() -> bool:
     return bool(app.config.get("ARTIFICIAL_DELAY", False))
+
+
+@app.get("/api/runs/<int:run_id>/start")
+async def start_run(run_id: int) -> JSONDict:
+    async with db.instance.begin() as conn:
+        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
+
+        raw_attributi: JSONDict = {}
+        if any(a.name == ATTRIBUTO_STARTED for a in attributi):
+            raw_attributi[ATTRIBUTO_STARTED] = now_utc_unix_integer_millis()
+
+        await db.instance.create_run(
+            conn,
+            run_id,
+            AttributiMap.from_types_and_json(
+                types=attributi,
+                sample_ids=[],
+                raw_attributi=raw_attributi,
+            ),
+        )
+        return {}
+
+
+@app.get("/api/runs/stop-latest")
+async def stop_latest_run() -> JSONDict:
+    async with db.instance.begin() as conn:
+        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
+
+        if not any(a.name for a in attributi):
+            return {}
+
+        latest_run = await db.instance.retrieve_latest_run(conn, attributi)
+
+        if latest_run is not None:
+            latest_run.attributi.append_single(
+                ATTRIBUTO_STOPPED, now_utc_unix_integer_millis()
+            )
+            await db.instance.update_run_attributi(
+                conn, latest_run.id, latest_run.attributi
+            )
+
+        return {}
 
 
 @app.patch("/api/runs")

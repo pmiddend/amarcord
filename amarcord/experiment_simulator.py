@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import logging
 import random
-from typing import List, Optional, Final
+from typing import List, Optional
 
 import randomname
 from essential_generators import DocumentGenerator
@@ -13,7 +13,8 @@ from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import AsyncDB, create_run_groups
 from amarcord.db.attributi import (
-    datetime_to_attributo_int,
+    ATTRIBUTO_STARTED,
+    ATTRIBUTO_STOPPED,
 )
 from amarcord.db.attributi_map import AttributiMap, UntypedAttributiMap
 from amarcord.db.attributo_type import (
@@ -33,7 +34,7 @@ from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.table_classes import DBRun
 from amarcord.numeric_range import NumericRange
-from amarcord.util import safe_max, create_intervals
+from amarcord.util import safe_max, create_intervals, now_utc_unix_integer_millis
 
 TIME_RESOLVED = "time-resolved"
 
@@ -48,9 +49,6 @@ ATTRIBUTO_FLOW_RATE = "flow_rate"
 ATTRIBUTO_PH = "pH"
 
 ATTRIBUTO_SAMPLE = "sample"
-
-ATTRIBUTO_STARTED: Final = "started"
-ATTRIBUTO_STOPPED: Final = "stopped"
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -282,9 +280,7 @@ async def _start_run(
                 attributi,
                 sample_ids=sample_ids,
                 raw_attributi={
-                    ATTRIBUTO_STARTED: datetime_to_attributo_int(
-                        datetime.datetime.utcnow()
-                    ),
+                    ATTRIBUTO_STARTED: now_utc_unix_integer_millis(),
                     ATTRIBUTO_TRASH: random.uniform(0, 1) < 0.1,
                     ATTRIBUTO_PH: random.uniform(0, 14),
                     ATTRIBUTO_FLOW_RATE: int(random.uniform(0, 5)),
@@ -300,7 +296,7 @@ async def _start_run(
 async def _stop_run(db: AsyncDB, run: DBRun) -> None:
     async with db.begin() as conn:
         new_attributi = run.attributi.copy()
-        new_attributi.append_single(ATTRIBUTO_STOPPED, datetime.datetime.utcnow())
+        new_attributi.append_single(ATTRIBUTO_STOPPED, now_utc_unix_integer_millis())
         await db.update_run_attributi(conn, run.id, new_attributi)
 
 

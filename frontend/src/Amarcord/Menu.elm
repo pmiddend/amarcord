@@ -61,6 +61,7 @@ menu =
         "gear-fill"
         [ { route = Route.ExperimentTypes, description = "Experiment Types", iconName = "clipboard-check" }
         , { route = Route.Attributi, description = "Attributi", iconName = "card-list" }
+        , { route = Route.AdvancedControls, description = "Advanced", iconName = "speedometer" }
         ]
     ]
 

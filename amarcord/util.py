@@ -206,3 +206,10 @@ def group_by(xs: Iterable[T], key: Callable[[T], U]) -> Dict[U, List[T]]:
         else:
             previous_values.append(x)
     return result
+
+
+def now_utc_unix_integer_millis() -> int:
+    return int(
+        datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).timestamp()
+        * 1000
+    )

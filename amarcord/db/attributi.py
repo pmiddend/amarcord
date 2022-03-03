@@ -39,6 +39,9 @@ JSON_SCHEMA_INTEGER_DATE_TIME: Final = "date-time"
 
 logger = logging.getLogger(__name__)
 
+ATTRIBUTO_STARTED: Final = "started"
+ATTRIBUTO_STOPPED: Final = "stopped"
+
 
 def schema_json_to_attributo_type(json_schema: JSONDict) -> AttributoType:
     return schema_to_attributo_type(parse_schema_type(json_schema))

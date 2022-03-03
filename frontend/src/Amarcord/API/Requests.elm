@@ -31,6 +31,8 @@ module Amarcord.API.Requests exposing
     , httpGetExperimentTypes
     , httpGetRuns
     , httpGetSamples
+    , httpStartRun
+    , httpStopRun
     , httpUpdateRun
     , httpUpdateSample
     )
@@ -615,4 +617,26 @@ httpCreateFile f description file =
                 [ filePart "file" file
                 , stringPart "metadata" (Encode.encode 0 <| Encode.object [ ( "description", Encode.string description ) ])
                 ]
+        }
+
+
+httpStartRun : Int -> (Result RequestError () -> msg) -> Cmd msg
+httpStartRun runId f =
+    Http.get
+        { url = "/api/runs/" ++ String.fromInt runId ++ "/start"
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) <|
+                valueOrError <|
+                    Decode.succeed ()
+        }
+
+
+httpStopRun : (Result RequestError () -> msg) -> Cmd msg
+httpStopRun f =
+    Http.get
+        { url = "/api/runs/stop-latest"
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) <|
+                valueOrError <|
+                    Decode.succeed ()
         }

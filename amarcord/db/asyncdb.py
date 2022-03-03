@@ -13,7 +13,11 @@ import sqlalchemy as sa
 from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.attributi import AttributoConversionFlags
+from amarcord.db.attributi import (
+    AttributoConversionFlags,
+    ATTRIBUTO_STOPPED,
+    ATTRIBUTO_STARTED,
+)
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_json_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
@@ -47,8 +51,8 @@ def create_run_groups(
     attributi_names: Iterable[str], runs: List[DBRun]
 ) -> List[RunGroup]:
     def run_duration(run_: DBRun) -> datetime.timedelta:
-        stopped = run_.attributi.select_datetime("stopped")
-        started = run_.attributi.select_datetime("started")
+        stopped = run_.attributi.select_datetime(ATTRIBUTO_STOPPED)
+        started = run_.attributi.select_datetime(ATTRIBUTO_STARTED)
         return (
             datetime.timedelta()
             if stopped is None or started is None

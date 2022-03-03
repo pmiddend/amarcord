@@ -5,9 +5,13 @@ module Amarcord.Attributo exposing
     , AttributoType(..)
     , AttributoValue(..)
     , attributoDecoder
+    , attributoFrames
+    , attributoHits
     , attributoIsNumber
     , attributoIsString
     , attributoMapNames
+    , attributoStarted
+    , attributoStopped
     , attributoTypeDecoder
     , createAnnotatedAttributoMap
     , emptyAttributoMap
@@ -243,3 +247,23 @@ extractInt x =
 extractDateTime : AttributoValue -> Maybe Posix
 extractDateTime =
     Maybe.map millisToPosix << extractInt
+
+
+attributoStarted : AttributoName
+attributoStarted =
+    "started"
+
+
+attributoFrames : AttributoName
+attributoFrames =
+    "frames"
+
+
+attributoHits : AttributoName
+attributoHits =
+    "hits"
+
+
+attributoStopped : AttributoName
+attributoStopped =
+    "stopped"

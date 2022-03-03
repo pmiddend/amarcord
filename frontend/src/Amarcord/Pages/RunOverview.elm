@@ -3,7 +3,7 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 import Amarcord.API.Requests exposing (Event, RequestError, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, spinner)
 import Amarcord.Constants exposing (manualAttributiGroup)
@@ -137,26 +137,6 @@ viewEventRow zone attributoColumnCount e =
             , text <| e.text ++ " "
             ]
         ]
-
-
-attributoStarted : Amarcord.Attributo.AttributoName
-attributoStarted =
-    "started"
-
-
-attributoFrames : Amarcord.Attributo.AttributoName
-attributoFrames =
-    "frames"
-
-
-attributoHits : Amarcord.Attributo.AttributoName
-attributoHits =
-    "hits"
-
-
-attributoStopped : Amarcord.Attributo.AttributoName
-attributoStopped =
-    "stopped"
 
 
 viewRunAndEventRows : Zone -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)

@@ -11,6 +11,7 @@ type Route
     | ExperimentTypes
     | RunOverview
     | Attributi
+    | AdvancedControls
     | Analysis
 
 
@@ -62,6 +63,9 @@ makeLink x =
         RunOverview ->
             routePrefix ++ "/runoverview"
 
+        AdvancedControls ->
+            routePrefix ++ "/advancedcontrols"
+
         Samples ->
             routePrefix ++ "/samples"
 
@@ -87,6 +91,7 @@ matchRoute =
         , map Attributi (s "attributi")
         , map Samples (s "samples")
         , map RunOverview (s "runoverview")
+        , map AdvancedControls (s "advancedcontrols")
         , map Analysis (s "analysis")
         , map DataSets (s "datasets")
         , map ExperimentTypes (s "experimenttypes")

@@ -4,8 +4,9 @@
 
 module Main exposing (main)
 
-import Amarcord.Html exposing (br_, h1_, p_)
+import Amarcord.Html exposing (h1_)
 import Amarcord.Menu exposing (viewMenu)
+import Amarcord.Pages.AdvancedControls as AdvancedControls
 import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.DataSets as DataSets
@@ -41,6 +42,7 @@ type Msg
     = AttributiPageMsg Attributi.Msg
     | SamplesPageMsg Samples.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | AdvancedControlsPageMsg AdvancedControls.Msg
     | DataSetsMsg DataSets.DataSetMsg
     | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
     | AnalysisPageMsg Analysis.Msg
@@ -55,6 +57,7 @@ type Page
     | AttributiPage Attributi.Model
     | SamplesPage Samples.Model
     | RunOverviewPage RunOverview.Model
+    | AdvancedControlsPage AdvancedControls.Model
     | DataSetsPage DataSets.DataSetModel
     | ExperimentTypesPage ExperimentTypes.ExperimentTypeModel
     | AnalysisPage Analysis.Model
@@ -117,6 +120,12 @@ currentView model =
                     |> Html.map AttributiPageMsg
                 ]
 
+        AdvancedControlsPage pageModel ->
+            div []
+                [ AdvancedControls.view pageModel
+                    |> Html.map AdvancedControlsPageMsg
+                ]
+
         SamplesPage pageModel ->
             div []
                 [ Samples.view pageModel
@@ -175,6 +184,15 @@ updateInner hereAndNow msg model =
             , Cmd.map AttributiPageMsg updatedCmd
             )
 
+        ( AdvancedControlsPageMsg subMsg, AdvancedControlsPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    AdvancedControls.update subMsg pageModel
+            in
+            ( { model | page = AdvancedControlsPage updatedPageModel }
+            , Cmd.map AdvancedControlsPageMsg updatedCmd
+            )
+
         ( SamplesPageMsg subMsg, SamplesPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -229,6 +247,15 @@ updateInner hereAndNow msg model =
             , Cmd.map RunOverviewPageMsg updatedCmd
             )
 
+        ( RefreshMsg t, AdvancedControlsPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    AdvancedControls.update (AdvancedControls.Refresh t) pageModel
+            in
+            ( { model | page = AdvancedControlsPage updatedPageModel }
+            , Cmd.map AdvancedControlsPageMsg updatedCmd
+            )
+
         ( LinkClicked urlRequest, _ ) ->
             case urlRequest of
                 Browser.Internal url ->
@@ -275,6 +302,13 @@ initCurrentPage hereAndNow ( model, existingCmds ) =
                             Attributi.init hereAndNow
                     in
                     ( AttributiPage pageModel, Cmd.map AttributiPageMsg pageCmds )
+
+                Route.AdvancedControls ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            AdvancedControls.init
+                    in
+                    ( AdvancedControlsPage pageModel, Cmd.map AdvancedControlsPageMsg pageCmds )
 
                 Route.Samples ->
                     let

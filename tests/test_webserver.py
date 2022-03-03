@@ -1,4 +1,5 @@
 from amarcord.cli.webserver import app, db
+from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
 from amarcord.json_checker import JSONChecker
 
 
@@ -72,3 +73,59 @@ async def test_data_sets() -> None:
 
     assert result.status_code == 200
     assert "error" in (await result.json)
+
+
+async def test_start_and_stop_runs() -> None:
+    app.config.update(
+        {
+            "DB_URL": "sqlite+aiosqlite://",
+            "DB_ECHO": False,
+            "HAS_ARTIFICIAL_DELAY": False,
+        },
+    )
+    await db.initialize_db()
+    client = app.test_client()
+
+    await client.post(
+        "/api/attributi",
+        json={
+            "name": ATTRIBUTO_STARTED,
+            "description": "",
+            "group": "manual",
+            "associatedTable": "run",
+            "type": {"type": "integer"},
+        },
+    )
+
+    await client.post(
+        "/api/attributi",
+        json={
+            "name": ATTRIBUTO_STOPPED,
+            "description": "",
+            "group": "manual",
+            "associatedTable": "run",
+            "type": {"type": "integer"},
+        },
+    )
+
+    # Start run 1
+    await client.get("/api/runs/1/start")
+
+    runs_response = await client.get("/api/runs")
+    runs_response_json = await runs_response.json
+
+    assert "runs" in runs_response_json
+    assert len(runs_response_json["runs"]) == 1
+    assert runs_response_json["runs"][0]["attributi"][ATTRIBUTO_STARTED] is not None
+    assert ATTRIBUTO_STOPPED not in runs_response_json["runs"][0]["attributi"]
+
+    # Stop the run
+    await client.get("/api/runs/stop-latest")
+
+    runs_response = await client.get("/api/runs")
+    runs_response_json = await runs_response.json
+
+    assert "runs" in runs_response_json
+    assert len(runs_response_json["runs"]) == 1
+    stopped = runs_response_json["runs"][0]["attributi"][ATTRIBUTO_STOPPED] is not None
+    assert stopped is not None
