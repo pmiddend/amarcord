@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, List, Optional, Set
+from typing import Dict, cast, List, Optional, Set, Tuple
 
 from pint import UnitRegistry
 from quart import Quart, request, redirect, Response
@@ -274,10 +274,23 @@ def build_run_summary(matching_runs: List[DBRun]) -> DataSetSummary:
     return result
 
 
+# This function is not really needed, but it's just nicer to have the attribut in the runs table sorted by...
+# 0. ID (not an attributo)
+# 1. "started time"
+# 2. "stopped time"
+# _. "the rest"
+def attributo_sort_key(r: DBAttributo) -> Tuple[int, str]:
+    return (
+        0 if r.name == ATTRIBUTO_STARTED else 1 if r.name == ATTRIBUTO_STOPPED else 2,
+        r.name,
+    )
+
+
 @app.get("/api/runs")
 async def read_runs() -> JSONDict:
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        attributi.sort(key=attributo_sort_key)
         samples = await db.instance.retrieve_samples(conn, attributi)
         experiment_types = await db.instance.retrieve_experiment_types(conn)
         data_sets = await db.instance.retrieve_data_sets(

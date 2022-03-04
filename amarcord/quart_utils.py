@@ -96,15 +96,16 @@ class QuartDatabases:
         self._app = app
         self._instance: Optional[AsyncDB] = None
 
-    async def initialize_db(self) -> None:
+    async def initialize_db(self, with_ground_state: bool = True) -> None:
         context = AsyncDBContext(
             self._app.config["DB_URL"], self._app.config["DB_ECHO"]
         )
         # pylint: disable=assigning-non-slot
         self._instance = AsyncDB(context, create_tables_from_metadata(context.metadata))
         await context.create_all(CreationMode.CHECK_FIRST)
-        async with self._instance.begin() as conn:
-            await create_ground_state_attributi(self._instance, conn)
+        if with_ground_state:
+            async with self._instance.begin() as conn:
+                await create_ground_state_attributi(self._instance, conn)
 
     def init_app(self, app: Quart) -> None:
         app.before_serving(self._before_serving)
