@@ -140,7 +140,7 @@ jsonSchemaToAttributoType x =
         JsonSchemaNumber { minimum, exclusiveMinimum, exclusiveMaximum, maximum, suffix, format } ->
             Ok
                 (Number
-                    { range = rangeFromJsonSchema minimum exclusiveMinimum exclusiveMaximum maximum
+                    { range = rangeFromJsonSchema minimum maximum exclusiveMinimum exclusiveMaximum
                     , standardUnit = format == Just "standard-unit"
                     , suffix = suffix
                     }
