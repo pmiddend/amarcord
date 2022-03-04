@@ -26,6 +26,7 @@ from amarcord.db.attributo_type import (
     AttributoType,
     AttributoTypeSample,
     AttributoTypeDecimal,
+    AttributoTypeDateTime,
 )
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
@@ -873,3 +874,21 @@ class AsyncDB:
             .values(attributi=attributi.to_json())
             .where(dc.id == id_)
         )
+
+
+async def create_ground_state_attributi(db: AsyncDB, conn: Connection) -> None:
+    attributi_names = {
+        a.name
+        for a in await db.retrieve_attributi(conn, associated_table=AssociatedTable.RUN)
+    }
+
+    for n in (ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED):
+        if n not in attributi_names:
+            await db.create_attributo(
+                conn,
+                n,
+                "",
+                "internal",
+                AssociatedTable.RUN,
+                AttributoTypeDateTime(),
+            )

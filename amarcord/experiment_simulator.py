@@ -11,7 +11,11 @@ from tap import Tap
 
 from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.asyncdb import AsyncDB, create_run_groups
+from amarcord.db.asyncdb import (
+    AsyncDB,
+    create_run_groups,
+    create_ground_state_attributi,
+)
 from amarcord.db.attributi import (
     ATTRIBUTO_STARTED,
     ATTRIBUTO_STOPPED,
@@ -135,6 +139,8 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         if await db.retrieve_attributi(conn, associated_table=None):
             return
 
+        await create_ground_state_attributi(db, conn)
+
         await db.create_attributo(
             conn,
             "producer",
@@ -150,22 +156,6 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             "manual",
             AssociatedTable.SAMPLE,
             AttributoTypeString(),
-        )
-        await db.create_attributo(
-            conn,
-            ATTRIBUTO_STARTED,
-            "",
-            "manual",
-            AssociatedTable.RUN,
-            AttributoTypeDateTime(),
-        )
-        await db.create_attributo(
-            conn,
-            ATTRIBUTO_STOPPED,
-            "",
-            "manual",
-            AssociatedTable.RUN,
-            AttributoTypeDateTime(),
         )
         await db.create_attributo(
             conn,
