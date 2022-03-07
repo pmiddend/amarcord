@@ -28,14 +28,12 @@ from amarcord.db.attributo_type import (
     AttributoTypeDecimal,
     AttributoTypeDateTime,
 )
-from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
-from amarcord.db.run_group import RunGroup
 from amarcord.db.table_classes import DBSample, DBFile, DBRun, DBEvent
 from amarcord.db.tables import DBTables
 from amarcord.pint_util import valid_pint_unit
@@ -46,49 +44,6 @@ from amarcord.util import sha256_file
 class CreateFileResult:
     id: int
     type_: str
-
-
-def create_run_groups(
-    attributi_names: Iterable[str], runs: List[DBRun]
-) -> List[RunGroup]:
-    def run_duration(run_: DBRun) -> datetime.timedelta:
-        stopped = run_.attributi.select_datetime(ATTRIBUTO_STOPPED)
-        started = run_.attributi.select_datetime(ATTRIBUTO_STARTED)
-        return (
-            datetime.timedelta()
-            if stopped is None or started is None
-            else stopped - started
-        )
-
-    groups: List[RunGroup] = []
-    # Try to fit each run into a group
-    for run in runs:
-        # Fill this run's attributi value combination
-        attributi_values: Dict[AttributoId, AttributoValue] = {}
-        for a in attributi_names:
-            attributi_values[a] = run.attributi.select(a)
-
-        this_run_minutes = int(run_duration(run).total_seconds() / 60)
-
-        # Try to find its group
-        found = False
-        for group in groups:
-            if attributi_values == group.attributi_values:
-                group.run_ids.append(run.id)
-                group.total_minutes += this_run_minutes
-                found = True
-                break
-
-        if not found:
-            groups.append(
-                RunGroup(
-                    run_ids=[run.id],
-                    attributi_values=attributi_values,
-                    total_minutes=this_run_minutes,
-                )
-            )
-
-    return groups
 
 
 class AsyncDB:

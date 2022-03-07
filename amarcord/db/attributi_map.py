@@ -21,9 +21,10 @@ from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.comment import DBComment
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.json import JSONValue
+
+SPECIAL_SAMPLE_ID_NONE = 0
 
 JsonAttributiMap = Dict[str, JSONValue]
 
@@ -86,13 +87,13 @@ def _check_type(
 
         for i, v in enumerate(value):
             _check_type(name + f"[{i}]", sample_ids, type_.sub_type, v)  # type: ignore
-    elif isinstance(type, AttributoTypeDateTime):
+    elif isinstance(type_, AttributoTypeDateTime):
         assert isinstance(
             value, int
         ), f'attributo "{name}": expected type int but got value {value}'
 
 
-def _check_types(
+def check_attributo_types(
     types: Dict[AttributoId, DBAttributo],
     sample_ids: List[int],
     d: Dict[AttributoId, AttributoValue],
@@ -115,79 +116,103 @@ def _convert_single_attributo_value_from_json(
         raise ValueError(
             f'cannot convert attributo "{i}" from JSON, don\'t have a type! value is "{v}"'
         )
+    return _convert_single_attributo_value_from_json_with_type(
+        i, v, attributo_type.attributo_type, sample_ids
+    )
 
+
+def _convert_single_attributo_value_from_json_with_type(
+    i: AttributoId,
+    v: JSONValue,
+    attributo_type: AttributoType,
+    sample_ids: List[int],
+) -> AttributoValue:
     if v is None:
         return None
-    if isinstance(attributo_type.attributo_type, AttributoTypeSample):
+    if isinstance(attributo_type, AttributoTypeSample):
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
-        if v == 0:
+        if v == SPECIAL_SAMPLE_ID_NONE:
             # special case: 0 is the "no sample ID" sample ID
             return None
         if v not in sample_ids:
             raise Exception(f"{v} is not a valid sample ID")
         return v
-    if isinstance(attributo_type.attributo_type, AttributoTypeBoolean):
+    if isinstance(attributo_type, AttributoTypeBoolean):
         assert isinstance(
             v, bool
         ), f'expected type bool for attributo "{i}", got {type(v)}'
         return v
-    if isinstance(attributo_type.attributo_type, AttributoTypeInt):
+    if isinstance(attributo_type, AttributoTypeInt):
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
         return v
-    if isinstance(attributo_type.attributo_type, AttributoTypeString):
+    if isinstance(attributo_type, AttributoTypeString):
         assert isinstance(
             v, str
         ), f'expected type string for attributo "{i}", got {type(v)}'
         return v
-    if isinstance(attributo_type.attributo_type, AttributoTypeDecimal):
+    if isinstance(attributo_type, AttributoTypeDecimal):
         assert isinstance(
             v, (float, int)
         ), f'expected type float for attributo "{i}", got {type(v)}'
         if (
-            attributo_type.attributo_type.range is not None
-            and not attributo_type.attributo_type.range.value_is_inside(v)
+            attributo_type.range is not None
+            and not attributo_type.range.value_is_inside(v)
         ):
             raise ValueError(
-                f'value for attributo "{i}" is out of range; range is {attributo_type.attributo_type.range}, '
+                f'value for attributo "{i}" is out of range; range is {attributo_type.range}, '
                 f"value is {v}"
             )
         return float(v)
-    if isinstance(attributo_type.attributo_type, AttributoTypeDateTime):
+    if isinstance(attributo_type, AttributoTypeDateTime):
         assert isinstance(
             v, int
         ), f'expected type int for datetime attributo "{i}", got {type(v)}'
 
         return datetime_from_attributo_int(v)
 
-    if isinstance(attributo_type.attributo_type, AttributoTypeChoice):
+    if isinstance(attributo_type, AttributoTypeChoice):
         assert isinstance(
             v, str
         ), f'expected type str for choice attributo "{i}", got {type(v)}'
         # It's valid for a choice to be explicitly empty (e.g. not given)
         if v == "":
             return None
-        choices = attributo_type.attributo_type.values
+        choices = attributo_type.values
         if v not in choices:
             choices_str = ", ".join(choices)
             raise ValueError(
                 f'value for attributo "{i}" has to be one of {choices_str}, is "{v}"'
             )
         return v
-    if isinstance(attributo_type.attributo_type, AttributoTypeList):
+    if isinstance(attributo_type, AttributoTypeList):
         assert isinstance(
             v, list
         ), f'expected type list for list attributo "{i}", got {type(v)}'
         assert not v or isinstance(
             v[0], (float, str, int)
         ), f"got a non-empty list of {type(v[0])}, we only support float, int for now"
-        return v
-    raise Exception(
-        f'invalid property type for attributo "{i}": {attributo_type.attributo_type}'
-    )
+        lv = len(v)
+        min_len = attributo_type.min_length
+        max_len = attributo_type.max_length
+        if min_len is not None and lv < min_len:
+            raise ValueError(
+                f"attributo {i}: the list needs at least {min_len} element(s), got {lv} element(s)"
+            )
+        if max_len is not None and lv > max_len:
+            raise ValueError(
+                f"attributo {i}: the list needs at least {max_len} element(s), got {lv} element(s)"
+            )
+        return [  # type: ignore
+            _convert_single_attributo_value_from_json_with_type(
+                i, sub_value, attributo_type.sub_type, sample_ids
+            )
+            for sub_value in v
+        ]
+    raise Exception(f'invalid property type for attributo "{i}": {attributo_type}')
 
 
 class AttributiMap:
@@ -242,18 +267,6 @@ class AttributiMap:
             )
         return selected
 
-    def select_comments_unsafe(self, attributo_id: AttributoId) -> List[DBComment]:
-        selected = self.select_unsafe(attributo_id)
-        if (
-            not isinstance(selected, list)
-            or selected
-            and not isinstance(selected[0], DBComment)
-        ):
-            raise Exception(
-                f"Attributo {attributo_id} are not comments but {type(selected)}"
-            )
-        return selected  # type: ignore
-
     def select_unsafe(self, attributo_id: AttributoId) -> AttributoValue:
         selected = self.select(attributo_id)
         if selected is None:
@@ -296,7 +309,7 @@ class AttributiMap:
         return self._attributi.get(attributo_id, None)
 
     def extend(self, new_attributi: Dict[AttributoId, AttributoValue]) -> None:
-        _check_types(self._types, self._sample_ids, new_attributi)
+        check_attributo_types(self._types, self._sample_ids, new_attributi)
         for k, v in new_attributi.items():
             if v is not None:
                 self._attributi[k] = v

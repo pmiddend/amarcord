@@ -1,6 +1,5 @@
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import List
 
 from enum import Enum
@@ -47,12 +46,6 @@ class DBContext:
         self._after_db_created: List[Callable[[], None]] = []
         self._db_created = False
 
-    def after_db_created(self, f: Callable[[], None]) -> None:
-        if self._db_created:
-            f()
-        else:
-            self._after_db_created.append(f)
-
     def create_all(self, creation_mode: CreationMode) -> None:
         self.metadata.create_all(
             self.engine,
@@ -62,18 +55,6 @@ class DBContext:
         for f in self._after_db_created:
             f()
         self._after_db_created = []
-
-    def dump_schema(self) -> None:
-        v: Dict[int, Any] = {}
-
-        def _metadata_dump(sql):
-            print(sql.compile(dialect=v[0].dialect))
-
-        engine = create_engine(
-            "sqlite://", echo=False, strategy="mock", executor=_metadata_dump
-        )
-        v[0] = engine
-        self.metadata.create_all(engine)
 
     def connect(self) -> Connection:
         return self.engine.connect()

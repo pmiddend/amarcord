@@ -1,9 +1,10 @@
 from datetime import datetime
+from typing import List, cast
 
 import pytest
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributi_map import AttributiMap, SPECIAL_SAMPLE_ID_NONE
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeString,
@@ -12,6 +13,8 @@ from amarcord.db.attributo_type import (
     AttributoType,
     AttributoTypeSample,
     AttributoTypeDateTime,
+    AttributoTypeChoice,
+    AttributoTypeList,
 )
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.numeric_range import NumericRange
@@ -27,6 +30,167 @@ def _create_attributo(t: AttributoType) -> DBAttributo:
         AssociatedTable.RUN,
         t,
     )
+
+
+def test_attributi_map_checks_superfluous_attributi() -> None:
+    with pytest.raises(Exception):
+        # If we have an attributo without a corresponding type, this is an error
+        AttributiMap.from_types_and_json(
+            [_create_attributo(AttributoTypeInt())],
+            [1],
+            {TEST_ATTRIBUTO_ID: 2, TEST_ATTRIBUTO_ID + "unknown": 3},
+        )
+
+
+def test_attributi_map_accepts_nulls() -> None:
+    amap = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeInt())],
+        [1],
+        {TEST_ATTRIBUTO_ID: None},
+    )
+    assert amap.select(TEST_ATTRIBUTO_ID) is None
+
+
+def test_attributi_map_empty_choice_string_is_none() -> None:
+    amap = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeChoice(values=["a", "ab"]))],
+        [1],
+        {TEST_ATTRIBUTO_ID: ""},
+    )
+    assert amap.select(TEST_ATTRIBUTO_ID) is None
+
+
+def test_attributi_map_invalid_choice_value() -> None:
+    with pytest.raises(Exception):
+        AttributiMap.from_types_and_json(
+            [_create_attributo(AttributoTypeChoice(values=["a", "ab"]))],
+            [1],
+            # value "c" is not a valid choice
+            {TEST_ATTRIBUTO_ID: "c"},
+        )
+
+
+def test_attributi_map_valid_choice_value() -> None:
+    amap = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeChoice(values=["a", "ab"]))],
+        [1],
+        {TEST_ATTRIBUTO_ID: "ab"},
+    )
+
+    assert amap.select_string(TEST_ATTRIBUTO_ID) == "ab"
+
+
+def test_attributi_map_equality_check() -> None:
+    amap = AttributiMap.from_types_and_json(
+        [
+            _create_attributo(
+                AttributoTypeList(
+                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                )
+            )
+        ],
+        [1],
+        {TEST_ATTRIBUTO_ID: ["a"]},
+    )
+    bmap = AttributiMap.from_types_and_json(
+        [
+            _create_attributo(
+                AttributoTypeList(
+                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                )
+            )
+        ],
+        [1],
+        {TEST_ATTRIBUTO_ID: ["b"]},
+    )
+
+    assert amap != bmap
+
+
+def test_attributi_map_valid_list_value() -> None:
+    amap = AttributiMap.from_types_and_json(
+        [
+            _create_attributo(
+                AttributoTypeList(
+                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                )
+            )
+        ],
+        [1],
+        {TEST_ATTRIBUTO_ID: ["a"]},
+    )
+
+    assert amap.select(TEST_ATTRIBUTO_ID) == ["a"]
+
+
+def test_attributi_map_to_json_with_list() -> None:
+    result = AttributiMap.from_types_and_json(
+        [
+            _create_attributo(
+                AttributoTypeList(
+                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                )
+            )
+        ],
+        [1],
+        {TEST_ATTRIBUTO_ID: ["a", "b", "c"]},
+    ).to_json()
+
+    assert result[TEST_ATTRIBUTO_ID] == ["a", "b", "c"]
+
+
+def test_attributi_map_invalid_list_length_too_big() -> None:
+    with pytest.raises(Exception):
+        AttributiMap.from_types_and_json(
+            [
+                _create_attributo(
+                    AttributoTypeList(
+                        sub_type=AttributoTypeString(), min_length=None, max_length=2
+                    )
+                )
+            ],
+            [1],
+            {TEST_ATTRIBUTO_ID: ["a", "b", "c"]},
+        )
+
+
+def test_attributi_map_invalid_list_length_too_small() -> None:
+    with pytest.raises(Exception):
+        AttributiMap.from_types_and_json(
+            [
+                _create_attributo(
+                    AttributoTypeList(
+                        sub_type=AttributoTypeString(), min_length=2, max_length=None
+                    )
+                )
+            ],
+            [1],
+            {TEST_ATTRIBUTO_ID: ["a"]},
+        )
+
+
+def test_attributi_map_invalid_list_value() -> None:
+    with pytest.raises(Exception):
+        AttributiMap.from_types_and_json(
+            [
+                _create_attributo(
+                    AttributoTypeList(
+                        sub_type=AttributoTypeString(), min_length=None, max_length=None
+                    )
+                )
+            ],
+            [1],
+            {TEST_ATTRIBUTO_ID: [1]},
+        )
+
+
+def test_attributi_map_sample_id_zero_is_none() -> None:
+    amap = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeSample())],
+        [1],
+        {TEST_ATTRIBUTO_ID: SPECIAL_SAMPLE_ID_NONE},
+    )
+    assert amap.select(TEST_ATTRIBUTO_ID) is None
 
 
 def test_attributi_map_check_type_for_sample() -> None:
@@ -75,6 +239,175 @@ def test_attributi_map_check_type_for_int() -> None:
     assert am.select_int("invalid") is None
     with pytest.raises(Exception):
         assert am.select_int_unsafe("invalid") is None
+
+
+def test_check_attributo_types_when_extending_string() -> None:
+    m = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeString())],
+        [],
+        {},
+    )
+
+    m.extend({TEST_ATTRIBUTO_ID: "a"})
+
+    with pytest.raises(Exception):
+        m.extend({TEST_ATTRIBUTO_ID: 3})
+
+
+def test_check_attributo_types_when_extending_int() -> None:
+    m = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeInt())],
+        [],
+        {},
+    )
+
+    with pytest.raises(Exception):
+        m.extend({TEST_ATTRIBUTO_ID: "a"})
+    m.extend({TEST_ATTRIBUTO_ID: 1})
+
+
+def test_check_attributo_types_when_extending_boolean() -> None:
+    m = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeBoolean())],
+        [],
+        {},
+    )
+
+    with pytest.raises(Exception):
+        m.extend({TEST_ATTRIBUTO_ID: "a"})
+    m.extend({TEST_ATTRIBUTO_ID: True})
+
+
+def test_check_attributo_types_when_extending_decimal_without_range() -> None:
+    m = AttributiMap.from_types_and_json(
+        [
+            _create_attributo(
+                AttributoTypeDecimal(range=None, suffix=None, standard_unit=False)
+            )
+        ],
+        [],
+        {},
+    )
+
+    with pytest.raises(Exception):
+        m.extend({TEST_ATTRIBUTO_ID: "a"})
+    m.extend({TEST_ATTRIBUTO_ID: 1.0})
+
+
+def test_check_attributo_types_when_extending_decimal_with_range() -> None:
+    m = AttributiMap.from_types_and_json(
+        [
+            _create_attributo(
+                AttributoTypeDecimal(
+                    range=NumericRange(
+                        minimum=0,
+                        minimum_inclusive=False,
+                        maximum=1,
+                        maximum_inclusive=True,
+                    ),
+                    suffix=None,
+                    standard_unit=False,
+                )
+            )
+        ],
+        [],
+        {},
+    )
+
+    with pytest.raises(Exception):
+        # String instead of decimal
+        m.extend({TEST_ATTRIBUTO_ID: "a"})
+    with pytest.raises(Exception):
+        # Out of range
+        m.extend({TEST_ATTRIBUTO_ID: 10.0})
+    # 1.0 is inclusive
+    m.extend({TEST_ATTRIBUTO_ID: 1.0})
+    m.extend({TEST_ATTRIBUTO_ID: 0.5})
+
+
+def test_check_attributo_types_when_extending_choice() -> None:
+    m = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeChoice(values=["a", "b"]))],
+        [],
+        {},
+    )
+
+    with pytest.raises(Exception):
+        # invalid choice
+        m.extend({TEST_ATTRIBUTO_ID: "x"})
+    with pytest.raises(Exception):
+        # invalid type
+        m.extend({TEST_ATTRIBUTO_ID: 2})
+    # valid choice
+    m.extend({TEST_ATTRIBUTO_ID: "a"})
+
+
+def test_check_attributo_types_when_extending_datetime() -> None:
+    m = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeDateTime())],
+        [],
+        {},
+    )
+
+    with pytest.raises(Exception):
+        # invalid type
+        m.extend({TEST_ATTRIBUTO_ID: "x"})
+    # valid choice (though unlikely)
+    m.extend({TEST_ATTRIBUTO_ID: 10})
+
+
+def test_check_attributo_types_when_extending_list() -> None:
+    m = AttributiMap.from_types_and_json(
+        [
+            _create_attributo(
+                AttributoTypeList(
+                    sub_type=AttributoTypeString(), min_length=1, max_length=2
+                )
+            )
+        ],
+        [],
+        {},
+    )
+
+    with pytest.raises(Exception):
+        # invalid type
+        m.extend({TEST_ATTRIBUTO_ID: [1]})
+
+    with pytest.raises(Exception):
+        # invalid length
+        m.extend({TEST_ATTRIBUTO_ID: cast(List[str], [])})
+
+    with pytest.raises(Exception):
+        # invalid length
+        m.extend({TEST_ATTRIBUTO_ID: ["a", "b", "c"]})
+
+    m.extend({TEST_ATTRIBUTO_ID: ["a"]})
+
+
+def test_check_attributo_types_when_extending_non_existing_attributo() -> None:
+    with pytest.raises(Exception):
+        AttributiMap.from_types_and_json(
+            [],
+            [1],
+            {"foo": 1},
+        )
+
+
+def test_check_attributo_types_when_extending_sample() -> None:
+    m = AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeSample())],
+        # Only one sample allowed: 1
+        [1],
+        {},
+    )
+
+    with pytest.raises(Exception):
+        m.extend({TEST_ATTRIBUTO_ID: "a"})
+    with pytest.raises(Exception):
+        # Sample 3 isn't valid
+        m.extend({TEST_ATTRIBUTO_ID: 3})
+    # Sample 1 valid
+    m.extend({TEST_ATTRIBUTO_ID: 1})
 
 
 def test_attributi_map_check_type_for_string() -> None:
@@ -155,11 +488,8 @@ def test_attributi_map_check_type_for_double() -> None:
 
 
 def test_attributi_map_check_type_for_datetime() -> None:
-    assert (
-        AttributiMap.from_types_and_json(
-            [_create_attributo(AttributoTypeDateTime())],
-            [],
-            {TEST_ATTRIBUTO_ID: 1644317029000},
-        ).select_datetime_unsafe(TEST_ATTRIBUTO_ID)
-        == datetime(2022, 2, 8, 10, 43, 49)
-    )
+    assert AttributiMap.from_types_and_json(
+        [_create_attributo(AttributoTypeDateTime())],
+        [],
+        {TEST_ATTRIBUTO_ID: 1644317029000},
+    ).select_datetime_unsafe(TEST_ATTRIBUTO_ID) == datetime(2022, 2, 8, 10, 43, 49)

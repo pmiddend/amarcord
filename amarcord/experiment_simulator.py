@@ -2,7 +2,8 @@ import asyncio
 import datetime
 import logging
 import random
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List, Optional, Iterable, Dict
 
 import randomname
 from essential_generators import DocumentGenerator
@@ -13,7 +14,6 @@ from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import (
     AsyncDB,
-    create_run_groups,
     create_ground_state_attributi,
 )
 from amarcord.db.attributi import (
@@ -21,6 +21,7 @@ from amarcord.db.attributi import (
     ATTRIBUTO_STOPPED,
 )
 from amarcord.db.attributi_map import AttributiMap, UntypedAttributiMap
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeChoice,
@@ -59,6 +60,13 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RunGroup:
+    run_ids: List[int]
+    total_minutes: int
+    attributi_values: Dict[AttributoId, AttributoValue]
 
 
 class Arguments(Tap):
@@ -301,8 +309,51 @@ def random_gibberish() -> str:
     return gen.sentence()
 
 
+def _create_run_groups(
+    attributi_names: Iterable[str], runs: List[DBRun]
+) -> List[RunGroup]:
+    def run_duration(run_: DBRun) -> datetime.timedelta:
+        stopped = run_.attributi.select_datetime(ATTRIBUTO_STOPPED)
+        started = run_.attributi.select_datetime(ATTRIBUTO_STARTED)
+        return (
+            datetime.timedelta()
+            if stopped is None or started is None
+            else stopped - started
+        )
+
+    groups: List[RunGroup] = []
+    # Try to fit each run into a group
+    for run in runs:
+        # Fill this run's attributi value combination
+        attributi_values: Dict[AttributoId, AttributoValue] = {}
+        for a in attributi_names:
+            attributi_values[a] = run.attributi.select(a)
+
+        this_run_minutes = int(run_duration(run).total_seconds() / 60)
+
+        # Try to find its group
+        found = False
+        for group in groups:
+            if attributi_values == group.attributi_values:
+                group.run_ids.append(run.id)
+                group.total_minutes += this_run_minutes
+                found = True
+                break
+
+        if not found:
+            groups.append(
+                RunGroup(
+                    run_ids=[run.id],
+                    attributi_values=attributi_values,
+                    total_minutes=this_run_minutes,
+                )
+            )
+
+    return groups
+
+
 async def _generate_cfel_results(db: AsyncDB, conn: Connection) -> None:
-    grouped_runs = create_run_groups(
+    grouped_runs = _create_run_groups(
         [ATTRIBUTO_SAMPLE],
         await db.retrieve_runs(
             conn, await db.retrieve_attributi(conn, associated_table=None)
