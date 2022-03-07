@@ -7,7 +7,7 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, Attr
 import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, spinner)
 import Amarcord.Constants exposing (manualAttributiGroup)
-import Amarcord.DataSet exposing (DataSetSummary)
+import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (br_, em_, form_, h1_, h2_, h3_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
@@ -332,10 +332,11 @@ viewCurrentRun zone now currentExperimentType rrc =
                         ]
                     ]
 
+                currentRunDataSet : Maybe DataSet
                 currentRunDataSet =
                     case currentExperimentType of
                         Nothing ->
-                            Maybe.andThen (\dsId -> find (\ds -> ds.id == dsId) rrc.dataSets) <| List.head dataSets
+                            Nothing
 
                         Just experimentType ->
                             find (\ds -> ds.experimentType == experimentType && List.member ds.id dataSets) rrc.dataSets
@@ -609,6 +610,29 @@ update msg model =
 
                     else
                         model.refreshRequest
+                , currentExperimentType =
+                    case ( model.currentExperimentType, response ) of
+                        -- If we currently don't have an experiment type, then the only reason is that we
+                        -- didn't receive any yet. If we did now, set the experiment type.
+                        ( Nothing, Ok { experimentTypes } ) ->
+                            List.head experimentTypes
+
+                        -- No experiment types, but an error in the request
+                        ( Nothing, _ ) ->
+                            Nothing
+
+                        -- We have an experiment type and need to check it
+                        ( Just currentExperimentType, Ok { experimentTypes } ) ->
+                            -- Could be that the experiment type disappeared!
+                            if List.member currentExperimentType experimentTypes then
+                                Just currentExperimentType
+
+                            else
+                                List.head experimentTypes
+
+                        -- We have an experiment type, but an error now. Just keep it for now.
+                        ( Just currentExperimentType, _ ) ->
+                            Just currentExperimentType
               }
             , Cmd.none
             )
