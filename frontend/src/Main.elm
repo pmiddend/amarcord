@@ -20,7 +20,7 @@ import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html as Html exposing (..)
 import Html.Attributes exposing (..)
-import String exposing (startsWith)
+import String exposing (contains, startsWith)
 import Task
 import Time exposing (Posix, Zone)
 import Url as URL exposing (Url)
@@ -261,7 +261,7 @@ updateInner hereAndNow msg model =
                 Browser.Internal url ->
                     -- Special case here; if this wasn't present, we'd try to open the /api prefix stuff and the
                     -- routing would fail.
-                    if startsWith "/api/files/" url.path then
+                    if contains "api/files/" url.path then
                         ( model, Nav.load (URL.toString url) )
 
                     else

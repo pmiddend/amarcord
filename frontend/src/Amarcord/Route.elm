@@ -81,7 +81,7 @@ makeLink x =
 
 makeFilesLink : Int -> String
 makeFilesLink id =
-    "/api/files/" ++ String.fromInt id
+    "api/files/" ++ String.fromInt id
 
 
 matchRoute : Parser (Route -> a) a

@@ -85,7 +85,7 @@ experimentTypeDecoder =
 httpCreateExperimentType : (Result RequestError () -> msg) -> String -> List String -> Cmd msg
 httpCreateExperimentType f name attributiNames =
     Http.post
-        { url = "/api/experiment-types"
+        { url = "api/experiment-types"
         , expect =
             Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body =
@@ -101,7 +101,7 @@ httpCreateExperimentType f name attributiNames =
 httpDeleteExperimentType : (Result RequestError () -> msg) -> String -> Cmd msg
 httpDeleteExperimentType f experimentTypeName =
     httpDelete
-        { url = "/api/experiment-types"
+        { url = "api/experiment-types"
         , body = jsonBody (Encode.object [ ( "name", Encode.string experimentTypeName ) ])
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         }
@@ -110,7 +110,7 @@ httpDeleteExperimentType f experimentTypeName =
 httpGetExperimentTypes : (Result RequestError (List ExperimentType) -> msg) -> Cmd msg
 httpGetExperimentTypes f =
     Http.get
-        { url = "/api/experiment-types"
+        { url = "api/experiment-types"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.field "experiment-types" <| Decode.list experimentTypeDecoder)
         }
 
@@ -137,7 +137,7 @@ dataSetDecoder =
 httpCreateDataSet : (Result RequestError () -> msg) -> String -> AttributoMap AttributoValue -> Cmd msg
 httpCreateDataSet f experimentType attributi =
     Http.post
-        { url = "/api/data-sets"
+        { url = "api/data-sets"
         , expect =
             Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body =
@@ -153,7 +153,7 @@ httpCreateDataSet f experimentType attributi =
 httpDeleteDataSet : (Result RequestError () -> msg) -> Int -> Cmd msg
 httpDeleteDataSet f id =
     httpDelete
-        { url = "/api/data-sets"
+        { url = "api/data-sets"
         , body = jsonBody (Encode.object [ ( "id", Encode.int id ) ])
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         }
@@ -268,7 +268,7 @@ httpResultToRequestError x =
 httpGetAnalysisResults : (Result RequestError AnalysisResultsRoot -> msg) -> Cmd msg
 httpGetAnalysisResults f =
     Http.get
-        { url = "/api/analysis/analysis-results"
+        { url = "api/analysis/analysis-results"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| analysisResultsRootDecoder)
         }
 
@@ -286,7 +286,7 @@ dataSetResultDecoder =
 httpGetDataSets : (Result RequestError DataSetResult -> msg) -> Cmd msg
 httpGetDataSets f =
     Http.get
-        { url = "/api/data-sets"
+        { url = "api/data-sets"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| dataSetResultDecoder)
         }
 
@@ -321,7 +321,7 @@ type alias RunsResponseContent =
 httpGetRuns : (RunsResponse -> msg) -> Cmd msg
 httpGetRuns f =
     Http.get
-        { url = "/api/runs"
+        { url = "api/runs"
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError <|
@@ -413,7 +413,7 @@ encodeRun run =
 httpCreateEvent : (Result RequestError () -> msg) -> String -> String -> Cmd msg
 httpCreateEvent f source text =
     Http.post
-        { url = "/api/events"
+        { url = "api/events"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body = jsonBody (encodeEvent source text)
         }
@@ -422,7 +422,7 @@ httpCreateEvent f source text =
 httpUpdateRun : (Result RequestError () -> msg) -> Run -> Cmd msg
 httpUpdateRun f a =
     httpPatch
-        { url = "/api/runs"
+        { url = "api/runs"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body = jsonBody (encodeRun a)
         }
@@ -431,7 +431,7 @@ httpUpdateRun f a =
 httpDeleteEvent : (Result RequestError () -> msg) -> Int -> Cmd msg
 httpDeleteEvent f eventId =
     httpDelete
-        { url = "/api/events"
+        { url = "api/events"
         , body = jsonBody (Encode.object [ ( "id", Encode.int eventId ) ])
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         }
@@ -445,7 +445,7 @@ attributoRequestDecoder =
 httpGetAndDecodeAttributi : (Result RequestError (List (Attributo AttributoType)) -> msg) -> Cmd msg
 httpGetAndDecodeAttributi f =
     Http.get
-        { url = "/api/attributi"
+        { url = "api/attributi"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| attributoRequestDecoder)
         }
 
@@ -453,7 +453,7 @@ httpGetAndDecodeAttributi f =
 httpDeleteAttributo : (Result RequestError () -> msg) -> AttributoName -> Cmd msg
 httpDeleteAttributo f attributoName =
     httpDelete
-        { url = "/api/attributi"
+        { url = "api/attributi"
         , body = jsonBody (Encode.object [ ( "name", Encode.string attributoName ) ])
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         }
@@ -467,7 +467,7 @@ encodeConversionFlags { ignoreUnits } =
 httpCreateAttributo : (Result RequestError () -> msg) -> Attributo JsonSchema -> Cmd msg
 httpCreateAttributo f a =
     Http.post
-        { url = "/api/attributi"
+        { url = "api/attributi"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body = jsonBody (encodeAttributo encodeJsonSchema a)
         }
@@ -490,7 +490,7 @@ httpCheckStandardUnit f unit =
                     StandardUnitValid { input = input, normalized = normalizedReal }
     in
     Http.post
-        { url = "/api/unit"
+        { url = "api/unit"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.map3 decodeCheckUnitResult (Decode.field "input" Decode.string) (Decode.maybe (Decode.field "normalized" Decode.string)) (Decode.maybe (Decode.field "error" Decode.string)))
         , body = jsonBody (Encode.object [ ( "input", Encode.string unit ) ])
         }
@@ -499,7 +499,7 @@ httpCheckStandardUnit f unit =
 httpEditAttributo : (Result RequestError () -> msg) -> ConversionFlags -> AttributoName -> Attributo JsonSchema -> Cmd msg
 httpEditAttributo f conversionFlags nameBefore a =
     httpPatch
-        { url = "/api/attributi"
+        { url = "api/attributi"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body =
             jsonBody
@@ -560,7 +560,7 @@ type alias SamplesResponse =
 httpGetSamples : (SamplesResponse -> msg) -> Cmd msg
 httpGetSamples f =
     Http.get
-        { url = "/api/samples"
+        { url = "api/samples"
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError <|
@@ -573,7 +573,7 @@ httpGetSamples f =
 httpCreateSample : (Result RequestError () -> msg) -> Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd msg
 httpCreateSample f a =
     Http.post
-        { url = "/api/samples"
+        { url = "api/samples"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body = jsonBody (encodeSample a)
         }
@@ -582,7 +582,7 @@ httpCreateSample f a =
 httpUpdateSample : (Result RequestError () -> msg) -> Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd msg
 httpUpdateSample f a =
     httpPatch
-        { url = "/api/samples"
+        { url = "api/samples"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body = jsonBody (encodeSample a)
         }
@@ -591,7 +591,7 @@ httpUpdateSample f a =
 httpDeleteSample : (Result RequestError () -> msg) -> Int -> Cmd msg
 httpDeleteSample f sampleId =
     httpDelete
-        { url = "/api/samples"
+        { url = "api/samples"
         , body = jsonBody (Encode.object [ ( "id", Encode.int sampleId ) ])
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         }
@@ -610,7 +610,7 @@ fileDecoder =
 httpCreateFile : (Result RequestError File -> msg) -> String -> ElmFile.File -> Cmd msg
 httpCreateFile f description file =
     Http.post
-        { url = "/api/files"
+        { url = "api/files"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| fileDecoder)
         , body =
             multipartBody
@@ -623,7 +623,7 @@ httpCreateFile f description file =
 httpStartRun : Int -> (Result RequestError () -> msg) -> Cmd msg
 httpStartRun runId f =
     Http.get
-        { url = "/api/runs/" ++ String.fromInt runId ++ "/start"
+        { url = "api/runs/" ++ String.fromInt runId ++ "/start"
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError <|
@@ -634,7 +634,7 @@ httpStartRun runId f =
 httpStopRun : (Result RequestError () -> msg) -> Cmd msg
 httpStopRun f =
     Http.get
-        { url = "/api/runs/stop-latest"
+        { url = "api/runs/stop-latest"
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError <|
