@@ -84,7 +84,7 @@ viewMenuLeaf modelRoute leaf =
                   else
                     ""
                  )
-                    ++ "nav-link"
+                    ++ "nav-link text-nowrap"
                 )
             ]
             [ icon { name = leaf.iconName }, text <| " " ++ leaf.description ]
