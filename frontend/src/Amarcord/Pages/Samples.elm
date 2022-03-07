@@ -14,7 +14,7 @@ import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWit
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, SampleId, sampleMapAttributi, sampleMapId)
 import Amarcord.Util exposing (HereAndNow)
@@ -135,10 +135,18 @@ viewFiles newFile files =
                         , input [ type_ "text", disabled True, value (Maybe.unwrap "No file selected" ElmFile.name newFile.file), class "form-control" ] []
                         ]
                     , div [ class "mb-3" ]
-                        [ label [ for "file-description", class "form-label" ] [ text "File Description" ]
+                        [ label [ for "file-description", class "form-label" ] [ text "File Description", sup_ [ text "*" ] ]
                         , input_
                             [ type_ "text"
-                            , class "form-control"
+                            , class
+                                ("form-control"
+                                    ++ (if String.isEmpty newFile.description && isJust newFile.file then
+                                            " is-invalid"
+
+                                        else
+                                            ""
+                                       )
+                                )
                             , id "name"
                             , value newFile.description
                             , onInput EditNewFileDescription
@@ -195,7 +203,7 @@ viewEditForm submitErrorsList newFileUpload sample =
                 )
             ]
         , div [ class "mb-3" ]
-            [ label [ for "name", class "form-label" ] [ text "Name" ]
+            [ label [ for "name", class "form-label" ] [ text "Name", sup_ [ text "*" ] ]
             , input_
                 [ type_ "text"
                 , class
