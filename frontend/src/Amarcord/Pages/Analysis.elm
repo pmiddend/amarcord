@@ -6,11 +6,13 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, Attr
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (div_, h2_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.File as Amarcord
+import Amarcord.Html exposing (br_, div_, h2_, img_, p_, span_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
-import Html exposing (Html, div, h4, table, td, text, tr)
-import Html.Attributes exposing (class, colspan, style)
+import Html exposing (Html, a, div, figcaption, figure, h4, small, span, table, td, text, tr)
+import Html.Attributes exposing (class, colspan, href, src)
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult)
 import String
@@ -53,10 +55,7 @@ viewResultsTableForSingleExperimentType :
 viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeAndDataSets =
     let
         headerNamesAnalysisResults =
-            [ "Runs"
-
-            --, "Directory"
-            , "Resolution"
+            [ "Resolution"
             , "RSplit"
             , "CCHalf"
             , "CC*"
@@ -65,14 +64,12 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
             , "Multiplicity"
             , "Total Measurements"
             , "Unique Reflections"
-            , "Wilson B"
-            , "Outer Shell"
             , "Num. patterns"
             , "Num Hits"
             , "Indexed Patterns"
             , "Indexed Crystals"
-
-            --, "Comment"
+            , "CC*-Rsplit"
+            , "CrystFEL version"
             ]
 
         textTd =
@@ -84,30 +81,51 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
         intTd =
             textTd << String.fromInt
 
-        viewCfelAnalysisResultRow : CfelAnalysisResult -> Html msg
-        viewCfelAnalysisResultRow { directoryName, runFrom, runTo, resolution, rsplit, cchalf, ccstar, snr, completeness, multiplicity, totalMeasurements, uniqueReflections, wilsonB, outerShell, numPatterns, numHits, indexedPatterns, indexedCrystals, comment } =
-            tr_
-                [ td [ style "white-space" "nowrap" ] [ text <| String.fromInt runFrom ++ "-" ++ String.fromInt runTo ]
+        viewFile : Amarcord.File -> Html msg
+        viewFile { id, type_, description, fileName, sizeInBytes, originalPath } =
+            if String.startsWith "image/" type_ then
+                div_ [ figure [ class "figure" ] [ img_ [ src ("api/files/" ++ String.fromInt id), class "figure-img img-fluid rounded" ], figcaption [ class "figure-caption" ] [ text description ] ] ]
 
-                --, textTd directoryName
-                , textTd resolution
-                , floatTd rsplit
-                , floatTd cchalf
-                , floatTd ccstar
-                , floatTd snr
-                , floatTd completeness
-                , floatTd multiplicity
-                , intTd totalMeasurements
-                , intTd uniqueReflections
-                , floatTd wilsonB
-                , textTd outerShell
-                , intTd numPatterns
-                , intTd numHits
-                , intTd indexedPatterns
-                , intTd indexedCrystals
+            else
+                let
+                    originalPathSuffix =
+                        case originalPath of
+                            Nothing ->
+                                []
 
-                --, textTd comment
-                ]
+                            Just op ->
+                                [ br_, small [ class "text-muted" ] [ text <| "Original path: " ], small [ class "text-muted font-monospace" ] [ text op ] ]
+                in
+                p_
+                    ([ a [ href (makeFilesLink id), class "stretched-link" ] [ text ("Download \"" ++ fileName ++ "\"") ], text (" (" ++ String.fromInt (sizeInBytes // 1024) ++ "KiB)") ] ++ originalPathSuffix)
+
+        viewCfelAnalysisResultRows : CfelAnalysisResult -> List (Html msg)
+        viewCfelAnalysisResultRows { directoryName, dataSetId, resolution, rsplit, cchalf, ccstar, snr, completeness, multiplicity, totalMeasurements, uniqueReflections, numPatterns, numHits, indexedPatterns, indexedCrystals, created, crystfelVersion, ccstarRSplit, files } =
+            let
+                dataRow =
+                    tr_
+                        [ textTd resolution
+                        , floatTd rsplit
+                        , floatTd cchalf
+                        , floatTd ccstar
+                        , floatTd snr
+                        , floatTd completeness
+                        , floatTd multiplicity
+                        , intTd totalMeasurements
+                        , intTd uniqueReflections
+                        , intTd numPatterns
+                        , intTd numHits
+                        , intTd indexedPatterns
+                        , intTd indexedCrystals
+                        , floatTd ccstarRSplit
+                        , textTd crystfelVersion
+                        ]
+            in
+            if List.isEmpty files then
+                [ dataRow ]
+
+            else
+                dataRow :: [ tr_ [ td [ colspan (List.length headerNamesAnalysisResults) ] (List.map viewFile files) ] ]
 
         viewResultRow : AnalysisResultsExperimentType -> List (Html msg)
         viewResultRow { dataSet, analysisResults } =
@@ -130,7 +148,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                                         [ tr_
                                             (List.map (\header -> th_ [ text header ]) headerNamesAnalysisResults)
                                         ]
-                                    , tbody_ (List.map viewCfelAnalysisResultRow analysisResults)
+                                    , tbody_ (List.concatMap viewCfelAnalysisResultRows analysisResults)
                                     ]
                                 ]
                             ]

@@ -2,15 +2,14 @@ import asyncio
 import datetime
 import logging
 import random
-from dataclasses import dataclass
-from typing import List, Optional, Iterable, Dict
+from pathlib import Path
+from typing import List, Optional
 
 import randomname
 from essential_generators import DocumentGenerator
 from randomname import generate
 from tap import Tap
 
-from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import (
     AsyncDB,
@@ -21,7 +20,6 @@ from amarcord.db.attributi import (
     ATTRIBUTO_STOPPED,
 )
 from amarcord.db.attributi_map import AttributiMap, UntypedAttributiMap
-from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeChoice,
@@ -34,12 +32,13 @@ from amarcord.db.attributo_type import (
     AttributoType,
 )
 from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.table_classes import DBRun
+from amarcord.db.table_classes import DBRun, DBFileBlueprint
 from amarcord.numeric_range import NumericRange
-from amarcord.util import safe_max, create_intervals, now_utc_unix_integer_millis
+from amarcord.util import safe_max, now_utc_unix_integer_millis
 
 TIME_RESOLVED = "time-resolved"
 
@@ -55,18 +54,13 @@ ATTRIBUTO_PH = "pH"
 
 ATTRIBUTO_SAMPLE = "sample"
 
+FILES_DIR = Path("tests/simulator-files")
+
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class RunGroup:
-    run_ids: List[int]
-    total_minutes: int
-    attributi_values: Dict[AttributoId, AttributoValue]
 
 
 class Arguments(Tap):
@@ -309,84 +303,45 @@ def random_gibberish() -> str:
     return gen.sentence()
 
 
-def _create_run_groups(
-    attributi_names: Iterable[str], runs: List[DBRun]
-) -> List[RunGroup]:
-    def run_duration(run_: DBRun) -> datetime.timedelta:
-        stopped = run_.attributi.select_datetime(ATTRIBUTO_STOPPED)
-        started = run_.attributi.select_datetime(ATTRIBUTO_STARTED)
-        return (
-            datetime.timedelta()
-            if stopped is None or started is None
-            else stopped - started
-        )
-
-    groups: List[RunGroup] = []
-    # Try to fit each run into a group
-    for run in runs:
-        # Fill this run's attributi value combination
-        attributi_values: Dict[AttributoId, AttributoValue] = {}
-        for a in attributi_names:
-            attributi_values[a] = run.attributi.select(a)
-
-        this_run_minutes = int(run_duration(run).total_seconds() / 60)
-
-        # Try to find its group
-        found = False
-        for group in groups:
-            if attributi_values == group.attributi_values:
-                group.run_ids.append(run.id)
-                group.total_minutes += this_run_minutes
-                found = True
-                break
-
-        if not found:
-            groups.append(
-                RunGroup(
-                    run_ids=[run.id],
-                    attributi_values=attributi_values,
-                    total_minutes=this_run_minutes,
-                )
-            )
-
-    return groups
-
-
 async def _generate_cfel_results(db: AsyncDB, conn: Connection) -> None:
-    grouped_runs = _create_run_groups(
-        [ATTRIBUTO_SAMPLE],
-        await db.retrieve_runs(
-            conn, await db.retrieve_attributi(conn, associated_table=None)
-        ),
+    data_sets = await db.retrieve_data_sets(
+        conn,
+        await db.retrieve_sample_ids(conn),
+        await db.retrieve_attributi(conn, associated_table=None),
     )
 
-    await db.clear_analysis_results(conn, delete_after_run_id=None)
-    for run_group in grouped_runs:
-        for run_from, run_to in create_intervals(sorted(run_group.run_ids)):
-            await db.create_cfel_analysis_result(
-                conn,
-                DBCFELAnalysisResult(
-                    directory_name="/gpfs/cfel/foo/bar/baz",
-                    run_from=run_from,
-                    run_to=run_to,
-                    resolution=f"{random.uniform(1, 5):.2f}A",
-                    rsplit=random.uniform(1, 2),
-                    cchalf=random.uniform(1, 2),
-                    ccstar=random.uniform(1, 2),
-                    snr=random.uniform(1, 2),
-                    completeness=random.uniform(1, 2),
-                    multiplicity=random.uniform(1, 2),
-                    total_measurements=int(random.uniform(1, 30000)),
-                    unique_reflections=int(random.uniform(1, 30000)),
-                    wilson_b=random.uniform(1, 2),
-                    outer_shell="",
-                    num_patterns=int(random.uniform(1, 30000)),
-                    num_hits=int(random.uniform(1, 30000)),
-                    indexed_patterns=int(random.uniform(1, 30000)),
-                    indexed_crystals=int(random.uniform(1, 30000)),
-                    comment=random_gibberish(),
-                ),
-            )
+    await db.clear_cfel_analysis_results(conn)
+
+    for data_set in data_sets:
+        await db.create_cfel_analysis_result(
+            conn,
+            DBCFELAnalysisResult(
+                id=None,
+                directory_name="/gpfs/cfel/foo/bar/baz",
+                data_set_id=data_set.id,
+                resolution=f"{random.uniform(1, 5):.2f}A",
+                rsplit=random.uniform(1, 2),
+                cchalf=random.uniform(1, 2),
+                ccstar=random.uniform(1, 2),
+                snr=random.uniform(1, 2),
+                completeness=random.uniform(1, 2),
+                multiplicity=random.uniform(1, 2),
+                total_measurements=int(random.uniform(1, 30000)),
+                unique_reflections=int(random.uniform(1, 30000)),
+                num_patterns=int(random.uniform(1, 30000)),
+                num_hits=int(random.uniform(1, 30000)),
+                indexed_patterns=int(random.uniform(1, 30000)),
+                indexed_crystals=int(random.uniform(1, 30000)),
+                crystfel_version="0.9.1",
+                ccstar_rsplit=random.uniform(-1000, 1000),
+                created=datetime.datetime.utcnow(),
+                files=[],
+            ),
+            random.choices(
+                [DBFileBlueprint(f.name, f) for f in FILES_DIR.iterdir()],
+                k=random.randint(0, 3),
+            ),
+        )
 
 
 async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> None:

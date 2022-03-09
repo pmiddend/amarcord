@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, List, Optional, Set, Tuple
+from typing import Dict, cast, List, Optional, Tuple
 
 from pint import UnitRegistry
 from quart import Quart, request, redirect, Response
@@ -13,7 +13,6 @@ from quart_cors import cors
 from tap import Tap
 from werkzeug.exceptions import HTTPException
 
-from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     AttributoConversionFlags,
@@ -25,6 +24,7 @@ from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap, run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
@@ -139,6 +139,8 @@ def _encode_file(f: DBFile) -> JSONDict:
         "description": f.description,
         "type_": f.type_,
         "fileName": f.file_name,
+        "sizeInBytes": f.size_in_bytes,
+        "originalPath": f.original_path,
     }
 
 
@@ -352,7 +354,9 @@ async def create_file() -> JSONDict:
                 conn,
                 file_name=file_name,
                 description=description,
+                original_path=None,
                 contents_location=Path(temp_file.name),
+                deduplicate=False,
             )
 
     return {
@@ -690,18 +694,11 @@ async def read_analysis_results() -> JSONDict:
             ds.id: [r for r in runs if run_matches_dataset(r.attributi, ds.attributi)]
             for ds in data_sets
         }
-        data_set_to_run_ids: Dict[int, Set[int]] = {
-            ds_id: {r.id for r in runs} for ds_id, runs in data_set_to_runs.items()
-        }
-        cfel_analysis_results = await db.instance.retrieve_cfel_analysis_results(conn)
-        data_set_to_analysis_results: Dict[int, List[DBCFELAnalysisResult]] = {
-            ds_id: [
-                a
-                for a in cfel_analysis_results
-                if any(a.run_from <= run_id <= a.run_to for run_id in run_ids)
-            ]
-            for ds_id, run_ids in data_set_to_run_ids.items()
-        }
+        analysis_results = await db.instance.retrieve_cfel_analysis_results(conn)
+        data_set_to_analysis_results: Dict[int, List[DBCFELAnalysisResult]] = group_by(
+            analysis_results,
+            lambda key: key.data_set_id,
+        )
 
         return {
             "attributi": [_encode_attributo(a) for a in attributi],
@@ -717,7 +714,7 @@ async def read_analysis_results() -> JSONDict:
                             _encode_cfel_analysis_result(k)
                             for k in sorted(
                                 data_set_to_analysis_results.get(ds.id, []),
-                                key=lambda r: r.run_from,
+                                key=lambda r: r.data_set_id,
                             )
                         ],
                     }
@@ -730,9 +727,9 @@ async def read_analysis_results() -> JSONDict:
 
 def _encode_cfel_analysis_result(k: DBCFELAnalysisResult) -> JSONDict:
     return {
+        "id": k.id,
         "directoryName": k.directory_name,
-        "runFrom": k.run_from,
-        "runTo": k.run_to,
+        "dataSetId": k.data_set_id,
         "resolution": k.resolution,
         "rsplit": k.rsplit,
         "cchalf": k.cchalf,
@@ -742,13 +739,14 @@ def _encode_cfel_analysis_result(k: DBCFELAnalysisResult) -> JSONDict:
         "multiplicity": k.multiplicity,
         "totalMeasurements": k.total_measurements,
         "uniqueReflections": k.unique_reflections,
-        "wilsonB": k.wilson_b,
-        "outerShell": k.outer_shell,
         "numPatterns": k.num_patterns,
         "numHits": k.num_hits,
         "indexedPatterns": k.indexed_patterns,
         "indexedCrystals": k.indexed_crystals,
-        "comment": k.comment,
+        "crystfelVersion": k.crystfel_version,
+        "ccstarRSplit": k.ccstar_rsplit,
+        "created": datetime_to_attributo_int(k.created),
+        "files": [_encode_file(f) for f in k.files],
     }
 
 

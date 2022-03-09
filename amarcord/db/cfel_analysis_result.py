@@ -1,11 +1,15 @@
+import datetime
 from dataclasses import dataclass
+from typing import List, Optional
+
+from amarcord.db.table_classes import DBFile
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class DBCFELAnalysisResult:
+    id: Optional[int]
     directory_name: str
-    run_from: int
-    run_to: int
+    data_set_id: int
     resolution: str
     rsplit: float
     cchalf: float
@@ -15,10 +19,11 @@ class DBCFELAnalysisResult:
     multiplicity: float
     total_measurements: int
     unique_reflections: int
-    wilson_b: float
-    outer_shell: str
     num_patterns: int
     num_hits: int
     indexed_patterns: int
     indexed_crystals: int
-    comment: str
+    crystfel_version: str
+    ccstar_rsplit: float
+    created: datetime.datetime
+    files: List[DBFile]

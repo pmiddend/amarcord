@@ -41,7 +41,7 @@ class FileSystem2Attributo:
         self.cache: KaraboCacheContent = {}
 
     def extract_data(self, number_of_bunches: int = 0) -> KaraboCacheContent:
-        """ It does what it promises """
+        """It does what it promises"""
 
         # TO BE FIXED: because of nonsense filling values the number of pulses must be known to properly compute average quantities
         # ideally, we can read this from `SPB_RR_SYS/MDL/BUNCH_PATTERN//sase1.nPulses.value`
@@ -110,12 +110,14 @@ class FileSystem2Attributo:
                 ):
                     logging.info("Found %s: %s//%s", identifier, source, key)
 
+                    # pylint: disable=fixme
                     # FIXME: again to work with self._cache
                     if source not in self.cache:
                         self.cache[source] = {}
 
                     data = self.run.get_array(source, key).values
 
+                    # pylint: disable=fixme
                     # FIXME: breaks abstraction
                     # slice away filling values
                     if identifier in (

@@ -6,9 +6,10 @@ stages:
   - upload-docker
 
 # this is a workaround for etcd runner issues
-default:
-  tags:
-    - DESY-intern
+# Supplemental: the runner has been "disabled", let's see if it works now.
+#default:
+#  tags:
+#    - DESY-intern
 
 variables:
   AMARCORD_PYTHON_DOCKER: gitlab.desy.de:5555/cfel-sc-public/amarcord/poetry-base-image:v1-1-8

@@ -22,8 +22,15 @@ class DBFile:
     id: Optional[int]
     description: str
     type_: str
+    original_path: Optional[str]
     file_name: str
     size_in_bytes: int
+
+
+@dataclass(frozen=True)
+class DBFileBlueprint:
+    description: str
+    location: Path
 
 
 @dataclass(frozen=True)

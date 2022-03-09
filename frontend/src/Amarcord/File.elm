@@ -6,4 +6,6 @@ type alias File =
     , type_ : String
     , fileName : String
     , description : String
+    , sizeInBytes : Int
+    , originalPath : Maybe String
     }

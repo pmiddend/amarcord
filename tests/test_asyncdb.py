@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 
 import pytest
@@ -6,12 +7,13 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import AttributoConversionFlags
-from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributi_map import AttributiMap, JsonAttributiMap
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeString,
     AttributoTypeSample,
 )
+from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import CreationMode
 from amarcord.db.event_log_level import EventLogLevel
@@ -515,7 +517,12 @@ async def test_create_and_retrieve_file() -> None:
 
     async with db.begin() as conn:
         result = await db.create_file(
-            conn, "name.txt", "my description", Path(__file__).parent / "test-file.txt"
+            conn,
+            "name.txt",
+            "my description",
+            original_path=None,
+            contents_location=Path(__file__).parent / "test-file.txt",
+            deduplicate=False,
         )
 
         assert result.id > 0
@@ -531,6 +538,56 @@ async def test_create_and_retrieve_file() -> None:
         assert file_name == "name.txt"
         assert mime_type == "text/plain"
         assert file_size_in_bytes == 17
+
+
+async def test_create_and_retrieve_file_with_deduplication() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        result = await db.create_file(
+            conn,
+            "name.txt",
+            "my description",
+            original_path=None,
+            contents_location=Path(__file__).parent / "test-file.txt",
+            deduplicate=True,
+        )
+
+        result2 = await db.create_file(
+            conn,
+            "name.txt",
+            "my description",
+            original_path=None,
+            contents_location=Path(__file__).parent / "test-file.txt",
+            deduplicate=True,
+        )
+
+        assert result.id == result2.id
+
+
+async def test_create_and_retrieve_file_without_deduplication() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        result = await db.create_file(
+            conn,
+            "name.txt",
+            "my description",
+            original_path=None,
+            contents_location=Path(__file__).parent / "test-file.txt",
+            deduplicate=False,
+        )
+
+        result2 = await db.create_file(
+            conn,
+            "name.txt",
+            "my description",
+            original_path=None,
+            contents_location=Path(__file__).parent / "test-file.txt",
+            deduplicate=False,
+        )
+
+        assert result.id != result2.id
 
 
 async def test_create_and_retrieve_experiment_types() -> None:
@@ -728,3 +785,73 @@ async def test_create_read_delete_events() -> None:
         await db.delete_event(conn, event_id)
 
         assert len(await db.retrieve_events(conn)) == 1
+
+
+async def test_create_analysis_result() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        attributo_name = "a1"
+        await db.create_attributo(
+            conn,
+            name=attributo_name,
+            description="",
+            group="manual",
+            associated_table=AssociatedTable.RUN,
+            type_=AttributoTypeString(),
+        )
+
+        # Create experiment type
+        e_type_name = "e1"
+        await db.create_experiment_type(conn, e_type_name, [attributo_name])
+
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+
+        raw_attributi: JsonAttributiMap = {attributo_name: "foo"}
+        data_set_id = await db.create_data_set(
+            conn,
+            e_type_name,
+            AttributiMap.from_types_and_json(
+                types=attributi,
+                sample_ids=await db.retrieve_sample_ids(conn),
+                raw_attributi=raw_attributi,
+            ),
+        )
+
+        result_id = await db.create_cfel_analysis_result(
+            conn,
+            DBCFELAnalysisResult(
+                id=None,
+                directory_name="/tmp",
+                data_set_id=data_set_id,
+                resolution="1.0",
+                rsplit=1.0,
+                cchalf=1.0,
+                ccstar=1.0,
+                snr=1.0,
+                completeness=1.0,
+                multiplicity=1.0,
+                total_measurements=100,
+                unique_reflections=50,
+                num_patterns=1,
+                num_hits=0,
+                indexed_patterns=10,
+                indexed_crystals=100,
+                crystfel_version="1.0",
+                ccstar_rsplit=1.0,
+                created=datetime.datetime.utcnow(),
+                files=[],
+            ),
+            [],
+        )
+
+        analysis_results = await db.retrieve_cfel_analysis_results(conn)
+
+        assert len(analysis_results) == 1
+        assert analysis_results[0].id == result_id
+        # Smoke test
+        assert analysis_results[0].crystfel_version == "1.0"
+
+        await db.clear_cfel_analysis_results(conn)
+
+        assert not await db.retrieve_cfel_analysis_results(conn)

@@ -1,5 +1,6 @@
 import datetime
 import itertools
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from typing import Optional
 import magic
 import sqlalchemy as sa
 
-from amarcord.db.analysis_result import DBCFELAnalysisResult
+from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.attributi import (
@@ -34,10 +35,12 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
-from amarcord.db.table_classes import DBSample, DBFile, DBRun, DBEvent
+from amarcord.db.table_classes import DBSample, DBFile, DBRun, DBEvent, DBFileBlueprint
 from amarcord.db.tables import DBTables
 from amarcord.pint_util import valid_pint_unit
-from amarcord.util import sha256_file
+from amarcord.util import sha256_file, group_by
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -153,6 +156,7 @@ class AsyncDB:
                     self.tables.file.c.file_name,
                     self.tables.file.c.type,
                     self.tables.file.c.size_in_bytes,
+                    self.tables.file.c.original_path,
                 ]
             )
             .select_from(
@@ -179,6 +183,7 @@ class AsyncDB:
                     type_=row["type"],
                     file_name=row["file_name"],
                     size_in_bytes=row["size_in_bytes"],
+                    original_path=row["original_path"],
                 )
                 for row in group
             ]
@@ -390,11 +395,28 @@ class AsyncDB:
         conn: Connection,
         file_name: str,
         description: str,
+        original_path: Optional[Path],
         contents_location: Path,
+        deduplicate: bool,
     ) -> CreateFileResult:
         mime = magic.from_file(str(contents_location), mime=True)
 
         sha256 = sha256_file(contents_location)
+
+        if deduplicate:
+            existing_file = (
+                await conn.execute(
+                    sa.select(self.tables.file.c.id, self.tables.file.c.type).where(
+                        (self.tables.file.c.sha256 == sha256)
+                        & (self.tables.file.c.file_name == file_name)
+                    )
+                )
+            ).fetchone()
+
+            if existing_file is not None:
+                logger.info(f"file {file_name} already found, not creating another one")
+                return CreateFileResult(existing_file["id"], existing_file["type"])
+
         with contents_location.open("rb") as f:
             old_file_position = f.tell()
             f.seek(0, os.SEEK_END)
@@ -407,9 +429,9 @@ class AsyncDB:
                         self.tables.file.insert().values(
                             type=mime,
                             modified=datetime.datetime.utcnow(),
-                            # FIXME: Don't load the whole thing into memory ffs
                             contents=f.read(),
                             file_name=file_name,
+                            original_path=str(original_path),
                             description=description,
                             sha256=sha256,
                             size_in_bytes=size_in_bytes,
@@ -516,78 +538,127 @@ class AsyncDB:
             ).fetchall()
         ]
 
-    async def clear_cfel_analysis_results(
-        self, conn: Connection, delete_after_run_id: Optional[int] = None
-    ) -> None:
-        if delete_after_run_id is None:
-            conn.execute(sa.delete(self.tables.cfel_analysis_results))
-        else:
-            conn.execute(
-                sa.delete(self.tables.cfel_analysis_results).where(
-                    self.tables.cfel_analysis_results.c.run_from > delete_after_run_id
-                )
-            )
+    async def clear_cfel_analysis_results(self, conn: Connection) -> None:
+        await conn.execute(sa.delete(self.tables.cfel_analysis_results))
 
     async def create_cfel_analysis_result(
-        self, conn: Connection, r: DBCFELAnalysisResult
+        self, conn: Connection, r: DBCFELAnalysisResult, files: List[DBFileBlueprint]
     ) -> None:
-        await conn.execute(
-            sa.insert(self.tables.cfel_analysis_results).values(
-                directory_name=r.directory_name,
-                run_from=r.run_from,
-                run_to=r.run_to,
-                resolution=r.resolution,
-                rsplit=r.rsplit,
-                cchalf=r.cchalf,
-                ccstar=r.ccstar,
-                snr=r.snr,
-                completeness=r.completeness,
-                multiplicity=r.multiplicity,
-                total_measurements=r.total_measurements,
-                unique_reflections=r.unique_reflections,
-                wilson_b=r.wilson_b,
-                outer_shell=r.outer_shell,
-                num_patterns=r.num_patterns,
-                num_hits=r.num_hits,
-                indexed_patterns=r.indexed_patterns,
-                indexed_crystals=r.indexed_crystals,
-                comment=r.comment,
+        file_ids = [
+            (
+                await self.create_file(
+                    conn,
+                    f.location.name,
+                    f.description,
+                    contents_location=f.location,
+                    original_path=f.location.resolve(),
+                    deduplicate=True,
+                )
+            ).id
+            for f in files
+        ]
+        result_id = (
+            await conn.execute(
+                sa.insert(self.tables.cfel_analysis_results).values(
+                    directory_name=r.directory_name,
+                    data_set_id=r.data_set_id,
+                    resolution=r.resolution,
+                    rsplit=r.rsplit,
+                    cchalf=r.cchalf,
+                    ccstar=r.ccstar,
+                    snr=r.snr,
+                    completeness=r.completeness,
+                    multiplicity=r.multiplicity,
+                    total_measurements=r.total_measurements,
+                    unique_reflections=r.unique_reflections,
+                    num_patterns=r.num_patterns,
+                    num_hits=r.num_hits,
+                    indexed_patterns=r.indexed_patterns,
+                    indexed_crystals=r.indexed_crystals,
+                    crystfel_version=r.crystfel_version,
+                    ccstar_rsplit=r.ccstar_rsplit,
+                    created=r.created,
+                )
             )
-        )
+        ).inserted_primary_key[0]
+        for fid in file_ids:
+            await conn.execute(
+                sa.insert(self.tables.cfel_analysis_result_has_file).values(
+                    analysis_result_id=result_id, file_id=fid
+                )
+            )
+        return result_id
 
     async def retrieve_cfel_analysis_results(
         self, conn: Connection
     ) -> List[DBCFELAnalysisResult]:
         ar = self.tables.cfel_analysis_results.c
+        file_table = self.tables.file
+        result_to_file: Dict[int, List[Tuple[int, DBFile]]] = group_by(
+            [
+                (
+                    r["analysis_result_id"],
+                    DBFile(
+                        id=r["id"],
+                        description=r["description"],
+                        type_=r["type"],
+                        file_name=r["file_name"],
+                        size_in_bytes=r["size_in_bytes"],
+                        original_path=r["original_path"],
+                    ),
+                )
+                for r in await (
+                    conn.execute(
+                        sa.select(
+                            [
+                                file_table.c.id,
+                                file_table.c.description,
+                                file_table.c.type,
+                                file_table.c.file_name,
+                                file_table.c.size_in_bytes,
+                                file_table.c.original_path,
+                                self.tables.cfel_analysis_result_has_file.c.analysis_result_id,
+                            ]
+                        ).join(
+                            self.tables.cfel_analysis_result_has_file,
+                            self.tables.cfel_analysis_result_has_file.c.file_id
+                            == file_table.c.id,
+                        )
+                    )
+                )
+            ],
+            key=lambda x: x[0],
+        )
         return [
             DBCFELAnalysisResult(
-                r["directory_name"],
-                r["run_from"],
-                r["run_to"],
-                r["resolution"],
-                r["rsplit"],
-                r["cchalf"],
-                r["ccstar"],
-                r["snr"],
-                r["completeness"],
-                r["multiplicity"],
-                r["total_measurements"],
-                r["unique_reflections"],
-                r["wilson_b"],
-                r["outer_shell"],
-                r["num_patterns"],
-                r["num_hits"],
-                r["indexed_patterns"],
-                r["indexed_crystals"],
-                r["comment"],
+                id=r["id"],
+                directory_name=r["directory_name"],
+                data_set_id=r["data_set_id"],
+                resolution=r["resolution"],
+                rsplit=r["rsplit"],
+                cchalf=r["cchalf"],
+                ccstar=r["ccstar"],
+                snr=r["snr"],
+                completeness=r["completeness"],
+                multiplicity=r["multiplicity"],
+                total_measurements=r["total_measurements"],
+                unique_reflections=r["unique_reflections"],
+                num_patterns=r["num_patterns"],
+                num_hits=r["num_hits"],
+                indexed_patterns=r["indexed_patterns"],
+                indexed_crystals=r["indexed_crystals"],
+                crystfel_version=r["crystfel_version"],
+                ccstar_rsplit=r["ccstar_rsplit"],
+                created=r["created"],
+                files=[x[1] for x in result_to_file.get(r["id"], [])],
             )
             for r in await (
                 conn.execute(
                     sa.select(
                         [
+                            ar.id,
                             ar.directory_name,
-                            ar.run_from,
-                            ar.run_to,
+                            ar.data_set_id,
                             ar.resolution,
                             ar.rsplit,
                             ar.cchalf,
@@ -597,13 +668,13 @@ class AsyncDB:
                             ar.multiplicity,
                             ar.total_measurements,
                             ar.unique_reflections,
-                            ar.wilson_b,
-                            ar.outer_shell,
                             ar.num_patterns,
                             ar.num_hits,
                             ar.indexed_patterns,
                             ar.indexed_crystals,
-                            ar.comment,
+                            ar.crystfel_version,
+                            ar.ccstar_rsplit,
+                            ar.created,
                         ]
                     )
                 )
@@ -678,33 +749,6 @@ class AsyncDB:
                     self.tables.cfel_analysis_results.c.run_from > delete_after_run_id
                 )
             )
-
-    async def add_analysis_result(
-        self, conn: Connection, r: DBCFELAnalysisResult
-    ) -> None:
-        await conn.execute(
-            sa.insert(self.tables.cfel_analysis_results).values(
-                directory_name=r.directory_name,
-                run_from=r.run_from,
-                run_to=r.run_to,
-                resolution=r.resolution,
-                rsplit=r.rsplit,
-                cchalf=r.cchalf,
-                ccstar=r.ccstar,
-                snr=r.snr,
-                completeness=r.completeness,
-                multiplicity=r.multiplicity,
-                total_measurements=r.total_measurements,
-                unique_reflections=r.unique_reflections,
-                wilson_b=r.wilson_b,
-                outer_shell=r.outer_shell,
-                num_patterns=r.num_patterns,
-                num_hits=r.num_hits,
-                indexed_patterns=r.indexed_patterns,
-                indexed_crystals=r.indexed_crystals,
-                comment=r.comment,
-            )
-        )
 
     async def create_experiment_type(
         self, conn: Connection, name: str, experiment_attributi_names: Iterable[str]

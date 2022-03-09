@@ -122,12 +122,6 @@ def _unit_to_type(type_str: str, unit_str: Optional[str]) -> AttributoType:
     if type_str.startswith("list["):
         list_type = type_str[5:-1]
         return _unit_to_type(list_type, unit_str)
-        # FIXME: WTF
-        # return AttributoTypeList(
-        #     sub_type=_unit_to_type(list_type, unit_str),
-        #     max_length=None,
-        #     min_length=None,
-        # )
     raise Exception(f"invalid attributo type {type_str} (unit {unit_str})")
 
 

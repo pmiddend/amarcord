@@ -168,9 +168,9 @@ type alias DataSetResult =
 
 
 type alias CfelAnalysisResult =
-    { directoryName : String
-    , runFrom : Int
-    , runTo : Int
+    { id : Int
+    , directoryName : String
+    , dataSetId : Int
     , resolution : String
     , rsplit : Float
     , cchalf : Float
@@ -180,22 +180,23 @@ type alias CfelAnalysisResult =
     , multiplicity : Float
     , totalMeasurements : Int
     , uniqueReflections : Int
-    , wilsonB : Float
-    , outerShell : String
     , numPatterns : Int
     , numHits : Int
     , indexedPatterns : Int
     , indexedCrystals : Int
-    , comment : String
+    , crystfelVersion : String
+    , ccstarRSplit : Float
+    , created : Posix
+    , files : List File
     }
 
 
 cfelAnalysisDecoder : Decode.Decoder CfelAnalysisResult
 cfelAnalysisDecoder =
     Decode.succeed CfelAnalysisResult
+        |> required "id" Decode.int
         |> required "directoryName" Decode.string
-        |> required "runFrom" Decode.int
-        |> required "runTo" Decode.int
+        |> required "dataSetId" Decode.int
         |> required "resolution" Decode.string
         |> required "rsplit" Decode.float
         |> required "cchalf" Decode.float
@@ -205,13 +206,14 @@ cfelAnalysisDecoder =
         |> required "multiplicity" Decode.float
         |> required "totalMeasurements" Decode.int
         |> required "uniqueReflections" Decode.int
-        |> required "wilsonB" Decode.float
-        |> required "outerShell" Decode.string
         |> required "numPatterns" Decode.int
         |> required "numHits" Decode.int
         |> required "indexedPatterns" Decode.int
         |> required "indexedCrystals" Decode.int
-        |> required "comment" Decode.string
+        |> required "crystfelVersion" Decode.string
+        |> required "ccstarRSplit" Decode.float
+        |> required "created" (Decode.map millisToPosix Decode.int)
+        |> required "files" (Decode.list fileDecoder)
 
 
 type alias AnalysisResultsExperimentType =
@@ -599,12 +601,14 @@ httpDeleteSample f sampleId =
 
 fileDecoder : Decode.Decoder File
 fileDecoder =
-    Decode.map4
+    Decode.map6
         File
         (Decode.field "id" Decode.int)
         (Decode.field "type_" Decode.string)
         (Decode.field "fileName" Decode.string)
         (Decode.field "description" Decode.string)
+        (Decode.field "sizeInBytes" Decode.int)
+        (Decode.field "originalPath" (Decode.maybe Decode.string))
 
 
 httpCreateFile : (Result RequestError File -> msg) -> String -> ElmFile.File -> Cmd msg
