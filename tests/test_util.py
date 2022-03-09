@@ -11,6 +11,7 @@ from amarcord.util import (
     sha256_files,
     local_time_to_utc,
     group_by,
+    replace_illegal_path_characters,
 )
 
 
@@ -71,3 +72,7 @@ def test_local_time_to_utc():
 def test_group_by() -> None:
     result = group_by([(1, "foo"), (2, "bar"), (1, "baz")], lambda x: x[0])
     assert result == {1: [(1, "foo"), (1, "baz")], 2: [(2, "bar")]}
+
+
+def test_remove_illegal_path_characters() -> None:
+    assert replace_illegal_path_characters("foo\\bar|baz") == "foo_bar_baz"

@@ -11,7 +11,7 @@ from functools import partial
 from multiprocessing import Pool
 from pathlib import Path
 from time import sleep
-from typing import Dict
+from typing import Dict, Iterable
 from typing import List
 from typing import Optional
 from typing import cast
@@ -23,9 +23,14 @@ from amarcord.db.analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.dbcontext import CreationMode
+from amarcord.db.attributi_map import AttributiMap, run_matches_dataset
+from amarcord.db.attributo_type import AttributoType, AttributoTypeSample
+from amarcord.db.data_set import DBDataSet
+from amarcord.db.dbattributo import DBAttributo
+from amarcord.db.dbcontext import CreationMode, Connection
+from amarcord.db.table_classes import DBRun
 from amarcord.db.tables import create_tables_from_metadata
+from amarcord.util import last_existing_dir, replace_illegal_path_characters
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -36,7 +41,19 @@ logger = logging.getLogger(__name__)
 
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
-    base_directory: str  # Base directory for raw-processed
+    base_directory: Path  # Base directory for raw-processed
+    list_of_blocks_raw_directory: Optional[
+        Path
+    ] = None  # Directory containing the runs and h5 files for the runs
+    list_of_blocks_output_dir: Optional[
+        Path
+    ] = None  # Directory where to put the list of blocks
+    list_of_blocks_pattern: Optional[
+        str
+    ] = None  # Pattern to filter files for list of file generation
+    list_of_blocks_extension: Optional[
+        str
+    ] = None  # Pattern to filter extension for list of file generation
     wait_time_seconds: float = 10.0  # How much to wait between analysis runs
     debug: bool = False  # Enable debug mode (creating the database, adding runs instead of assuming they exist)
     verbose: bool = False  # Show more log messages
@@ -56,7 +73,7 @@ class RunBlock:
 
 
 def run_block_in_parallel(
-    bd: str, infix: Optional[str], run_block: RunBlock
+    bd: Path, infix: Optional[str], run_block: RunBlock
 ) -> Optional[DBCFELAnalysisResult]:
     try:
         logger.debug("block %s: start processing", run_block)
@@ -284,7 +301,7 @@ class RunBlockIncomplete(Exception):
 
 
 def read_analysis_for_run_block(
-    base_directory: str, filename_infix_: Optional[str], run_block: RunBlock
+    base_directory: Path, filename_infix_: Optional[str], run_block: RunBlock
 ) -> DBCFELAnalysisResult:
     # add * if an infix is given because it could be amb-xg- instead of just xg-
     filename_infix = "" if filename_infix_ is None else "*" + filename_infix_
@@ -380,6 +397,96 @@ def read_analysis_for_run_block(
     )
 
 
+async def list_of_files_iteration(
+    db: AsyncDB,
+    pattern: str,
+    extension: str,
+    input_directory: Path,
+    output_directory: Path,
+) -> None:
+    async with db.connect() as conn:
+        await generate_list_of_files(
+            db, conn, pattern, extension, input_directory, output_directory
+        )
+
+
+def generate_data_set_file_name(
+    ds: DBDataSet, sample_id_to_name: Dict[int, str], attributi: List[DBAttributo]
+) -> str:
+    sample_attributi = [
+        a for a in attributi if isinstance(a.attributo_type, AttributoTypeSample)
+    ]
+    sample_names: List[str] = []
+    for a in sample_attributi:
+        sample_id = ds.attributi.select_sample_id(a.name)
+        if sample_id is not None:
+            sample_name = sample_id_to_name.get(sample_id)
+            if sample_name is not None:
+                sample_names.append(sample_name)
+    return f"ds-{ds.id}-{','.join(replace_illegal_path_characters(s) for s in sample_names)}.lst"
+
+
+async def generate_list_of_files(
+    db: AsyncDB,
+    conn: Connection,
+    pattern: str,
+    extension: str,
+    input_directory: Path,
+    output_directory: Path,
+) -> None:
+    if not input_directory.is_dir():
+        raise Exception(
+            f"couldn't find input directory {input_directory}; last existing dir {last_existing_dir(input_directory)}"
+        )
+    if not output_directory.is_dir():
+        raise Exception(
+            f"couldn't find output directory {output_directory}; last existing dir {last_existing_dir(output_directory)}"
+        )
+
+    attributi = await db.retrieve_attributi(conn, associated_table=None)
+    samples = await db.retrieve_samples(conn, attributi)
+    data_sets = await db.retrieve_data_sets(
+        conn,
+        [s.id for s in samples],
+        attributi,
+    )
+    runs = await db.retrieve_runs(conn, attributi)
+
+    def find_run_files(this_run: DBRun) -> Iterable[Path]:
+        run_dir = input_directory / str(this_run.id)
+        if not run_dir.is_dir():
+            return ()
+        return (
+            x for x in run_dir.iterdir() if extension in x.name and pattern in x.name
+        )
+
+    def write_run_files(file_name: str, files: Iterable[Path]) -> None:
+        with (output_directory / file_name).open("w") as output_file:
+            for f in files:
+                output_file.write(f"{f}\n")
+
+    for ds in data_sets:
+        run_files: List[Path] = []
+        for r in runs:
+            if not run_matches_dataset(r.attributi, ds.attributi):
+                continue
+            run_files.extend(find_run_files(r))
+        if run_files:
+            logger.info(
+                f"ds {ds.id}: found {len(run_files)} matching run files, generating file {output_directory}/ds-{ds.id}.lst"
+            )
+            write_run_files(
+                generate_data_set_file_name(
+                    ds,
+                    sample_id_to_name={s.id: s.name for s in samples},
+                    attributi=attributi,
+                ),
+                run_files,
+            )
+        else:
+            logger.info(f"ds {ds.id}: found no matching runs, skipping")
+
+
 def mymain(args: Arguments) -> int:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -399,7 +506,24 @@ def mymain(args: Arguments) -> int:
 
     while True:
         try:
-            asyncio.run(main_loop_iteration(args, base_directory, db))
+            if (
+                args.list_of_blocks_pattern is not None
+                and args.list_of_blocks_output_dir is not None
+                and args.list_of_blocks_raw_directory is not None
+                and args.list_of_blocks_extension is not None
+            ):
+                asyncio.run(
+                    list_of_files_iteration(
+                        db,
+                        args.list_of_blocks_pattern,
+                        args.list_of_blocks_extension,
+                        args.list_of_blocks_raw_directory,
+                        args.list_of_blocks_output_dir,
+                    )
+                )
+
+            # FIXME for now
+            # asyncio.run(main_loop_iteration(args, base_directory, db))
         except:
             logger.exception("Loop iteration exception, waiting and then continuing...")
 

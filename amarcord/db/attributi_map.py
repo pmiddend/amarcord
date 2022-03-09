@@ -379,3 +379,12 @@ class AttributiMap:
 
     def __hash__(self) -> int:
         return hash(self._attributi)
+
+
+def run_matches_dataset(
+    run_attributi: AttributiMap, data_set_attributi: AttributiMap
+) -> bool:
+    for name, value in data_set_attributi.items():
+        if run_attributi.select(name) != value:
+            return False
+    return True

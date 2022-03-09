@@ -23,7 +23,7 @@ from amarcord.db.attributi import (
 )
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
-from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributi_map import AttributiMap, run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
@@ -244,15 +244,6 @@ async def update_run() -> JSONDict:
     return {}
 
 
-def _run_matches_dataset(
-    run_attributi: AttributiMap, data_set_attributi: AttributiMap
-) -> bool:
-    for name, value in data_set_attributi.items():
-        if run_attributi.select(name) != value:
-            return False
-    return True
-
-
 @dataclass
 class DataSetSummary:
     numberOfRuns: int
@@ -300,7 +291,7 @@ async def read_runs() -> JSONDict:
         data_set_id_to_grouped: Dict[int, DataSetSummary] = {}
         for ds in data_sets:
             matching_runs = [
-                r for r in runs if _run_matches_dataset(r.attributi, ds.attributi)
+                r for r in runs if run_matches_dataset(r.attributi, ds.attributi)
             ]
             data_set_id_to_grouped[ds.id] = build_run_summary(matching_runs)
 
@@ -313,7 +304,7 @@ async def read_runs() -> JSONDict:
                     "data-sets": [
                         ds.id
                         for ds in data_sets
-                        if _run_matches_dataset(r.attributi, ds.attributi)
+                        if run_matches_dataset(r.attributi, ds.attributi)
                     ],
                 }
                 for r in runs
@@ -696,7 +687,7 @@ async def read_analysis_results() -> JSONDict:
         )
         runs = await db.instance.retrieve_runs(conn, attributi)
         data_set_to_runs: Dict[int, List[DBRun]] = {
-            ds.id: [r for r in runs if _run_matches_dataset(r.attributi, ds.attributi)]
+            ds.id: [r for r in runs if run_matches_dataset(r.attributi, ds.attributi)]
             for ds in data_sets
         }
         data_set_to_run_ids: Dict[int, Set[int]] = {

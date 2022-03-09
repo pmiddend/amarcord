@@ -213,3 +213,17 @@ def now_utc_unix_integer_millis() -> int:
         datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).timestamp()
         * 1000
     )
+
+
+def last_existing_dir(p: Path) -> Optional[Path]:
+    if p.is_dir():
+        return p
+    next_ = p.parent
+    if next_ == p:
+        return None
+    return last_existing_dir(p.parent)
+
+
+def replace_illegal_path_characters(filename: str) -> str:
+    # See https://stackoverflow.com/questions/1033424/how-to-remove-bad-path-characters-in-python
+    return re.sub(r"[^\w\-_. ]", "_", filename)
