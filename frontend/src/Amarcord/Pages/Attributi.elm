@@ -303,6 +303,7 @@ type Msg
     | EditAttributoCancel
     | EditAttributoType AttributoTypeEnum
     | EditAttributoDescription String
+    | EditAttributoGroup String
     | EditConversionFlags ConversionFlags
     | EditAttributoAugChange AttributoTypeAug
     | EditSubmitFinished (Result RequestError ())
@@ -776,6 +777,20 @@ viewEditForm model attributiList attributo =
                 []
             ]
         , div [ class "mb-3" ]
+            [ label [ for "group", class "form-label" ] [ text "Group" ]
+            , input
+                [ type_ "text"
+                , class "form-control"
+                , id "group"
+                , value attributo.group
+                , onInput EditAttributoGroup
+                ]
+                []
+            , div [ class "form-text" ]
+                [ text "You should normally leave this at \"manual\". Groups are meant for attributi from outside sources (like Om, or the controls software). Only \"manual\" attributi will appear editable in the overview."
+                ]
+            ]
+        , div [ class "mb-3" ]
             [ label [ for "type", class "form-label" ] [ text "Type" ]
             , viewTypeForm attributo.associatedTable attributo.type_
             ]
@@ -972,6 +987,14 @@ update msg model =
 
                 Just editAttributo ->
                     ( { model | editAttributo = Just { editAttributo | description = newDescription } }, Cmd.none )
+
+        EditAttributoGroup newGroup ->
+            case model.editAttributo of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just editAttributo ->
+                    ( { model | editAttributo = Just { editAttributo | group = newGroup } }, Cmd.none )
 
         -- The user pressed "Add new attributo"
         AddAttributo ->

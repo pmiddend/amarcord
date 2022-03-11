@@ -550,7 +550,7 @@ async def create_attributo() -> JSONDict:
 
 
 @app.patch("/api/attributi")
-async def change_attributo() -> JSONDict:
+async def update_attributo() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
