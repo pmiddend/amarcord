@@ -1,5 +1,6 @@
 import asyncio
 from asyncio import FIRST_COMPLETED
+from pathlib import Path
 from typing import Optional, List, Awaitable
 
 from tap import Tap
@@ -28,6 +29,7 @@ class Arguments(Tap):
     om_topic: str = "view:omdata"
     om_simulator_port: Optional[int] = None
     experiment_simulator_enabled: bool = False
+    experiment_simulator_files_dir: Optional[Path] = None
 
 
 async def _main_loop(args: Arguments) -> None:
@@ -40,7 +42,11 @@ async def _main_loop(args: Arguments) -> None:
 
     if args.experiment_simulator_enabled:
         await experiment_simulator_initialize_db(db)
-        awaitables.append(experiment_simulator_main_loop(db, delay_seconds=5.0))
+        awaitables.append(
+            experiment_simulator_main_loop(
+                db, args.experiment_simulator_files_dir, delay_seconds=5.0
+            )
+        )
 
     if args.kamzik_socket_url is not None:
         awaitables.append(

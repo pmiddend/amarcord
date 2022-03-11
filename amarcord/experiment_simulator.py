@@ -54,8 +54,6 @@ ATTRIBUTO_PH = "pH"
 
 ATTRIBUTO_SAMPLE = "sample"
 
-FILES_DIR = Path("tests/simulator-files")
-
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
@@ -303,7 +301,9 @@ def random_gibberish() -> str:
     return gen.sentence()
 
 
-async def _generate_cfel_results(db: AsyncDB, conn: Connection) -> None:
+async def _generate_cfel_results(
+    db: AsyncDB, files_dir: Optional[Path], conn: Connection
+) -> None:
     data_sets = await db.retrieve_data_sets(
         conn,
         await db.retrieve_sample_ids(conn),
@@ -311,6 +311,15 @@ async def _generate_cfel_results(db: AsyncDB, conn: Connection) -> None:
     )
 
     await db.clear_cfel_analysis_results(conn)
+
+    files = (
+        random.choices(
+            [DBFileBlueprint(f.name, f) for f in files_dir.iterdir()],
+            k=random.randint(0, 3),
+        )
+        if files_dir is not None
+        else []
+    )
 
     for data_set in data_sets:
         await db.create_cfel_analysis_result(
@@ -337,14 +346,13 @@ async def _generate_cfel_results(db: AsyncDB, conn: Connection) -> None:
                 created=datetime.datetime.utcnow(),
                 files=[],
             ),
-            random.choices(
-                [DBFileBlueprint(f.name, f) for f in FILES_DIR.iterdir()],
-                k=random.randint(0, 3),
-            ),
+            files,
         )
 
 
-async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> None:
+async def experiment_simulator_main_loop(
+    db: AsyncDB, files_dir: Optional[Path], delay_seconds: float
+) -> None:
     logger.info("starting experiment simulator loop")
     while True:
         async with db.connect() as conn:
@@ -397,6 +405,6 @@ async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> N
                 )
 
         async with db.begin() as conn:
-            await _generate_cfel_results(db, conn)
+            await _generate_cfel_results(db, files_dir, conn)
 
         await asyncio.sleep(delay_seconds)
