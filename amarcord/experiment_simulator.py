@@ -181,7 +181,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             AssociatedTable.RUN,
             AttributoTypeDecimal(
                 range=NumericRange(0, True, None, False),
-                suffix="ml/s",
+                suffix="ul/s",
                 standard_unit=True,
             ),
         )
