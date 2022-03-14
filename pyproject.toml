@@ -67,7 +67,7 @@ aiohttp = "3.8.1"
 
 [tool.poetry.dev-dependencies]
 black = '22.1.0'
-mypy = '0.931'
+mypy = '0.940'
 types-pytz = "2021.3.5"
 pylint = '2.12.2'
 pyfakefs = '4.5.3'
