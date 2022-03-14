@@ -74,7 +74,7 @@ def handle_exception(e):
         return response
     # start with the correct headers and status code from the error
     # replace the body with JSON
-    response.data = json.dumps(
+    response.karabo_values_by_internal_id = json.dumps(
         {
             "error": create_quart_standard_error(
                 e.code,

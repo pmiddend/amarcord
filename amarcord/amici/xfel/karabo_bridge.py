@@ -1,0 +1,1222 @@
+import datetime
+import logging
+import re
+from dataclasses import dataclass
+from difflib import get_close_matches
+from enum import Enum, auto
+from statistics import mean
+from typing import (
+    Dict,
+    List,
+    Union,
+    Any,
+    Iterable,
+    Set,
+    Optional,
+    Tuple,
+    cast,
+    Callable,
+)
+
+import numpy as np
+from pint import UnitRegistry
+
+from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.asyncdb import AsyncDB, create_ground_state_attributi
+from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
+from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import (
+    AttributoType,
+    AttributoTypeDecimal,
+    AttributoTypeString,
+    AttributoTypeList,
+    AttributoTypeInt,
+)
+from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.dbcontext import Connection
+from amarcord.util import safe_variance
+
+logger = logging.getLogger(__name__)
+
+# Train ID is taken from the ".tid" field in the metadata
+TRAIN_ID_FROM_METADATA_KEY = "timestamp.tid"
+# This is used to create the AMARCORD attributi
+KARABO_ATTRIBUTO_GROUP = "karabo"
+
+# These are the plain text keys for the yaml file
+CONFIG_KARABO_ATTRIBUTES_KEY = "karabo-attributes"
+CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY = "amarcord-attributi"
+CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES = "special-karabo-attributes"
+# The proposal ID is not a special attribute but given in the config so we can compare it with the incoming trains
+CONFIG_KARABO_PROPOSAL = "proposal-id"
+CONFIG_KARABO_SPECIAL_ATTRIBUTES_SOURCE = "source"
+CONFIG_KARABO_SPECIAL_ATTRIBUTES_KEY = "key"
+
+
+@dataclass(frozen=True, eq=True)
+class KaraboValueLocator:
+    """
+    Represents a value from the Karabo bridge. The bridge gives us a dictionary with the source name as key. Below that,
+    we get a dictionary of values. So we need a 2-tuple to retrieve any Karabo value, which is what this class represents
+    """
+
+    source: str
+    subkey: str
+
+    def __str__(self) -> str:
+        return f"{self.source}:{self.subkey}"
+
+    def __repr__(self) -> str:
+        return f"{self.source}:{self.subkey}"
+
+
+# This ID links karabo attributi (indexed by KaraboKey) to AMARCORD attributi (in a n:m fashion)
+@dataclass(frozen=True, eq=True)
+class KaraboInternalId:
+    value: str
+
+    def __repr__(self) -> str:
+        return self.value
+
+    def __str__(self) -> str:
+        return self.value
+
+
+KaraboValue = Union[str, float, int, List[float]]
+
+
+class KaraboInputType(Enum):
+    KARABO_TYPE_LIST_FLOAT = "List[float]"
+    KARABO_TYPE_FLOAT = "float"
+    KARABO_TYPE_INT = "int"
+    KARABO_TYPE_STRING = "str"
+
+    def is_scalar(self) -> bool:
+        return self in (  # type: ignore
+            self.KARABO_TYPE_FLOAT,
+            self.KARABO_TYPE_INT,
+            self.KARABO_TYPE_STRING,
+        )
+
+
+class KaraboProcessor(Enum):
+    KARABO_PROCESSOR_TAKE_LAST = "take-last"
+    KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN = "list-arithmetic-mean"
+
+
+@dataclass(frozen=True)
+class KaraboWrongTypeError:
+    expected: KaraboInputType
+    got: str
+
+
+KaraboValueByInternalId = Dict[KaraboInternalId, KaraboValue]
+
+
+@dataclass(frozen=True)
+class ProcessedKaraboFrame:
+    """
+    For a description of this, see the function that returns this structure
+    """
+
+    # We move from Karabo terminology with source and key into just our internal ID world
+    karabo_values_by_internal_id: KaraboValueByInternalId
+    # Important so we have non-verbose error information (i.e. we can skip errors that happened in the last frame also)
+    not_found: Set[KaraboValueLocator]
+    # See above
+    wrong_types: Dict[KaraboValueLocator, KaraboWrongTypeError]
+
+
+@dataclass(frozen=True)
+class KaraboAttributeDescription:
+    id: KaraboInternalId
+    locator: KaraboValueLocator
+    input_type: KaraboInputType
+    processor: KaraboProcessor
+    unit: Optional[str]
+    standard_unit: bool
+
+
+class AmarcordAttributoProcessor(Enum):
+    AMARCORD_PROCESSOR_ARITHMETIC_MEAN = "arithmetic-mean"
+    AMARCORD_PROCESSOR_VARIANCE = "variance"
+    AMARCORD_PROCESSOR_TAKE_LAST = "take-last"
+
+
+@dataclass(frozen=True)
+class PlainAttribute:
+    id: KaraboInternalId
+
+
+@dataclass(frozen=True)
+class CoagulateString:
+    valueSequence: List[Union[str, PlainAttribute]]
+
+
+@dataclass(frozen=True)
+class CoagulateList:
+    attributes: List[PlainAttribute]
+
+
+KaraboValueSource = Union[PlainAttribute, CoagulateString, CoagulateList]
+
+
+@dataclass(frozen=True, eq=True)
+class AmarcordAttributoDescription:
+    attributo_id: AttributoId
+    description: Optional[str]
+    processor: AmarcordAttributoProcessor
+    karabo_value_source: KaraboValueSource
+
+
+@dataclass(frozen=True)
+class KaraboSpecialAttributes:
+    runNumberKey: KaraboValueLocator
+    runStartedAtKey: KaraboValueLocator
+    runFirstTrainKey: KaraboValueLocator
+    runTrainsInRunKey: KaraboValueLocator
+    proposalIdKey: KaraboValueLocator
+
+
+@dataclass(frozen=True)
+class KaraboBridgeConfiguration:
+    karabo_attributes: List[KaraboAttributeDescription]
+    special_attributes: KaraboSpecialAttributes
+    attributi: Dict[AttributoId, AmarcordAttributoDescription]
+    proposal_id: int
+
+
+@dataclass(frozen=True, eq=True)
+class KaraboConfigurationError:
+    message: str
+
+
+AMARCORD_ATTRIBUTE_DESCRIPTION_ID = "id"
+AMARCORD_ATTRIBUTE_DESCRIPTION_INPUT_TYPE = "input-type"
+AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR = "processor"
+AMARCORD_ATTRIBUTE_DESCRIPTION_UNIT = "unit"
+AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT = "is-si-unit"
+
+
+def check_type_and_processor(
+    input_type: KaraboInputType, processor: KaraboProcessor
+) -> Optional[str]:
+    if (
+        input_type
+        in (KaraboInputType.KARABO_TYPE_FLOAT, KaraboInputType.KARABO_TYPE_STRING)
+        and processor == KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN
+    ):
+        return f"got a scalar value but the processor is a list, you probably want {KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST.value} (or omit the processor)"
+    return None
+
+
+def parse_karabo_attribute(
+    attribute_description: Any,
+    locator: KaraboValueLocator,
+    aidx: int,
+    internal_ids: Dict[KaraboInternalId, Tuple[KaraboValueLocator, int]],
+) -> Union[KaraboAttributeDescription, KaraboConfigurationError]:
+    if not isinstance(attribute_description, dict):
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}, index {aidx}: expected this to be a dictionary with a description of the attribute, but the type is {type(attribute_description)}"
+        )
+    internal_id_raw = attribute_description.get(AMARCORD_ATTRIBUTE_DESCRIPTION_ID, None)
+    if internal_id_raw is None:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_ID}; expected this to be a string but found nothing"
+        )
+    if not isinstance(internal_id_raw, str):
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {AMARCORD_ATTRIBUTE_DESCRIPTION_ID} is not of type string but {type(internal_id_raw)}"
+        )
+    internal_id = KaraboInternalId(internal_id_raw)
+    if internal_id in internal_ids:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {AMARCORD_ATTRIBUTE_DESCRIPTION_ID} is already taken by {internal_ids[internal_id]}"
+        )
+    internal_ids[internal_id] = (locator, aidx)
+    input_type_raw = attribute_description.get(
+        AMARCORD_ATTRIBUTE_DESCRIPTION_INPUT_TYPE, None
+    )
+    if input_type_raw is None:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_INPUT_TYPE}; expected this to be one of "
+            + (",".join(x.value for x in KaraboInputType))
+            + " but found nothing"
+        )
+    try:
+        input_type = KaraboInputType(input_type_raw)
+    except ValueError:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_INPUT_TYPE}; expected this to be one of "
+            + (",".join(x.value for x in KaraboInputType))
+            + f' but found "{input_type_raw}"'
+        )
+    processor_raw = attribute_description.get(
+        AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR, None
+    )
+    if processor_raw is None:
+        if not input_type.is_scalar():
+            return KaraboConfigurationError(
+                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR}; expected this to be one of "
+                + (",".join(x.value for x in KaraboProcessor))
+                + " but found nothing"
+            )
+        processor_raw = KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST.value
+    try:
+        processor = KaraboProcessor(processor_raw)
+    except ValueError:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR}; expected this to be one of "
+            + (",".join(x.value for x in KaraboProcessor))
+            + f' but found "{processor_raw}"'
+        )
+    type_and_processor_error = check_type_and_processor(input_type, processor)
+    if type_and_processor_error is not None:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: " + type_and_processor_error
+        )
+    standard_unit = attribute_description.get(
+        AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT, True
+    )
+    if not isinstance(standard_unit, bool):
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT} should be a boolean, but is {type(standard_unit)}"
+        )
+    unit = attribute_description.get(AMARCORD_ATTRIBUTE_DESCRIPTION_UNIT, None)
+    if unit is not None and standard_unit:
+        try:
+            UnitRegistry()(unit)
+        except:
+            return KaraboConfigurationError(
+                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: got a unit in {AMARCORD_ATTRIBUTE_DESCRIPTION_UNIT}, but one we don't know: {unit}"
+            )
+    return KaraboAttributeDescription(
+        id=internal_id,
+        locator=locator,
+        input_type=input_type,
+        processor=processor,
+        unit=unit,
+        standard_unit=standard_unit,
+    )
+
+
+def parse_karabo_attributes(
+    a: Any,
+) -> Union[KaraboConfigurationError, List[KaraboAttributeDescription]]:
+    if not isinstance(a, dict):
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}: expected this to be a dictionary with the Karabo sources as keys, but the type is {type(a)}"
+        )
+    internal_ids: Dict[KaraboInternalId, Tuple[KaraboValueLocator, int]] = {}
+    result: List[KaraboAttributeDescription] = []
+    for source, attribute_descriptions in a.items():
+        if not isinstance(attribute_descriptions, dict):
+            return KaraboConfigurationError(
+                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {source}: expected this to be a dictionary with the Karabo keys as keys, but the type is {type(attribute_descriptions)}"
+            )
+        for subkey, attribute_description_top_level in attribute_descriptions.items():
+            locator = KaraboValueLocator(source, subkey)
+            attribute_description_array: List[Dict[str, Any]] = []
+            if isinstance(attribute_description_top_level, dict):
+                attribute_description_array.append(attribute_description_top_level)
+            elif isinstance(attribute_description_top_level, list):
+                attribute_description_array.extend(attribute_description_top_level)
+            else:
+                return KaraboConfigurationError(
+                    f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: expected either a dictionary with a description of the attribute, or a list of such dictionaries; got {type(attribute_description_top_level)}"
+                )
+            for aidx, attribute_description in enumerate(attribute_description_array):
+                karabo_attribute = parse_karabo_attribute(
+                    attribute_description, locator, aidx, internal_ids
+                )
+                if isinstance(karabo_attribute, KaraboConfigurationError):
+                    return karabo_attribute
+                result.append(karabo_attribute)
+    return result
+
+
+AMARCORD_ATTRIBUTO_DESCRIPTION_DESCRIPTION = "description"
+AMARCORD_ATTRIBUTO_DESCRIPTION_PROCESSOR = "processor"
+AMARCORD_ATTRIBUTO_DESCRIPTION_PLAIN_ATTRIBUTE = "plain-attribute"
+AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE = "coagulate"
+
+COAGULATION_INTERPOLATION_REGEX = re.compile(r"\$\{([^}]+)}")
+
+
+def parse_coagulation_string(s: str) -> List[Union[str, KaraboInternalId]]:
+    components: List[Union[str, KaraboInternalId]] = []
+    previous_idx: Optional[int] = None
+    for match in COAGULATION_INTERPOLATION_REGEX.finditer(s):
+        # We have a first match, and some characters before it.
+        if previous_idx is None and match.start() != 0:
+            components.append(s[0 : match.start()])
+            # We have another match, and some characters between the previous and this one
+        elif previous_idx is not None and match.start() - previous_idx > 0:
+            components.append(s[previous_idx : match.start()])
+        components.append(KaraboInternalId(match.group(1)))
+        previous_idx = match.end()
+    # Append the tail of the string after the last match
+    if previous_idx is not None and len(s) - previous_idx > 0:
+        components.append(s[previous_idx:])
+        # Special case: we had no matches
+    elif previous_idx is None:
+        components.append(s)
+    return components
+
+
+def parse_amarcord_attributo(
+    attributo_id_raw: str,
+    existing_attributi: Set[AttributoId],
+    attributo_description: Dict[str, Any],
+    internal_ids: Set[KaraboInternalId],
+) -> Union[AmarcordAttributoDescription, KaraboConfigurationError]:
+    attributo_id = AttributoId(attributo_id_raw)
+    if attributo_id in existing_attributi:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}: this ID is already taken"
+        )
+    description = attributo_description.get(
+        AMARCORD_ATTRIBUTO_DESCRIPTION_DESCRIPTION, None
+    )
+    if description is not None and not isinstance(description, str):
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}: {AMARCORD_ATTRIBUTO_DESCRIPTION_DESCRIPTION}, not a string but {type(description)}"
+        )
+    processor_raw = attributo_description.get(
+        AMARCORD_ATTRIBUTO_DESCRIPTION_PROCESSOR, None
+    )
+    if processor_raw is None:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, missing key {AMARCORD_ATTRIBUTO_DESCRIPTION_PROCESSOR}; expected this to be one of "
+            + (",".join(x.value for x in AmarcordAttributoProcessor))
+            + " but found nothing"
+        )
+    try:
+        processor = AmarcordAttributoProcessor(processor_raw)
+    except ValueError:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, missing key {AMARCORD_ATTRIBUTO_DESCRIPTION_PROCESSOR}; expected this to be one of "
+            + (",".join(x.value for x in AmarcordAttributoProcessor))
+            + f" but found {processor_raw}"
+        )
+    plain_attribute_raw = attributo_description.get(
+        AMARCORD_ATTRIBUTO_DESCRIPTION_PLAIN_ATTRIBUTE, None
+    )
+    coagulate_attribute = attributo_description.get(
+        AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE
+    )
+    karabo_value_source: KaraboValueSource
+    if plain_attribute_raw is not None and coagulate_attribute is not None:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, both {AMARCORD_ATTRIBUTO_DESCRIPTION_PLAIN_ATTRIBUTE} and {AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE} are given; choose one of them!"
+        )
+
+    if plain_attribute_raw is None and coagulate_attribute is None:
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, neither {AMARCORD_ATTRIBUTO_DESCRIPTION_PLAIN_ATTRIBUTE} nor {AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE} are given; choose one of them!"
+        )
+
+    if plain_attribute_raw is not None:
+        if not isinstance(plain_attribute_raw, str):
+            return KaraboConfigurationError(
+                f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, {AMARCORD_ATTRIBUTO_DESCRIPTION_PLAIN_ATTRIBUTE} must be a string, got {type(plain_attribute_raw)}"
+            )
+        plain_attribute_id = KaraboInternalId(plain_attribute_raw)
+        if plain_attribute_id not in internal_ids:
+            close_matches = get_close_matches(
+                plain_attribute_raw, [s.value for s in internal_ids], n=1
+            )
+            # the pycharm type checker is stupid here and doesn't realize close_matches[0] is a str.
+            # It thinks it's a Sequence[T] for some T.
+            # noinspection PyTypeChecker
+            return KaraboConfigurationError(
+                f'in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, {AMARCORD_ATTRIBUTO_DESCRIPTION_PLAIN_ATTRIBUTE}: "{plain_attribute_id}" not found in the list of Karabo attribute IDs'
+                + (f' - maybe you meant "{close_matches[0]}"?' if close_matches else "")
+            )
+        karabo_value_source = PlainAttribute(plain_attribute_id)
+    elif coagulate_attribute is not None:
+        if isinstance(coagulate_attribute, list):
+            attributes: List[PlainAttribute] = []
+            for idx, attribute_id_raw in enumerate(coagulate_attribute):
+                plain_attribute_id = KaraboInternalId(attribute_id_raw)
+                if plain_attribute_id not in internal_ids:
+                    close_matches = get_close_matches(
+                        attribute_id_raw, [s.value for s in internal_ids], n=1
+                    )
+                    # the pycharm type checker is stupid here and doesn't realize close_matches[0] is a str.
+                    # It thinks it's a Sequence[T] for some T.
+                    # noinspection PyTypeChecker
+                    return KaraboConfigurationError(
+                        f'in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, {AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE}, index {idx}: "{plain_attribute_id}" not found in the list of Karabo attribute IDs'
+                        + (
+                            f', maybe you meant "{close_matches[0]}"?'
+                            if close_matches
+                            else ""
+                        )
+                    )
+                attributes.append(PlainAttribute(plain_attribute_id))
+            if not attributes:
+                return KaraboConfigurationError(
+                    f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, {AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE}: no components found"
+                )
+            karabo_value_source = CoagulateList(attributes)
+        elif isinstance(coagulate_attribute, str):
+            string_components: List[Union[str, PlainAttribute]] = []
+            for part in parse_coagulation_string(coagulate_attribute):
+                if isinstance(part, KaraboInternalId):
+                    if part not in internal_ids:
+                        close_matches = get_close_matches(
+                            part.value, [s.value for s in internal_ids], n=1
+                        )
+                        # the pycharm type checker is stupid here and doesn't realize close_matches[0] is a str.
+                        # It thinks it's a Sequence[T] for some T.
+                        # noinspection PyTypeChecker
+                        return KaraboConfigurationError(
+                            f'in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, {AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE}: "{part}" not found in the list of Karabo attribute IDs'
+                            + (
+                                f', maybe you meant "{close_matches[0]}"?'
+                                if close_matches
+                                else ""
+                            )
+                        )
+                    string_components.append(PlainAttribute(part))
+                else:
+                    string_components.append(part)
+            karabo_value_source = CoagulateString(string_components)
+        else:
+            return KaraboConfigurationError(
+                f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{attributo_id}, {AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE}: I don't know how to handle the type {type(coagulate_attribute)}, only know lists and strings"
+            )
+
+    # noinspection PyUnboundLocalVariable
+    return AmarcordAttributoDescription(
+        attributo_id, description, processor, karabo_value_source
+    )
+
+
+def parse_amarcord_attributi(
+    a: Any, internal_ids: Set[KaraboInternalId]
+) -> Union[KaraboConfigurationError, List[AmarcordAttributoDescription]]:
+    if not isinstance(a, dict):
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}: expected this to be a dictionary with the attributi descriptions, but the type is {type(a)}"
+        )
+    if not internal_ids:
+        return []
+    existing_attributi: Set[AttributoId] = set()
+    result: List[AmarcordAttributoDescription] = []
+    for attributo_id_raw, attributo_description in a.items():
+        if not isinstance(attributo_description, dict):
+            return KaraboConfigurationError(
+                f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}: attributo {attributo_id_raw}: expected this to be a dictionary with the attributi description, but the type is {type(attributo_description)}"
+            )
+        attributo_result = parse_amarcord_attributo(
+            attributo_id_raw, existing_attributi, attributo_description, internal_ids
+        )
+
+        if isinstance(attributo_result, KaraboConfigurationError):
+            return attributo_result
+
+        result.append(attributo_result)
+    return result
+
+
+def parse_configuration(
+    config: Any,
+) -> Union[KaraboConfigurationError, KaraboBridgeConfiguration]:
+    if not isinstance(config, dict):
+        return KaraboConfigurationError(
+            f"Expected a Python dictionary for the configuration, but the thing I got had type {type(config)}.\n\nThis is a programming mistake and needs to be fixed."
+        )
+    if not config.keys():
+        return KaraboConfigurationError(
+            f'Didn\'t find any configuration keys. Expected at least "{CONFIG_KARABO_ATTRIBUTES_KEY}".'
+        )
+    karabo_attributes_value = config.get(CONFIG_KARABO_ATTRIBUTES_KEY, None)
+    if karabo_attributes_value is None:
+        return KaraboConfigurationError(
+            f"The dictionary I got for the Karabo configuration didn't contain the key {CONFIG_KARABO_ATTRIBUTES_KEY}. Maybe it was a typo? The keys I have are:\n\n- "
+            + ("\n- ".join(str(s) for s in config.keys()))
+        )
+    karabo_attributes = parse_karabo_attributes(karabo_attributes_value)
+
+    if isinstance(karabo_attributes, KaraboConfigurationError):
+        return karabo_attributes
+
+    attributi_value = config.get(CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY, None)
+    if attributi_value is None:
+        return KaraboConfigurationError(
+            f"The dictionary I got for the Karabo configuration didn't contain the key {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}. Maybe it was a typo? The keys I have are:\n\n- "
+            + ("\n- ".join(str(s) for s in config.keys()))
+        )
+    attributi = parse_amarcord_attributi(
+        attributi_value, {x.id for x in karabo_attributes}
+    )
+
+    if isinstance(attributi, KaraboConfigurationError):
+        return attributi
+
+    heteogeneous_check = check_for_heterogeneous_lists(attributi, karabo_attributes)
+    if heteogeneous_check is not None:
+        return heteogeneous_check
+
+    special_attributes = config.get(CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES, None)
+    if special_attributes is None:
+        return KaraboConfigurationError(
+            f"The dictionary I got for the Karabo configuration didn't contain the key {CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES}. Maybe it was a typo? The keys I have are:\n\n- "
+            + ("\n- ".join(str(s) for s in config.keys()))
+        )
+
+    if not isinstance(special_attributes, dict):
+        return KaraboConfigurationError(
+            f"{CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES}: not a dictionary but {type(special_attributes)}"
+        )
+
+    def search_special_attribute(
+        aid: str,
+    ) -> Union[KaraboConfigurationError, KaraboValueLocator]:
+        special_attribute = special_attributes.get(aid, None)
+        if special_attribute is None:
+            return KaraboConfigurationError(
+                f"{CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES}, attribute {aid} not found, but it's mandatory"
+            )
+        if not isinstance(special_attribute, dict):
+            return KaraboConfigurationError(
+                f"{CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES}, attribute {aid}: not specified by a dictionary but {type(special_attribute)}"
+            )
+        source = special_attribute.get(CONFIG_KARABO_SPECIAL_ATTRIBUTES_SOURCE, None)
+        if source is None:
+            return KaraboConfigurationError(
+                f"{CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES}, attribute {aid}: I need {CONFIG_KARABO_SPECIAL_ATTRIBUTES_SOURCE} and {CONFIG_KARABO_SPECIAL_ATTRIBUTES_KEY}, missing {CONFIG_KARABO_SPECIAL_ATTRIBUTES_SOURCE}"
+            )
+        key = special_attribute.get(CONFIG_KARABO_SPECIAL_ATTRIBUTES_KEY, None)
+        if key is None:
+            return KaraboConfigurationError(
+                f"{CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES}, attribute {aid}: I need {CONFIG_KARABO_SPECIAL_ATTRIBUTES_SOURCE} and {CONFIG_KARABO_SPECIAL_ATTRIBUTES_KEY}, missing {CONFIG_KARABO_SPECIAL_ATTRIBUTES_KEY}"
+            )
+        return KaraboValueLocator(source=source, subkey=key)
+
+    runNumberKey = search_special_attribute("runNumber")
+    if isinstance(runNumberKey, KaraboConfigurationError):
+        return runNumberKey
+    runStartedAtKey = search_special_attribute("runStartedAt")
+    if isinstance(runStartedAtKey, KaraboConfigurationError):
+        return runStartedAtKey
+    runFirstTrainKey = search_special_attribute("runFirstTrain")
+    if isinstance(runFirstTrainKey, KaraboConfigurationError):
+        return runFirstTrainKey
+    runTrainsInRunKey = search_special_attribute("runTrainsInRun")
+    if isinstance(runTrainsInRunKey, KaraboConfigurationError):
+        return runTrainsInRunKey
+    proposalIdKey = search_special_attribute("proposalId")
+    if isinstance(proposalIdKey, KaraboConfigurationError):
+        return proposalIdKey
+
+    proposal_id = config.get(CONFIG_KARABO_PROPOSAL, None)
+    if proposal_id is None:
+        return KaraboConfigurationError(
+            f"{CONFIG_KARABO_PROPOSAL}: missing - expected a proposal ID"
+        )
+
+    return KaraboBridgeConfiguration(
+        karabo_attributes=karabo_attributes,
+        special_attributes=KaraboSpecialAttributes(
+            runNumberKey=runNumberKey,
+            runStartedAtKey=runStartedAtKey,
+            runTrainsInRunKey=runTrainsInRunKey,
+            runFirstTrainKey=runFirstTrainKey,
+            proposalIdKey=proposalIdKey,
+        ),
+        attributi={k.attributo_id: k for k in attributi},
+        proposal_id=proposal_id,
+    )
+
+
+def check_for_heterogeneous_lists(
+    attributi: List[AmarcordAttributoDescription],
+    karabo_attributes: List[KaraboAttributeDescription],
+) -> Optional[KaraboConfigurationError]:
+    karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
+        a.id: a for a in karabo_attributes
+    }
+    for a in attributi:
+        if not isinstance(a.karabo_value_source, CoagulateList):
+            continue
+        prior_type: Optional[AttributoType] = None
+        for component in a.karabo_value_source.attributes:
+            this_type = determine_attributo_type_for_single_attributo(
+                karabo_attributes_per_id[component.id]
+            )
+            if prior_type is not None and this_type != prior_type:
+                return KaraboConfigurationError(
+                    f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}: attributo {a.attributo_id}: the types of all dependent Karabo attributes should be the same; I got {this_type} and {prior_type}"
+                )
+            prior_type = this_type
+    return None
+
+
+def karabo_type_matches(
+    input_type: KaraboInputType, value: Any
+) -> Optional[KaraboValue]:
+    if input_type == KaraboInputType.KARABO_TYPE_FLOAT:
+        if isinstance(value, (float, int)):
+            return value
+        return None
+    if input_type == KaraboInputType.KARABO_TYPE_INT:
+        if isinstance(value, int):
+            return value
+        return None
+    if input_type == KaraboInputType.KARABO_TYPE_STRING:
+        if isinstance(value, str):
+            return value
+        return None
+    assert (
+        input_type == KaraboInputType.KARABO_TYPE_LIST_FLOAT
+    ), f"couldn't find input type {input_type}, maybe that's a new one?"
+    if isinstance(value, list):
+        if not value:
+            return value
+        if isinstance(value[0], (int, float)):
+            return value
+    if isinstance(value, np.ndarray):
+        # noinspection PyTypeChecker
+        return value.flatten().tolist()
+    return None
+
+
+def run_karabo_processor(
+    processor: KaraboProcessor, input_type: KaraboInputType, value: Any
+) -> Union[KaraboWrongTypeError, KaraboValue]:
+    typed_value = karabo_type_matches(input_type, value)
+    if typed_value is None:
+        return KaraboWrongTypeError(input_type, str(type(value)))
+    if processor == KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST:
+        if isinstance(typed_value, (list, np.ndarray)):
+            return typed_value[-1]
+        return typed_value
+    assert (
+        processor == KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN
+    ), f"unknown processor {processor}, maybe that's a new one?"
+    assert isinstance(
+        typed_value, (list, np.ndarray)
+    ), f"for the list processors, we need lists as input type, but got {typed_value}"
+    return mean(typed_value)
+
+
+def process_karabo_frame(
+    attributes: Iterable[KaraboAttributeDescription], input_data: Dict[str, Any]
+) -> ProcessedKaraboFrame:
+    """
+    Take an attribute description as well as some input data (from the bridge, probably via ZeroMQ) and produce a
+    "processed Karabo frame".
+
+    This frame is simpler than the whole input_data structure. It doesn't contain any lists anymore because
+    those you have to process to scalars, and also we use our internal ID for accessing values, not source and key anymore.
+
+    It also doesn't contain any extraneous data and some error information.
+    """
+    output_data: Dict[KaraboInternalId, KaraboValue] = {}
+    not_found: Set[KaraboValueLocator] = set()
+    wrong_types: Dict[KaraboValueLocator, KaraboWrongTypeError] = {}
+    for a in attributes:
+        source_values = input_data.get(a.locator.source)
+        if source_values is None:
+            not_found.add(a.locator)
+            continue
+        assert isinstance(
+            source_values, dict
+        ), f"{a.locator}: source isn't even a dict but {type(source_values)}, probably a typo with the source name"
+        value = source_values.get(a.locator.subkey)
+        if value is None:
+            not_found.add(a.locator)
+            continue
+        processing_result = run_karabo_processor(a.processor, a.input_type, value)
+        if isinstance(processing_result, KaraboWrongTypeError):
+            wrong_types[a.locator] = processing_result
+        else:
+            output_data[a.id] = processing_result
+    return ProcessedKaraboFrame(
+        karabo_values_by_internal_id=output_data,
+        not_found=not_found,
+        wrong_types=wrong_types,
+    )
+
+
+@dataclass(frozen=True)
+class PlainAccumulator:
+    value: Union[str, int, float, List[float], None, np.ndarray]
+
+
+@dataclass(frozen=True)
+class IndexedAccumulator:
+    values: List[PlainAccumulator]
+
+
+AttributoAccumulator = Union[PlainAccumulator, IndexedAccumulator]
+
+AttributoAccumulatorPerId = Dict[AttributoId, AttributoAccumulator]
+
+AttributoValuePerId = Dict[AttributoId, AttributoValue]
+
+
+def karabo_value_to_attributo_value(karabo_value: KaraboValue) -> AttributoValue:
+    return cast(AttributoValue, karabo_value)
+
+
+def extract_list_from_accumulator(a: AttributoAccumulator) -> Optional[List[float]]:
+    if isinstance(a, PlainAccumulator):
+        if isinstance(a.value, list):
+            return a.value
+    return None
+
+
+def process_plain_attribute_with_list(
+    accumulator: Optional[AttributoAccumulator],
+    aid: AttributoId,
+    value_in_frame: Optional[KaraboValue],
+    f: Callable[[List[float]], Optional[float]],
+) -> Tuple[PlainAccumulator, AttributoValue]:
+    current_accumulator_list = (
+        extract_list_from_accumulator(accumulator) if accumulator is not None else None
+    )
+    assert value_in_frame is not None, f"attributo {aid}: not found in frame"
+    if not isinstance(value_in_frame, (float, int)):
+        raise Exception(
+            f"attributo {aid}: cannot take the average of value {value_in_frame}"
+        )
+    if current_accumulator_list is not None:
+        current_accumulator_list.append(value_in_frame)
+    else:
+        current_accumulator_list = [value_in_frame]
+
+    return PlainAccumulator(current_accumulator_list), (
+        f(current_accumulator_list) if current_accumulator_list else None
+    )
+
+
+def process_plain_attribute(
+    frame: KaraboValueByInternalId,
+    aid: AttributoId,
+    plain_attribute: PlainAttribute,
+    accumulator: Optional[AttributoAccumulator],
+    processor: AmarcordAttributoProcessor,
+) -> Optional[Tuple[PlainAccumulator, AttributoValue]]:
+    value_in_frame = frame.get(plain_attribute.id, None)
+    if value_in_frame is None:
+        return None
+    if processor == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST:
+        return PlainAccumulator(value_in_frame), value_in_frame
+    if processor == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_ARITHMETIC_MEAN:
+        return process_plain_attribute_with_list(accumulator, aid, value_in_frame, mean)
+    assert (
+        processor == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_VARIANCE
+    ), f"I don't know the processor {processor}, maybe it's new?"
+
+    return process_plain_attribute_with_list(
+        accumulator, aid, value_in_frame, safe_variance
+    )
+
+
+def process_coagulate_list(
+    frame: KaraboValueByInternalId,
+    accumulators: AttributoAccumulatorPerId,
+    aid: AttributoId,
+    coagulate_list: CoagulateList,
+    processor: AmarcordAttributoProcessor,
+) -> Optional[Tuple[IndexedAccumulator, AttributoValue]]:
+    accumulator = accumulators.get(aid, None)
+    assert accumulator is None or isinstance(
+        accumulator, IndexedAccumulator
+    ), f"attributo {aid}: accumulator is {type(accumulator)}, not {IndexedAccumulator}"
+
+    assert accumulator is None or len(accumulator.values) == len(
+        coagulate_list.attributes
+    )
+    new_values: List[AttributoValue] = []
+    new_accumulators: List[PlainAccumulator] = []
+    for idx, plain_karabo_attribute in enumerate(coagulate_list.attributes):
+        new_accumulator_and_value = process_plain_attribute(
+            frame,
+            aid,
+            plain_karabo_attribute,
+            accumulator.values[idx] if accumulator is not None else None,
+            processor,
+        )
+        if new_accumulator_and_value is None:
+            return None
+        new_accumulator, value = new_accumulator_and_value
+        new_values.append(value)
+        new_accumulators.append(new_accumulator)
+    return IndexedAccumulator(new_accumulators), new_values  # type: ignore
+
+
+def attributo_value_to_string(value: AttributoValue) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, float):
+        return f"{value:.2f}"
+    return str(value)
+
+
+def process_coagulate_string(
+    frame: KaraboValueByInternalId,
+    accumulators: AttributoAccumulatorPerId,
+    aid: AttributoId,
+    coagulate_string: CoagulateString,
+    processor: AmarcordAttributoProcessor,
+) -> Optional[Tuple[IndexedAccumulator, str]]:
+    accumulator = accumulators.get(aid, None)
+    assert accumulator is None or isinstance(
+        accumulator, IndexedAccumulator
+    ), f"attributo {aid}: accumulator is {type(accumulator)}, not {IndexedAccumulator}"
+
+    new_value = ""
+    new_accumulators: List[PlainAccumulator] = []
+    accumulator_idx = 0
+    for attribute_or_str in coagulate_string.valueSequence:
+        if isinstance(attribute_or_str, str):
+            new_value += attribute_or_str
+            continue
+
+        new_accumulator_and_value = process_plain_attribute(
+            frame,
+            aid,
+            attribute_or_str,
+            accumulator.values[accumulator_idx] if accumulator is not None else None,
+            processor,
+        )
+        if new_accumulator_and_value is None:
+            return None
+        new_accumulator, value = new_accumulator_and_value
+        accumulator_idx += 1
+        new_value += attributo_value_to_string(value)
+        new_accumulators.append(new_accumulator)
+    return IndexedAccumulator(new_accumulators), new_value
+
+
+def frame_to_attributo_and_cache(
+    frame: KaraboValueByInternalId,
+    attributi: Iterable[AmarcordAttributoDescription],
+    old_accumulator: AttributoAccumulatorPerId,
+) -> Tuple[AttributoAccumulatorPerId, AttributoValuePerId]:
+    accumulators: AttributoAccumulatorPerId = old_accumulator.copy()
+    values: AttributoValuePerId = {}
+    for a in attributi:
+        if isinstance(a.karabo_value_source, PlainAttribute):
+            accumulator_and_value = process_plain_attribute(
+                frame,
+                a.attributo_id,
+                a.karabo_value_source,
+                accumulators.get(a.attributo_id, None),
+                a.processor,
+            )
+            if accumulator_and_value is None:
+                continue
+            accumulator, value = accumulator_and_value
+            accumulators[a.attributo_id] = accumulator
+            values[a.attributo_id] = value
+        elif isinstance(a.karabo_value_source, CoagulateList):
+            caccumulator_and_cvalue = process_coagulate_list(
+                frame, accumulators, a.attributo_id, a.karabo_value_source, a.processor
+            )
+            if caccumulator_and_cvalue is None:
+                continue
+            caccumulator, cvalue = caccumulator_and_cvalue
+            accumulators[a.attributo_id] = caccumulator
+            values[a.attributo_id] = cvalue
+        else:
+            assert isinstance(
+                a.karabo_value_source, CoagulateString
+            ), f"Karabo value source is {type(a.karabo_value_source)}; I only know PlainAttribute, CoagulateList and CoagulateString"
+            saccumulator_and_svalue = process_coagulate_string(
+                frame, accumulators, a.attributo_id, a.karabo_value_source, a.processor
+            )
+            if saccumulator_and_svalue is None:
+                continue
+            saccumulator, svalue = saccumulator_and_svalue
+            accumulators[a.attributo_id] = saccumulator
+            values[a.attributo_id] = svalue
+
+    return accumulators, values
+
+
+def determine_attributo_type_for_single_attributo(
+    karabo_attribute: KaraboAttributeDescription,
+) -> AttributoType:
+    if karabo_attribute.input_type == KaraboInputType.KARABO_TYPE_FLOAT:
+        return AttributoTypeDecimal(
+            suffix=karabo_attribute.unit, standard_unit=karabo_attribute.standard_unit
+        )
+    if karabo_attribute.input_type == KaraboInputType.KARABO_TYPE_INT:
+        return AttributoTypeInt()
+    if karabo_attribute.input_type == KaraboInputType.KARABO_TYPE_STRING:
+        return AttributoTypeString()
+
+    assert karabo_attribute.input_type == KaraboInputType.KARABO_TYPE_LIST_FLOAT
+    assert karabo_attribute.processor in (
+        KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+        KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN,
+    )
+    return AttributoTypeDecimal(
+        suffix=karabo_attribute.unit, standard_unit=karabo_attribute.standard_unit
+    )
+
+
+def determine_attributo_type(
+    a: AmarcordAttributoDescription, karabo_attributes: List[KaraboAttributeDescription]
+) -> AttributoType:
+    if isinstance(a.karabo_value_source, CoagulateString):
+        return AttributoTypeString()
+    if isinstance(a.karabo_value_source, PlainAttribute):
+        # Since we've type-checked this thing, we can be sure the list here is nonempty
+        karabo_attribute = [
+            x for x in karabo_attributes if x.id == a.karabo_value_source.id
+        ][0]
+        return determine_attributo_type_for_single_attributo(karabo_attribute)
+    assert isinstance(a.karabo_value_source, CoagulateList)
+    first_element = a.karabo_value_source.attributes[0]
+    # Since we've type-checked this thing, we can be sure the list here is nonempty
+    karabo_attribute = [x for x in karabo_attributes if x.id == first_element.id][0]
+    return AttributoTypeList(
+        sub_type=determine_attributo_type_for_single_attributo(karabo_attribute),
+        min_length=None,
+        max_length=None,
+    )
+
+
+@dataclass(frozen=True)
+class BridgeOutput:
+    attributi_values: AttributoValuePerId
+    run_id: int
+    run_started_at: Optional[datetime.datetime]
+    run_stopped_at: Optional[datetime.datetime]
+    proposal_id: int
+
+
+def locate_in_frame(
+    frame: Dict[str, Any], key: KaraboValueLocator
+) -> Optional[KaraboValue]:
+    sourced = frame.get(key.source, None)
+    if sourced is None:
+        return None
+    return sourced.get(key.subkey, None)
+
+
+class RunStatus(Enum):
+    UNKNOWN = auto()
+    STOPPED = auto()
+    RUNNING = auto()
+
+
+async def ingest_bridge_output(
+    db: AsyncDB, conn: Connection, result: BridgeOutput
+) -> None:
+    attributi = await db.retrieve_attributi(conn, associated_table=None)
+    latest_run = await db.retrieve_latest_run(conn, attributi)
+    if latest_run is not None and latest_run.id == result.run_id:
+        latest_run.attributi.extend(result.attributi_values)
+        await db.update_run_attributi(conn, result.run_id, latest_run.attributi)
+    else:
+        await db.create_run(
+            conn,
+            result.run_id,
+            AttributiMap.from_types_and_raw(
+                attributi,
+                await db.retrieve_sample_ids(conn),
+                result.attributi_values,
+            ),
+        )
+
+
+class Karabo2:
+    def __init__(self, parsed_config: KaraboBridgeConfiguration) -> None:
+        self._accumulators: AttributoAccumulatorPerId = {}
+        self._previously_not_found: Set[KaraboValueLocator] = set()
+        self._previously_wrong_type: Dict[KaraboValueLocator, KaraboWrongTypeError] = {}
+        self._special_attributes = parsed_config.special_attributes
+        self._attributi = parsed_config.attributi
+        self._karabo_attributes = parsed_config.karabo_attributes
+        self._last_train_id: Optional[int] = None
+        self._proposal_id = parsed_config.proposal_id
+        self._last_proposal_id: Optional[int] = None
+        self._previous_trains_in_run: Optional[int] = None
+        self._run_status = RunStatus.UNKNOWN
+        self._previous_run_status = RunStatus.UNKNOWN
+        self._no_proposal_last_train = False
+        self._run_started_at: Optional[datetime.datetime] = None
+        self._run_stopped_at: Optional[datetime.datetime] = None
+
+    async def create_missing_attributi(self, db: AsyncDB, conn: Connection) -> None:
+        db_attributi = {
+            a.name: a for a in await db.retrieve_attributi(conn, associated_table=None)
+        }
+
+        # This should create "started" and "stopped"
+        await create_ground_state_attributi(db, conn)
+
+        for aid, a in self._attributi.items():
+            existing_db_attributo = db_attributi.get(aid, None)
+            a_type = determine_attributo_type(a, self._karabo_attributes)
+            if existing_db_attributo is None:
+                logger.info(f"karabo: creating attributo {aid}")
+
+                await db.create_attributo(
+                    conn,
+                    aid,
+                    a.description if a.description is not None else "",
+                    KARABO_ATTRIBUTO_GROUP,
+                    AssociatedTable.RUN,
+                    a_type,
+                )
+            else:
+                if a_type != existing_db_attributo.attributo_type:
+                    raise Exception(
+                        f"attributo {aid}: type differs! in DB: {existing_db_attributo.attributo_type}, in config: {a_type}"
+                    )
+
+    def _extract_train_id(self, metadata: Dict[str, Any]) -> Optional[int]:
+        run_number_source = metadata.get(
+            self._special_attributes.runNumberKey.source, None
+        )
+        if run_number_source is None:
+            logger.error(
+                f"tried to retrieve source {self._special_attributes.runNumberKey.source} from the metadata dictionary, but did not find it. You probably have to change something in the Karabo (bridge) configuration to make this work."
+            )
+            return None
+        train_id = run_number_source.get(TRAIN_ID_FROM_METADATA_KEY, None)
+        if train_id is None:
+            logger.error(
+                f"tried to retrieve the train id from source {self._special_attributes.runNumberKey.source}:{TRAIN_ID_FROM_METADATA_KEY} from the metadata dictionary, but did not find it.  You probably have to change something in the Karabo (bridge) configuration to make this work."
+            )
+        return train_id
+
+    def process_frame(
+        self, metadata: Dict[str, Any], frame: Dict[str, Any]
+    ) -> Optional[BridgeOutput]:
+        train_id = self._extract_train_id(metadata)
+
+        if train_id is None:
+            return None
+
+        self._compare_train_ids(train_id)
+
+        if not self._is_valid_proposal(train_id, frame):
+            return None
+
+        run_id = locate_in_frame(frame, self._special_attributes.runNumberKey)
+        if run_id is None:
+            logger.error(f"train {train_id}: no run ID, skipping frame")
+            return None
+        assert isinstance(
+            run_id, int
+        ), f"train {train_id}: run ID is not an int but {type(run_id)}"
+
+        trains_in_run = locate_in_frame(
+            frame, self._special_attributes.runTrainsInRunKey
+        )
+        if trains_in_run is None:
+            logger.error(f"train {train_id}: no trains in run, skipping frame")
+            return None
+        assert isinstance(
+            trains_in_run, int
+        ), f"train {train_id}: trains in run is not an int but {trains_in_run}"
+
+        run_in_progress = trains_in_run == 0
+        if run_in_progress and self._run_status == RunStatus.UNKNOWN:
+            if self._previous_run_status is None:
+                logger.info(
+                    "started in the middle of a run, waiting for it to complete"
+                )
+                self._previous_run_status = RunStatus.UNKNOWN
+            return None
+        if not run_in_progress and self._run_status == RunStatus.UNKNOWN:
+            logger.info("started with a finished run, waiting for next run")
+            self._run_status = RunStatus.STOPPED
+            return None
+        if not run_in_progress and self._run_status == RunStatus.STOPPED:
+            return None
+
+        if run_in_progress and self._run_status == RunStatus.STOPPED:
+            logger.info(
+                f"train {train_id}: a new run started, initializing accumulators"
+            )
+            self._accumulators = {}
+            self._run_status = RunStatus.RUNNING
+            self._run_started_at = datetime.datetime.utcnow()
+            self._run_stopped_at = None
+
+        if not run_in_progress and self._run_status == RunStatus.RUNNING:
+            logger.info(f"run {run_id} stopped")
+            self._run_status = RunStatus.STOPPED
+            self._run_stopped_at = datetime.datetime.utcnow()
+
+        processed_frame = process_karabo_frame(self._karabo_attributes, frame)
+
+        self._process_not_found_and_type_errors(train_id, processed_frame)
+
+        new_accumulators, attributi_values = frame_to_attributo_and_cache(
+            processed_frame.karabo_values_by_internal_id,
+            self._attributi.values(),
+            self._accumulators,
+        )
+        attributi_values[ATTRIBUTO_STARTED] = self._run_started_at
+        if self._run_stopped_at is not None:
+            attributi_values[ATTRIBUTO_STOPPED] = self._run_stopped_at
+        self._accumulators = new_accumulators
+        return BridgeOutput(
+            attributi_values=attributi_values,
+            run_id=run_id,
+            proposal_id=self._proposal_id,
+            run_started_at=self._run_started_at,
+            run_stopped_at=self._run_stopped_at,
+        )
+
+    def _compare_train_ids(self, train_id: int) -> None:
+        if self._last_train_id is not None and self._last_train_id != train_id - 1:
+            logger.warning(
+                f"train {train_id}: missed a train (last train {self._last_train_id})"
+            )
+        self._last_train_id = train_id
+
+    def _is_valid_proposal(self, train_id: int, frame: Dict[str, Any]) -> bool:
+        proposal = locate_in_frame(frame, self._special_attributes.proposalIdKey)
+        if proposal is None:
+            if not self._no_proposal_last_train:
+                logger.warning(f"train {train_id}: no proposal, assuming it's valid")
+                self._no_proposal_last_train = True
+            return True
+        self._no_proposal_last_train = False
+        assert isinstance(
+            proposal, int
+        ), f"train {train_id}: proposal is not an int but {proposal}"
+        if proposal != self._proposal_id:
+            if self._last_proposal_id is None or self._last_proposal_id != proposal:
+                logger.error(
+                    f"train {train_id}: wrong proposal {proposal}, expected {self._proposal_id}; skipping frames until proposal is right"
+                )
+                self._last_proposal_id = proposal
+            return False
+        self._last_proposal_id = proposal
+        return True
+
+    def _process_not_found_and_type_errors(
+        self, train_id: int, processed_frame: ProcessedKaraboFrame
+    ) -> None:
+        if processed_frame.not_found != self._previously_not_found:
+            logger.warning(
+                f"train {train_id}: the following attributes were not found: \n- "
+                + "\n- ".join(str(s) for s in processed_frame.not_found)
+            )
+            self._previously_not_found = processed_frame.not_found
+
+        if processed_frame.wrong_types != self._previously_wrong_type:
+            logger.warning(
+                f"train {train_id}: the following attributes had type errors: \n- "
+                + "\n- ".join(
+                    f"{locator}: expected {type_error.expected.value}, got {type_error.got}"
+                    for locator, type_error in processed_frame.wrong_types.items()
+                )
+            )
+            self._previously_not_found = processed_frame.not_found

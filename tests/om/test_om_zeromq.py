@@ -9,7 +9,6 @@ from amarcord.amici.om.client import (
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.dbcontext import CreationMode
@@ -103,9 +102,7 @@ async def test_process_data_latest_run():
     # Now stop the run and add some frames
     async with db.begin() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
-        run.attributi.append_single(
-            ATTRIBUTO_STOPPED, datetime_to_attributo_int(datetime.utcnow())
-        )
+        run.attributi.append_single(ATTRIBUTO_STOPPED, datetime.utcnow())
         await db.update_run_attributi(conn, run.id, run.attributi)
 
     await processor.process_data(

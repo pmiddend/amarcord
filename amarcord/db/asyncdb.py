@@ -361,7 +361,7 @@ class AsyncDB:
     async def delete_attributo(
         self,
         conn: Connection,
-        name: str,
+        name: AttributoId,
     ) -> None:
         attributi = await self.retrieve_attributi(conn, associated_table=None)
 
@@ -399,7 +399,7 @@ class AsyncDB:
         contents_location: Path,
         deduplicate: bool,
     ) -> CreateFileResult:
-        mime = magic.from_file(str(contents_location), mime=True)
+        mime = magic.from_file(str(contents_location), mime=True)  # type: ignore
 
         sha256 = sha256_file(contents_location)
 
@@ -444,8 +444,7 @@ class AsyncDB:
     async def update_attributo(
         self,
         conn: Connection,
-        name: str,
-        # pylint: disable=unused-argument
+        name: AttributoId,
         conversion_flags: AttributoConversionFlags,
         new_attributo: DBAttributo,
     ) -> None:

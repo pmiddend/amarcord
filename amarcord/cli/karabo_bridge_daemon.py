@@ -1,27 +1,26 @@
 import asyncio
 import logging
 import pickle
-from dataclasses import dataclass
 from pathlib import Path
 from time import time
-from typing import Dict
 from typing import Optional
 
+import yaml
 import zmq
 from karabo_bridge import deserialize
 from tap import Tap
 from zmq.asyncio import Context
 
-from amarcord.amici.xfel.karabo_bridge_slicer import KaraboBridgeSlicer
-from amarcord.amici.xfel.karabo_configuration import parse_karabo_configuration_file
-from amarcord.amici.xfel.karabo_general import ingest_attributi
-from amarcord.amici.xfel.karabo_general import ingest_karabo_action
-from amarcord.amici.xfel.train_range import TrainRange
+from amarcord.amici.xfel.karabo_bridge import (
+    Karabo2,
+    parse_configuration,
+    KaraboConfigurationError,
+    ingest_bridge_output,
+)
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
-from amarcord.run_id import RunId
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -30,34 +29,29 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class KaraboExport:
-    runs: Dict[RunId, TrainRange]
-
-
 async def karabo_loop(
     db: AsyncDB,
     zmq_context: Context,
-    proposal_id: int,
     karabo_endpoint: Optional[str],
-    karabo_config_file: Optional[str],
-    _karabo_export: KaraboExport,
+    karabo_config_file: Optional[Path],
 ) -> None:
     if karabo_config_file is None or karabo_endpoint is None:
         return
 
-    # pylint: disable=no-member
-    socket = zmq_context.socket(zmq.REQ)
+    socket = zmq_context.socket(zmq.REQ)  # type: ignore
 
     socket.connect(karabo_endpoint)
 
-    slicer = KaraboBridgeSlicer(
-        parse_karabo_configuration_file(Path(karabo_config_file))
-    )
+    with karabo_config_file.open("r") as f:
+        config_file = parse_configuration(yaml.load(f, Loader=yaml.SafeLoader))
+        if isinstance(config_file, KaraboConfigurationError):
+            raise Exception(config_file)
+        karabo2 = Karabo2(config_file)
 
-    await ingest_attributi(db, slicer.get_attributi())
+    async with db.begin() as conn:
+        await karabo2.create_missing_attributi(db, conn)
 
-    logger.info("Attributi are set up, waiting for first Karabo data frame")
+    logger.info("attributi are set up, waiting for first Karabo data frame")
     debug_counter = 0
     while True:
         # noinspection PyUnresolvedReferences
@@ -75,16 +69,16 @@ async def karabo_loop(
             data, metadata = deserialize(raw_data)
 
             try:
-                with db.connect() as conn:
-                    with conn.begin():
-                        for action in slicer.run_definer(data, metadata):
-                            await ingest_karabo_action(action, conn, db, proposal_id)
+                result = karabo2.process_frame(metadata, data)
+
+                if result is None:
+                    continue
+
+                async with db.begin() as conn:
+                    await ingest_bridge_output(db, conn, result)
             except Exception as e:
                 error_index = time()
                 pickled_fn = Path(f"error-data-frame-{error_index}.pickle")
-                pickled_bridge_fn = Path(
-                    f"error-data-frame-{error_index}-bridge.pickle"
-                )
                 logger.exception(
                     "received an exception, dumping pickled data frame to %s",
                     pickled_fn,
@@ -93,19 +87,7 @@ async def karabo_loop(
                     pickle.dump(
                         (data, metadata), error_file, protocol=pickle.HIGHEST_PROTOCOL
                     )
-                with pickled_bridge_fn.open("wb") as error_file:
-                    pickle.dump(slicer, error_file, protocol=pickle.HIGHEST_PROTOCOL)
                 raise e
-
-            # This has to be fixed later
-            # for run_id, run_metadata in slicer._run_history.items():
-            #     karabo_export.runs[RunId(run_id)] = TrainRange(
-            #         TrainId(run_metadata["train_index_initial"].value),
-            #         TrainId(
-            #             run_metadata["train_index_initial"].value
-            #             + run_metadata["trains_in_run"].value
-            #         ),
-            #     )
 
             # Do something with data
         except zmq.error.Again:
@@ -169,10 +151,9 @@ async def karabo_loop(
 
 
 class Arguments(Tap):
-    proposal_id: int  # Proposal ID (integer, no leading digits)
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     karabo_config_file: Optional[
-        str
+        Path
     ] = None  # Karabo configuration file; if given, will enable the Karabo daemon
     karabo_endpoint: Optional[
         str
@@ -191,22 +172,18 @@ def main() -> None:
 
     tables = create_tables_from_metadata(dbcontext.metadata)
 
-    if args.db_connection_url.startswith("sqlite://"):
-        dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
+    if args.db_connection_url.startswith("sqlite+aiosqlite://"):
+        asyncio.run(dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST))
 
     db = AsyncDB(dbcontext, tables)
 
     zmq_ctx = Context.instance()
 
-    proposal_id = args.proposal_id
-
     asyncio.run(
         async_main(
             db,
-            proposal_id,
             args.karabo_endpoint,
             args.karabo_config_file,
-            # args.onda_url,
             zmq_ctx,
         )
     )
@@ -214,17 +191,12 @@ def main() -> None:
 
 async def async_main(
     db: AsyncDB,
-    proposal_id: int,
     karabo_endpoint: Optional[str],
-    karabo_config_file: Optional[str],
+    karabo_config_file: Optional[Path],
     # onda_url: Optional[str],
     zmq_ctx: Context,
 ) -> None:
-    karabo_export = KaraboExport(runs={})
-
-    await karabo_loop(
-        db, zmq_ctx, proposal_id, karabo_endpoint, karabo_config_file, karabo_export
-    )
+    await karabo_loop(db, zmq_ctx, karabo_endpoint, karabo_config_file)
     # await asyncio.gather(
     #     karabo_loop(
     #         db, zmq_ctx, proposal_id, karabo_endpoint, karabo_config_file, karabo_export

@@ -9,6 +9,7 @@ from typing import Type
 
 from pint import UnitRegistry
 
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
@@ -39,8 +40,8 @@ JSON_SCHEMA_INTEGER_DATE_TIME: Final = "date-time"
 
 logger = logging.getLogger(__name__)
 
-ATTRIBUTO_STARTED: Final = "started"
-ATTRIBUTO_STOPPED: Final = "stopped"
+ATTRIBUTO_STARTED: Final = AttributoId("started")
+ATTRIBUTO_STOPPED: Final = AttributoId("stopped")
 
 
 def schema_json_to_attributo_type(json_schema: JSONDict) -> AttributoType:
@@ -459,7 +460,7 @@ def _convert_string_to_datetime(
     assert isinstance(v, str)
 
     try:
-        return datetime_from_attributo_string(v)
+        return datetime_to_attributo_int(datetime_from_attributo_string(v))
     except:
         raise Exception(f'cannot convert string "{v}" to datetime (not ISO format)')
 

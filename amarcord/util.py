@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import re
 from pathlib import Path
+from statistics import variance
 from typing import Callable
 from typing import Dict
 from typing import Generator
@@ -227,3 +228,9 @@ def last_existing_dir(p: Path) -> Optional[Path]:
 def replace_illegal_path_characters(filename: str) -> str:
     # See https://stackoverflow.com/questions/1033424/how-to-remove-bad-path-characters-in-python
     return re.sub(r"[^\w\-_. ]", "_", filename)
+
+
+def safe_variance(xs: List[float]) -> Optional[float]:
+    if len(xs) < 2:
+        return None
+    return variance(xs)

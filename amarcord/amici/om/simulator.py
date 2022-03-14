@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 async def om_simulator_loop(zmq_ctx: Context, delay_seconds: float, port: int) -> None:
-    publisher = zmq_ctx.socket(zmq.PUB)
+    publisher = zmq_ctx.socket(zmq.PUB)  # type: ignore
     publisher.set_hwm(1)
     publisher.bind(f"tcp://*:{port}")
 

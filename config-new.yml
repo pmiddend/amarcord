@@ -1,63 +1,48 @@
-#! configuration for the Karabo bridge.
-#    identifier (str): `attributo` identifier
-#    source (str): EuXFEL source
-#    key (str): Value to extract
-#    description (str, optional): `attributo` description. Defaults to None.
-#    type (str, optional): The AMARCORD data type. Defaults to "decimal".
-#    store (bool, optional): Whether to store the value. Defaults to True.
-#    action (str, optional): Either "compute_arithmetic_mean", "compute_standard_deviation", "check_if_constant" or "store_last". Defaults to None.
-#    unit (str, optional): Unit of measurement. Defaults to None.
-#    filling_value (Any, optional): Filling value in case a source is missing. Defaults to None.
-config_version: 2
+config_version: 3
 
-attributi_definition:
-  run:
-    # required to slice data from the bridge
-    source: SPB_DAQ_DATA/DM/RUN_CONTROL
+attributi-definition:
+  karabo:
+    SPB_DAQ_DATA/DM/RUN_CONTROL:
+      runId:
+        key: runDetails.runId.value
+        role: run_id
+        type: int
 
-    index:
-      description: Run index
-      key: runDetails.runId.value
-      role: run_id
-      type: int
-      store: false
+      number:
+        description: Run number
+        key: runNumber.value
+        role: run_number
+        type: int
 
-    number:
-      description: Run number
-      key: runNumber.value
-      role: run_number
-      type: int
-      store: false
+      timestamp_UTC_initial:
+        description: Started at
+        key: runDetails.beginAt.value
+        type: datetime
 
-    timestamp_UTC_initial:
-      description: Started at
-      key: runDetails.beginAt.value
-      type: datetime
+      train_index_initial:
+        description: Initial train
+        key: runDetails.firstTrainId.value
+        type: int
+        role: train_index_initial
 
-    train_index_initial:
-      description: Initial train
-      key: runDetails.firstTrainId.value
-      type: int
-      role: train_index_initial
+      trains_in_run:
+        description: Number of trains
+        key: runDetails.length.value
+        type: int
+        role: trains_in_run
 
-    trains_in_run:
-      description: Number of trains
-      key: runDetails.length.value
-      type: int
-      role: trains_in_run
+      proposal_id:
+        description: proposal ID
+        key: proposalNumber.value
+        type: int
+        role: proposal_id
+        store: false
 
-    proposal_id:
-      description: proposal ID
-      key: proposalNumber.value
-      type: int
-      role: proposal_id
-      store: false
-
-    # duration:
-    #   # doesn't really have a source nor a key. but they are both mandatory. maybe some special key?
-    #   # or, source && key not required if build_attributo: is not None
-    #  build_attributo: trains_in_run/10
-    #  type: float
+      # duration:
+      #   # doesn't really have a source nor a key. but they are both mandatory. maybe some special key?
+      #   # or, source && key not required if build_attributo: is not None
+      #  build_attributo: trains_in_run/10
+      #  type: float
 
   source:
     # data from the source
@@ -73,7 +58,6 @@ attributi_definition:
       karabo_type: list[decimal]
       type: decimal
       processor: to_constant
-      action: check_if_constant
       unit: nC
 
     # bunch_pattern:
@@ -95,17 +79,17 @@ attributi_definition:
       source: SPB_XTD9_XGM/XGM/DOOCS:output
       key: data.intensitySa1TD
       karabo_type: list[decimal]
+      processor: arithmetic_mean
       type: decimal
       unit: microJoules
-      processor: to_constant
 
     XGM_XTD9_SASE1_beam_position_x:
       description: SASE1 beam position x [mm]
       source: SPB_XTD9_XGM/XGM/DOOCS:output
       key: data.xSa1TD
       karabo_type: list[decimal]
+      processor: arithmetic_mean
       type: decimal
-      processor: to_constant
       unit: millimeter # ?
 
     XGM_XTD9_SASE1_beam_position_y:
@@ -113,7 +97,7 @@ attributi_definition:
       source: SPB_XTD9_XGM/XGM/DOOCS:output
       key: data.ySa1TD
       karabo_type: list[decimal]
-      processor: to_constant
+      processor: arithmetic_mean
       type: decimal
       unit: millimeter # ?
 
@@ -450,9 +434,9 @@ attributi_definition:
     sample_delivery_config0_valve_group_name:
       key: valvesConfigTable.value[0].valveGroupName
       type: str
-#      sample_delivery_config0_valve_indices:
-#        key: valvesConfigTable.value[0].valveIds
-#        type: list[str]
+    sample_delivery_config0_valve_indices:
+      key: valvesConfigTable.value[0].valveIds
+      type: str
     sample_delivery_config0_positions:
       key: valvesConfigTable.value[0].nPositions
       type: int
@@ -463,9 +447,9 @@ attributi_definition:
     sample_delivery_config1_valve_group_name:
       key: valvesConfigTable.value[1].valveGroupName
       type: str
-#      sample_delivery_config1_valve_indices:
-#        key: valvesConfigTable.value[1].valveIds
-#        type: list[str]
+    sample_delivery_config1_valve_indices:
+      key: valvesConfigTable.value[1].valveIds
+      type: str
     sample_delivery_config1_positions:
       key: valvesConfigTable.value[1].nPositions
       type: int
@@ -476,9 +460,9 @@ attributi_definition:
     sample_delivery_config2_valve_group_name:
       key: valvesConfigTable.value[2].valveGroupName
       type: str
-#      sample_delivery_config2_valve_indices:
-#        key: valvesConfigTable.value[2].valveIds
-#        type: list[str]
+    sample_delivery_config2_valve_indices:
+      key: valvesConfigTable.value[2].valveIds
+      type: str
     sample_delivery_config2_positions:
       key: valvesConfigTable.value[2].nPositions
       type: int

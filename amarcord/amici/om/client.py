@@ -9,11 +9,12 @@ from zmq.asyncio import Context
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeInt
 
 
-ATTRIBUTO_NUMBER_OF_HITS = "hits"
-ATTRIBUTO_NUMBER_OF_FRAMES = "frames"
+ATTRIBUTO_NUMBER_OF_HITS = AttributoId("hits")
+ATTRIBUTO_NUMBER_OF_FRAMES = AttributoId("frames")
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class OmZMQProcessor:
 
     async def main_loop(self, zmq_context: Context, url: str, topic: str) -> None:
         logger.info("starting OM observer main loop...")
-        socket = zmq_context.socket(zmq.SUB)
+        socket = zmq_context.socket(zmq.SUB)  # type: ignore
         socket.connect(url)
         socket.setsockopt_string(zmq.SUBSCRIBE, topic)
 

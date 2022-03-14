@@ -8,6 +8,7 @@ from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi_map import AttributiMap, JsonAttributiMap
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeString,
@@ -31,7 +32,7 @@ TEST_ATTRIBUTO_GROUP = "testgroup"
 
 TEST_ATTRIBUTO_DESCRIPTION = "testdescription"
 
-TEST_ATTRIBUTO_NAME = "testname"
+TEST_ATTRIBUTO_NAME = AttributoId("testname")
 
 
 async def _get_db() -> AsyncDB:
@@ -241,7 +242,7 @@ async def test_create_attributo_and_sample_then_change_attributo() -> None:
             conversion_flags=AttributoConversionFlags(ignore_units=False),
             new_attributo=DBAttributo(
                 # We try to change all the attributes
-                name=TEST_ATTRIBUTO_NAME + "1",
+                name=AttributoId(str(TEST_ATTRIBUTO_NAME) + "1"),
                 description=TEST_ATTRIBUTO_DESCRIPTION + "1",
                 group=TEST_ATTRIBUTO_GROUP + "1",
                 associated_table=AssociatedTable.SAMPLE,
@@ -258,7 +259,12 @@ async def test_create_attributo_and_sample_then_change_attributo() -> None:
 
         samples = await db.retrieve_samples(conn, attributi)
         assert samples[0].attributi.select_int(TEST_ATTRIBUTO_NAME) is None
-        assert samples[0].attributi.select_string(TEST_ATTRIBUTO_NAME + "1") is not None
+        assert (
+            samples[0].attributi.select_string(
+                AttributoId(str(TEST_ATTRIBUTO_NAME) + "1")
+            )
+            is not None
+        )
 
 
 async def test_create_attributo_and_sample_then_delete_attributo() -> None:
@@ -415,7 +421,7 @@ async def test_create_attributo_and_run_then_change_attributo() -> None:
             conversion_flags=AttributoConversionFlags(ignore_units=False),
             new_attributo=DBAttributo(
                 # We try to change all the attributes
-                name=TEST_ATTRIBUTO_NAME + "1",
+                name=AttributoId(str(TEST_ATTRIBUTO_NAME) + "1"),
                 description=TEST_ATTRIBUTO_DESCRIPTION + "1",
                 group=TEST_ATTRIBUTO_GROUP + "1",
                 associated_table=AssociatedTable.RUN,
@@ -427,7 +433,10 @@ async def test_create_attributo_and_run_then_change_attributo() -> None:
 
         runs = await db.retrieve_runs(conn, attributi)
         assert runs[0].attributi.select_int(TEST_ATTRIBUTO_NAME) is None
-        assert runs[0].attributi.select_string(TEST_ATTRIBUTO_NAME + "1") is not None
+        assert (
+            runs[0].attributi.select_string(AttributoId(str(TEST_ATTRIBUTO_NAME) + "1"))
+            is not None
+        )
 
 
 async def test_create_attributo_and_run_then_delete_attributo() -> None:
@@ -740,10 +749,10 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
 
         await db.update_attributo(
             conn,
-            first_name,
+            AttributoId(first_name),
             AttributoConversionFlags(ignore_units=False),
             new_attributo=DBAttributo(
-                name=first_name,
+                name=AttributoId(first_name),
                 description="",
                 group="manual",
                 associated_table=AssociatedTable.RUN,
@@ -758,7 +767,7 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
                 await db.retrieve_attributi(conn, associated_table=None),
             )
         )
-        assert data_sets[0].attributi.select_string(first_name)
+        assert data_sets[0].attributi.select_string(AttributoId(first_name))
 
 
 async def test_create_read_delete_events() -> None:

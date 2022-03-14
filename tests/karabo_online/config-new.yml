@@ -1,0 +1,140 @@
+karabo-attributes:
+  SPB_RR_SYS/MDL/BUNCH_PATTERN:
+    sase1.charge.value:
+      - id: bunch_charge
+        input-type: List[float]
+        processor: take-last
+        unit: nC
+    sase1.nPulses.value:
+      id: number_of_bunches
+      input-type: int
+  SPB_XTD9_XGM/XGM/DOOCS:
+    pulseEnergy.wavelengthUsed.value:
+      id: wavelength
+      input-type: float
+      unit: angstrom
+  SPB_XTD9_XGM/XGM/DOOCS:output:
+    data.intensitySa1TD:
+      id: pulse_energy
+      input-type: List[float]
+      processor: take-last
+      unit: mJ
+
+    data.xSa1TD:
+      id: beam_x
+      input-type: List[float]
+      processor: take-last
+      unit: mm
+
+    data.ySa1TD:
+      id: beam_y
+      input-type: List[float]
+      processor: take-last
+      unit: mm
+  SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
+    gainMode.value:
+      id: gain_mode
+      input-type: str
+  SPB_IRU_AGIPD1M/MOTOR/Z_STEPPER:
+    actualPosition.value:
+      id: detector_distance
+      input-type: float
+      unit: mm
+  SA1_XTD2_ATT/MDL/MAIN:
+    actual.value.transmission:
+      id: transmission
+      input-type: float
+      unit: percent
+      is-si-unit: false
+  SPB_XTD9_ATT/MDL/MAIN:
+    actual.value.transmission:
+      id: xtd9_transmission
+      input-type: float
+      unit: percent
+      is-si-unit: false
+  SPB_BIO_SYS/PUMP/HPLC:
+    a.flow.value:
+      id: pump_a_flow
+      input-type: float
+      unit: ul/min
+    b.flow.value:
+      id: pump_b_flow
+      input-type: float
+      unit: ul/min
+    c.flow.value:
+      id: pump_c_flow
+      input-type: float
+      unit: ul/min
+    d.flow.value:
+      id: pump_d_flow
+      input-type: float
+      unit: ul/min
+  SPB_IRU_INJMOV/MOTOR/Z:
+    actualPosition.value:
+      id: injector_position_z
+      unit: mm
+      input-type: float
+
+
+special-karabo-attributes:
+  runNumber:
+    source: SPB_DAQ_DATA/DM/RUN_CONTROL
+    key: runNumber.value
+  runStartedAt:
+    source: SPB_DAQ_DATA/DM/RUN_CONTROL
+    key: runDetails.beginAt.value
+  runFirstTrain:
+    source: SPB_DAQ_DATA/DM/RUN_CONTROL
+    key: runDetails.firstTrainId.value
+  runTrainsInRun:
+    source: SPB_DAQ_DATA/DM/RUN_CONTROL
+    key: runDetails.length.value
+  proposalId:
+    source: SPB_DAQ_DATA/DM/RUN_CONTROL
+    key: proposalNumber.value
+
+
+
+amarcord-attributi:
+  injector_position_z:
+    plain-attribute: injector_position_z
+    processor: arithmetic-mean
+  xtd9_transmission:
+    plain-attribute: xtd9_transmission
+    processor: arithmetic-mean
+  transmission:
+    plain-attribute: transmission
+    processor: arithmetic-mean
+  flow_values:
+    coagulate: [pump_a_flow, pump_b_flow, pump_c_flow, pump_d_flow]
+    processor: arithmetic-mean
+  detector_distance:
+    plain-attribute: detector_distance
+    processor: arithmetic-mean
+  number_of_bunches:
+    plain-attribute: number_of_bunches
+    processor: take-last
+  wavelength:
+    plain-attribute: wavelength
+    processor: arithmetic-mean
+  pulse_energy_avg:
+    plain-attribute: pulse_energy
+    processor: arithmetic-mean
+    description: "The pulse energy avg"
+  pulse_energy_variance:
+    plain-attribute: pulse_energy
+    processor: variance
+    description: "The pulse energy var"
+  beam_position:
+    coagulate: [ beam_x, beam_y ]
+    processor: arithmetic-mean
+    description: "The pulse energy var"
+  beam_position_string:
+    coagulate: "${beam_x} ${beam_y}"
+    processor: arithmetic-mean
+    description: "The pulse energy var"
+  gain_mode:
+    plain-attribute: gain_mode
+    processor: take-last
+
+proposal-id: 1234

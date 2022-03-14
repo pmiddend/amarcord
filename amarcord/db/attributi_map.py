@@ -28,7 +28,7 @@ SPECIAL_SAMPLE_ID_NONE = 0
 
 JsonAttributiMap = Dict[str, JSONValue]
 
-UntypedAttributiMap = Dict[str, AttributoValue]
+UntypedAttributiMap = Dict[AttributoId, AttributoValue]
 
 
 def _check_type(
@@ -89,14 +89,12 @@ def _check_type(
             _check_type(name + f"[{i}]", sample_ids, type_.sub_type, v)  # type: ignore
     elif isinstance(type_, AttributoTypeDateTime):
         assert isinstance(
-            value, int
-        ), f'attributo "{name}": expected type int but got value {value}'
+            value, datetime.datetime
+        ), f'attributo "{name}": expected type datetime but got value {value}'
 
 
 def check_attributo_types(
-    types: Dict[AttributoId, DBAttributo],
-    sample_ids: List[int],
-    d: Dict[AttributoId, AttributoValue],
+    types: Dict[AttributoId, DBAttributo], sample_ids: List[int], d: UntypedAttributiMap
 ) -> None:
     for name, value in d.items():
         type_ = types.get(name, None)
@@ -218,13 +216,23 @@ def _convert_single_attributo_value_from_json_with_type(
 class AttributiMap:
     def __init__(
         self,
-        types_dict: Dict[str, DBAttributo],
+        types_dict: Dict[AttributoId, DBAttributo],
         sample_ids: List[int],
         impl: UntypedAttributiMap,
     ) -> None:
         self._attributi = impl
         self._types = types_dict
         self._sample_ids = sample_ids
+
+    @staticmethod
+    def from_types_and_raw(
+        types: Iterable[DBAttributo],
+        sample_ids: List[int],
+        raw_attributi: UntypedAttributiMap,
+    ) -> "AttributiMap":
+        result = AttributiMap({a.name: a for a in types}, sample_ids, {})
+        result.extend(raw_attributi)
+        return result
 
     @staticmethod
     def from_types_and_json(
@@ -237,10 +245,10 @@ class AttributiMap:
         if raw_attributi is not None:
             for attributo_name, attributo_value in raw_attributi.items():
                 v = _convert_single_attributo_value_from_json(
-                    attributo_name, attributo_value, types_dict, sample_ids
+                    AttributoId(attributo_name), attributo_value, types_dict, sample_ids
                 )
                 if v is not None:
-                    attributi[attributo_name] = v
+                    attributi[AttributoId(attributo_name)] = v
 
         return AttributiMap(types_dict, sample_ids, attributi)
 
@@ -308,7 +316,7 @@ class AttributiMap:
     def select(self, attributo_id: AttributoId) -> AttributoValue:
         return self._attributi.get(attributo_id, None)
 
-    def extend(self, new_attributi: Dict[AttributoId, AttributoValue]) -> None:
+    def extend(self, new_attributi: UntypedAttributiMap) -> None:
         check_attributo_types(self._types, self._sample_ids, new_attributi)
         for k, v in new_attributi.items():
             if v is not None:
@@ -369,7 +377,7 @@ class AttributiMap:
     def names(self) -> Set[str]:
         return set(self._attributi.keys())
 
-    def items(self) -> Iterable[Tuple[str, AttributoValue]]:
+    def items(self) -> Iterable[Tuple[AttributoId, AttributoValue]]:
         return self._attributi.items()  # type: ignore
 
     def __eq__(self, other: Any) -> bool:

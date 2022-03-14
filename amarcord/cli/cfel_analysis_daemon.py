@@ -528,7 +528,7 @@ async def list_of_files_iteration(
     input_directory: Path,
     output_directory: Path,
 ) -> None:
-    async with db.connect() as conn:
+    async with db.begin() as conn:
         await generate_list_of_files(
             db, conn, pattern, extension, input_directory, output_directory
         )

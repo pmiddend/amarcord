@@ -4,7 +4,11 @@ from typing import Final
 
 import pytest
 
-from amarcord.db.attributi import AttributoConversionFlags, datetime_to_attributo_string
+from amarcord.db.attributi import (
+    AttributoConversionFlags,
+    datetime_to_attributo_string,
+    datetime_to_attributo_int,
+)
 from amarcord.db.attributi import convert_attributo_value
 from amarcord.db.attributo_type import AttributoTypeChoice, AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeDateTime
@@ -88,17 +92,14 @@ def test_attributo_int_to_double() -> None:
 
 def test_attributo_int_to_list() -> None:
     # first, without length restrictions
-    assert (
-        convert_attributo_value(
-            AttributoTypeInt(),
-            AttributoTypeList(
-                sub_type=AttributoTypeInt(), min_length=None, max_length=None
-            ),
-            _default_flags,
-            1,
-        )
-        == [1]
-    )
+    assert convert_attributo_value(
+        AttributoTypeInt(),
+        AttributoTypeList(
+            sub_type=AttributoTypeInt(), min_length=None, max_length=None
+        ),
+        _default_flags,
+        1,
+    ) == [1]
 
     # then to a list of at least x elements
     with pytest.raises(Exception):
@@ -125,34 +126,26 @@ def test_attributo_int_to_list() -> None:
 
 def test_attributo_list_to_list() -> None:
     # first, test without length restrictions and the same contained types
-    assert (
-        convert_attributo_value(
-            AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
-            ),
-            AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
-            ),
-            _default_flags,
-            [1, 2, 3],
-        )
-        == [1, 2, 3]
-    )
+    assert convert_attributo_value(
+        AttributoTypeList(
+            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+        ),
+        AttributoTypeList(
+            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+        ),
+        _default_flags,
+        [1, 2, 3],
+    ) == [1, 2, 3]
 
     # now test with loser length constraints
-    assert (
-        convert_attributo_value(
-            AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=5, max_length=10
-            ),
-            AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
-            ),
-            _default_flags,
-            [1, 2, 3, 4, 5, 6],
-        )
-        == [1, 2, 3, 4, 5, 6]
-    )
+    assert convert_attributo_value(
+        AttributoTypeList(sub_type=AttributoTypeDecimal(), min_length=5, max_length=10),
+        AttributoTypeList(
+            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+        ),
+        _default_flags,
+        [1, 2, 3, 4, 5, 6],
+    ) == [1, 2, 3, 4, 5, 6]
 
     # now do stricter constraints
     with pytest.raises(Exception):
@@ -182,19 +175,16 @@ def test_attributo_list_to_list() -> None:
         )
 
     # finally, test with a value, but converting value type
-    assert (
-        convert_attributo_value(
-            AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
-            ),
-            AttributoTypeList(
-                sub_type=AttributoTypeInt(), min_length=None, max_length=None
-            ),
-            _default_flags,
-            [1, 2, 3, 4, 5],
-        )
-        == [1.0, 2.0, 3.0, 4.0, 5.0]
-    )
+    assert convert_attributo_value(
+        AttributoTypeList(
+            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+        ),
+        AttributoTypeList(
+            sub_type=AttributoTypeInt(), min_length=None, max_length=None
+        ),
+        _default_flags,
+        [1, 2, 3, 4, 5],
+    ) == [1.0, 2.0, 3.0, 4.0, 5.0]
 
     # and now with an invalid type
     with pytest.raises(Exception):
@@ -238,15 +228,12 @@ def test_attributo_string_to_int() -> None:
 def test_attributo_string_datetime() -> None:
     # We are not storing microseconds in the JSON (not needed until now)
     t = datetime.datetime.now().replace(microsecond=0)
-    assert (
-        convert_attributo_value(
-            AttributoTypeString(),
-            AttributoTypeDateTime(),
-            _default_flags,
-            datetime_to_attributo_string(t),
-        )
-        == t
-    )
+    assert convert_attributo_value(
+        AttributoTypeString(),
+        AttributoTypeDateTime(),
+        _default_flags,
+        datetime_to_attributo_string(t),
+    ) == datetime_to_attributo_int(t)
 
 
 def test_attributo_string_choice() -> None:
@@ -307,17 +294,14 @@ def test_attributo_string_double() -> None:
 
 def test_attributo_string_list() -> None:
     # first, without length restrictions
-    assert (
-        convert_attributo_value(
-            AttributoTypeString(),
-            AttributoTypeList(
-                sub_type=AttributoTypeString(), min_length=None, max_length=None
-            ),
-            _default_flags,
-            "abc",
-        )
-        == ["abc"]
-    )
+    assert convert_attributo_value(
+        AttributoTypeString(),
+        AttributoTypeList(
+            sub_type=AttributoTypeString(), min_length=None, max_length=None
+        ),
+        _default_flags,
+        "abc",
+    ) == ["abc"]
 
     # then to a list of at least x elements
     with pytest.raises(Exception):
@@ -451,17 +435,14 @@ def test_attributo_double_to_int() -> None:
 
 def test_attributo_double_list() -> None:
     # first, without length restrictions
-    assert (
-        convert_attributo_value(
-            AttributoTypeDecimal(),
-            AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
-            ),
-            _default_flags,
-            1.5,
-        )
-        == [1.5]
-    )
+    assert convert_attributo_value(
+        AttributoTypeDecimal(),
+        AttributoTypeList(
+            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+        ),
+        _default_flags,
+        1.5,
+    ) == [1.5]
 
     # then to a list of at least x elements
     with pytest.raises(Exception):
@@ -536,15 +517,12 @@ def test_attributo_datetime_to_datetime() -> None:
 
 def test_attributo_datetime_to_string() -> None:
     d = datetime.datetime.utcnow()
-    assert (
-        convert_attributo_value(
-            AttributoTypeDateTime(),
-            AttributoTypeString(),
-            _default_flags,
-            d,
-        )
-        == datetime_to_attributo_string(d)
-    )
+    assert convert_attributo_value(
+        AttributoTypeDateTime(),
+        AttributoTypeString(),
+        _default_flags,
+        d,
+    ) == datetime_to_attributo_string(d)
 
 
 def test_attributo_choice_to_choice() -> None:

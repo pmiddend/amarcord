@@ -105,7 +105,7 @@ viewAttributoValue props zone sampleIds type_ value =
                 List { subType } ->
                     case subType of
                         Number _ ->
-                            span_ <| [ text "(" ] ++ List.map (viewAttributoValue props zone sampleIds subType) attributoValues ++ [ text ")" ]
+                            span_ <| [ text "(" ] ++ intersperse (text ", ") (List.map (viewAttributoValue props zone sampleIds subType) attributoValues) ++ [ text ")" ]
 
                         String ->
                             span_ <| intersperse (text ",") <| List.map (viewAttributoValue props zone sampleIds subType) attributoValues

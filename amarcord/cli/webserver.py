@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import os
 import sys
@@ -13,6 +14,10 @@ from quart_cors import cors
 from tap import Tap
 from werkzeug.exceptions import HTTPException
 
+from amarcord.amici.om.client import (
+    ATTRIBUTO_NUMBER_OF_HITS,
+    ATTRIBUTO_NUMBER_OF_FRAMES,
+)
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import (
     AttributoConversionFlags,
@@ -37,7 +42,7 @@ from amarcord.quart_utils import CustomJSONEncoder, CustomWebException
 from amarcord.quart_utils import QuartDatabases
 from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
-from amarcord.util import group_by, now_utc_unix_integer_millis
+from amarcord.util import group_by
 
 app = Quart(
     __name__,
@@ -190,17 +195,17 @@ async def start_run(run_id: int) -> JSONDict:
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
 
-        raw_attributi: JSONDict = {}
+        json_attributi: JSONDict = {}
         if any(a.name == ATTRIBUTO_STARTED for a in attributi):
-            raw_attributi[ATTRIBUTO_STARTED] = now_utc_unix_integer_millis()
+            json_attributi[ATTRIBUTO_STARTED] = datetime.datetime.utcnow()
 
         await db.instance.create_run(
             conn,
             run_id,
-            AttributiMap.from_types_and_json(
+            AttributiMap.from_types_and_raw(
                 types=attributi,
                 sample_ids=[],
-                raw_attributi=raw_attributi,
+                raw_attributi={ATTRIBUTO_STARTED: datetime.datetime.utcnow()},
             ),
         )
         return {}
@@ -218,7 +223,7 @@ async def stop_latest_run() -> JSONDict:
 
         if latest_run is not None:
             latest_run.attributi.append_single(
-                ATTRIBUTO_STOPPED, now_utc_unix_integer_millis()
+                ATTRIBUTO_STOPPED, datetime.datetime.utcnow()
             )
             await db.instance.update_run_attributi(
                 conn, latest_run.id, latest_run.attributi
@@ -258,10 +263,10 @@ def build_run_summary(matching_runs: List[DBRun]) -> DataSetSummary:
         numberOfRuns=len(matching_runs), frames=0, hits=0
     )
     for run in matching_runs:
-        hit_result = run.attributi.select_int("hits")
+        hit_result = run.attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS)
         if hit_result is not None:
             result.hits += hit_result
-        frames_result = run.attributi.select_int("frames")
+        frames_result = run.attributi.select_int(ATTRIBUTO_NUMBER_OF_FRAMES)
         if frames_result is not None:
             result.frames += frames_result
     return result
@@ -573,7 +578,7 @@ async def update_attributo() -> JSONDict:
         )
         await db.instance.update_attributo(
             conn,
-            name=r.retrieve_safe_str("nameBefore"),
+            name=AttributoId(r.retrieve_safe_str("nameBefore")),
             conversion_flags=AttributoConversionFlags(
                 ignore_units=conversion_flags.retrieve_safe_boolean("ignoreUnits")
             ),
@@ -613,18 +618,18 @@ async def delete_attributo() -> JSONDict:
 
         await db.instance.delete_attributo(
             conn,
-            name=attributo_name,
+            name=AttributoId(attributo_name),
         )
 
         if found_attributo.associated_table == AssociatedTable.SAMPLE:
             for s in await db.instance.retrieve_samples(conn, attributi):
-                s.attributi.remove(attributo_name)
+                s.attributi.remove(AttributoId(attributo_name))
                 await db.instance.update_sample(
                     conn, cast(int, s.id), s.name, s.attributi
                 )
         else:
             for run in await db.instance.retrieve_runs(conn, attributi):
-                run.attributi.remove(attributo_name)
+                run.attributi.remove(AttributoId(attributo_name))
                 await db.instance.update_run_attributi(conn, run.id, run.attributi)
 
     return {}

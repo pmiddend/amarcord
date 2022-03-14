@@ -5,6 +5,7 @@ import pytest
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi_map import AttributiMap, SPECIAL_SAMPLE_ID_NONE
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeString,
@@ -19,7 +20,7 @@ from amarcord.db.attributo_type import (
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.numeric_range import NumericRange
 
-TEST_ATTRIBUTO_ID = "test"
+TEST_ATTRIBUTO_ID = AttributoId("test")
 
 
 def _create_attributo(t: AttributoType) -> DBAttributo:
@@ -235,10 +236,10 @@ def test_attributi_map_check_type_for_int() -> None:
     assert am.select_int_unsafe(TEST_ATTRIBUTO_ID) == 3
 
     # En passant, try to retrieve something invalid
-    assert am.select("invalid") is None
-    assert am.select_int("invalid") is None
+    assert am.select(AttributoId("invalid")) is None
+    assert am.select_int(AttributoId("invalid")) is None
     with pytest.raises(Exception):
-        assert am.select_int_unsafe("invalid") is None
+        assert am.select_int_unsafe(AttributoId("invalid")) is None
 
 
 def test_check_attributo_types_when_extending_string() -> None:
@@ -353,7 +354,7 @@ def test_check_attributo_types_when_extending_datetime() -> None:
         # invalid type
         m.extend({TEST_ATTRIBUTO_ID: "x"})
     # valid choice (though unlikely)
-    m.extend({TEST_ATTRIBUTO_ID: 10})
+    m.extend({TEST_ATTRIBUTO_ID: datetime.utcnow()})
 
 
 def test_check_attributo_types_when_extending_list() -> None:
@@ -431,8 +432,8 @@ def test_attributi_map_check_type_for_string() -> None:
     assert am.select_string(TEST_ATTRIBUTO_ID) == "foo"
 
     # En passant, try to retrieve something invalid
-    assert am.select("invalid") is None
-    assert am.select_string("invalid") is None
+    assert am.select(AttributoId("invalid")) is None
+    assert am.select_string(AttributoId("invalid")) is None
 
 
 def test_attributi_map_check_type_for_boolean() -> None:
