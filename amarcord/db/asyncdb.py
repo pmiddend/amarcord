@@ -345,12 +345,12 @@ class AsyncDB:
         if associated_table == AssociatedTable.SAMPLE and isinstance(
             type_, AttributoTypeSample
         ):
-            raise ValueError("Samples can't have attributi of type sample")
+            raise ValueError(f"{name}: Samples can't have attributi of type sample")
         if isinstance(type_, AttributoTypeDecimal) and type_.standard_unit:
             if type_.suffix is None:
-                raise ValueError("Got a standard unit, but no suffix")
+                raise ValueError(f"{name}: got a standard unit, but no suffix")
             if not valid_pint_unit(type_.suffix):
-                raise ValueError(f"Unit {type_.suffix} not a valid unit")
+                raise ValueError(f"{name}: unit {type_.suffix} not a valid unit")
         await conn.execute(
             self.tables.attributo.insert().values(
                 name=name,

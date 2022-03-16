@@ -35,6 +35,7 @@ from amarcord.amici.xfel.karabo_bridge import (
     Karabo2,
     ingest_bridge_output,
     determine_attributo_type,
+    ATTRIBUTO_ID_DARK_RUN_TYPE,
 )
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
@@ -53,6 +54,8 @@ _STANDARD_SPECIAL_ATTRIBUTES = {
     "runFirstTrain": {"source": "a", "key": "bar"},
     "runTrainsInRun": {"source": "a", "key": "bar"},
     "proposalId": {"source": "a", "key": "bar"},
+    "darkRunIndex": {"source": "a", "key": "bar"},
+    "darkRunType": {"source": "a", "key": "bar"},
 }
 
 logger = logging.getLogger(__name__)
@@ -637,6 +640,7 @@ def test_parse_karabo_attribute_unit_missing() -> None:
             "id": "foo",
             "input-type": "List[float]",
             "processor": "take-last",
+            "is-si-unit": False,
         },
         KaraboValueLocator("source", "subkey"),
         0,
@@ -1055,10 +1059,26 @@ async def test_karabo2_with_db() -> None:
         dataset_content = pickle.load(handle)
         data = dataset_content["data"]
         metadata = dataset_content["metadata"]
+        # What the fuck does pylint not understand here?!
+        # pylint: disable=no-member
+        data[configuration.special_attributes.darkRunIndexKey.source][
+            # What the fuck does pylint not understand here?!
+            # pylint: disable=no-member
+            configuration.special_attributes.darkRunIndexKey.subkey
+        ] = 53
+        # What the fuck does pylint not understand here?!
+        # pylint: disable=no-member
+        data[configuration.special_attributes.darkRunTypeKey.source][
+            # What the fuck does pylint not understand here?!
+            # pylint: disable=no-member
+            configuration.special_attributes.darkRunTypeKey.subkey
+        ] = "testdark"
 
     _bridge_output = karabo2.process_frame(metadata, data)
 
     # We change trains_in_run to 0, indicating a new run has started
+    # What the fuck does pylint not understand here?!
+    # pylint: disable=no-member
     data[configuration.special_attributes.runTrainsInRunKey.source][
         # What the fuck does pylint not understand here?!
         # pylint: disable=no-member
@@ -1077,6 +1097,7 @@ async def test_karabo2_with_db() -> None:
             conn, await db.retrieve_attributi(conn, associated_table=None)
         )
         assert len(runs) == 1
+        assert runs[0].attributi.select_string(ATTRIBUTO_ID_DARK_RUN_TYPE) is not None
 
 
 def test_determine_attributo_type_float_with_unit() -> None:

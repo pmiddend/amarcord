@@ -12,7 +12,7 @@ karabo-attributes:
     pulseEnergy.wavelengthUsed.value:
       id: wavelength
       input-type: float
-      unit: angstrom
+      unit: nm
   SPB_XTD9_XGM/XGM/DOOCS:output:
     data.intensitySa1TD:
       id: pulse_energy
@@ -44,13 +44,11 @@ karabo-attributes:
     actual.value.transmission:
       id: transmission
       input-type: float
-      unit: percent
       is-si-unit: false
   SPB_XTD9_ATT/MDL/MAIN:
     actual.value.transmission:
       id: xtd9_transmission
       input-type: float
-      unit: percent
       is-si-unit: false
   SPB_BIO_SYS/PUMP/HPLC:
     a.flow.value:
@@ -92,6 +90,12 @@ special-karabo-attributes:
   proposalId:
     source: SPB_DAQ_DATA/DM/RUN_CONTROL
     key: proposalNumber.value
+  darkRunIndex:
+    source: SPB_DA_USR/MDL/AMARCORD_INFO
+    key: darkRunNumber.value
+  darkRunType:
+    source: SPB_DA_USR/MDL/AMARCORD_INFO
+    key: darkExperiment.value
 
 
 

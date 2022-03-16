@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 TRAIN_ID_FROM_METADATA_KEY = "timestamp.tid"
 # This is used to create the AMARCORD attributi
 KARABO_ATTRIBUTO_GROUP = "karabo"
+ATTRIBUTO_ID_DARK_RUN_TYPE = AttributoId("dark_type")
 
 # These are the plain text keys for the yaml file
 CONFIG_KARABO_ATTRIBUTES_KEY = "karabo-attributes"
@@ -98,6 +99,9 @@ class KaraboInputType(Enum):
             self.KARABO_TYPE_INT,
             self.KARABO_TYPE_STRING,
         )
+
+    def is_decimal(self):
+        return self in (self.KARABO_TYPE_FLOAT, self.KARABO_TYPE_LIST_FLOAT)
 
 
 class KaraboProcessor(Enum):
@@ -177,6 +181,8 @@ class KaraboSpecialAttributes:
     runFirstTrainKey: KaraboValueLocator
     runTrainsInRunKey: KaraboValueLocator
     proposalIdKey: KaraboValueLocator
+    darkRunIndexKey: KaraboValueLocator
+    darkRunTypeKey: KaraboValueLocator
 
 
 @dataclass(frozen=True)
@@ -292,6 +298,10 @@ def parse_karabo_attribute(
             return KaraboConfigurationError(
                 f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: got a unit in {AMARCORD_ATTRIBUTE_DESCRIPTION_UNIT}, but one we don't know: {unit}"
             )
+    if input_type.is_decimal() and standard_unit and unit is None:
+        return KaraboConfigurationError(
+            f'in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: you didn\'t specify a unit. Please do that or specify "{AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT}: false"'
+        )
     return KaraboAttributeDescription(
         id=internal_id,
         locator=locator,
@@ -613,6 +623,12 @@ def parse_configuration(
     proposalIdKey = search_special_attribute("proposalId")
     if isinstance(proposalIdKey, KaraboConfigurationError):
         return proposalIdKey
+    darkRunIndexKey = search_special_attribute("darkRunIndex")
+    if isinstance(darkRunIndexKey, KaraboConfigurationError):
+        return darkRunIndexKey
+    darkRunTypeKey = search_special_attribute("darkRunType")
+    if isinstance(darkRunTypeKey, KaraboConfigurationError):
+        return darkRunTypeKey
 
     proposal_id = config.get(CONFIG_KARABO_PROPOSAL, None)
     if proposal_id is None:
@@ -628,6 +644,8 @@ def parse_configuration(
             runTrainsInRunKey=runTrainsInRunKey,
             runFirstTrainKey=runFirstTrainKey,
             proposalIdKey=proposalIdKey,
+            darkRunIndexKey=darkRunIndexKey,
+            darkRunTypeKey=darkRunTypeKey,
         ),
         attributi={k.attributo_id: k for k in attributi},
         proposal_id=proposal_id,
@@ -987,12 +1005,19 @@ def determine_attributo_type(
 
 
 @dataclass(frozen=True)
+class DarkRunInformation:
+    index: int
+    type: str
+
+
+@dataclass(frozen=True)
 class BridgeOutput:
     attributi_values: AttributoValuePerId
     run_id: int
     run_started_at: Optional[datetime.datetime]
     run_stopped_at: Optional[datetime.datetime]
     proposal_id: int
+    dark_run: Optional[DarkRunInformation]
 
 
 def locate_in_frame(
@@ -1030,6 +1055,17 @@ async def ingest_bridge_output(
             ),
             keep_manual_attributes_from_previous_run=True,
         )
+    if result.dark_run is not None:
+        dark_run = await db.retrieve_run(conn, result.dark_run.index, attributi)
+        if dark_run is None:
+            logger.warning(f"dark run {result.dark_run.index} not found")
+        else:
+            dark_run.attributi.append_single(
+                ATTRIBUTO_ID_DARK_RUN_TYPE, result.dark_run.type
+            )
+            await db.update_run_attributi(
+                conn, result.dark_run.index, dark_run.attributi
+            )
 
 
 class Karabo2:
@@ -1057,6 +1093,16 @@ class Karabo2:
 
         # This should create "started" and "stopped"
         await create_ground_state_attributi(db, conn)
+
+        if ATTRIBUTO_ID_DARK_RUN_TYPE not in db_attributi:
+            await db.create_attributo(
+                conn,
+                ATTRIBUTO_ID_DARK_RUN_TYPE,
+                "",
+                KARABO_ATTRIBUTO_GROUP,
+                AssociatedTable.RUN,
+                AttributoTypeString(),
+            )
 
         for aid, a in self._attributi.items():
             existing_db_attributo = db_attributi.get(aid, None)
@@ -1167,12 +1213,33 @@ class Karabo2:
         if self._run_stopped_at is not None:
             attributi_values[ATTRIBUTO_STOPPED] = self._run_stopped_at
         self._accumulators = new_accumulators
+        dark_run_index = locate_in_frame(
+            frame, self._special_attributes.darkRunIndexKey
+        )
+        dark_run_type = locate_in_frame(frame, self._special_attributes.darkRunTypeKey)
+        dark_run_information: Optional[DarkRunInformation]
+        if dark_run_index is not None and dark_run_type is not None:
+            if not isinstance(dark_run_index, int):
+                logger.warning(
+                    f"dark run index at {self._special_attributes.darkRunIndexKey} is not int but {type(dark_run_index)}"
+                )
+                dark_run_information = None
+            elif not isinstance(dark_run_type, str):
+                logger.warning(
+                    f"dark run type at {self._special_attributes.darkRunIndexKey} is not a string but {type(dark_run_index)}"
+                )
+                dark_run_information = None
+            else:
+                dark_run_information = DarkRunInformation(dark_run_index, dark_run_type)
+        else:
+            dark_run_information = None
         return BridgeOutput(
             attributi_values=attributi_values,
             run_id=run_id,
             proposal_id=self._proposal_id,
             run_started_at=self._run_started_at,
             run_stopped_at=self._run_stopped_at,
+            dark_run=dark_run_information,
         )
 
     def _compare_train_ids(self, train_id: int) -> None:
