@@ -49,6 +49,9 @@ class CreateFileResult:
     type_: str
 
 
+ATTRIBUTO_GROUP_MANUAL = "manual"
+
+
 class AsyncDB:
     def __init__(self, dbcontext: AsyncDBContext, tables: DBTables) -> None:
         self.dbcontext = dbcontext
@@ -314,7 +317,7 @@ class AsyncDB:
                     run_sample = r.attributi.select_sample_id(sample_attributo.name)
                     if run_sample == id_:
                         if delete_in_runs:
-                            run_attributi.remove(sample_attributo.name)
+                            run_attributi.remove_with_type(sample_attributo.name)
                             changed = True
                         else:
                             raise Exception(f"run {r.id} still has sample {id_}")
@@ -378,12 +381,12 @@ class AsyncDB:
             # been converted to the new format, so using the new attributi list would make that fail validation.
             for s in await self.retrieve_samples(conn, attributi):
                 # Then remove the attributo from the sample and the accompanying types, and update.
-                s.attributi.remove(name)
+                s.attributi.remove_with_type(name)
                 await self.update_sample(conn, cast(int, s.id), s.name, s.attributi)
         elif found_attributo.associated_table == AssociatedTable.RUN:
             # Explanation, see above for samples
             for r in await self.retrieve_runs(conn, attributi):
-                r.attributi.remove(name)
+                r.attributi.remove_with_type(name)
                 await self.update_run_attributi(conn, r.id, r.attributi)
         else:
             raise Exception(
@@ -681,12 +684,30 @@ class AsyncDB:
         ]
 
     async def create_run(
-        self, conn: Connection, run_id: int, attributi: AttributiMap
+        self,
+        conn: Connection,
+        run_id: int,
+        attributi: List[DBAttributo],
+        attributi_map: AttributiMap,
+        keep_manual_attributes_from_previous_run: bool,
     ) -> None:
+        final_attributi_map: AttributiMap
+        if keep_manual_attributes_from_previous_run:
+            latest_run = await self.retrieve_latest_run(conn, attributi)
+            if latest_run is not None:
+                final_attributi_map = latest_run.attributi.create_sub_map_for_group(
+                    ATTRIBUTO_GROUP_MANUAL
+                )
+                final_attributi_map.remove_but_keep_type(ATTRIBUTO_STOPPED)
+                final_attributi_map.extend_with_attributi_map(attributi_map)
+            else:
+                final_attributi_map = attributi_map
+        else:
+            final_attributi_map = attributi_map
         await conn.execute(
             sa.insert(self.tables.run).values(
                 id=run_id,
-                attributi=attributi.to_json(),
+                attributi=final_attributi_map.to_json(),
                 modified=datetime.datetime.utcnow(),
             )
         )

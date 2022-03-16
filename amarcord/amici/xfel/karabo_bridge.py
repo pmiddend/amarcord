@@ -1022,11 +1022,13 @@ async def ingest_bridge_output(
         await db.create_run(
             conn,
             result.run_id,
-            AttributiMap.from_types_and_raw(
+            attributi=attributi,
+            attributi_map=AttributiMap.from_types_and_raw(
                 attributi,
                 await db.retrieve_sample_ids(conn),
                 result.attributi_values,
             ),
+            keep_manual_attributes_from_previous_run=True,
         )
 
 

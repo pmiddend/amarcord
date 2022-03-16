@@ -70,9 +70,11 @@ async def test_process_data_latest_run():
         await db.create_run(
             conn,
             1,
-            AttributiMap.from_types_and_json(
+            attributi=attributi,
+            attributi_map=AttributiMap.from_types_and_json(
                 types=attributi, sample_ids=[], raw_attributi={}
             ),
+            keep_manual_attributes_from_previous_run=False,
         )
 
     # Send first frame, will be ignored

@@ -322,11 +322,29 @@ class AttributiMap:
             if v is not None:
                 self._attributi[k] = v
 
+    def create_sub_map_for_group(self, group: str) -> "AttributiMap":
+        attributi_in_group = {k.name for k in self._types.values() if k.group == group}
+        return AttributiMap(
+            self._types.copy(),
+            self._sample_ids.copy(),
+            {k: v for k, v in self._attributi.items() if k in attributi_in_group},
+        )
+
+    def extend_with_attributi_map(self, new_attributi: "AttributiMap") -> None:
+        # no need to type-check here, it'd be duplicated
+        for k, v in new_attributi.items():
+            if v is not None:
+                self._attributi[k] = v
+
     def append_single(self, attributo: AttributoId, value: AttributoValue) -> None:
         if value is not None:
             self.extend({attributo: value})
 
-    def remove(self, attributo: AttributoId) -> bool:
+    def remove_but_keep_type(self, attributo: AttributoId) -> bool:
+        previous = self._attributi.pop(attributo, None)
+        return previous is not None
+
+    def remove_with_type(self, attributo: AttributoId) -> bool:
         previous = self._attributi.pop(attributo, None)
         # remove from types as well, so we're consistent when typing
         if previous is not None:
@@ -371,7 +389,7 @@ class AttributiMap:
         if new_name == old_name:
             self.append_single(old_name, after_value)
         else:
-            self.remove(old_name)
+            self.remove_with_type(old_name)
             self.append_single(new_name, after_value)
 
     def names(self) -> Set[str]:

@@ -166,7 +166,13 @@ async def ingest_kamzik_metadata(
     if existing_run is not None:
         await db.update_run_attributi(conn, run_id, attributi_map)
     else:
-        await db.create_run(conn, run_id, attributi_map)
+        await db.create_run(
+            conn,
+            run_id,
+            attributi,
+            attributi_map,
+            keep_manual_attributes_from_previous_run=True,
+        )
 
 
 async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None:

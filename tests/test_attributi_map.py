@@ -4,6 +4,7 @@ from typing import List, cast
 import pytest
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.attributi_map import AttributiMap, SPECIAL_SAMPLE_ID_NONE
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
@@ -23,14 +24,18 @@ from amarcord.numeric_range import NumericRange
 TEST_ATTRIBUTO_ID = AttributoId("test")
 
 
-def _create_attributo(t: AttributoType) -> DBAttributo:
+def _create_named_attributo(name: AttributoId, t: AttributoType) -> DBAttributo:
     return DBAttributo(
-        TEST_ATTRIBUTO_ID,
+        name,
         "description",
-        "manual",
+        ATTRIBUTO_GROUP_MANUAL,
         AssociatedTable.RUN,
         t,
     )
+
+
+def _create_attributo(t: AttributoType) -> DBAttributo:
+    return _create_named_attributo(TEST_ATTRIBUTO_ID, t)
 
 
 def test_attributi_map_checks_superfluous_attributi() -> None:
@@ -494,3 +499,45 @@ def test_attributi_map_check_type_for_datetime() -> None:
         [],
         {TEST_ATTRIBUTO_ID: 1644317029000},
     ).select_datetime_unsafe(TEST_ATTRIBUTO_ID) == datetime(2022, 2, 8, 10, 43, 49)
+
+
+def test_extend_with_attributi_map():
+    a = AttributiMap.from_types_and_json(
+        [_create_named_attributo(AttributoId("a"), AttributoTypeString())],
+        [],
+        {AttributoId("a"): "foo"},
+    )
+    b = AttributiMap.from_types_and_json(
+        [_create_named_attributo(AttributoId("b"), AttributoTypeInt())],
+        [],
+        {AttributoId("b"): 3},
+    )
+    a.extend_with_attributi_map(b)
+    assert a.select_string(AttributoId("a")) == "foo"
+    assert a.select_int(AttributoId("b")) == 3
+
+
+def test_create_sub_map_for_group():
+    a = AttributiMap.from_types_and_json(
+        [
+            DBAttributo(
+                AttributoId("a"),
+                "description",
+                ATTRIBUTO_GROUP_MANUAL,
+                AssociatedTable.RUN,
+                AttributoTypeInt(),
+            ),
+            DBAttributo(
+                AttributoId("b"),
+                "description",
+                "automatic",
+                AssociatedTable.RUN,
+                AttributoTypeString(),
+            ),
+        ],
+        [],
+        {AttributoId("a"): 3, AttributoId("b"): "foo"},
+    ).create_sub_map_for_group(ATTRIBUTO_GROUP_MANUAL)
+
+    assert a.select_int(AttributoId("a")) == 3
+    assert a.select(AttributoId("b")) is None

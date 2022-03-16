@@ -14,6 +14,7 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import (
     AsyncDB,
     create_ground_state_attributi,
+    ATTRIBUTO_GROUP_MANUAL,
 )
 from amarcord.db.attributi import (
     ATTRIBUTO_STARTED,
@@ -146,7 +147,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             conn,
             "producer",
             "Who produced the sample?",
-            "manual",
+            ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.SAMPLE,
             AttributoTypeString(),
         )
@@ -154,7 +155,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             conn,
             "compound",
             "What's in the sample?",
-            "manual",
+            ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.SAMPLE,
             AttributoTypeString(),
         )
@@ -162,7 +163,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             conn,
             ATTRIBUTO_SAMPLE,
             "",
-            "manual",
+            ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.RUN,
             AttributoTypeSample(),
         )
@@ -170,7 +171,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             conn,
             ATTRIBUTO_PH,
             "",
-            "manual",
+            ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.RUN,
             AttributoTypeDecimal(range=NumericRange(0, True, None, False), suffix="pH"),
         )
@@ -190,7 +191,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             conn,
             ATTRIBUTO_COMMENT,
             "",
-            "manual",
+            ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.RUN,
             AttributoTypeString(),
         )
@@ -198,7 +199,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             conn,
             ATTRIBUTO_TRASH,
             "",
-            "manual",
+            ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.RUN,
             AttributoTypeBoolean(),
         )
@@ -267,7 +268,8 @@ async def _start_run(
         await db.create_run(
             conn,
             run_id=previous_run_id + 1,
-            attributi=AttributiMap.from_types_and_raw(
+            attributi=attributi,
+            attributi_map=AttributiMap.from_types_and_raw(
                 attributi,
                 sample_ids=sample_ids,
                 raw_attributi={
@@ -281,6 +283,7 @@ async def _start_run(
                     ATTRIBUTO_SAMPLE: sample,
                 },
             ),
+            keep_manual_attributes_from_previous_run=False,
         )
 
 

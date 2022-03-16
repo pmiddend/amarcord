@@ -202,11 +202,13 @@ async def start_run(run_id: int) -> JSONDict:
         await db.instance.create_run(
             conn,
             run_id,
-            AttributiMap.from_types_and_raw(
+            attributi=attributi,
+            attributi_map=AttributiMap.from_types_and_raw(
                 types=attributi,
                 sample_ids=[],
                 raw_attributi={ATTRIBUTO_STARTED: datetime.datetime.utcnow()},
             ),
+            keep_manual_attributes_from_previous_run=True,
         )
         return {}
 
@@ -623,13 +625,13 @@ async def delete_attributo() -> JSONDict:
 
         if found_attributo.associated_table == AssociatedTable.SAMPLE:
             for s in await db.instance.retrieve_samples(conn, attributi):
-                s.attributi.remove(AttributoId(attributo_name))
+                s.attributi.remove_with_type(AttributoId(attributo_name))
                 await db.instance.update_sample(
                     conn, cast(int, s.id), s.name, s.attributi
                 )
         else:
             for run in await db.instance.retrieve_runs(conn, attributi):
-                run.attributi.remove(AttributoId(attributo_name))
+                run.attributi.remove_with_type(AttributoId(attributo_name))
                 await db.instance.update_run_attributi(conn, run.id, run.attributi)
 
     return {}

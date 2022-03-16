@@ -1,4 +1,5 @@
 from amarcord.cli.webserver import app, db
+from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
 from amarcord.json_checker import JSONChecker
 
@@ -37,7 +38,7 @@ async def test_data_sets() -> None:
         json={
             "name": attributo_name,
             "description": "description",
-            "group": "manual",
+            "group": ATTRIBUTO_GROUP_MANUAL,
             "associatedTable": "run",
             "type": {"type": "string"},
         },
@@ -127,7 +128,7 @@ async def test_attributi_are_presorted() -> None:
         json={
             "name": testattributo,
             "description": "",
-            "group": "manual",
+            "group": ATTRIBUTO_GROUP_MANUAL,
             "associatedTable": "run",
             "type": {"type": "string"},
         },
@@ -137,7 +138,7 @@ async def test_attributi_are_presorted() -> None:
         json={
             "name": ATTRIBUTO_STARTED,
             "description": "",
-            "group": "manual",
+            "group": ATTRIBUTO_GROUP_MANUAL,
             "associatedTable": "run",
             "type": {"type": "integer"},
         },
@@ -147,7 +148,7 @@ async def test_attributi_are_presorted() -> None:
         json={
             "name": ATTRIBUTO_STOPPED,
             "description": "",
-            "group": "manual",
+            "group": ATTRIBUTO_GROUP_MANUAL,
             "associatedTable": "run",
             "type": {"type": "integer"},
         },
