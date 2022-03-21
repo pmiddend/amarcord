@@ -99,7 +99,7 @@ def test_process_karabo_frame_one_list_attribute_take_last() -> None:
             INTERNAL_ID1,
             DOOCS_INTENSITY_KEY,
             input_type=KaraboInputType.KARABO_TYPE_LIST_FLOAT,
-            processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
         )
@@ -122,7 +122,7 @@ def test_process_karabo_frame_one_float_attribute_take_last() -> None:
             INTERNAL_ID1,
             DOOCS_INTENSITY_KEY,
             input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-            processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
         )
@@ -145,7 +145,7 @@ def test_process_karabo_frame_one_float_attribute_invalid_type() -> None:
             DOOCS_INTENSITY_KEY,
             # definition here is float, but we'll give it a list of floats
             input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-            processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
         )
@@ -164,7 +164,7 @@ def test_process_karabo_frame_one_float_attribute_not_found() -> None:
             INTERNAL_ID1,
             DOOCS_INTENSITY_KEY,
             input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-            processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
         )
@@ -183,7 +183,7 @@ def test_process_karabo_frame_one_float_attribute_source_not_found() -> None:
             INTERNAL_ID1,
             DOOCS_INTENSITY_KEY,
             input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-            processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
         )
@@ -202,7 +202,7 @@ def test_process_karabo_frame_one_float_attribute_whole_source_not_found() -> No
             INTERNAL_ID1,
             DOOCS_INTENSITY_KEY,
             input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-            processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
         )
@@ -405,6 +405,30 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_list() -> None:
     assert new_values[ATTRIBUTO_ID1] == [50.5, 50.5]
 
 
+def test_frame_to_attributo_and_cache_list_coagulate_string() -> None:
+    first_frame: KaraboValueByInternalId = {INTERNAL_ID1: [1.0, 2.0]}
+    attributi = [
+        AmarcordAttributoDescription(
+            ATTRIBUTO_ID1,
+            "attributo description",
+            AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST,
+            CoagulateString(
+                [
+                    "foo",
+                    PlainAttribute(INTERNAL_ID1),
+                    "bar",
+                ]
+            ),
+        )
+    ]
+    old_accumulator: AttributoAccumulatorPerId = {}
+    # Let it run once, we should simply get our first values back
+    _, new_values = frame_to_attributo_and_cache(
+        first_frame, attributi, old_accumulator
+    )
+    assert new_values[ATTRIBUTO_ID1] == "foo[1.0, 2.0]bar"
+
+
 def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_string() -> None:
     initial_value = 1.0
     initial_value2 = 100.0
@@ -593,7 +617,7 @@ def test_parse_karabo_attribute_processor_missing_non_scalar() -> None:
         {
             "id": "foo",
             "input-type": "List[float]",
-            # "processor": "take-last",
+            # "processor": "list-take-last",
             "unit": "nC",
         },
         KaraboValueLocator("source", "subkey"),
@@ -602,6 +626,21 @@ def test_parse_karabo_attribute_processor_missing_non_scalar() -> None:
     )
     assert isinstance(attributes, KaraboConfigurationError)
     logger.warning(attributes)
+
+
+def test_parse_karabo_attribute_processor_identity_non_scalar() -> None:
+    attributes = parse_karabo_attribute(
+        {
+            "id": "foo",
+            "input-type": "List[float]",
+            "processor": "identity",
+            "unit": "nC",
+        },
+        KaraboValueLocator("source", "subkey"),
+        0,
+        {},
+    )
+    assert not isinstance(attributes, KaraboConfigurationError)
 
 
 def test_parse_karabo_attribute_processor_missing_scalar() -> None:
@@ -615,7 +654,7 @@ def test_parse_karabo_attribute_processor_missing_scalar() -> None:
         {},
     )
     assert isinstance(attributes, KaraboAttributeDescription)
-    assert attributes.processor == KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST
+    assert attributes.processor == KaraboProcessor.KARABO_PROCESSOR_IDENTITY
 
 
 def test_parse_karabo_attribute_processor_wrong() -> None:
@@ -639,7 +678,7 @@ def test_parse_karabo_attribute_unit_missing() -> None:
         {
             "id": "foo",
             "input-type": "List[float]",
-            "processor": "take-last",
+            "processor": "list-take-last",
             "is-si-unit": False,
         },
         KaraboValueLocator("source", "subkey"),
@@ -670,7 +709,7 @@ def test_parse_karabo_attribute_unit_wrong_but_nonstandard() -> None:
         {
             "id": "foo",
             "input-type": "List[float]",
-            "processor": "take-last",
+            "processor": "list-take-last",
             "unit": "testtest",
             "is-si-unit": False,
         },
@@ -925,6 +964,60 @@ def test_parse_configuration_empty():
     assert isinstance(config, KaraboConfigurationError)
 
 
+def test_parse_configuration_arithmetic_mean_of_list_karabo_attribute():
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey1": {
+                        "id": "id1",
+                        "input-type": "List[float]",
+                        "processor": "identity",
+                        "is-si-unit": False,
+                    },
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                "pulse_energy_avg": {
+                    "plain-attribute": "id1",
+                    "processor": "arithmetic-mean",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: 1234,
+        }
+    )
+    assert isinstance(config, KaraboConfigurationError)
+    logger.warning(config)
+
+
+def test_parse_configuration_coagulation_of_karabo_list_attribute():
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey1": {
+                        "id": "id1",
+                        "input-type": "List[float]",
+                        "processor": "identity",
+                        "is-si-unit": False,
+                    },
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                "pulse_energy_avg": {
+                    "coagulate": ["id1"],
+                    "processor": "arithmetic-mean",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: 1234,
+        }
+    )
+    assert isinstance(config, KaraboConfigurationError)
+    logger.warning(config)
+
+
 def test_parse_configuration_heterogeneous_list():
     config = parse_configuration(
         {
@@ -962,7 +1055,7 @@ def test_parse_configuration():
                     "subkey": {
                         "id": "internal-id",
                         "input-type": "List[float]",
-                        "processor": "take-last",
+                        "processor": "list-take-last",
                         "unit": "nC",
                     }
                 }
@@ -1113,7 +1206,7 @@ def test_determine_attributo_type_float_with_unit() -> None:
                 id=KaraboInternalId("a"),
                 locator=KaraboValueLocator("source", "subkey"),
                 input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-                processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+                processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
                 unit="ml",
                 standard_unit=True,
             )
@@ -1137,7 +1230,7 @@ def test_determine_attributo_type_string() -> None:
                     id=KaraboInternalId("a"),
                     locator=KaraboValueLocator("source", "subkey"),
                     input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-                    processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+                    processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
                     unit="ml",
                     standard_unit=True,
                 )
@@ -1165,7 +1258,7 @@ def test_determine_attributo_type_list_of_floats() -> None:
                 id=KaraboInternalId("a"),
                 locator=KaraboValueLocator("source", "subkey"),
                 input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-                processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+                processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
                 unit="ml",
                 standard_unit=True,
             ),
@@ -1173,7 +1266,7 @@ def test_determine_attributo_type_list_of_floats() -> None:
                 id=KaraboInternalId("b"),
                 locator=KaraboValueLocator("source", "subkey"),
                 input_type=KaraboInputType.KARABO_TYPE_FLOAT,
-                processor=KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+                processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
                 unit="ml",
                 standard_unit=True,
             ),

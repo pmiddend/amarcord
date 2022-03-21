@@ -105,8 +105,15 @@ class KaraboInputType(Enum):
 
 
 class KaraboProcessor(Enum):
-    KARABO_PROCESSOR_TAKE_LAST = "take-last"
+    KARABO_PROCESSOR_IDENTITY = "identity"
+    KARABO_PROCESSOR_LIST_TAKE_LAST = "list-take-last"
     KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN = "list-arithmetic-mean"
+
+    def is_list(self) -> bool:
+        return self in (  # type: ignore
+            self.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN,
+            self.KARABO_PROCESSOR_LIST_TAKE_LAST,
+        )
 
 
 @dataclass(frozen=True)
@@ -208,12 +215,13 @@ AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT = "is-si-unit"
 def check_type_and_processor(
     input_type: KaraboInputType, processor: KaraboProcessor
 ) -> Optional[str]:
-    if (
-        input_type
-        in (KaraboInputType.KARABO_TYPE_FLOAT, KaraboInputType.KARABO_TYPE_STRING)
-        and processor == KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN
-    ):
-        return f"got a scalar value but the processor is a list, you probably want {KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST.value} (or omit the processor)"
+    if input_type.is_scalar() and processor.is_list():
+        return (
+            "Got a scalar value but the processor operates on a list. If you want to keep the scalar value, "
+            f'use the processor "{KaraboProcessor.KARABO_PROCESSOR_IDENTITY.value}" (or omit the processor). If you want to '
+            "calculate the arithmetic mean of this value and put it into an AMARCORD attributo, use a processor on the "
+            "attributo in the section {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}, not in the Karabo section."
+        )
     return None
 
 
@@ -265,23 +273,23 @@ def parse_karabo_attribute(
     if processor_raw is None:
         if not input_type.is_scalar():
             return KaraboConfigurationError(
-                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR}; expected this to be one of "
+                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR} which is needed for anything that's not a scalar value; expected this to be one of "
                 + (",".join(x.value for x in KaraboProcessor))
                 + " but found nothing"
             )
-        processor_raw = KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST.value
+        processor_raw = KaraboProcessor.KARABO_PROCESSOR_IDENTITY.value
     try:
         processor = KaraboProcessor(processor_raw)
     except ValueError:
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR}; expected this to be one of "
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: invalid value for {AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR}; expected this to be one of "
             + (",".join(x.value for x in KaraboProcessor))
             + f' but found "{processor_raw}"'
         )
     type_and_processor_error = check_type_and_processor(input_type, processor)
     if type_and_processor_error is not None:
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: " + type_and_processor_error
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {type_and_processor_error}"
         )
     standard_unit = attribute_description.get(
         AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT, True
@@ -568,6 +576,12 @@ def parse_configuration(
     if isinstance(attributi, KaraboConfigurationError):
         return attributi
 
+    identity_processor_check = check_for_identity_processor_and_wrong_lists(
+        attributi, karabo_attributes
+    )
+    if identity_processor_check is not None:
+        return identity_processor_check
+
     heteogeneous_check = check_for_heterogeneous_lists(attributi, karabo_attributes)
     if heteogeneous_check is not None:
         return heteogeneous_check
@@ -652,6 +666,41 @@ def parse_configuration(
     )
 
 
+def check_for_identity_processor_and_wrong_lists(
+    attributi: List[AmarcordAttributoDescription],
+    karabo_attributes: List[KaraboAttributeDescription],
+) -> Optional[KaraboConfigurationError]:
+    karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
+        a.id: a for a in karabo_attributes
+    }
+    for a in attributi:
+        if isinstance(a.karabo_value_source, PlainAttribute):
+            # We can assume we have the value here, since we made some checks before
+            karabo_attribute = karabo_attributes_per_id[a.karabo_value_source.id]
+            if (
+                karabo_attribute.processor == KaraboProcessor.KARABO_PROCESSOR_IDENTITY
+                and not karabo_attribute.input_type.is_scalar()
+                and a.processor
+                != AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST
+            ):
+                return KaraboConfigurationError(
+                    f"{CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{a.attributo_id}: refers to Karabo attribute {karabo_attribute.id}, which is a list. You currently cannot use the processor {a.processor.value} for lists. Use {AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST.value} instead."
+                )
+
+        if isinstance(a.karabo_value_source, CoagulateList):
+            for kat in a.karabo_value_source.attributes:
+                karabo_attribute = karabo_attributes_per_id[kat.id]
+                if (
+                    karabo_attribute.processor
+                    == KaraboProcessor.KARABO_PROCESSOR_IDENTITY
+                    and not karabo_attribute.input_type.is_scalar()
+                ):
+                    return KaraboConfigurationError(
+                        f"{CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}:{a.attributo_id}: refers to Karabo attribute {karabo_attribute.id}, which is a list. This would create a list of lists, which are currently not supported."
+                    )
+    return None
+
+
 def check_for_heterogeneous_lists(
     attributi: List[AmarcordAttributoDescription],
     karabo_attributes: List[KaraboAttributeDescription],
@@ -710,7 +759,9 @@ def run_karabo_processor(
     typed_value = karabo_type_matches(input_type, value)
     if typed_value is None:
         return KaraboWrongTypeError(input_type, str(type(value)))
-    if processor == KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST:
+    if processor == KaraboProcessor.KARABO_PROCESSOR_IDENTITY:
+        return typed_value
+    if processor == KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST:
         if isinstance(typed_value, (list, np.ndarray)):
             return typed_value[-1]
         return typed_value
@@ -718,7 +769,7 @@ def run_karabo_processor(
         processor == KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN
     ), f"unknown processor {processor}, maybe that's a new one?"
     assert isinstance(
-        typed_value, (list, np.ndarray)
+        typed_value, list
     ), f"for the list processors, we need lists as input type, but got {typed_value}"
     return mean(typed_value)
 
@@ -974,7 +1025,7 @@ def determine_attributo_type_for_single_attributo(
 
     assert karabo_attribute.input_type == KaraboInputType.KARABO_TYPE_LIST_FLOAT
     assert karabo_attribute.processor in (
-        KaraboProcessor.KARABO_PROCESSOR_TAKE_LAST,
+        KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
         KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN,
     )
     return AttributoTypeDecimal(

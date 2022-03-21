@@ -3,7 +3,7 @@ karabo-attributes:
     sase1.charge.value:
       - id: bunch_charge
         input-type: List[float]
-        processor: take-last
+        processor: list-take-last
         unit: nC
     sase1.nPulses.value:
       id: number_of_bunches
@@ -17,19 +17,19 @@ karabo-attributes:
     data.intensitySa1TD:
       id: pulse_energy
       input-type: List[float]
-      processor: take-last
+      processor: list-take-last
       unit: mJ
 
     data.xSa1TD:
       id: beam_x
       input-type: List[float]
-      processor: take-last
+      processor: list-take-last
       unit: mm
 
     data.ySa1TD:
       id: beam_y
       input-type: List[float]
-      processor: take-last
+      processor: list-take-last
       unit: mm
   SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
     gainMode.value:
