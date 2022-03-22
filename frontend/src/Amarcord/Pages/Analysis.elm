@@ -7,11 +7,11 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.File as Amarcord
-import Amarcord.Html exposing (br_, div_, h2_, img_, p_, span_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, h2_, img_, p_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
-import Html exposing (Html, a, div, figcaption, figure, h4, small, span, table, td, text, tr)
+import Html exposing (Html, a, div, figcaption, figure, h4, small, table, td, text, tr)
 import Html.Attributes exposing (class, colspan, href, src)
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult)
@@ -97,7 +97,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                                 [ br_, small [ class "text-muted" ] [ text <| "Original path: " ], small [ class "text-muted font-monospace" ] [ text op ] ]
                 in
                 p_
-                    ([ a [ href (makeFilesLink id), class "stretched-link" ] [ text ("Download \"" ++ fileName ++ "\"") ], text (" (" ++ String.fromInt (sizeInBytes // 1024) ++ "KiB)") ] ++ originalPathSuffix)
+                    ([ a [ href (makeFilesLink id) ] [ text ("Download \"" ++ fileName ++ "\"") ], text (" (" ++ String.fromInt (sizeInBytes // 1024) ++ "KiB)") ] ++ originalPathSuffix)
 
         viewCfelAnalysisResultRows : CfelAnalysisResult -> List (Html msg)
         viewCfelAnalysisResultRows { directoryName, dataSetId, resolution, rsplit, cchalf, ccstar, snr, completeness, multiplicity, totalMeasurements, uniqueReflections, numPatterns, numHits, indexedPatterns, indexedCrystals, created, crystfelVersion, ccstarRSplit, files } =
