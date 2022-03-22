@@ -834,27 +834,28 @@ viewInner model =
         Success attributiListReal ->
             let
                 help =
-                    div [ class "accordion mb-3" ]
-                        [ div [ class "accordion-item" ]
-                            [ h2 [ class "accordion-header" ]
-                                [ button
-                                    [ class "accordion-button btn-light"
-                                    , type_ "button"
-                                    , attribute "data-bs-toggle" "collapse"
-                                    , attribute "data-bs-target" "#collapseHelp"
-                                    ]
-                                    [ i [ class "bi-question-circle me-3" ] []
-                                    , text " What are attributi?"
-                                    ]
-                                ]
-                            , div [ id "collapseHelp", class "accordion-collapse collapse" ]
-                                [ div [ class "accordion-body" ]
-                                    [ p_ [ text "Every experiment is a little different. Different detectors, different samples, you name it!" ]
-                                    ]
-                                ]
-                            ]
-                        ]
+                    text ""
 
+                --div [ class "accordion mb-3" ]
+                --    [ div [ class "accordion-item" ]
+                --        [ h2 [ class "accordion-header" ]
+                --            [ button
+                --                [ class "accordion-button btn-light"
+                --                , type_ "button"
+                --                , attribute "data-bs-toggle" "collapse"
+                --                , attribute "data-bs-target" "#collapseHelp"
+                --                ]
+                --                [ i [ class "bi-question-circle me-3" ] []
+                --                , text " What are attributi?"
+                --                ]
+                --            ]
+                --        , div [ id "collapseHelp", class "accordion-collapse collapse" ]
+                --            [ div [ class "accordion-body" ]
+                --                [ p_ [ text "Every experiment is a little different. Different detectors, different samples, you name it!" ]
+                --                ]
+                --            ]
+                --        ]
+                --    ]
                 prefix =
                     case model.editAttributo of
                         Nothing ->

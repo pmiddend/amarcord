@@ -4,13 +4,14 @@
 
 module Main exposing (main)
 
-import Amarcord.Html exposing (h1_)
+import Amarcord.Html exposing (h1_, img_)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
 import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
+import Amarcord.Pages.Help as Help
 import Amarcord.Pages.RunOverview as RunOverview
 import Amarcord.Pages.Samples as Samples
 import Amarcord.Route as Route exposing (Route)
@@ -112,7 +113,7 @@ currentView : Model -> Html Msg
 currentView model =
     case model.page of
         RootPage ->
-            div [ class "container" ] [ h1_ [ text "Welcome to AMARCORD!" ], p [ class "lead" ] [ text "Depending on what you want to do, check out the sections at the top." ] ]
+            Help.view
 
         AttributiPage pageModel ->
             div []

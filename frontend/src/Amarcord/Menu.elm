@@ -63,6 +63,7 @@ menu =
         , { route = Route.Attributi, description = "Attributi", iconName = "card-list" }
         , { route = Route.AdvancedControls, description = "Advanced", iconName = "speedometer" }
         ]
+    , Leaf { route = Route.Root, description = "Help", iconName = "patch-question" }
     ]
 
 
