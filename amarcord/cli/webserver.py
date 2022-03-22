@@ -371,6 +371,9 @@ async def create_file() -> JSONDict:
         "fileName": file_name,
         "description": description,
         "type_": create_result.type_,
+        "sizeInBytes": create_result.size_in_bytes,
+        # Doesn't really make sense here
+        "originalPath": None,
     }
 
 

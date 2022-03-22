@@ -11,7 +11,7 @@ import Amarcord.Attributo
         , emptyAttributoMap
         )
 import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
@@ -95,8 +95,8 @@ init { zone } =
     )
 
 
-viewFiles : NewFileUpload -> List File -> List (Html Msg)
-viewFiles newFile files =
+viewFiles : RemoteData RequestError () -> NewFileUpload -> List File -> List (Html Msg)
+viewFiles fileUploadError newFile files =
     let
         viewFileRow : File -> Html Msg
         viewFileRow file =
@@ -129,8 +129,8 @@ viewFiles newFile files =
                 [ div [ class "card-header" ]
                     [ text "File upload" ]
                 , div [ class "card-body" ]
-                    [ div
-                        [ class "input-group mb-3" ]
+                    [ viewRemoteData "Upload successful!" fileUploadError
+                    , div [ class "input-group mb-3" ]
                         [ button [ type_ "button", class "btn btn-outline-secondary", onClick EditNewFileOpenSelector ] [ text "Choose file..." ]
                         , input [ type_ "text", disabled True, value (Maybe.unwrap "No file selected" ElmFile.name newFile.file), class "form-control" ] []
                         ]
@@ -176,8 +176,8 @@ viewFiles newFile files =
         filesTable ++ uploadForm
 
 
-viewEditForm : List String -> NewFileUpload -> Sample (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
-viewEditForm submitErrorsList newFileUpload sample =
+viewEditForm : RemoteData RequestError () -> List String -> NewFileUpload -> Sample (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
+viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
     let
         attributiFormEntries =
             List.map (\attributo -> Html.map EditSampleAttributo (viewAttributoForm [] attributo)) sample.attributi.editableAttributi
@@ -227,7 +227,7 @@ viewEditForm submitErrorsList newFileUpload sample =
             ]
         ]
             ++ attributiFormEntries
-            ++ viewFiles newFileUpload sample.files
+            ++ viewFiles fileUploadRequest newFileUpload sample.files
             ++ submitErrors
             ++ [ button
                     [ class "btn btn-primary me-3 mb-3"
@@ -354,7 +354,7 @@ viewInner model =
                             button [ class "btn btn-primary", onClick AddSample ] [ icon { name = "plus-lg" }, text " Add sample" ]
 
                         Just ea ->
-                            viewEditForm model.submitErrors model.newFileUpload ea
+                            viewEditForm model.fileUploadRequest model.submitErrors model.newFileUpload ea
 
                 modifyRequestResult =
                     case model.modifyRequest of

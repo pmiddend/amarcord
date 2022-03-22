@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 class CreateFileResult:
     id: int
     type_: str
+    size_in_bytes: int
 
 
 ATTRIBUTO_GROUP_MANUAL = "manual"
@@ -442,6 +443,7 @@ class AsyncDB:
                     )
                 ).inserted_primary_key[0],
                 type_=mime,
+                size_in_bytes=size_in_bytes,
             )
 
     async def update_attributo(
