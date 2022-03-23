@@ -410,7 +410,11 @@ class AsyncDB:
         if deduplicate:
             existing_file = (
                 await conn.execute(
-                    sa.select(self.tables.file.c.id, self.tables.file.c.type).where(
+                    sa.select(
+                        self.tables.file.c.id,
+                        self.tables.file.c.type,
+                        self.tables.file.c.size_in_bytes,
+                    ).where(
                         (self.tables.file.c.sha256 == sha256)
                         & (self.tables.file.c.file_name == file_name)
                     )
@@ -419,7 +423,11 @@ class AsyncDB:
 
             if existing_file is not None:
                 logger.info(f"file {file_name} already found, not creating another one")
-                return CreateFileResult(existing_file["id"], existing_file["type"])
+                return CreateFileResult(
+                    existing_file["id"],
+                    existing_file["type"],
+                    existing_file["size_in_bytes"],
+                )
 
         with contents_location.open("rb") as f:
             old_file_position = f.tell()

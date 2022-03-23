@@ -6,6 +6,7 @@ import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, spinner)
+import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
@@ -14,131 +15,16 @@ import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, scrollToTop)
 import Dict exposing (Dict)
 import Hotkeys exposing (onEnter)
-import Html exposing (Html, a, button, div, form, h2, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
-import Html.Attributes exposing (autocomplete, checked, class, colspan, disabled, for, id, placeholder, selected, style, type_, value)
+import Html exposing (Html, a, button, div, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
+import Html.Attributes exposing (class, colspan, disabled, for, id, placeholder, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
 import List.Extra exposing (find)
 import Maybe
 import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
-import Set exposing (Set)
 import String exposing (fromInt)
 import Time exposing (Posix, Zone)
-import Tuple exposing (first, second)
-
-
-type ColumnChooserMessage
-    = ColumnChooserSubmit
-    | ColumnChooserToggleColumn String Bool
-    | ColumnChooserToggle
-
-
-type alias ColumnChooserModel =
-    { allColumns : Dict String ( Attributo AttributoType, Int )
-    , chosenColumns : Set String
-    , editingColumns : Set String
-    , open : Bool
-    }
-
-
-attributiDictFromList : List (Attributo AttributoType) -> Dict String ( Attributo AttributoType, Int )
-attributiDictFromList attributi =
-    List.foldl (\( a, i ) prior -> Dict.insert a.name ( a, i ) prior) Dict.empty (List.indexedMap (\i a -> ( a, i )) attributi)
-
-
-initColumnChooser : List (Attributo AttributoType) -> ColumnChooserModel
-initColumnChooser allColumnsList =
-    { allColumns = attributiDictFromList allColumnsList
-    , chosenColumns = List.foldl (\a prior -> Set.insert a.name prior) Set.empty allColumnsList
-    , editingColumns = Set.empty
-    , open = False
-    }
-
-
-columnChooserResolveChosen : ColumnChooserModel -> List (Attributo AttributoType)
-columnChooserResolveChosen { chosenColumns, allColumns } =
-    List.map first <| List.sortBy second <| List.foldl (\c prior -> MaybeExtra.unwrap [] List.singleton (Dict.get c allColumns) ++ prior) [] (Set.toList chosenColumns)
-
-
-columnChooserHiddenColumnCount : ColumnChooserModel -> Int
-columnChooserHiddenColumnCount { allColumns, chosenColumns } =
-    Dict.size allColumns - Set.size chosenColumns
-
-
-viewColumnChooser : ColumnChooserModel -> Html ColumnChooserMessage
-viewColumnChooser columnChooser =
-    let
-        viewAttributoButton ( attributoName, attributo ) =
-            let
-                isChecked =
-                    Set.member attributoName columnChooser.editingColumns
-            in
-            [ input_
-                [ type_ "checkbox"
-                , class "btn-check"
-                , id ("column-" ++ attributoName)
-                , autocomplete False
-                , checked isChecked
-                , onInput (always (ColumnChooserToggleColumn attributoName (not isChecked)))
-                ]
-            , label
-                [ class
-                    ("btn "
-                        ++ (if isChecked then
-                                "btn-outline-success"
-
-                            else
-                                "btn-outline-secondary"
-                           )
-                    )
-                , for ("column-" ++ attributoName)
-                ]
-                [ text attributoName ]
-            ]
-
-        hiddenColumnCount =
-            columnChooserHiddenColumnCount columnChooser
-    in
-    div [ class "accordion" ]
-        [ div [ class "accordion-item" ]
-            [ h2 [ class "accordion-header" ]
-                [ button [ class "accordion-button", type_ "button", onClick ColumnChooserToggle ]
-                    [ icon { name = "columns" }
-                    , span [ class "ms-1" ]
-                        [ text <|
-                            " Choose columns"
-                                ++ (if hiddenColumnCount > 0 then
-                                        " (" ++ String.fromInt hiddenColumnCount ++ " hidden)"
-
-                                    else
-                                        ""
-                                   )
-                        ]
-                    ]
-                ]
-            , div
-                [ class
-                    ("accordion-collapse collapse"
-                        ++ (if columnChooser.open then
-                                " show"
-
-                            else
-                                ""
-                           )
-                    )
-                ]
-                [ div [ class "accordion-body" ]
-                    [ p [ class "lead" ] [ text "Click to enable/disable columns, then press \"Confirm\"." ]
-                    , div [ class "btn-group-vertical mb-3" ] (List.concatMap viewAttributoButton (Dict.toList columnChooser.allColumns))
-                    , p_
-                        [ button [ class "btn btn-primary me-2", type_ "button", onClick ColumnChooserSubmit ] [ icon { name = "save" }, text " Confirm" ]
-                        , button [ class "btn btn-secondary", type_ "button", onClick ColumnChooserToggle ] [ icon { name = "x-lg" }, text " Cancel" ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
 
 
 type Msg
@@ -157,7 +43,7 @@ type Msg
     | RunEditCancel
     | Nop
     | CurrentExperimentTypeChanged String
-    | ColumnChooserMessage ColumnChooserMessage
+    | ColumnChooserMessage ColumnChooser.Msg
 
 
 type alias EventForm =
@@ -197,7 +83,7 @@ type alias Model =
     , runEditRequest : RemoteData RequestError ()
     , submitErrors : List String
     , currentExperimentType : Maybe String
-    , columnChooser : ColumnChooserModel
+    , columnChooser : ColumnChooser.Model
     }
 
 
@@ -213,7 +99,7 @@ init { zone, now } =
       , runEditRequest = NotAsked
       , submitErrors = []
       , currentExperimentType = Nothing
-      , columnChooser = initColumnChooser []
+      , columnChooser = ColumnChooser.init []
       }
     , httpGetRuns RunsReceived
     )
@@ -648,9 +534,9 @@ viewInner model rrc =
         , div [ class "col-6" ] (viewRunAttributiForm (head rrc.runs) model.submitErrors model.runEditRequest rrc.samples model.runEditInfo)
         ]
     , hr_
-    , Html.map ColumnChooserMessage (viewColumnChooser model.columnChooser)
+    , Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
     , hr_
-    , div [ class "row" ] [ viewRunsTable model.myTimeZone (columnChooserResolveChosen model.columnChooser) rrc ]
+    , div [ class "row" ] [ viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc ]
     ]
 
 
@@ -718,58 +604,14 @@ updateRunEditInfo zone runEditInfoRaw responseRaw =
             runEditInfoRaw
 
 
-updateColumnChooser : ColumnChooserModel -> RemoteData RequestError RunsResponseContent -> RunsResponse -> ColumnChooserModel
+updateColumnChooser : ColumnChooser.Model -> RemoteData RequestError RunsResponseContent -> RunsResponse -> ColumnChooser.Model
 updateColumnChooser ccm currentRuns runsResponse =
     case ( currentRuns, runsResponse ) of
-        ( Success lastResponseUnpacked, Ok currentResponseUnpacked ) ->
-            let
-                lastAttributi =
-                    List.filter (\a -> a.associatedTable == AssociatedTable.Run) lastResponseUnpacked.attributi
-
-                currentAttributi =
-                    List.filter (\a -> a.associatedTable == AssociatedTable.Run) currentResponseUnpacked.attributi
-
-                currentAttributiNames =
-                    Set.fromList <| List.map .name currentAttributi
-
-                lastAttributiNames =
-                    Set.fromList <| List.map .name lastAttributi
-
-                newAttributiNames =
-                    Set.diff currentAttributiNames lastAttributiNames
-
-                deletedAttributiNames =
-                    Set.diff lastAttributiNames currentAttributiNames
-            in
-            { allColumns = attributiDictFromList currentAttributi
-            , chosenColumns = Set.union newAttributiNames (Set.diff ccm.chosenColumns deletedAttributiNames)
-            , editingColumns = Set.diff ccm.editingColumns deletedAttributiNames
-            , open = ccm.open
-            }
-
         ( _, Ok currentResponseUnpacked ) ->
-            { allColumns = attributiDictFromList <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) currentResponseUnpacked.attributi
-            , chosenColumns =
-                List.foldl
-                    (\a prior ->
-                        if a.associatedTable == AssociatedTable.Run then
-                            Set.insert a.name prior
-
-                        else
-                            prior
-                    )
-                    Set.empty
-                    currentResponseUnpacked.attributi
-            , editingColumns = Set.empty
-            , open = False
-            }
+            ColumnChooser.updateAttributi ccm currentResponseUnpacked.attributi
 
         ( _, Err _ ) ->
-            { allColumns = Dict.empty
-            , chosenColumns = Set.empty
-            , editingColumns = Set.empty
-            , open = False
-            }
+            ColumnChooser.init []
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -953,53 +795,8 @@ update msg model =
             )
 
         ColumnChooserMessage columnChooserMessage ->
-            case columnChooserMessage of
-                ColumnChooserSubmit ->
-                    let
-                        newColumnChooser =
-                            { allColumns = model.columnChooser.allColumns
-                            , editingColumns = Set.empty
-                            , chosenColumns = model.columnChooser.editingColumns
-                            , open = False
-                            }
-                    in
-                    ( { model | columnChooser = newColumnChooser }, Cmd.none )
-
-                ColumnChooserToggleColumn attributo turnOn ->
-                    let
-                        newColumnChooser =
-                            { allColumns = model.columnChooser.allColumns
-                            , editingColumns =
-                                if turnOn then
-                                    Set.insert attributo model.columnChooser.editingColumns
-
-                                else
-                                    Set.remove attributo model.columnChooser.editingColumns
-                            , chosenColumns = model.columnChooser.chosenColumns
-                            , open = True
-                            }
-                    in
-                    ( { model | columnChooser = newColumnChooser }, Cmd.none )
-
-                ColumnChooserToggle ->
-                    if model.columnChooser.open then
-                        let
-                            newColumnChooser =
-                                { allColumns = model.columnChooser.allColumns
-                                , editingColumns = Set.empty
-                                , chosenColumns = model.columnChooser.chosenColumns
-                                , open = False
-                                }
-                        in
-                        ( { model | columnChooser = newColumnChooser }, Cmd.none )
-
-                    else
-                        let
-                            newColumnChooser =
-                                { allColumns = model.columnChooser.allColumns
-                                , editingColumns = model.columnChooser.chosenColumns
-                                , chosenColumns = model.columnChooser.chosenColumns
-                                , open = True
-                                }
-                        in
-                        ( { model | columnChooser = newColumnChooser }, Cmd.none )
+            let
+                ( newColumnChooser, cmds ) =
+                    ColumnChooser.update model.columnChooser columnChooserMessage
+            in
+            ( { model | columnChooser = newColumnChooser }, cmds )
