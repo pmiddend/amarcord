@@ -4,71 +4,85 @@ import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon)
 import Amarcord.Html exposing (input_, p_)
-import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, h2, label, p, span, text)
 import Html.Attributes exposing (autocomplete, checked, class, for, id, type_)
 import Html.Events exposing (onClick, onInput)
 import List
-import Maybe.Extra as MaybeExtra
+import List.Extra as ListExtra
 import Set exposing (Set)
 import String
-import Tuple exposing (first, second)
+
+
+type Direction
+    = Up
+    | Down
 
 
 type Msg
     = ColumnChooserSubmit
     | ColumnChooserToggleColumn String Bool
     | ColumnChooserToggle
+    | ColumnChooserMove String Direction
+
+
+type alias ToggledAttributo =
+    { attributo : Attributo AttributoType
+    , isOn : Bool
+    }
+
+
+toggleOn : Attributo AttributoType -> ToggledAttributo
+toggleOn a =
+    { attributo = a, isOn = True }
 
 
 type alias Model =
-    { allColumns : Dict AttributoName ( Attributo AttributoType, Int )
-    , chosenColumns : Set String
-    , editingColumns : Set String
+    { allColumns : List ToggledAttributo
+    , editingColumns : List ToggledAttributo
     , open : Bool
     }
 
 
-attributiDictFromList : List (Attributo AttributoType) -> Dict String ( Attributo AttributoType, Int )
-attributiDictFromList attributi =
-    List.foldl (\( a, i ) prior -> Dict.insert a.name ( a, i ) prior) Dict.empty (List.indexedMap (\i a -> ( a, i )) attributi)
-
-
 init : List (Attributo AttributoType) -> Model
 init allColumnsList =
-    { allColumns = attributiDictFromList allColumnsList
-    , chosenColumns = List.foldl (\a prior -> Set.insert a.name prior) Set.empty allColumnsList
-    , editingColumns = Set.empty
+    { allColumns = List.map toggleOn allColumnsList
+    , editingColumns = []
     , open = False
     }
 
 
 resolveChosen : Model -> List (Attributo AttributoType)
-resolveChosen { chosenColumns, allColumns } =
-    List.map first <| List.sortBy second <| List.foldl (\c prior -> MaybeExtra.unwrap [] List.singleton (Dict.get c allColumns) ++ prior) [] (Set.toList chosenColumns)
+resolveChosen { allColumns } =
+    List.filterMap
+        (\ta ->
+            if ta.isOn then
+                Just ta.attributo
+
+            else
+                Nothing
+        )
+        allColumns
 
 
-columnChooserHiddenColumnCount : Model -> Int
-columnChooserHiddenColumnCount { allColumns, chosenColumns } =
-    Dict.size allColumns - Set.size chosenColumns
+hiddenCount : Model -> Int
+hiddenCount { allColumns } =
+    ListExtra.count (\a -> not a.isOn) allColumns
 
 
 updateAttributi : Model -> List (Attributo AttributoType) -> Model
 updateAttributi model newAttributi =
-    if Dict.isEmpty model.allColumns then
-        { allColumns = attributiDictFromList <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) newAttributi
-        , chosenColumns =
-            List.foldl
-                (\a prior ->
+    if List.isEmpty model.allColumns then
+        { allColumns =
+            List.filterMap
+                (\a ->
                     if a.associatedTable == AssociatedTable.Run then
-                        Set.insert a.name prior
+                        Just { attributo = a, isOn = True }
 
                     else
-                        prior
+                        Nothing
                 )
-                Set.empty
                 newAttributi
-        , editingColumns = Set.empty
+        , editingColumns = []
         , open = False
         }
 
@@ -84,17 +98,24 @@ updateAttributi model newAttributi =
 
             lastAttributiNames : Set AttributoName
             lastAttributiNames =
-                Set.fromList <| Dict.keys model.allColumns
+                Set.fromList <| List.map (\a -> a.attributo.name) model.allColumns
 
             newAttributiNames =
                 Set.diff currentAttributiNames lastAttributiNames
 
             deletedAttributiNames =
                 Set.diff lastAttributiNames currentAttributiNames
+
+            newAttributiResolved : List (Attributo AttributoType)
+            newAttributiResolved =
+                List.filter (\a -> Set.member a.name newAttributiNames) newAttributi
+
+            processAttributoList : List ToggledAttributo -> List ToggledAttributo
+            processAttributoList attributi =
+                List.filter (\ta -> not <| Set.member ta.attributo.name deletedAttributiNames) attributi ++ List.map toggleOn newAttributiResolved
         in
-        { allColumns = attributiDictFromList currentAttributi
-        , chosenColumns = Set.union newAttributiNames (Set.diff model.chosenColumns deletedAttributiNames)
-        , editingColumns = Set.diff model.editingColumns deletedAttributiNames
+        { allColumns = processAttributoList model.allColumns
+        , editingColumns = processAttributoList model.editingColumns
         , open = model.open
         }
 
@@ -102,36 +123,34 @@ updateAttributi model newAttributi =
 view : Model -> Html Msg
 view columnChooser =
     let
-        viewAttributoButton ( attributoName, attributo ) =
-            let
-                isChecked =
-                    Set.member attributoName columnChooser.editingColumns
-            in
-            [ input_
-                [ type_ "checkbox"
-                , class "btn-check"
-                , id ("column-" ++ attributoName)
-                , autocomplete False
-                , checked isChecked
-                , onInput (always (ColumnChooserToggleColumn attributoName (not isChecked)))
+        viewAttributoButton : ToggledAttributo -> List (Html Msg)
+        viewAttributoButton { attributo, isOn } =
+            [ div [ class "d-flex p-2 align-items-center" ]
+                [ button [ class "btn btn-primary-outline btn-sm", onClick (ColumnChooserMove attributo.name Down), type_ "button" ]
+                    [ icon { name = "arrow-down-circle" } ]
+                , button [ class "btn btn-primary-outline btn-sm", onClick (ColumnChooserMove attributo.name Up), type_ "button" ]
+                    [ icon { name = "arrow-up-circle" } ]
+                , div
+                    [ class "form-check ms-2" ]
+                    [ input_
+                        [ type_ "checkbox"
+                        , class "form-check-input"
+                        , id ("column-" ++ attributo.name)
+                        , autocomplete False
+                        , checked isOn
+                        , onInput (always (ColumnChooserToggleColumn attributo.name (not isOn)))
+                        ]
+                    , label
+                        [ class "form-check-label"
+                        , for ("column-" ++ attributo.name)
+                        ]
+                        [ text attributo.name ]
+                    ]
                 ]
-            , label
-                [ class
-                    ("btn "
-                        ++ (if isChecked then
-                                "btn-outline-success"
-
-                            else
-                                "btn-outline-secondary"
-                           )
-                    )
-                , for ("column-" ++ attributoName)
-                ]
-                [ text attributoName ]
             ]
 
         hiddenColumnCount =
-            columnChooserHiddenColumnCount columnChooser
+            hiddenCount columnChooser
     in
     div [ class "accordion" ]
         [ div [ class "accordion-item" ]
@@ -163,7 +182,7 @@ view columnChooser =
                 ]
                 [ div [ class "accordion-body" ]
                     [ p [ class "lead" ] [ text "Click to enable/disable columns, then press \"Confirm\"." ]
-                    , div [ class "btn-group-vertical mb-3" ] (List.concatMap viewAttributoButton (Dict.toList columnChooser.allColumns))
+                    , div [ class "col" ] [ div [ class "mb-3" ] (List.concatMap viewAttributoButton columnChooser.editingColumns) ]
                     , p_
                         [ button [ class "btn btn-primary me-2", type_ "button", onClick ColumnChooserSubmit ] [ icon { name = "save" }, text " Confirm" ]
                         , button [ class "btn btn-secondary", type_ "button", onClick ColumnChooserToggle ] [ icon { name = "x-lg" }, text " Cancel" ]
@@ -174,31 +193,86 @@ view columnChooser =
         ]
 
 
+
+-- up 3 [1,2,3]
+-- 1 :: 2 :: [3]
+-- 2 :: 3 :: f [3]
+
+
+moveElement : List a -> (a -> Bool) -> Direction -> List a
+moveElement rootList f dir =
+    let
+        moveElementUp xs =
+            case xs of
+                [] ->
+                    []
+
+                first :: middle :: rest ->
+                    if f first then
+                        xs
+
+                    else if f middle then
+                        middle :: first :: rest
+
+                    else
+                        first :: moveElementUp (middle :: rest)
+
+                first :: [] ->
+                    first :: []
+
+        moveElementDown xs =
+            case xs of
+                [] ->
+                    []
+
+                first :: middle :: rest ->
+                    if f first then
+                        middle :: first :: rest
+
+                    else
+                        first :: moveElementDown (middle :: rest)
+
+                first :: [] ->
+                    first :: []
+    in
+    case dir of
+        Up ->
+            moveElementUp rootList
+
+        Down ->
+            moveElementDown rootList
+
+
 update : Model -> Msg -> ( Model, Cmd msg )
 update model message =
     case message of
         ColumnChooserSubmit ->
             let
                 newColumnChooser =
-                    { allColumns = model.allColumns
-                    , editingColumns = Set.empty
-                    , chosenColumns = model.editingColumns
+                    { allColumns = model.editingColumns
+                    , editingColumns = []
                     , open = False
                     }
             in
             ( newColumnChooser, Cmd.none )
 
-        ColumnChooserToggleColumn attributo turnOn ->
+        ColumnChooserToggleColumn attributoNameToChange turnOn ->
             let
                 newColumnChooser =
                     { allColumns = model.allColumns
                     , editingColumns =
-                        if turnOn then
-                            Set.insert attributo model.editingColumns
+                        List.map
+                            (\{ attributo, isOn } ->
+                                { attributo = attributo
+                                , isOn =
+                                    if attributo.name == attributoNameToChange then
+                                        turnOn
 
-                        else
-                            Set.remove attributo model.editingColumns
-                    , chosenColumns = model.chosenColumns
+                                    else
+                                        isOn
+                                }
+                            )
+                            model.editingColumns
                     , open = True
                     }
             in
@@ -209,8 +283,7 @@ update model message =
                 let
                     newColumnChooser =
                         { allColumns = model.allColumns
-                        , editingColumns = Set.empty
-                        , chosenColumns = model.chosenColumns
+                        , editingColumns = []
                         , open = False
                         }
                 in
@@ -220,9 +293,18 @@ update model message =
                 let
                     newColumnChooser =
                         { allColumns = model.allColumns
-                        , editingColumns = model.chosenColumns
-                        , chosenColumns = model.chosenColumns
+                        , editingColumns = model.allColumns
                         , open = True
                         }
                 in
                 ( newColumnChooser, Cmd.none )
+
+        ColumnChooserMove string direction ->
+            let
+                newColumnChooser =
+                    { allColumns = model.allColumns
+                    , editingColumns = moveElement model.editingColumns (\ta -> ta.attributo.name == string) direction
+                    , open = True
+                    }
+            in
+            ( newColumnChooser, Cmd.none )
