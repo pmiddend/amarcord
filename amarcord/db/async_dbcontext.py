@@ -1,10 +1,17 @@
+from enum import Enum, auto
+from typing import Any
+
 from sqlalchemy import MetaData
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from amarcord.db.dbcontext import Connection
-from amarcord.db.dbcontext import CreationMode
+Connection = Any
+
+
+class CreationMode(Enum):
+    CHECK_FIRST = auto()
+    DONT_CHECK = auto()
 
 
 class AsyncDBContext:

@@ -10,15 +10,13 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.attributo_type import AttributoTypeDateTime
-from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
 
 
 async def _get_db() -> AsyncDB:
     context = AsyncDBContext("sqlite+aiosqlite://")
     db = AsyncDB(context, create_tables_from_metadata(context.metadata))
-    await context.create_all(CreationMode.DONT_CHECK)
+    await db.migrate()
     return db
 
 
@@ -55,15 +53,6 @@ async def test_process_data_latest_run():
     await processor.init()
 
     async with db.begin() as conn:
-        await db.create_attributo(
-            conn,
-            ATTRIBUTO_STOPPED,
-            "",
-            "kamzik",
-            AssociatedTable.RUN,
-            AttributoTypeDateTime(),
-        )
-
         attributi = await db.retrieve_attributi(
             conn, associated_table=AssociatedTable.RUN
         )

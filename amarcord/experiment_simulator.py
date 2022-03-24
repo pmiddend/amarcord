@@ -11,9 +11,9 @@ from randomname import generate
 from tap import Tap
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import (
     AsyncDB,
-    create_ground_state_attributi,
     ATTRIBUTO_GROUP_MANUAL,
 )
 from amarcord.db.attributi import (
@@ -36,7 +36,6 @@ from amarcord.db.attributo_type import (
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.table_classes import DBRun, DBFileBlueprint
 from amarcord.numeric_range import NumericRange
@@ -138,10 +137,10 @@ def random_person_name() -> str:
 
 async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
     async with db.begin() as conn:
-        if await db.retrieve_attributi(conn, associated_table=None):
+        if await db.retrieve_samples(
+            conn, await db.retrieve_attributi(conn, associated_table=None)
+        ):
             return
-
-        await create_ground_state_attributi(db, conn)
 
         await db.create_attributo(
             conn,

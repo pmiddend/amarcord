@@ -6,7 +6,6 @@ from sqlalchemy import MetaData
 from sqlalchemy.sql import ColumnElement
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.dbcontext import DBContext
 from amarcord.db.event_log_level import EventLogLevel
 
 logger = logging.getLogger(__name__)
@@ -261,7 +260,3 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         ),
         run_has_file=_table_run_has_file(metadata, run, file),
     )
-
-
-def create_tables(context: DBContext) -> DBTables:
-    return create_tables_from_metadata(context.metadata)

@@ -22,6 +22,7 @@ import numpy as np
 from pint import UnitRegistry
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB, create_ground_state_attributi
 from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
 from amarcord.db.attributi_map import AttributiMap
@@ -34,7 +35,6 @@ from amarcord.db.attributo_type import (
     AttributoTypeInt,
 )
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.dbcontext import Connection
 from amarcord.util import safe_variance
 
 logger = logging.getLogger(__name__)

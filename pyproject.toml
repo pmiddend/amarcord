@@ -64,6 +64,7 @@ randomname = "0.1.5"
 essential-generators = "1.0"
 # For http requests
 aiohttp = "3.8.1"
+alembic = "^1.7.7"
 
 [tool.poetry.dev-dependencies]
 black = '22.1.0'

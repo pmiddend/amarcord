@@ -12,7 +12,6 @@ from amarcord.amici.om.simulator import om_simulator_loop
 from amarcord.amici.petra3.petra3_online_values import petra3_value_loop
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.experiment_simulator import (
     experiment_simulator_initialize_db,
@@ -36,7 +35,7 @@ async def _main_loop(args: Arguments) -> None:
     db_context = AsyncDBContext(args.db_connection_url)
     db = AsyncDB(db_context, create_tables_from_metadata(db_context.metadata))
     zmq_ctx = Context.instance()
-    await db_context.create_all(CreationMode.CHECK_FIRST)
+    await db.migrate()
 
     awaitables: List[Awaitable[None]] = []
 

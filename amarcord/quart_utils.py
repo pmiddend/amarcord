@@ -9,9 +9,8 @@ from quart import request
 from quart.json import JSONEncoder
 
 from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.asyncdb import AsyncDB, create_ground_state_attributi
+from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import datetime_to_attributo_string
-from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.json import JSONDict
 
@@ -96,16 +95,13 @@ class QuartDatabases:
         self._app = app
         self._instance: Optional[AsyncDB] = None
 
-    async def initialize_db(self, with_ground_state: bool = True) -> None:
+    async def initialize_db(self) -> None:
         context = AsyncDBContext(
             self._app.config["DB_URL"], self._app.config["DB_ECHO"]
         )
         # pylint: disable=assigning-non-slot
         self._instance = AsyncDB(context, create_tables_from_metadata(context.metadata))
-        await context.create_all(CreationMode.CHECK_FIRST)
-        if with_ground_state:
-            async with self._instance.begin() as conn:
-                await create_ground_state_attributi(self._instance, conn)
+        await self._instance.migrate()
 
     def init_app(self, app: Quart) -> None:
         app.before_serving(self._before_serving)

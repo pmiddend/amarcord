@@ -19,7 +19,6 @@ from amarcord.amici.xfel.karabo_bridge import (
 )
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
 
 logging.basicConfig(
@@ -172,10 +171,9 @@ def main() -> None:
 
     tables = create_tables_from_metadata(dbcontext.metadata)
 
-    if args.db_connection_url.startswith("sqlite+aiosqlite://"):
-        asyncio.run(dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST))
-
     db = AsyncDB(dbcontext, tables)
+
+    asyncio.run(db.migrate())
 
     zmq_ctx = Context.instance()
 

@@ -13,14 +13,13 @@ from amarcord.db.attributo_type import (
     AttributoTypeString,
 )
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
 
 
 async def _get_db() -> AsyncDB:
     context = AsyncDBContext("sqlite+aiosqlite://")
     db = AsyncDB(context, create_tables_from_metadata(context.metadata))
-    await context.create_all(CreationMode.DONT_CHECK)
+    await db.migrate()
     return db
 
 
@@ -46,7 +45,11 @@ async def test_process_kamzik_metadata(
             },
         )
 
-        attributi = await db.retrieve_attributi(conn, associated_table=None)
+        attributi = [
+            a
+            for a in await db.retrieve_attributi(conn, associated_table=None)
+            if a.name == name
+        ]
 
         assert len(attributi) == 1
         assert attributi[0].name == name

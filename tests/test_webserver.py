@@ -119,7 +119,7 @@ async def test_attributi_are_presorted() -> None:
         },
     )
     # Don't pre-initialize started/stopped, so we can really check if the order mattered
-    await db.initialize_db(with_ground_state=False)
+    await db.initialize_db()
     client = app.test_client()
 
     testattributo = "testattributo"

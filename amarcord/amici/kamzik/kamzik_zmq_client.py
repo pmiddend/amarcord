@@ -13,10 +13,10 @@ from pint import UnitRegistry
 from zmq.utils.monitor import parse_monitor_message
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.dbcontext import Connection
 from amarcord.json import JSONDict
 from amarcord.json_schema import parse_schema_type
 

@@ -22,13 +22,12 @@ import tqdm
 from tap import Tap
 
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
-from amarcord.db.async_dbcontext import AsyncDBContext
+from amarcord.db.async_dbcontext import AsyncDBContext, Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi_map import run_matches_dataset
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.dbcontext import CreationMode, Connection
 from amarcord.db.table_classes import DBRun, DBFileBlueprint
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.util import last_existing_dir, replace_illegal_path_characters
@@ -620,7 +619,7 @@ def mymain(args: Arguments) -> int:
     db = AsyncDB(dbcontext, create_tables_from_metadata(dbcontext.metadata))
 
     if args.debug:
-        dbcontext.create_all(CreationMode.CHECK_FIRST)
+        asyncio.run(db.migrate())
 
     base_directory = Path(args.base_directory)
     if not base_directory.is_dir():

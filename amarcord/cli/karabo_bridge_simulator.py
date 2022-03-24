@@ -13,7 +13,6 @@ from amarcord.amici.xfel.karabo_bridge import (
 )
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
 
 RUN_CONTROL = "SPB_DAQ_DATA/DM/RUN_CONTROL"
@@ -24,9 +23,9 @@ async def run() -> None:
 
     tables = create_tables_from_metadata(dbcontext.metadata)
 
-    await dbcontext.create_all(creation_mode=CreationMode.CHECK_FIRST)
-
     db = AsyncDB(dbcontext, tables)
+
+    await db.migrate()
 
     with Path("../../tests/karabo_online/config.yml").open("r", encoding="utf-8") as f:
         config_file = parse_configuration(yaml.load(f, Loader=yaml.SafeLoader))

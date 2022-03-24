@@ -45,7 +45,6 @@ from amarcord.db.attributo_type import (
     AttributoTypeString,
     AttributoTypeList,
 )
-from amarcord.db.dbcontext import CreationMode
 from amarcord.db.tables import create_tables_from_metadata
 
 _STANDARD_SPECIAL_ATTRIBUTES = {
@@ -1135,7 +1134,7 @@ def test_karabo2_without_db() -> None:
 async def _get_db() -> AsyncDB:
     context = AsyncDBContext("sqlite+aiosqlite://")
     db = AsyncDB(context, create_tables_from_metadata(context.metadata))
-    await context.create_all(CreationMode.DONT_CHECK)
+    await db.migrate()
     return db
 
 

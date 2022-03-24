@@ -16,7 +16,6 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.dbcontext import CreationMode
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.tables import create_tables_from_metadata
 
@@ -38,7 +37,7 @@ TEST_ATTRIBUTO_NAME = AttributoId("testname")
 async def _get_db() -> AsyncDB:
     context = AsyncDBContext("sqlite+aiosqlite://")
     db = AsyncDB(context, create_tables_from_metadata(context.metadata))
-    await context.create_all(CreationMode.DONT_CHECK)
+    await db.migrate()
     return db
 
 
@@ -64,7 +63,11 @@ async def test_create_and_retrieve_attributo() -> None:
         assert attributi[0].group == TEST_ATTRIBUTO_GROUP
 
         # Check if the filter for the table works: there should be no attributi for runs
-        assert not await db.retrieve_attributi(conn, AssociatedTable.RUN)
+        assert not [
+            a
+            for a in await db.retrieve_attributi(conn, AssociatedTable.RUN)
+            if a.name == TEST_ATTRIBUTO_NAME
+        ]
 
 
 async def test_create_and_delete_unused_attributo() -> None:
@@ -84,7 +87,11 @@ async def test_create_and_delete_unused_attributo() -> None:
 
         await db.delete_attributo(conn, TEST_ATTRIBUTO_NAME)
 
-        assert not await db.retrieve_attributi(conn, associated_table=None)
+        assert not [
+            a
+            for a in await db.retrieve_attributi(conn, associated_table=None)
+            if a.name == TEST_ATTRIBUTO_NAME
+        ]
 
 
 async def test_create_and_retrieve_sample() -> None:
@@ -251,11 +258,12 @@ async def test_create_attributo_and_sample_then_change_attributo() -> None:
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
+        test_attributi = [a for a in attributi if a.name == TEST_ATTRIBUTO_NAME + "1"]
 
-        assert len(attributi) == 1
-        assert attributi[0].name == TEST_ATTRIBUTO_NAME + "1"
-        assert attributi[0].description == TEST_ATTRIBUTO_DESCRIPTION + "1"
-        assert attributi[0].group == TEST_ATTRIBUTO_GROUP + "1"
+        assert len(test_attributi) == 1
+        assert test_attributi[0].name == TEST_ATTRIBUTO_NAME + "1"
+        assert test_attributi[0].description == TEST_ATTRIBUTO_DESCRIPTION + "1"
+        assert test_attributi[0].group == TEST_ATTRIBUTO_GROUP + "1"
 
         samples = await db.retrieve_samples(conn, attributi)
         assert samples[0].attributi.select_int(TEST_ATTRIBUTO_NAME) is None

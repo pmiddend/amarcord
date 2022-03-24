@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.async_dbcontext import AsyncDBContext
+from amarcord.db.async_dbcontext import AsyncDBContext, Connection
 from amarcord.db.attributi import (
     AttributoConversionFlags,
     ATTRIBUTO_STOPPED,
@@ -32,9 +32,9 @@ from amarcord.db.attributo_type import (
 from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.db.dbcontext import Connection
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
+from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.db.table_classes import DBSample, DBFile, DBRun, DBEvent, DBFileBlueprint
 from amarcord.db.tables import DBTables
 from amarcord.pint_util import valid_pint_unit
@@ -57,6 +57,10 @@ class AsyncDB:
     def __init__(self, dbcontext: AsyncDBContext, tables: DBTables) -> None:
         self.dbcontext = dbcontext
         self.tables = tables
+
+    async def migrate(self) -> None:
+        async with self.begin() as conn:
+            await conn.run_sync(upgrade_to_head_connection)
 
     def connect(self) -> Connection:
         return self.dbcontext.connect()
