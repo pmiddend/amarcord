@@ -76,12 +76,16 @@ viewAttributoValue props zone sampleIds type_ value =
         ValueInt int ->
             case type_ of
                 SampleId ->
-                    case get int sampleIds of
-                        Nothing ->
-                            text "invalid sample ID"
+                    if int == 0 then
+                        text ""
 
-                        Just sid ->
-                            text sid
+                    else
+                        case get int sampleIds of
+                            Nothing ->
+                                text "invalid sample ID"
+
+                            Just sid ->
+                                text sid
 
                 DateTime ->
                     text <|
@@ -642,6 +646,6 @@ convertEditValues { originalAttributi, editableAttributi } =
         -- Combine result of editing with original map
         combineWithOriginal : List ( AttributoName, AttributoValue ) -> AttributoMap AttributoValue
         combineWithOriginal =
-            List.foldr (\( name, value ) -> updateAttributoMap name value) originalAttributi
+            List.foldr (\( name, value ) -> updateAttributoMap name value) Dict.empty
     in
     Result.map combineWithOriginal converted

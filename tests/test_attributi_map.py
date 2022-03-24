@@ -5,7 +5,11 @@ import pytest
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
-from amarcord.db.attributi_map import AttributiMap, SPECIAL_SAMPLE_ID_NONE
+from amarcord.db.attributi_map import (
+    AttributiMap,
+    SPECIAL_SAMPLE_ID_NONE,
+    SPECIAL_VALUE_CHOICE_NONE,
+)
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
@@ -61,9 +65,9 @@ def test_attributi_map_empty_choice_string_is_none() -> None:
     amap = AttributiMap.from_types_and_json(
         [_create_attributo(AttributoTypeChoice(values=["a", "ab"]))],
         [1],
-        {TEST_ATTRIBUTO_ID: ""},
+        {TEST_ATTRIBUTO_ID: SPECIAL_VALUE_CHOICE_NONE},
     )
-    assert amap.select(TEST_ATTRIBUTO_ID) is None
+    assert amap.select(TEST_ATTRIBUTO_ID) == SPECIAL_VALUE_CHOICE_NONE
 
 
 def test_attributi_map_invalid_choice_value() -> None:
@@ -196,7 +200,7 @@ def test_attributi_map_sample_id_zero_is_none() -> None:
         [1],
         {TEST_ATTRIBUTO_ID: SPECIAL_SAMPLE_ID_NONE},
     )
-    assert amap.select(TEST_ATTRIBUTO_ID) is None
+    assert amap.select(TEST_ATTRIBUTO_ID) == SPECIAL_SAMPLE_ID_NONE
 
 
 def test_attributi_map_check_type_for_sample() -> None:

@@ -24,6 +24,8 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.json import JSONValue
 
+SPECIAL_VALUE_CHOICE_NONE = ""
+
 SPECIAL_SAMPLE_ID_NONE = 0
 
 JsonAttributiMap = Dict[str, JSONValue]
@@ -41,7 +43,7 @@ def _check_type(
             raise Exception(
                 f'attributo "{name}": should have type int, but got value {value}'
             )
-        if value not in sample_ids:
+        if value != SPECIAL_SAMPLE_ID_NONE and value not in sample_ids:
             raise Exception(f'attributo "{name}": invalid sample ID {value}')
     if isinstance(type_, (AttributoTypeInt, AttributoTypeSample)):
         if not isinstance(value, int):
@@ -72,7 +74,7 @@ def _check_type(
             value, str
         ), f'attributo "{name}": expected type string but got value {value}'
         assert (
-            value == "" or value in type_.values
+            value == SPECIAL_VALUE_CHOICE_NONE or value in type_.values
         ), f'attributo "{name}": value "{value}" not one of ' + ", ".join(type_.values)
     elif isinstance(type_, AttributoTypeList):
         assert isinstance(
@@ -131,10 +133,7 @@ def _convert_single_attributo_value_from_json_with_type(
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
-        if v == SPECIAL_SAMPLE_ID_NONE:
-            # special case: 0 is the "no sample ID" sample ID
-            return None
-        if v not in sample_ids:
+        if v != SPECIAL_SAMPLE_ID_NONE and v not in sample_ids:
             raise Exception(f"{v} is not a valid sample ID")
         return v
     if isinstance(attributo_type, AttributoTypeBoolean):
@@ -178,7 +177,7 @@ def _convert_single_attributo_value_from_json_with_type(
         ), f'expected type str for choice attributo "{i}", got {type(v)}'
         # It's valid for a choice to be explicitly empty (e.g. not given)
         if v == "":
-            return None
+            return ""
         choices = attributo_type.values
         if v not in choices:
             choices_str = ", ".join(choices)

@@ -240,14 +240,23 @@ async def update_run() -> JSONDict:
 
     async with db.instance.begin() as conn:
         run_id = r.retrieve_safe_int("id")
+        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
+        current_run = await db.instance.retrieve_run(conn, run_id, attributi)
+        if current_run is None:
+            raise CustomWebException(
+                code=404,
+                title=f"Couldn't find run {run_id}, was it deleted?",
+                description="",
+            )
+        sample_ids = await db.instance.retrieve_sample_ids(conn)
+        raw_attributi = r.retrieve_safe_object("attributi")
+        current_run.attributi.extend_with_attributi_map(
+            AttributiMap.from_types_and_json(attributi, sample_ids, raw_attributi)
+        )
         await db.instance.update_run_attributi(
             conn,
             id_=run_id,
-            attributi=AttributiMap.from_types_and_json(
-                await db.instance.retrieve_attributi(conn, AssociatedTable.RUN),
-                sample_ids=await db.instance.retrieve_sample_ids(conn),
-                raw_attributi=r.retrieve_safe_object("attributi"),
-            ),
+            attributi=current_run.attributi,
         )
 
     return {}
