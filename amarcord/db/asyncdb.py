@@ -2,7 +2,6 @@ import datetime
 import itertools
 import logging
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, cast, Tuple, Dict, Iterable, Any
@@ -29,7 +28,6 @@ from amarcord.db.attributo_type import (
     AttributoTypeDecimal,
     AttributoTypeDateTime,
 )
-from amarcord.db.constants import ATTRIBUTO_NAME_REGEX
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
@@ -342,11 +340,12 @@ class AsyncDB:
         associated_table: AssociatedTable,
         type_: AttributoType,
     ) -> None:
-        if not re.fullmatch(ATTRIBUTO_NAME_REGEX, name, re.IGNORECASE):
-            raise ValueError(
-                f'attributo name "{name}" contains invalid characters (maybe a number at the beginning '
-                f"or a dash?)"
-            )
+        # I honestly don't remember why I added this
+        # if not re.fullmatch(ATTRIBUTO_NAME_REGEX, name, re.IGNORECASE):
+        #     raise ValueError(
+        #         f'attributo name "{name}" contains invalid characters (maybe a number at the beginning '
+        #         f"or a dash?)"
+        #     )
         if associated_table == AssociatedTable.SAMPLE and isinstance(
             type_, AttributoTypeSample
         ):
