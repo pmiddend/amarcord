@@ -19,18 +19,22 @@ karabo-attributes:
       input-type: List[float]
       processor: list-take-last
       unit: mJ
+      ignore: 1.0
 
     data.xSa1TD:
       id: beam_x
       input-type: List[float]
       processor: list-take-last
       unit: mm
+      ignore: 1.0
 
     data.ySa1TD:
       id: beam_y
       input-type: List[float]
       processor: list-take-last
       unit: mm
+      ignore: 1.0
+
   SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
     gainMode.value:
       id: gain_mode

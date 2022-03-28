@@ -103,6 +103,9 @@ class KaraboInputType(Enum):
     def is_decimal(self):
         return self in (self.KARABO_TYPE_FLOAT, self.KARABO_TYPE_LIST_FLOAT)
 
+    def is_numeric(self):
+        return self.is_decimal() or self == self.KARABO_TYPE_INT
+
 
 class KaraboProcessor(Enum):
     KARABO_PROCESSOR_IDENTITY = "identity"
@@ -146,6 +149,7 @@ class KaraboAttributeDescription:
     input_type: KaraboInputType
     processor: KaraboProcessor
     unit: Optional[str]
+    ignore: Optional[float]
     standard_unit: bool
 
 
@@ -205,11 +209,12 @@ class KaraboConfigurationError:
     message: str
 
 
-AMARCORD_ATTRIBUTE_DESCRIPTION_ID = "id"
-AMARCORD_ATTRIBUTE_DESCRIPTION_INPUT_TYPE = "input-type"
-AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR = "processor"
-AMARCORD_ATTRIBUTE_DESCRIPTION_UNIT = "unit"
-AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT = "is-si-unit"
+KARABO_ATTRIBUTE_DESCRIPTION_ID = "id"
+KARABO_ATTRIBUTE_DESCRIPTION_INPUT_TYPE = "input-type"
+KARABO_ATTRIBUTE_DESCRIPTION_PROCESSOR = "processor"
+KARABO_ATTRIBUTE_DESCRIPTION_UNIT = "unit"
+KARABO_ATTRIBUTE_DESCRIPTION_IGNORE = "ignore"
+KARABO_ATTRIBUTE_DESCRIPTION_SI_UNIT = "is-si-unit"
 
 
 def check_type_and_processor(
@@ -235,27 +240,27 @@ def parse_karabo_attribute(
         return KaraboConfigurationError(
             f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}, index {aidx}: expected this to be a dictionary with a description of the attribute, but the type is {type(attribute_description)}"
         )
-    internal_id_raw = attribute_description.get(AMARCORD_ATTRIBUTE_DESCRIPTION_ID, None)
+    internal_id_raw = attribute_description.get(KARABO_ATTRIBUTE_DESCRIPTION_ID, None)
     if internal_id_raw is None:
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_ID}; expected this to be a string but found nothing"
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {KARABO_ATTRIBUTE_DESCRIPTION_ID}; expected this to be a string but found nothing"
         )
     if not isinstance(internal_id_raw, str):
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {AMARCORD_ATTRIBUTE_DESCRIPTION_ID} is not of type string but {type(internal_id_raw)}"
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {KARABO_ATTRIBUTE_DESCRIPTION_ID} is not of type string but {type(internal_id_raw)}"
         )
     internal_id = KaraboInternalId(internal_id_raw)
     if internal_id in internal_ids:
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {AMARCORD_ATTRIBUTE_DESCRIPTION_ID} is already taken by {internal_ids[internal_id]}"
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {KARABO_ATTRIBUTE_DESCRIPTION_ID} is already taken by {internal_ids[internal_id]}"
         )
     internal_ids[internal_id] = (locator, aidx)
     input_type_raw = attribute_description.get(
-        AMARCORD_ATTRIBUTE_DESCRIPTION_INPUT_TYPE, None
+        KARABO_ATTRIBUTE_DESCRIPTION_INPUT_TYPE, None
     )
     if input_type_raw is None:
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_INPUT_TYPE}; expected this to be one of "
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {KARABO_ATTRIBUTE_DESCRIPTION_INPUT_TYPE}; expected this to be one of "
             + (",".join(x.value for x in KaraboInputType))
             + " but found nothing"
         )
@@ -263,17 +268,17 @@ def parse_karabo_attribute(
         input_type = KaraboInputType(input_type_raw)
     except ValueError:
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_INPUT_TYPE}; expected this to be one of "
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {KARABO_ATTRIBUTE_DESCRIPTION_INPUT_TYPE}; expected this to be one of "
             + (",".join(x.value for x in KaraboInputType))
             + f' but found "{input_type_raw}"'
         )
     processor_raw = attribute_description.get(
-        AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR, None
+        KARABO_ATTRIBUTE_DESCRIPTION_PROCESSOR, None
     )
     if processor_raw is None:
         if not input_type.is_scalar():
             return KaraboConfigurationError(
-                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR} which is needed for anything that's not a scalar value; expected this to be one of "
+                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: missing key {KARABO_ATTRIBUTE_DESCRIPTION_PROCESSOR} which is needed for anything that's not a scalar value; expected this to be one of "
                 + (",".join(x.value for x in KaraboProcessor))
                 + " but found nothing"
             )
@@ -282,7 +287,7 @@ def parse_karabo_attribute(
         processor = KaraboProcessor(processor_raw)
     except ValueError:
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: invalid value for {AMARCORD_ATTRIBUTE_DESCRIPTION_PROCESSOR}; expected this to be one of "
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: invalid value for {KARABO_ATTRIBUTE_DESCRIPTION_PROCESSOR}; expected this to be one of "
             + (",".join(x.value for x in KaraboProcessor))
             + f' but found "{processor_raw}"'
         )
@@ -292,23 +297,33 @@ def parse_karabo_attribute(
             f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {type_and_processor_error}"
         )
     standard_unit = attribute_description.get(
-        AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT, True
+        KARABO_ATTRIBUTE_DESCRIPTION_SI_UNIT, True
     )
     if not isinstance(standard_unit, bool):
         return KaraboConfigurationError(
-            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT} should be a boolean, but is {type(standard_unit)}"
+            f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {KARABO_ATTRIBUTE_DESCRIPTION_SI_UNIT} should be a boolean, but is {type(standard_unit)}"
         )
-    unit = attribute_description.get(AMARCORD_ATTRIBUTE_DESCRIPTION_UNIT, None)
+    unit = attribute_description.get(KARABO_ATTRIBUTE_DESCRIPTION_UNIT, None)
     if unit is not None and standard_unit:
         try:
             UnitRegistry()(unit)
         except:
             return KaraboConfigurationError(
-                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: got a unit in {AMARCORD_ATTRIBUTE_DESCRIPTION_UNIT}, but one we don't know: {unit}"
+                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: got a unit in {KARABO_ATTRIBUTE_DESCRIPTION_UNIT}, but one we don't know: {unit}"
+            )
+    ignore = attribute_description.get(KARABO_ATTRIBUTE_DESCRIPTION_IGNORE, None)
+    if ignore is not None:
+        if not isinstance(ignore, (float, int)):
+            return KaraboConfigurationError(
+                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {KARABO_ATTRIBUTE_DESCRIPTION_IGNORE} only accepts numeric values, not {ignore}"
+            )
+        if not input_type.is_numeric():
+            return KaraboConfigurationError(
+                f"in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: {KARABO_ATTRIBUTE_DESCRIPTION_IGNORE} specified, but type is not numeric: {input_type.value}"
             )
     if input_type.is_decimal() and standard_unit and unit is None:
         return KaraboConfigurationError(
-            f'in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: you didn\'t specify a unit. Please do that or specify "{AMARCORD_ATTRIBUTE_DESCRIPTION_SI_UNIT}: false"'
+            f'in {CONFIG_KARABO_ATTRIBUTES_KEY}, {locator}: you didn\'t specify a unit. Please do that or specify "{KARABO_ATTRIBUTE_DESCRIPTION_SI_UNIT}: false"'
         )
     return KaraboAttributeDescription(
         id=internal_id,
@@ -317,6 +332,7 @@ def parse_karabo_attribute(
         processor=processor,
         unit=unit,
         standard_unit=standard_unit,
+        ignore=ignore,
     )
 
 
@@ -754,24 +770,36 @@ def karabo_type_matches(
 
 
 def run_karabo_processor(
-    processor: KaraboProcessor, input_type: KaraboInputType, value: Any
-) -> Union[KaraboWrongTypeError, KaraboValue]:
+    processor: KaraboProcessor,
+    input_type: KaraboInputType,
+    ignore: Optional[float],
+    value: Any,
+) -> Union[KaraboWrongTypeError, Optional[KaraboValue]]:
     typed_value = karabo_type_matches(input_type, value)
     if typed_value is None:
         return KaraboWrongTypeError(input_type, str(type(value)))
     if processor == KaraboProcessor.KARABO_PROCESSOR_IDENTITY:
+        if ignore is not None and typed_value == ignore:
+            return None
         return typed_value
     if processor == KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST:
-        if isinstance(typed_value, (list, np.ndarray)):
+        assert isinstance(typed_value, list)
+        if ignore is not None:
+            typed_value = [x for x in typed_value if x != ignore]
+        if typed_value:
             return typed_value[-1]
-        return typed_value
+        return None
     assert (
         processor == KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN
     ), f"unknown processor {processor}, maybe that's a new one?"
     assert isinstance(
         typed_value, list
     ), f"for the list processors, we need lists as input type, but got {typed_value}"
-    return mean(typed_value)
+    if ignore is not None:
+        typed_value = [x for x in typed_value if x != ignore]
+    if typed_value:
+        return mean(typed_value)
+    return None
 
 
 def process_karabo_frame(
@@ -801,10 +829,12 @@ def process_karabo_frame(
         if value is None:
             not_found.add(a.locator)
             continue
-        processing_result = run_karabo_processor(a.processor, a.input_type, value)
+        processing_result = run_karabo_processor(
+            a.processor, a.input_type, a.ignore, value
+        )
         if isinstance(processing_result, KaraboWrongTypeError):
             wrong_types[a.locator] = processing_result
-        else:
+        elif processing_result is not None:
             output_data[a.id] = processing_result
     return ProcessedKaraboFrame(
         karabo_values_by_internal_id=output_data,
@@ -1197,6 +1227,7 @@ class Karabo2:
         train_id = self._extract_train_id(metadata)
 
         if train_id is None:
+            logger.info("no train ID found")
             return None
 
         self._compare_train_ids(train_id)

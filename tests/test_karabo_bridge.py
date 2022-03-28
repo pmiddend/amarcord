@@ -1,6 +1,7 @@
 import logging
 import pickle
 from pathlib import Path
+from typing import Any, Dict
 
 import yaml
 
@@ -47,14 +48,21 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.tables import create_tables_from_metadata
 
+_SPECIAL_SOURCE = "amarcord"
+_SPECIAL_RUN_NUMBER_KEY = "runNumber"
+_SPECIAL_TRAINS_IN_RUN_KEY = "trainsInRun"
+_SPECIAL_PROPOSAL_KEY = "proposal"
+_SPECIAL_DARK_RUN_INDEX_KEY = "darkRunIndex"
+_SPECIAL_DARK_RUN_TYPE_KEY = "darkRunType"
+
 _STANDARD_SPECIAL_ATTRIBUTES = {
-    "runNumber": {"source": "a", "key": "bar"},
-    "runStartedAt": {"source": "a", "key": "bar"},
-    "runFirstTrain": {"source": "a", "key": "bar"},
-    "runTrainsInRun": {"source": "a", "key": "bar"},
-    "proposalId": {"source": "a", "key": "bar"},
-    "darkRunIndex": {"source": "a", "key": "bar"},
-    "darkRunType": {"source": "a", "key": "bar"},
+    "runNumber": {"source": _SPECIAL_SOURCE, "key": _SPECIAL_RUN_NUMBER_KEY},
+    "runStartedAt": {"source": _SPECIAL_SOURCE, "key": _SPECIAL_RUN_NUMBER_KEY},
+    "runFirstTrain": {"source": _SPECIAL_SOURCE, "key": _SPECIAL_RUN_NUMBER_KEY},
+    "runTrainsInRun": {"source": _SPECIAL_SOURCE, "key": _SPECIAL_TRAINS_IN_RUN_KEY},
+    "proposalId": {"source": _SPECIAL_SOURCE, "key": _SPECIAL_PROPOSAL_KEY},
+    "darkRunIndex": {"source": _SPECIAL_SOURCE, "key": _SPECIAL_DARK_RUN_INDEX_KEY},
+    "darkRunType": {"source": _SPECIAL_SOURCE, "key": _SPECIAL_DARK_RUN_TYPE_KEY},
 }
 
 logger = logging.getLogger(__name__)
@@ -78,6 +86,7 @@ def test_process_karabo_frame_one_list_attribute_arithmetic_mean() -> None:
             processor=KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN,
             unit="mJ",
             standard_unit=True,
+            ignore=None,
         )
     ]
     intensity_values = [1, 2.5, 2.5]
@@ -101,6 +110,7 @@ def test_process_karabo_frame_one_list_attribute_take_last() -> None:
             processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
+            ignore=None,
         )
     ]
     intensity_values = [1, 2.5, 10.0]
@@ -115,21 +125,22 @@ def test_process_karabo_frame_one_list_attribute_take_last() -> None:
     assert frame.karabo_values_by_internal_id[INTERNAL_ID1] == 10.0
 
 
-def test_process_karabo_frame_one_float_attribute_take_last() -> None:
+def test_process_karabo_frame_one_list_float_attribute_take_last() -> None:
     attributes = [
         KaraboAttributeDescription(
             INTERNAL_ID1,
             DOOCS_INTENSITY_KEY,
-            input_type=KaraboInputType.KARABO_TYPE_FLOAT,
+            input_type=KaraboInputType.KARABO_TYPE_LIST_FLOAT,
             processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
+            ignore=None,
         )
     ]
     intensity_value = 1.0
     frame = process_karabo_frame(
         attributes,
-        {DOOCS_INTENSITY_KEY.source: {DOOCS_INTENSITY_KEY.subkey: intensity_value}},
+        {DOOCS_INTENSITY_KEY.source: {DOOCS_INTENSITY_KEY.subkey: [intensity_value]}},
     )
     assert not frame.wrong_types
     assert not frame.not_found
@@ -147,6 +158,7 @@ def test_process_karabo_frame_one_float_attribute_invalid_type() -> None:
             processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
+            ignore=None,
         )
     ]
     intensity_values = [1.0]
@@ -166,6 +178,7 @@ def test_process_karabo_frame_one_float_attribute_not_found() -> None:
             processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
+            ignore=None,
         )
     ]
     frame = process_karabo_frame(
@@ -185,6 +198,7 @@ def test_process_karabo_frame_one_float_attribute_source_not_found() -> None:
             processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
+            ignore=None,
         )
     ]
     frame = process_karabo_frame(
@@ -204,6 +218,7 @@ def test_process_karabo_frame_one_float_attribute_whole_source_not_found() -> No
             processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
             unit="mJ",
             standard_unit=True,
+            ignore=None,
         )
     ]
     frame = process_karabo_frame(
@@ -1208,6 +1223,7 @@ def test_determine_attributo_type_float_with_unit() -> None:
                 processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
                 unit="ml",
                 standard_unit=True,
+                ignore=None,
             )
         ],
     ) == AttributoTypeDecimal(range=None, suffix="ml", standard_unit=True)
@@ -1232,6 +1248,7 @@ def test_determine_attributo_type_string() -> None:
                     processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
                     unit="ml",
                     standard_unit=True,
+                    ignore=None,
                 )
             ],
         )
@@ -1260,6 +1277,7 @@ def test_determine_attributo_type_list_of_floats() -> None:
                 processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
                 unit="ml",
                 standard_unit=True,
+                ignore=None,
             ),
             KaraboAttributeDescription(
                 id=KaraboInternalId("b"),
@@ -1268,6 +1286,7 @@ def test_determine_attributo_type_list_of_floats() -> None:
                 processor=KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
                 unit="ml",
                 standard_unit=True,
+                ignore=None,
             ),
         ],
     ) == AttributoTypeList(
@@ -1275,3 +1294,212 @@ def test_determine_attributo_type_list_of_floats() -> None:
         min_length=None,
         max_length=None,
     )
+
+
+def test_karabo2_simple_frame() -> None:
+    proposal_id = 1337
+    pulse_energy_avg = "pulse_energy_avg"
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey": {
+                        "id": "internal-id",
+                        "input-type": "List[float]",
+                        "processor": "list-take-last",
+                        "unit": "nC",
+                    }
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                pulse_energy_avg: {
+                    "plain-attribute": "internal-id",
+                    "processor": "arithmetic-mean",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: proposal_id,
+        }
+    )
+    assert isinstance(config, KaraboBridgeConfiguration)
+    karabo2 = Karabo2(config)
+    initial_frame: Dict[str, Any] = {
+        _SPECIAL_SOURCE: {
+            _SPECIAL_PROPOSAL_KEY: proposal_id,
+            _SPECIAL_RUN_NUMBER_KEY: 1,
+            # Set to != 0 to indicate stopped run
+            _SPECIAL_TRAINS_IN_RUN_KEY: 1,
+        }
+    }
+    result = karabo2.process_frame(
+        {
+            _SPECIAL_SOURCE: {
+                "timestamp.tid": 1,
+            }
+        },
+        initial_frame,
+    )
+    # None since we're in the middle of a stopped run
+    assert result is None
+
+    next_frame: Dict[str, Any] = {
+        _SPECIAL_SOURCE: {
+            _SPECIAL_PROPOSAL_KEY: proposal_id,
+            _SPECIAL_RUN_NUMBER_KEY: 1,
+            # Set to == 0 to indicate started run now
+            _SPECIAL_TRAINS_IN_RUN_KEY: 0,
+        },
+        "source": {"subkey": [1.0, 2.0]},
+    }
+
+    # None since we're in the middle of a stopped run
+    result = karabo2.process_frame(
+        {
+            _SPECIAL_SOURCE: {
+                "timestamp.tid": 2,
+            }
+        },
+        next_frame,
+    )
+    assert result is not None
+    assert result.attributi_values[AttributoId(pulse_energy_avg)] > 0.0  # type: ignore
+
+
+def test_karabo2_ignore_value() -> None:
+    proposal_id = 1337
+    pulse_energy_avg = "pulse_energy_avg"
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey": {
+                        "id": "internal-id",
+                        "input-type": "List[float]",
+                        "processor": "list-take-last",
+                        "unit": "nC",
+                        "ignore": 1.0,
+                    }
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                pulse_energy_avg: {
+                    "plain-attribute": "internal-id",
+                    "processor": "arithmetic-mean",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: proposal_id,
+        }
+    )
+    assert isinstance(config, KaraboBridgeConfiguration)
+    karabo2 = Karabo2(config)
+    initial_frame: Dict[str, Any] = {
+        _SPECIAL_SOURCE: {
+            _SPECIAL_PROPOSAL_KEY: proposal_id,
+            _SPECIAL_RUN_NUMBER_KEY: 1,
+            # Set to != 0 to indicate stopped run
+            _SPECIAL_TRAINS_IN_RUN_KEY: 1,
+        }
+    }
+    result = karabo2.process_frame(
+        {
+            _SPECIAL_SOURCE: {
+                "timestamp.tid": 1,
+            }
+        },
+        initial_frame,
+    )
+    # None since we're in the middle of a stopped run
+    assert result is None
+
+    next_frame: Dict[str, Any] = {
+        _SPECIAL_SOURCE: {
+            _SPECIAL_PROPOSAL_KEY: proposal_id,
+            _SPECIAL_RUN_NUMBER_KEY: 1,
+            # Set to == 0 to indicate started run now
+            _SPECIAL_TRAINS_IN_RUN_KEY: 0,
+        },
+        "source": {"subkey": [1.0, 2.0]},
+    }
+
+    # None since we're in the middle of a stopped run
+    result = karabo2.process_frame(
+        {
+            _SPECIAL_SOURCE: {
+                "timestamp.tid": 2,
+            }
+        },
+        next_frame,
+    )
+    assert result is not None
+    assert result.attributi_values[AttributoId(pulse_energy_avg)] == 2.0
+
+
+def test_karabo2_missing_value() -> None:
+    proposal_id = 1337
+    pulse_energy_avg = "pulse_energy_avg"
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey": {
+                        "id": "internal-id",
+                        "input-type": "List[float]",
+                        "processor": "list-take-last",
+                        "unit": "nC",
+                        "ignore": 1.0,
+                    }
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                pulse_energy_avg: {
+                    "plain-attribute": "internal-id",
+                    "processor": "arithmetic-mean",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: proposal_id,
+        }
+    )
+    assert isinstance(config, KaraboBridgeConfiguration)
+    karabo2 = Karabo2(config)
+    initial_frame: Dict[str, Any] = {
+        _SPECIAL_SOURCE: {
+            _SPECIAL_PROPOSAL_KEY: proposal_id,
+            _SPECIAL_RUN_NUMBER_KEY: 1,
+            # Set to != 0 to indicate stopped run
+            _SPECIAL_TRAINS_IN_RUN_KEY: 1,
+        }
+    }
+    result = karabo2.process_frame(
+        {
+            _SPECIAL_SOURCE: {
+                "timestamp.tid": 1,
+            }
+        },
+        initial_frame,
+    )
+    # None since we're in the middle of a stopped run
+    assert result is None
+
+    next_frame: Dict[str, Any] = {
+        _SPECIAL_SOURCE: {
+            _SPECIAL_PROPOSAL_KEY: proposal_id,
+            _SPECIAL_RUN_NUMBER_KEY: 1,
+            # Set to == 0 to indicate started run now
+            _SPECIAL_TRAINS_IN_RUN_KEY: 0,
+        },
+        "source": {"subkey": [1.0]},
+    }
+
+    # None since we're in the middle of a stopped run
+    result = karabo2.process_frame(
+        {
+            _SPECIAL_SOURCE: {
+                "timestamp.tid": 2,
+            }
+        },
+        next_frame,
+    )
+    assert result is not None
+    assert AttributoId(pulse_energy_avg) not in result.attributi_values
