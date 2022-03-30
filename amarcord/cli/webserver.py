@@ -108,15 +108,22 @@ async def update_sample() -> JSONDict:
 
     async with db.instance.begin() as conn:
         sample_id = r.retrieve_safe_int("id")
+        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE)
+        sample_attributi = (
+            await db.instance.retrieve_sample(conn, sample_id, attributi)
+        ).attributi
+        sample_attributi.extend_with_attributi_map(
+            AttributiMap.from_types_and_json(
+                attributi,
+                sample_ids=[],
+                raw_attributi=r.retrieve_safe_object("attributi"),
+            )
+        )
         await db.instance.update_sample(
             conn,
             id_=sample_id,
             name=r.retrieve_safe_str("name"),
-            attributi=AttributiMap.from_types_and_json(
-                await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE),
-                sample_ids=[],
-                raw_attributi=r.retrieve_safe_object("attributi"),
-            ),
+            attributi=sample_attributi,
         )
         await db.instance.remove_files_from_sample(conn, sample_id)
         file_ids = r.retrieve_int_array("fileIds")

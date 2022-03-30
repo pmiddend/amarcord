@@ -737,6 +737,31 @@ class AsyncDB:
 
         return await self.retrieve_run(conn, maximum_id[0], attributi)
 
+    async def retrieve_sample(
+        self, conn: Connection, id_: int, attributi: List[DBAttributo]
+    ) -> Optional[DBSample]:
+        rc = self.tables.sample.c
+        r = (
+            await conn.execute(
+                sa.select([rc.id, rc.name, rc.attributi]).where(rc.id == id_)
+            )
+        ).fetchone()
+        files = await self._retrieve_files(
+            conn,
+            self.tables.sample_has_file.c.sample_id,
+            (self.tables.sample_has_file.c.sample_id == id_),
+        )
+        if r is None:
+            return None
+        return DBSample(
+            id=id_,
+            name=r["name"],
+            attributi=AttributiMap.from_types_and_json(
+                attributi, sample_ids=[], raw_attributi=r["attributi"]
+            ),
+            files=files.get(id_, []),
+        )
+
     async def retrieve_run(
         self, conn: Connection, id_: int, attributi: List[DBAttributo]
     ) -> Optional[DBRun]:
