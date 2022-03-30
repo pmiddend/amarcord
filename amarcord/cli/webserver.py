@@ -109,9 +109,9 @@ async def update_sample() -> JSONDict:
     async with db.instance.begin() as conn:
         sample_id = r.retrieve_safe_int("id")
         attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE)
-        sample_attributi = (
-            await db.instance.retrieve_sample(conn, sample_id, attributi)
-        ).attributi
+        sample = await db.instance.retrieve_sample(conn, sample_id, attributi)
+        assert sample is not None
+        sample_attributi = sample.attributi
         sample_attributi.extend_with_attributi_map(
             AttributiMap.from_types_and_json(
                 attributi,
@@ -139,7 +139,7 @@ async def delete_sample() -> JSONDict:
 
     async with db.instance.begin() as conn:
         await db.instance.delete_sample(
-            conn, id_=r.retrieve_safe_int("id"), delete_in_runs=False
+            conn, id_=r.retrieve_safe_int("id"), delete_in_dependencies=True
         )
 
     return {}

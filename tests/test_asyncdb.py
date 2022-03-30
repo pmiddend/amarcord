@@ -22,6 +22,7 @@ from amarcord.db.tables import create_tables_from_metadata
 EVENT_SOURCE = "P11User"
 
 TEST_ATTRIBUTO_VALUE = 3
+TEST_SECOND_ATTRIBUTO_VALUE = 4
 
 TEST_SAMPLE_NAME = "samplename"
 
@@ -32,6 +33,7 @@ TEST_ATTRIBUTO_GROUP = "testgroup"
 TEST_ATTRIBUTO_DESCRIPTION = "testdescription"
 
 TEST_ATTRIBUTO_NAME = AttributoId("testname")
+TEST_SECOND_ATTRIBUTO_NAME = AttributoId("testname1")
 
 
 async def _get_db() -> AsyncDB:
@@ -134,9 +136,14 @@ async def test_create_and_retrieve_sample() -> None:
             == TEST_ATTRIBUTO_VALUE
         )
 
+        sample = await db.retrieve_sample(conn, sample_id, attributi)
+        assert sample is not None
+        assert sample.id == sample_id
+        assert sample.name == TEST_SAMPLE_NAME
+
 
 async def test_create_and_update_sample() -> None:
-    """Create an attributo, then a sample, and then update that"""
+    """Create two attributi, then a sample, and then update that"""
 
     db = await _get_db()
 
@@ -144,6 +151,14 @@ async def test_create_and_update_sample() -> None:
         await db.create_attributo(
             conn,
             TEST_ATTRIBUTO_NAME,
+            TEST_ATTRIBUTO_DESCRIPTION,
+            TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.SAMPLE,
+            AttributoTypeInt(),
+        )
+        await db.create_attributo(
+            conn,
+            TEST_SECOND_ATTRIBUTO_NAME,
             TEST_ATTRIBUTO_DESCRIPTION,
             TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
@@ -158,7 +173,10 @@ async def test_create_and_update_sample() -> None:
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=[],
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={
+                    TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE,
+                    TEST_SECOND_ATTRIBUTO_NAME: TEST_SECOND_ATTRIBUTO_VALUE,
+                },
             ),
         )
 
@@ -169,7 +187,10 @@ async def test_create_and_update_sample() -> None:
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=[],
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE + 1},
+                raw_attributi={
+                    TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE + 1,
+                    TEST_SECOND_ATTRIBUTO_NAME: TEST_SECOND_ATTRIBUTO_VALUE,
+                },
             ),
         )
 
@@ -181,6 +202,10 @@ async def test_create_and_update_sample() -> None:
         assert (
             samples[0].attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME)
             == TEST_ATTRIBUTO_VALUE + 1
+        )
+        assert (
+            samples[0].attributi.select_int_unsafe(TEST_SECOND_ATTRIBUTO_NAME)
+            == TEST_SECOND_ATTRIBUTO_VALUE
         )
 
 
@@ -211,7 +236,7 @@ async def test_create_and_delete_sample() -> None:
             ),
         )
 
-        await db.delete_sample(conn, sample_id, delete_in_runs=True)
+        await db.delete_sample(conn, sample_id, delete_in_dependencies=True)
         assert not await db.retrieve_samples(conn, attributi)
 
 
@@ -563,7 +588,7 @@ async def test_create_attributo_and_run_then_delete_attributo() -> None:
 
 
 async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() -> None:
-    """This is a little bit of an edge case: we have an attributo that signifies the sample of a run, and we create a run and a sample, and then we delete the sample"""
+    """This is a bit of an edge case: we have an attributo that signifies the sample of a run, and we create a run and a sample, and then we delete the sample"""
 
     db = await _get_db()
 
@@ -587,6 +612,20 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
             ),
         )
 
+        # Create an experiment type and a data-set. This is supposed to be deleted as well when we delete the sample
+        # attributo.
+        await db.create_experiment_type(
+            conn, name="sample-based", experiment_attributi_names=[TEST_ATTRIBUTO_NAME]
+        )
+
+        await db.create_data_set(
+            conn,
+            "sample-based",
+            AttributiMap.from_types_and_raw(
+                attributi, [sample_id], {TEST_ATTRIBUTO_NAME: sample_id}
+            ),
+        )
+
         await db.create_run(
             conn,
             run_id=TEST_RUN_ID,
@@ -601,13 +640,15 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
 
         with pytest.raises(Exception):
             # This doesn't work, because the sample is being used
-            await db.delete_sample(conn, sample_id, delete_in_runs=False)
+            await db.delete_sample(conn, sample_id, delete_in_dependencies=False)
 
         # This works, because we explicitly say we want to delete it from the runs
-        await db.delete_sample(conn, sample_id, delete_in_runs=True)
+        await db.delete_sample(conn, sample_id, delete_in_dependencies=True)
 
         runs = await db.retrieve_runs(conn, attributi)
         assert runs[0].attributi.select_sample_id(TEST_ATTRIBUTO_NAME) is None
+
+        assert not await db.retrieve_data_sets(conn, [], attributi)
 
 
 async def test_create_and_retrieve_file() -> None:

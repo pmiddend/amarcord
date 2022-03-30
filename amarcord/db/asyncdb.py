@@ -303,9 +303,11 @@ class AsyncDB:
         ]
 
     async def delete_sample(
-        self, conn: Connection, id_: int, delete_in_runs: bool
+        self, conn: Connection, id_: int, delete_in_dependencies: bool
     ) -> None:
         attributi = await self.retrieve_attributi(conn, AssociatedTable.RUN)
+
+        sample_ids = await self.retrieve_sample_ids(conn)
 
         # check if we have a sample attributo in runs and then do integrity checking
         sample_attributi = [
@@ -319,13 +321,28 @@ class AsyncDB:
                 for sample_attributo in sample_attributi:
                     run_sample = r.attributi.select_sample_id(sample_attributo.name)
                     if run_sample == id_:
-                        if delete_in_runs:
+                        if delete_in_dependencies:
                             run_attributi.remove_with_type(sample_attributo.name)
                             changed = True
                         else:
                             raise Exception(f"run {r.id} still has sample {id_}")
                 if changed:
                     await self.update_run_attributi(conn, r.id, run_attributi)
+
+            for ds in await self.retrieve_data_sets(
+                conn, sample_ids=sample_ids, attributi=attributi
+            ):
+                changed = False
+                for sample_attributo in sample_attributi:
+                    ds_sample = ds.attributi.select_sample_id(sample_attributo.name)
+                    if ds_sample == id_:
+                        if delete_in_dependencies:
+                            ds.attributi.remove_with_type(sample_attributo.name)
+                            changed = True
+                        else:
+                            raise Exception(f"data set {ds.id} still has sample {id_}")
+                if changed:
+                    await self.delete_data_set(conn, ds.id)
 
         await conn.execute(
             sa.delete(self.tables.sample).where(self.tables.sample.c.id == id_)

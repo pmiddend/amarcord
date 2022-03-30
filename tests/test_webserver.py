@@ -1,7 +1,14 @@
+from typing import List
+
 from amarcord.cli.webserver import app, db
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
+from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
+
+TEST_ATTRIBUTO_NAME = "testattributo"
+TEST_ATTRIBUTO_NAME2 = "testattributo2"
+TEST_SAMPLE_NAME = "samplename"
 
 
 async def test_read_samples() -> None:
@@ -19,6 +26,74 @@ async def test_read_samples() -> None:
     json = JSONChecker(await result.json, "response")
 
     assert len(json.retrieve_safe_list("samples")) == 0
+
+
+async def test_update_samples() -> None:
+    app.config.update(
+        {
+            "DB_URL": "sqlite+aiosqlite://",
+            "DB_ECHO": False,
+            "HAS_ARTIFICIAL_DELAY": False,
+        },
+    )
+    await db.initialize_db()
+    client = app.test_client()
+
+    await client.post(
+        "/api/attributi",
+        json={
+            "name": TEST_ATTRIBUTO_NAME,
+            "description": "description",
+            "group": ATTRIBUTO_GROUP_MANUAL,
+            "associatedTable": "sample",
+            "type": {"type": "string"},
+        },
+    )
+    await client.post(
+        "/api/attributi",
+        json={
+            "name": TEST_ATTRIBUTO_NAME2,
+            "description": "description",
+            "group": ATTRIBUTO_GROUP_MANUAL,
+            "associatedTable": "sample",
+            "type": {"type": "string"},
+        },
+    )
+
+    result = await client.post(
+        "/api/samples",
+        json={
+            "name": TEST_SAMPLE_NAME,
+            "attributi": {TEST_ATTRIBUTO_NAME: "foo", TEST_ATTRIBUTO_NAME2: "bar"},
+            "fileIds": [],
+        },
+    )
+
+    json = JSONChecker(await result.json, "response")
+    sample_id = json.retrieve_safe_int("id")
+
+    result = await client.patch(
+        "/api/samples",
+        json={
+            "id": sample_id,
+            "name": TEST_SAMPLE_NAME,
+            # Only update hte second attributo. The first should stay the same.
+            "attributi": {TEST_ATTRIBUTO_NAME2: "baz"},
+            "fileIds": [],
+        },
+    )
+
+    assert result.status_code == 200
+
+    result = await client.get("/api/samples")
+    json = JSONChecker(await result.json, "response")
+
+    samples: List[JSONDict] = json.retrieve_array("samples")
+    assert len(samples) == 1
+
+    assert samples[0]["id"] == sample_id
+    assert samples[0]["attributi"][TEST_ATTRIBUTO_NAME] == "foo"  # type: ignore
+    assert samples[0]["attributi"][TEST_ATTRIBUTO_NAME2] == "baz"  # type: ignore
 
 
 async def test_data_sets() -> None:
