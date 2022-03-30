@@ -152,17 +152,15 @@ async def ingest_kamzik_metadata(
 
     attributi = await db.retrieve_attributi(conn, associated_table=AssociatedTable.RUN)
     existing_run = await db.retrieve_run(conn, run_id, attributi)
-    attributi_map = (
-        existing_run.attributi
-        if existing_run is not None
-        else AttributiMap.from_types_and_json(
-            attributi,
-            sample_ids=[],
-            raw_attributi={},
-        )
+    kamzik_attributi_map = AttributiMap.from_types_and_json(
+        attributi, sample_ids=[], raw_attributi=attributi_values
     )
-    for attributo_name, value in attributi_values.items():
-        attributi_map.append_single(attributo_name, value)
+    attributi_map: AttributiMap
+    if existing_run is None:
+        attributi_map = kamzik_attributi_map
+    else:
+        attributi_map = existing_run.attributi
+        attributi_map.extend_with_attributi_map(kamzik_attributi_map)
     if existing_run is not None:
         await db.update_run_attributi(conn, run_id, attributi_map)
     else:
