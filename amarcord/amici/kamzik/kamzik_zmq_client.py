@@ -182,15 +182,16 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     monitor_socket = socket.get_monitor_socket()
 
     logger.info(f"waiting for connection to {socket_url}...")
-    async with db.begin() as conn:
-        await db.create_event(
-            conn, EventLogLevel.INFO, "🤖 kamzik", "Kamzik client (re)started"
-        )
 
     while True:
         message = parse_monitor_message(await monitor_socket.recv_multipart())
         if message["event"] == zmq.EVENT_CONNECTED:
             break
+
+    async with db.begin() as conn:
+        await db.create_event(
+            conn, EventLogLevel.INFO, "🤖 kamzik", "Kamzik client (re)started"
+        )
 
     logger.info(f"connected to {socket_url}")
 
@@ -255,7 +256,9 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     subscriber_socket.setsockopt_string(zmq.SUBSCRIBE, token)
 
     if attributes_sharing_map:
-        raise NotImplementedError(f"got attribute sharing for {attributes_sharing_map}")
+        logger.info(f"got attribute sharing for {attributes_sharing_map}, ignoring")
+        # This one is too harsh
+        # raise NotImplementedError(f"got attribute sharing for {attributes_sharing_map}")
 
     logger.info("starting main loops")
     await asyncio.wait(
