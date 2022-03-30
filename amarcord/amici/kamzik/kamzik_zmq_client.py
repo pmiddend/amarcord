@@ -17,6 +17,7 @@ from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.event_log_level import EventLogLevel
 from amarcord.json import JSONDict
 from amarcord.json_schema import parse_schema_type
 
@@ -181,6 +182,10 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     monitor_socket = socket.get_monitor_socket()
 
     logger.info(f"waiting for connection to {socket_url}...")
+    async with db.begin() as conn:
+        await db.create_event(
+            conn, EventLogLevel.INFO, "🤖 kamzik", "Kamzik client (re)started"
+        )
 
     while True:
         message = parse_monitor_message(await monitor_socket.recv_multipart())
