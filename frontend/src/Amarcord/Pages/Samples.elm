@@ -11,7 +11,7 @@ import Amarcord.Attributo
         , emptyAttributoMap
         )
 import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
@@ -252,39 +252,12 @@ viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
                ]
 
 
-typeToIcon : String -> Html Msg
-typeToIcon type_ =
-    icon
-        { name =
-            case split "/" type_ of
-                "text" :: "x-shellscript" :: [] ->
-                    "file-code"
-
-                "application" :: "pdf" :: [] ->
-                    "file-pdf"
-
-                prefix :: _ ->
-                    case prefix of
-                        "image" ->
-                            "file-image"
-
-                        "text" ->
-                            "file-text"
-
-                        _ ->
-                            "question-diamond"
-
-                _ ->
-                    "question-diamond"
-        }
-
-
 viewSampleRow : Zone -> List (Attributo AttributoType) -> Sample SampleId (AttributoMap AttributoValue) File -> Html Msg
 viewSampleRow zone attributi sample =
     let
         viewFile { id, type_, fileName, description } =
             li [ class "list-group-item" ]
-                [ typeToIcon type_
+                [ mimeTypeToIcon type_
                 , text " "
                 , span [ attribute "data-tooltip" description ] [ a [ href (makeFilesLink id), class "stretched-link" ] [ text fileName ] ]
                 ]

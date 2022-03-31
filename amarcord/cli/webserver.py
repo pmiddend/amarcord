@@ -73,6 +73,9 @@ async def create_event() -> JSONDict:
             source=r.retrieve_safe_str("source"),
             text=r.retrieve_safe_str("text"),
         )
+        file_ids = r.retrieve_int_array("fileIds")
+        for file_id in file_ids:
+            await db.instance.add_file_to_event(conn, file_id, event_id)
         return {"id": event_id}
 
 
@@ -190,6 +193,7 @@ def _encode_event(e: DBEvent) -> JSONDict:
         "source": e.source,
         "created": datetime_to_attributo_int(e.created),
         "level": e.level.value,
+        "files": [_encode_file(f) for f in e.files],
     }
 
 

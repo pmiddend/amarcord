@@ -307,6 +307,7 @@ type alias Event =
     , source : String
     , level : String
     , created : Posix
+    , files : List File
     }
 
 
@@ -393,18 +394,19 @@ runDecoder =
 
 eventDecoder : Decode.Decoder Event
 eventDecoder =
-    Decode.map5
+    Decode.map6
         Event
         (Decode.field "id" Decode.int)
         (Decode.field "text" Decode.string)
         (Decode.field "source" Decode.string)
         (Decode.field "level" Decode.string)
         (Decode.field "created" (Decode.map millisToPosix Decode.int))
+        (Decode.field "files" (Decode.list fileDecoder))
 
 
-encodeEvent : String.String -> String.String -> Encode.Value
-encodeEvent source text =
-    Encode.object [ ( "source", Encode.string source ), ( "text", Encode.string text ) ]
+encodeEvent : String -> String -> List Int -> Encode.Value
+encodeEvent source text fileIds =
+    Encode.object [ ( "source", Encode.string source ), ( "text", Encode.string text ), ( "fileIds", Encode.list Encode.int fileIds ) ]
 
 
 encodeRun : Run -> Encode.Value
@@ -412,12 +414,12 @@ encodeRun run =
     Encode.object [ ( "id", Encode.int run.id ), ( "attributi", encodeAttributoMap run.attributi ) ]
 
 
-httpCreateEvent : (Result RequestError () -> msg) -> String -> String -> Cmd msg
-httpCreateEvent f source text =
+httpCreateEvent : (Result RequestError () -> msg) -> String -> String -> List Int -> Cmd msg
+httpCreateEvent f source text files =
     Http.post
         { url = "api/events"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
-        , body = jsonBody (encodeEvent source text)
+        , body = jsonBody (encodeEvent source text files)
         }
 
 

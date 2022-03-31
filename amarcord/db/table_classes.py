@@ -9,15 +9,6 @@ from amarcord.db.event_log_level import EventLogLevel
 
 
 @dataclass(frozen=True)
-class DBEvent:
-    id: int
-    created: datetime.datetime
-    level: EventLogLevel
-    source: str
-    text: str
-
-
-@dataclass(frozen=True)
 class DBFile:
     id: Optional[int]
     description: str
@@ -25,6 +16,16 @@ class DBFile:
     original_path: Optional[str]
     file_name: str
     size_in_bytes: int
+
+
+@dataclass(frozen=True)
+class DBEvent:
+    id: int
+    created: datetime.datetime
+    level: EventLogLevel
+    source: str
+    text: str
+    files: List[DBFile]
 
 
 @dataclass(frozen=True)

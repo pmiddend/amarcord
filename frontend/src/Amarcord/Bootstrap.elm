@@ -1,4 +1,4 @@
-module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, spinner, viewRemoteData)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 
 import Amarcord.API.Requests exposing (RequestError)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
@@ -97,3 +97,30 @@ viewRemoteData message x =
             div [ class "mt-3" ]
                 [ makeAlert [ AlertSuccess ] [ text message ]
                 ]
+
+
+mimeTypeToIcon : String -> Html msg
+mimeTypeToIcon type_ =
+    icon
+        { name =
+            case String.split "/" type_ of
+                "text" :: "x-shellscript" :: [] ->
+                    "file-code"
+
+                "application" :: "pdf" :: [] ->
+                    "file-pdf"
+
+                prefix :: _ ->
+                    case prefix of
+                        "image" ->
+                            "file-image"
+
+                        "text" ->
+                            "file-text"
+
+                        _ ->
+                            "question-diamond"
+
+                _ ->
+                    "question-diamond"
+        }

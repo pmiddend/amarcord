@@ -139,6 +139,27 @@ def _table_run_has_file(
     )
 
 
+def _table_event_has_file(
+    metadata: sa.MetaData, event_log: sa.Table, file: sa.Table
+) -> sa.Table:
+    return sa.Table(
+        "EventHasFile",
+        metadata,
+        sa.Column(
+            "event_id",
+            sa.Integer(),
+            # If the run vanishes, delete this entry as well
+            ForeignKey(_fk_identifier(event_log.c.id), ondelete="cascade"),
+        ),
+        sa.Column(
+            "file_id",
+            sa.Integer(),
+            # If the file vanishes, delete this entry as well
+            ForeignKey(_fk_identifier(file.c.id), ondelete="cascade"),
+        ),
+    )
+
+
 def _table_sample(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Sample",
@@ -222,7 +243,9 @@ class DBTables:
         data_set: sa.Table,
         sample_has_file: sa.Table,
         run_has_file: sa.Table,
+        event_has_file: sa.Table,
     ) -> None:
+        self.event_has_file = event_has_file
         self.cfel_analysis_result_has_file = cfel_analysis_result_has_file
         self.data_set = data_set
         self.experiment_has_attributo = experiment_has_attributo
@@ -243,11 +266,12 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     table_attributo = _table_attributo(metadata)
     data_set = _table_data_set(metadata)
     cfel_analysis_results = _table_cfel_analysis_results(metadata, data_set)
+    event_log = _table_event_log(metadata)
     return DBTables(
         sample=sample,
         run=run,
         attributo=table_attributo,
-        event_log=_table_event_log(metadata),
+        event_log=event_log,
         data_set=data_set,
         cfel_analysis_results=cfel_analysis_results,
         experiment_has_attributo=_table_experiment_has_attributo(
@@ -259,4 +283,5 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
             metadata, cfel_analysis_results, file
         ),
         run_has_file=_table_run_has_file(metadata, run, file),
+        event_has_file=_table_event_has_file(metadata, event_log, file),
     )

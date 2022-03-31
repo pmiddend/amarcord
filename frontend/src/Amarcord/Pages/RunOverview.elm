@@ -1,22 +1,23 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, RequestError, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
+import Amarcord.API.Requests exposing (Event, RequestError, Run, RunsResponse, RunsResponseContent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, spinner)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (br_, em_, form_, h1_, h2_, h3_, h5_, hr_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.EventForm as EventForm exposing (Msg(..))
+import Amarcord.Html exposing (br_, em_, form_, h1_, h2_, h3_, hr_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, scrollToTop)
 import Dict exposing (Dict)
-import Hotkeys exposing (onEnter)
 import Html exposing (Html, a, button, div, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
-import Html.Attributes exposing (class, colspan, disabled, for, id, placeholder, selected, style, type_, value)
+import Html.Attributes exposing (class, colspan, disabled, for, href, id, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
 import List.Extra exposing (find)
@@ -30,12 +31,9 @@ import Time exposing (Posix, Zone)
 type Msg
     = RunsReceived RunsResponse
     | Refresh Posix
-    | EventFormChange EventForm
-    | EventFormSubmit
-    | EventFormSubmitFinished (Result RequestError ())
     | EventDelete Int
     | EventDeleteFinished (Result RequestError ())
-    | EventFormSubmitDismiss
+    | EventFormMsg EventForm.Msg
     | RunEditInfoValueUpdate AttributoNameWithValueUpdate
     | RunEditSubmit
     | RunEditFinished (Result RequestError ())
@@ -49,17 +47,9 @@ type Msg
 type alias EventForm =
     { userName : String
     , message : String
+    , fileIds : List Int
+    , fileUploadRequest : RemoteData RequestError ()
     }
-
-
-emptyEventForm : EventForm
-emptyEventForm =
-    EventForm "P11User" ""
-
-
-eventFormValid : EventForm -> Bool
-eventFormValid { userName, message } =
-    userName /= "" && message /= ""
 
 
 type alias RunEditInfo =
@@ -76,8 +66,7 @@ type alias Model =
     { runs : RemoteData RequestError RunsResponseContent
     , myTimeZone : Zone
     , refreshRequest : RemoteData RequestError ()
-    , eventForm : EventForm
-    , eventRequest : RemoteData RequestError ()
+    , eventForm : EventForm.Model
     , now : Posix
     , runEditInfo : Maybe RunEditInfo
     , runEditRequest : RemoteData RequestError ()
@@ -92,8 +81,7 @@ init { zone, now } =
     ( { runs = Loading
       , myTimeZone = zone
       , refreshRequest = NotAsked
-      , eventForm = emptyEventForm
-      , eventRequest = NotAsked
+      , eventForm = EventForm.init
       , now = now
       , runEditInfo = Nothing
       , runEditRequest = NotAsked
@@ -132,14 +120,32 @@ viewRunRow zone sampleIds attributi r =
 
 viewEventRow : Zone -> Int -> Event -> Html Msg
 viewEventRow zone attributoColumnCount e =
+    let
+        viewFile { type_, fileName, id } =
+            li_
+                [ mimeTypeToIcon type_
+                , text " "
+                , a [ href (makeFilesLink id) ] [ text fileName ]
+                ]
+
+        maybeFiles =
+            if List.isEmpty e.files then
+                [ text "" ]
+
+            else
+                [ ul [ class "me-0" ] (List.map viewFile e.files) ]
+
+        mainContent =
+            [ button [ class "btn btn-sm btn-link amarcord-small-link-button", type_ "button", onClick (EventDelete e.id) ] [ icon { name = "trash" } ]
+            , strongText <| " " ++ e.source ++ " "
+            , text <| e.text ++ " "
+            ]
+                ++ maybeFiles
+    in
     tr [ class "bg-light" ]
         [ td_ []
         , td_ [ text <| formatPosixTimeOfDayHumanFriendly zone e.created ]
-        , td [ colspan attributoColumnCount ]
-            [ button [ class "btn btn-sm btn-link amarcord-small-link-button", type_ "button", onClick (EventDelete e.id) ] [ icon { name = "trash" } ]
-            , strongText <| " [" ++ e.source ++ "] "
-            , text <| e.text ++ " "
-            ]
+        , td [ colspan attributoColumnCount ] mainContent
         ]
 
 
@@ -188,55 +194,6 @@ viewRunsTable zone chosenColumns { runs, attributi, events, samples } =
                     ++ [ th_ [ text "Actions" ] ]
             ]
         , tbody_ runRows
-        ]
-
-
-viewEventForm : RemoteData RequestError () -> EventForm -> Html Msg
-viewEventForm eventRequest { userName, message } =
-    let
-        eventError =
-            case eventRequest of
-                Success _ ->
-                    p [ class "text-success" ] [ text "Message added!" ]
-
-                Failure e ->
-                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ] ] ++ [ showRequestError e ]
-
-                _ ->
-                    text ""
-    in
-    form_
-        [ h5_ [ text "Did something happen just now? Tell us!" ]
-        , div
-            [ class "input-group mb-3" ]
-            [ input_
-                [ value userName
-                , type_ "text"
-                , class "form-control form-control-sm"
-                , style "width" "15%"
-                , placeholder "User name"
-                , onInput (\e -> EventFormChange { userName = e, message = message })
-                ]
-            , input_
-                [ value message
-                , type_ "text"
-                , class "form-control form-control-sm"
-                , placeholder "What happened? What did you do?"
-                , style "width" "70%"
-                , onEnter EventFormSubmit
-                , onInput (\e -> EventFormChange { userName = userName, message = e })
-                ]
-            , button
-                [ onClick EventFormSubmit
-                , disabled (isLoading eventRequest || userName == "" || message == "")
-                , type_ "button"
-                , class "btn btn-primary btn-sm"
-                , style "width" "15%"
-                , style "white-space" "nowrap"
-                ]
-                [ icon { name = "send" }, text " Post" ]
-            ]
-        , eventError
         ]
 
 
@@ -530,9 +487,11 @@ viewInner model rrc =
     [ div
         [ class "row" ]
         [ div [ class "col-6" ]
-            (viewCurrentRun model.myTimeZone model.now model.currentExperimentType rrc ++ [ viewEventForm model.eventRequest model.eventForm ])
+            (viewCurrentRun model.myTimeZone model.now model.currentExperimentType rrc)
         , div [ class "col-6" ] (viewRunAttributiForm (head rrc.runs) model.submitErrors model.runEditRequest rrc.samples model.runEditInfo)
         ]
+    , hr_
+    , Html.map EventFormMsg (EventForm.view model.eventForm)
     , hr_
     , Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
     , hr_
@@ -658,23 +617,23 @@ update msg model =
         Refresh now ->
             ( { model | refreshRequest = Loading, now = now }, httpGetRuns RunsReceived )
 
-        EventFormChange eventForm ->
-            ( { model | eventForm = eventForm }, Cmd.none )
+        EventFormMsg eventFormMsg ->
+            let
+                ( newEventForm, cmds ) =
+                    EventForm.update eventFormMsg model.eventForm
+            in
+            ( { model | eventForm = newEventForm }
+            , Cmd.batch
+                ((case eventFormMsg of
+                    EventForm.SubmitFinished _ ->
+                        httpGetRuns RunsReceived
 
-        EventFormSubmit ->
-            if eventFormValid model.eventForm then
-                ( { model | eventRequest = Loading }, httpCreateEvent EventFormSubmitFinished model.eventForm.userName model.eventForm.message )
-
-            else
-                ( model, Cmd.none )
-
-        EventFormSubmitFinished result ->
-            case result of
-                Err e ->
-                    ( { model | eventRequest = Failure e }, Cmd.none )
-
-                Ok _ ->
-                    ( { model | eventRequest = Success (), eventForm = { userName = model.eventForm.userName, message = "" } }, httpGetRuns RunsReceived )
+                    _ ->
+                        Cmd.none
+                 )
+                    :: [ Cmd.map EventFormMsg cmds ]
+                )
+            )
 
         EventDelete eventId ->
             ( model, httpDeleteEvent EventDeleteFinished eventId )
@@ -686,9 +645,6 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
-
-        EventFormSubmitDismiss ->
-            ( { model | eventRequest = NotAsked }, Cmd.none )
 
         RunEditInfoValueUpdate v ->
             case model.runEditInfo of

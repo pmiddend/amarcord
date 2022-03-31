@@ -248,8 +248,18 @@ class AsyncDB:
 
     async def retrieve_events(self, conn: Connection) -> List[DBEvent]:
         ec = self.tables.event_log.c
+        event_to_files = await self._retrieve_files(
+            conn, self.tables.event_has_file.c.event_id
+        )
         return [
-            DBEvent(row["id"], row["created"], row["level"], row["source"], row["text"])
+            DBEvent(
+                row["id"],
+                row["created"],
+                row["level"],
+                row["source"],
+                row["text"],
+                files=event_to_files.get(row["id"], []),
+            )
             for row in await conn.execute(
                 sa.select([ec.id, ec.created, ec.level, ec.source, ec.text]).order_by(
                     ec.created.desc()
@@ -552,6 +562,15 @@ class AsyncDB:
         await conn.execute(
             sa.insert(self.tables.sample_has_file).values(
                 file_id=file_id, sample_id=sample_id
+            )
+        )
+
+    async def add_file_to_event(
+        self, conn: Connection, file_id: int, event_id: int
+    ) -> None:
+        await conn.execute(
+            sa.insert(self.tables.event_has_file).values(
+                file_id=file_id, event_id=event_id
             )
         )
 

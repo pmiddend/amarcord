@@ -2,7 +2,6 @@ module Amarcord.Util exposing (..)
 
 import Browser.Dom
 import Http
-import Iso8601 exposing (toTime)
 import Json.Decode as Decode
 import List exposing (foldr)
 import String exposing (fromInt, padLeft)
@@ -204,11 +203,6 @@ formatPosixHumanFriendly zone posix =
             padLeft 2 '0' <| String.fromInt <| toSecond zone posix
     in
     year ++ "/" ++ month ++ "/" ++ day ++ " " ++ hour ++ ":" ++ minute ++ ":" ++ second
-
-
-toTimeMaybe : String -> Maybe Posix
-toTimeMaybe =
-    Result.toMaybe << toTime
 
 
 posixBefore : Posix -> Posix -> Bool
