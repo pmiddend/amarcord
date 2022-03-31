@@ -1,7 +1,7 @@
 import asyncio
-from asyncio import FIRST_COMPLETED
+from asyncio import FIRST_COMPLETED, Task
 from pathlib import Path
-from typing import Optional, List, Awaitable
+from typing import Optional, List
 
 from tap import Tap
 from zmq.asyncio import Context
@@ -37,32 +37,44 @@ async def _main_loop(args: Arguments) -> None:
     zmq_ctx = Context.instance()
     await db.migrate()
 
-    awaitables: List[Awaitable[None]] = []
+    awaitables: List[Task[None]] = []
 
     if args.experiment_simulator_enabled:
         await experiment_simulator_initialize_db(db)
         awaitables.append(
-            experiment_simulator_main_loop(
-                db, args.experiment_simulator_files_dir, delay_seconds=5.0
+            asyncio.create_task(
+                experiment_simulator_main_loop(
+                    db, args.experiment_simulator_files_dir, delay_seconds=5.0
+                )
             )
         )
 
     if args.kamzik_socket_url is not None:
         awaitables.append(
-            kamzik_main_loop(db, args.kamzik_socket_url, args.kamzik_device_id)
+            asyncio.create_task(
+                kamzik_main_loop(db, args.kamzik_socket_url, args.kamzik_device_id)
+            )
         )
 
     if args.petra3_refresh_rate_seconds is not None:
-        awaitables.append(petra3_value_loop(db, args.petra3_refresh_rate_seconds))
+        awaitables.append(
+            asyncio.create_task(petra3_value_loop(db, args.petra3_refresh_rate_seconds))
+        )
 
     if args.om_url is not None:
         processor = OmZMQProcessor(db)
         await processor.init()
 
-        awaitables.append(processor.main_loop(zmq_ctx, args.om_url, args.om_topic))
+        awaitables.append(
+            asyncio.create_task(
+                processor.main_loop(zmq_ctx, args.om_url, args.om_topic)
+            )
+        )
 
     if args.om_simulator_port is not None:
-        awaitables.append(om_simulator_loop(zmq_ctx, 5.0, args.om_simulator_port))
+        awaitables.append(
+            asyncio.create_task(om_simulator_loop(zmq_ctx, 5.0, args.om_simulator_port))
+        )
 
     await asyncio.wait(
         awaitables,
