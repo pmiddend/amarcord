@@ -19,12 +19,12 @@ view =
             , strongText "attributi"
             , text " is key to understanding how to customize AMARCORD. Let's explain this using a concrete example."
             ]
-        , h3_ [ text "Toy Project: Screening Lyzozyme at EuXFEL" ]
+        , h3_ [ text "Toy Project: Screening Lysozyme at EuXFEL" ]
         , p_
             [ text "Let’s say we got some beam time at "
             , a [ href "https://www.xfel.eu/" ] [ text "European XFEL" ]
             , text " and want to screen some "
-            , a [ href "https://en.wikipedia.org/wiki/Lysozyme" ] [ text "Lyzozyme" ]
+            , a [ href "https://en.wikipedia.org/wiki/Lysozyme" ] [ text "Lysozyme" ]
             , text " crystals (see image) that we create in our lab."
             , img [ class "float-end m-3", src "lyzo.jpg" ] []
             , text "There are five basics steps we need to take in order to set up the experiment:"
@@ -40,7 +40,7 @@ view =
         , img [ src "workflow.png" ] []
         , h4_ [ text "Sample attributi" ]
         , p_ [ text "Attributi (that's Italian, not a typo) are, well, attributes! They can be attached to Runs or Samples, and it’s completely up to you to choose which attributes to create. It depends on what you want to store for each sample or each run." ]
-        , p_ [ text "Let’s define some sample attributi first. Our samples are all Lyzozyme crystals — but they were created with different PEG concentrations. We want to screen and analyze them separately. So it makes sense to create a new attributo called “PEG concentration”. We first navigate to “Admin”, then “Attributi” (or just click ", a [ href (makeLink Route.Attributi) ] [ text "here" ], text ")." ]
+        , p_ [ text "Let’s define some sample attributi first. Our samples are all Lysozyme crystals — but they were created with different PEG concentrations. We want to screen and analyze them separately. So it makes sense to create a new attributo called “PEG concentration”. We first navigate to “Admin”, then “Attributi” (or just click ", a [ href (makeLink Route.Attributi) ] [ text "here" ], text ")." ]
         , div [ class "alert alert-primary" ]
             [ h5 [ class "alert-heading" ] [ icon { name = "info-circle" }, text " Am I an admin now‽" ]
             , p_ [ text "Well, kind of! Reading this, you're responsible for an experiment. And in that, you decide certain boundary conditions. In this case, what people should note when adding samples to the database." ]
@@ -57,10 +57,10 @@ view =
             ]
         , img [ class "shadow m-3", src "sample-attributo-created.png" ] []
         , h4_ [ text "Adding samples" ]
-        , p_ [ text "Now let’s add some of our Lyzo crystals into the database. To do that, go to “Library” and then “Samples” (or click ", a [ href (makeLink Route.Samples) ] [ text "here" ], text "). Then press “Add sample”. You’ll be greeted with another form:" ]
+        , p_ [ text "Now let’s add some of our Lyso crystals into the database. To do that, go to “Library” and then “Samples” (or click ", a [ href (makeLink Route.Samples) ] [ text "here" ], text "). Then press “Add sample”. You’ll be greeted with another form:" ]
         , img [ class "shadow m-3", src "add-sample.png" ] []
         , p_ [ text "As you can see, our PEG concentration appears here. And as with the attributi, you have to at least enter a ", em_ [ text "name" ], text " for the sample. Everything else is optional. You can also upload files, like micrograph images or protocols here." ]
-        , p_ [ text "Let's add two samples, \"Lyzo1\" and \"Lyzo2\" with different concentrations:" ]
+        , p_ [ text "Let's add two samples, \"Lyso1\" and \"Lyso2\" with different concentrations:" ]
         , img [ class "shadow m-3", src "samples-added.png" ] []
         , h4_ [ text "Runs" ]
         , p_ [ text "The PEG concentration is attributo for a sample. As you can tell from the attributo table, apart from “started” and “stopped”, we don’t have any attributi for runs yet." ]
@@ -68,7 +68,7 @@ view =
         , p_ [ text "Let’s change this by adding a “sample” attributo to the runs. Again, go to the attributo screen, press “Add attributo”, enter “sample” for the name and use the attributo type “Sample”:" ]
         , img [ class "shadow m-3", src "add-sample-to-run.png" ] []
         , p_ [ text "Press “Add new attributo” and you’re good to go." ]
-        , p_ [ text "Notice that there’s nothing stopping you from adding another attributo of type “Sample” to a run. That might be just what you need for your experiment, and AMARCORD is flexible enough to let you do that." ]
+        , p_ [ text "Notice that there’s nothing stopping you from adding another attributo of type “Sample” to a run. That might be just what you need for your experiment, and AMARCORD is flexible enough to let you do that. 😌" ]
         , h5_ [ text "Adding runs" ]
         , p_ [ text "What about adding runs? Well, while you can do that from the GUI, that’s not (!) the preferred way to operate. AMARCORD is about automation, and pushing the current run from the device itself, automatically, is the way to go. There will be a tutorial about the API as well, but that’s a WIP. For now, let’s continue with the experiment." ]
         ]
