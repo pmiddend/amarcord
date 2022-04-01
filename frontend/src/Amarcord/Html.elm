@@ -1,6 +1,6 @@
 module Amarcord.Html exposing (..)
 
-import Html exposing (div, em, form, h1, h2, h3, h4, h5, hr, img, input, li, p, span, strong, sup, tbody, td, text, th, thead, tr, ul)
+import Html exposing (div, em, form, h1, h2, h3, h4, h5, hr, img, input, li, nav, p, span, strong, sup, tbody, td, text, th, thead, tr, ul)
 
 
 br_ : Html.Html msg
@@ -14,6 +14,10 @@ th_ x =
 
 ul_ x =
     ul [] x
+
+
+nav_ x =
+    nav [] x
 
 
 sup_ x =
