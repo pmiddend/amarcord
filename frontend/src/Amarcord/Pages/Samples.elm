@@ -28,7 +28,7 @@ import List exposing (length, singleton)
 import Maybe
 import Maybe.Extra as Maybe exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
-import String exposing (fromInt, split)
+import String exposing (fromInt)
 import Time exposing (Month(..), Posix, Zone)
 
 

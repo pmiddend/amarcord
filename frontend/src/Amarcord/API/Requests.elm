@@ -1,6 +1,7 @@
 module Amarcord.API.Requests exposing
     ( AnalysisResultsExperimentType
     , AnalysisResultsRoot
+    , AppConfig
     , CfelAnalysisResult
     , ConversionFlags
     , DataSetResult
@@ -27,6 +28,7 @@ module Amarcord.API.Requests exposing
     , httpEditAttributo
     , httpGetAnalysisResults
     , httpGetAndDecodeAttributi
+    , httpGetConfig
     , httpGetDataSets
     , httpGetExperimentTypes
     , httpGetRuns
@@ -47,7 +49,7 @@ import Amarcord.UserError exposing (CustomError, customErrorDecoder)
 import Amarcord.Util exposing (httpDelete, httpPatch)
 import Dict exposing (Dict)
 import File as ElmFile
-import Http exposing (filePart, jsonBody, multipartBody, stringPart)
+import Http exposing (emptyBody, filePart, jsonBody, multipartBody, stringPart)
 import Json.Decode as Decode
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
@@ -497,6 +499,24 @@ httpCheckStandardUnit f unit =
         { url = "api/unit"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.map3 decodeCheckUnitResult (Decode.field "input" Decode.string) (Decode.maybe (Decode.field "normalized" Decode.string)) (Decode.maybe (Decode.field "error" Decode.string)))
         , body = jsonBody (Encode.object [ ( "input", Encode.string unit ) ])
+        }
+
+
+type alias AppConfig =
+    { title : String
+    }
+
+
+configDecoder : Decode.Decoder AppConfig
+configDecoder =
+    Decode.map AppConfig (Decode.field "title" Decode.string)
+
+
+httpGetConfig : (Result RequestError AppConfig -> msg) -> Cmd msg
+httpGetConfig f =
+    Http.get
+        { url = "api/config"
+        , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| configDecoder)
         }
 
 

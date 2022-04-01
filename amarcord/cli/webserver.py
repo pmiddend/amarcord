@@ -707,6 +707,11 @@ async def read_attributi() -> JSONDict:
         }
 
 
+@app.get("/api/config")
+async def read_config() -> JSONDict:
+    return {"title": app.config["TITLE"]}
+
+
 @app.get("/api/analysis/analysis-results")
 async def read_analysis_results() -> JSONDict:
     async with db.instance.begin() as conn:
@@ -787,6 +792,7 @@ class Arguments(Tap):
     db_echo: bool = False
     debug: bool = True
     delay: bool = False
+    title: str = "AMARCORD"
 
 
 def parse_args_from_env_vars() -> Arguments:
@@ -821,6 +827,7 @@ def main() -> int:
             "DB_URL": args.db_connection_url,
             "DB_ECHO": args.db_echo,
             "HAS_ARTIFICIAL_DELAY": args.delay,
+            "TITLE": args.title,
         },
     )
     app.run(host=args.host, port=args.port, debug=False, use_reloader=args.debug)

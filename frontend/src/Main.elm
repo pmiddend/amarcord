@@ -4,7 +4,7 @@
 
 module Main exposing (main)
 
-import Amarcord.Html exposing (h1_, img_)
+import Amarcord.API.Requests exposing (AppConfig, RequestError, httpGetConfig)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
 import Amarcord.Pages.Analysis as Analysis
@@ -21,7 +21,8 @@ import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html as Html exposing (..)
 import Html.Attributes exposing (..)
-import String exposing (contains, startsWith)
+import RemoteData exposing (RemoteData(..))
+import String exposing (contains)
 import Task
 import Time exposing (Posix, Zone)
 import Url as URL exposing (Url)
@@ -51,6 +52,7 @@ type Msg
     | UrlChanged Url
     | RefreshMsg Posix
     | HereAndNowReceived HereAndNow
+    | ConfigReceived (Result RequestError AppConfig)
 
 
 type Page
@@ -68,7 +70,13 @@ type alias Model =
     { route : Route
     , page : Page
     , navKey : Nav.Key
-    , hereAndNow : Maybe HereAndNow
+    , metadata : Metadata
+    }
+
+
+type alias Metadata =
+    { hereAndNow : Maybe HereAndNow
+    , appConfigRequest : RemoteData RequestError AppConfig
     }
 
 
@@ -79,15 +87,27 @@ init _ url navKey =
             { route = Route.parseUrlFragment url
             , page = RootPage
             , navKey = navKey
-            , hereAndNow = Nothing
+            , metadata =
+                { hereAndNow = Nothing
+                , appConfigRequest = Loading
+                }
             }
     in
-    ( model, Task.perform HereAndNowReceived <| retrieveHereAndNow )
+    ( model, Cmd.batch [ Task.perform HereAndNowReceived <| retrieveHereAndNow, httpGetConfig ConfigReceived ] )
 
 
 view : Model -> Document Msg
 view model =
-    { title = "AMARCORD"
+    let
+        displayTitle =
+            case model.metadata.appConfigRequest of
+                Success { title } ->
+                    title
+
+                _ ->
+                    "AMARCORD"
+    in
+    { title = displayTitle
     , body =
         [ main_ []
             [ div [ class "container" ]
@@ -95,7 +115,7 @@ view model =
                     [ class "d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom" ]
                     [ img [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "img-fluid amarcord-logo" ] []
                     , a [ class "d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none" ]
-                        [ span [ class "fs-4" ] [ text "AMARCORD" ]
+                        [ span [ class "fs-4" ] [ text displayTitle ]
                         ]
                     , viewMenu model.route
                     ]
@@ -161,20 +181,50 @@ currentView model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ConfigReceived appConfig ->
+            let
+                oldMetadata =
+                    model.metadata
+            in
+            case appConfig of
+                Err e ->
+                    ( { model | metadata = { oldMetadata | appConfigRequest = Failure e } }, Cmd.none )
+
+                Ok appConfigUnpacked ->
+                    let
+                        newModel =
+                            { model | metadata = { oldMetadata | appConfigRequest = Success appConfigUnpacked } }
+                    in
+                    case model.metadata.hereAndNow of
+                        Nothing ->
+                            ( newModel, Cmd.none )
+
+                        Just hereAndNowUnpacked ->
+                            initCurrentPage hereAndNowUnpacked appConfigUnpacked ( newModel, Cmd.none )
+
         HereAndNowReceived hereAndNow ->
-            initCurrentPage hereAndNow ( { model | hereAndNow = Just hereAndNow }, Cmd.none )
+            let
+                oldMetadata =
+                    model.metadata
+            in
+            case model.metadata.appConfigRequest of
+                Success appConfig ->
+                    initCurrentPage hereAndNow appConfig ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
+
+                _ ->
+                    ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
 
         _ ->
-            case model.hereAndNow of
-                Nothing ->
+            case ( model.metadata.hereAndNow, model.metadata.appConfigRequest ) of
+                ( Just hereAndNow, Success appConfig ) ->
+                    updateInner hereAndNow appConfig msg model
+
+                ( _, _ ) ->
                     ( model, Cmd.none )
 
-                Just hereAndNow ->
-                    updateInner hereAndNow msg model
 
-
-updateInner : HereAndNow -> Msg -> Model -> ( Model, Cmd Msg )
-updateInner hereAndNow msg model =
+updateInner : HereAndNow -> AppConfig -> Msg -> Model -> ( Model, Cmd Msg )
+updateInner hereAndNow appConfig msg model =
     case ( msg, model.page ) of
         ( AttributiPageMsg subMsg, AttributiPage pageModel ) ->
             let
@@ -283,15 +333,18 @@ updateInner hereAndNow msg model =
                     Route.parseUrlFragment url
             in
             ( { model | route = newRoute }, Cmd.none )
-                |> initCurrentPage hereAndNow
+                |> initCurrentPage hereAndNow appConfig
 
         ( _, _ ) ->
             ( model, Cmd.none )
 
 
-initCurrentPage : HereAndNow -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-initCurrentPage hereAndNow ( model, existingCmds ) =
+initCurrentPage : HereAndNow -> AppConfig -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+initCurrentPage hereAndNow appConfig ( model, existingCmds ) =
     let
+        oldMetadata =
+            model.metadata
+
         ( currentPage, mappedPageCmds ) =
             case model.route of
                 Route.Root ->
@@ -346,4 +399,4 @@ initCurrentPage hereAndNow ( model, existingCmds ) =
                     in
                     ( ExperimentTypesPage pageModel, Cmd.map ExperimentTypesMsg pageCmds )
     in
-    ( { model | page = currentPage, hereAndNow = Just hereAndNow }, Cmd.batch [ existingCmds, mappedPageCmds ] )
+    ( { model | page = currentPage, metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.batch [ existingCmds, mappedPageCmds ] )
