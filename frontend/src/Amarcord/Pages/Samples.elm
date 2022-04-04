@@ -14,7 +14,7 @@ import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWit
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, form_, h4_, h5_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, form_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, SampleId, sampleMapAttributi, sampleMapId)
 import Amarcord.Util exposing (HereAndNow)
@@ -22,13 +22,13 @@ import Dict exposing (Dict)
 import File as ElmFile
 import File.Select
 import Html exposing (..)
-import Html.Attributes exposing (attribute, class, disabled, for, href, id, type_, value)
+import Html.Attributes exposing (attribute, class, disabled, for, href, id, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (length, singleton)
 import Maybe
 import Maybe.Extra as Maybe exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
-import String exposing (fromInt)
+import String
 import Time exposing (Month(..), Posix, Zone)
 
 
@@ -256,11 +256,15 @@ viewSampleRow : Zone -> List (Attributo AttributoType) -> Sample SampleId (Attri
 viewSampleRow zone attributi sample =
     let
         viewFile { id, type_, fileName, description } =
-            li [ class "list-group-item" ]
-                [ mimeTypeToIcon type_
-                , text " "
-                , span [ attribute "data-tooltip" description ] [ a [ href (makeFilesLink id), class "stretched-link" ] [ text fileName ] ]
-                ]
+            li [ class "list-group-item" ] <|
+                if String.startsWith "image/" type_ then
+                    [ figure [ class "figure" ] [ img_ [ src (makeFilesLink id), style "width" "20em" ], figcaption [ class "figure-caption" ] [ a [ href (makeFilesLink id), class "stretched-link" ] [ text fileName ], br_, text description ] ] ]
+
+                else
+                    [ mimeTypeToIcon type_
+                    , text " "
+                    , span [ attribute "data-tooltip" description, class "align-top" ] [ a [ href (makeFilesLink id), class "stretched-link" ] [ text fileName ] ]
+                    ]
 
         files =
             case sample.files of
