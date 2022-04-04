@@ -3,6 +3,7 @@ import logging
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey
 from sqlalchemy import MetaData
+from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.sql import ColumnElement
 
 from amarcord.db.associated_table import AssociatedTable
@@ -44,7 +45,10 @@ def _table_file(metadata: sa.MetaData) -> sa.Table:
         sa.Column("original_path", sa.Text(), nullable=True),
         sa.Column("sha256", sa.String(length=64), nullable=False),
         sa.Column("modified", sa.DateTime(), nullable=False),
-        sa.Column("contents", sa.LargeBinary(), nullable=False),
+        # Seehttps://stackoverflow.com/questions/43791725/sqlalchemy-how-to-make-a-longblob-column-in-mysql
+        sa.Column(
+            "contents", sa.LargeBinary().with_variant(LONGBLOB, "mysql"), nullable=False
+        ),
         sa.Column("description", sa.String(length=255)),
     )
 
