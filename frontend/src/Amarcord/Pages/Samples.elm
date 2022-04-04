@@ -271,8 +271,7 @@ viewSampleRow zone attributi sample =
                     ul [ class "list-group list-group-flush" ] (List.map viewFile sample.files)
     in
     tr_ <|
-        [ td_ [ text (fromInt sample.id) ]
-        , td_ [ text sample.name ]
+        [ td_ [ text sample.name ]
         ]
             ++ List.map (viewAttributoCell { shortDateTime = False } zone Dict.empty sample.attributi) attributi
             ++ [ td_ [ files ]
@@ -294,8 +293,7 @@ viewSampleTable zone samples attributi =
     table [ class "table" ]
         [ thead_
             [ tr [ class "align-top" ] <|
-                [ th_ [ text "ID" ]
-                , th_ [ text "Name" ]
+                [ th_ [ text "Name" ]
                 ]
                     ++ attributiColumns
                     ++ [ th_ [ text "Files", br_, mutedSubheader "Hover to see description, click to download" ] ]
