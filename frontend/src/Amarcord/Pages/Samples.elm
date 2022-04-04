@@ -478,7 +478,7 @@ update msg model =
                                 ( { model | modifyRequest = Loading }, operation EditSampleFinished sampleToSend )
 
         EditSampleCancel ->
-            ( { model | editSample = Nothing, newFileUpload = emptyNewFileUpload, fileUploadRequest = NotAsked, modifyRequest = NotAsked, sampleDeleteRequest = NotAsked }, Cmd.none )
+            ( { model | editSample = Nothing, newFileUpload = emptyNewFileUpload, fileUploadRequest = NotAsked, modifyRequest = NotAsked, sampleDeleteRequest = NotAsked, submitErrors = [] }, Cmd.none )
 
         EditSampleFinished result ->
             case result of
@@ -486,7 +486,7 @@ update msg model =
                     ( { model | modifyRequest = Failure e }, Cmd.none )
 
                 Ok _ ->
-                    ( { model | modifyRequest = Success (), editSample = Nothing, fileUploadRequest = NotAsked, sampleDeleteRequest = NotAsked }, httpGetSamples SamplesReceived )
+                    ( { model | modifyRequest = Success (), editSample = Nothing, fileUploadRequest = NotAsked, sampleDeleteRequest = NotAsked, submitErrors = [] }, httpGetSamples SamplesReceived )
 
         EditSampleAttributo v ->
             case model.editSample of
