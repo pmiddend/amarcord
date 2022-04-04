@@ -11,9 +11,9 @@ import Amarcord.Html exposing (div_, em_, form_, h4_, input_, p_, span_, strongT
 import Amarcord.JsonSchema exposing (JsonSchema(..))
 import Amarcord.NumericRange exposing (NumericRange(..), NumericRangeValue(..), coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
-import Amarcord.Util exposing (HereAndNow)
+import Amarcord.Util exposing (HereAndNow, scrollToTop)
 import Html exposing (..)
-import Html.Attributes exposing (attribute, checked, class, disabled, for, id, placeholder, scope, selected, style, type_, value)
+import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, scope, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (singleton)
 import List.Extra exposing (find)
@@ -313,6 +313,7 @@ type Msg
     | CancelDelete
     | DeleteFinished (Result RequestError ())
     | InitiateEdit AttributoName
+    | Nop
 
 
 type alias Model =
@@ -1180,10 +1181,13 @@ update msg model =
                 Ok _ ->
                     ( { model | deleteRequest = Success () }, httpGetAndDecodeAttributi AttributiReceived )
 
+        Nop ->
+            ( model, Cmd.none )
+
         InitiateEdit attributoName ->
             case model.attributiList of
                 Success attributiListReal ->
-                    ( { model | editAttributo = Maybe.map (mapAttributo attributoAugTypeFromType) (find (\attributo -> attributo.name == attributoName) attributiListReal), editAttributoOriginalName = Just attributoName }, Cmd.none )
+                    ( { model | editAttributo = Maybe.map (mapAttributo attributoAugTypeFromType) (find (\attributo -> attributo.name == attributoName) attributiListReal), editAttributoOriginalName = Just attributoName }, scrollToTop (always Nop) )
 
                 _ ->
                     ( model, Cmd.none )
