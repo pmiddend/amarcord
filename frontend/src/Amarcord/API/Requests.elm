@@ -49,7 +49,7 @@ import Amarcord.UserError exposing (CustomError, customErrorDecoder)
 import Amarcord.Util exposing (httpDelete, httpPatch)
 import Dict exposing (Dict)
 import File as ElmFile
-import Http exposing (emptyBody, filePart, jsonBody, multipartBody, stringPart)
+import Http exposing (filePart, jsonBody, multipartBody, stringPart)
 import Json.Decode as Decode
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
@@ -352,6 +352,9 @@ encodeAttributoMap =
 encodeAttributoValue : AttributoValue -> Encode.Value
 encodeAttributoValue x =
     case x of
+        ValueNone ->
+            Encode.null
+
         ValueInt int ->
             Encode.int int
 
@@ -375,6 +378,7 @@ attributoValueDecoder =
         , Decode.map ValueInt Decode.int
         , Decode.map ValueNumber Decode.float
         , Decode.map ValueBoolean Decode.bool
+        , Decode.null ValueNone
         , Decode.map ValueList (Decode.list (Decode.lazy (\_ -> attributoValueDecoder)))
         ]
 

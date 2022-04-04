@@ -246,8 +246,7 @@ class AttributiMap:
                 v = _convert_single_attributo_value_from_json(
                     AttributoId(attributo_name), attributo_value, types_dict, sample_ids
                 )
-                if v is not None:
-                    attributi[AttributoId(attributo_name)] = v
+                attributi[AttributoId(attributo_name)] = v
 
         return AttributiMap(types_dict, sample_ids, attributi)
 
@@ -332,8 +331,7 @@ class AttributiMap:
     def extend_with_attributi_map(self, new_attributi: "AttributiMap") -> None:
         # no need to type-check here, it'd be duplicated
         for k, v in new_attributi.items():
-            if v is not None:
-                self._attributi[k] = v
+            self._attributi[k] = v
 
     def append_single(self, attributo: AttributoId, value: AttributoValue) -> None:
         if value is not None:

@@ -45,6 +45,7 @@ type AttributoValue
     | ValueList (List AttributoValue)
     | ValueNumber Float
     | ValueBoolean Bool
+    | ValueNone
 
 
 type AttributoType
@@ -222,16 +223,6 @@ createAnnotatedAttributoMap attributi values =
             MaybeExtra.values <| List.map bestValueMapper attributi
     in
     Dict.fromList bestValues
-
-
-extractString : AttributoValue -> Maybe String
-extractString x =
-    case x of
-        ValueString s ->
-            Just s
-
-        _ ->
-            Nothing
 
 
 extractInt : AttributoValue -> Maybe Int

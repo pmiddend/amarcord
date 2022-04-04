@@ -66,6 +66,9 @@ viewAttributoCell props zone sampleIds attributiValues { name, type_ } =
 viewAttributoValue : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoType -> AttributoValue -> Html msg
 viewAttributoValue props zone sampleIds type_ value =
     case value of
+        ValueNone ->
+            text ""
+
         ValueBoolean bool ->
             if bool then
                 icon { name = "check-lg" }
@@ -456,6 +459,9 @@ attributoValueToEditValue zone attributoName attributi value =
         attributoValueToString : AttributoValue -> String
         attributoValueToString x =
             case x of
+                ValueNone ->
+                    ""
+
                 ValueBoolean bool ->
                     if bool then
                         "true"
@@ -481,8 +487,17 @@ attributoValueToEditValue zone attributoName attributi value =
                 ( Int, ValueInt x ) ->
                     Just (EditValueInt (String.fromInt x))
 
+                ( Int, ValueNone ) ->
+                    Just (EditValueInt "")
+
                 ( SampleId, ValueInt x ) ->
                     Just (EditValueSampleId (Just x))
+
+                ( SampleId, ValueNone ) ->
+                    Just (EditValueSampleId Nothing)
+
+                ( String, ValueNone ) ->
+                    Just (EditValueString "")
 
                 ( String, ValueString x ) ->
                     Just (EditValueString x)
@@ -495,14 +510,30 @@ attributoValueToEditValue zone attributoName attributi value =
                         Ok posix ->
                             Just (EditValueDateTime (formatPosixDateTimeCompatible zone posix))
 
+                ( Choice { choiceValues }, ValueNone ) ->
+                    Just (EditValueChoice { editValue = "", choiceValues = choiceValues })
+
                 ( Choice { choiceValues }, ValueString x ) ->
                     Just (EditValueChoice { editValue = x, choiceValues = choiceValues })
+
+                ( Number { range, suffix, standardUnit }, ValueNone ) ->
+                    Just (EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = "" })
 
                 ( Number { range, suffix, standardUnit }, ValueNumber x ) ->
                     Just (EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = String.fromFloat x })
 
                 ( Number { range, suffix, standardUnit }, ValueInt x ) ->
                     Just (EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = String.fromInt x })
+
+                ( List { minLength, maxLength, subType }, ValueNone ) ->
+                    Just
+                        (EditValueList
+                            { subType = subType
+                            , minLength = minLength
+                            , maxLength = maxLength
+                            , editValue = ""
+                            }
+                        )
 
                 ( List { minLength, maxLength, subType }, ValueList xs ) ->
                     Just
@@ -516,6 +547,9 @@ attributoValueToEditValue zone attributoName attributi value =
 
                 ( Boolean, ValueBoolean x ) ->
                     Just (EditValueBoolean x)
+
+                ( Boolean, ValueNone ) ->
+                    Just (EditValueBoolean False)
 
                 _ ->
                     Nothing
@@ -549,6 +583,9 @@ editEditableAttributi ea { attributoName, valueUpdate } =
 editValueToValue : AttributoEditValue -> Result String AttributoValue
 editValueToValue x =
     case x of
+        EditValueInt "" ->
+            Ok ValueNone
+
         EditValueInt string ->
             unwrap (Err "not an integer") (Ok << ValueInt) <| toInt string
 
@@ -587,16 +624,20 @@ editValueToValue x =
                         Err "invalid list subtype"
 
         EditValueNumber { range, editValue } ->
-            case String.toFloat editValue of
-                Nothing ->
-                    Err "invalid decimal number"
+            if editValue == "" then
+                Ok ValueNone
 
-                Just inputNumeric ->
-                    if valueInRange range inputNumeric then
-                        Ok (ValueNumber inputNumeric)
+            else
+                case String.toFloat editValue of
+                    Nothing ->
+                        Err "invalid decimal number"
 
-                    else
-                        Err "value not in range"
+                    Just inputNumeric ->
+                        if valueInRange range inputNumeric then
+                            Ok (ValueNumber inputNumeric)
+
+                        else
+                            Err "value not in range"
 
         EditValueChoice { choiceValues, editValue } ->
             let
