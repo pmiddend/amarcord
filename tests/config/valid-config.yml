@@ -1,3 +1,0 @@
-create_sample_data: true
-db_url: mysql+pymysql://root:root@localhost/xfel
-proposal_id: 2696
