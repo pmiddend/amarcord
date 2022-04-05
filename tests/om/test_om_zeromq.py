@@ -5,6 +5,8 @@ from amarcord.amici.om.client import (
     ATTRIBUTO_NUMBER_OF_HITS,
     ATTRIBUTO_NUMBER_OF_FRAMES,
     ATTRIBUTO_STOPPED,
+    ATTRIBUTO_NUMBER_OF_OM_FRAMES,
+    ATTRIBUTO_NUMBER_OF_OM_HITS,
 )
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
@@ -87,8 +89,8 @@ async def test_process_data_latest_run():
         run = await db.retrieve_latest_run(conn, attributi)
 
         # 4 because the first frame gets ignored as a baseline
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_HITS) == 4
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_FRAMES) == 6
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 4
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 6
 
     # Now stop the run and add some frames
     async with db.begin() as conn:
@@ -108,5 +110,5 @@ async def test_process_data_latest_run():
         run = await db.retrieve_latest_run(conn, attributi)
 
         # 4 because the first frame gets ignored as a baseline
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_HITS) == 4
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_FRAMES) == 6
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 4
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 6

@@ -1,3 +1,4 @@
+import datetime
 import logging
 from typing import Any, Union
 from typing import Optional
@@ -8,13 +9,16 @@ from zmq.asyncio import Context
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.attributi import ATTRIBUTO_STOPPED, ATTRIBUTO_STARTED
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeInt
 
 
 ATTRIBUTO_NUMBER_OF_HITS = AttributoId("hits")
 ATTRIBUTO_NUMBER_OF_FRAMES = AttributoId("frames")
+ATTRIBUTO_NUMBER_OF_OM_HITS = AttributoId("om_hits")
+ATTRIBUTO_NUMBER_OF_OM_FRAMES = AttributoId("om_frames")
+ATTRIBUTO_EXPOSURE_TIME = AttributoId("exposure_time")
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +71,55 @@ class OmZMQProcessor:
                     AssociatedTable.RUN,
                     AttributoTypeInt(),
                 )
+            om_attributes_present_before = (
+                ATTRIBUTO_NUMBER_OF_OM_FRAMES in attributi
+                and ATTRIBUTO_NUMBER_OF_OM_HITS in attributi
+            )
+            non_om_attributes_present_before = (
+                ATTRIBUTO_NUMBER_OF_FRAMES in attributi
+                and ATTRIBUTO_NUMBER_OF_HITS in attributi
+            )
+            if ATTRIBUTO_NUMBER_OF_OM_FRAMES not in attributi:
+                await self._db.create_attributo(
+                    conn,
+                    ATTRIBUTO_NUMBER_OF_OM_FRAMES,
+                    "",
+                    "om",
+                    AssociatedTable.RUN,
+                    AttributoTypeInt(),
+                )
+            if ATTRIBUTO_NUMBER_OF_OM_HITS not in attributi:
+                await self._db.create_attributo(
+                    conn,
+                    ATTRIBUTO_NUMBER_OF_OM_HITS,
+                    "",
+                    "om",
+                    AssociatedTable.RUN,
+                    AttributoTypeInt(),
+                )
+            if not om_attributes_present_before and non_om_attributes_present_before:
+                logger.info("Updating older runs")
+                for run in await self._db.retrieve_runs(
+                    conn, await self._db.retrieve_attributi(conn, associated_table=None)
+                ):
+                    number_of_frames = run.attributi.select_int(
+                        ATTRIBUTO_NUMBER_OF_FRAMES
+                    )
+                    number_of_hits = run.attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS)
+                    if number_of_frames is not None and number_of_hits is not None:
+                        run.attributi.append_single(
+                            ATTRIBUTO_NUMBER_OF_OM_HITS, number_of_hits
+                        )
+                        run.attributi.append_single(
+                            ATTRIBUTO_NUMBER_OF_OM_FRAMES, number_of_frames
+                        )
+                        run.attributi.append_single(
+                            ATTRIBUTO_NUMBER_OF_FRAMES, int(number_of_frames * 9.6)
+                        )
+                        run.attributi.append_single(
+                            ATTRIBUTO_NUMBER_OF_HITS, int(number_of_hits * 9.6)
+                        )
+                    await self._db.update_run_attributi(conn, run.id, run.attributi)
 
     async def main_loop(self, zmq_context: Context, url: str, topic: str) -> None:
         logger.info("starting OM observer main loop...")
@@ -128,16 +181,47 @@ class OmZMQProcessor:
             assert current_zeromq_data is not None
             new_hits = current_zeromq_data.num_hits - last_zeromq_data.num_hits
             new_frames = current_zeromq_data.num_events - last_zeromq_data.num_events
-            current_hits = latest_run.attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS)
-            current_frames = latest_run.attributi.select_int(ATTRIBUTO_NUMBER_OF_FRAMES)
-            latest_run.attributi.append_single(
-                ATTRIBUTO_NUMBER_OF_HITS,
-                new_hits if current_hits is None else new_hits + current_hits,
+            current_hits = latest_run.attributi.select_int(ATTRIBUTO_NUMBER_OF_OM_HITS)
+            current_frames = latest_run.attributi.select_int(
+                ATTRIBUTO_NUMBER_OF_OM_FRAMES
+            )
+            final_om_hits = (
+                new_hits if current_hits is None else new_hits + current_hits
             )
             latest_run.attributi.append_single(
-                ATTRIBUTO_NUMBER_OF_FRAMES,
-                new_frames if current_frames is None else new_frames + current_frames,
+                ATTRIBUTO_NUMBER_OF_OM_HITS,
+                final_om_hits,
             )
+            final_om_frames = (
+                new_frames if current_frames is None else new_frames + current_frames
+            )
+            latest_run.attributi.append_single(
+                ATTRIBUTO_NUMBER_OF_OM_FRAMES,
+                final_om_frames,
+            )
+            # If we have an exposure time, we can even update the total number of hits/frames
+            exposure_time = latest_run.attributi.select_decimal(ATTRIBUTO_EXPOSURE_TIME)
+            started = latest_run.attributi.select_datetime(ATTRIBUTO_STARTED)
+            if (
+                exposure_time is not None
+                and exposure_time > 1
+                and started is not None
+                and final_om_frames > 0
+            ):
+                millis_since_start = (
+                    datetime.datetime.utcnow() - started
+                ) / datetime.timedelta(milliseconds=1)
+                frames_since_start = millis_since_start / exposure_time
+                hits_since_start = final_om_hits / final_om_frames * frames_since_start
+                latest_run.attributi.append_single(
+                    ATTRIBUTO_NUMBER_OF_FRAMES,
+                    int(frames_since_start),
+                )
+                latest_run.attributi.append_single(
+                    ATTRIBUTO_NUMBER_OF_HITS,
+                    int(hits_since_start),
+                )
+
             await self._db.update_run_attributi(
                 conn, latest_run.id, latest_run.attributi
             )

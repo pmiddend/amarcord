@@ -304,6 +304,13 @@ class AttributiMap:
         ), f"attributo {attributo_id} has type {type(v)} instead of int"
         return v if v is not None else None
 
+    def select_decimal(self, attributo_id: AttributoId) -> Optional[float]:
+        v = self.select(attributo_id)
+        assert v is None or isinstance(
+            v, (float, int)
+        ), f"attributo {attributo_id} has type {type(v)} instead of float"
+        return float(v) if v is not None else None
+
     def select_string(self, attributo_id: AttributoId) -> Optional[str]:
         v = self.select(attributo_id)
         assert v is None or isinstance(
