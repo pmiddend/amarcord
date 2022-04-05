@@ -2,8 +2,6 @@ from datetime import datetime
 
 from amarcord.amici.om.client import (
     OmZMQProcessor,
-    ATTRIBUTO_NUMBER_OF_HITS,
-    ATTRIBUTO_NUMBER_OF_FRAMES,
     ATTRIBUTO_STOPPED,
     ATTRIBUTO_NUMBER_OF_OM_FRAMES,
     ATTRIBUTO_NUMBER_OF_OM_HITS,

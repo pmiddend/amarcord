@@ -348,7 +348,10 @@ viewCurrentRun zone now currentExperimentType rrc =
                                             floor <| 100.0 / toFloat toGoalPercent * 100.0
 
                                         progressBar =
-                                            if toGoalPercent <= 100 then
+                                            if not isRunning then
+                                                text ""
+
+                                            else if toGoalPercent <= 100 then
                                                 div [ class "progress" ]
                                                     [ div
                                                         [ class
