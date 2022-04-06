@@ -132,7 +132,7 @@ formatFloatHumanFriendly float =
     let
         locale : Locale
         locale =
-            { usLocale | decimals = Max 2 }
+            { usLocale | decimals = Max 3 }
     in
     format locale float
 
