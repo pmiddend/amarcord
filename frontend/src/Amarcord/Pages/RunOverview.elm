@@ -11,7 +11,8 @@ import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
-import Amarcord.Html exposing (br_, em_, form_, h1_, h2_, h3_, hr_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Html exposing (br_, em_, form_, h1_, h2_, h3_, hr_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, scrollToTop)
@@ -73,11 +74,12 @@ type alias Model =
     , submitErrors : List String
     , currentExperimentType : Maybe String
     , columnChooser : ColumnChooser.Model
+    , localStorage : Maybe LocalStorage
     }
 
 
-init : HereAndNow -> ( Model, Cmd Msg )
-init { zone, now } =
+init : HereAndNow -> Maybe LocalStorage -> ( Model, Cmd Msg )
+init { zone, now } localStorage =
     ( { runs = Loading
       , myTimeZone = zone
       , refreshRequest = NotAsked
@@ -87,7 +89,8 @@ init { zone, now } =
       , runEditRequest = NotAsked
       , submitErrors = []
       , currentExperimentType = Nothing
-      , columnChooser = ColumnChooser.init []
+      , columnChooser = ColumnChooser.init localStorage []
+      , localStorage = localStorage
       }
     , httpGetRuns RunsReceived
     )
@@ -566,14 +569,14 @@ updateRunEditInfo zone runEditInfoRaw responseRaw =
             runEditInfoRaw
 
 
-updateColumnChooser : ColumnChooser.Model -> RemoteData RequestError RunsResponseContent -> RunsResponse -> ColumnChooser.Model
-updateColumnChooser ccm currentRuns runsResponse =
+updateColumnChooser : Maybe LocalStorage -> ColumnChooser.Model -> RemoteData RequestError RunsResponseContent -> RunsResponse -> ColumnChooser.Model
+updateColumnChooser localStorage ccm currentRuns runsResponse =
     case ( currentRuns, runsResponse ) of
         ( _, Ok currentResponseUnpacked ) ->
             ColumnChooser.updateAttributi ccm currentResponseUnpacked.attributi
 
         ( _, Err _ ) ->
-            ColumnChooser.init []
+            ColumnChooser.init localStorage []
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -583,7 +586,7 @@ update msg model =
             ( { model
                 | runs = fromResult response
                 , runEditInfo = updateRunEditInfo model.myTimeZone model.runEditInfo response
-                , columnChooser = updateColumnChooser model.columnChooser model.runs response
+                , columnChooser = updateColumnChooser model.localStorage model.columnChooser model.runs response
                 , refreshRequest =
                     if isSuccess model.runs then
                         Success ()

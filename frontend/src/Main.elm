@@ -5,6 +5,7 @@
 module Main exposing (main)
 
 import Amarcord.API.Requests exposing (AppConfig, RequestError, httpGetConfig)
+import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
 import Amarcord.Pages.Analysis as Analysis
@@ -28,7 +29,7 @@ import Time exposing (Posix, Zone)
 import Url as URL exposing (Url)
 
 
-main : Program () Model Msg
+main : Program (Maybe String) Model Msg
 main =
     Browser.application
         { init = init
@@ -77,11 +78,12 @@ type alias Model =
 type alias Metadata =
     { hereAndNow : Maybe HereAndNow
     , appConfigRequest : RemoteData RequestError AppConfig
+    , localStorage : Maybe LocalStorage
     }
 
 
-init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url navKey =
+init : Maybe String -> Url -> Nav.Key -> ( Model, Cmd Msg )
+init localStorageStr url navKey =
     let
         model =
             { route = Route.parseUrlFragment url
@@ -90,6 +92,7 @@ init _ url navKey =
             , metadata =
                 { hereAndNow = Nothing
                 , appConfigRequest = Loading
+                , localStorage = Maybe.andThen decodeLocalStorage localStorageStr
                 }
             }
     in
@@ -200,7 +203,7 @@ update msg model =
                             ( newModel, Cmd.none )
 
                         Just hereAndNowUnpacked ->
-                            initCurrentPage hereAndNowUnpacked appConfigUnpacked ( newModel, Cmd.none )
+                            initCurrentPage model.metadata.localStorage hereAndNowUnpacked appConfigUnpacked ( newModel, Cmd.none )
 
         HereAndNowReceived hereAndNow ->
             let
@@ -209,7 +212,7 @@ update msg model =
             in
             case model.metadata.appConfigRequest of
                 Success appConfig ->
-                    initCurrentPage hereAndNow appConfig ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
+                    initCurrentPage model.metadata.localStorage hereAndNow appConfig ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
 
                 _ ->
                     ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
@@ -333,14 +336,14 @@ updateInner hereAndNow appConfig msg model =
                     Route.parseUrlFragment url
             in
             ( { model | route = newRoute }, Cmd.none )
-                |> initCurrentPage hereAndNow appConfig
+                |> initCurrentPage model.metadata.localStorage hereAndNow appConfig
 
         ( _, _ ) ->
             ( model, Cmd.none )
 
 
-initCurrentPage : HereAndNow -> AppConfig -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-initCurrentPage hereAndNow appConfig ( model, existingCmds ) =
+initCurrentPage : Maybe LocalStorage -> HereAndNow -> AppConfig -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+initCurrentPage localStorage hereAndNow appConfig ( model, existingCmds ) =
     let
         oldMetadata =
             model.metadata
@@ -374,7 +377,7 @@ initCurrentPage hereAndNow appConfig ( model, existingCmds ) =
                 Route.RunOverview ->
                     let
                         ( pageModel, pageCmds ) =
-                            RunOverview.init hereAndNow
+                            RunOverview.init hereAndNow localStorage
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
 

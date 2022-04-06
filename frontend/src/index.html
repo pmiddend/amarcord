@@ -18,8 +18,14 @@
 
     <script src="main.js"></script>
     <script>
+      currentLocalStorage = localStorage.getItem('local-storage');
       var app = Elm.Main.init({
-        node: document.getElementById("elm-app-is-loaded-here")
+        node: document.getElementById("elm-app-is-loaded-here"),
+        flags: typeof currentLocalStorage !== "undefined" ? currentLocalStorage : null
+      });
+
+      app.ports.storeLocalStorage.subscribe(function(localStorageStr) {
+        localStorage.setItem('local-storage', localStorageStr);
       });
     </script>
 

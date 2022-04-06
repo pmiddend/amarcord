@@ -1,14 +1,16 @@
-module Amarcord.ColumnChooser exposing (Model, Msg, init, resolveChosen, update, updateAttributi, view)
+module Amarcord.ColumnChooser exposing (Model, Msg(..), init, resolveChosen, update, updateAttributi, view)
 
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon)
 import Amarcord.Html exposing (input_, p_)
+import Amarcord.LocalStorage exposing (LocalStorage, LocalStorageColumn, encodeLocalStorage)
 import Html exposing (Html, a, button, div, h2, label, p, span, text)
 import Html.Attributes exposing (autocomplete, checked, class, for, id, type_)
 import Html.Events exposing (onClick, onInput)
 import List
 import List.Extra as ListExtra
+import Ports exposing (storeLocalStorage)
 import Set exposing (Set)
 import String
 
@@ -40,14 +42,67 @@ type alias Model =
     { allColumns : List ToggledAttributo
     , editingColumns : List ToggledAttributo
     , open : Bool
+    , localStorage : Maybe LocalStorage
     }
 
 
-init : List (Attributo AttributoType) -> Model
-init allColumnsList =
-    { allColumns = List.map toggleOn allColumnsList
+mergeLocalStorageWithAllColumns : Maybe LocalStorage -> List (Attributo AttributoType) -> List ToggledAttributo
+mergeLocalStorageWithAllColumns localStorage allAttributi =
+    -- There's quite a few "catches" here:
+    --
+    -- 1. Local storage could be missing. In that case, enable all columns.
+    -- 2. We could have new columns. In this case, also enable all columns and forget the local storage.
+    -- 3. We could have columns in the local storage that are not there anymore in the DB. In that case, also discard everything.
+    case localStorage of
+        Nothing ->
+            List.map toggleOn allAttributi
+
+        Just { columns } ->
+            let
+                currentColumnNames =
+                    Set.fromList <| List.map .name allAttributi
+
+                oldColumnNames =
+                    Set.fromList <| List.map .attributoName columns
+
+                newColumns =
+                    Set.diff currentColumnNames oldColumnNames
+
+                transducer : LocalStorageColumn -> Maybe (List ToggledAttributo) -> Maybe (List ToggledAttributo)
+                transducer localColumn prior =
+                    case prior of
+                        Nothing ->
+                            Nothing
+
+                        Just xs ->
+                            case ListExtra.find (\a -> a.name == localColumn.attributoName) allAttributi of
+                                Nothing ->
+                                    Nothing
+
+                                Just a ->
+                                    Just ({ attributo = a, isOn = localColumn.isOn } :: xs)
+
+                zipped =
+                    List.foldr transducer (Just []) columns
+            in
+            if not <| Set.isEmpty newColumns then
+                List.map toggleOn allAttributi
+
+            else
+                case zipped of
+                    Nothing ->
+                        List.map toggleOn allAttributi
+
+                    Just result ->
+                        result
+
+
+init : Maybe LocalStorage -> List (Attributo AttributoType) -> Model
+init localStorage allColumnsList =
+    { allColumns = mergeLocalStorageWithAllColumns localStorage (List.filter (\a -> a.associatedTable == AssociatedTable.Run) allColumnsList)
     , editingColumns = []
     , open = False
+    , localStorage = localStorage
     }
 
 
@@ -73,17 +128,10 @@ updateAttributi : Model -> List (Attributo AttributoType) -> Model
 updateAttributi model newAttributi =
     if List.isEmpty model.allColumns then
         { allColumns =
-            List.filterMap
-                (\a ->
-                    if a.associatedTable == AssociatedTable.Run then
-                        Just { attributo = a, isOn = True }
-
-                    else
-                        Nothing
-                )
-                newAttributi
+            mergeLocalStorageWithAllColumns model.localStorage <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) newAttributi
         , editingColumns = []
         , open = False
+        , localStorage = model.localStorage
         }
 
     else
@@ -117,6 +165,7 @@ updateAttributi model newAttributi =
         { allColumns = processAttributoList model.allColumns
         , editingColumns = processAttributoList model.editingColumns
         , open = model.open
+        , localStorage = model.localStorage
         }
 
 
@@ -243,6 +292,11 @@ moveElement rootList f dir =
             moveElementDown rootList
 
 
+makeLocalStorageColumns : List ToggledAttributo -> List LocalStorageColumn
+makeLocalStorageColumns =
+    List.map (\{ attributo, isOn } -> { isOn = isOn, attributoName = attributo.name })
+
+
 update : Model -> Msg -> ( Model, Cmd msg )
 update model message =
     case message of
@@ -252,9 +306,10 @@ update model message =
                     { allColumns = model.editingColumns
                     , editingColumns = []
                     , open = False
+                    , localStorage = model.localStorage
                     }
             in
-            ( newColumnChooser, Cmd.none )
+            ( newColumnChooser, storeLocalStorage (encodeLocalStorage { columns = makeLocalStorageColumns model.editingColumns }) )
 
         ColumnChooserToggleColumn attributoNameToChange turnOn ->
             let
@@ -274,6 +329,7 @@ update model message =
                             )
                             model.editingColumns
                     , open = True
+                    , localStorage = model.localStorage
                     }
             in
             ( newColumnChooser, Cmd.none )
@@ -285,6 +341,7 @@ update model message =
                         { allColumns = model.allColumns
                         , editingColumns = []
                         , open = False
+                        , localStorage = model.localStorage
                         }
                 in
                 ( newColumnChooser, Cmd.none )
@@ -295,6 +352,7 @@ update model message =
                         { allColumns = model.allColumns
                         , editingColumns = model.allColumns
                         , open = True
+                        , localStorage = model.localStorage
                         }
                 in
                 ( newColumnChooser, Cmd.none )
@@ -305,6 +363,7 @@ update model message =
                     { allColumns = model.allColumns
                     , editingColumns = moveElement model.editingColumns (\ta -> ta.attributo.name == string) direction
                     , open = True
+                    , localStorage = model.localStorage
                     }
             in
             ( newColumnChooser, Cmd.none )
