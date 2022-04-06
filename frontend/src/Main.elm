@@ -5,6 +5,8 @@
 module Main exposing (main)
 
 import Amarcord.API.Requests exposing (AppConfig, RequestError, httpGetConfig)
+import Amarcord.Bootstrap exposing (viewRemoteData)
+import Amarcord.Html exposing (h1_)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
@@ -123,13 +125,27 @@ view model =
                     , viewMenu model.route
                     ]
                 ]
-            , currentView model
+            , currentViewOuter model
             , div [ class "container mt-5 text-center" ]
                 [ p [ class "text-muted" ] [ text <| "AMARCORD Version: " ++ version ]
                 ]
             ]
         ]
     }
+
+
+currentViewOuter : Model -> Html Msg
+currentViewOuter model =
+    case model.metadata.appConfigRequest of
+        Success _ ->
+            currentView model
+
+        _ ->
+            div [ class "container" ]
+                [ h1_ [ text "Web server is offline" ]
+                , p [ class "lead" ] [ text "Might just be temporary (so please retry loading this in a minute). Otherwise, please contact the Admin." ]
+                , viewRemoteData "Configuration" model.metadata.appConfigRequest
+                ]
 
 
 currentView : Model -> Html Msg
