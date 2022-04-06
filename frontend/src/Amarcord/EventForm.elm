@@ -65,6 +65,20 @@ view { eventRequest, userName, message, files, fileUploadRequest } =
                 _ ->
                     text ""
 
+        fileUploadError =
+            case fileUploadRequest of
+                NotAsked ->
+                    text ""
+
+                Loading ->
+                    text "Uploading"
+
+                Failure e ->
+                    showRequestError e
+
+                Success _ ->
+                    p [ class "text-success" ] [ text "File added!" ]
+
         viewFileRow file =
             tr [ class "align-middle" ]
                 [ td_ [ text (String.fromInt file.id) ]
@@ -132,6 +146,7 @@ view { eventRequest, userName, message, files, fileUploadRequest } =
                         ]
                     ]
                 , eventError
+                , fileUploadError
                 ]
             ]
         , div [ class "row" ]
