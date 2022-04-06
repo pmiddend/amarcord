@@ -64,7 +64,9 @@ def _table_experiment_has_attributo(
             "attributo_name",
             sa.String(length=255),
             # If the attributo vanishes, delete the experiment type with it
-            ForeignKey(_fk_identifier(attributo.c.name), ondelete="cascade"),
+            ForeignKey(
+                _fk_identifier(attributo.c.name), ondelete="cascade", onupdate="cascade"
+            ),
             nullable=False,
         ),
     )
