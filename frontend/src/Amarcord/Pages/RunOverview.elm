@@ -284,14 +284,14 @@ viewCurrentRun zone now currentExperimentType rrc =
 
                 dataSetSelection =
                     [ form_
-                        [ div [ class "mb-3" ]
-                            [ label [ for "current-experiment-type" ] [ text "Experiment Type" ]
-                            , select
+                        [ div [ class "mb-3 form-floating" ]
+                            [ select
                                 [ class "form-select"
                                 , Html.Attributes.id "current-experiment-type"
                                 , onInput CurrentExperimentTypeChanged
                                 ]
                                 (option [ selected (isNothing currentExperimentType) ] [ text "«no value»" ] :: List.map viewExperimentTypeOption rrc.experimentTypes)
+                            , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
                             ]
                         ]
                     ]
