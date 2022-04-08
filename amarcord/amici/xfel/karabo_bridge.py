@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 from difflib import get_close_matches
 from enum import Enum, auto
-from statistics import mean
 from typing import (
     Dict,
     List,
@@ -15,15 +14,16 @@ from typing import (
     Optional,
     Tuple,
     cast,
-    Callable,
 )
 
 import numpy as np
+# from statistics import mean, stdev
+from numpy import mean, std
 from pint import UnitRegistry
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
-from amarcord.db.asyncdb import AsyncDB, create_ground_state_attributi
+from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
@@ -35,7 +35,6 @@ from amarcord.db.attributo_type import (
     AttributoTypeInt,
 )
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.util import safe_variance
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +110,12 @@ class KaraboProcessor(Enum):
     KARABO_PROCESSOR_IDENTITY = "identity"
     KARABO_PROCESSOR_LIST_TAKE_LAST = "list-take-last"
     KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN = "list-arithmetic-mean"
+    KARABO_PROCESSOR_LIST_STANDARD_DEVIATION = "list-standard-deviation"
 
     def is_list(self) -> bool:
         return self in (  # type: ignore
             self.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN,
+            self.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION,
             self.KARABO_PROCESSOR_LIST_TAKE_LAST,
         )
 
@@ -156,6 +157,8 @@ class KaraboAttributeDescription:
 class AmarcordAttributoProcessor(Enum):
     AMARCORD_PROCESSOR_ARITHMETIC_MEAN = "arithmetic-mean"
     AMARCORD_PROCESSOR_VARIANCE = "variance"
+    AMARCORD_PROCESSOR_PROPAGATED_STANDARD_DEVIATION = "propagated-standard-deviation"
+    AMARCORD_PROCESSOR_STANDARD_DEVIATION = "standard-deviation"
     AMARCORD_PROCESSOR_TAKE_LAST = "take-last"
 
 
@@ -166,7 +169,7 @@ class PlainAttribute:
 
 @dataclass(frozen=True)
 class CoagulateString:
-    valueSequence: List[Union[str, PlainAttribute]]
+    value_sequence: List[Union[str, PlainAttribute]]
 
 
 @dataclass(frozen=True)
@@ -187,13 +190,13 @@ class AmarcordAttributoDescription:
 
 @dataclass(frozen=True)
 class KaraboSpecialAttributes:
-    runNumberKey: KaraboValueLocator
-    runStartedAtKey: KaraboValueLocator
-    runFirstTrainKey: KaraboValueLocator
-    runTrainsInRunKey: KaraboValueLocator
-    proposalIdKey: KaraboValueLocator
-    darkRunIndexKey: KaraboValueLocator
-    darkRunTypeKey: KaraboValueLocator
+    run_number_key: KaraboValueLocator
+    run_started_at_key: KaraboValueLocator
+    run_first_train_key: KaraboValueLocator
+    run_trains_in_run_key: KaraboValueLocator
+    proposal_id_key: KaraboValueLocator
+    dark_run_index_key: KaraboValueLocator
+    dark_run_type_key: KaraboValueLocator
 
 
 @dataclass(frozen=True)
@@ -598,9 +601,23 @@ def parse_configuration(
     if identity_processor_check is not None:
         return identity_processor_check
 
-    heteogeneous_check = check_for_heterogeneous_lists(attributi, karabo_attributes)
-    if heteogeneous_check is not None:
-        return heteogeneous_check
+    heterogeneous_check = check_for_heterogeneous_lists(attributi, karabo_attributes)
+    if heterogeneous_check is not None:
+        return heterogeneous_check
+
+    check_amarcord_propagated_stdev_processors = (
+        check_amarcord_attributi_with_processor_propagated_stdev(
+            attributi, karabo_attributes
+        )
+    )
+    if check_amarcord_propagated_stdev_processors is not None:
+        return check_amarcord_propagated_stdev_processors
+
+    cross_check_attributi_against_karabo_list_stdev_attributes = (
+        check_list_stdev_karabo_attributes(attributi, karabo_attributes)
+    )
+    if cross_check_attributi_against_karabo_list_stdev_attributes is not None:
+        return cross_check_attributi_against_karabo_list_stdev_attributes
 
     special_attributes = config.get(CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES, None)
     if special_attributes is None:
@@ -638,27 +655,27 @@ def parse_configuration(
             )
         return KaraboValueLocator(source=source, subkey=key)
 
-    runNumberKey = search_special_attribute("runNumber")
-    if isinstance(runNumberKey, KaraboConfigurationError):
-        return runNumberKey
-    runStartedAtKey = search_special_attribute("runStartedAt")
-    if isinstance(runStartedAtKey, KaraboConfigurationError):
-        return runStartedAtKey
-    runFirstTrainKey = search_special_attribute("runFirstTrain")
-    if isinstance(runFirstTrainKey, KaraboConfigurationError):
-        return runFirstTrainKey
-    runTrainsInRunKey = search_special_attribute("runTrainsInRun")
-    if isinstance(runTrainsInRunKey, KaraboConfigurationError):
-        return runTrainsInRunKey
-    proposalIdKey = search_special_attribute("proposalId")
-    if isinstance(proposalIdKey, KaraboConfigurationError):
-        return proposalIdKey
-    darkRunIndexKey = search_special_attribute("darkRunIndex")
-    if isinstance(darkRunIndexKey, KaraboConfigurationError):
-        return darkRunIndexKey
-    darkRunTypeKey = search_special_attribute("darkRunType")
-    if isinstance(darkRunTypeKey, KaraboConfigurationError):
-        return darkRunTypeKey
+    run_number_key = search_special_attribute("runNumber")
+    if isinstance(run_number_key, KaraboConfigurationError):
+        return run_number_key
+    run_started_at_key = search_special_attribute("runStartedAt")
+    if isinstance(run_started_at_key, KaraboConfigurationError):
+        return run_started_at_key
+    run_first_train_key = search_special_attribute("runFirstTrain")
+    if isinstance(run_first_train_key, KaraboConfigurationError):
+        return run_first_train_key
+    run_trains_in_run_key = search_special_attribute("runTrainsInRun")
+    if isinstance(run_trains_in_run_key, KaraboConfigurationError):
+        return run_trains_in_run_key
+    proposal_id_key = search_special_attribute("proposalId")
+    if isinstance(proposal_id_key, KaraboConfigurationError):
+        return proposal_id_key
+    dark_run_index_key = search_special_attribute("darkRunIndex")
+    if isinstance(dark_run_index_key, KaraboConfigurationError):
+        return dark_run_index_key
+    dark_run_type_key = search_special_attribute("darkRunType")
+    if isinstance(dark_run_type_key, KaraboConfigurationError):
+        return dark_run_type_key
 
     proposal_id = config.get(CONFIG_KARABO_PROPOSAL, None)
     if proposal_id is None:
@@ -669,13 +686,13 @@ def parse_configuration(
     return KaraboBridgeConfiguration(
         karabo_attributes=karabo_attributes,
         special_attributes=KaraboSpecialAttributes(
-            runNumberKey=runNumberKey,
-            runStartedAtKey=runStartedAtKey,
-            runTrainsInRunKey=runTrainsInRunKey,
-            runFirstTrainKey=runFirstTrainKey,
-            proposalIdKey=proposalIdKey,
-            darkRunIndexKey=darkRunIndexKey,
-            darkRunTypeKey=darkRunTypeKey,
+            run_number_key=run_number_key,
+            run_started_at_key=run_started_at_key,
+            run_trains_in_run_key=run_trains_in_run_key,
+            run_first_train_key=run_first_train_key,
+            proposal_id_key=proposal_id_key,
+            dark_run_index_key=dark_run_index_key,
+            dark_run_type_key=dark_run_type_key,
         ),
         attributi={k.attributo_id: k for k in attributi},
         proposal_id=proposal_id,
@@ -740,6 +757,95 @@ def check_for_heterogeneous_lists(
     return None
 
 
+def check_list_stdev_karabo_attributes(
+    amarcord_attributi: List[AmarcordAttributoDescription],
+    karabo_attributes: List[KaraboAttributeDescription],
+) -> Optional[KaraboConfigurationError]:
+
+    karabo_attributes_list_of_stdev: Set[KaraboInternalId] = set()
+
+    for ka in karabo_attributes:
+        if ka.processor == KaraboProcessor.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION:
+            karabo_attributes_list_of_stdev.add(ka.id)
+
+    for amarcord_attributo in amarcord_attributi:
+        if (
+            amarcord_attributo.processor
+            != AmarcordAttributoProcessor.AMARCORD_PROCESSOR_PROPAGATED_STANDARD_DEVIATION
+        ):
+            relevant_karabo_ids = find_all_karabo_ids_for_amarcord_attribute(
+                amarcord_attributo
+            )
+            for kid in relevant_karabo_ids:
+                if kid in karabo_attributes_list_of_stdev:
+                    return KaraboConfigurationError(
+                        f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}: "
+                        + f"attributo {amarcord_attributo.attributo_id}: "
+                        + f"karabo attribute with id {kid} can only be processed {AmarcordAttributoProcessor.AMARCORD_PROCESSOR_PROPAGATED_STANDARD_DEVIATION.value}"
+                    )
+    return None
+
+
+def check_amarcord_attributi_with_processor_propagated_stdev(
+    amarcord_attributi: List[AmarcordAttributoDescription],
+    karabo_attributes: List[KaraboAttributeDescription],
+) -> Optional[KaraboConfigurationError]:
+    karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
+        a.id: a for a in karabo_attributes
+    }
+    for amarcord_attributo in amarcord_attributi:
+        if (
+            amarcord_attributo.processor
+            == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_PROPAGATED_STANDARD_DEVIATION
+        ):
+            relevant_karabo_ids = find_all_karabo_ids_for_amarcord_attribute(
+                amarcord_attributo
+            )
+            for karabo_id in relevant_karabo_ids:
+                error_configuration_propagated_stdev = check_karabo_attribute_list_of_stdev_for_prop_stdev_amarcord_processor(
+                    amarcord_attributo, karabo_attributes_per_id, karabo_id
+                )
+                if error_configuration_propagated_stdev is not None:
+                    return error_configuration_propagated_stdev
+
+    return None
+
+
+def find_all_karabo_ids_for_amarcord_attribute(
+    amarcord_attributo: AmarcordAttributoDescription,
+) -> Set[KaraboInternalId]:
+    relevant_karabo_ids: Set[KaraboInternalId] = set()
+
+    if isinstance(amarcord_attributo.karabo_value_source, CoagulateString):
+        for component in amarcord_attributo.karabo_value_source.value_sequence:
+            if not isinstance(component, PlainAttribute):
+                continue
+            relevant_karabo_ids.add(component.id)
+    if isinstance(amarcord_attributo.karabo_value_source, CoagulateList):
+        for component in amarcord_attributo.karabo_value_source.attributes:
+            relevant_karabo_ids.add(component.id)
+    if isinstance(amarcord_attributo.karabo_value_source, PlainAttribute):
+        relevant_karabo_ids.add(amarcord_attributo.karabo_value_source.id)
+    return relevant_karabo_ids
+
+
+def check_karabo_attribute_list_of_stdev_for_prop_stdev_amarcord_processor(
+    amarcord_attributo: AmarcordAttributoDescription,
+    karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription],
+    karabo_attribute_id: KaraboInternalId,
+) -> Union[KaraboConfigurationError, None]:
+    karabo_attribute = karabo_attributes_per_id[karabo_attribute_id]
+    if (
+        karabo_attribute.processor
+        != KaraboProcessor.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION
+    ):
+        return KaraboConfigurationError(
+            f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}: attributo {amarcord_attributo.attributo_id}: "
+            + f"the type of all dependent Karabo attributes should be the {KaraboProcessor.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION.value}"
+        )
+    return None
+
+
 def karabo_type_matches(
     input_type: KaraboInputType, value: Any
 ) -> Optional[KaraboValue]:
@@ -778,10 +884,12 @@ def run_karabo_processor(
     typed_value = karabo_type_matches(input_type, value)
     if typed_value is None:
         return KaraboWrongTypeError(input_type, str(type(value)))
+
     if processor == KaraboProcessor.KARABO_PROCESSOR_IDENTITY:
         if ignore is not None and typed_value == ignore:
             return None
         return typed_value
+
     if processor == KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST:
         assert isinstance(typed_value, list)
         if ignore is not None:
@@ -789,17 +897,20 @@ def run_karabo_processor(
         if typed_value:
             return typed_value[-1]
         return None
-    assert (
-        processor == KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN
-    ), f"unknown processor {processor}, maybe that's a new one?"
+
     assert isinstance(
         typed_value, list
     ), f"for the list processors, we need lists as input type, but got {typed_value}"
     if ignore is not None:
         typed_value = [x for x in typed_value if x != ignore]
-    if typed_value:
-        return mean(typed_value)
-    return None
+
+    if processor == KaraboProcessor.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION:
+        return std(typed_value) if len(typed_value) > 1 else 0.0
+
+    assert (
+        processor == KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN
+    ), f"unknown processor {processor}, maybe that's a new one?"
+    return mean(typed_value)
 
 
 def process_karabo_frame(
@@ -844,16 +955,45 @@ def process_karabo_frame(
 
 
 @dataclass(frozen=True)
-class PlainAccumulator:
+class TakeLastAccumulator:
     value: Union[str, int, float, List[float], None, np.ndarray]
 
 
 @dataclass(frozen=True)
+class MeanAccumulator:
+    current_sum: float
+    count: int
+
+
+@dataclass(frozen=True)
+class VarianceAccumulator:
+    values: List[float]
+
+
+@dataclass(frozen=True)
+class StdDevAccumulator:
+    values: List[float]
+
+
+@dataclass(frozen=True)
+class PropagatedStdDevAccumulator:
+    current_sum: Union[None, float]
+    count: int
+
+
+@dataclass(frozen=True)
 class IndexedAccumulator:
-    values: List[PlainAccumulator]
+    values: List["AttributoAccumulator"]
 
 
-AttributoAccumulator = Union[PlainAccumulator, IndexedAccumulator]
+AttributoAccumulator = Union[
+    IndexedAccumulator,
+    MeanAccumulator,
+    PropagatedStdDevAccumulator,
+    StdDevAccumulator,
+    TakeLastAccumulator,
+    VarianceAccumulator,
+]
 
 AttributoAccumulatorPerId = Dict[AttributoId, AttributoAccumulator]
 
@@ -864,35 +1004,93 @@ def karabo_value_to_attributo_value(karabo_value: KaraboValue) -> AttributoValue
     return cast(AttributoValue, karabo_value)
 
 
-def extract_list_from_accumulator(a: AttributoAccumulator) -> Optional[List[float]]:
-    if isinstance(a, PlainAccumulator):
-        if isinstance(a.value, list):
-            return a.value
-    return None
-
-
-def process_plain_attribute_with_list(
+def process_mean_accumulator_with_plain_attribute(
     accumulator: Optional[AttributoAccumulator],
     aid: AttributoId,
     value_in_frame: Optional[KaraboValue],
-    f: Callable[[List[float]], Optional[float]],
-) -> Tuple[PlainAccumulator, AttributoValue]:
-    current_accumulator_list = (
-        extract_list_from_accumulator(accumulator) if accumulator is not None else None
-    )
+) -> Tuple[AttributoAccumulator, AttributoValue]:
+    assert accumulator is None or isinstance(accumulator, MeanAccumulator)
     assert value_in_frame is not None, f"attributo {aid}: not found in frame"
     if not isinstance(value_in_frame, (float, int)):
         raise Exception(
-            f"attributo {aid}: cannot take the average of value {value_in_frame}"
+            f"attributo {aid}: cannot take the mean of value {value_in_frame}"
         )
-    if current_accumulator_list is not None:
-        current_accumulator_list.append(value_in_frame)
-    else:
-        current_accumulator_list = [value_in_frame]
-
-    return PlainAccumulator(current_accumulator_list), (
-        f(current_accumulator_list) if current_accumulator_list else None
+    current_sum = (
+        value_in_frame
+        if accumulator is None
+        else accumulator.current_sum + value_in_frame
     )
+    count = 1 if accumulator is None else accumulator.count + 1
+
+    return MeanAccumulator(current_sum, count), (current_sum / count)
+
+
+def process_variance_accumulator_with_plain_attribute(
+    accumulator: Optional[AttributoAccumulator],
+    aid: AttributoId,
+    value_in_frame: Optional[KaraboValue],
+) -> Tuple[AttributoAccumulator, AttributoValue]:
+    assert accumulator is None or isinstance(accumulator, VarianceAccumulator)
+    assert value_in_frame is not None, f"attributo {aid}: not found in frame"
+    if not isinstance(value_in_frame, (float, int)):
+        raise Exception(
+            f"attributo {aid}: cannot take the mean of value {value_in_frame}"
+        )
+
+    new_array = (
+        [value_in_frame]
+        if accumulator is None
+        else cast(VarianceAccumulator, accumulator).values + [float(value_in_frame)]
+    )
+    if accumulator is None:
+        return VarianceAccumulator(new_array), None
+    return VarianceAccumulator(new_array), np.var(new_array)
+
+
+def process_propagated_stdev_accumulator_with_plain_attribute(
+    accumulator: Optional[AttributoAccumulator],
+    aid: AttributoId,
+    value_in_frame: Optional[KaraboValue],
+) -> Tuple[AttributoAccumulator, AttributoValue]:
+    assert accumulator is None or isinstance(accumulator, PropagatedStdDevAccumulator)
+    assert value_in_frame is not None, f"attributo {aid}: not found in frame"
+    if not isinstance(value_in_frame, (float, int)):
+        raise Exception(
+            f"attributo {aid}: cannot take the standard deviation of value {value_in_frame}"
+        )
+    new_sum = (
+        value_in_frame
+        if accumulator is None
+        else accumulator.current_sum + value_in_frame**2.0
+    )
+    count = 1 if accumulator is None else accumulator.count + 1
+
+    if accumulator is None:
+        return PropagatedStdDevAccumulator(new_sum, count), None
+
+    return PropagatedStdDevAccumulator(new_sum, count), (new_sum / count**2.0) ** 0.5
+
+
+def process_stdev_from_values_accumulator_with_plain_attribute(
+    accumulator: Optional[AttributoAccumulator],
+    aid: AttributoId,
+    value_in_frame: Optional[KaraboValue],
+) -> Tuple[AttributoAccumulator, AttributoValue]:
+    assert accumulator is None or isinstance(accumulator, StdDevAccumulator)
+    assert value_in_frame is not None, f"attributo {aid}: not found in frame"
+    if not isinstance(value_in_frame, (float, int)):
+        raise Exception(
+            f"attributo {aid}: cannot take the standard deviation of value {value_in_frame}"
+        )
+    new_array = (
+        [value_in_frame]
+        if accumulator is None
+        else cast(StdDevAccumulator, accumulator).values + [float(value_in_frame)]
+    )
+    if accumulator is None:
+        return StdDevAccumulator(new_array), None
+
+    return StdDevAccumulator(new_array), std(new_array)
 
 
 def process_plain_attribute(
@@ -901,20 +1099,35 @@ def process_plain_attribute(
     plain_attribute: PlainAttribute,
     accumulator: Optional[AttributoAccumulator],
     processor: AmarcordAttributoProcessor,
-) -> Optional[Tuple[PlainAccumulator, AttributoValue]]:
+) -> Optional[Tuple[AttributoAccumulator, AttributoValue]]:
     value_in_frame = frame.get(plain_attribute.id, None)
     if value_in_frame is None:
         return None
+
     if processor == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST:
-        return PlainAccumulator(value_in_frame), value_in_frame
+        return TakeLastAccumulator(value_in_frame), value_in_frame
     if processor == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_ARITHMETIC_MEAN:
-        return process_plain_attribute_with_list(accumulator, aid, value_in_frame, mean)
+        return process_mean_accumulator_with_plain_attribute(
+            accumulator, aid, value_in_frame
+        )
+    if (
+        processor
+        == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_PROPAGATED_STANDARD_DEVIATION
+    ):
+        return process_propagated_stdev_accumulator_with_plain_attribute(
+            accumulator, aid, value_in_frame
+        )
+    if processor == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_STANDARD_DEVIATION:
+        return process_stdev_from_values_accumulator_with_plain_attribute(
+            accumulator, aid, value_in_frame
+        )
+
     assert (
         processor == AmarcordAttributoProcessor.AMARCORD_PROCESSOR_VARIANCE
     ), f"I don't know the processor {processor}, maybe it's new?"
 
-    return process_plain_attribute_with_list(
-        accumulator, aid, value_in_frame, safe_variance
+    return process_variance_accumulator_with_plain_attribute(
+        accumulator, aid, value_in_frame
     )
 
 
@@ -934,7 +1147,7 @@ def process_coagulate_list(
         coagulate_list.attributes
     )
     new_values: List[AttributoValue] = []
-    new_accumulators: List[PlainAccumulator] = []
+    new_accumulators: List[AttributoAccumulator] = []
     for idx, plain_karabo_attribute in enumerate(coagulate_list.attributes):
         new_accumulator_and_value = process_plain_attribute(
             frame,
@@ -972,9 +1185,9 @@ def process_coagulate_string(
     ), f"attributo {aid}: accumulator is {type(accumulator)}, not {IndexedAccumulator}"
 
     new_value = ""
-    new_accumulators: List[PlainAccumulator] = []
+    new_accumulators: List[AttributoAccumulator] = []
     accumulator_idx = 0
-    for attribute_or_str in coagulate_string.valueSequence:
+    for attribute_or_str in coagulate_string.value_sequence:
         if isinstance(attribute_or_str, str):
             new_value += attribute_or_str
             continue
@@ -1057,6 +1270,7 @@ def determine_attributo_type_for_single_attributo(
     assert karabo_attribute.processor in (
         KaraboProcessor.KARABO_PROCESSOR_LIST_TAKE_LAST,
         KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN,
+        KaraboProcessor.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION,
     )
     return AttributoTypeDecimal(
         suffix=karabo_attribute.unit, standard_unit=karabo_attribute.standard_unit
@@ -1150,7 +1364,10 @@ async def ingest_bridge_output(
 
 
 class Karabo2:
-    def __init__(self, parsed_config: KaraboBridgeConfiguration) -> None:
+    def __init__(
+        self, parsed_config: KaraboBridgeConfiguration, debug_mode=False
+    ) -> None:
+        self._debug_mode = debug_mode
         self._accumulators: AttributoAccumulatorPerId = {}
         self._previously_not_found: Set[KaraboValueLocator] = set()
         self._previously_wrong_type: Dict[KaraboValueLocator, KaraboWrongTypeError] = {}
@@ -1161,7 +1378,7 @@ class Karabo2:
         self._proposal_id = parsed_config.proposal_id
         self._last_proposal_id: Optional[int] = None
         self._previous_trains_in_run: Optional[int] = None
-        self._run_status = RunStatus.UNKNOWN
+        self._run_status = RunStatus.STOPPED if self._debug_mode else RunStatus.UNKNOWN
         self._previous_run_status = RunStatus.UNKNOWN
         self._no_proposal_last_train = False
         self._run_started_at: Optional[datetime.datetime] = None
@@ -1171,9 +1388,6 @@ class Karabo2:
         db_attributi = {
             a.name: a for a in await db.retrieve_attributi(conn, associated_table=None)
         }
-
-        # This should create "started" and "stopped"
-        await create_ground_state_attributi(db, conn)
 
         if ATTRIBUTO_ID_DARK_RUN_TYPE not in db_attributi:
             await db.create_attributo(
@@ -1207,17 +1421,17 @@ class Karabo2:
 
     def _extract_train_id(self, metadata: Dict[str, Any]) -> Optional[int]:
         run_number_source = metadata.get(
-            self._special_attributes.runNumberKey.source, None
+            self._special_attributes.run_number_key.source, None
         )
         if run_number_source is None:
             logger.error(
-                f"tried to retrieve source {self._special_attributes.runNumberKey.source} from the metadata dictionary, but did not find it. You probably have to change something in the Karabo (bridge) configuration to make this work."
+                f"tried to retrieve source {self._special_attributes.run_number_key.source} from the metadata dictionary, but did not find it. You probably have to change something in the Karabo (bridge) configuration to make this work."
             )
             return None
         train_id = run_number_source.get(TRAIN_ID_FROM_METADATA_KEY, None)
         if train_id is None:
             logger.error(
-                f"tried to retrieve the train id from source {self._special_attributes.runNumberKey.source}:{TRAIN_ID_FROM_METADATA_KEY} from the metadata dictionary, but did not find it.  You probably have to change something in the Karabo (bridge) configuration to make this work."
+                f"tried to retrieve the train id from source {self._special_attributes.run_number_key.source}:{TRAIN_ID_FROM_METADATA_KEY} from the metadata dictionary, but did not find it.  You probably have to change something in the Karabo (bridge) configuration to make this work."
             )
         return train_id
 
@@ -1235,7 +1449,7 @@ class Karabo2:
         if not self._is_valid_proposal(train_id, frame):
             return None
 
-        run_id = locate_in_frame(frame, self._special_attributes.runNumberKey)
+        run_id = locate_in_frame(frame, self._special_attributes.run_number_key)
         if run_id is None:
             logger.error(f"train {train_id}: no run ID, skipping frame")
             return None
@@ -1244,7 +1458,7 @@ class Karabo2:
         ), f"train {train_id}: run ID is not an int but {type(run_id)}"
 
         trains_in_run = locate_in_frame(
-            frame, self._special_attributes.runTrainsInRunKey
+            frame, self._special_attributes.run_trains_in_run_key
         )
         if trains_in_run is None:
             logger.error(f"train {train_id}: no trains in run, skipping frame")
@@ -1253,7 +1467,7 @@ class Karabo2:
             trains_in_run, int
         ), f"train {train_id}: trains in run is not an int but {trains_in_run}"
 
-        run_in_progress = trains_in_run == 0
+        run_in_progress = True if self._debug_mode else trains_in_run == 0
         if run_in_progress and self._run_status == RunStatus.UNKNOWN:
             if self._previous_run_status is None:
                 logger.info(
@@ -1296,19 +1510,21 @@ class Karabo2:
             attributi_values[ATTRIBUTO_STOPPED] = self._run_stopped_at
         self._accumulators = new_accumulators
         dark_run_index = locate_in_frame(
-            frame, self._special_attributes.darkRunIndexKey
+            frame, self._special_attributes.dark_run_index_key
         )
-        dark_run_type = locate_in_frame(frame, self._special_attributes.darkRunTypeKey)
+        dark_run_type = locate_in_frame(
+            frame, self._special_attributes.dark_run_type_key
+        )
         dark_run_information: Optional[DarkRunInformation]
         if dark_run_index is not None and dark_run_type is not None:
             if not isinstance(dark_run_index, int):
                 logger.warning(
-                    f"dark run index at {self._special_attributes.darkRunIndexKey} is not int but {type(dark_run_index)}"
+                    f"dark run index at {self._special_attributes.dark_run_index_key} is not int but {type(dark_run_index)}"
                 )
                 dark_run_information = None
             elif not isinstance(dark_run_type, str):
                 logger.warning(
-                    f"dark run type at {self._special_attributes.darkRunIndexKey} is not a string but {type(dark_run_index)}"
+                    f"dark run type at {self._special_attributes.dark_run_index_key} is not a string but {type(dark_run_index)}"
                 )
                 dark_run_information = None
             else:
@@ -1332,7 +1548,7 @@ class Karabo2:
         self._last_train_id = train_id
 
     def _is_valid_proposal(self, train_id: int, frame: Dict[str, Any]) -> bool:
-        proposal = locate_in_frame(frame, self._special_attributes.proposalIdKey)
+        proposal = locate_in_frame(frame, self._special_attributes.proposal_id_key)
         if proposal is None:
             if not self._no_proposal_last_train:
                 logger.warning(f"train {train_id}: no proposal, assuming it's valid")

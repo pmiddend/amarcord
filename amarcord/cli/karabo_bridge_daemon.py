@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import pickle
+from asyncio import FIRST_COMPLETED
 from pathlib import Path
 from time import time
 from typing import Optional
@@ -10,12 +11,14 @@ import zmq
 from karabo_bridge import deserialize
 from tap import Tap
 from zmq.asyncio import Context
+from zmq.utils.monitor import parse_monitor_message
 
 from amarcord.amici.xfel.karabo_bridge import (
     Karabo2,
     parse_configuration,
     KaraboConfigurationError,
     ingest_bridge_output,
+    BridgeOutput,
 )
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
@@ -28,30 +31,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def karabo_loop(
-    db: AsyncDB,
-    zmq_context: Context,
-    karabo_endpoint: Optional[str],
-    karabo_config_file: Optional[Path],
-) -> None:
-    if karabo_config_file is None or karabo_endpoint is None:
-        return
-
-    socket = zmq_context.socket(zmq.REQ)  # type: ignore
-
-    socket.connect(karabo_endpoint)
-
-    with karabo_config_file.open("r") as f:
-        config_file = parse_configuration(yaml.load(f, Loader=yaml.SafeLoader))
-        if isinstance(config_file, KaraboConfigurationError):
-            raise Exception(config_file)
-        karabo2 = Karabo2(config_file)
-
-    async with db.begin() as conn:
-        await karabo2.create_missing_attributi(db, conn)
-
+async def _receive_loop(db: AsyncDB, karabo2: Karabo2, socket) -> None:
     logger.info("attributi are set up, waiting for first Karabo data frame")
     debug_counter = 0
+    prior_result: Optional[BridgeOutput] = None
+
+    def major_difference(before: BridgeOutput, after: BridgeOutput) -> bool:
+        return (
+            before.run_id != after.run_id
+            or before.dark_run != after.dark_run
+            or before.run_started_at != after.run_started_at
+            or before.run_stopped_at != after.run_stopped_at
+        )
+
     while True:
         # noinspection PyUnresolvedReferences
         await socket.send(b"next")
@@ -73,8 +65,16 @@ async def karabo_loop(
                 if result is None:
                     continue
 
-                async with db.begin() as conn:
-                    await ingest_bridge_output(db, conn, result)
+                ingest = (
+                    prior_result is None
+                    or major_difference(prior_result, result)
+                    or debug_counter % 50 == 0
+                )
+                prior_result = result
+
+                if ingest:
+                    async with db.begin() as conn:
+                        await ingest_bridge_output(db, conn, result)
             except Exception as e:
                 error_index = time()
                 pickled_fn = Path(f"error-data-frame-{error_index}.pickle")
@@ -91,6 +91,49 @@ async def karabo_loop(
             # Do something with data
         except zmq.error.Again:
             logger.error("No data received in time")
+
+
+async def _monitor_loop(monitor_socket) -> None:
+    while True:
+        message = parse_monitor_message(await monitor_socket.recv_multipart())
+        logger.info(f"monitor loop, received message: {message}")
+        if message["event"] == zmq.EVENT_DISCONNECTED:
+            logger.info("monitor loop: disconnect")
+            break
+
+
+async def karabo_loop(
+    db: AsyncDB,
+    zmq_context: Context,
+    karabo_endpoint: Optional[str],
+    karabo_config_file: Optional[Path],
+    debug_mode: bool,
+) -> None:
+    if karabo_config_file is None or karabo_endpoint is None:
+        return
+
+    socket = zmq_context.socket(zmq.REQ)  # type: ignore
+
+    socket.connect(karabo_endpoint)
+
+    with karabo_config_file.open("r") as f:
+        config_file = parse_configuration(yaml.load(f, Loader=yaml.SafeLoader))
+        if isinstance(config_file, KaraboConfigurationError):
+            raise Exception(config_file)
+        karabo2 = Karabo2(config_file, debug_mode)
+
+    async with db.begin() as conn:
+        await db.migrate()
+        await karabo2.create_missing_attributi(db, conn)
+
+    # noinspection PyTypeChecker
+    await asyncio.wait(
+        (
+            asyncio.create_task(_monitor_loop(socket.get_monitor_socket())),
+            asyncio.create_task(_receive_loop(db, karabo2, socket)),
+        ),
+        return_when=FIRST_COMPLETED,
+    )
 
 
 # async def onda_loop(
@@ -160,6 +203,9 @@ class Arguments(Tap):
     onda_url: Optional[
         str
     ] = None  # URL for the OnDA ZeroMQ endpoint; if given, will enable the OnDA client
+    debug_mode: bool = (
+        False  # Debug mode (assume the first frame is the start of a run)
+    )
 
     """AMARCORD XFEL ingest daemon"""
 
@@ -182,6 +228,7 @@ def main() -> None:
             db,
             args.karabo_endpoint,
             args.karabo_config_file,
+            args.debug_mode,
             zmq_ctx,
         )
     )
@@ -191,10 +238,11 @@ async def async_main(
     db: AsyncDB,
     karabo_endpoint: Optional[str],
     karabo_config_file: Optional[Path],
+    debug_mode: bool,
     # onda_url: Optional[str],
     zmq_ctx: Context,
 ) -> None:
-    await karabo_loop(db, zmq_ctx, karabo_endpoint, karabo_config_file)
+    await karabo_loop(db, zmq_ctx, karabo_endpoint, karabo_config_file, debug_mode)
     # await asyncio.gather(
     #     karabo_loop(
     #         db, zmq_ctx, proposal_id, karabo_endpoint, karabo_config_file, karabo_export

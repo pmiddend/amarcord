@@ -22,18 +22,37 @@ karabo-attributes:
       ignore: 1.0
 
     data.xSa1TD:
-      id: beam_x
-      input-type: List[float]
-      processor: list-take-last
-      unit: mm
-      ignore: 1.0
+      - id: beam_x
+        input-type: List[float]
+        processor: list-arithmetic-mean
+        unit: mm
+        ignore: 1.0
+
+      - id: beam_x2
+        input-type: float
+        processor: identity
+        unit: mm
+        ignore: 1.0
+
+      - id: beam_x_stdev
+        input-type: List[float]
+        processor: list-standard-deviation
+        unit: mm
+        ignore: 1.0
 
     data.ySa1TD:
-      id: beam_y
-      input-type: List[float]
-      processor: list-take-last
-      unit: mm
-      ignore: 1.0
+      - id: beam_y
+        input-type: List[float]
+        processor: list-arithmetic-mean
+        unit: mm
+        ignore: 1.0
+
+      - id: beam_y_stdev
+        input-type: List[float]
+        processor: list-standard-deviation
+        unit: mm
+        ignore: 1.0
+
 
   SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
     gainMode.value:
@@ -136,13 +155,34 @@ amarcord-attributi:
   beam_position:
     coagulate: [ beam_x, beam_y ]
     processor: arithmetic-mean
-    description: "The pulse energy var"
+    description: "The beam position"
   beam_position_string:
     coagulate: "${beam_x} ${beam_y}"
     processor: arithmetic-mean
-    description: "The pulse energy var"
+    description: "The beam position as string"
+
+#  beam_position_stdev:
+#    coagulate: [ beam_x_stdev, beam_y_stdev ]
+#    processor: standard-deviation
+#    description: "The beam position stdev"
+
+  beam_position_stdev:
+    coagulate: [ beam_x, beam_y ]
+    processor: standard-deviation
+    description: "The beam position stdev"
+
+  beam_position_stdev_devs:
+    coagulate: [ beam_x_stdev, beam_y_stdev ]
+    processor: propagated-standard-deviation
+    description: "The beam position stdev"
+
+  beam_position_x_stdev:
+    plain-attribute : beam_x
+    processor: standard-deviation
+    description: "The beam position x stdev"
+
   gain_mode:
     plain-attribute: gain_mode
     processor: take-last
 
-proposal-id: 1234
+proposal-id: 900260

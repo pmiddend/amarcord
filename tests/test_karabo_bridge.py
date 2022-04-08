@@ -3,6 +3,7 @@ import pickle
 from pathlib import Path
 from typing import Any, Dict
 
+import pytest
 import yaml
 
 from amarcord.amici.xfel.karabo_bridge import (
@@ -67,6 +68,7 @@ _STANDARD_SPECIAL_ATTRIBUTES = {
 
 logger = logging.getLogger(__name__)
 
+ATTRIBUTO_DESCRIPTION = "attributo description"
 ATTRIBUTO_ID1 = AttributoId("attributo-id")
 
 INTERNAL_ID1 = KaraboInternalId("internal-id1")
@@ -99,6 +101,54 @@ def test_process_karabo_frame_one_list_attribute_arithmetic_mean() -> None:
     assert INTERNAL_ID1 in frame.karabo_values_by_internal_id
     # 2.0 being the mean of the intensity values
     assert frame.karabo_values_by_internal_id[INTERNAL_ID1] == 2.0
+
+
+def test_process_karabo_frame_one_list_attribute_stdev() -> None:
+    attributes = [
+        KaraboAttributeDescription(
+            INTERNAL_ID1,
+            DOOCS_INTENSITY_KEY,
+            input_type=KaraboInputType.KARABO_TYPE_LIST_FLOAT,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION,
+            unit="mJ",
+            standard_unit=True,
+            ignore=None,
+        )
+    ]
+    intensity_values = [1, 2]
+    frame = process_karabo_frame(
+        attributes,
+        {DOOCS_INTENSITY_KEY.source: {DOOCS_INTENSITY_KEY.subkey: intensity_values}},
+    )
+    assert not frame.wrong_types
+    assert not frame.not_found
+    assert INTERNAL_ID1 in frame.karabo_values_by_internal_id
+
+    assert frame.karabo_values_by_internal_id[INTERNAL_ID1] == 0.5
+
+
+def test_process_karabo_frame_one_list_attribute_one_element_stdev() -> None:
+    attributes = [
+        KaraboAttributeDescription(
+            INTERNAL_ID1,
+            DOOCS_INTENSITY_KEY,
+            input_type=KaraboInputType.KARABO_TYPE_LIST_FLOAT,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION,
+            unit="mJ",
+            standard_unit=True,
+            ignore=None,
+        )
+    ]
+    intensity_values = [1]
+    frame = process_karabo_frame(
+        attributes,
+        {DOOCS_INTENSITY_KEY.source: {DOOCS_INTENSITY_KEY.subkey: intensity_values}},
+    )
+    assert not frame.wrong_types
+    assert not frame.not_found
+    assert INTERNAL_ID1 in frame.karabo_values_by_internal_id
+
+    assert frame.karabo_values_by_internal_id[INTERNAL_ID1] == 0
 
 
 def test_process_karabo_frame_one_list_attribute_take_last() -> None:
@@ -235,7 +285,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
     attributi = [
         AmarcordAttributoDescription(
             ATTRIBUTO_ID1,
-            "attributo description",
+            ATTRIBUTO_DESCRIPTION,
             AmarcordAttributoProcessor.AMARCORD_PROCESSOR_ARITHMETIC_MEAN,
             PlainAttribute(INTERNAL_ID1),
         )
@@ -265,7 +315,7 @@ def test_frame_to_attributo_and_cache_variance_plain_attribute() -> None:
     attributi = [
         AmarcordAttributoDescription(
             ATTRIBUTO_ID1,
-            "attributo description",
+            ATTRIBUTO_DESCRIPTION,
             AmarcordAttributoProcessor.AMARCORD_PROCESSOR_VARIANCE,
             PlainAttribute(INTERNAL_ID1),
         )
@@ -287,7 +337,67 @@ def test_frame_to_attributo_and_cache_variance_plain_attribute() -> None:
         second_frame, attributi, new_accumulator
     )
 
-    assert new_values[ATTRIBUTO_ID1] == 50.0
+    assert new_values[ATTRIBUTO_ID1] == 25.0
+
+
+def test_frame_to_attributo_and_cache_stdev_from_stdev_plain_attribute() -> None:
+    initial_value = 1.0
+    first_frame: KaraboValueByInternalId = {INTERNAL_ID1: initial_value}
+    attributi = [
+        AmarcordAttributoDescription(
+            ATTRIBUTO_ID1,
+            ATTRIBUTO_DESCRIPTION,
+            AmarcordAttributoProcessor.AMARCORD_PROCESSOR_PROPAGATED_STANDARD_DEVIATION,
+            PlainAttribute(INTERNAL_ID1),
+        )
+    ]
+    old_accumulator: AttributoAccumulatorPerId = {}
+    # Let it run once, we should simply get our first value back
+    new_accumulator, new_values = frame_to_attributo_and_cache(
+        first_frame, attributi, old_accumulator
+    )
+    assert new_accumulator
+    assert ATTRIBUTO_ID1 in new_accumulator
+    # None because the variance of one value is undefined
+    assert new_values[ATTRIBUTO_ID1] is None
+
+    second_value = -1.0
+    second_frame: KaraboValueByInternalId = {INTERNAL_ID1: second_value}
+    new_accumulator, new_values = frame_to_attributo_and_cache(
+        second_frame, attributi, new_accumulator
+    )
+
+    assert new_values[ATTRIBUTO_ID1] == 0.5**0.5
+
+
+def test_frame_to_attributo_and_cache_stdev_from_values_plain_attribute() -> None:
+    initial_value = 1.0
+    first_frame: KaraboValueByInternalId = {INTERNAL_ID1: initial_value}
+    attributi = [
+        AmarcordAttributoDescription(
+            ATTRIBUTO_ID1,
+            ATTRIBUTO_DESCRIPTION,
+            AmarcordAttributoProcessor.AMARCORD_PROCESSOR_STANDARD_DEVIATION,
+            PlainAttribute(INTERNAL_ID1),
+        )
+    ]
+    old_accumulator: AttributoAccumulatorPerId = {}
+    # Let it run once, we should simply get our first value back
+    new_accumulator, new_values = frame_to_attributo_and_cache(
+        first_frame, attributi, old_accumulator
+    )
+    assert new_accumulator
+    assert ATTRIBUTO_ID1 in new_accumulator
+    # None because the variance of one value is undefined
+    assert new_values[ATTRIBUTO_ID1] is None
+
+    second_value = 2.0
+    second_frame: KaraboValueByInternalId = {INTERNAL_ID1: second_value}
+    new_accumulator, new_values = frame_to_attributo_and_cache(
+        second_frame, attributi, new_accumulator
+    )
+
+    assert new_values[ATTRIBUTO_ID1] == 0.5
 
 
 def test_frame_to_attributo_and_cache_take_last_plain_attribute() -> None:
@@ -296,7 +406,7 @@ def test_frame_to_attributo_and_cache_take_last_plain_attribute() -> None:
     attributi = [
         AmarcordAttributoDescription(
             ATTRIBUTO_ID1,
-            "attributo description",
+            ATTRIBUTO_DESCRIPTION,
             AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST,
             PlainAttribute(INTERNAL_ID1),
         )
@@ -326,7 +436,7 @@ def test_frame_to_attributo_and_cache_take_last_plain_attribute_string() -> None
     attributi = [
         AmarcordAttributoDescription(
             ATTRIBUTO_ID1,
-            "attributo description",
+            ATTRIBUTO_DESCRIPTION,
             AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST,
             PlainAttribute(INTERNAL_ID1),
         )
@@ -360,7 +470,7 @@ def test_frame_to_attributo_and_cache_take_last_coagulate_list() -> None:
     attributi = [
         AmarcordAttributoDescription(
             ATTRIBUTO_ID1,
-            "attributo description",
+            ATTRIBUTO_DESCRIPTION,
             AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST,
             CoagulateList([PlainAttribute(INTERNAL_ID1), PlainAttribute(INTERNAL_ID2)]),
         )
@@ -394,7 +504,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_list() -> None:
     attributi = [
         AmarcordAttributoDescription(
             ATTRIBUTO_ID1,
-            "attributo description",
+            ATTRIBUTO_DESCRIPTION,
             AmarcordAttributoProcessor.AMARCORD_PROCESSOR_ARITHMETIC_MEAN,
             CoagulateList([PlainAttribute(INTERNAL_ID1), PlainAttribute(INTERNAL_ID2)]),
         )
@@ -424,7 +534,7 @@ def test_frame_to_attributo_and_cache_list_coagulate_string() -> None:
     attributi = [
         AmarcordAttributoDescription(
             ATTRIBUTO_ID1,
-            "attributo description",
+            ATTRIBUTO_DESCRIPTION,
             AmarcordAttributoProcessor.AMARCORD_PROCESSOR_TAKE_LAST,
             CoagulateString(
                 [
@@ -453,7 +563,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_string() -> None
     attributi = [
         AmarcordAttributoDescription(
             ATTRIBUTO_ID1,
-            "attributo description",
+            ATTRIBUTO_DESCRIPTION,
             AmarcordAttributoProcessor.AMARCORD_PROCESSOR_ARITHMETIC_MEAN,
             CoagulateString(
                 [
@@ -598,7 +708,6 @@ def test_parse_karabo_attribute_input_type_missing() -> None:
     attributes = parse_karabo_attribute(
         {
             "id": "foo",
-            # "input-type": "List[float]",
             "processor": "take-last",
             "unit": "nC",
         },
@@ -631,7 +740,6 @@ def test_parse_karabo_attribute_processor_missing_non_scalar() -> None:
         {
             "id": "foo",
             "input-type": "List[float]",
-            # "processor": "list-take-last",
             "unit": "nC",
         },
         KaraboValueLocator("source", "subkey"),
@@ -700,6 +808,94 @@ def test_parse_karabo_attribute_unit_missing() -> None:
         {},
     )
     assert isinstance(attributes, KaraboAttributeDescription)
+
+
+def test_parse_karabo_attribute_is_si_unit_not_boolean() -> None:
+    attributes = parse_karabo_attribute(
+        {
+            "id": "foo",
+            "input-type": "List[float]",
+            "processor": "list-take-last",
+            "is-si-unit": "random text",
+        },
+        KaraboValueLocator("source", "subkey"),
+        0,
+        {},
+    )
+    assert isinstance(attributes, KaraboConfigurationError)
+    assert "is-si-unit should be a boolean, but is" in attributes.message
+    logger.warning(attributes)
+
+
+def test_parse_karabo_attribute_unknown_unit() -> None:
+    attributes = parse_karabo_attribute(
+        {
+            "id": "foo",
+            "input-type": "List[float]",
+            "processor": "list-take-last",
+            "unit": "nCC",
+            "ignore": 1.0,
+        },
+        KaraboValueLocator("source", "subkey"),
+        0,
+        {},
+    )
+    assert isinstance(attributes, KaraboConfigurationError)
+    assert "got a unit in unit, but one we don't know" in attributes.message
+    logger.warning(attributes)
+
+
+def test_parse_karabo_attribute_unspcified_unit() -> None:
+    attributes = parse_karabo_attribute(
+        {
+            "id": "foo",
+            "input-type": "List[float]",
+            "processor": "list-take-last",
+            "ignore": 1.0,
+        },
+        KaraboValueLocator("source", "subkey"),
+        0,
+        {},
+    )
+    assert isinstance(attributes, KaraboConfigurationError)
+    assert "you didn't specify a unit" in attributes.message
+    logger.warning(attributes)
+
+
+def test_parse_karabo_attribute_non_numeric_ignore() -> None:
+    attributes = parse_karabo_attribute(
+        {
+            "id": "foo",
+            "input-type": "List[float]",
+            "processor": "list-take-last",
+            "unit": "nC",
+            "ignore": "random useless text",
+        },
+        KaraboValueLocator("source", "subkey"),
+        0,
+        {},
+    )
+    assert isinstance(attributes, KaraboConfigurationError)
+    assert "ignore only accepts numeric values" in attributes.message
+    logger.warning(attributes)
+
+
+def test_parse_karabo_attribute_ignore_on_non_numeric_attribute() -> None:
+    attributes = parse_karabo_attribute(
+        {
+            "id": "foo",
+            "input-type": "str",
+            "processor": "identity",
+            "unit": "nC",
+            "ignore": 1.0,
+        },
+        KaraboValueLocator("source", "subkey"),
+        0,
+        {},
+    )
+    assert isinstance(attributes, KaraboConfigurationError)
+    assert "ignore specified, but type is not numeric" in attributes.message
+    logger.warning(attributes)
 
 
 def test_parse_karabo_attribute_unit_wrong() -> None:
@@ -950,12 +1146,12 @@ def test_parse_attributo_coagulate_string():
     )
     assert isinstance(attributes, AmarcordAttributoDescription)
     assert isinstance(attributes.karabo_value_source, CoagulateString)
-    assert len(attributes.karabo_value_source.valueSequence) == 3
-    assert attributes.karabo_value_source.valueSequence[0] == PlainAttribute(
+    assert len(attributes.karabo_value_source.value_sequence) == 3
+    assert attributes.karabo_value_source.value_sequence[0] == PlainAttribute(
         KaraboInternalId("foo")
     )
-    assert attributes.karabo_value_source.valueSequence[1] == " "
-    assert attributes.karabo_value_source.valueSequence[2] == PlainAttribute(
+    assert attributes.karabo_value_source.value_sequence[1] == " "
+    assert attributes.karabo_value_source.value_sequence[2] == PlainAttribute(
         KaraboInternalId("bar")
     )
 
@@ -973,9 +1169,20 @@ def test_parse_attributi():
     assert isinstance(attributes, list)
 
 
+def test_parse_configuration_not_a_dict():
+    config = parse_configuration("random useless text")
+    assert isinstance(config, KaraboConfigurationError)
+
+
 def test_parse_configuration_empty():
     config = parse_configuration({})
     assert isinstance(config, KaraboConfigurationError)
+
+
+def test_parse_configuration_without_proper_keys():
+    config = parse_configuration({"useless key": "useless value"})
+    assert isinstance(config, KaraboConfigurationError)
+    logger.warning(config)
 
 
 def test_parse_configuration_arithmetic_mean_of_list_karabo_attribute():
@@ -1029,6 +1236,138 @@ def test_parse_configuration_coagulation_of_karabo_list_attribute():
         }
     )
     assert isinstance(config, KaraboConfigurationError)
+    logger.warning(config)
+
+
+def test_parse_configuration_stdev_coagulate_string():
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey1": {
+                        "id": "id1",
+                        "input-type": "List[float]",
+                        "processor": "list-standard-deviation",
+                        "unit": "cm",
+                    },
+                    "subkey2": {
+                        "id": "id2",
+                        "input-type": "List[float]",
+                        "processor": "list-arithmetic-mean",
+                        "unit": "cm",
+                    },
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                "beam_pos": {
+                    "coagulate": "${id1} ${id2}",
+                    "processor": "propagated-standard-deviation",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: 1234,
+        }
+    )
+    assert isinstance(config, KaraboConfigurationError)
+    assert (
+        "the type of all dependent Karabo attributes should be the list-standard-deviation"
+        in config.message
+    )
+    logger.warning(config)
+
+
+def test_parse_configuration_stdev_coagulate_list():
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey1": {
+                        "id": "id1",
+                        "input-type": "List[float]",
+                        "processor": "list-arithmetic-mean",
+                        "unit": "cm",
+                    },
+                    "subkey2": {
+                        "id": "id2",
+                        "input-type": "List[float]",
+                        "processor": "list-standard-deviation",
+                        "unit": "cm",
+                    },
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                "beam_pos": {
+                    "coagulate": ["id1", "id2"],
+                    "processor": "propagated-standard-deviation",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: 1234,
+        }
+    )
+    assert isinstance(config, KaraboConfigurationError)
+    assert (
+        "the type of all dependent Karabo attributes should be the list-standard-deviation"
+        in config.message
+    )
+    logger.warning(config)
+
+
+def test_parse_configuration_stdev_plain_attribute():
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey1": {
+                        "id": "id1",
+                        "input-type": "float",
+                        "unit": "cm",
+                    },
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                "beam_pos": {
+                    "plain-attribute": "id1",
+                    "processor": "propagated-standard-deviation",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: 1234,
+        }
+    )
+    assert isinstance(config, KaraboConfigurationError)
+    assert (
+        "attributo beam_pos: the type of all dependent Karabo attributes should be the list-standard-deviation"
+        in config.message
+    )
+    logger.warning(config)
+
+
+def test_parse_configuration_stdev_plain_attribute_rev():
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey1": {
+                        "id": "id1",
+                        "input-type": "List[float]",
+                        "processor": "list-standard-deviation",
+                        "unit": "cm",
+                    },
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                "beam_pos": {
+                    "plain-attribute": "id1",
+                    "processor": "arithmetic-mean",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: 1234,
+        }
+    )
+    assert isinstance(config, KaraboConfigurationError)
+    assert "id1 can only be processed propagated-standard-deviation" in config.message
     logger.warning(config)
 
 
@@ -1108,10 +1447,10 @@ def test_karabo2_without_db() -> None:
     assert frame_output2 is None
 
     # Now we change trains_in_run to 0, indicating a new run has started
-    data[configuration.special_attributes.runTrainsInRunKey.source][
-        # What the fuck does pylint not understand here?!
+    data[configuration.special_attributes.run_trains_in_run_key.source][
+        # What the heck does pylint not understand here?!
         # pylint: disable=no-member
-        configuration.special_attributes.runTrainsInRunKey.subkey
+        configuration.special_attributes.run_trains_in_run_key.subkey
     ] = 0
 
     frame_output3 = karabo2.process_frame(metadata, data)
@@ -1120,8 +1459,8 @@ def test_karabo2_without_db() -> None:
     assert frame_output3.attributi_values[AttributoId("pulse_energy_avg")] > 500  # type: ignore
     # Variance still None because we need two values
     assert frame_output3.attributi_values[AttributoId("pulse_energy_variance")] is None
-    assert frame_output3.attributi_values[AttributoId("beam_position")][0] > 1.9  # type: ignore
-    assert frame_output3.attributi_values[AttributoId("beam_position")][1] < -0.7  # type: ignore
+    assert frame_output3.attributi_values[AttributoId("beam_position")][0] == pytest.approx(0.8, 0.1)  # type: ignore
+    assert frame_output3.attributi_values[AttributoId("beam_position")][1] == pytest.approx(0.07, 0.02)  # type: ignore
     assert frame_output3.attributi_values[ATTRIBUTO_STARTED] is not None
     assert ATTRIBUTO_STOPPED not in frame_output3.attributi_values
 
@@ -1132,12 +1471,12 @@ def test_karabo2_without_db() -> None:
     )
 
     # Now we change trains_in_run to a specific value again, indicating a new run has stopped
-    # What the fuck does pylint not understand here?!
+    # What the heck does pylint not understand here?!
     # pylint: disable=no-member
-    data[configuration.special_attributes.runTrainsInRunKey.source][
-        # What the fuck does pylint not understand here?!
+    data[configuration.special_attributes.run_trains_in_run_key.source][
+        # What the heck does pylint not understand here?!
         # pylint: disable=no-member
-        configuration.special_attributes.runTrainsInRunKey.subkey
+        configuration.special_attributes.run_trains_in_run_key.subkey
     ] = 1
 
     frame_output5 = karabo2.process_frame(metadata, data)
@@ -1166,30 +1505,30 @@ async def test_karabo2_with_db() -> None:
         dataset_content = pickle.load(handle)
         data = dataset_content["data"]
         metadata = dataset_content["metadata"]
-        # What the fuck does pylint not understand here?!
+        # What the heck does pylint not understand here?!
         # pylint: disable=no-member
-        data[configuration.special_attributes.darkRunIndexKey.source][
-            # What the fuck does pylint not understand here?!
+        data[configuration.special_attributes.dark_run_index_key.source][
+            # What the heck does pylint not understand here?!
             # pylint: disable=no-member
-            configuration.special_attributes.darkRunIndexKey.subkey
+            configuration.special_attributes.dark_run_index_key.subkey
         ] = 53
-        # What the fuck does pylint not understand here?!
+        # What the heck does pylint not understand here?!
         # pylint: disable=no-member
-        data[configuration.special_attributes.darkRunTypeKey.source][
-            # What the fuck does pylint not understand here?!
+        data[configuration.special_attributes.dark_run_type_key.source][
+            # What the heck does pylint not understand here?!
             # pylint: disable=no-member
-            configuration.special_attributes.darkRunTypeKey.subkey
+            configuration.special_attributes.dark_run_type_key.subkey
         ] = "testdark"
 
-    _bridge_output = karabo2.process_frame(metadata, data)
+    karabo2.process_frame(metadata, data)
 
     # We change trains_in_run to 0, indicating a new run has started
-    # What the fuck does pylint not understand here?!
+    # What the heck does pylint not understand here?!
     # pylint: disable=no-member
-    data[configuration.special_attributes.runTrainsInRunKey.source][
-        # What the fuck does pylint not understand here?!
+    data[configuration.special_attributes.run_trains_in_run_key.source][
+        # What the heck does pylint not understand here?!
         # pylint: disable=no-member
-        configuration.special_attributes.runTrainsInRunKey.subkey
+        configuration.special_attributes.run_trains_in_run_key.subkey
     ] = 0
 
     bridge_output = karabo2.process_frame(metadata, data)
