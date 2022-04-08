@@ -7,6 +7,7 @@ module Amarcord.API.Requests exposing
     , DataSetResult
     , Event
     , ExperimentType
+    , LatestDark
     , RequestError(..)
     , Run
     , RunsResponse
@@ -214,7 +215,7 @@ cfelAnalysisDecoder =
         |> required "indexedCrystals" Decode.int
         |> required "crystfelVersion" Decode.string
         |> required "ccstarRSplit" Decode.float
-        |> required "created" (Decode.map millisToPosix Decode.int)
+        |> required "created" decodePosix
         |> required "files" (Decode.list fileDecoder)
 
 
@@ -313,8 +314,20 @@ type alias Event =
     }
 
 
+type alias LatestDark =
+    { id : Int
+    , started : Posix
+    }
+
+
+latestDarkDecoder : Decode.Decoder LatestDark
+latestDarkDecoder =
+    Decode.map2 LatestDark (Decode.field "id" Decode.int) (Decode.field "started" decodePosix)
+
+
 type alias RunsResponseContent =
     { runs : List Run
+    , latestDark : Maybe LatestDark
     , attributi : List (Attributo AttributoType)
     , events : List Event
     , samples : List (Sample Int (AttributoMap AttributoValue) File)
@@ -330,8 +343,9 @@ httpGetRuns f =
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError <|
-                    Decode.map6 RunsResponseContent
+                    Decode.map7 RunsResponseContent
                         (Decode.field "runs" <| Decode.list runDecoder)
+                        (Decode.field "latest-dark" <| Decode.maybe latestDarkDecoder)
                         (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
                         (Decode.field "events" <| Decode.list eventDecoder)
                         (Decode.field "samples" <| Decode.list sampleDecoder)
@@ -398,6 +412,11 @@ runDecoder =
         (Decode.field "data-sets" (Decode.list Decode.int))
 
 
+decodePosix : Decode.Decoder Posix
+decodePosix =
+    Decode.map millisToPosix Decode.int
+
+
 eventDecoder : Decode.Decoder Event
 eventDecoder =
     Decode.map6
@@ -406,7 +425,7 @@ eventDecoder =
         (Decode.field "text" Decode.string)
         (Decode.field "source" Decode.string)
         (Decode.field "level" Decode.string)
-        (Decode.field "created" (Decode.map millisToPosix Decode.int))
+        (Decode.field "created" decodePosix)
         (Decode.field "files" (Decode.list fileDecoder))
 
 

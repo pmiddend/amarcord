@@ -1,6 +1,6 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, RequestError, Run, RunsResponse, RunsResponseContent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
+import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
@@ -11,11 +11,11 @@ import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
-import Amarcord.Html exposing (br_, em_, form_, h1_, h2_, h3_, hr_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, hr_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, scrollToTop)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, posixDiffMinutes, scrollToTop)
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
 import Html.Attributes exposing (class, colspan, disabled, for, href, id, selected, style, type_, value)
@@ -305,6 +305,29 @@ viewCurrentRun zone now currentExperimentType rrc =
                         Just experimentType ->
                             find (\ds -> ds.experimentType == experimentType && List.member ds.id dataSets) rrc.dataSets
 
+                darkRunInformation : Maybe LatestDark -> List (Html msg)
+                darkRunInformation x =
+                    case x of
+                        Nothing ->
+                            []
+
+                        Just latestDark ->
+                            let
+                                diffMinutes =
+                                    posixDiffMinutes now latestDark.started
+
+                                warningLevel =
+                                    if diffMinutes < 30 then
+                                        "success"
+
+                                    else if diffMinutes < 120 then
+                                        "warning"
+
+                                    else
+                                        "danger"
+                            in
+                            [ div [ class ("alert d-flex align-items-center p-2 alert-" ++ warningLevel) ] [ div [ class "me-1" ] [ icon { name = "aspect-ratio-fill" } ], div_ [ text <| " Latest dark: " ++ String.fromInt diffMinutes ++ " minute(s) ago" ] ], hr_ ]
+
                 dataSetInformation =
                     case currentRunDataSet of
                         Nothing ->
@@ -420,7 +443,7 @@ viewCurrentRun zone now currentExperimentType rrc =
                                 (Maybe.map footer ds.summary)
                             ]
             in
-            header ++ dataSetSelection ++ dataSetInformation
+            header ++ darkRunInformation rrc.latestDark ++ dataSetSelection ++ dataSetInformation
 
 
 viewRunAttributiForm : Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)

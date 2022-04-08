@@ -410,6 +410,9 @@ class AttributiMap:
     def __hash__(self) -> int:
         return hash(self._attributi)
 
+    def __repr__(self) -> str:
+        return self._attributi.__repr__()
+
 
 def run_matches_dataset(
     run_attributi: AttributiMap, data_set_attributi: AttributiMap

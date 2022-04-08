@@ -229,3 +229,8 @@ scrollToTop f =
 posixDiffMillis : Posix -> Posix -> Int
 posixDiffMillis after before =
     posixToMillis after - posixToMillis before
+
+
+posixDiffMinutes : Posix -> Posix -> Int
+posixDiffMinutes after before =
+    posixDiffMillis after before // 1000 // 60
