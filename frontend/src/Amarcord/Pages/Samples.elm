@@ -17,7 +17,7 @@ import Amarcord.File exposing (File)
 import Amarcord.Html exposing (br_, form_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, SampleId, sampleMapAttributi, sampleMapId)
-import Amarcord.Util exposing (HereAndNow)
+import Amarcord.Util exposing (HereAndNow, scrollToTop)
 import Dict exposing (Dict)
 import File as ElmFile
 import File.Select
@@ -77,6 +77,7 @@ type Msg
     | EditFileDelete Int
     | EditResetNewFileUpload
     | EditNewFileOpenSelector
+    | Nop
 
 
 init : HereAndNow -> ( Model, Cmd Msg )
@@ -512,7 +513,7 @@ update msg model =
         InitiateEdit sample ->
             case model.samples of
                 Success { attributi } ->
-                    ( { model | editSample = Just (editSampleFromAttributiAndValues model.myTimeZone attributi (sampleMapId Just sample)) }, Cmd.none )
+                    ( { model | editSample = Just (editSampleFromAttributiAndValues model.myTimeZone attributi (sampleMapId Just sample)) }, scrollToTop (always Nop) )
 
                 _ ->
                     ( model, Cmd.none )
@@ -573,3 +574,6 @@ update msg model =
 
         EditNewFileOpenSelector ->
             ( model, File.Select.file [] EditNewFileFile )
+
+        Nop ->
+            ( model, Cmd.none )
