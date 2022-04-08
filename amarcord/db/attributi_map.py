@@ -418,6 +418,7 @@ def run_matches_dataset(
     run_attributi: AttributiMap, data_set_attributi: AttributiMap
 ) -> bool:
     for name, value in data_set_attributi.items():
-        if run_attributi.select(name) != value:
+        run_attributo = run_attributi.select(name)
+        if value is False and run_attributo is None or run_attributo != value:
             return False
     return True

@@ -28,8 +28,13 @@ from amarcord.db.attributi import (
 )
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
-from amarcord.db.attributi_map import AttributiMap, run_matches_dataset
+from amarcord.db.attributi_map import (
+    AttributiMap,
+    run_matches_dataset,
+    JsonAttributiMap,
+)
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
@@ -491,17 +496,34 @@ async def create_data_set() -> JSONDict:
 
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        attributi_by_name: Dict[str, DBAttributo] = {a.name: a for a in attributi}
         sample_ids = await db.instance.retrieve_sample_ids(conn)
         previous_data_sets = await db.instance.retrieve_data_sets(
             conn, sample_ids, attributi
         )
 
-        experiment_type = r.retrieve_safe_str("experiment-type")
+        experiment_type_name = r.retrieve_safe_str("experiment-type")
+        experiment_type = next(
+            iter(
+                t
+                for t in await db.instance.retrieve_experiment_types(conn)
+                if t.name == experiment_type_name
+            ),
+            None,
+        )
+
+        if experiment_type is None:
+            raise CustomWebException(
+                code=500,
+                title="Invalid experiment type",
+                description=f'Experiment type "{experiment_type_name}" not found',
+            )
+
         data_set_attributi = r.retrieve_safe_object("attributi")
         if any(
             x
             for x in previous_data_sets
-            if x.experiment_type == experiment_type
+            if x.experiment_type == experiment_type_name
             and x.attributi.to_json() == data_set_attributi
         ):
             raise CustomWebException(
@@ -517,13 +539,30 @@ async def create_data_set() -> JSONDict:
                 description="You have to set a least one attributo value",
             )
 
+        processed_attributi: JsonAttributiMap = {}
+        for attributo_name in experiment_type.attributo_names:
+            if attributo_name in data_set_attributi:
+                processed_attributi[attributo_name] = data_set_attributi[attributo_name]
+            else:
+                attributo = attributi_by_name.get(attributo_name, None)
+                assert (
+                    attributo is not None
+                ), f"attributo {attributo_name} mentioned in experiment type {experiment_type_name} not found"
+                if not isinstance(attributo.attributo_type, AttributoTypeBoolean):
+                    raise CustomWebException(
+                        code=500,
+                        title="Invalid input",
+                        description=f'Got no value for attributo "{attributo_name}"',
+                    )
+                processed_attributi[attributo_name] = False
+
         data_set_id = await db.instance.create_data_set(
             conn,
-            experiment_type=experiment_type,
+            experiment_type=experiment_type_name,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids,
-                data_set_attributi,
+                processed_attributi,
             ),
         )
 

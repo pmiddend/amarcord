@@ -71,10 +71,10 @@ viewAttributoValue props zone sampleIds type_ value =
 
         ValueBoolean bool ->
             if bool then
-                icon { name = "check-lg" }
+                icon { name = "check-circle" }
 
             else
-                text ""
+                icon { name = "slash-circle" }
 
         ValueInt int ->
             case type_ of

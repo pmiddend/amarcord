@@ -7,6 +7,8 @@ from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
 
+IN_MEMORY_DB_URL = "sqlite+aiosqlite://"
+
 TEST_ATTRIBUTO_NAME = "testattributo"
 TEST_ATTRIBUTO_NAME2 = "testattributo2"
 TEST_SAMPLE_NAME = "samplename"
@@ -284,3 +286,123 @@ async def test_latest_dark() -> None:
 
     ld = runs_response_json.get("latest-dark", None)
     assert ld is not None
+
+
+async def test_create_data_set_with_unspecified_boolean() -> None:
+    app.config.update(
+        {
+            "DB_URL": IN_MEMORY_DB_URL,
+            "DB_ECHO": False,
+            "HAS_ARTIFICIAL_DELAY": False,
+        },
+    )
+    await db.initialize_db()
+    client = app.test_client()
+
+    attributo_name = "attributo1"
+    await client.post(
+        "/api/attributi",
+        json={
+            "name": attributo_name,
+            "description": "description",
+            "group": ATTRIBUTO_GROUP_MANUAL,
+            "associatedTable": "run",
+            "type": {"type": "boolean"},
+        },
+    )
+    attributo_name2 = "attributo2"
+    await client.post(
+        "/api/attributi",
+        json={
+            "name": attributo_name2,
+            "description": "description",
+            "group": ATTRIBUTO_GROUP_MANUAL,
+            "associatedTable": "run",
+            "type": {"type": "string"},
+        },
+    )
+
+    experiment_type = "experiment_type"
+    result = await client.post(
+        "/api/experiment-types",
+        json={
+            "name": experiment_type,
+            "attributi-names": [attributo_name, attributo_name2],
+        },
+    )
+
+    assert result.status_code == 200
+    assert (await result.json) == {}
+
+    result = await client.post(
+        "/api/data-sets",
+        # Only set string attributo here
+        json={"experiment-type": experiment_type, "attributi": {attributo_name2: "3"}},
+    )
+
+    assert result.status_code == 200
+    assert (await result.json) == {"id": 1}
+
+    result = await client.get("/api/data-sets")
+    json = JSONChecker(await result.json, "response")
+
+    assert len(json.retrieve_safe_list("data-sets")) == 1
+    # Here, we expect the boolean attribute to be filled with false implicitly
+    # noinspection PyTypeChecker
+    assert json.retrieve_safe_list("data-sets")[0]["attributi"][attributo_name] is False
+
+
+async def test_create_data_set_with_unspecified_string() -> None:
+    app.config.update(
+        {
+            "DB_URL": IN_MEMORY_DB_URL,
+            "DB_ECHO": False,
+            "HAS_ARTIFICIAL_DELAY": False,
+        },
+    )
+    await db.initialize_db()
+    client = app.test_client()
+
+    attributo_name = "attributo1"
+    await client.post(
+        "/api/attributi",
+        json={
+            "name": attributo_name,
+            "description": "description",
+            "group": ATTRIBUTO_GROUP_MANUAL,
+            "associatedTable": "run",
+            "type": {"type": "boolean"},
+        },
+    )
+    attributo_name2 = "attributo2"
+    await client.post(
+        "/api/attributi",
+        json={
+            "name": attributo_name2,
+            "description": "description",
+            "group": ATTRIBUTO_GROUP_MANUAL,
+            "associatedTable": "run",
+            "type": {"type": "string"},
+        },
+    )
+
+    experiment_type = "experiment_type"
+    result = await client.post(
+        "/api/experiment-types",
+        json={
+            "name": experiment_type,
+            "attributi-names": [attributo_name, attributo_name2],
+        },
+    )
+
+    assert result.status_code == 200
+    assert (await result.json) == {}
+
+    result = await client.post(
+        "/api/data-sets",
+        # Only set the boolean attributo here, leave string out - that's not possible!
+        json={"experiment-type": experiment_type, "attributi": {attributo_name: False}},
+    )
+
+    assert result.status_code == 200
+    assert "error" in (await result.json)
