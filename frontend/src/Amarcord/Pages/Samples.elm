@@ -281,9 +281,9 @@ viewSampleRow zone attributi sample =
             ++ List.map (viewAttributoCell { shortDateTime = False } zone Dict.empty sample.attributi) attributi
             ++ [ td_ [ files ]
                ]
-            ++ [ td_
-                    [ button [ class "btn btn-lnk btn-sm me-1", onClick (AskDelete sample.name sample.id) ] [ icon { name = "trash" } ]
-                    , button [ class "btn btn-link btn-sm", onClick (InitiateEdit sample) ] [ icon { name = "pencil-square" } ]
+            ++ [ td [ class "text-nowrap" ]
+                    [ button [ class "btn btn-sm btn-danger me-3", onClick (AskDelete sample.name sample.id) ] [ icon { name = "trash" } ]
+                    , button [ class "btn btn-sm btn-info", onClick (InitiateEdit sample) ] [ icon { name = "pencil-square" } ]
                     ]
                ]
 

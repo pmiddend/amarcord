@@ -151,7 +151,7 @@ viewDataSet model =
                         [ td_ [ text (String.fromInt ds.id) ]
                         , td_ [ text ds.experimentType ]
                         , td_ [ viewDataSetTable attributi model.zone (sampleIdDict samples) ds False Nothing ]
-                        , td_ [ button [ class "btn btn-link", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
+                        , td_ [ button [ class "btn btn-sm btn-danger", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 
                 viewExperimentTypeOption et =
