@@ -6,7 +6,7 @@ module Main exposing (main)
 
 import Amarcord.API.Requests exposing (AppConfig, RequestError, httpGetConfig)
 import Amarcord.Bootstrap exposing (viewRemoteData)
-import Amarcord.Html exposing (h1_)
+import Amarcord.Html exposing (h1_, img_)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
@@ -118,7 +118,7 @@ view model =
             [ div [ class "container" ]
                 [ header
                     [ class "d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom" ]
-                    [ img [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "img-fluid amarcord-logo" ] []
+                    [ img [ src "amarcord-logo.png", alt "AMARCORD logo", class "img-fluid amarcord-logo" ] []
                     , a [ class "d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none" ]
                         [ span [ class "fs-4" ] [ text displayTitle ]
                         ]
@@ -127,7 +127,7 @@ view model =
                 ]
             , currentViewOuter model
             , div [ class "container mt-5 text-center" ]
-                [ p [ class "text-muted" ] [ text <| "AMARCORD Version: " ++ version ]
+                [ p [ class "text-muted" ] [ img_ [ src "desy-cfel.png", alt "DESY and CFEL logo combined", class "img-fluid amarcord-logo" ], text <| "AMARCORD Version: " ++ version ]
                 ]
             ]
         ]
