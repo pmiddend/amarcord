@@ -514,11 +514,13 @@ viewRunAttributiForm latestRun submitErrorsList runEditRequest samples rei =
 
 viewInner : Model -> RunsResponseContent -> List (Html Msg)
 viewInner model rrc =
-    [ div
-        [ class "row" ]
-        [ div [ class "col-6" ]
-            (viewCurrentRun model.myTimeZone model.now model.currentExperimentType rrc)
-        , div [ class "col-6" ] (viewRunAttributiForm (head rrc.runs) model.submitErrors model.runEditRequest rrc.samples model.runEditInfo)
+    [ div [ class "container" ]
+        [ div
+            [ class "row" ]
+            [ div [ class "col-lg-6" ]
+                (viewCurrentRun model.myTimeZone model.now model.currentExperimentType rrc)
+            , div [ class "col-lg-6" ] (viewRunAttributiForm (head rrc.runs) model.submitErrors model.runEditRequest rrc.samples model.runEditInfo)
+            ]
         ]
     , hr_
     , Html.map EventFormMsg (EventForm.view model.eventForm)
