@@ -497,10 +497,10 @@ viewRunAttributiForm latestRun submitErrorsList runEditRequest samples rei =
             h2_
                 [ text <|
                     if isLatestRun then
-                        "Run Info"
+                        "Edit run"
 
                     else
-                        "Edit Run " ++ fromInt runId
+                        "Edit run " ++ fromInt runId
                 ]
                 :: [ if not isLatestRun then
                         p [ class "text-warning" ] [ text "You are currently editing an older run!" ]
