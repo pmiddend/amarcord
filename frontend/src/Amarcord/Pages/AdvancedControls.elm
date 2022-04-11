@@ -18,6 +18,7 @@ type alias Model =
     , startOrStopRequest : RemoteData RequestError ()
     , nextRunId : Int
     , isRunning : Bool
+    , manualChange : Bool
     }
 
 
@@ -38,6 +39,7 @@ init =
       , nextRunId = 1
       , isRunning = False
       , startOrStopRequest = NotAsked
+      , manualChange = False
       }
     , httpGetRuns RunsReceived
     )
@@ -64,7 +66,11 @@ calculateNextRunId currentRunId runResponse =
         Ok { runs } ->
             case List.head runs of
                 Just latestRun ->
-                    latestRun.id + 1
+                    if calculateIsRunning runResponse then
+                        latestRun.id
+
+                    else
+                        latestRun.id + 1
 
                 Nothing ->
                     currentRunId
@@ -85,7 +91,12 @@ update msg model =
 
                     else
                         model.refreshRequest
-                , nextRunId = calculateNextRunId model.nextRunId response
+                , nextRunId =
+                    if model.manualChange then
+                        model.nextRunId
+
+                    else
+                        calculateNextRunId model.nextRunId response
                 , isRunning = calculateIsRunning response
               }
             , Cmd.none
@@ -100,13 +111,13 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just runId ->
-                    ( { model | nextRunId = runId }, Cmd.none )
+                    ( { model | nextRunId = runId, manualChange = True }, Cmd.none )
 
         StartRun ->
             ( { model | startOrStopRequest = Loading }, httpStartRun model.nextRunId StartRunFinished )
 
         StopRun ->
-            ( { model | startOrStopRequest = Loading }, httpStopRun StopRunFinished )
+            ( { model | startOrStopRequest = Loading, manualChange = False }, httpStopRun StopRunFinished )
 
         StartRunFinished result ->
             ( { model | startOrStopRequest = fromResult result }, httpGetRuns RunsReceived )
@@ -127,6 +138,7 @@ view model =
                     , class "form-control"
                     , value (String.fromInt model.nextRunId)
                     , onInput (RunIdChanged << String.toInt)
+                    , disabled (model.isRunning || isLoading model.startOrStopRequest)
                     ]
                 ]
             , button [ type_ "button", class "btn btn-primary me-3", disabled (model.isRunning || isLoading model.startOrStopRequest), onClick StartRun ]
