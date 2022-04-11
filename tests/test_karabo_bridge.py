@@ -248,6 +248,7 @@ def test_process_karabo_frame_one_float_attribute_invalid_type() -> None:
         {DOOCS_INTENSITY_KEY.source: {DOOCS_INTENSITY_KEY.subkey: intensity_values}},
     )
     assert len(frame.wrong_types) == 1
+    assert list(frame.wrong_types.values())[0].karabo_id == INTERNAL_ID1
 
 
 def test_process_karabo_frame_one_float_attribute_not_found() -> None:

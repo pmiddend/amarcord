@@ -124,6 +124,7 @@ class KaraboProcessor(Enum):
 class KaraboWrongTypeError:
     expected: KaraboInputType
     got: str
+    karabo_id: KaraboInternalId
 
 
 KaraboValueByInternalId = Dict[KaraboInternalId, KaraboValue]
@@ -876,6 +877,7 @@ def karabo_type_matches(
 
 
 def run_karabo_processor(
+    karabo_id: KaraboInternalId,
     processor: KaraboProcessor,
     input_type: KaraboInputType,
     ignore: Optional[float],
@@ -883,7 +885,7 @@ def run_karabo_processor(
 ) -> Union[KaraboWrongTypeError, Optional[KaraboValue]]:
     typed_value = karabo_type_matches(input_type, value)
     if typed_value is None:
-        return KaraboWrongTypeError(input_type, str(type(value)))
+        return KaraboWrongTypeError(input_type, str(type(value)), karabo_id)
 
     if processor == KaraboProcessor.KARABO_PROCESSOR_IDENTITY:
         if ignore is not None and typed_value == ignore:
@@ -941,7 +943,7 @@ def process_karabo_frame(
             not_found.add(a.locator)
             continue
         processing_result = run_karabo_processor(
-            a.processor, a.input_type, a.ignore, value
+            a.id, a.processor, a.input_type, a.ignore, value
         )
         if isinstance(processing_result, KaraboWrongTypeError):
             wrong_types[a.locator] = processing_result
@@ -1582,8 +1584,8 @@ class Karabo2:
             logger.warning(
                 f"train {train_id}: the following attributes had type errors: \n- "
                 + "\n- ".join(
-                    f"{locator}: expected {type_error.expected.value}, got {type_error.got}"
+                    f"{locator} (attribute {type_error.karabo_id}): expected {type_error.expected.value}, got {type_error.got}"
                     for locator, type_error in processed_frame.wrong_types.items()
                 )
             )
-            self._previously_not_found = processed_frame.not_found
+            self._previously_wrong_type = processed_frame.wrong_types
