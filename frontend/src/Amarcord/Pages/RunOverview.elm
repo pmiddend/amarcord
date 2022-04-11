@@ -268,12 +268,13 @@ viewCurrentRun zone now currentExperimentType rrc =
                                 [ span [ class "text-success" ] [ spinner ]
                                 , text <| " Run " ++ fromInt id
                                 ]
-                            , p [ class "lead text-success" ] [ text <| "Running for " ++ posixDiffHumanFriendly now started ]
+                            , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now started ]
                             ]
 
                         ( Just started, Just stopped ) ->
-                            [ h1_ [ text <| " Run " ++ fromInt id ]
-                            , p [ class "lead" ] [ text <| "Stopped, " ++ posixDiffHumanFriendly stopped now ++ " ago (duration " ++ posixDiffHumanFriendly started stopped ++ ")" ]
+                            [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ fromInt id ]
+                            , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendly stopped now ++ " ago " ]
+                            , p_ [ text <| "Duration " ++ posixDiffHumanFriendly started stopped ]
                             ]
 
                         _ ->
