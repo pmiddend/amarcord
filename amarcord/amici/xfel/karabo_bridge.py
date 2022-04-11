@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from difflib import get_close_matches
 from enum import Enum, auto
+from math import fsum
 from typing import (
     Dict,
     List,
@@ -17,7 +18,6 @@ from typing import (
 )
 
 import numpy as np
-# from statistics import mean, stdev
 from numpy import mean, std
 from pint import UnitRegistry
 
@@ -977,7 +977,7 @@ class StdDevAccumulator:
 
 @dataclass(frozen=True)
 class PropagatedStdDevAccumulator:
-    current_sum: Union[None, float]
+    current_sum: float
     count: int
 
 
@@ -1018,7 +1018,7 @@ def process_mean_accumulator_with_plain_attribute(
     current_sum = (
         value_in_frame
         if accumulator is None
-        else accumulator.current_sum + value_in_frame
+        else fsum([accumulator.current_sum, value_in_frame])
     )
     count = 1 if accumulator is None else accumulator.count + 1
 
@@ -1061,7 +1061,7 @@ def process_propagated_stdev_accumulator_with_plain_attribute(
     new_sum = (
         value_in_frame
         if accumulator is None
-        else accumulator.current_sum + value_in_frame**2.0
+        else fsum([accumulator.current_sum, value_in_frame**2.0])
     )
     count = 1 if accumulator is None else accumulator.count + 1
 

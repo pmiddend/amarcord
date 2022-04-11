@@ -1,10 +1,12 @@
 import logging
 import pickle
 from pathlib import Path
-from typing import Any, Dict
+from typing import Dict, Any, cast
 
+import numpy.random
 import pytest
 import yaml
+from numpy import isclose
 
 from amarcord.amici.xfel.karabo_bridge import (
     process_karabo_frame,
@@ -101,6 +103,35 @@ def test_process_karabo_frame_one_list_attribute_arithmetic_mean() -> None:
     assert INTERNAL_ID1 in frame.karabo_values_by_internal_id
     # 2.0 being the mean of the intensity values
     assert frame.karabo_values_by_internal_id[INTERNAL_ID1] == 2.0
+
+
+def test_process_karabo_frame_one_list_attribute_arithmetic_mean_floating_num() -> None:
+    attributes = [
+        KaraboAttributeDescription(
+            INTERNAL_ID1,
+            DOOCS_INTENSITY_KEY,
+            input_type=KaraboInputType.KARABO_TYPE_LIST_FLOAT,
+            processor=KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN,
+            unit="mJ",
+            standard_unit=True,
+            ignore=None,
+        )
+    ]
+    random_factor = (1.0 / numpy.random.random(1)[0]) ** 100.0
+    intensity_values = [
+        random_factor,
+        random_factor * 2,
+        random_factor * 4,
+    ]
+    frame = process_karabo_frame(
+        attributes,
+        {DOOCS_INTENSITY_KEY.source: {DOOCS_INTENSITY_KEY.subkey: intensity_values}},
+    )
+    assert not frame.wrong_types
+    assert not frame.not_found
+    assert INTERNAL_ID1 in frame.karabo_values_by_internal_id
+    # 2.0 being the mean of the intensity values
+    assert frame.karabo_values_by_internal_id[INTERNAL_ID1] == 7.0 * random_factor / 3.0
 
 
 def test_process_karabo_frame_one_list_attribute_stdev() -> None:
@@ -280,7 +311,8 @@ def test_process_karabo_frame_one_float_attribute_whole_source_not_found() -> No
 
 
 def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
-    initial_value = 1.0
+    random_factor = (1.0 / numpy.random.random(1)[0]) ** 100.0
+    initial_value = random_factor
     first_frame: KaraboValueByInternalId = {INTERNAL_ID1: initial_value}
     attributi = [
         AmarcordAttributoDescription(
@@ -299,14 +331,19 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
     assert ATTRIBUTO_ID1 in new_accumulator
     assert new_values[ATTRIBUTO_ID1] == initial_value
 
-    # Second run. It's supposed to be the arithmetic mean, so 11+1=12, 12/2=6
-    second_value = 11.0
-    second_frame: KaraboValueByInternalId = {INTERNAL_ID1: second_value}
-    new_accumulator, new_values = frame_to_attributo_and_cache(
-        second_frame, attributi, new_accumulator
-    )
+    next_value = 2
+    while next_value < 200002:
+        second_frame: KaraboValueByInternalId = {
+            INTERNAL_ID1: next_value * random_factor
+        }
+        new_accumulator, new_values = frame_to_attributo_and_cache(
+            second_frame, attributi, new_accumulator
+        )
+        next_value += 1
 
-    assert new_values[ATTRIBUTO_ID1] == 6.0
+    assert isclose(
+        cast(float, new_values[ATTRIBUTO_ID1]), 100001.0 * random_factor, rtol=1e-15
+    )
 
 
 def test_frame_to_attributo_and_cache_variance_plain_attribute() -> None:
