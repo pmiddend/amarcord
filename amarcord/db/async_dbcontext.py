@@ -28,6 +28,7 @@ class AsyncDBContext:
             echo=echo,
             connect_args={"check_same_thread": False} if in_memory_db else {},
             poolclass=StaticPool if in_memory_db else None,
+            pool_pre_ping=True,
         )
 
         # sqlite doesn't care about foreign keys unless you do this dance, see

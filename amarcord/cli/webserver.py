@@ -347,7 +347,7 @@ def determine_latest_dark_run(
 
 @app.get("/api/runs")
 async def read_runs() -> JSONDict:
-    async with db.instance.begin() as conn:
+    async with db.instance.read_only_connection() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
         attributi.sort(key=attributo_sort_key)
         samples = await db.instance.retrieve_samples(conn, attributi)
@@ -795,7 +795,7 @@ async def read_config() -> JSONDict:
 
 @app.get("/api/analysis/analysis-results")
 async def read_analysis_results() -> JSONDict:
-    async with db.instance.begin() as conn:
+    async with db.instance.read_only_connection() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
         samples = await db.instance.retrieve_samples(conn, attributi)
         data_sets = await db.instance.retrieve_data_sets(
