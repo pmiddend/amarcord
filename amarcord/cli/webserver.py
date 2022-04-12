@@ -466,7 +466,7 @@ def _encode_experiment_type(a: DBExperimentType) -> JSONDict:
 
 @app.get("/api/experiment-types")
 async def read_experiment_types() -> JSONDict:
-    async with db.instance.connect() as conn:
+    async with db.instance.read_only_connection() as conn:
         if _has_artificial_delay():
             await asyncio.sleep(3)
         return {
@@ -586,7 +586,7 @@ def _encode_data_set(a: DBDataSet, summary: Optional[DataSetSummary]) -> JSONDic
 
 @app.get("/api/data-sets")
 async def read_data_sets() -> JSONDict:
-    async with db.instance.connect() as conn:
+    async with db.instance.read_only_connection() as conn:
         if _has_artificial_delay():
             await asyncio.sleep(3)
         attributi = list(
@@ -752,7 +752,7 @@ def _encode_attributo(a: DBAttributo) -> JSONDict:
 
 @app.get("/api/files/<int:file_id>")
 async def read_file(file_id: int):
-    async with db.instance.connect() as conn:
+    async with db.instance.read_only_connection() as conn:
         (
             file_name,
             mime_type,
@@ -774,7 +774,7 @@ async def read_file(file_id: int):
 
 @app.get("/api/attributi")
 async def read_attributi() -> JSONDict:
-    async with db.instance.connect() as conn:
+    async with db.instance.read_only_connection() as conn:
         if _has_artificial_delay():
             await asyncio.sleep(3)
         return {

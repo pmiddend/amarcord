@@ -60,8 +60,8 @@ class AsyncDB:
         async with self.begin() as conn:
             await conn.run_sync(upgrade_to_head_connection)
 
-    def connect(self) -> Connection:
-        return self.dbcontext.connect()
+    def read_only_connection(self) -> Connection:
+        return self.dbcontext.read_only_connection()
 
     def begin(self) -> Connection:
         return self.dbcontext.begin()

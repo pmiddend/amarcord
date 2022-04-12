@@ -41,7 +41,7 @@ class AsyncDBContext:
         self.metadata = MetaData()
 
     async def create_all(self, creation_mode: CreationMode) -> None:
-        async with self.connect() as conn:
+        async with self.read_only_connection() as conn:
             await conn.run_sync(
                 lambda myengine: self.metadata.create_all(
                     myengine, checkfirst=creation_mode == CreationMode.CHECK_FIRST
@@ -51,7 +51,7 @@ class AsyncDBContext:
     def begin(self) -> Connection:
         return self.engine.begin()
 
-    def connect(self) -> Connection:
+    def read_only_connection(self) -> Connection:
         return self.engine.connect()
 
     async def dispose(self) -> None:

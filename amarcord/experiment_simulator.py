@@ -358,7 +358,7 @@ async def experiment_simulator_main_loop(
 ) -> None:
     logger.info("starting experiment simulator loop")
     while True:
-        async with db.connect() as conn:
+        async with db.read_only_connection() as conn:
             attributi = await db.retrieve_attributi(conn, associated_table=None)
             sample_ids = [s.id for s in await db.retrieve_samples(conn, attributi)]
             runs = await db.retrieve_runs(conn, attributi)

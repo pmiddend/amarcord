@@ -83,7 +83,7 @@ async def test_process_data_latest_run():
         }
     )
 
-    async with db.connect() as conn:
+    async with db.read_only_connection() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
 
         # 4 because the first frame gets ignored as a baseline
@@ -104,7 +104,7 @@ async def test_process_data_latest_run():
         }
     )
 
-    async with db.connect() as conn:
+    async with db.read_only_connection() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
 
         # 4 because the first frame gets ignored as a baseline
