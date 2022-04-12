@@ -647,7 +647,15 @@ update msg model =
             )
 
         Refresh now ->
-            ( { model | refreshRequest = Loading, now = now }, httpGetRuns RunsReceived )
+            case ( model.refreshRequest, model.runs ) of
+                ( Loading, _ ) ->
+                    ( model, Cmd.none )
+
+                ( _, Loading ) ->
+                    ( model, Cmd.none )
+
+                _ ->
+                    ( { model | refreshRequest = Loading, now = now }, httpGetRuns RunsReceived )
 
         EventFormMsg eventFormMsg ->
             let
