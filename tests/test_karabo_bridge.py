@@ -1465,7 +1465,7 @@ def test_parse_configuration():
 
 
 def test_karabo2_without_db() -> None:
-    with (Path(__file__).parent / "karabo_online" / "config-new.yml").open("r") as f:
+    with (Path(__file__).parent / "karabo_online" / "config.yml").open("r") as f:
         configuration = parse_configuration(yaml.load(f, Loader=yaml.SafeLoader))
         assert isinstance(configuration, KaraboBridgeConfiguration)
         karabo2 = Karabo2(configuration)
@@ -1530,30 +1530,31 @@ async def _get_db() -> AsyncDB:
     return db
 
 
-async def test_karabo2_with_db() -> None:
-    with (Path(__file__).parent / "karabo_online" / "config-new.yml").open("r") as f:
+async def test_karabo2_with_db_frames_and_dummy_runs() -> None:
+    RUN_ID = 53
+    MISSING_RUNS = 3
+    FIRST_EVENT = "1035758364.pickle"
+    SECOND_EVENT = "1035758368.pickle"
+
+    with (Path(__file__).parent / "karabo_online" / "config.yml").open("r") as f:
         configuration = parse_configuration(yaml.load(f, Loader=yaml.SafeLoader))
         assert isinstance(configuration, KaraboBridgeConfiguration)
         karabo2 = Karabo2(configuration)
 
     # Read first frame, this will have trains_in_run != 0, so nothing should happen
-    with (
-        Path(__file__).parent / "karabo_online" / "events" / "1035758364.pickle"
-    ).open("rb") as handle:
+    with (Path(__file__).parent / "karabo_online" / "events" / FIRST_EVENT).open(
+        "rb"
+    ) as handle:
         dataset_content = pickle.load(handle)
         data = dataset_content["data"]
         metadata = dataset_content["metadata"]
-        # What the heck does pylint not understand here?!
         # pylint: disable=no-member
         data[configuration.special_attributes.dark_run_index_key.source][
-            # What the heck does pylint not understand here?!
             # pylint: disable=no-member
             configuration.special_attributes.dark_run_index_key.subkey
-        ] = 53
-        # What the heck does pylint not understand here?!
+        ] = RUN_ID
         # pylint: disable=no-member
         data[configuration.special_attributes.dark_run_type_key.source][
-            # What the heck does pylint not understand here?!
             # pylint: disable=no-member
             configuration.special_attributes.dark_run_type_key.subkey
         ] = "testdark"
@@ -1561,16 +1562,14 @@ async def test_karabo2_with_db() -> None:
     karabo2.process_frame(metadata, data)
 
     # We change trains_in_run to 0, indicating a new run has started
-    # What the heck does pylint not understand here?!
+
     # pylint: disable=no-member
     data[configuration.special_attributes.run_trains_in_run_key.source][
-        # What the heck does pylint not understand here?!
         # pylint: disable=no-member
         configuration.special_attributes.run_trains_in_run_key.subkey
     ] = 0
 
     bridge_output = karabo2.process_frame(metadata, data)
-
     assert bridge_output is not None
     db = await _get_db()
 
@@ -1582,6 +1581,35 @@ async def test_karabo2_with_db() -> None:
         )
         assert len(runs) == 1
         assert runs[0].attributi.select_string(ATTRIBUTO_ID_DARK_RUN_TYPE) is not None
+
+    # Read first frame, this will have trains_in_run != 0, so nothing should happen
+    with (Path(__file__).parent / "karabo_online" / "events" / SECOND_EVENT).open(
+        "rb"
+    ) as handle:
+        dataset_content = pickle.load(handle)
+        data = dataset_content["data"]
+        metadata = dataset_content["metadata"]
+        data[configuration.special_attributes.run_number_key.source][
+            # pylint: disable=no-member
+            configuration.special_attributes.run_number_key.subkey
+        ] = (RUN_ID + MISSING_RUNS + 1)
+
+    new_bridge_output = karabo2.process_frame(metadata, data)
+    assert new_bridge_output is not None
+
+    async with db.begin() as conn:
+        await karabo2.create_missing_attributi(db, conn)
+        await ingest_bridge_output(db, conn, new_bridge_output)
+        runs = await db.retrieve_runs(
+            conn, await db.retrieve_attributi(conn, associated_table=None)
+        )
+
+        assert len(runs) == MISSING_RUNS + 2
+        for run in runs:
+            if run.id in [RUN_ID, RUN_ID + MISSING_RUNS + 1]:
+                assert run.attributi.items()
+            else:
+                assert not run.attributi.items()
 
 
 def test_determine_attributo_type_float_with_unit() -> None:

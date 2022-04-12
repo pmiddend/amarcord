@@ -28,12 +28,6 @@ karabo-attributes:
         unit: mm
         ignore: 1.0
 
-      - id: beam_x2
-        input-type: float
-        processor: identity
-        unit: mm
-        ignore: 1.0
-
       - id: beam_x_stdev
         input-type: List[float]
         processor: list-standard-deviation
@@ -160,27 +154,14 @@ amarcord-attributi:
     coagulate: "${beam_x} ${beam_y}"
     processor: arithmetic-mean
     description: "The beam position as string"
-
-#  beam_position_stdev:
-#    coagulate: [ beam_x_stdev, beam_y_stdev ]
-#    processor: standard-deviation
-#    description: "The beam position stdev"
-
   beam_position_stdev:
     coagulate: [ beam_x, beam_y ]
     processor: standard-deviation
     description: "The beam position stdev"
-
-  beam_position_stdev_devs:
+  beam_position_propagated_stdev:
     coagulate: [ beam_x_stdev, beam_y_stdev ]
     processor: propagated-standard-deviation
     description: "The beam position stdev"
-
-  beam_position_x_stdev:
-    plain-attribute : beam_x
-    processor: standard-deviation
-    description: "The beam position x stdev"
-
   gain_mode:
     plain-attribute: gain_mode
     processor: take-last

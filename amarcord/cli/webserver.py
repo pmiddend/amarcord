@@ -867,7 +867,7 @@ def _encode_cfel_analysis_result(k: DBCFELAnalysisResult) -> JSONDict:
 
 class Arguments(Tap):
     port: int = 5000
-    host: str = "0.0.0.0"
+    host: str = "localhost"
     db_connection_url: str = "sqlite+aiosqlite://"
     db_echo: bool = False
     debug: bool = True
