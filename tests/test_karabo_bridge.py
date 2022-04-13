@@ -312,11 +312,10 @@ def test_process_karabo_frame_one_float_attribute_whole_source_not_found() -> No
 
 
 def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
-    iterations = 200002
-    # With P=1e-16 precision the expected value
-    # over N operations with float numbers
-    # should be close the computed value
-    # by a factor P*sqrt(N)
+    iterations = 200000
+    # With floating numbers precision P=1e-16
+    # the expected value over N operations with float numbers
+    # should be close to the computed value by a factor P*sqrt(N)
     # Source https://fncbook.github.io/fnc/intro/floating-point.html
     relative_tolerance = 1.0e-16 * iterations**0.5
 
