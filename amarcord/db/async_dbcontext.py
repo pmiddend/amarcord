@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy import MetaData
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 Connection = Any
 
@@ -27,8 +27,7 @@ class AsyncDBContext:
             connection_url,
             echo=echo,
             connect_args={"check_same_thread": False} if in_memory_db else {},
-            poolclass=StaticPool if in_memory_db else None,
-            pool_pre_ping=True,
+            poolclass=StaticPool if in_memory_db else NullPool,
         )
 
         # sqlite doesn't care about foreign keys unless you do this dance, see
