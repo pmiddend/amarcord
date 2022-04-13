@@ -346,8 +346,9 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
 
     expected = 0.5 * iterations * random_factor
     assert (
-        cast(float, new_values[ATTRIBUTO_ID1]) - expected
-    ) / expected < tolerable_relative_difference
+        abs(cast(float, new_values[ATTRIBUTO_ID1]) - expected) / expected
+        < tolerable_relative_difference
+    )
 
 
 def test_frame_to_attributo_and_cache_variance_plain_attribute() -> None:
