@@ -1,5 +1,6 @@
 import logging
 import pickle
+from math import isclose
 from pathlib import Path
 from typing import Dict, Any, cast
 
@@ -312,9 +313,15 @@ def test_process_karabo_frame_one_float_attribute_whole_source_not_found() -> No
 
 def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
     iterations = 200002
-    tolerable_relative_difference = 1.0e-12
+    # With P=1e-16 precision the expected value
+    # over N operations with float numbers
+    # should be close the computed value
+    # by a factor P*sqrt(N)
+    # Source https://fncbook.github.io/fnc/intro/floating-point.html
+    relative_tolerance = 1.0e-16 * iterations**0.5
 
     random_factor = (1.0 / numpy.random.random(1)[0]) ** 100.0
+
     initial_value = random_factor
     first_frame: KaraboValueByInternalId = {INTERNAL_ID1: initial_value}
     attributi = [
@@ -345,9 +352,10 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
         next_value += 1
 
     expected = 0.5 * iterations * random_factor
-    assert (
-        abs(cast(float, new_values[ATTRIBUTO_ID1]) - expected) / expected
-        < tolerable_relative_difference
+    assert isclose(
+        cast(float, new_values[ATTRIBUTO_ID1]),
+        expected,
+        rel_tol=relative_tolerance,
     )
 
 
