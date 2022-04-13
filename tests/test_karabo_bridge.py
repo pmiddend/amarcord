@@ -6,7 +6,6 @@ from typing import Dict, Any, cast
 import numpy.random
 import pytest
 import yaml
-from numpy import isclose
 
 from amarcord.amici.xfel.karabo_bridge import (
     process_karabo_frame,
@@ -312,6 +311,9 @@ def test_process_karabo_frame_one_float_attribute_whole_source_not_found() -> No
 
 
 def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
+    iterations = 200002
+    tolerable_relative_difference = 1.0e-12
+
     random_factor = (1.0 / numpy.random.random(1)[0]) ** 100.0
     initial_value = random_factor
     first_frame: KaraboValueByInternalId = {INTERNAL_ID1: initial_value}
@@ -333,7 +335,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
     assert new_values[ATTRIBUTO_ID1] == initial_value
 
     next_value = 2
-    while next_value < 200002:
+    while next_value < iterations:
         second_frame: KaraboValueByInternalId = {
             INTERNAL_ID1: next_value * random_factor
         }
@@ -342,9 +344,10 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
         )
         next_value += 1
 
-    assert isclose(
-        cast(float, new_values[ATTRIBUTO_ID1]), 100001.0 * random_factor, rtol=1e-15
-    )
+    expected = 0.5 * iterations * random_factor
+    assert (
+        cast(float, new_values[ATTRIBUTO_ID1]) - expected
+    ) / expected < tolerable_relative_difference
 
 
 def test_frame_to_attributo_and_cache_variance_plain_attribute() -> None:
