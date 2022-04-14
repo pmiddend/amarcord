@@ -43,7 +43,7 @@ modelValid { userName, message } =
 
 init : Model
 init =
-    { userName = "P11User"
+    { userName = "User"
     , message = ""
     , files = []
     , fileUploadRequest = NotAsked
