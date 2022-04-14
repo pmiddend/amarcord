@@ -417,8 +417,12 @@ class AttributiMap:
 def run_matches_dataset(
     run_attributi: AttributiMap, data_set_attributi: AttributiMap
 ) -> bool:
-    for name, value in data_set_attributi.items():
-        run_attributo = run_attributi.select(name)
-        if value is False and run_attributo is None or run_attributo != value:
+    for name, data_set_value in data_set_attributi.items():
+        run_value = run_attributi.select(name)
+        if (
+            data_set_value is False
+            and run_value is not None
+            and run_value != data_set_value
+        ):
             return False
     return True
