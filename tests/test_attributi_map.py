@@ -9,6 +9,7 @@ from amarcord.db.attributi_map import (
     AttributiMap,
     SPECIAL_SAMPLE_ID_NONE,
     SPECIAL_VALUE_CHOICE_NONE,
+    run_matches_dataset,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
@@ -545,3 +546,72 @@ def test_create_sub_map_for_group():
 
     assert a.select_int(AttributoId("a")) == 3
     assert a.select(AttributoId("b")) is None
+
+
+def test_run_matches_dataset() -> None:
+    a = AttributoId("a")
+    b = AttributoId("b")
+    attributi = [
+        DBAttributo(
+            a,
+            "description",
+            ATTRIBUTO_GROUP_MANUAL,
+            AssociatedTable.RUN,
+            AttributoTypeBoolean(),
+        ),
+        DBAttributo(
+            b,
+            "description",
+            "automatic",
+            AssociatedTable.RUN,
+            AttributoTypeString(),
+        ),
+    ]
+    run_attributi_no_boolean = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        # Note: boolean is missing here!
+        {b: "foo"},
+    )
+    run_attributi_boolean_false = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        # Note: boolean is false here!
+        {a: False, b: "foo"},
+    )
+    run_attributi_boolean_true = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        {a: True, b: "foo"},
+    )
+    data_set_attributi_boolean_false = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        # Boolean has to be false (or missing!)
+        {a: False, b: "foo"},
+    )
+    data_set_attributi_boolean_true = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        {a: True, b: "foo"},
+    )
+    assert run_matches_dataset(
+        run_attributi=run_attributi_no_boolean,
+        data_set_attributi=data_set_attributi_boolean_false,
+    )
+    assert run_matches_dataset(
+        run_attributi=run_attributi_boolean_false,
+        data_set_attributi=data_set_attributi_boolean_false,
+    )
+    assert not run_matches_dataset(
+        run_attributi=run_attributi_boolean_true,
+        data_set_attributi=data_set_attributi_boolean_false,
+    )
+    assert not run_matches_dataset(
+        run_attributi=run_attributi_boolean_false,
+        data_set_attributi=data_set_attributi_boolean_true,
+    )
+    assert not run_matches_dataset(
+        run_attributi=run_attributi_no_boolean,
+        data_set_attributi=data_set_attributi_boolean_true,
+    )

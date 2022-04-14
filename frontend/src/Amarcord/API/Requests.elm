@@ -222,6 +222,7 @@ cfelAnalysisDecoder =
 type alias AnalysisResultsExperimentType =
     { dataSet : DataSet
     , analysisResults : List CfelAnalysisResult
+    , runs : List String
     }
 
 
@@ -234,10 +235,11 @@ type alias AnalysisResultsRoot =
 
 analysisResultsExperimentTypeDecoder : Decode.Decoder AnalysisResultsExperimentType
 analysisResultsExperimentTypeDecoder =
-    Decode.map2
+    Decode.map3
         AnalysisResultsExperimentType
         (Decode.field "data-set" dataSetDecoder)
         (Decode.field "analysis-results" (Decode.list cfelAnalysisDecoder))
+        (Decode.field "runs" (Decode.list Decode.string))
 
 
 analysisResultsRootDecoder : Decode.Decoder AnalysisResultsRoot

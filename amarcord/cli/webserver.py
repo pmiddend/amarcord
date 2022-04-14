@@ -48,7 +48,7 @@ from amarcord.quart_utils import CustomJSONEncoder, CustomWebException
 from amarcord.quart_utils import QuartDatabases
 from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
-from amarcord.util import group_by
+from amarcord.util import group_by, create_intervals
 
 app = Quart(
     __name__,
@@ -830,6 +830,12 @@ async def read_analysis_results() -> JSONDict:
                             for k in sorted(
                                 data_set_to_analysis_results.get(ds.id, []),
                                 key=lambda r: r.data_set_id,
+                            )
+                        ],
+                        "runs": [
+                            str(t[0]) if t[0] == t[1] else f"{t[0]}-{t[1]}"
+                            for t in create_intervals(
+                                [r.id for r in data_set_to_runs.get(ds.id, [])]
                             )
                         ],
                     }

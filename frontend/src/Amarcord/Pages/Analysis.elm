@@ -128,11 +128,12 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                 dataRow :: [ tr_ [ td [ colspan (List.length headerNamesAnalysisResults) ] (List.map viewFile files) ] ]
 
         viewResultRow : AnalysisResultsExperimentType -> List (Html msg)
-        viewResultRow { dataSet, analysisResults } =
+        viewResultRow { dataSet, analysisResults, runs } =
             [ tr_
                 [ td_ [ text (String.fromInt dataSet.id) ]
                 , td_ [ viewDataSetTable attributi zone sampleIds dataSet False Nothing ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.numberOfRuns)) dataSet.summary ]
+                , td_ [ text <| String.join ", " runs ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.frames)) dataSet.summary ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.hits)) dataSet.summary ]
                 ]
@@ -163,6 +164,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                     [ th_ [ text "Data Set ID" ]
                     , th_ [ text "Attributi" ]
                     , th_ [ text "Number of Runs" ]
+                    , th_ [ text "Runs" ]
                     , th_ [ text "Frames" ]
                     , th_ [ text "Hits" ]
                     ]

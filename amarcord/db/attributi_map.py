@@ -419,10 +419,11 @@ def run_matches_dataset(
 ) -> bool:
     for name, data_set_value in data_set_attributi.items():
         run_value = run_attributi.select(name)
-        if (
-            data_set_value is False
-            and run_value is not None
-            and run_value != data_set_value
-        ):
+        if isinstance(data_set_value, bool):
+            if run_value is None and data_set_value is False:
+                continue
+            if run_value is None and data_set_value is True:
+                return False
+        if run_value != data_set_value:
             return False
     return True
