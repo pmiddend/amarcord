@@ -134,7 +134,7 @@ def test_process_karabo_frame_one_list_attribute_arithmetic_mean_floating_num() 
     assert INTERNAL_ID1 in frame.karabo_values_by_internal_id
     # 2.0 being the mean of the intensity values
     assert isclose(
-        frame.karabo_values_by_internal_id[INTERNAL_ID1],
+        cast(float, frame.karabo_values_by_internal_id[INTERNAL_ID1]),
         7.0 * random_factor / 3.0,
         rel_tol=relative_tolerance,
     )
