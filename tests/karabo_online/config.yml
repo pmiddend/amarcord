@@ -132,6 +132,9 @@ amarcord-attributi:
   detector_distance:
     plain-attribute: detector_distance
     processor: arithmetic-mean
+  detector_distance_stdev:
+    plain-attribute: detector_distance
+    processor: standard-deviation
   number_of_bunches:
     plain-attribute: number_of_bunches
     processor: take-last

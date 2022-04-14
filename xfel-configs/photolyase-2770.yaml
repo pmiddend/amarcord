@@ -135,6 +135,9 @@ amarcord-attributi:
   detector_distance:
     plain-attribute: detector_distance
     processor: arithmetic-mean
+  detector_distance_stdev:
+    plain-attribute: detector_distance
+    processor: standard-deviation
   bunch_charge:
     plain-attribute: bunch_charge
     processor: arithmetic-mean
