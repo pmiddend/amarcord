@@ -1302,7 +1302,7 @@ def determine_attributo_type(
     )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class DarkRunInformation:
     index: int
     type: str
@@ -1363,6 +1363,9 @@ async def ingest_bridge_output(
         if dark_run is None:
             logger.warning(f"dark run {result.dark_run.index} not found")
         else:
+            logger.info(
+                f"run {result.dark_run.index} is dark of type {result.dark_run.type}"
+            )
             dark_run.attributi.append_single(
                 ATTRIBUTO_ID_DARK_RUN_TYPE, result.dark_run.type
             )
