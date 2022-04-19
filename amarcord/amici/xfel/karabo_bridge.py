@@ -1,10 +1,10 @@
 import datetime
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from difflib import get_close_matches
 from enum import Enum, auto
-from math import fsum
+from math import fsum, isnan
 from typing import (
     Dict,
     List,
@@ -18,13 +18,18 @@ from typing import (
 )
 
 import numpy as np
+from extra_data import open_run
 from numpy import mean, std
 from pint import UnitRegistry
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
+from amarcord.db.attributi import (
+    ATTRIBUTO_STARTED,
+    ATTRIBUTO_STOPPED,
+    datetime_from_attributo_int,
+)
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
@@ -852,12 +857,12 @@ def karabo_type_matches(
     input_type: KaraboInputType, value: Any
 ) -> Optional[KaraboValue]:
     if input_type == KaraboInputType.KARABO_TYPE_FLOAT:
-        if isinstance(value, (float, int)):
-            return value
+        if isinstance(value, (float, int, np.floating)):
+            return float(value)
         return None
     if input_type == KaraboInputType.KARABO_TYPE_INT:
-        if isinstance(value, int):
-            return value
+        if isinstance(value, (int, np.integer)):
+            return int(value)
         return None
     if input_type == KaraboInputType.KARABO_TYPE_STRING:
         if isinstance(value, str):
@@ -1405,6 +1410,17 @@ async def create_run_with_attributi(
     )
 
 
+def extra_data_locators_for_config(c: KaraboBridgeConfiguration) -> Dict[str, Set[str]]:
+    result: Dict[str, Set[str]] = {}
+    for karabo_attribute in c.karabo_attributes:
+        source_data = result.get(karabo_attribute.locator.source, None)
+        if source_data is None:
+            source_data = set()
+        source_data.add(karabo_attribute.locator.subkey)
+        result[karabo_attribute.locator.source] = source_data
+    return result
+
+
 class Karabo2:
     def __init__(
         self, parsed_config: KaraboBridgeConfiguration, debug_mode=False
@@ -1547,6 +1563,10 @@ class Karabo2:
             self._attributi.values(),
             self._accumulators,
         )
+        # Karabo could send NaN to us
+        for k, v in attributi_values.items():
+            if isinstance(v, (float, np.floating)) and isnan(v):
+                attributi_values[k] = None
         attributi_values[ATTRIBUTO_STARTED] = self._run_started_at
         if self._run_stopped_at is not None:
             attributi_values[ATTRIBUTO_STOPPED] = self._run_stopped_at
@@ -1629,3 +1649,72 @@ class Karabo2:
                 )
             )
             self._previously_wrong_type = processed_frame.wrong_types
+
+
+async def extra_data_ingest_run(
+    db: AsyncDB, conn: Connection, config: KaraboBridgeConfiguration, run_id: int
+) -> None:
+    karabo2 = Karabo2(config, debug_mode=True)
+
+    await karabo2.create_missing_attributi(db, conn)
+
+    locators = extra_data_locators_for_config(config)
+
+    run = open_run(config.proposal_id, run_id)
+
+    sel = run.select(locators)
+
+    result: Optional[BridgeOutput] = None
+
+    def optionally_set_dict(d: Dict[str, Any], l: KaraboValueLocator, v: Any) -> None:
+        if l.source not in d:
+            d[l.source] = {}
+        d[l.source][l.subkey] = v
+
+    for tid, data in sel.trains():
+        extended_data = data.copy()
+        optionally_set_dict(
+            extended_data, config.special_attributes.proposal_id_key, config.proposal_id
+        )
+        optionally_set_dict(
+            extended_data, config.special_attributes.run_number_key, run_id
+        )
+        optionally_set_dict(
+            extended_data,
+            config.special_attributes.run_trains_in_run_key,
+            len(run.train_ids),
+        )
+        result = karabo2.process_frame(
+            metadata={
+                config.special_attributes.run_number_key.source: {
+                    TRAIN_ID_FROM_METADATA_KEY: tid
+                }
+            },
+            frame=extended_data,
+        )
+
+    if result is None:
+        logger.error(f"no (successful) trains in run {run_id}")
+    else:
+        min_timestamp_unix = int(np.min(run.train_timestamps())) // 1000000
+        max_timestamp_unix = int(np.max(run.train_timestamps())) // 1000000
+
+        min_timestamp = datetime_from_attributo_int(min_timestamp_unix)
+        max_timestamp = datetime_from_attributo_int(max_timestamp_unix)
+
+        new_values = result.attributi_values.copy()
+        new_values[ATTRIBUTO_STARTED] = min_timestamp
+        new_values[ATTRIBUTO_STOPPED] = max_timestamp
+
+        logger.info(f"run {run_id}: {new_values}")
+
+        await ingest_bridge_output(
+            db,
+            conn,
+            replace(
+                result,
+                run_started_at=min_timestamp,
+                run_stopped_at=max_timestamp,
+                attributi_values=new_values,
+            ),
+        )

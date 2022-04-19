@@ -219,8 +219,6 @@ def main() -> None:
 
     db = AsyncDB(dbcontext, tables)
 
-    asyncio.run(db.migrate())
-
     zmq_ctx = Context.instance()
 
     asyncio.run(

@@ -36,7 +36,7 @@ karabo-bridge = "0.6.1"
 # for the daemon
 msgpack = "1.0.2"
 # for offline ingest
-EXtra-data = "1.8.1"
+EXtra-data = "1.11.0"
 
 # disabled for now, it's a huge dependency
 # kamzik3 = "0.7.7"
@@ -45,7 +45,7 @@ EXtra-data = "1.8.1"
 python-dateutil = "2.8.2"
 tqdm = "4.62.3"
 # for the webserver
-quart = "0.16.2"
+quart = "0.17.0"
 # for the webserver
 Quart-CORS = "0.5.0"
 # asynchronous db client
@@ -64,13 +64,13 @@ randomname = "0.1.5"
 essential-generators = "1.0"
 # For http requests
 aiohttp = "3.8.1"
-alembic = "^1.7.7"
+alembic = "1.7.7"
 
 [tool.poetry.dev-dependencies]
-black = '22.1.0'
-mypy = '0.940'
-types-pytz = "2021.3.5"
-pylint = '2.12.2'
+black = '22.3.0'
+mypy = '0.942'
+types-pytz = "2021.3.6"
+pylint = '2.13.5'
 pyfakefs = '4.5.3'
 # for the daemon
 msgpack-types = "0.1.0"

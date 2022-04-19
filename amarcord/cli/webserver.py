@@ -9,9 +9,10 @@ from tempfile import NamedTemporaryFile
 from typing import Dict, cast, List, Optional, Tuple
 
 from pint import UnitRegistry
-from quart import Quart, request, redirect, Response
+from quart import Quart, request, redirect
 from quart_cors import cors
 from tap import Tap
+from werkzeug import Response
 from werkzeug.exceptions import HTTPException
 
 from amarcord.amici.om.client import (

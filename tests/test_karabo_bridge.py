@@ -40,6 +40,7 @@ from amarcord.amici.xfel.karabo_bridge import (
     ingest_bridge_output,
     determine_attributo_type,
     ATTRIBUTO_ID_DARK_RUN_TYPE,
+    extra_data_locators_for_config,
 )
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
@@ -1925,3 +1926,38 @@ def test_karabo2_missing_value() -> None:
     )
     assert result is not None
     assert AttributoId(pulse_energy_avg) not in result.attributi_values
+
+
+def test_extra_data_locators_for_config() -> None:
+    proposal_id = 1337
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey": {
+                        "id": "internal-id",
+                        "input-type": "List[float]",
+                        "processor": "list-take-last",
+                        "unit": "nC",
+                        "ignore": 1.0,
+                    },
+                    "subkey2": {
+                        "id": "internal-id2",
+                        "input-type": "List[float]",
+                        "processor": "list-take-last",
+                        "unit": "nC",
+                        "ignore": 1.0,
+                    },
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {},
+            CONFIG_KARABO_PROPOSAL: proposal_id,
+        }
+    )
+    assert isinstance(config, KaraboBridgeConfiguration)
+    locators = extra_data_locators_for_config(config)
+    assert "source" in locators
+    assert len(locators["source"]) == 2
+    assert "subkey" in locators["source"]
+    assert "subkey2" in locators["source"]
