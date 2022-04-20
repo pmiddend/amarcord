@@ -9,6 +9,7 @@ from zmq.asyncio import Context
 from amarcord.amici.kamzik.kamzik_zmq_client import kamzik_main_loop
 from amarcord.amici.om.client import OmZMQProcessor
 from amarcord.amici.om.simulator import om_simulator_loop
+from amarcord.amici.onda.client import OnDAZMQProcessor
 from amarcord.amici.petra3.petra3_online_values import petra3_value_loop
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
@@ -27,6 +28,8 @@ class Arguments(Tap):
     om_url: Optional[str] = None
     om_topic: str = "view:omdata"
     om_simulator_port: Optional[int] = None
+    onda_url: Optional[str] = None
+    onda_topic: str = "ondadata"
     experiment_simulator_enabled: bool = False
     experiment_simulator_files_dir: Optional[Path] = None
 
@@ -68,6 +71,16 @@ async def _main_loop(args: Arguments) -> None:
         awaitables.append(
             asyncio.create_task(
                 processor.main_loop(zmq_ctx, args.om_url, args.om_topic)
+            )
+        )
+
+    if args.onda_url is not None:
+        onda_processor = OnDAZMQProcessor(db)
+        await onda_processor.init()
+
+        awaitables.append(
+            asyncio.create_task(
+                onda_processor.main_loop(zmq_ctx, args.onda_url, args.onda_topic)
             )
         )
 
