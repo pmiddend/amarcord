@@ -318,16 +318,16 @@ viewCurrentRun zone now currentExperimentType rrc =
                                     posixDiffMinutes now latestDark.started
 
                                 warningLevel =
-                                    if diffMinutes < 30 then
+                                    if diffMinutes < 5 * 50 then
                                         "success"
 
-                                    else if diffMinutes < 120 then
+                                    else if diffMinutes < 10 * 60 then
                                         "warning"
 
                                     else
                                         "danger"
                             in
-                            [ div [ class ("alert d-flex align-items-center p-2 alert-" ++ warningLevel) ] [ div [ class "me-1" ] [ icon { name = "aspect-ratio-fill" } ], div_ [ text <| " Latest dark: " ++ String.fromInt diffMinutes ++ " minute(s) ago" ] ], hr_ ]
+                            [ div [ class ("alert d-flex align-items-center p-2 alert-" ++ warningLevel) ] [ div [ class "me-1" ] [ icon { name = "aspect-ratio-fill" } ], div_ [ text <| " Latest dark (id " ++ String.fromInt latestDark.id ++ "): " ++ String.fromInt diffMinutes ++ " minute(s) ago" ] ], hr_ ]
 
                 dataSetInformation =
                     case currentRunDataSet of
