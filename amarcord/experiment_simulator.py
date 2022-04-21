@@ -53,6 +53,8 @@ ATTRIBUTO_FLOW_RATE = AttributoId("flow_rate")
 
 ATTRIBUTO_PH = AttributoId("pH")
 
+ATTRIBUTO_EXPOSURE_TIME = AttributoId("exposure_time")
+
 ATTRIBUTO_SAMPLE = AttributoId("sample")
 
 logging.basicConfig(
@@ -176,6 +178,14 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         )
         await db.create_attributo(
             conn,
+            ATTRIBUTO_EXPOSURE_TIME,
+            "",
+            "kamzik",
+            AssociatedTable.RUN,
+            AttributoTypeDecimal(),
+        )
+        await db.create_attributo(
+            conn,
             ATTRIBUTO_FLOW_RATE,
             "",
             "kamzik",
@@ -273,6 +283,7 @@ async def _start_run(
                 sample_ids=sample_ids,
                 raw_attributi={
                     ATTRIBUTO_STARTED: datetime.datetime.utcnow(),
+                    ATTRIBUTO_EXPOSURE_TIME: 7.0,
                     ATTRIBUTO_TRASH: random.uniform(0, 1) < 0.1,
                     ATTRIBUTO_PH: random.uniform(0, 14),
                     ATTRIBUTO_FLOW_RATE: int(random.uniform(0, 5)),

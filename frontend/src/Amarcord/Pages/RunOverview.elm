@@ -225,6 +225,94 @@ calculateEtaMillis totalHits framesInRun hitsInRun runLengthMillis =
         Just <| round <| secondsNeeded * 1000.0
 
 
+viewProgressBar : Bool -> Int -> Maybe Int -> Maybe Int -> Maybe Int -> List (Html msg)
+viewProgressBar isRunning hits runFrames runHits runLengthMillis =
+    let
+        eta : Maybe Int
+        eta =
+            MaybeExtra.join <| Maybe.map3 (calculateEtaMillis hits) runFrames runHits runLengthMillis
+
+        etaWarning =
+            MaybeExtra.unwrap "bg-success"
+                (\realEta ->
+                    if realEta > 12 * 60 * 60 * 1000 then
+                        "bg-warning"
+
+                    else
+                        "bg-success"
+                )
+                eta
+
+        etaDisplay =
+            MaybeExtra.unwrap []
+                (\realEta ->
+                    if realEta > 0 then
+                        [ span_ [ text "Time until 10k hits:" ]
+                        , br_
+                        , em_ [ text <| millisDiffHumanFriendly realEta ]
+                        ]
+
+                    else
+                        []
+                )
+                eta
+
+        toGoalPercent =
+            floor <| toFloat hits * 100.0 / 10000.0
+
+        overshootPercent =
+            floor <| 100.0 / toFloat toGoalPercent * 100.0
+
+        progress =
+            if toGoalPercent <= 100 then
+                div [ class "progress" ]
+                    [ div
+                        [ class
+                            ("progress-bar progress-bar-striped "
+                                ++ etaWarning
+                                ++ (if isRunning then
+                                        ""
+
+                                    else
+                                        " bg-secondary "
+                                   )
+                                ++ (if isRunning then
+                                        " progress-bar-animated"
+
+                                    else
+                                        ""
+                                   )
+                            )
+                        , style "width" (String.fromInt toGoalPercent ++ "%")
+                        ]
+                        []
+                    ]
+
+            else
+                div [ class "progress" ]
+                    [ div
+                        [ class
+                            ("progress-bar progress-bar-striped"
+                                ++ (if isRunning then
+                                        " bg-success"
+
+                                    else
+                                        " bg-secondary"
+                                   )
+                            )
+                        , style "width" (String.fromInt overshootPercent ++ "%")
+                        ]
+                        []
+                    , div
+                        [ class "progress-bar progress-bar-striped"
+                        , style "width" (String.fromInt (100 - overshootPercent) ++ "%")
+                        ]
+                        []
+                    ]
+    in
+    [ text (String.fromInt hits), progress ] ++ etaDisplay
+
+
 viewCurrentRun : Zone -> Posix -> Maybe String -> RunsResponseContent -> List (Html Msg)
 viewCurrentRun zone now currentExperimentType rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
@@ -257,6 +345,10 @@ viewCurrentRun zone now currentExperimentType rrc =
                 runHits : Maybe Int
                 runHits =
                     retrieveIntAttributoValue attributoHits attributi
+
+                runHitRate : Maybe Float
+                runHitRate =
+                    MaybeExtra.andThen2 (\frames hits -> Just <| toFloat hits / toFloat frames * 100.0) runFrames runHits
 
                 isRunning =
                     isNothing runStopped
@@ -338,88 +430,12 @@ viewCurrentRun zone now currentExperimentType rrc =
                             let
                                 footer : DataSetSummary -> Html msg
                                 footer { numberOfRuns, hits, frames } =
-                                    let
-                                        eta : Maybe Int
-                                        eta =
-                                            MaybeExtra.join <| Maybe.map3 (calculateEtaMillis hits) runFrames runHits runLengthMillis
-
-                                        etaWarning =
-                                            MaybeExtra.unwrap "bg-success"
-                                                (\realEta ->
-                                                    if realEta > 12 * 60 * 60 * 1000 then
-                                                        "bg-warning"
-
-                                                    else
-                                                        "bg-success"
-                                                )
-                                                eta
-
-                                        etaDisplay =
-                                            MaybeExtra.unwrap []
-                                                (\realEta ->
-                                                    if realEta > 0 then
-                                                        [ span_ [ text "Time until 10k hits:" ]
-                                                        , br_
-                                                        , em_ [ text <| millisDiffHumanFriendly realEta ]
-                                                        ]
-
-                                                    else
-                                                        []
-                                                )
-                                                eta
-
-                                        toGoalPercent =
-                                            floor <| toFloat hits * 100.0 / 10000.0
-
-                                        overshootPercent =
-                                            floor <| 100.0 / toFloat toGoalPercent * 100.0
-
-                                        progressBar =
-                                            if not isRunning then
-                                                text ""
-
-                                            else if toGoalPercent <= 100 then
-                                                div [ class "progress" ]
-                                                    [ div
-                                                        [ class
-                                                            ("progress-bar progress-bar-striped "
-                                                                ++ etaWarning
-                                                                ++ (if isRunning then
-                                                                        " progress-bar-animated"
-
-                                                                    else
-                                                                        ""
-                                                                   )
-                                                            )
-                                                        , style "width" (String.fromInt toGoalPercent ++ "%")
-                                                        ]
-                                                        []
-                                                    ]
-
-                                            else
-                                                div [ class "progress" ]
-                                                    [ div
-                                                        [ class "progress-bar progress-bar-striped bg-success"
-                                                        , style "width" (String.fromInt overshootPercent ++ "%")
-                                                        ]
-                                                        []
-                                                    , div
-                                                        [ class "progress-bar progress-bar-striped"
-                                                        , style "width" (String.fromInt (100 - overshootPercent) ++ "%")
-                                                        ]
-                                                        []
-                                                    ]
-                                    in
                                     tfoot []
                                         [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
                                         , tr_ [ td_ [ text "Frames" ], td_ [ text (String.fromInt frames) ] ]
                                         , tr_
                                             [ td_ [ text "Hits" ]
-                                            , td_ <|
-                                                [ text (String.fromInt hits)
-                                                , progressBar
-                                                ]
-                                                    ++ etaDisplay
+                                            , td_ <| viewProgressBar isRunning hits runFrames runHits runLengthMillis
                                             ]
                                         , tr_
                                             [ td_ [ text "Hit Rate" ]
@@ -431,6 +447,14 @@ viewCurrentRun zone now currentExperimentType rrc =
                                                      else
                                                         ""
                                                     )
+                                                ]
+                                            ]
+                                        , tr [ style "border-top" "2px solid black" ] [ td_ [ text "Frames (this run)" ], td_ [ text <| MaybeExtra.unwrap "" String.fromInt runFrames ] ]
+                                        , tr_ [ td_ [ text "Hits (this run)" ], td_ [ text <| MaybeExtra.unwrap "" String.fromInt runHits ] ]
+                                        , tr_
+                                            [ td_ [ text "Hit Rate (this run)" ]
+                                            , td_
+                                                [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") runHitRate
                                                 ]
                                             ]
                                         ]
