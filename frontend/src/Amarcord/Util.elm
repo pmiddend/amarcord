@@ -4,6 +4,7 @@ import Browser.Dom
 import Http
 import Json.Decode as Decode
 import List exposing (foldr)
+import Parser exposing ((|.), (|=))
 import String exposing (fromInt, padLeft)
 import Task
 import Time exposing (Month(..), Posix, Zone, here, now, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
@@ -234,3 +235,83 @@ posixDiffMillis after before =
 posixDiffMinutes : Posix -> Posix -> Int
 posixDiffMinutes after before =
     posixDiffMillis after before // 1000 // 60
+
+
+type alias LocalDateTime =
+    { year : Int
+    , month : Month
+    , day : Int
+    , hour : Int
+    , minute : Int
+    }
+
+
+parserZeroPaddedInt : Parser.Parser Int
+parserZeroPaddedInt =
+    Parser.getChompedString (Parser.chompWhile Char.isDigit)
+        |> Parser.andThen
+            (\x ->
+                case String.toInt x of
+                    Nothing ->
+                        Parser.problem <| "invalid integer: " ++ x
+
+                    Just i ->
+                        Parser.succeed i
+            )
+
+
+monthFromInt : Int -> Parser.Parser Month
+monthFromInt x =
+    case x of
+        1 ->
+            Parser.succeed Jan
+
+        2 ->
+            Parser.succeed Feb
+
+        3 ->
+            Parser.succeed Mar
+
+        4 ->
+            Parser.succeed Apr
+
+        5 ->
+            Parser.succeed May
+
+        6 ->
+            Parser.succeed Jun
+
+        7 ->
+            Parser.succeed Jul
+
+        8 ->
+            Parser.succeed Aug
+
+        9 ->
+            Parser.succeed Sep
+
+        10 ->
+            Parser.succeed Oct
+
+        11 ->
+            Parser.succeed Nov
+
+        12 ->
+            Parser.succeed Dec
+
+        _ ->
+            Parser.problem ("invalid month " ++ String.fromInt x)
+
+
+localDateTimeParser : Parser.Parser LocalDateTime
+localDateTimeParser =
+    Parser.succeed LocalDateTime
+        |= Parser.int
+        |. Parser.symbol "-"
+        |= (parserZeroPaddedInt |> Parser.andThen monthFromInt)
+        |. Parser.symbol "-"
+        |= parserZeroPaddedInt
+        |. Parser.symbol "T"
+        |= parserZeroPaddedInt
+        |. Parser.symbol ":"
+        |= parserZeroPaddedInt

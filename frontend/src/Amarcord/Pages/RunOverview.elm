@@ -708,7 +708,7 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just runEditInfo ->
-                    case convertEditValues runEditInfo.editableAttributi of
+                    case convertEditValues model.myTimeZone runEditInfo.editableAttributi of
                         Err errorList ->
                             ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
 

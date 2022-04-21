@@ -1,25 +1,25 @@
 module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
-import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (br_, input_, span_, strongText, td_)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
 import Amarcord.Sample exposing (Sample)
-import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly)
+import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, localDateTimeParser)
 import Dict exposing (Dict, get)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (Decimals(..), Locale, usLocale)
 import Html exposing (Html, div, label, option, select, span, text)
 import Html.Attributes exposing (checked, class, for, id, selected, step, style, type_, value)
 import Html.Events exposing (onInput)
-import Iso8601 exposing (toTime)
 import List exposing (intersperse)
 import List.Extra as List
 import Maybe exposing (withDefault)
 import Maybe.Extra exposing (isNothing, orElse, traverse, unwrap)
+import Parser exposing (deadEndsToString, run)
 import Set
 import String exposing (fromInt, join, split, toInt, trim)
-import Time exposing (Zone, millisToPosix)
+import Time exposing (Zone, millisToPosix, posixToMillis)
+import Time.Extra exposing (partsToPosix)
 import Tuple exposing (first, mapFirst, second)
 
 
@@ -502,13 +502,8 @@ attributoValueToEditValue zone attributoName attributi value =
                 ( String, ValueString x ) ->
                     Just (EditValueString x)
 
-                ( DateTime, ValueString x ) ->
-                    case toTime x of
-                        Err _ ->
-                            Nothing
-
-                        Ok posix ->
-                            Just (EditValueDateTime (formatPosixDateTimeCompatible zone posix))
+                ( DateTime, ValueInt x ) ->
+                    Just (EditValueDateTime (formatPosixDateTimeCompatible zone (millisToPosix x)))
 
                 ( Choice { choiceValues }, ValueNone ) ->
                     Just (EditValueChoice { editValue = "", choiceValues = choiceValues })
@@ -580,8 +575,8 @@ editEditableAttributi ea { attributoName, valueUpdate } =
             List.map updateValue ea
 
 
-editValueToValue : AttributoEditValue -> Result String AttributoValue
-editValueToValue x =
+editValueToValue : Zone -> AttributoEditValue -> Result String AttributoValue
+editValueToValue zone x =
     case x of
         EditValueInt "" ->
             Ok ValueNone
@@ -593,7 +588,12 @@ editValueToValue x =
             Ok (ValueBoolean boolValue)
 
         EditValueDateTime string ->
-            Ok (ValueString string)
+            case run localDateTimeParser string of
+                Ok { year, month, day, hour, minute } ->
+                    Ok <| ValueInt <| posixToMillis <| partsToPosix zone { year = year, month = month, day = day, hour = hour, minute = minute, second = 0, millisecond = 0 }
+
+                Err error ->
+                    Err (deadEndsToString error)
 
         EditValueSampleId sampleId ->
             Ok (ValueInt (withDefault 0 sampleId))
@@ -651,8 +651,8 @@ editValueToValue x =
                 Err "invalid choice"
 
 
-convertEditValues : EditableAttributiAndOriginal -> Result (List ( AttributoName, String )) (AttributoMap AttributoValue)
-convertEditValues { originalAttributi, editableAttributi } =
+convertEditValues : Zone -> EditableAttributiAndOriginal -> Result (List ( AttributoName, String )) (AttributoMap AttributoValue)
+convertEditValues zone { originalAttributi, editableAttributi } =
     let
         -- first, filter for manually edited values (the other ones we don't care about here)
         manuallyEdited : List ( AttributoName, AttributoEditValue )
@@ -671,7 +671,7 @@ convertEditValues { originalAttributi, editableAttributi } =
         -- Convert the edited value to the real value (with optional error)
         convertSingle : ( AttributoName, AttributoEditValue ) -> Result ( AttributoName, String ) ( AttributoName, AttributoValue )
         convertSingle ( name, v ) =
-            case editValueToValue v of
+            case editValueToValue zone v of
                 Err e ->
                     -- add attributo name to error for better display later
                     Err ( name, e )

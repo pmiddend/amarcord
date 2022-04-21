@@ -465,7 +465,7 @@ update msg model =
                         ( { model | submitErrors = [ "There is still a file in the upload form. Submit or clear the form!" ] }, Cmd.none )
 
                     else
-                        case convertEditValues editSample.attributi of
+                        case convertEditValues model.myTimeZone editSample.attributi of
                             Err errorList ->
                                 ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
 

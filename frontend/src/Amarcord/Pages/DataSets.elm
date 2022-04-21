@@ -86,7 +86,7 @@ updateDataSet msg model =
                     ( model, Cmd.none )
 
                 Just experimentType ->
-                    case convertEditValues model.newDataSetAttributi of
+                    case convertEditValues model.zone model.newDataSetAttributi of
                         Err errorList ->
                             ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
