@@ -259,7 +259,7 @@ viewSampleRow zone attributi sample =
         viewFile { id, type_, fileName, description } =
             li [ class "list-group-item" ] <|
                 if String.startsWith "image/" type_ then
-                    [ figure [ class "figure" ] [ img_ [ src (makeFilesLink id), style "width" "20em" ], figcaption [ class "figure-caption" ] [ a [ href (makeFilesLink id), class "stretched-link" ] [ text fileName ], br_, text description ] ] ]
+                    [ figure [ class "figure" ] [ img_ [ src (makeFilesLink id), style "width" "20em" ], figcaption [ class "figure-caption" ] [ a [ href (makeFilesLink id), class "stretched-link" ] [ text description ] ] ] ]
 
                 else
                     [ mimeTypeToIcon type_
