@@ -7,7 +7,7 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHuman
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.File as Amarcord
-import Amarcord.Html exposing (br_, div_, h2_, img_, p_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, h2_, img_, li_, p_, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
@@ -133,7 +133,13 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                 [ td_ [ text (String.fromInt dataSet.id) ]
                 , td_ [ viewDataSetTable attributi zone sampleIds dataSet False Nothing ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.numberOfRuns)) dataSet.summary ]
-                , td_ [ text <| String.join ", " runs ]
+                , td_
+                    [ if List.isEmpty runs then
+                        text ""
+
+                      else
+                        ul_ (List.map (\runRange -> li_ [ text runRange ]) runs)
+                    ]
                 , td_ [ text <| MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.frames) dataSet.summary ]
                 , td_ [ text <| MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.hits) dataSet.summary ]
                 , td_
