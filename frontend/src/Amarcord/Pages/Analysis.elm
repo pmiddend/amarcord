@@ -3,7 +3,7 @@ module Amarcord.Pages.Analysis exposing (Model, Msg, init, update, view)
 import Amarcord.API.Requests exposing (AnalysisResultsExperimentType, AnalysisResultsRoot, CfelAnalysisResult, RequestError, httpGetAnalysisResults)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue)
-import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
+import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.File as Amarcord
@@ -134,8 +134,20 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                 , td_ [ viewDataSetTable attributi zone sampleIds dataSet False Nothing ]
                 , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.numberOfRuns)) dataSet.summary ]
                 , td_ [ text <| String.join ", " runs ]
-                , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.frames)) dataSet.summary ]
-                , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.hits)) dataSet.summary ]
+                , td_ [ text <| MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.frames) dataSet.summary ]
+                , td_ [ text <| MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.hits) dataSet.summary ]
+                , td_
+                    [ text <|
+                        MaybeExtra.unwrap ""
+                            (\summary ->
+                                if summary.frames > 0 then
+                                    formatFloatHumanFriendly (toFloat summary.hits / toFloat summary.frames * 100.0) ++ "%"
+
+                                else
+                                    ""
+                            )
+                            dataSet.summary
+                    ]
                 ]
             ]
                 ++ (if List.isEmpty analysisResults then
@@ -143,7 +155,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
 
                     else
                         [ tr [ class "table-secondary" ]
-                            [ td [ colspan 5 ]
+                            [ td [ colspan 7 ]
                                 [ table [ class "table table-sm" ]
                                     [ thead_
                                         [ tr_
@@ -167,6 +179,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                     , th_ [ text "Runs" ]
                     , th_ [ text "Frames" ]
                     , th_ [ text "Hits" ]
+                    , th_ [ text "Hit Rate" ]
                     ]
                 ]
             , tbody_ (List.concatMap viewResultRow (second experimentTypeAndDataSets))

@@ -1,4 +1,4 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, formatIntHumanFriendly, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Html exposing (br_, input_, span_, strongText, td_)
@@ -102,7 +102,7 @@ viewAttributoValue props zone sampleIds type_ value =
                             (millisToPosix int)
 
                 _ ->
-                    text (fromInt int)
+                    text (formatIntHumanFriendly int)
 
         ValueString string ->
             text string
@@ -125,6 +125,31 @@ viewAttributoValue props zone sampleIds type_ value =
 
         ValueNumber float ->
             text (formatFloatHumanFriendly float)
+
+
+formatIntHumanFriendly : Int -> String
+formatIntHumanFriendly =
+    -- Taken from https://github.com/cuducos/elm-format-number/blob/main/src/FormatNumber/Parser.elm
+    let
+        splitByWestern : String -> List String
+        splitByWestern integers =
+            let
+                reversedSplitThousands : String -> List String
+                reversedSplitThousands value =
+                    if String.length value > 3 then
+                        value
+                            |> String.dropRight 3
+                            |> reversedSplitThousands
+                            |> (::) (String.right 3 value)
+
+                    else
+                        [ value ]
+            in
+            integers
+                |> reversedSplitThousands
+                |> List.reverse
+    in
+    String.join "," << splitByWestern << String.fromInt
 
 
 formatFloatHumanFriendly : Float -> String

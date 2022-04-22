@@ -4,7 +4,7 @@ import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, Run
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup)
@@ -310,7 +310,7 @@ viewProgressBar isRunning hits runFrames runHits runLengthMillis =
                         []
                     ]
     in
-    [ text (String.fromInt hits), progress ] ++ etaDisplay
+    [ text (formatIntHumanFriendly hits), progress ] ++ etaDisplay
 
 
 viewCurrentRun : Zone -> Posix -> Maybe String -> RunsResponseContent -> List (Html Msg)
@@ -432,7 +432,7 @@ viewCurrentRun zone now currentExperimentType rrc =
                                 footer { numberOfRuns, hits, frames } =
                                     tfoot []
                                         [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
-                                        , tr_ [ td_ [ text "Frames" ], td_ [ text (String.fromInt frames) ] ]
+                                        , tr_ [ td_ [ text "Frames" ], td_ [ text (formatIntHumanFriendly frames) ] ]
                                         , tr_
                                             [ td_ [ text "Hits" ]
                                             , td_ <| viewProgressBar isRunning hits runFrames runHits runLengthMillis
@@ -449,8 +449,8 @@ viewCurrentRun zone now currentExperimentType rrc =
                                                     )
                                                 ]
                                             ]
-                                        , tr [ style "border-top" "2px solid black" ] [ td_ [ text "Frames (this run)" ], td_ [ text <| MaybeExtra.unwrap "" String.fromInt runFrames ] ]
-                                        , tr_ [ td_ [ text "Hits (this run)" ], td_ [ text <| MaybeExtra.unwrap "" String.fromInt runHits ] ]
+                                        , tr [ style "border-top" "2px solid black" ] [ td_ [ text "Frames (this run)" ], td_ [ text <| MaybeExtra.unwrap "" formatIntHumanFriendly runFrames ] ]
+                                        , tr_ [ td_ [ text "Hits (this run)" ], td_ [ text <| MaybeExtra.unwrap "" formatIntHumanFriendly runHits ] ]
                                         , tr_
                                             [ td_ [ text "Hit Rate (this run)" ]
                                             , td_
