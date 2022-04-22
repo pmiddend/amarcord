@@ -108,7 +108,7 @@ attributiColumns zone sampleIds attributi run =
 
 viewRunRow : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
 viewRunRow zone sampleIds attributi r =
-    tr_ <|
+    tr [ style "white-space" "nowrap" ] <|
         td_ [ text (fromInt r.id) ]
             :: attributiColumns zone sampleIds attributi r
             ++ [ td_
