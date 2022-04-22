@@ -1,4 +1,9 @@
 karabo-attributes:
+  SPB_IRU_LIC/MOTOR/MIRROR1_AY:
+    actualPosition.value:
+      id: waveplate_setting
+      input-type: float
+      unit: degrees
   SPB_RR_SYS/MDL/BUNCH_PATTERN:
     sase1.charge.value:
       - id: bunch_charge
@@ -8,6 +13,11 @@ karabo-attributes:
     sase1.nPulses.value:
       id: number_of_bunches
       input-type: int
+  SPB_DA/METRO/USER_LAS_OUTPUT:
+    output5.schema.data.value.value:
+      id: laser_delay
+      input-type: float
+      unit: nanosecond
   SPB_XTD9_XGM/XGM/DOOCS:
     pulseEnergy.wavelengthUsed.value:
       id: wavelength
@@ -49,9 +59,9 @@ karabo-attributes:
 
 
   SPB_IRU_AGIPD1M1/MDL/FPGA_COMP:
-    gainMode.value:
-      id: gain_mode
-      input-type: str
+#    gainMode.value:
+#      id: gain_mode
+#      input-type: str
     gain.value:
       id: gain
       input-type: int
@@ -61,12 +71,12 @@ karabo-attributes:
       input-type: float
       unit: mm
   SA1_XTD2_ATT/MDL/MAIN:
-    actual.value.transmission:
+    actual.transmission.value:
       id: xtd2_transmission
       input-type: float
       is-si-unit: false
   SPB_XTD9_ATT/MDL/MAIN:
-    actual.value.transmission:
+    actual.transmission.value:
       id: xtd9_transmission
       input-type: float
       is-si-unit: false
@@ -87,11 +97,11 @@ karabo-attributes:
       id: pump_d_flow
       input-type: float
       unit: ul/min
-  SPB_IRU_INJMOV/MOTOR/Z:
-    actualPosition.value:
-      id: injector_position_z
-      unit: mm
-      input-type: float
+#  SPB_IRU_INJMOV/MOTOR/Z:
+#    actualPosition.value:
+#      id: injector_position_z
+#      unit: mm
+#      input-type: float
 
 
 special-karabo-attributes:
@@ -120,8 +130,14 @@ special-karabo-attributes:
 
 
 amarcord-attributi:
-  injector_position_z:
-    plain-attribute: injector_position_z
+#  injector_position_z:
+#    plain-attribute: injector_position_z
+#    processor: arithmetic-mean
+  waveplate_setting:
+    plain-attribute: waveplate_setting
+    processor: arithmetic-mean
+  laser_delay:
+    plain-attribute: laser_delay
     processor: arithmetic-mean
   xtd9_transmission:
     plain-attribute: xtd9_transmission
@@ -135,7 +151,7 @@ amarcord-attributi:
   detector_distance:
     plain-attribute: detector_distance
     processor: arithmetic-mean
-  detector_distance_stdev:
+  detector_distance_σ:
     plain-attribute: detector_distance
     processor: standard-deviation
   bunch_charge:
@@ -153,13 +169,13 @@ amarcord-attributi:
   beam_position_avg:
     coagulate: [ beam_x, beam_y ]
     processor: arithmetic-mean
-  beam_position_propagated_stdev:
+  beam_position_σ:
     coagulate: [ beam_x_stdev, beam_y_stdev ]
     processor: propagated-standard-deviation
     description: "The beam position stdev"
-  gain_mode:
-    plain-attribute: gain_mode
-    processor: take-last
+#  gain_mode:
+#    plain-attribute: gain_mode
+#    processor: take-last
   gain:
     plain-attribute: gain
     processor: take-last
