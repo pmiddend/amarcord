@@ -1,7 +1,7 @@
 import datetime
 import logging
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from difflib import get_close_matches
 from enum import Enum, auto
 from math import fsum, isnan
@@ -18,7 +18,6 @@ from typing import (
 )
 
 import numpy as np
-from extra_data import open_run
 from numpy import mean, std
 from pint import UnitRegistry
 
@@ -768,7 +767,6 @@ def check_list_stdev_karabo_attributes(
     amarcord_attributi: List[AmarcordAttributoDescription],
     karabo_attributes: List[KaraboAttributeDescription],
 ) -> Optional[KaraboConfigurationError]:
-
     karabo_attributes_list_of_stdev: Set[KaraboInternalId] = set()
 
     for ka in karabo_attributes:
@@ -1410,22 +1408,13 @@ async def create_run_with_attributi(
     )
 
 
-def extra_data_locators_for_config(c: KaraboBridgeConfiguration) -> Dict[str, Set[str]]:
-    result: Dict[str, Set[str]] = {}
-    for karabo_attribute in c.karabo_attributes:
-        source_data = result.get(karabo_attribute.locator.source, None)
-        if source_data is None:
-            source_data = set()
-        source_data.add(karabo_attribute.locator.subkey)
-        result[karabo_attribute.locator.source] = source_data
-    return result
-
-
 class Karabo2:
     def __init__(
-        self, parsed_config: KaraboBridgeConfiguration, debug_mode=False
+        self,
+        parsed_config: KaraboBridgeConfiguration,
+        first_train_is_start_of_run=False,
     ) -> None:
-        self._debug_mode = debug_mode
+        self._first_train_is_start_of_run = first_train_is_start_of_run
         self._accumulators: AttributoAccumulatorPerId = {}
         self._previously_not_found: Set[KaraboValueLocator] = set()
         self._previously_wrong_type: Dict[KaraboValueLocator, KaraboWrongTypeError] = {}
@@ -1436,7 +1425,11 @@ class Karabo2:
         self._proposal_id = parsed_config.proposal_id
         self._last_proposal_id: Optional[int] = None
         self._previous_trains_in_run: Optional[int] = None
-        self._run_status = RunStatus.STOPPED if self._debug_mode else RunStatus.UNKNOWN
+        self._run_status = (
+            RunStatus.STOPPED
+            if self._first_train_is_start_of_run
+            else RunStatus.UNKNOWN
+        )
         self._previous_run_status = RunStatus.UNKNOWN
         self._no_proposal_last_train = False
         self._run_started_at: Optional[datetime.datetime] = None
@@ -1525,7 +1518,9 @@ class Karabo2:
             trains_in_run, int
         ), f"train {train_id}: trains in run is not an int but {trains_in_run}"
 
-        run_in_progress = True if self._debug_mode else trains_in_run == 0
+        run_in_progress = (
+            True if self._first_train_is_start_of_run else trains_in_run == 0
+        )
         if run_in_progress and self._run_status == RunStatus.UNKNOWN:
             if self._previous_run_status is None:
                 logger.info(
@@ -1633,14 +1628,20 @@ class Karabo2:
     def _process_not_found_and_type_errors(
         self, train_id: int, processed_frame: ProcessedKaraboFrame
     ) -> None:
-        if processed_frame.not_found != self._previously_not_found:
+        if (
+            processed_frame.not_found != self._previously_not_found
+            and processed_frame.not_found
+        ):
             logger.warning(
                 f"train {train_id}: the following attributes were not found: \n- "
                 + "\n- ".join(str(s) for s in processed_frame.not_found)
             )
             self._previously_not_found = processed_frame.not_found
 
-        if processed_frame.wrong_types != self._previously_wrong_type:
+        if (
+            processed_frame.wrong_types != self._previously_wrong_type
+            and processed_frame.wrong_types
+        ):
             logger.warning(
                 f"train {train_id}: the following attributes had type errors: \n- "
                 + "\n- ".join(
@@ -1651,27 +1652,68 @@ class Karabo2:
             self._previously_wrong_type = processed_frame.wrong_types
 
 
-async def extra_data_ingest_run(
-    db: AsyncDB, conn: Connection, config: KaraboBridgeConfiguration, run_id: int
+def accumulator_locators_for_config(
+    c: KaraboBridgeConfiguration,
+) -> Dict[str, Set[str]]:
+    result: Dict[str, Set[str]] = {}
+    for karabo_attribute in c.karabo_attributes:
+        source_data = result.get(karabo_attribute.locator.source, None)
+        if source_data is None:
+            source_data = set()
+        source_data.add(karabo_attribute.locator.subkey)
+        result[karabo_attribute.locator.source] = source_data
+    return result
+
+
+async def persist_euxfel_run_result(
+    conn: Connection,
+    db: AsyncDB,
+    result: BridgeOutput,
+    run_id: int,
+    train_timestamps: List[float],
 ) -> None:
-    karabo2 = Karabo2(config, debug_mode=True)
+    min_timestamp_unix = int(np.min(train_timestamps)) // 1000000
+    max_timestamp_unix = int(np.max(train_timestamps)) // 1000000
+    min_timestamp = datetime_from_attributo_int(min_timestamp_unix)
+    max_timestamp = datetime_from_attributo_int(max_timestamp_unix)
+    new_values = result.attributi_values.copy()
+    new_values[ATTRIBUTO_STARTED] = min_timestamp
+    new_values[ATTRIBUTO_STOPPED] = max_timestamp
+    logger.info(f"run {run_id}: {new_values}")
+    attributi = await db.retrieve_attributi(conn, associated_table=None)
+    run = await db.retrieve_run(conn, run_id, attributi)
+    attributi_map = AttributiMap.from_types_and_raw(
+        attributi,
+        sample_ids=await db.retrieve_sample_ids(conn),
+        raw_attributi=new_values,
+    )
+    if run is None:
+        await db.create_run(
+            conn,
+            run_id,
+            attributi,
+            attributi_map,
+            keep_manual_attributes_from_previous_run=False,
+        )
+    else:
+        run.attributi.extend_with_attributi_map(attributi_map)
+        await db.update_run_attributi(conn, run_id, run.attributi)
 
-    await karabo2.create_missing_attributi(db, conn)
 
-    locators = extra_data_locators_for_config(config)
-
-    run = open_run(config.proposal_id, run_id)
-
-    sel = run.select(locators)
-
-    result: Optional[BridgeOutput] = None
-
+def process_trains(
+    config: KaraboBridgeConfiguration,
+    karabo2: Karabo2,
+    run_id: int,
+    train_ids: List[int],
+    trains: Iterable[Tuple[int, Dict[str, Any]]],
+) -> Optional[BridgeOutput]:
     def optionally_set_dict(d: Dict[str, Any], l: KaraboValueLocator, v: Any) -> None:
         if l.source not in d:
             d[l.source] = {}
         d[l.source][l.subkey] = v
 
-    for tid, data in sel.trains():
+    result: Optional[BridgeOutput] = None
+    for tid, data in trains:
         extended_data = data.copy()
         optionally_set_dict(
             extended_data, config.special_attributes.proposal_id_key, config.proposal_id
@@ -1682,7 +1724,7 @@ async def extra_data_ingest_run(
         optionally_set_dict(
             extended_data,
             config.special_attributes.run_trains_in_run_key,
-            len(run.train_ids),
+            len(train_ids),
         )
         result = karabo2.process_frame(
             metadata={
@@ -1692,29 +1734,4 @@ async def extra_data_ingest_run(
             },
             frame=extended_data,
         )
-
-    if result is None:
-        logger.error(f"no (successful) trains in run {run_id}")
-    else:
-        min_timestamp_unix = int(np.min(run.train_timestamps())) // 1000000
-        max_timestamp_unix = int(np.max(run.train_timestamps())) // 1000000
-
-        min_timestamp = datetime_from_attributo_int(min_timestamp_unix)
-        max_timestamp = datetime_from_attributo_int(max_timestamp_unix)
-
-        new_values = result.attributi_values.copy()
-        new_values[ATTRIBUTO_STARTED] = min_timestamp
-        new_values[ATTRIBUTO_STOPPED] = max_timestamp
-
-        logger.info(f"run {run_id}: {new_values}")
-
-        await ingest_bridge_output(
-            db,
-            conn,
-            replace(
-                result,
-                run_started_at=min_timestamp,
-                run_stopped_at=max_timestamp,
-                attributi_values=new_values,
-            ),
-        )
+    return result

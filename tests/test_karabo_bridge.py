@@ -1,3 +1,4 @@
+import datetime
 import logging
 import pickle
 from math import isclose
@@ -14,6 +15,7 @@ from amarcord.amici.xfel.karabo_bridge import (
     KaraboValueLocator,
     KaraboInputType,
     KaraboProcessor,
+    BridgeOutput,
     KaraboInternalId,
     frame_to_attributo_and_cache,
     KaraboValueByInternalId,
@@ -40,8 +42,11 @@ from amarcord.amici.xfel.karabo_bridge import (
     ingest_bridge_output,
     determine_attributo_type,
     ATTRIBUTO_ID_DARK_RUN_TYPE,
-    extra_data_locators_for_config,
+    accumulator_locators_for_config,
+    persist_euxfel_run_result,
+    process_trains,
 )
+from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
@@ -124,8 +129,6 @@ def test_process_karabo_frame_one_list_attribute_arithmetic_mean_floating_num() 
         random_factor * 2,
         random_factor * 4,
     ]
-    # relative_tolerance = 1.0e-16 * (len(intensity_values) ** 0.5)
-
     frame = process_karabo_frame(
         attributes,
         {DOOCS_INTENSITY_KEY.source: {DOOCS_INTENSITY_KEY.subkey: intensity_values}},
@@ -133,12 +136,6 @@ def test_process_karabo_frame_one_list_attribute_arithmetic_mean_floating_num() 
     assert not frame.wrong_types
     assert not frame.not_found
     assert INTERNAL_ID1 in frame.karabo_values_by_internal_id
-    # 2.0 being the mean of the intensity values
-    # assert isclose(
-    #     cast(float, frame.karabo_values_by_internal_id[INTERNAL_ID1]),
-    #     7.0 * random_factor / 3.0,
-    #     rel_tol=relative_tolerance,
-    # )
 
 
 def test_process_karabo_frame_one_list_attribute_stdev() -> None:
@@ -1956,8 +1953,99 @@ def test_extra_data_locators_for_config() -> None:
         }
     )
     assert isinstance(config, KaraboBridgeConfiguration)
-    locators = extra_data_locators_for_config(config)
+    locators = accumulator_locators_for_config(config)
     assert "source" in locators
     assert len(locators["source"]) == 2
     assert "subkey" in locators["source"]
     assert "subkey2" in locators["source"]
+
+
+async def test_persist_euxfel_run_result_new_run():
+    RUN_ID = 1
+    PROPOSAL_ID = 1001
+    TEST_ATTRIBUTO = AttributoId("id")
+
+    result = BridgeOutput(
+        {TEST_ATTRIBUTO: "1"},
+        RUN_ID,
+        datetime.datetime.utcnow(),
+        datetime.datetime.utcnow() + datetime.timedelta(seconds=10),
+        PROPOSAL_ID,
+        None,
+    )
+    result2 = BridgeOutput(
+        {TEST_ATTRIBUTO: "2"},
+        RUN_ID,
+        datetime.datetime.utcnow(),
+        datetime.datetime.utcnow() + datetime.timedelta(seconds=10),
+        PROPOSAL_ID,
+        None,
+    )
+
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        await db.create_attributo(
+            conn, "id", "desc", "grp", AssociatedTable.RUN, AttributoTypeString()
+        )
+        timestamps = [
+            datetime.datetime.utcnow().timestamp() * 1e6,
+            (datetime.datetime.utcnow().timestamp() + 10) * 1e6,
+        ]
+        await persist_euxfel_run_result(conn, db, result, RUN_ID, timestamps)
+
+        retrieved_runs = await db.retrieve_runs(
+            conn, await db.retrieve_attributi(conn, AssociatedTable.RUN)
+        )
+
+        assert len(retrieved_runs) == 1
+        assert retrieved_runs[0].attributi.select_string(TEST_ATTRIBUTO) == "1"
+
+        await persist_euxfel_run_result(conn, db, result2, RUN_ID, timestamps)
+
+        retrieved_runs = await db.retrieve_runs(
+            conn, await db.retrieve_attributi(conn, AssociatedTable.RUN)
+        )
+
+        assert len(retrieved_runs) == 1
+        assert retrieved_runs[0].attributi.select_string(TEST_ATTRIBUTO) == "2"
+
+
+def test_process_trains() -> None:
+    proposal_id = 1337
+    pulse_energy_avg = "pulse_energy_avg"
+    config = parse_configuration(
+        {
+            CONFIG_KARABO_ATTRIBUTES_KEY: {
+                "source": {
+                    "subkey": {
+                        "id": "internal-id",
+                        "input-type": "List[float]",
+                        "processor": "list-take-last",
+                        "unit": "nC",
+                    }
+                }
+            },
+            CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES: _STANDARD_SPECIAL_ATTRIBUTES,
+            CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY: {
+                pulse_energy_avg: {
+                    "plain-attribute": "internal-id",
+                    "processor": "arithmetic-mean",
+                },
+            },
+            CONFIG_KARABO_PROPOSAL: proposal_id,
+        }
+    )
+    assert isinstance(config, KaraboBridgeConfiguration)
+    karabo2 = Karabo2(config, first_train_is_start_of_run=True)
+    trains = [
+        (1001, {"source": {"subkey": [10.0, 10.1]}}),
+        (1002, {"source": {"subkey": [10.2, 10.5]}}),
+    ]
+    result = process_trains(
+        config, karabo2, run_id=1, train_ids=[1001, 1002], trains=trains
+    )
+
+    assert result is not None
+    assert result.run_id == 1
+    assert result.attributi_values[AttributoId(pulse_energy_avg)] == 10.3
