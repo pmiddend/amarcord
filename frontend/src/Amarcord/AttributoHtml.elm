@@ -1,14 +1,14 @@
 module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, formatIntHumanFriendly, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
-import Amarcord.Html exposing (br_, input_, span_, strongText, td_)
+import Amarcord.Html exposing (br_, input_, span_, strongText)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
 import Amarcord.Sample exposing (Sample)
 import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, localDateTimeParser)
 import Dict exposing (Dict, get)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (Decimals(..), Locale, usLocale)
-import Html exposing (Html, div, label, option, select, span, text)
+import Html exposing (Html, div, label, option, select, span, td, text)
 import Html.Attributes exposing (checked, class, for, id, selected, step, style, type_, value)
 import Html.Events exposing (onInput)
 import List exposing (intersperse)
@@ -48,12 +48,21 @@ makeAttributoHeader a =
 
 type alias ViewAttributoValueProperties =
     { shortDateTime : Bool
+    , colorize : Bool
     }
 
 
 viewAttributoCell : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
-viewAttributoCell props zone sampleIds attributiValues { name, type_ } =
-    td_
+viewAttributoCell props zone sampleIds attributiValues { name, group, type_ } =
+    td
+        [ class
+            (if props.colorize && group == "manual" then
+                "table-info"
+
+             else
+                ""
+            )
+        ]
         [ case retrieveAttributoValue name attributiValues of
             Nothing ->
                 text ""

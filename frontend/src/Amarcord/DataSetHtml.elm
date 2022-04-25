@@ -23,7 +23,7 @@ viewDataSetTable attributi zone sampleIdToName ds withHeader footer =
                 Just attributo ->
                     tr_
                         [ td_ [ text attributo.name ]
-                        , td_ [ viewAttributoCell { shortDateTime = False } zone sampleIdToName attributoValues attributo ]
+                        , td_ [ viewAttributoCell { shortDateTime = False, colorize = False } zone sampleIdToName attributoValues attributo ]
                         ]
     in
     table

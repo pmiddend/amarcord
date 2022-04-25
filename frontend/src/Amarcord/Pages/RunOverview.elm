@@ -103,7 +103,7 @@ attributiColumnHeaders =
 
 attributiColumns : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> List (Html Msg)
 attributiColumns zone sampleIds attributi run =
-    List.map (viewAttributoCell { shortDateTime = True } zone sampleIds run.attributi) <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi
+    List.map (viewAttributoCell { shortDateTime = True, colorize = True } zone sampleIds run.attributi) <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi
 
 
 viewRunRow : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
@@ -551,7 +551,7 @@ viewInner model rrc =
     , hr_
     , Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
     , hr_
-    , div [ class "row" ] [ viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc ]
+    , div [ class "row" ] [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ], viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc ]
     ]
 
 

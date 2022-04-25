@@ -278,7 +278,7 @@ viewSampleRow zone attributi sample =
     tr_ <|
         [ td_ [ text sample.name ]
         ]
-            ++ List.map (viewAttributoCell { shortDateTime = False } zone Dict.empty sample.attributi) attributi
+            ++ List.map (viewAttributoCell { shortDateTime = False, colorize = False } zone Dict.empty sample.attributi) attributi
             ++ [ td_ [ files ]
                ]
             ++ [ td [ class "text-nowrap" ]
