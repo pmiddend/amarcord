@@ -33,6 +33,7 @@ from amarcord.db.attributi_map import (
     AttributiMap,
     run_matches_dataset,
     JsonAttributiMap,
+    convert_single_attributo_value_to_json,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeBoolean
@@ -343,6 +344,54 @@ def determine_latest_dark_run(
         result.id,
         started,
     )
+
+
+@app.post("/api/runs/bulk")
+async def read_runs_bulk() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.read_only_connection() as conn:
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        samples = await db.instance.retrieve_samples(conn, attributi)
+        return {
+            "samples": [_encode_sample(s) for s in samples],
+            "attributi": [
+                _encode_attributo(a)
+                for a in attributi
+                if a.name not in (ATTRIBUTO_STOPPED, ATTRIBUTO_STARTED)
+            ],
+            "attributi-map": {
+                attributo_id: [
+                    convert_single_attributo_value_to_json(v) for v in values
+                ]
+                for attributo_id, values in (
+                    await db.instance.retrieve_bulk_run_attributi(
+                        conn,
+                        attributi,
+                        r.retrieve_int_array("run-ids"),
+                    )
+                ).items()
+            },
+        }
+
+
+@app.patch("/api/runs/bulk")
+async def update_runs_bulk() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        await db.instance.update_bulk_run_attributi(
+            conn,
+            attributi,
+            set(r.retrieve_int_array("run-ids")),
+            AttributiMap.from_types_and_json(
+                attributi,
+                await db.instance.retrieve_sample_ids(conn),
+                r.retrieve_safe_object("attributi"),
+            ),
+        )
+        return {}
 
 
 @app.get("/api/runs")

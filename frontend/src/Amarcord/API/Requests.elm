@@ -10,6 +10,7 @@ module Amarcord.API.Requests exposing
     , LatestDark
     , RequestError(..)
     , Run
+    , RunsBulkGetResponse
     , RunsResponse
     , RunsResponseContent
     , SamplesResponse
@@ -33,10 +34,12 @@ module Amarcord.API.Requests exposing
     , httpGetDataSets
     , httpGetExperimentTypes
     , httpGetRuns
+    , httpGetRunsBulk
     , httpGetSamples
     , httpStartRun
     , httpStopRun
     , httpUpdateRun
+    , httpUpdateRunsBulk
     , httpUpdateSample
     )
 
@@ -456,6 +459,62 @@ httpUpdateRun f a =
         { url = "api/runs"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         , body = jsonBody (encodeRun a)
+        }
+
+
+type alias RunsBulkUpdateRequest =
+    { runIds : List Int
+    , attributi : AttributoMap AttributoValue
+    }
+
+
+encodeRunsBulkUpdateRequest : RunsBulkUpdateRequest -> Encode.Value
+encodeRunsBulkUpdateRequest bu =
+    Encode.object
+        [ ( "run-ids", Encode.list Encode.int bu.runIds )
+        , ( "attributi", encodeAttributoMap bu.attributi )
+        ]
+
+
+httpUpdateRunsBulk : (Result RequestError () -> msg) -> RunsBulkUpdateRequest -> Cmd msg
+httpUpdateRunsBulk f a =
+    httpPatch
+        { url = "api/runs/bulk"
+        , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
+        , body = jsonBody (encodeRunsBulkUpdateRequest a)
+        }
+
+
+type alias RunsBulkGetRequest =
+    { runIds : List Int }
+
+
+encodeRunsBulkGetRequest : RunsBulkGetRequest -> Encode.Value
+encodeRunsBulkGetRequest bg =
+    Encode.object
+        [ ( "run-ids", Encode.list Encode.int bg.runIds )
+        ]
+
+
+type alias RunsBulkGetResponse =
+    { attributiMap : AttributoMap (List AttributoValue)
+    , attributi : List (Attributo AttributoType)
+    , samples : List (Sample SampleId (AttributoMap AttributoValue) File)
+    }
+
+
+httpGetRunsBulk : (Result RequestError RunsBulkGetResponse -> msg) -> RunsBulkGetRequest -> Cmd msg
+httpGetRunsBulk f a =
+    Http.post
+        { url = "api/runs/bulk"
+        , body = jsonBody (encodeRunsBulkGetRequest a)
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) <|
+                valueOrError <|
+                    Decode.map3 RunsBulkGetResponse
+                        (Decode.field "attributi-map" <| Decode.dict (Decode.list attributoValueDecoder))
+                        (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
+                        (Decode.field "samples" <| Decode.list sampleDecoder)
         }
 
 

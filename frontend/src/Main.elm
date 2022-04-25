@@ -379,7 +379,7 @@ initCurrentPage localStorage hereAndNow appConfig ( model, existingCmds ) =
                 Route.AdvancedControls ->
                     let
                         ( pageModel, pageCmds ) =
-                            AdvancedControls.init
+                            AdvancedControls.init hereAndNow
                     in
                     ( AdvancedControlsPage pageModel, Cmd.map AdvancedControlsPageMsg pageCmds )
 

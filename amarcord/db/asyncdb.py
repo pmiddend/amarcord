@@ -4,13 +4,12 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, cast, Tuple, Dict, Iterable, Any
+from typing import List, cast, Tuple, Dict, Iterable, Any, Set
 from typing import Optional
 
 import magic
 import sqlalchemy as sa
 
-from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext, Connection
 from amarcord.db.attributi import (
@@ -26,8 +25,9 @@ from amarcord.db.attributo_type import (
     AttributoType,
     AttributoTypeSample,
     AttributoTypeDecimal,
-    AttributoTypeDateTime,
 )
+from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
@@ -968,20 +968,36 @@ class AsyncDB:
             .where(dc.id == id_)
         )
 
+    async def retrieve_bulk_run_attributi(
+        self, conn: Connection, attributi: List[DBAttributo], run_ids: Iterable[int]
+    ) -> Dict[AttributoId, Set[AttributoValue]]:
+        runs = await self.retrieve_runs(conn, attributi)
 
-async def create_ground_state_attributi(db: AsyncDB, conn: Connection) -> None:
-    attributi_names = {
-        a.name
-        for a in await db.retrieve_attributi(conn, associated_table=AssociatedTable.RUN)
-    }
+        uninteresting_attributi = (ATTRIBUTO_STOPPED, ATTRIBUTO_STARTED)
+        interesting_attributi = [
+            a for a in attributi if a.name not in uninteresting_attributi
+        ]
 
-    for n in (ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED):
-        if n not in attributi_names:
-            await db.create_attributo(
-                conn,
-                n,
-                "",
-                "internal",
-                AssociatedTable.RUN,
-                AttributoTypeDateTime(),
-            )
+        attributi_values: Dict[AttributoId, Set[AttributoValue]] = {
+            a.name: set() for a in interesting_attributi
+        }
+        for run in (run for run in runs if run.id in run_ids):
+            for a in (a for a in interesting_attributi):
+                run_attributo_value = run.attributi.select(a.name)
+                if run_attributo_value is not None:
+                    attributi_values[a.name].add(run_attributo_value)
+        return attributi_values
+
+    async def update_bulk_run_attributi(
+        self,
+        conn: Connection,
+        attributi: List[DBAttributo],
+        run_ids: Set[int],
+        attributi_values: AttributiMap,
+    ) -> None:
+        runs = await self.retrieve_runs(conn, attributi)
+
+        for run in (run for run in runs if run.id in run_ids):
+            for attributo_id, attributo_value in attributi_values.items():
+                run.attributi.append_single(attributo_id, attributo_value)
+            await self.update_run_attributi(conn, run.id, run.attributi)

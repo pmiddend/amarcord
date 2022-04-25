@@ -1,5 +1,6 @@
 import datetime
 from pathlib import Path
+from typing import Dict
 
 import pytest
 
@@ -994,3 +995,98 @@ async def test_create_analysis_result() -> None:
         await db.clear_cfel_analysis_results(conn)
 
         assert not await db.retrieve_cfel_analysis_results(conn)
+
+
+async def test_create_and_retrieve_attributo_no_runs() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        await db.retrieve_bulk_run_attributi(
+            conn,
+            await db.retrieve_attributi(conn, associated_table=AssociatedTable.RUN),
+            [],
+        )
+
+
+async def test_create_and_retrieve_attributo_two_runs() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        await db.create_attributo(
+            conn,
+            TEST_ATTRIBUTO_NAME,
+            TEST_ATTRIBUTO_DESCRIPTION,
+            TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeString(),
+        )
+        await db.create_attributo(
+            conn,
+            TEST_SECOND_ATTRIBUTO_NAME,
+            TEST_ATTRIBUTO_DESCRIPTION,
+            TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeInt(),
+        )
+
+        attributi = await db.retrieve_attributi(
+            conn, associated_table=AssociatedTable.RUN
+        )
+
+        run_data: Dict[int, JsonAttributiMap] = {
+            TEST_RUN_ID: {
+                # Important: here, we have "foo" and 1, below we have something else for "foo", but the same for 1
+                TEST_ATTRIBUTO_NAME: "foo",
+                TEST_SECOND_ATTRIBUTO_NAME: 1,
+            },
+            TEST_RUN_ID
+            + 1: {
+                TEST_ATTRIBUTO_NAME: "bar",
+                TEST_SECOND_ATTRIBUTO_NAME: 1,
+            },
+        }
+
+        for run_id, data in run_data.items():
+            await db.create_run(
+                conn,
+                run_id=run_id,
+                attributi=attributi,
+                attributi_map=AttributiMap.from_types_and_json(
+                    attributi, sample_ids=[], raw_attributi=data
+                ),
+                keep_manual_attributes_from_previous_run=False,
+            )
+
+        bulk_attributi = await db.retrieve_bulk_run_attributi(
+            conn,
+            attributi=attributi,
+            run_ids=[TEST_RUN_ID, TEST_RUN_ID + 1],
+        )
+
+        assert bulk_attributi == {
+            TEST_ATTRIBUTO_NAME: {"foo", "bar"},
+            TEST_SECOND_ATTRIBUTO_NAME: {1},
+        }
+
+        new_test_attributo = "baz"
+        await db.update_bulk_run_attributi(
+            conn,
+            attributi,
+            run_ids={TEST_RUN_ID, TEST_RUN_ID + 1},
+            attributi_values=AttributiMap.from_types_and_raw(
+                attributi,
+                [],
+                {
+                    # We only store one new attributo for both runs and see if only that gets updated
+                    TEST_ATTRIBUTO_NAME: new_test_attributo,
+                },
+            ),
+        )
+
+        assert (  # type: ignore
+            await db.retrieve_run(conn, TEST_RUN_ID, attributi)
+        ).attributi.select_string(TEST_ATTRIBUTO_NAME) == new_test_attributo
+
+        assert (  # type: ignore
+            await db.retrieve_run(conn, TEST_RUN_ID + 1, attributi)
+        ).attributi.select_string(TEST_ATTRIBUTO_NAME) == new_test_attributo

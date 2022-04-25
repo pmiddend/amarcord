@@ -212,6 +212,24 @@ def _convert_single_attributo_value_from_json_with_type(
     raise Exception(f'invalid property type for attributo "{i}": {attributo_type}')
 
 
+def convert_single_attributo_value_to_json(value: AttributoValue) -> JSONValue:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, datetime.datetime):
+        return datetime_to_attributo_int(value)
+    if isinstance(value, list):
+        if not value:
+            return cast(List[str], [])
+        if value[0] is None:
+            return None
+        if isinstance(value[0], (str, int, float)):
+            return value
+        raise Exception(
+            f"invalid attributo value type: list of type {type(value[0])} (value {value[0]}); can only handle str, int, float right now"
+        )
+    raise Exception(f"invalid attributo value type: {type(value)}: {value}")
+
+
 class AttributiMap:
     def __init__(
         self,
@@ -356,19 +374,10 @@ class AttributiMap:
         return previous is not None
 
     def to_json(self) -> JsonAttributiMap:
-        json_dict: Dict[str, JSONValue] = {}
-        for attributo_id, value in self._attributi.items():
-            if value is None or isinstance(value, (str, int, float, bool)):
-                json_dict[attributo_id] = value
-            if isinstance(value, datetime.datetime):
-                json_dict[attributo_id] = datetime_to_attributo_int(value)
-            if isinstance(value, list):
-                if not value:
-                    json_dict[attributo_id] = cast(List[str], [])
-                else:
-                    if isinstance(value[0], (str, int, float)):
-                        json_dict[attributo_id] = value
-        return json_dict
+        return {
+            attributo_id: convert_single_attributo_value_to_json(value)
+            for attributo_id, value in self._attributi.items()
+        }
 
     def convert_attributo(
         self,

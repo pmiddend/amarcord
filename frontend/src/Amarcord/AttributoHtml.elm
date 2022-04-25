@@ -208,7 +208,7 @@ type alias AttributoNameWithValueUpdate =
     }
 
 
-viewAttributoForm : List (Sample Int a b) -> Attributo ( EditStatus, AttributoEditValue ) -> Html AttributoNameWithValueUpdate
+viewAttributoForm : List (Sample Int a b) -> EditableAttributo -> Html AttributoNameWithValueUpdate
 viewAttributoForm samples a =
     case second a.type_ of
         EditValueString s ->
