@@ -5,8 +5,8 @@ import Amarcord.AttributoHtml exposing (viewAttributoCell)
 import Amarcord.DataSet exposing (DataSet)
 import Amarcord.Html exposing (tbody_, td_, th_, thead_, tr_)
 import Dict
-import Html exposing (Html, table, text)
-import Html.Attributes exposing (class)
+import Html exposing (Html, table, td, text)
+import Html.Attributes exposing (class, style)
 import List.Extra exposing (find)
 import Time exposing (Zone)
 
@@ -22,8 +22,8 @@ viewDataSetTable attributi zone sampleIdToName ds withHeader footer =
 
                 Just attributo ->
                     tr_
-                        [ td_ [ text attributo.name ]
-                        , td_ [ viewAttributoCell { shortDateTime = False, colorize = False } zone sampleIdToName attributoValues attributo ]
+                        [ td [ style "width" "50%" ] [ text attributo.name ]
+                        , td [ style "width" "50%" ] [ viewAttributoCell { shortDateTime = False, colorize = False } zone sampleIdToName attributoValues attributo ]
                         ]
     in
     table
