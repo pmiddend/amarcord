@@ -1,4 +1,5 @@
 import datetime
+import math
 from dataclasses import replace
 from typing import Dict, Set, Tuple, Iterable, Any
 from typing import List
@@ -433,6 +434,12 @@ def run_matches_dataset(
                 continue
             if run_value is None and data_set_value is True:
                 return False
-        if run_value != data_set_value:
+        # One of the two could be an int, too, which is fine also
+        if isinstance(run_value, float) or isinstance(data_set_value, float):
+            # 0.005 is very random and should be quickly replaced by a user-defined delta.
+            # For now, it's better than equality comparison.
+            if not math.isclose(float(run_value), float(data_set_value), rel_tol=0.005):  # type: ignore
+                return False
+        elif run_value != data_set_value:
             return False
     return True

@@ -548,7 +548,7 @@ def test_create_sub_map_for_group():
     assert a.select(AttributoId("b")) is None
 
 
-def test_run_matches_dataset() -> None:
+def test_run_matches_dataset_bool_and_string() -> None:
     a = AttributoId("a")
     b = AttributoId("b")
     attributi = [
@@ -614,4 +614,41 @@ def test_run_matches_dataset() -> None:
     assert not run_matches_dataset(
         run_attributi=run_attributi_no_boolean,
         data_set_attributi=data_set_attributi_boolean_true,
+    )
+
+
+def test_run_matches_dataset_float() -> None:
+    a = AttributoId("a")
+    attributi = [
+        DBAttributo(
+            a,
+            "description",
+            ATTRIBUTO_GROUP_MANUAL,
+            AssociatedTable.RUN,
+            AttributoTypeDecimal(),
+        )
+    ]
+    run_attributi_200 = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        {a: 200.0},
+    )
+    data_set_attributi_199 = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        {a: 199.0},
+    )
+    data_set_attributi_198 = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        {a: 198.0},
+    )
+    # This is testing the rather random relative error comparison value. But better have test than not have it. :D
+    assert run_matches_dataset(
+        run_attributi=run_attributi_200,
+        data_set_attributi=data_set_attributi_199,
+    )
+    assert not run_matches_dataset(
+        run_attributi=run_attributi_200,
+        data_set_attributi=data_set_attributi_198,
     )
