@@ -1540,6 +1540,9 @@ class Karabo2:
                 f"train {train_id}: a new run started, initializing accumulators"
             )
             self._accumulators = {}
+            # for whatever reason pylint will complain on the next line,
+            # the rule R0204 is otherwise correctly applied throughout the file
+            # pylint: disable=R0204
             self._run_status = RunStatus.RUNNING
             self._run_started_at = datetime.datetime.utcnow()
             self._run_stopped_at = None
@@ -1707,10 +1710,12 @@ def process_trains(
     train_ids: List[int],
     trains: Iterable[Tuple[int, Dict[str, Any]]],
 ) -> Optional[BridgeOutput]:
-    def optionally_set_dict(d: Dict[str, Any], l: KaraboValueLocator, v: Any) -> None:
-        if l.source not in d:
-            d[l.source] = {}
-        d[l.source][l.subkey] = v
+    def optionally_set_dict(
+        dictionary: Dict[str, Any], locator: KaraboValueLocator, value: Any
+    ) -> None:
+        if locator.source not in dictionary:
+            dictionary[locator.source] = {}
+        dictionary[locator.source][locator.subkey] = value
 
     result: Optional[BridgeOutput] = None
     for tid, data in trains:
