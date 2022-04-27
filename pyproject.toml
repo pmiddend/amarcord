@@ -38,6 +38,9 @@ msgpack = "1.0.2"
 # for offline ingest
 EXtra-data = "1.11.0"
 
+# For the Excel spreadsheet export
+openpyxl = "3.0.9"
+
 # disabled for now, it's a huge dependency
 # kamzik3 = "0.7.7"
 
@@ -72,6 +75,7 @@ mypy = '0.942'
 types-pytz = "2021.3.6"
 pylint = '2.13.5'
 pyfakefs = '4.5.3'
+openpyxl-stubs = "0.1.21"
 # for the daemon
 msgpack-types = "0.1.0"
 pytest = '6.2.5'

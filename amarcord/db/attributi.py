@@ -19,6 +19,7 @@ from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.json import JSONDict
 from amarcord.json import JSONValue
 from amarcord.json_schema import JSONSchemaArray, JSONSchemaBoolean
@@ -127,6 +128,29 @@ def datetime_to_attributo_string(d: datetime.datetime) -> str:
 
 def datetime_from_attributo_string(d: str) -> datetime.datetime:
     return datetime.datetime.strptime(d, ATTRIBUTO_DATETIME_FORMAT)
+
+
+def attributo_type_to_string(pt: AttributoType) -> str:
+    if isinstance(pt, AttributoTypeInt):
+        return "integer"
+    if isinstance(pt, AttributoTypeBoolean):
+        return "yes/no"
+    if isinstance(pt, AttributoTypeString):
+        return "string"
+    if isinstance(pt, AttributoTypeSample):
+        return "Sample ID"
+    if isinstance(pt, AttributoTypeChoice):
+        return "one of " + ", ".join(pt.values)
+    if isinstance(pt, AttributoTypeDecimal):
+        if pt.suffix:
+            return f"{pt.suffix} ∈ {pt.range}" if pt.range is not None else pt.suffix
+        word = "number"
+        return f"{word} ∈ {pt.range}" if pt.range is not None else word
+    if isinstance(pt, AttributoTypeDateTime):
+        return "date-time"
+    if isinstance(pt, AttributoTypeList):
+        return "list of " + attributo_type_to_string(pt.sub_type)
+    raise Exception(f"invalid property type {type(pt)}")
 
 
 def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
@@ -618,3 +642,14 @@ _conversion_matrix.update(
         (AttributoTypeChoice, AttributoTypeString): lambda before, after, flags, v: v,
     }
 )
+
+# This function is not really needed, but it's just nicer to have the attributo in the runs table sorted by...
+# 0. ID (not an attributo)
+# 1. "started time"
+# 2. "stopped time"
+# _. "the rest"
+def attributo_sort_key(r: DBAttributo) -> Tuple[int, str]:
+    return (
+        0 if r.name == ATTRIBUTO_STARTED else 1 if r.name == ATTRIBUTO_STOPPED else 2,
+        r.name,
+    )

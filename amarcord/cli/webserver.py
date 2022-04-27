@@ -4,12 +4,15 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, List, Optional, Tuple
+from typing import Dict, cast, List, Optional
+from zipfile import ZipFile
 
+import quart
 from pint import UnitRegistry
-from quart import Quart, request, redirect
+from quart import Quart, request, redirect, send_file
 from quart_cors import cors
 from tap import Tap
 from werkzeug import Response
@@ -21,11 +24,13 @@ from amarcord.amici.om.client import (
 )
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.asyncdb import create_workbook
 from amarcord.db.attributi import (
     AttributoConversionFlags,
     datetime_to_attributo_int,
     ATTRIBUTO_STARTED,
     ATTRIBUTO_STOPPED,
+    attributo_sort_key,
 )
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_to_attributo_type
@@ -90,6 +95,37 @@ async def create_event() -> JSONDict:
 @app.get("/")
 async def index() -> Response:
     return redirect("/index.html")
+
+
+@app.get("/api/spreadsheet.zip")
+async def download_spreadsheet() -> quart.wrappers.response.Response:
+    async with db.instance.read_only_connection() as conn:
+        workbook_output = await create_workbook(db.instance, conn, with_events=True)
+        workbook = workbook_output.workbook
+        workbook_bytes = BytesIO()
+        workbook.save(workbook_bytes)
+        zipfile_bytes = BytesIO()
+        with ZipFile(zipfile_bytes, "w") as result_zip:
+            result_zip.writestr("tables.xlsx", workbook_bytes.getvalue())
+            for file_id in workbook_output.files:
+                (
+                    file_name,
+                    _file_type,
+                    contents,
+                    _size_in_bytes,
+                ) = await db.instance.retrieve_file(conn, file_id)
+                result_zip.writestr(
+                    f"files/{file_id}" + Path(file_name).suffix, contents
+                )
+        zipfile_bytes.seek(0)
+        return await send_file(
+            zipfile_bytes,
+            "application/zip",
+            attachment_filename="amarcord-output-"
+            + datetime.datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
+            + ".zip",
+            as_attachment=True,
+        )
 
 
 @app.post("/api/samples")
@@ -300,18 +336,6 @@ def build_run_summary(matching_runs: List[DBRun]) -> DataSetSummary:
         if frames_result is not None:
             result.frames += frames_result
     return result
-
-
-# This function is not really needed, but it's just nicer to have the attribut in the runs table sorted by...
-# 0. ID (not an attributo)
-# 1. "started time"
-# 2. "stopped time"
-# _. "the rest"
-def attributo_sort_key(r: DBAttributo) -> Tuple[int, str]:
-    return (
-        0 if r.name == ATTRIBUTO_STARTED else 1 if r.name == ATTRIBUTO_STOPPED else 2,
-        r.name,
-    )
 
 
 @dataclass(frozen=True)

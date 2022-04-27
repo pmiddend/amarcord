@@ -8,7 +8,9 @@ from typing import List, cast, Tuple, Dict, Iterable, Any, Set
 from typing import Optional
 
 import magic
+import numpy as np
 import sqlalchemy as sa
+from openpyxl import Workbook
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext, Connection
@@ -16,6 +18,8 @@ from amarcord.db.attributi import (
     AttributoConversionFlags,
     ATTRIBUTO_STOPPED,
     ATTRIBUTO_STARTED,
+    attributo_type_to_string,
+    attributo_sort_key,
 )
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import schema_json_to_attributo_type
@@ -36,7 +40,7 @@ from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.db.table_classes import DBSample, DBFile, DBRun, DBEvent, DBFileBlueprint
 from amarcord.db.tables import DBTables
 from amarcord.pint_util import valid_pint_unit
-from amarcord.util import sha256_file, group_by
+from amarcord.util import sha256_file, group_by, datetime_to_local
 
 logger = logging.getLogger(__name__)
 
@@ -1001,3 +1005,181 @@ class AsyncDB:
             for attributo_id, attributo_value in attributi_values.items():
                 run.attributi.append_single(attributo_id, attributo_value)
             await self.update_run_attributi(conn, run.id, run.attributi)
+
+
+# Any until openpyxl has official types
+def attributo_value_to_spreadsheet_cell(
+    sample_id_to_name: Dict[int, str],
+    attributo_type: AttributoType,
+    attributo_value: AttributoValue,
+) -> Any:
+    if attributo_value is None:
+        return None
+    if isinstance(attributo_type, AttributoTypeSample):
+        if not isinstance(attributo_value, int):
+            raise TypeError(f"sample IDs have to have type int, got {attributo_value}")
+        return sample_id_to_name.get(
+            attributo_value, f"invalid sample ID {attributo_value}"
+        )
+    if isinstance(attributo_value, datetime.datetime):
+        return datetime_to_local(attributo_value)
+    if isinstance(
+        attributo_value,
+        (str, int, float, bool),
+    ):
+        return attributo_value
+    if isinstance(attributo_value, np.ndarray):
+        return str(attributo_value)
+    if isinstance(attributo_value, list):
+        return str(attributo_value)
+    raise TypeError(
+        f"invalid attributo type {type(attributo_value)}: {attributo_value}"
+    )
+
+
+@dataclass(frozen=True)
+class WorkbookOutput:
+    workbook: Workbook
+    files: Set[int]
+
+
+async def create_workbook(
+    db: AsyncDB, conn: Connection, with_events: bool
+) -> WorkbookOutput:
+    wb = Workbook(iso_dates=True)
+
+    runs_sheet = wb.active
+    runs_sheet.title = "Runs"
+    attributi_sheet = wb.create_sheet("Attributi")
+    samples_sheet = wb.create_sheet("Samples")
+
+    attributi = await db.retrieve_attributi(conn, associated_table=None)
+    attributi.sort(key=attributo_sort_key)
+
+    for attributo_column, attributo_header_name in enumerate(
+        (
+            "Table",
+            "Name",
+            "Group",
+            "Description",
+            "Type",
+        ),
+        start=1,
+    ):
+        cell = attributi_sheet.cell(
+            row=1, column=attributo_column, value=attributo_header_name
+        )
+        cell.font = cell.font.copy(bold=True)
+
+    for attributo_row_idx, attributo in enumerate(attributi, start=2):
+        attributi_sheet.cell(
+            row=attributo_row_idx,
+            column=1,
+            value=attributo.associated_table.value.capitalize(),
+        )
+        attributi_sheet.cell(row=attributo_row_idx, column=2, value=attributo.name)
+        attributi_sheet.cell(row=attributo_row_idx, column=3, value=attributo.group)
+        attributi_sheet.cell(
+            row=attributo_row_idx, column=4, value=attributo.description
+        )
+        attributi_sheet.cell(
+            row=attributo_row_idx,
+            column=5,
+            value=attributo_type_to_string(attributo.attributo_type),
+        )
+
+    sample_attributi = [
+        a for a in attributi if a.associated_table == AssociatedTable.SAMPLE
+    ]
+    for sample_column, sample_header_name in enumerate(
+        [AttributoId("Name")]
+        + [a.name for a in sample_attributi]
+        + [AttributoId("File IDs")],
+        start=1,
+    ):
+        cell = samples_sheet.cell(
+            row=1, column=sample_column, value=str(sample_header_name)
+        )
+        cell.font = cell.font.copy(bold=True)
+
+    files_to_include: Set[int] = set()
+    samples = await db.retrieve_samples(conn, attributi)
+    for sample_row_idx, sample in enumerate(samples, start=2):
+        samples_sheet.cell(
+            row=sample_row_idx,
+            column=1,
+            value=sample.name,
+        )
+        for sample_column_idx, sample_attributo in enumerate(
+            sample_attributi,
+            start=2,
+        ):
+            samples_sheet.cell(
+                row=sample_row_idx,
+                column=sample_column_idx,
+                value=attributo_value_to_spreadsheet_cell(
+                    sample_id_to_name={},
+                    attributo_type=sample_attributo.attributo_type,
+                    attributo_value=sample.attributi.select(sample_attributo.name),
+                ),
+            )
+        if sample.files:
+            samples_sheet.cell(
+                row=sample_row_idx,
+                column=2 + len(sample_attributi),
+                value=", ".join(str(f.id) for f in sample.files),
+            )
+            files_to_include.update(cast(int, f.id) for f in sample.files)
+
+    run_attributi = [a for a in attributi if a.associated_table == AssociatedTable.RUN]
+    for run_column, run_header_name in enumerate(
+        [AttributoId("ID")] + [a.name for a in run_attributi],
+        start=1,
+    ):
+        cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))
+        cell.font = cell.font.copy(bold=True)
+
+    sample_id_to_name: Dict[int, str] = {s.id: s.name for s in samples}
+    events = await db.retrieve_events(conn)
+    event_iterator = 0
+    run_row_idx = 2
+    for run in await db.retrieve_runs(conn, attributi):
+        started = run.attributi.select_datetime(ATTRIBUTO_STARTED)
+        event_start = event_iterator
+        while (
+            with_events
+            and started is not None
+            and event_iterator < len(events)
+            and events[event_iterator].created >= started
+        ):
+            event_iterator += 1
+
+        for event in events[event_start:event_iterator]:
+            runs_sheet.cell(row=run_row_idx, column=2, value=event.created)
+            event_text = f"{event.source}: {event.text}"
+            if event.files:
+                event_text += (
+                    " (file IDs: " + ", ".join(str(f.id) for f in event.files) + ")"
+                )
+                files_to_include.update(cast(int, f.id) for f in event.files)
+            runs_sheet.cell(row=run_row_idx, column=4, value=event_text)
+            run_row_idx += 1
+
+        runs_sheet.cell(
+            row=run_row_idx,
+            column=1,
+            value=run.id,
+        )
+        for run_column_idx, run_attributo in enumerate(run_attributi, start=2):
+            runs_sheet.cell(
+                row=run_row_idx,
+                column=run_column_idx,
+                value=attributo_value_to_spreadsheet_cell(
+                    sample_id_to_name=sample_id_to_name,
+                    attributo_type=run_attributo.attributo_type,
+                    attributo_value=run.attributi.select(run_attributo.name),
+                ),
+            )
+        run_row_idx += 1
+
+    return WorkbookOutput(wb, files_to_include)

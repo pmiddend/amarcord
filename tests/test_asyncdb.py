@@ -6,8 +6,12 @@ import pytest
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.asyncdb import AsyncDB, ATTRIBUTO_GROUP_MANUAL
-from amarcord.db.attributi import AttributoConversionFlags
+from amarcord.db.asyncdb import AsyncDB, ATTRIBUTO_GROUP_MANUAL, create_workbook
+from amarcord.db.attributi import (
+    AttributoConversionFlags,
+    ATTRIBUTO_STARTED,
+    ATTRIBUTO_STOPPED,
+)
 from amarcord.db.attributi_map import AttributiMap, JsonAttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
@@ -1090,3 +1094,79 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
         assert (  # type: ignore
             await db.retrieve_run(conn, TEST_RUN_ID + 1, attributi)
         ).attributi.select_string(TEST_ATTRIBUTO_NAME) == new_test_attributo
+
+
+async def test_create_workbook() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        await db.create_attributo(
+            conn,
+            TEST_ATTRIBUTO_NAME,
+            TEST_ATTRIBUTO_DESCRIPTION,
+            TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.SAMPLE,
+            AttributoTypeString(),
+        )
+        await db.create_attributo(
+            conn,
+            TEST_SECOND_ATTRIBUTO_NAME,
+            TEST_ATTRIBUTO_DESCRIPTION,
+            TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeString(),
+        )
+
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+        await db.create_sample(
+            conn,
+            "first sample",
+            AttributiMap.from_types_and_raw(
+                attributi,
+                sample_ids=[],
+                raw_attributi={TEST_ATTRIBUTO_NAME: "foo"},
+            ),
+        )
+
+        await db.create_run(
+            conn,
+            run_id=1,
+            attributi=attributi,
+            attributi_map=AttributiMap.from_types_and_raw(
+                types=attributi,
+                sample_ids=[],
+                raw_attributi={TEST_SECOND_ATTRIBUTO_NAME: "foo"},
+            ),
+            keep_manual_attributes_from_previous_run=False,
+        )
+
+        wb = (await create_workbook(db, conn, with_events=True)).workbook
+
+        attributi_wb = wb["Attributi"]
+        assert attributi_wb is not None
+
+        # Man am I tired of example-based testing
+        assert attributi_wb["A1"].value == "Table"
+        assert attributi_wb["B1"].value == "Name"
+
+        assert attributi_wb["A2"].value == "Run"
+        assert attributi_wb["B2"].value == "started"
+
+        runs_wb = wb["Runs"]
+        assert runs_wb is not None
+
+        assert runs_wb["A1"].value == "ID"
+        assert runs_wb["B1"].value == ATTRIBUTO_STARTED
+        assert runs_wb["C1"].value == ATTRIBUTO_STOPPED
+        assert runs_wb["D1"].value == TEST_SECOND_ATTRIBUTO_NAME
+
+        assert runs_wb["D2"].value == "foo"
+
+        sample_wb = wb["Samples"]
+        assert sample_wb is not None
+
+        assert sample_wb["A1"].value == "Name"
+        assert sample_wb["B1"].value == TEST_ATTRIBUTO_NAME
+
+        assert sample_wb["A2"].value == "first sample"
+        assert sample_wb["B2"].value == "foo"

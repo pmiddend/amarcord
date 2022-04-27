@@ -15,6 +15,7 @@ from typing import TypeVar
 from typing import Union
 
 import pytz
+from dateutil import tz
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -234,3 +235,9 @@ def safe_variance(xs: List[float]) -> Optional[float]:
     if len(xs) < 2:
         return None
     return variance(xs)
+
+
+def datetime_to_local(value: datetime.datetime) -> datetime.datetime:
+    return (
+        value.replace(tzinfo=tz.tzutc()).astimezone(tz.tzlocal()).replace(tzinfo=None)
+    )
