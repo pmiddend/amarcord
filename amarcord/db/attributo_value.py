@@ -1,7 +1,6 @@
 import datetime
 from typing import List
 from typing import Union
-from numpy import ndarray
 
 AttributoValue = Union[
     str,
@@ -12,6 +11,5 @@ AttributoValue = Union[
     List[int],
     List[str],
     List[float],
-    ndarray,
     None,
 ]

@@ -8,7 +8,6 @@ from typing import List, cast, Tuple, Dict, Iterable, Any, Set
 from typing import Optional
 
 import magic
-import numpy as np
 import sqlalchemy as sa
 from openpyxl import Workbook
 
@@ -1028,8 +1027,6 @@ def attributo_value_to_spreadsheet_cell(
         (str, int, float, bool),
     ):
         return attributo_value
-    if isinstance(attributo_value, np.ndarray):
-        return str(attributo_value)
     if isinstance(attributo_value, list):
         return str(attributo_value)
     raise TypeError(
