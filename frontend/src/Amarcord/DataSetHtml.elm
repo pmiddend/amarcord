@@ -29,7 +29,7 @@ viewDataSetTable attributi zone sampleIdToName ds withHeader footer =
     table
         [ class "table table-sm" ]
         [ if withHeader then
-            thead_ [ tr_ [ th_ [ text "Name" ], th_ [ text "Value" ] ] ]
+            thead_ [ tr_ [ th_ [ text "Attributo" ], th_ [ text "Value" ] ] ]
 
           else
             text ""
