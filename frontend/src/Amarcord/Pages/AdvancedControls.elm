@@ -3,11 +3,11 @@ module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, update, v
 import Amarcord.API.Requests exposing (RequestError, RunsResponse, RunsResponseContent, httpGetRuns, httpStartRun, httpStopRun)
 import Amarcord.Attributo exposing (attributoStopped, retrieveAttributoValue)
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Html exposing (h2_, hr_, input_)
+import Amarcord.Html exposing (h2_, hr_, input_, p_)
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow)
-import Html exposing (Html, button, div, form, label, p, text)
-import Html.Attributes exposing (class, disabled, for, type_, value)
+import Html exposing (Html, a, button, div, form, h2, label, p, text)
+import Html.Attributes exposing (class, disabled, for, href, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
@@ -163,4 +163,8 @@ view model =
         , h2_ [ icon { name = "journals" }, text " Bulk update" ]
         , p [ class "lead" ] [ text "Update the attributi of more than one run at once. First, select the runs you want to change and press \"Retrieve run attributi\". Then change them and press \"Update all runs\"." ]
         , Html.map RunsBulkUpdateMsg <| RunsBulkUpdate.view model.bulkUpdateModel
+        , h2 [ class "mt-3" ] [ icon { name = "file-earmark-spreadsheet" }, text " Export" ]
+        , p [ class "lead" ] [ text "Done with the experiment? Ready for more analyses? Just download the whole database with a single click!" ]
+        , a [ href "api/spreadsheet.zip", class "btn btn-secondary" ] [ icon { name = "file-earmark-spreadsheet" }, text " Download spreadsheet" ]
+        , p [ class "text-muted" ] [ text "Right-click and choose \"Save as\". The result will be a .zip file containing an Excel file and a list of attached files, if you have any." ]
         ]
