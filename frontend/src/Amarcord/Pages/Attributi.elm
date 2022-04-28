@@ -788,7 +788,7 @@ viewEditForm model attributiList attributo =
                 ]
                 []
             , div [ class "form-text" ]
-                [ text "You should normally leave this at \"manual\". Groups are meant for attributi from outside sources (like Om, or the controls software). Only \"manual\" attributi will appear editable in the overview."
+                [ text "There are three types of groups: \"manual\" for manual attributi that don't belong to an experiment type, \"manual-global\" which are manual attributi but belong to every experiment type (i.e. are always displayed). And attributi with some other group. These are added and maintained by external tools (like Om, or the controls software)."
                 ]
             ]
         , div [ class "mb-3" ]

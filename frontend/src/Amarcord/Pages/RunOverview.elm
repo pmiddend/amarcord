@@ -4,10 +4,10 @@ import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, Run
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner)
 import Amarcord.ColumnChooser as ColumnChooser
-import Amarcord.Constants exposing (manualAttributiGroup)
+import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
@@ -25,8 +25,10 @@ import List.Extra exposing (find)
 import Maybe
 import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
+import Set exposing (Set)
 import String exposing (fromInt)
 import Time exposing (Posix, Zone)
+import Tuple exposing (second)
 
 
 type Msg
@@ -383,7 +385,7 @@ viewCurrentRun zone now currentExperimentType rrc =
                                 , Html.Attributes.id "current-experiment-type"
                                 , onInput CurrentExperimentTypeChanged
                                 ]
-                                (option [ selected (isNothing currentExperimentType) ] [ text "«no value»" ] :: List.map viewExperimentTypeOption rrc.experimentTypes)
+                                (option [ selected (isNothing currentExperimentType), value "" ] [ text "«no value»" ] :: List.map viewExperimentTypeOption (Dict.keys rrc.experimentTypes))
                             , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
                             ]
                         ]
@@ -471,16 +473,41 @@ viewCurrentRun zone now currentExperimentType rrc =
             header ++ darkRunInformation rrc.latestDark ++ dataSetSelection ++ dataSetInformation
 
 
-viewRunAttributiForm : Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
-viewRunAttributiForm latestRun submitErrorsList runEditRequest samples rei =
+viewRunAttributiForm : Maybe (Set String) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
+viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditRequest samples rei =
     case rei of
         Nothing ->
             []
 
         Just { runId, editableAttributi } ->
             let
+                matchesCurrentExperiment a x =
+                    case x of
+                        Nothing ->
+                            True
+
+                        Just attributiNames ->
+                            Set.member a.name attributiNames
+
+                -- For ergonomic reasons, we want sample attributi to be on top - everything else should be
+                -- sorted alphabetically
+                attributoSortKey a =
+                    ( if isEditValueSampleId (second a.type_) then
+                        0
+
+                      else
+                        1
+                    , a.name
+                    )
+
+                attributoFilterFunction a =
+                    a.associatedTable
+                        == AssociatedTable.Run
+                        && (a.group == manualGlobalAttributiGroup || a.group == manualAttributiGroup && matchesCurrentExperiment a currentExperimentType)
+                        && not (List.member a.name [ "started", "stopped" ])
+
                 filteredAttributi =
-                    List.filter (\a -> a.associatedTable == AssociatedTable.Run && a.group == manualAttributiGroup && not (List.member a.name [ "started", "stopped" ])) editableAttributi.editableAttributi
+                    List.sortBy attributoSortKey <| List.filter attributoFilterFunction editableAttributi.editableAttributi
 
                 submitErrors =
                     case submitErrorsList of
@@ -543,7 +570,15 @@ viewInner model rrc =
             [ class "row" ]
             [ div [ class "col-lg-6" ]
                 (viewCurrentRun model.myTimeZone model.now model.currentExperimentType rrc)
-            , div [ class "col-lg-6" ] (viewRunAttributiForm (head rrc.runs) model.submitErrors model.runEditRequest rrc.samples model.runEditInfo)
+            , div [ class "col-lg-6" ]
+                (viewRunAttributiForm
+                    (Maybe.andThen (\a -> Dict.get a rrc.experimentTypes) model.currentExperimentType)
+                    (head rrc.runs)
+                    model.submitErrors
+                    model.runEditRequest
+                    rrc.samples
+                    model.runEditInfo
+                )
             ]
         ]
     , hr_
@@ -645,27 +680,18 @@ update msg model =
                         model.refreshRequest
                 , currentExperimentType =
                     case ( model.currentExperimentType, response ) of
-                        -- If we currently don't have an experiment type, then the only reason is that we
-                        -- didn't receive any yet. If we did now, set the experiment type.
-                        ( Nothing, Ok { experimentTypes } ) ->
-                            List.head experimentTypes
-
-                        -- No experiment types, but an error in the request
-                        ( Nothing, _ ) ->
-                            Nothing
-
                         -- We have an experiment type and need to check it
                         ( Just currentExperimentType, Ok { experimentTypes } ) ->
                             -- Could be that the experiment type disappeared!
-                            if List.member currentExperimentType experimentTypes then
+                            if Dict.member currentExperimentType experimentTypes then
                                 Just currentExperimentType
 
                             else
-                                List.head experimentTypes
+                                List.head <| Dict.keys experimentTypes
 
                         -- We have an experiment type, but an error now. Just keep it for now.
-                        ( Just currentExperimentType, _ ) ->
-                            Just currentExperimentType
+                        ( currentExperimentType, _ ) ->
+                            currentExperimentType
               }
             , Cmd.none
             )

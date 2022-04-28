@@ -459,7 +459,7 @@ async def read_runs() -> JSONDict:
             if latest_dark
             else None,
             "attributi": [_encode_attributo(a) for a in attributi],
-            "experiment-types": [a.name for a in experiment_types],
+            "experiment-types": {a.name: a.attributo_names for a in experiment_types},
             "data-sets": [
                 _encode_data_set(a, data_set_id_to_grouped.get(a.id, None))
                 for a in data_sets

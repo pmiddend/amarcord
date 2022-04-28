@@ -58,6 +58,7 @@ import Json.Decode as Decode
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
 import Maybe.Extra exposing (unwrap)
+import Set exposing (Set)
 import Time exposing (Posix, millisToPosix)
 import Tuple exposing (pair)
 
@@ -337,7 +338,7 @@ type alias RunsResponseContent =
     , events : List Event
     , samples : List (Sample Int (AttributoMap AttributoValue) File)
     , dataSets : List DataSet
-    , experimentTypes : List String
+    , experimentTypes : Dict String (Set String)
     }
 
 
@@ -355,7 +356,7 @@ httpGetRuns f =
                         (Decode.field "events" <| Decode.list eventDecoder)
                         (Decode.field "samples" <| Decode.list sampleDecoder)
                         (Decode.field "data-sets" <| Decode.list dataSetDecoder)
-                        (Decode.field "experiment-types" <| Decode.list Decode.string)
+                        (Decode.field "experiment-types" <| Decode.dict (Decode.map Set.fromList <| Decode.list Decode.string))
         }
 
 
