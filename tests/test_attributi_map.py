@@ -628,6 +628,11 @@ def test_run_matches_dataset_float() -> None:
             AttributoTypeDecimal(),
         )
     ]
+    run_attributi_missing = AttributiMap.from_types_and_json(
+        attributi,
+        [],
+        {},
+    )
     run_attributi_200 = AttributiMap.from_types_and_json(
         attributi,
         [],
@@ -650,5 +655,9 @@ def test_run_matches_dataset_float() -> None:
     )
     assert not run_matches_dataset(
         run_attributi=run_attributi_200,
+        data_set_attributi=data_set_attributi_198,
+    )
+    assert not run_matches_dataset(
+        run_attributi=run_attributi_missing,
         data_set_attributi=data_set_attributi_198,
     )

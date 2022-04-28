@@ -436,6 +436,9 @@ def run_matches_dataset(
                 return False
         # One of the two could be an int, too, which is fine also
         if isinstance(run_value, float) or isinstance(data_set_value, float):
+            # They can't be both None at once, and if either is None, we fail our matching criterion
+            if run_value is None or data_set_value is None:
+                return False
             # 0.005 is very random and should be quickly replaced by a user-defined delta.
             # For now, it's better than equality comparison.
             if not math.isclose(float(run_value), float(data_set_value), rel_tol=0.005):  # type: ignore
