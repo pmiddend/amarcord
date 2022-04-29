@@ -113,6 +113,10 @@ special-karabo-attributes:
   darkRunType:
     source: SPB_DA_USR/MDL/AMARCORD_INFO
     key: darkExperiment.value
+  jetStreamImage:
+    source: SPB_EXP_ZYLA/CAM/1:output
+    key: data.image.data
+
 
 
 

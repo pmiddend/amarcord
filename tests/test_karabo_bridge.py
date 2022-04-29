@@ -1972,6 +1972,7 @@ async def test_persist_euxfel_run_result_new_run():
         datetime.datetime.utcnow() + datetime.timedelta(seconds=10),
         PROPOSAL_ID,
         None,
+        None,
     )
     result2 = BridgeOutput(
         {TEST_ATTRIBUTO: "2"},
@@ -1979,6 +1980,7 @@ async def test_persist_euxfel_run_result_new_run():
         datetime.datetime.utcnow(),
         datetime.datetime.utcnow() + datetime.timedelta(seconds=10),
         PROPOSAL_ID,
+        None,
         None,
     )
 

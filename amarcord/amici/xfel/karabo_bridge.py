@@ -23,7 +23,7 @@ from pint import UnitRegistry
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
-from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.asyncdb import AsyncDB, LIVE_STREAM_IMAGE
 from amarcord.db.attributi import (
     ATTRIBUTO_STARTED,
     ATTRIBUTO_STOPPED,
@@ -40,6 +40,8 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
+
+SPECIAL_ATTRIBUTE_JET_STREAM_IMAGE = "jetStreamImage"
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +205,7 @@ class KaraboSpecialAttributes:
     proposal_id_key: KaraboValueLocator
     dark_run_index_key: KaraboValueLocator
     dark_run_type_key: KaraboValueLocator
+    jet_stream_image_key: Optional[KaraboValueLocator]
 
 
 @dataclass(frozen=True)
@@ -682,6 +685,14 @@ def parse_configuration(
     dark_run_type_key = search_special_attribute("darkRunType")
     if isinstance(dark_run_type_key, KaraboConfigurationError):
         return dark_run_type_key
+    jet_stream_image_key: Optional[KaraboValueLocator] = None
+    if SPECIAL_ATTRIBUTE_JET_STREAM_IMAGE in special_attributes:
+        jet_stream_image_key_result = search_special_attribute(
+            SPECIAL_ATTRIBUTE_JET_STREAM_IMAGE
+        )
+        if isinstance(jet_stream_image_key_result, KaraboConfigurationError):
+            return jet_stream_image_key_result
+        jet_stream_image_key = jet_stream_image_key_result
 
     proposal_id = config.get(CONFIG_KARABO_PROPOSAL, None)
     if proposal_id is None:
@@ -699,6 +710,7 @@ def parse_configuration(
             proposal_id_key=proposal_id_key,
             dark_run_index_key=dark_run_index_key,
             dark_run_type_key=dark_run_type_key,
+            jet_stream_image_key=jet_stream_image_key,
         ),
         attributi={k.attributo_id: k for k in attributi},
         proposal_id=proposal_id,
@@ -1319,6 +1331,7 @@ class BridgeOutput:
     run_stopped_at: Optional[datetime.datetime]
     proposal_id: int
     dark_run: Optional[DarkRunInformation]
+    image: Optional[np.ndarray]
 
 
 def locate_in_frame(
@@ -1374,6 +1387,20 @@ async def ingest_bridge_output(
             )
             await db.update_run_attributi(
                 conn, result.dark_run.index, dark_run.attributi
+            )
+    if result.image is not None:
+        existing_file = await db.retrieve_file_id_by_name(conn, LIVE_STREAM_IMAGE)
+        if existing_file is None:
+            await db.create_image_from_nparray(
+                conn,
+                LIVE_STREAM_IMAGE,
+                description="",
+                contents=result.image,
+                format_="png",
+            )
+        else:
+            await db.update_image_from_nparray(
+                conn, existing_file, contents=result.image, format_="png"
             )
 
 
@@ -1591,6 +1618,20 @@ class Karabo2:
                 dark_run_information = DarkRunInformation(dark_run_index, dark_run_type)
         else:
             dark_run_information = None
+        image: Optional[np.ndarray]
+        if self._special_attributes.jet_stream_image_key is not None:
+            image_in_frame = locate_in_frame(
+                frame, self._special_attributes.jet_stream_image_key
+            )
+            if not isinstance(image_in_frame, np.ndarray):
+                logger.warning(
+                    f"image at {self._special_attributes.jet_stream_image_key} isn't an nparray but {type(image_in_frame)}"
+                )
+                image = None
+            else:
+                image = image_in_frame
+        else:
+            image = None
         return BridgeOutput(
             attributi_values=attributi_values,
             run_id=run_id,
@@ -1598,6 +1639,7 @@ class Karabo2:
             run_started_at=self._run_started_at,
             run_stopped_at=self._run_stopped_at,
             dark_run=dark_run_information,
+            image=image,
         )
 
     def _compare_train_ids(self, train_id: int) -> None:
