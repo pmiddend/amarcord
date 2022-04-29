@@ -11,14 +11,14 @@ import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiG
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
-import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, hr_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, hr_, img_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, posixDiffMinutes, scrollToTop)
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
-import Html.Attributes exposing (class, colspan, disabled, for, href, id, selected, style, type_, value)
+import Html exposing (Html, a, button, div, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
+import Html.Attributes exposing (class, colspan, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
 import List.Extra exposing (find)
@@ -27,7 +27,7 @@ import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import Set exposing (Set)
 import String exposing (fromInt)
-import Time exposing (Posix, Zone)
+import Time exposing (Posix, Zone, posixToMillis)
 import Tuple exposing (second)
 
 
@@ -584,7 +584,15 @@ viewInner model rrc =
     , hr_
     , Html.map EventFormMsg (EventForm.view model.eventForm)
     , hr_
-    , Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
+    , case rrc.jetStreamFileId of
+        Nothing ->
+            Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
+
+        Just jetStreamId ->
+            div [ class "row" ]
+                [ div [ class "col-lg-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
+                , div [ class "col-lg-6 text-center" ] [ figure [ class "figure" ] [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ], figcaption [ class "figure-caption" ] [ text "Live stream image" ] ] ]
+                ]
     , hr_
     , div [ class "row" ] [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ], viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc ]
     ]

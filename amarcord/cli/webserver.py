@@ -24,7 +24,7 @@ from amarcord.amici.om.client import (
 )
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.asyncdb import create_workbook
+from amarcord.db.asyncdb import create_workbook, LIVE_STREAM_IMAGE
 from amarcord.db.attributi import (
     AttributoConversionFlags,
     datetime_to_attributo_int,
@@ -439,6 +439,9 @@ async def read_runs() -> JSONDict:
         latest_dark = determine_latest_dark_run(runs, attributi)
 
         result = {
+            "live-stream-file-id": await db.instance.retrieve_file_id_by_name(
+                conn, LIVE_STREAM_IMAGE
+            ),
             "runs": [
                 {
                     "id": r.id,
@@ -562,6 +565,47 @@ async def delete_experiment_type() -> JSONDict:
         )
 
     return {}
+
+
+@app.post("/api/live-stream")
+async def update_live_stream() -> JSONDict:
+    files = await request.files
+
+    assert files, "Koalas in the rain, no files given"
+
+    async with db.instance.begin() as conn:
+        file = next(files.values())
+
+        # Since we potentially need to seek around in the file, and we don't know if it's a seekable
+        # stream (I think?) we store it in a named temp file first.
+        with NamedTemporaryFile(mode="w+b") as temp_file:
+            temp_file.write(file.read())
+            temp_file.flush()
+            temp_file.seek(0, os.SEEK_SET)
+
+            existing_live_stream = await db.instance.retrieve_file_id_by_name(
+                conn, LIVE_STREAM_IMAGE
+            )
+
+            file_id: int
+            if existing_live_stream is not None:
+                file_id = existing_live_stream
+                await db.instance.update_file(
+                    conn, existing_live_stream, contents_location=Path(temp_file.name)
+                )
+            else:
+                file_id = (
+                    await db.instance.create_file(
+                        conn,
+                        file_name=LIVE_STREAM_IMAGE,
+                        description="Live stream image",
+                        original_path=None,
+                        contents_location=Path(temp_file.name),
+                        deduplicate=False,
+                    )
+                ).id
+
+            return {"id": file_id}
 
 
 @app.post("/api/data-sets")

@@ -339,6 +339,7 @@ type alias RunsResponseContent =
     , samples : List (Sample Int (AttributoMap AttributoValue) File)
     , dataSets : List DataSet
     , experimentTypes : Dict String (Set String)
+    , jetStreamFileId : Maybe Int
     }
 
 
@@ -349,7 +350,7 @@ httpGetRuns f =
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError <|
-                    Decode.map7 RunsResponseContent
+                    Decode.map8 RunsResponseContent
                         (Decode.field "runs" <| Decode.list runDecoder)
                         (Decode.field "latest-dark" <| Decode.maybe latestDarkDecoder)
                         (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
@@ -357,6 +358,7 @@ httpGetRuns f =
                         (Decode.field "samples" <| Decode.list sampleDecoder)
                         (Decode.field "data-sets" <| Decode.list dataSetDecoder)
                         (Decode.field "experiment-types" <| Decode.dict (Decode.map Set.fromList <| Decode.list Decode.string))
+                        (Decode.field "live-stream-file-id" <| Decode.maybe Decode.int)
         }
 
 

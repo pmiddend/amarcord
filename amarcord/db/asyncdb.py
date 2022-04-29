@@ -1,15 +1,19 @@
 import datetime
+import hashlib
+import io
 import itertools
 import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, cast, Tuple, Dict, Iterable, Any, Set
+from typing import List, cast, Tuple, Dict, Iterable, Any, Set, Final
 from typing import Optional
 
 import magic
+import numpy as np
 import sqlalchemy as sa
 from openpyxl import Workbook
+from PIL import Image
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext, Connection
@@ -41,6 +45,8 @@ from amarcord.db.tables import DBTables
 from amarcord.pint_util import valid_pint_unit
 from amarcord.util import sha256_file, group_by, datetime_to_local
 
+LIVE_STREAM_IMAGE: Final = "live-stream-image"
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,6 +77,21 @@ class AsyncDB:
 
     async def dispose(self) -> None:
         await self.dbcontext.dispose()
+
+    async def retrieve_file_id_by_name(
+        self, conn: Connection, file_name: str
+    ) -> Optional[int]:
+        result = await conn.execute(
+            sa.select(
+                [
+                    self.tables.file.c.id,
+                ]
+            ).where(self.tables.file.c.file_name == file_name)
+        )
+
+        db_result = result.fetchone()
+
+        return db_result[0] if db_result else None
 
     async def retrieve_file(
         self, conn: Connection, file_id: int
@@ -426,6 +447,86 @@ class AsyncDB:
             raise Exception(
                 f"unimplemented: is there a new associated table {found_attributo.associated_table}?"
             )
+
+    async def update_file(
+        self, conn: Connection, id_: int, contents_location: Path
+    ) -> None:
+        mime = magic.from_file(str(contents_location), mime=True)  # type: ignore
+
+        sha256 = sha256_file(contents_location)
+
+        with contents_location.open("rb") as f:
+            old_file_position = f.tell()
+            f.seek(0, os.SEEK_END)
+            size_in_bytes = f.tell()
+            f.seek(old_file_position, os.SEEK_SET)
+
+            await conn.execute(
+                sa.update(self.tables.file)
+                .values(
+                    modified=datetime.datetime.utcnow(),
+                    contents=f.read(),
+                    type=mime,
+                    sha256=sha256,
+                    size_in_bytes=size_in_bytes,
+                )
+                .where(self.tables.file.c.id == id_)
+            )
+
+    async def update_image_from_nparray(
+        self,
+        conn: Connection,
+        id_: int,
+        contents: np.ndarray,
+        format_: str,
+    ) -> None:
+        img_byte_arr_io = io.BytesIO()
+        Image.fromarray(contents).save(img_byte_arr_io, format=format_)
+        img_byte_arr = img_byte_arr_io.getvalue()
+
+        size_in_bytes = len(img_byte_arr)
+        await conn.execute(
+            sa.update(self.tables.file)
+            .values(
+                modified=datetime.datetime.utcnow(),
+                contents=img_byte_arr,
+                sha256=hashlib.sha256(img_byte_arr).hexdigest(),
+                size_in_bytes=size_in_bytes,
+            )
+            .where(self.tables.file.c.id == id_)
+        )
+
+    async def create_image_from_nparray(
+        self,
+        conn: Connection,
+        file_name: str,
+        description: str,
+        contents: np.ndarray,
+        format_: str,
+    ) -> CreateFileResult:
+        img_byte_arr_io = io.BytesIO()
+        Image.fromarray(contents).save(img_byte_arr_io, format=format_)
+        img_byte_arr = img_byte_arr_io.getvalue()
+
+        size_in_bytes = len(img_byte_arr)
+        return CreateFileResult(
+            id=(
+                await conn.execute(
+                    self.tables.file.insert().values(
+                        type=format_,
+                        modified=datetime.datetime.utcnow(),
+                        contents=img_byte_arr,
+                        file_name=file_name,
+                        original_path=None,
+                        description=description,
+                        sha256=hashlib.sha256(img_byte_arr).hexdigest(),
+                        size_in_bytes=size_in_bytes,
+                    )
+                )
+            ).inserted_primary_key[0],
+            type_=format_,
+            size_in_bytes=size_in_bytes,
+        )
 
     async def create_file(
         self,
