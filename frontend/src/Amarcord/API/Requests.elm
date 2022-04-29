@@ -45,6 +45,7 @@ module Amarcord.API.Requests exposing
     , httpUpdateRun
     , httpUpdateRunsBulk
     , httpUpdateSample
+    , httpUserConfigurationSetAutoPilot
     )
 
 import Amarcord.AssociatedTable as AssociatedTable
@@ -57,7 +58,7 @@ import Amarcord.UserError exposing (CustomError, customErrorDecoder)
 import Amarcord.Util exposing (httpDelete, httpPatch)
 import Dict exposing (Dict)
 import File as ElmFile
-import Http exposing (filePart, jsonBody, multipartBody, stringPart)
+import Http exposing (emptyBody, filePart, jsonBody, multipartBody, stringPart)
 import Json.Decode as Decode
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
@@ -372,8 +373,26 @@ type alias RunsResponseContent =
     , samples : List (Sample Int (AttributoMap AttributoValue) File)
     , dataSets : List DataSet
     , experimentTypes : Dict String (Set String)
+    , runInformationCopy : Bool
     , jetStreamFileId : Maybe Int
     }
+
+
+httpUserConfigurationSetAutoPilot : (Result RequestError Bool -> msg) -> Bool -> Cmd msg
+httpUserConfigurationSetAutoPilot f autoPilot =
+    httpPatch
+        { url =
+            "api/user-config/auto-pilot/"
+                ++ (if autoPilot then
+                        "True"
+
+                    else
+                        "False"
+                   )
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.field "value" Decode.bool)
+        , body = emptyBody
+        }
 
 
 httpCreateLiveStreamSnapshot : (Result RequestError File -> msg) -> Cmd msg
@@ -393,16 +412,18 @@ httpGetRuns f =
         { url = "api/runs"
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
-                valueOrError <|
-                    Decode.map8 RunsResponseContent
-                        (Decode.field "runs" <| Decode.list runDecoder)
-                        (Decode.field "latest-dark" <| Decode.maybe latestDarkDecoder)
-                        (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
-                        (Decode.field "events" <| Decode.list eventDecoder)
-                        (Decode.field "samples" <| Decode.list sampleDecoder)
-                        (Decode.field "data-sets" <| Decode.list dataSetDecoder)
-                        (Decode.field "experiment-types" <| Decode.dict (Decode.map Set.fromList <| Decode.list Decode.string))
-                        (Decode.field "live-stream-file-id" <| Decode.maybe Decode.int)
+                valueOrError
+                    (Decode.succeed RunsResponseContent
+                        |> required "runs" (Decode.list runDecoder)
+                        |> required "latest-dark" (Decode.maybe latestDarkDecoder)
+                        |> required "attributi" (Decode.list (attributoDecoder attributoTypeDecoder))
+                        |> required "events" (Decode.list eventDecoder)
+                        |> required "samples" (Decode.list sampleDecoder)
+                        |> required "data-sets" (Decode.list dataSetDecoder)
+                        |> required "experiment-types" (Decode.dict (Decode.map Set.fromList <| Decode.list Decode.string))
+                        |> required "auto-pilot" Decode.bool
+                        |> required "live-stream-file-id" (Decode.maybe Decode.int)
+                    )
         }
 
 

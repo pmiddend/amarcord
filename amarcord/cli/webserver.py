@@ -3,11 +3,11 @@ import datetime
 import json
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, List, Optional
+from typing import Dict, cast, List, Optional, Final
 from zipfile import ZipFile
 
 import quart
@@ -56,6 +56,8 @@ from amarcord.quart_utils import QuartDatabases
 from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
 from amarcord.util import group_by, create_intervals
+
+AUTO_PILOT: Final = "auto-pilot"
 
 app = Quart(
     __name__,
@@ -484,6 +486,7 @@ async def read_runs() -> JSONDict:
                 _encode_event(e) for e in await db.instance.retrieve_events(conn)
             ],
             "samples": [_encode_sample(a) for a in samples],
+            "auto-pilot": (await db.instance.retrieve_configuration(conn)).auto_pilot,
         }
         if _has_artificial_delay():
             await asyncio.sleep(3)
@@ -531,6 +534,41 @@ async def create_file() -> JSONDict:
         # Doesn't really make sense here
         "originalPath": None,
     }
+
+
+@app.get("/api/user-config/<key>")
+async def read_user_configuration_single(key: str) -> JSONDict:
+    async with db.instance.read_only_connection() as conn:
+        if key != AUTO_PILOT:
+            raise CustomWebException(
+                code=400,
+                title=f'Invalid key "{key}"',
+                description=f'Couldn\'t find config key {key}, only know "{AUTO_PILOT}"!',
+            )
+        return {"value": (await db.instance.retrieve_configuration(conn)).auto_pilot}
+
+
+@app.patch("/api/user-config/<key>/<value>")
+async def update_user_configuration_single(key: str, value: str) -> JSONDict:
+    async with db.instance.begin() as conn:
+        if key != "auto-pilot":
+            raise CustomWebException(
+                code=400,
+                title=f'Invalid key "{key}"',
+                description=f'Couldn\'t find config key {key}, only know "{AUTO_PILOT}"!',
+            )
+
+        auto_pilot = value == "True"
+
+        new_configuration = replace(
+            await db.instance.retrieve_configuration(conn),
+            auto_pilot=auto_pilot,
+        )
+        await db.instance.update_configuration(
+            conn,
+            new_configuration,
+        )
+        return {"value": auto_pilot}
 
 
 @app.post("/api/experiment-types")

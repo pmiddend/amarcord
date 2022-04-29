@@ -18,6 +18,16 @@ def _fk_identifier(c: ColumnElement) -> str:
     return f"{c.table.name}.{c.name}"
 
 
+def _table_configuration(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "UserConfiguration",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("created", sa.DateTime, nullable=False),
+        sa.Column("auto_pilot", sa.Boolean, nullable=False),
+    )
+
+
 def _table_attributo(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
         "Attributo",
@@ -45,7 +55,7 @@ def _table_file(metadata: sa.MetaData) -> sa.Table:
         sa.Column("original_path", sa.Text(), nullable=True),
         sa.Column("sha256", sa.String(length=64), nullable=False),
         sa.Column("modified", sa.DateTime(), nullable=False),
-        # Seehttps://stackoverflow.com/questions/43791725/sqlalchemy-how-to-make-a-longblob-column-in-mysql
+        # See https://stackoverflow.com/questions/43791725/sqlalchemy-how-to-make-a-longblob-column-in-mysql
         sa.Column(
             "contents", sa.LargeBinary().with_variant(LONGBLOB, "mysql"), nullable=False
         ),
@@ -238,6 +248,7 @@ def _table_event_log(metadata: sa.MetaData) -> sa.Table:
 class DBTables:
     def __init__(
         self,
+        configuration: sa.Table,
         sample: sa.Table,
         run: sa.Table,
         attributo: sa.Table,
@@ -251,6 +262,7 @@ class DBTables:
         run_has_file: sa.Table,
         event_has_file: sa.Table,
     ) -> None:
+        self.configuration = configuration
         self.event_has_file = event_has_file
         self.cfel_analysis_result_has_file = cfel_analysis_result_has_file
         self.data_set = data_set
@@ -274,6 +286,7 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     cfel_analysis_results = _table_cfel_analysis_results(metadata, data_set)
     event_log = _table_event_log(metadata)
     return DBTables(
+        configuration=_table_configuration(metadata),
         sample=sample,
         run=run,
         attributo=table_attributo,

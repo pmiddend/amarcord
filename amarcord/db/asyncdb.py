@@ -35,6 +35,7 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
+from amarcord.db.user_configuration import UserConfiguration, initial_user_configuration
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
@@ -118,6 +119,33 @@ class AsyncDB:
             file_name=result_row["file_name"],
             size_in_bytes=result_row["size_in_bytes"],
             contents=result_row["contents"] if with_contents else None,
+        )
+
+    async def retrieve_configuration(self, conn: Connection) -> UserConfiguration:
+        result = (
+            await conn.execute(
+                sa.select(
+                    [
+                        self.tables.configuration.c.auto_pilot,
+                    ]
+                ).order_by(self.tables.configuration.c.id.desc())
+            )
+        ).fetchone()
+
+        return (
+            UserConfiguration(auto_pilot=result[0])
+            if result is not None
+            else initial_user_configuration()
+        )
+
+    async def update_configuration(
+        self, conn: Connection, configuration: UserConfiguration
+    ) -> None:
+        await conn.execute(
+            self.tables.configuration.insert().values(
+                auto_pilot=configuration.auto_pilot,
+                created=datetime.datetime.utcnow(),
+            )
         )
 
     async def retrieve_attributi(

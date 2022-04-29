@@ -20,6 +20,7 @@ from amarcord.db.attributo_type import (
     AttributoTypeSample,
 )
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
+from amarcord.db.user_configuration import UserConfiguration
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.tables import create_tables_from_metadata
@@ -1165,3 +1166,12 @@ async def test_create_workbook() -> None:
 
         assert sample_wb["A2"].value == "first sample"
         assert sample_wb["B2"].value == "foo"
+
+
+async def test_retrieve_and_update_configuration() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        assert (await db.retrieve_configuration(conn)).auto_pilot
+        await db.update_configuration(conn, UserConfiguration(auto_pilot=False))
+        assert not (await db.retrieve_configuration(conn)).auto_pilot

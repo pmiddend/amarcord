@@ -1,6 +1,6 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRuns, httpUpdateRun)
+import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRuns, httpUpdateRun, httpUserConfigurationSetAutoPilot)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, attributoTargetFrameCount, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
@@ -12,14 +12,14 @@ import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, hr_, img_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, hr_, img_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, posixDiffMinutes, scrollToTop)
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
-import Html.Attributes exposing (class, colspan, disabled, for, href, id, selected, src, style, type_, value)
+import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (head)
 import List.Extra exposing (find)
@@ -46,6 +46,8 @@ type Msg
     | Nop
     | CurrentExperimentTypeChanged String
     | ColumnChooserMessage ColumnChooser.Msg
+    | ChangeAutoPilot Bool
+    | AutoPilotToggled (Result RequestError Bool)
     | CreateDataSetFromRun String Int
     | CreateDataSetFromRunFinished (Result RequestError ())
 
@@ -364,6 +366,14 @@ viewCurrentRun zone now currentExperimentType dataSetFromRunRequest rrc =
                 isRunning =
                     isNothing runStopped
 
+                runInformationCopy =
+                    [ div [ class "form-check form-switch mb-3" ]
+                        [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.runInformationCopy, onInput (always (ChangeAutoPilot (not rrc.runInformationCopy))) ]
+                        , label [ class "form-check-label", for "auto-pilot" ] [ text "Auto pilot" ]
+                        , div [ class "form-text" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
+                        ]
+                    ]
+
                 header =
                     case ( runStarted, runStopped ) of
                         ( Just started, Nothing ) ->
@@ -517,7 +527,7 @@ viewCurrentRun zone now currentExperimentType dataSetFromRunRequest rrc =
                                 (Maybe.map footer ds.summary)
                             ]
             in
-            header ++ darkRunInformation rrc.latestDark ++ dataSetSelection ++ dataSetInformation
+            header ++ runInformationCopy ++ darkRunInformation rrc.latestDark ++ dataSetSelection ++ dataSetInformation
 
 
 viewRunAttributiForm : Maybe (Set String) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
@@ -930,6 +940,12 @@ update msg model =
                     ColumnChooser.update model.columnChooser columnChooserMessage
             in
             ( { model | columnChooser = newColumnChooser }, cmds )
+
+        ChangeAutoPilot newValue ->
+            ( model, httpUserConfigurationSetAutoPilot AutoPilotToggled newValue )
+
+        AutoPilotToggled _ ->
+            ( model, httpGetRuns RunsReceived )
 
         CreateDataSetFromRun experimentType runId ->
             ( { model | dataSetFromRunRequest = Loading }, httpCreateDataSetFromRun CreateDataSetFromRunFinished experimentType runId )
