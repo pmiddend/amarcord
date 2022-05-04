@@ -1,4 +1,5 @@
 import asyncio
+
 from asyncio import FIRST_COMPLETED, Task
 from pathlib import Path
 from typing import Optional, List
@@ -10,6 +11,7 @@ from amarcord.amici.kamzik.kamzik_zmq_client import kamzik_main_loop
 from amarcord.amici.om.client import OmZMQProcessor
 from amarcord.amici.om.simulator import om_simulator_loop
 from amarcord.amici.onda.client import OnDAZMQProcessor
+from amarcord.amici.p11.grab_mjpeg_frame import mjpeg_stream_loop
 from amarcord.amici.petra3.petra3_online_values import petra3_value_loop
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
@@ -32,6 +34,8 @@ class Arguments(Tap):
     onda_topic: str = "ondadata"
     experiment_simulator_enabled: bool = False
     experiment_simulator_files_dir: Optional[Path] = None
+    mjpeg_stream_url: Optional[str] = None
+    mjpeg_stream_delay_seconds: float = 5.0
 
 
 async def _main_loop(args: Arguments) -> None:
@@ -48,6 +52,15 @@ async def _main_loop(args: Arguments) -> None:
             asyncio.create_task(
                 experiment_simulator_main_loop(
                     db, args.experiment_simulator_files_dir, delay_seconds=5.0
+                )
+            )
+        )
+
+    if args.mjpeg_stream_url is not None:
+        awaitables.append(
+            asyncio.create_task(
+                mjpeg_stream_loop(
+                    db, args.mjpeg_stream_url, args.mjpeg_stream_delay_seconds
                 )
             )
         )

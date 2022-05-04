@@ -1,6 +1,6 @@
-module Amarcord.EventForm exposing (Model, Msg(..), init, update, view)
+module Amarcord.EventForm exposing (Model, Msg(..), init, update, updateLiveStream, view)
 
-import Amarcord.API.Requests exposing (Event, RequestError, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpCreateFile)
+import Amarcord.API.Requests exposing (Event, IncludeLiveStream(..), RequestError, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpCreateFile)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert)
 import Amarcord.File exposing (File)
@@ -22,12 +22,13 @@ type alias Model =
     , files : List File
     , fileUploadRequest : RemoteData RequestError ()
     , eventRequest : RemoteData RequestError ()
+    , hasLiveStream : Bool
     }
 
 
 type Msg
     = NewModel Model
-    | Submit
+    | Submit IncludeLiveStream
     | SubmitFinished (Result RequestError ())
     | OpenSelector (List String)
     | SubmitDismiss
@@ -41,6 +42,11 @@ modelValid { userName, message } =
     userName /= "" && message /= ""
 
 
+updateLiveStream : Model -> Bool -> Model
+updateLiveStream m b =
+    { m | hasLiveStream = b }
+
+
 init : Model
 init =
     { userName = "User"
@@ -48,11 +54,12 @@ init =
     , files = []
     , fileUploadRequest = NotAsked
     , eventRequest = NotAsked
+    , hasLiveStream = False
     }
 
 
 view : Model -> Html Msg
-view { eventRequest, userName, message, files, fileUploadRequest } =
+view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream } =
     let
         eventError =
             case eventRequest of
@@ -101,7 +108,7 @@ view { eventRequest, userName, message, files, fileUploadRequest } =
                                 , class "form-control form-control-sm"
                                 , placeholder "User name"
                                 , id "user-name"
-                                , onInput (\e -> NewModel { eventRequest = eventRequest, userName = e, message = message, files = files, fileUploadRequest = fileUploadRequest })
+                                , onInput (\e -> NewModel { eventRequest = eventRequest, userName = e, message = message, files = files, fileUploadRequest = fileUploadRequest, hasLiveStream = hasLiveStream })
                                 ]
                             , label [ for "user-name" ] [ text "User name" ]
                             ]
@@ -115,8 +122,8 @@ view { eventRequest, userName, message, files, fileUploadRequest } =
                                     , type_ "text"
                                     , class "form-control"
                                     , id "event-text"
-                                    , onEnter Submit
-                                    , onInput (\e -> NewModel { eventRequest = eventRequest, userName = userName, message = e, files = files, fileUploadRequest = fileUploadRequest })
+                                    , onEnter (Submit NoLiveStream)
+                                    , onInput (\e -> NewModel { eventRequest = eventRequest, userName = userName, message = e, files = files, fileUploadRequest = fileUploadRequest, hasLiveStream = hasLiveStream })
                                     ]
                                 , label [ for "event-text" ] [ text "What happened?" ]
                                 ]
@@ -135,13 +142,25 @@ view { eventRequest, userName, message, files, fileUploadRequest } =
                                 ]
                                 [ icon { name = "upload" }, text " File" ]
                             , button
-                                [ onClick Submit
+                                [ onClick (Submit NoLiveStream)
                                 , disabled (isLoading eventRequest || userName == "" || message == "")
                                 , type_ "button"
                                 , class "btn btn-primary"
                                 , style "white-space" "nowrap"
                                 ]
                                 [ icon { name = "send" }, text " Post" ]
+                            , if hasLiveStream then
+                                button
+                                    [ onClick (Submit WithLiveStream)
+                                    , disabled (isLoading eventRequest || userName == "" || message == "")
+                                    , type_ "button"
+                                    , class "btn btn-primary"
+                                    , style "white-space" "nowrap"
+                                    ]
+                                    [ icon { name = "camera-video-fill" }, text " Post with live stream" ]
+
+                              else
+                                text ""
                             ]
                         ]
                     ]
@@ -176,9 +195,11 @@ update msg model =
         NewModel newModel ->
             ( newModel, Cmd.none )
 
-        Submit ->
+        Submit includeStream ->
             if modelValid model then
-                ( { model | eventRequest = Loading }, httpCreateEvent SubmitFinished model.userName model.message (List.map .id model.files) )
+                ( { model | eventRequest = Loading }
+                , httpCreateEvent SubmitFinished includeStream model.userName model.message (List.map .id model.files)
+                )
 
             else
                 ( model, Cmd.none )

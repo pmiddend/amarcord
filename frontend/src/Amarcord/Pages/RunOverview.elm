@@ -11,6 +11,7 @@ import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiG
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
+import Amarcord.File exposing (File)
 import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, hr_, img_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
@@ -591,7 +592,14 @@ viewInner model rrc =
         Just jetStreamId ->
             div [ class "row" ]
                 [ div [ class "col-lg-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
-                , div [ class "col-lg-6 text-center" ] [ figure [ class "figure" ] [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ], figcaption [ class "figure-caption" ] [ text "Live stream image" ] ] ]
+                , div [ class "col-lg-6 text-center" ]
+                    [ figure [ class "figure" ]
+                        [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
+                        , figcaption [ class "figure-caption" ]
+                            [ text "Live stream image"
+                            ]
+                        ]
+                    ]
                 ]
     , hr_
     , div [ class "row" ] [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ], viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc ]
@@ -676,10 +684,23 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         RunsReceived response ->
+            let
+                hasLiveStream =
+                    case response of
+                        Err _ ->
+                            False
+
+                        Ok { jetStreamFileId } ->
+                            MaybeExtra.isJust jetStreamFileId
+
+                newEventForm =
+                    EventForm.updateLiveStream model.eventForm hasLiveStream
+            in
             ( { model
                 | runs = fromResult response
                 , runEditInfo = updateRunEditInfo model.myTimeZone model.runEditInfo response
                 , columnChooser = updateColumnChooser model.localStorage model.columnChooser model.runs response
+                , eventForm = newEventForm
                 , refreshRequest =
                     if isSuccess model.runs then
                         Success ()

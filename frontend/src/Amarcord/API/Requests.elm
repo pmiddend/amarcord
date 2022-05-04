@@ -7,6 +7,7 @@ module Amarcord.API.Requests exposing
     , DataSetResult
     , Event
     , ExperimentType
+    , IncludeLiveStream(..)
     , LatestDark
     , RequestError(..)
     , Run
@@ -21,6 +22,7 @@ module Amarcord.API.Requests exposing
     , httpCreateEvent
     , httpCreateExperimentType
     , httpCreateFile
+    , httpCreateLiveStreamSnapshot
     , httpCreateSample
     , httpDeleteAttributo
     , httpDeleteDataSet
@@ -343,6 +345,17 @@ type alias RunsResponseContent =
     }
 
 
+httpCreateLiveStreamSnapshot : (Result RequestError File -> msg) -> Cmd msg
+httpCreateLiveStreamSnapshot f =
+    Http.get
+        { url = "api/live-stream/snapshot"
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) <|
+                valueOrError <|
+                    fileDecoder
+        }
+
+
 httpGetRuns : (RunsResponse -> msg) -> Cmd msg
 httpGetRuns f =
     Http.get
@@ -447,12 +460,33 @@ encodeRun run =
     Encode.object [ ( "id", Encode.int run.id ), ( "attributi", encodeAttributoMap run.attributi ) ]
 
 
-httpCreateEvent : (Result RequestError () -> msg) -> String -> String -> List Int -> Cmd msg
-httpCreateEvent f source text files =
+type IncludeLiveStream
+    = NoLiveStream
+    | WithLiveStream
+
+
+includeLiveStreamBool : IncludeLiveStream -> Bool
+includeLiveStreamBool x =
+    case x of
+        NoLiveStream ->
+            False
+
+        _ ->
+            True
+
+
+httpCreateEvent : (Result RequestError () -> msg) -> IncludeLiveStream -> String -> String -> List Int -> Cmd msg
+httpCreateEvent f includeLiveStream source text files =
     Http.post
         { url = "api/events"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
-        , body = jsonBody (encodeEvent source text files)
+        , body =
+            jsonBody
+                (Encode.object
+                    [ ( "withLiveStream", Encode.bool <| includeLiveStreamBool includeLiveStream )
+                    , ( "event", encodeEvent source text files )
+                    ]
+                )
         }
 
 

@@ -94,20 +94,31 @@ class AsyncDB:
         return db_result[0] if db_result else None
 
     async def retrieve_file(
-        self, conn: Connection, file_id: int
-    ) -> Tuple[str, str, bytes, int]:
+        self, conn: Connection, file_id: int, with_contents: bool
+    ) -> DBFile:
         result = await conn.execute(
             sa.select(
                 [
                     self.tables.file.c.file_name,
+                    self.tables.file.c.description,
+                    self.tables.file.c.original_path,
                     self.tables.file.c.type,
-                    self.tables.file.c.contents,
                     self.tables.file.c.size_in_bytes,
                 ]
+                + ([self.tables.file.c.contents] if with_contents else [])
             ).where(self.tables.file.c.id == file_id)
         )
 
-        return result.fetchone()
+        result_row = result.fetchone()
+        return DBFile(
+            id=file_id,
+            description=result_row["description"],
+            type_=result_row["type"],
+            original_path=result_row["original_path"],
+            file_name=result_row["file_name"],
+            size_in_bytes=result_row["size_in_bytes"],
+            contents=result_row["contents"] if with_contents else None,
+        )
 
     async def retrieve_attributi(
         self, conn: Connection, associated_table: Optional[AssociatedTable]
@@ -214,6 +225,7 @@ class AsyncDB:
                     file_name=row["file_name"],
                     size_in_bytes=row["size_in_bytes"],
                     original_path=row["original_path"],
+                    contents=None,
                 )
                 for row in group
             ]
@@ -477,6 +489,8 @@ class AsyncDB:
         self,
         conn: Connection,
         id_: int,
+        file_name: str,
+        description: str,
         contents: np.ndarray,
         format_: str,
     ) -> None:
@@ -484,16 +498,8 @@ class AsyncDB:
         Image.fromarray(contents).save(img_byte_arr_io, format=format_)
         img_byte_arr = img_byte_arr_io.getvalue()
 
-        size_in_bytes = len(img_byte_arr)
-        await conn.execute(
-            sa.update(self.tables.file)
-            .values(
-                modified=datetime.datetime.utcnow(),
-                contents=img_byte_arr,
-                sha256=hashlib.sha256(img_byte_arr).hexdigest(),
-                size_in_bytes=size_in_bytes,
-            )
-            .where(self.tables.file.c.id == id_)
+        return await self.update_file_from_bytes(
+            conn, id_, file_name, description, original_path=None, contents=img_byte_arr
         )
 
     async def create_image_from_nparray(
@@ -508,24 +514,83 @@ class AsyncDB:
         Image.fromarray(contents).save(img_byte_arr_io, format=format_)
         img_byte_arr = img_byte_arr_io.getvalue()
 
-        size_in_bytes = len(img_byte_arr)
+        return await self.create_file_from_bytes(
+            conn, file_name, description, original_path=None, contents=img_byte_arr
+        )
+
+    async def duplicate_file(
+        self, conn: Connection, id_: int, new_file_name: Optional[str]
+    ) -> CreateFileResult:
+        original_file = await self.retrieve_file(conn, id_, with_contents=True)
+        return await self.create_file_from_bytes(
+            conn,
+            file_name=original_file.file_name
+            if new_file_name is None
+            else new_file_name,
+            description=original_file.description,
+            original_path=Path(original_file.original_path)
+            if original_file.original_path is not None
+            else None,
+            contents=cast(bytes, original_file.contents),
+        )
+
+    async def update_file_from_bytes(
+        self,
+        conn: Connection,
+        id_: int,
+        file_name: str,
+        description: str,
+        original_path: Optional[Path],
+        contents: bytes,
+    ) -> None:
+        mime = magic.from_buffer(contents, mime=True)  # type: ignore
+
+        sha256 = hashlib.sha256(contents).hexdigest()
+
+        await conn.execute(
+            self.tables.file.update()
+            .values(
+                type=mime,
+                modified=datetime.datetime.utcnow(),
+                contents=contents,
+                file_name=file_name,
+                original_path=str(original_path),
+                description=description,
+                sha256=sha256,
+                size_in_bytes=len(contents),
+            )
+            .where(self.tables.file.c.id == id_)
+        )
+
+    async def create_file_from_bytes(
+        self,
+        conn: Connection,
+        file_name: str,
+        description: str,
+        original_path: Optional[Path],
+        contents: bytes,
+    ) -> CreateFileResult:
+        mime = magic.from_buffer(contents, mime=True)  # type: ignore
+
+        sha256 = hashlib.sha256(contents).hexdigest()
+
         return CreateFileResult(
             id=(
                 await conn.execute(
                     self.tables.file.insert().values(
-                        type=format_,
+                        type=mime,
                         modified=datetime.datetime.utcnow(),
-                        contents=img_byte_arr,
+                        contents=contents,
                         file_name=file_name,
-                        original_path=None,
+                        original_path=str(original_path),
                         description=description,
-                        sha256=hashlib.sha256(img_byte_arr).hexdigest(),
-                        size_in_bytes=size_in_bytes,
+                        sha256=sha256,
+                        size_in_bytes=len(contents),
                     )
                 )
             ).inserted_primary_key[0],
-            type_=format_,
-            size_in_bytes=size_in_bytes,
+            type_=mime,
+            size_in_bytes=len(contents),
         )
 
     async def create_file(
@@ -760,6 +825,7 @@ class AsyncDB:
                         file_name=r["file_name"],
                         size_in_bytes=r["size_in_bytes"],
                         original_path=r["original_path"],
+                        contents=None,
                     ),
                 )
                 for r in await (

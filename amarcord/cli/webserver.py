@@ -80,15 +80,29 @@ async def create_event() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
+        event = r.retrieve_safe_object("event")
+
         event_id = await db.instance.create_event(
             conn,
             level=EventLogLevel.INFO,
-            source=r.retrieve_safe_str("source"),
-            text=r.retrieve_safe_str("text"),
+            source=cast(str, event["source"]),
+            text=cast(str, event["text"]),
         )
-        file_ids = r.retrieve_int_array("fileIds")
+        file_ids = cast(List[int], event["fileIds"])
         for file_id in file_ids:
             await db.instance.add_file_to_event(conn, file_id, event_id)
+        if r.retrieve_safe_boolean("withLiveStream"):
+            existing_live_stream = await db.instance.retrieve_file_id_by_name(
+                conn, LIVE_STREAM_IMAGE
+            )
+            if existing_live_stream is not None:
+                new_file_name = LIVE_STREAM_IMAGE + "-copy"
+                duplicated_live_stream = await db.instance.duplicate_file(
+                    conn, existing_live_stream, new_file_name
+                )
+                await db.instance.add_file_to_event(
+                    conn, duplicated_live_stream.id, event_id
+                )
         return {"id": event_id}
 
 
@@ -108,14 +122,12 @@ async def download_spreadsheet() -> quart.wrappers.response.Response:
         with ZipFile(zipfile_bytes, "w") as result_zip:
             result_zip.writestr("tables.xlsx", workbook_bytes.getvalue())
             for file_id in workbook_output.files:
-                (
-                    file_name,
-                    _file_type,
-                    contents,
-                    _size_in_bytes,
-                ) = await db.instance.retrieve_file(conn, file_id)
+                file_ = await db.instance.retrieve_file(
+                    conn, file_id, with_contents=True
+                )
                 result_zip.writestr(
-                    f"files/{file_id}" + Path(file_name).suffix, contents
+                    f"files/{file_id}" + Path(file_.file_name).suffix,
+                    cast(bytes, file_.contents),
                 )
         zipfile_bytes.seek(0)
         return await send_file(
@@ -567,6 +579,33 @@ async def delete_experiment_type() -> JSONDict:
     return {}
 
 
+@app.get("/api/live-stream/snapshot")
+async def create_live_stream_snapshot() -> JSONDict:
+    async with db.instance.begin() as conn:
+        existing_live_stream = await db.instance.retrieve_file_id_by_name(
+            conn, LIVE_STREAM_IMAGE
+        )
+        if existing_live_stream is None:
+            raise CustomWebException(
+                code=500,
+                title="No live stream image found",
+                description="Cannot make a snapshot of a non-existing image!",
+            )
+        new_file_name = LIVE_STREAM_IMAGE + "-copy"
+        new_image = await db.instance.duplicate_file(
+            conn, existing_live_stream, new_file_name
+        )
+        return {
+            "id": new_image.id,
+            "fileName": new_file_name,
+            "description": "",
+            "type_": new_image.type_,
+            "sizeInBytes": new_image.size_in_bytes,
+            # Doesn't really make sense here
+            "originalPath": None,
+        }
+
+
 @app.post("/api/live-stream")
 async def update_live_stream() -> JSONDict:
     files = await request.files
@@ -871,22 +910,17 @@ def _encode_attributo(a: DBAttributo) -> JSONDict:
 @app.get("/api/files/<int:file_id>")
 async def read_file(file_id: int):
     async with db.instance.read_only_connection() as conn:
-        (
-            file_name,
-            mime_type,
-            contents,
-            _file_size_in_bytes,
-        ) = await db.instance.retrieve_file(conn, file_id)
+        file_ = await db.instance.retrieve_file(conn, file_id, with_contents=True)
 
     async def async_generator():
-        yield contents
+        yield file_.contents
 
-    headers = {"Content-Type": mime_type}
+    headers = {"Content-Type": file_.type_}
     # Content-Disposition makes it so the browser opens a "Save file as" dialog. For images, PDFs, ..., we can just
     # display them in the browser instead.
     dont_do_disposition = ["image", "application/pdf", "text/plain"]
-    if all(not mime_type.startswith(x) for x in dont_do_disposition):
-        headers["Content-Disposition"] = f'attachment; filename="{file_name}"'
+    if all(not file_.type_.startswith(x) for x in dont_do_disposition):
+        headers["Content-Disposition"] = f'attachment; filename="{file_.file_name}"'
     return async_generator(), 200, headers
 
 

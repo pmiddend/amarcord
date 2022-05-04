@@ -16,6 +16,7 @@ class DBFile:
     original_path: Optional[str]
     file_name: str
     size_in_bytes: int
+    contents: Optional[bytes]
 
 
 @dataclass(frozen=True)

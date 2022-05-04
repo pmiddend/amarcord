@@ -672,16 +672,11 @@ async def test_create_and_retrieve_file() -> None:
         assert result.id > 0
         assert result.type_ == "text/plain"
 
-        (
-            file_name,
-            mime_type,
-            _contents,
-            file_size_in_bytes,
-        ) = await db.retrieve_file(conn, result.id)
+        file_ = await db.retrieve_file(conn, result.id, with_contents=False)
 
-        assert file_name == "name.txt"
-        assert mime_type == "text/plain"
-        assert file_size_in_bytes == 17
+        assert file_.file_name == "name.txt"
+        assert file_.type_ == "text/plain"
+        assert file_.size_in_bytes == 17
 
 
 async def test_create_and_retrieve_file_with_deduplication() -> None:

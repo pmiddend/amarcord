@@ -1400,7 +1400,12 @@ async def ingest_bridge_output(
             )
         else:
             await db.update_image_from_nparray(
-                conn, existing_file, contents=result.image, format_="png"
+                conn,
+                existing_file,
+                file_name=LIVE_STREAM_IMAGE,
+                description="",
+                contents=result.image,
+                format_="png",
             )
 
 
