@@ -203,6 +203,7 @@ viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
                     "Edit sample"
                 )
             ]
+        , p [ class "lead" ] [ text "Note: If you prepared your crystals in multiple batches, please create one sample per batch. This helps during analysis." ]
         , div [ class "mb-3" ]
             [ label [ for "name", class "form-label" ] [ text "Name", sup_ [ text "*" ] ]
             , input_
