@@ -15,8 +15,12 @@ from zmq.utils.monitor import parse_monitor_message
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import schema_to_attributo_type
+from amarcord.db.attributi import (
+    schema_to_attributo_type,
+    attributo_types_semantically_equivalent,
+)
 from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.json import JSONDict
 from amarcord.json_schema import parse_schema_type
@@ -126,7 +130,7 @@ async def ingest_kamzik_metadata(
         attributi_values, dict
     ), f"got no attributi-values in metadata dict {metadata}"
 
-    preexisting_attributi = {
+    preexisting_attributi: Dict[str, DBAttributo] = {
         t.name: t
         for t in await db.retrieve_attributi(conn, associated_table=AssociatedTable.RUN)
     }
@@ -146,7 +150,9 @@ async def ingest_kamzik_metadata(
                 associated_table=AssociatedTable.RUN,
             )
         else:
-            if existing_attributo.attributo_type != attributo_type:
+            if not attributo_types_semantically_equivalent(
+                existing_attributo.attributo_type, attributo_type
+            ):
                 raise Exception(
                     f"we have a type change, type before: {existing_attributo.attributo_type}, type after: {attributo_type}"
                 )

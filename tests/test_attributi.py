@@ -1,4 +1,7 @@
-from amarcord.db.attributi import attributo_type_to_string
+from amarcord.db.attributi import (
+    attributo_type_to_string,
+    attributo_types_semantically_equivalent,
+)
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeBoolean,
@@ -82,4 +85,120 @@ def test_attributo_type_to_string_list() -> None:
             )
         )
         == "list of string"
+    )
+
+
+def test_attributo_types_semantically_equivalent():
+    assert attributo_types_semantically_equivalent(
+        AttributoTypeInt(), AttributoTypeInt()
+    )
+    assert not attributo_types_semantically_equivalent(
+        AttributoTypeInt(), AttributoTypeString()
+    )
+    assert attributo_types_semantically_equivalent(
+        AttributoTypeDecimal(range=None, suffix=None, standard_unit=False),
+        AttributoTypeDecimal(range=None, suffix=None, standard_unit=False),
+    )
+    # Range differs
+    assert not attributo_types_semantically_equivalent(
+        AttributoTypeDecimal(
+            range=NumericRange(
+                minimum=1, minimum_inclusive=False, maximum=2, maximum_inclusive=False
+            ),
+            suffix=None,
+            standard_unit=False,
+        ),
+        AttributoTypeDecimal(
+            range=NumericRange(
+                # Maximum 3 here, 2 above
+                minimum=1,
+                minimum_inclusive=False,
+                maximum=3,
+                maximum_inclusive=False,
+            ),
+            suffix=None,
+            standard_unit=False,
+        ),
+    )
+    # Range does not differ
+    assert attributo_types_semantically_equivalent(
+        AttributoTypeDecimal(
+            range=NumericRange(
+                minimum=1, minimum_inclusive=False, maximum=2, maximum_inclusive=False
+            ),
+            suffix=None,
+            standard_unit=False,
+        ),
+        AttributoTypeDecimal(
+            range=NumericRange(
+                minimum=1, minimum_inclusive=False, maximum=2, maximum_inclusive=False
+            ),
+            suffix=None,
+            standard_unit=False,
+        ),
+    )
+    # Suffix same, no standard unit
+    assert attributo_types_semantically_equivalent(
+        AttributoTypeDecimal(
+            range=None,
+            suffix="abc",
+            standard_unit=False,
+        ),
+        AttributoTypeDecimal(
+            range=None,
+            suffix="abc",
+            standard_unit=False,
+        ),
+    )
+    # Suffix differs, no standard unit
+    assert not attributo_types_semantically_equivalent(
+        AttributoTypeDecimal(
+            range=None,
+            suffix="abc",
+            standard_unit=False,
+        ),
+        AttributoTypeDecimal(
+            range=None,
+            suffix="abcd",
+            standard_unit=False,
+        ),
+    )
+    # Suffix differs, same standard unit, written with spaces, so equivalent
+    assert attributo_types_semantically_equivalent(
+        AttributoTypeDecimal(
+            range=None,
+            suffix="mm/s",
+            standard_unit=True,
+        ),
+        AttributoTypeDecimal(
+            range=None,
+            suffix="mm / s",
+            standard_unit=True,
+        ),
+    )
+    # Suffix exactly same
+    assert attributo_types_semantically_equivalent(
+        AttributoTypeDecimal(
+            range=None,
+            suffix="mm/s",
+            standard_unit=True,
+        ),
+        AttributoTypeDecimal(
+            range=None,
+            suffix="mm/s",
+            standard_unit=True,
+        ),
+    )
+    # Suffix really different unit
+    assert not attributo_types_semantically_equivalent(
+        AttributoTypeDecimal(
+            range=None,
+            suffix="mm/s",
+            standard_unit=True,
+        ),
+        AttributoTypeDecimal(
+            range=None,
+            suffix="mm/ms",
+            standard_unit=True,
+        ),
     )

@@ -657,3 +657,13 @@ def attributo_sort_key(r: DBAttributo) -> Tuple[int, str]:
         0 if r.name == ATTRIBUTO_STARTED else 1 if r.name == ATTRIBUTO_STOPPED else 2,
         r.name,
     )
+
+
+def attributo_types_semantically_equivalent(a: AttributoType, b: AttributoType) -> bool:
+    if isinstance(a, AttributoTypeDecimal) and isinstance(b, AttributoTypeDecimal):
+        if a.standard_unit and b.standard_unit:
+            if UnitRegistry()(a.suffix) != UnitRegistry()(b.suffix):
+                return False
+            return a.range == b.range
+        return a.range == b.range and a.suffix == b.suffix
+    return a == b
