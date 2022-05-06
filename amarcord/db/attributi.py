@@ -565,6 +565,10 @@ def _convert_choice_to_choice(
     assert isinstance(after_type, AttributoTypeChoice)
     assert isinstance(value, str)
 
+    # Empty value is special for "not set"
+    if value == "":
+        return value
+
     if value not in after_type.values:
         raise Exception(
             f"cannot convert choice value, {value} is not in choices "
