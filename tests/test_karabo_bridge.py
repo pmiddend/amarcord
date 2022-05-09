@@ -1,3 +1,4 @@
+# pylint: disable=use-tuple-over-list
 import datetime
 import logging
 import pickle

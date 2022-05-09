@@ -6,7 +6,7 @@ authors = ["Philipp Middendorf <philipp.middendorf@desy.de>", "CFEL-SC <sc@cfel.
 license = "GPL-3.0-or-later"
 
 [tool.poetry.dependencies]
-python = ">=3.8, <3.10"
+python = ">=3.8, <3.11"
 # for general DB access
 SQLAlchemy = { version = "1.4.31", extras = ["mypy", "asyncio"] }
 # for mysql
@@ -77,6 +77,7 @@ black = '22.3.0'
 mypy = '0.942'
 types-pytz = "2021.3.6"
 pylint = '2.13.5'
+perflint = '0.7.3'
 pyfakefs = '4.5.3'
 openpyxl-stubs = "0.1.21"
 # for the daemon

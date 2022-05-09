@@ -110,10 +110,7 @@ def _generate_attributo_value(
         elements_min = a.min_length if a.min_length is not None else 0
         elements_max = a.max_length if a.max_length is not None else 10
         elements_no = random.randrange(elements_min, elements_max + 1)
-        result: List[AttributoValue] = []
-        for _ in range(elements_no):
-            result.append(_generate_attributo_value(a.sub_type, sample_ids))
-        return result  # type: ignore
+        return [_generate_attributo_value(a.sub_type, sample_ids) for _ in range(elements_no)]  # type: ignore
     raise Exception(f"invalid attributo type {a}")
 
 

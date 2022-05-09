@@ -16,6 +16,9 @@ let
         buildInputs = (old.buildInputs or [ ]) ++ [ self.hatchling self.hatch-vcs ];
       });
 
+      perflint = super.perflint.overrideAttrs (old: {
+        buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core ];
+      });
     });
   pythonPackage = pkgs.poetry2nix.mkPoetryApplication {
     projectDir = ./.;

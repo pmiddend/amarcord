@@ -31,7 +31,7 @@ limit-inference-results=100
 
 # List of plugins (as comma separated values of python module names) to load,
 # usually to register additional checkers.
-load-plugins=pylint.extensions.typing,pylint.extensions.redefined_variable_type
+load-plugins=pylint.extensions.typing,pylint.extensions.redefined_variable_type,perflint
 
 # Pickle collected data for later comparisons.
 persistent=yes
@@ -88,7 +88,10 @@ disable=invalid-name,
     too-many-boolean-expressions,
     logging-format-interpolation,
     raise-missing-from,
-    deprecated-typing-alias
+    deprecated-typing-alias,
+    loop-invariant-global-usage,
+    loop-invariant-statement,
+    dotted-import-in-loop
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

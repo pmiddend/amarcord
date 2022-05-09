@@ -974,7 +974,7 @@ async def read_file(file_id: int):
     headers = {"Content-Type": file_.type_}
     # Content-Disposition makes it so the browser opens a "Save file as" dialog. For images, PDFs, ..., we can just
     # display them in the browser instead.
-    dont_do_disposition = ["image", "application/pdf", "text/plain"]
+    dont_do_disposition = ("image", "application/pdf", "text/plain")
     if all(not file_.type_.startswith(x) for x in dont_do_disposition):
         headers["Content-Disposition"] = f'attachment; filename="{file_.file_name}"'
     return async_generator(), 200, headers

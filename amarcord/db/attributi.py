@@ -389,8 +389,8 @@ def _convert_string_to_boolean(
     assert isinstance(after_type, AttributoTypeBoolean)
     assert isinstance(v, str)
 
-    trues = ["true", "1", "yes"]
-    falses = ["false", "0", "no"]
+    trues = ("true", "1", "yes")
+    falses = ("false", "0", "no")
 
     if v.strip().lower() in trues:
         return True

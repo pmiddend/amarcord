@@ -38,7 +38,6 @@ def parse_crystfel_project_file(p: Path) -> CrystfelProjectFile:
 
             info_lines[key] = value
 
-        for line in f:
-            file_lines.append(line.strip())
+        file_lines = [line.strip() for line in f]
 
     return CrystfelProjectFile(info_lines, file_lines)

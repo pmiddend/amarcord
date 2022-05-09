@@ -551,7 +551,7 @@ def test_create_sub_map_for_group():
 def test_run_matches_dataset_bool_and_string() -> None:
     a = AttributoId("a")
     b = AttributoId("b")
-    attributi = [
+    attributi = (
         DBAttributo(
             a,
             "description",
@@ -566,7 +566,7 @@ def test_run_matches_dataset_bool_and_string() -> None:
             AssociatedTable.RUN,
             AttributoTypeString(),
         ),
-    ]
+    )
     run_attributi_no_boolean = AttributiMap.from_types_and_json(
         attributi,
         [],
@@ -619,15 +619,15 @@ def test_run_matches_dataset_bool_and_string() -> None:
 
 def test_run_matches_dataset_float() -> None:
     a = AttributoId("a")
-    attributi = [
+    attributi = (
         DBAttributo(
             a,
             "description",
             ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.RUN,
             AttributoTypeDecimal(),
-        )
-    ]
+        ),
+    )
     run_attributi_missing = AttributiMap.from_types_and_json(
         attributi,
         [],

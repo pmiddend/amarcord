@@ -212,12 +212,8 @@ class AsyncDB:
             select_stmt = select_stmt.where(where_clause)
         file_results = (await conn.execute(select_stmt)).fetchall()
 
-        result: Dict[int, List[DBFile]] = {}
-
-        for key, group in itertools.groupby(
-            file_results, key=lambda row: row[association_column.name]
-        ):
-            result[key] = [
+        result: Dict[int, List[DBFile]] = {
+            key: [
                 DBFile(
                     id=row["id"],
                     description=row["description"],
@@ -229,7 +225,10 @@ class AsyncDB:
                 )
                 for row in group
             ]
-
+            for key, group in itertools.groupby(
+                file_results, key=lambda row: row[association_column.name]
+            )
+        }
         return result
 
     async def retrieve_samples(
@@ -1052,6 +1051,7 @@ class AsyncDB:
     ) -> List[DBExperimentType]:
         result: List[DBExperimentType] = []
         etc = self.tables.experiment_has_attributo.c
+        # pylint: disable=use-list-copy
         for key, group in itertools.groupby(
             await conn.execute(
                 sa.select([etc.experiment_type, etc.attributo_name]).order_by(

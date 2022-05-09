@@ -209,6 +209,7 @@ class SlurmRestJobController(JobController):
         # copy_string += f"mkdir -p {chdir}\n"
         # copy_string += f"cd {chdir}\n"
 
+        # pylint: disable=use-list-copy
         for file in [executable] + extra_files:
             lines.append(f'[ ! -f "{file.name}" ] && cp "{file}" .')
         lines.append(f"./{executable.name} {command_line}")
