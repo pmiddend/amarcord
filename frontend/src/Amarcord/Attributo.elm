@@ -12,6 +12,7 @@ module Amarcord.Attributo exposing
     , attributoMapNames
     , attributoStarted
     , attributoStopped
+    , attributoTargetFrameCount
     , attributoTypeDecoder
     , createAnnotatedAttributoMap
     , emptyAttributoMap
@@ -253,6 +254,11 @@ attributoFrames =
 attributoHits : AttributoName
 attributoHits =
     "hits"
+
+
+attributoTargetFrameCount : AttributoName
+attributoTargetFrameCount =
+    "target_frame_count"
 
 
 attributoStopped : AttributoName

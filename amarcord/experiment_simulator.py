@@ -55,6 +55,8 @@ ATTRIBUTO_PH = AttributoId("pH")
 
 ATTRIBUTO_FRAME_TIME = AttributoId("frame_time")
 
+ATTRIBUTO_TARGET_FRAME_COUNT = AttributoId("target_frame_count")
+
 ATTRIBUTO_SAMPLE = AttributoId("sample")
 
 logging.basicConfig(
@@ -186,6 +188,14 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         )
         await db.create_attributo(
             conn,
+            ATTRIBUTO_TARGET_FRAME_COUNT,
+            "",
+            "kamzik",
+            AssociatedTable.RUN,
+            AttributoTypeInt(),
+        )
+        await db.create_attributo(
+            conn,
             ATTRIBUTO_FLOW_RATE,
             "",
             "kamzik",
@@ -286,6 +296,7 @@ async def _start_run(
                     ATTRIBUTO_FRAME_TIME: 1.0 / 130.0,
                     ATTRIBUTO_TRASH: random.uniform(0, 1) < 0.1,
                     ATTRIBUTO_PH: random.uniform(0, 14),
+                    ATTRIBUTO_TARGET_FRAME_COUNT: 200_000,
                     ATTRIBUTO_FLOW_RATE: int(random.uniform(0, 5)),
                     ATTRIBUTO_COMMENT: random_gibberish()
                     if random.uniform(0, 100) > 70

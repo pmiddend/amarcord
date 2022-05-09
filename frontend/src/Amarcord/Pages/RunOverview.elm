@@ -3,7 +3,7 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, attributoTargetFrameCount, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner)
 import Amarcord.ColumnChooser as ColumnChooser
@@ -353,6 +353,10 @@ viewCurrentRun zone now currentExperimentType rrc =
                 runHitRate =
                     MaybeExtra.andThen2 (\frames hits -> Just <| toFloat hits / toFloat frames * 100.0) runFrames runHits
 
+                runTotalFrames : Maybe Int
+                runTotalFrames =
+                    retrieveIntAttributoValue attributoTargetFrameCount attributi
+
                 isRunning =
                     isNothing runStopped
 
@@ -431,6 +435,32 @@ viewCurrentRun zone now currentExperimentType rrc =
 
                         Just ds ->
                             let
+                                runFramesProgress =
+                                    case ( runFrames, runTotalFrames ) of
+                                        ( Nothing, Nothing ) ->
+                                            [ text "" ]
+
+                                        ( Nothing, Just runTotalFramesUnwrapped ) ->
+                                            [ text "" ]
+
+                                        ( Just runFramesUnwrapped, Nothing ) ->
+                                            [ text <| formatIntHumanFriendly runFramesUnwrapped ]
+
+                                        ( Just runFramesUnwrapped, Just runTotalFramesUnwrapped ) ->
+                                            let
+                                                runProgressPercent =
+                                                    if runTotalFramesUnwrapped == 0 then
+                                                        0.0
+
+                                                    else
+                                                        toFloat runFramesUnwrapped / toFloat runTotalFramesUnwrapped * 100.0
+                                            in
+                                            [ text (formatIntHumanFriendly runFramesUnwrapped ++ "/" ++ formatIntHumanFriendly runTotalFramesUnwrapped)
+                                            , div [ class "progress" ]
+                                                [ div [ class "progress-bar", style "width" (String.fromFloat runProgressPercent ++ "%") ] []
+                                                ]
+                                            ]
+
                                 footer : DataSetSummary -> Html msg
                                 footer { numberOfRuns, hits, frames } =
                                     tfoot []
@@ -452,7 +482,10 @@ viewCurrentRun zone now currentExperimentType rrc =
                                                     )
                                                 ]
                                             ]
-                                        , tr [ style "border-top" "2px solid black" ] [ td_ [ text "Frames (this run)" ], td_ [ text <| MaybeExtra.unwrap "" formatIntHumanFriendly runFrames ] ]
+                                        , tr [ style "border-top" "2px solid black" ]
+                                            [ td_ [ text "Frames (this run)" ]
+                                            , td_ runFramesProgress
+                                            ]
                                         , tr_ [ td_ [ text "Hits (this run)" ], td_ [ text <| MaybeExtra.unwrap "" formatIntHumanFriendly runHits ] ]
                                         , tr_
                                             [ td_ [ text "Hit Rate (this run)" ]
