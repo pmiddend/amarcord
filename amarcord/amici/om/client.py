@@ -4,6 +4,7 @@ from typing import Any, Union
 from typing import Optional
 
 import zmq
+from pint import UnitRegistry
 from pydantic import BaseModel, ValidationError
 from zmq.asyncio import Context
 
@@ -11,14 +12,13 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STOPPED, ATTRIBUTO_STARTED
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoTypeInt
-
+from amarcord.db.attributo_type import AttributoTypeInt, AttributoTypeDecimal
 
 ATTRIBUTO_NUMBER_OF_HITS = AttributoId("hits")
 ATTRIBUTO_NUMBER_OF_FRAMES = AttributoId("frames")
 ATTRIBUTO_NUMBER_OF_OM_HITS = AttributoId("om_hits")
 ATTRIBUTO_NUMBER_OF_OM_FRAMES = AttributoId("om_frames")
-ATTRIBUTO_EXPOSURE_TIME = AttributoId("exposure_time")
+ATTRIBUTO_FRAME_TIME = AttributoId("frame_time")
 
 logger = logging.getLogger(__name__)
 
@@ -200,18 +200,44 @@ class OmZMQProcessor:
                 final_om_frames,
             )
             # If we have an exposure time, we can even update the total number of hits/frames
-            exposure_time = latest_run.attributi.select_decimal(ATTRIBUTO_EXPOSURE_TIME)
+            frame_time = latest_run.attributi.select_decimal(ATTRIBUTO_FRAME_TIME)
             started = latest_run.attributi.select_datetime(ATTRIBUTO_STARTED)
             if (
-                exposure_time is not None
-                and exposure_time > 1
+                frame_time is not None
+                and frame_time > 0
                 and started is not None
                 and final_om_frames > 0
             ):
-                millis_since_start = (
+                frame_time_attributo = next(
+                    iter(x for x in attributi if x.name == ATTRIBUTO_FRAME_TIME), None
+                )
+                if frame_time_attributo is None:
+                    logger.error(
+                        f'frame time attributo "{ATTRIBUTO_FRAME_TIME}" missing in attributo list'
+                    )
+                    return
+
+                if not isinstance(
+                    frame_time_attributo.attributo_type, AttributoTypeDecimal
+                ):
+                    logger.error(
+                        f'frame time attributo "{ATTRIBUTO_FRAME_TIME}" is not decimal but {frame_time_attributo.attributo_type}'
+                    )
+
+                if not frame_time_attributo.attributo_type.standard_unit:
+                    logger.error(
+                        f"frame time attributo {ATTRIBUTO_FRAME_TIME} is a decimal, but not a standard unit: {frame_time_attributo.attributo_type}"
+                    )
+                    return
+
+                frame_time_quantity = (
+                    UnitRegistry()(frame_time_attributo.attributo_type.suffix)
+                    * frame_time
+                ).to("s")
+                seconds_since_start = (
                     datetime.datetime.utcnow() - started
-                ) / datetime.timedelta(milliseconds=1)
-                frames_since_start = millis_since_start / exposure_time
+                ) / datetime.timedelta(seconds=1)
+                frames_since_start = seconds_since_start / frame_time_quantity.m
                 hits_since_start = final_om_hits / final_om_frames * frames_since_start
                 latest_run.attributi.append_single(
                     ATTRIBUTO_NUMBER_OF_FRAMES,
