@@ -395,6 +395,7 @@ async def read_runs_bulk() -> JSONDict:
                 _encode_attributo(a)
                 for a in attributi
                 if a.name not in (ATTRIBUTO_STOPPED, ATTRIBUTO_STARTED)
+                and a.associated_table == AssociatedTable.RUN
             ],
             "attributi-map": {
                 attributo_id: [
