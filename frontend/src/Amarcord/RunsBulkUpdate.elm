@@ -2,7 +2,7 @@ module Amarcord.RunsBulkUpdate exposing (Model, Msg, init, update, view)
 
 import Amarcord.API.Requests exposing (RequestError, RunsBulkGetResponse, httpGetRunsBulk, httpUpdateRunsBulk)
 import Amarcord.Attributo exposing (AttributoMap, AttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, viewAttributoForm)
 import Amarcord.Bootstrap exposing (icon, viewRemoteData)
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (form_, input_, li_, p_, strongText)
@@ -70,8 +70,17 @@ viewBulkAttributiForm editRequest submitErrorsList { samples, actualEditableAttr
                 ]
                 [ icon { name = "save" }, text " Update all runs" ]
             ]
+
+        attributoFormMsgToMsg : AttributoFormMsg -> Msg
+        attributoFormMsgToMsg x =
+            case x of
+                AttributoFormValueUpdate vu ->
+                    AttributoChange vu
+
+                AttributoFormSubmit ->
+                    SubmitBulkChange
     in
-    form_ (List.map (Html.map AttributoChange << viewAttributoForm samples) actualEditableAttributi.editableAttributi ++ submitErrors ++ submitSuccess ++ okButton)
+    form_ (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm samples) actualEditableAttributi.editableAttributi ++ submitErrors ++ submitSuccess ++ okButton)
 
 
 view : Model -> Html Msg

@@ -4,7 +4,7 @@ import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, Run
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
@@ -545,6 +545,15 @@ viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditReq
 
                 isLatestRun =
                     Just runId == Maybe.map .id latestRun
+
+                attributoFormMsgToMsg : AttributoFormMsg -> Msg
+                attributoFormMsgToMsg x =
+                    case x of
+                        AttributoFormValueUpdate vu ->
+                            RunEditInfoValueUpdate vu
+
+                        AttributoFormSubmit ->
+                            RunEditSubmit
             in
             h2_
                 [ text <|
@@ -560,7 +569,7 @@ viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditReq
                      else
                         text ""
                    , form [ class "mb-3" ]
-                        (List.map (Html.map RunEditInfoValueUpdate << viewAttributoForm samples) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
+                        (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm samples) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
                    ]
 
 

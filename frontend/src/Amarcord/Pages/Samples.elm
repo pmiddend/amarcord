@@ -10,7 +10,7 @@ import Amarcord.Attributo
         , AttributoValue(..)
         , emptyAttributoMap
         )
-import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
@@ -180,8 +180,19 @@ viewFiles fileUploadError newFile files =
 viewEditForm : RemoteData RequestError () -> List String -> NewFileUpload -> Sample (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
 viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
     let
+        attributoFormMsgToMsg : AttributoFormMsg -> Msg
+        attributoFormMsgToMsg x =
+            case x of
+                AttributoFormValueUpdate vu ->
+                    EditSampleAttributo vu
+
+                -- With samples, pressing return and submitting would close the form.
+                -- That's very unexpected!
+                AttributoFormSubmit ->
+                    Nop
+
         attributiFormEntries =
-            List.map (\attributo -> Html.map EditSampleAttributo (viewAttributoForm [] attributo)) sample.attributi.editableAttributi
+            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] attributo)) sample.attributi.editableAttributi
 
         submitErrors =
             case submitErrorsList of

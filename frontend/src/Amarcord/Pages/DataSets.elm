@@ -3,7 +3,7 @@ module Amarcord.Pages.DataSets exposing (..)
 import Amarcord.API.Requests exposing (DataSetResult, ExperimentType, RequestError, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, emptyAttributoMap)
-import Amarcord.AttributoHtml exposing (AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
 import Amarcord.DataSet exposing (DataSet)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
@@ -123,7 +123,17 @@ updateDataSet msg model =
 
 viewEditForm : List (Sample Int a b) -> EditableAttributiAndOriginal -> List (Html DataSetMsg)
 viewEditForm samples =
-    List.map (\attributo -> Html.map DataSetAttributiChange (viewAttributoForm samples attributo)) << .editableAttributi
+    let
+        attributoFormMsgToMsg : AttributoFormMsg -> DataSetMsg
+        attributoFormMsgToMsg x =
+            case x of
+                AttributoFormValueUpdate vu ->
+                    DataSetAttributiChange vu
+
+                AttributoFormSubmit ->
+                    DataSetSubmit
+    in
+    List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm samples attributo)) << .editableAttributi
 
 
 view : DataSetModel -> Html DataSetMsg

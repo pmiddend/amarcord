@@ -1,4 +1,4 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Html exposing (br_, input_, span_, strongText)
@@ -11,6 +11,7 @@ import FormatNumber.Locales exposing (Decimals(..), Locale, usLocale)
 import Html exposing (Html, div, label, option, select, span, td, text)
 import Html.Attributes exposing (checked, class, for, id, selected, step, style, type_, value)
 import Html.Events exposing (onInput)
+import Html.Events.Extra exposing (onEnter)
 import List exposing (intersperse)
 import List.Extra as List
 import Maybe exposing (withDefault)
@@ -218,7 +219,12 @@ type alias AttributoNameWithValueUpdate =
     }
 
 
-viewAttributoForm : List (Sample Int a b) -> EditableAttributo -> Html AttributoNameWithValueUpdate
+type AttributoFormMsg
+    = AttributoFormValueUpdate AttributoNameWithValueUpdate
+    | AttributoFormSubmit
+
+
+viewAttributoForm : List (Sample Int a b) -> EditableAttributo -> Html AttributoFormMsg
 viewAttributoForm samples a =
     case second a.type_ of
         EditValueString s ->
@@ -229,7 +235,8 @@ viewAttributoForm samples a =
                     , class "form-control"
                     , id ("attributo-" ++ a.name)
                     , value s
-                    , onInput (EditValueString >> SetValue >> AttributoNameWithValueUpdate a.name)
+                    , onEnter AttributoFormSubmit
+                    , onInput (EditValueString >> SetValue >> AttributoNameWithValueUpdate a.name >> AttributoFormValueUpdate)
                     ]
                 ]
                     ++ [ if a.description /= "" then
@@ -248,7 +255,8 @@ viewAttributoForm samples a =
                         , class "form-control"
                         , id ("attributo-" ++ a.name)
                         , value s
-                        , onInput (AttributoNameWithValueUpdate a.name << SetValue << EditValueInt)
+                        , onEnter AttributoFormSubmit
+                        , onInput (AttributoFormValueUpdate << AttributoNameWithValueUpdate a.name << SetValue << EditValueInt)
                         ]
                     ]
                 ]
@@ -267,7 +275,8 @@ viewAttributoForm samples a =
                     , class "form-control"
                     , id ("attributo-" ++ a.name)
                     , value l.editValue
-                    , onInput (\newInput -> AttributoNameWithValueUpdate a.name <| SetValue <| EditValueList { l | editValue = newInput })
+                    , onEnter AttributoFormSubmit
+                    , onInput (\newInput -> AttributoFormValueUpdate <| AttributoNameWithValueUpdate a.name <| SetValue <| EditValueList { l | editValue = newInput })
                     ]
                 ]
                     ++ [ div [ class "form-text text-muted" ] [ strongText "Note on editing", text ": This is a list, but you can just insert the list elements, comma-separated in the text field." ] ]
@@ -299,7 +308,7 @@ viewAttributoForm samples a =
                 , select
                     [ id ("attributo-" ++ a.name)
                     , class "form-select"
-                    , onInput (\newInput -> AttributoNameWithValueUpdate a.name <| SetValue <| EditValueChoice { choiceValues = choiceValues, editValue = newInput })
+                    , onInput (\newInput -> AttributoFormValueUpdate <| AttributoNameWithValueUpdate a.name <| SetValue <| EditValueChoice { choiceValues = choiceValues, editValue = newInput })
                     ]
                     (List.map makeOption ("" :: choiceValues))
                 ]
@@ -324,7 +333,8 @@ viewAttributoForm samples a =
                         , class "form-control"
                         , id ("attributo-" ++ a.name)
                         , value n.editValue
-                        , onInput (\newValue -> AttributoNameWithValueUpdate a.name <| SetValue <| EditValueNumber { n | editValue = newValue })
+                        , onEnter AttributoFormSubmit
+                        , onInput (\newValue -> AttributoFormValueUpdate <| AttributoNameWithValueUpdate a.name <| SetValue <| EditValueNumber { n | editValue = newValue })
                         ]
                     , if inputGroupText == "" then
                         text ""
@@ -349,7 +359,8 @@ viewAttributoForm samples a =
                         , class "form-control"
                         , id ("attributo-" ++ a.name)
                         , value x
-                        , onInput (AttributoNameWithValueUpdate a.name << SetValue << EditValueDateTime)
+                        , onEnter AttributoFormSubmit
+                        , onInput (AttributoFormValueUpdate << AttributoNameWithValueUpdate a.name << SetValue << EditValueDateTime)
                         ]
                     ]
                 ]
@@ -368,7 +379,7 @@ viewAttributoForm samples a =
                         , class "form-check-input"
                         , id ("attributo-" ++ a.name)
                         , checked x
-                        , onInput (always <| AttributoNameWithValueUpdate a.name <| SetValue <| EditValueBoolean (not x))
+                        , onInput (always <| AttributoFormValueUpdate <| AttributoNameWithValueUpdate a.name <| SetValue <| EditValueBoolean (not x))
                         ]
                     , label [ for ("attributo-" ++ a.name), class "form-check-label" ] [ text a.name ]
                     ]
@@ -390,7 +401,7 @@ viewAttributoForm samples a =
                 , select
                     [ id ("attributo-" ++ a.name)
                     , class "form-select"
-                    , onInput (AttributoNameWithValueUpdate a.name << SetValue << EditValueSampleId << String.toInt)
+                    , onInput (AttributoFormValueUpdate << AttributoNameWithValueUpdate a.name << SetValue << EditValueSampleId << String.toInt)
                     ]
                     (option [ selected (isNothing selectedId), value "0" ] [ text "«no value»" ] :: List.map makeOption samples)
                 ]
