@@ -563,7 +563,13 @@ async def read_experiment_types() -> JSONDict:
             "experiment-types": [
                 _encode_experiment_type(a)
                 for a in await db.instance.retrieve_experiment_types(conn)
-            ]
+            ],
+            "attributi": [
+                _encode_attributo(a)
+                for a in await db.instance.retrieve_attributi(
+                    conn, associated_table=AssociatedTable.RUN
+                )
+            ],
         }
 
 

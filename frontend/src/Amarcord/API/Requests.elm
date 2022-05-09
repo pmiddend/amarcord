@@ -7,6 +7,7 @@ module Amarcord.API.Requests exposing
     , DataSetResult
     , Event
     , ExperimentType
+    , ExperimentTypesResponse
     , IncludeLiveStream(..)
     , LatestDark
     , RequestError(..)
@@ -117,11 +118,24 @@ httpDeleteExperimentType f experimentTypeName =
         }
 
 
-httpGetExperimentTypes : (Result RequestError (List ExperimentType) -> msg) -> Cmd msg
+type alias ExperimentTypesResponse =
+    { experimentTypes : List ExperimentType
+    , attributi : List (Attributo AttributoType)
+    }
+
+
+httpGetExperimentTypes : (Result RequestError ExperimentTypesResponse -> msg) -> Cmd msg
 httpGetExperimentTypes f =
     Http.get
         { url = "api/experiment-types"
-        , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.field "experiment-types" <| Decode.list experimentTypeDecoder)
+        , expect =
+            Http.expectJson (f << httpResultToRequestError)
+                (valueOrError <|
+                    Decode.map2
+                        ExperimentTypesResponse
+                        (Decode.field "experiment-types" <| Decode.list experimentTypeDecoder)
+                        (Decode.field "attributi" (Decode.list (attributoDecoder attributoTypeDecoder)))
+                )
         }
 
 
