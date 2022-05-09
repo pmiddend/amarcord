@@ -648,6 +648,55 @@ async def update_live_stream() -> JSONDict:
             return {"id": file_id}
 
 
+@app.post("/api/data-sets/from-run")
+async def create_data_set_from_run() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        run_id = r.retrieve_safe_int("run-id")
+        experiment_type = r.retrieve_safe_str("experiment-type")
+
+        experiment_type_resolved = next(
+            iter(
+                et
+                for et in await db.instance.retrieve_experiment_types(conn)
+                if et.name == experiment_type
+            ),
+            None,
+        )
+
+        if experiment_type_resolved is None:
+            raise CustomWebException(
+                code=500,
+                title=f"Couldn't find experiment type \"{experiment_type}",
+                description="",
+            )
+
+        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
+
+        run = await db.instance.retrieve_run(conn, run_id, attributi)
+
+        if run is None:
+            raise CustomWebException(
+                code=500,
+                title=f"Couldn't find run \"{run_id}",
+                description="",
+            )
+
+        attributi_map = AttributiMap(
+            {a.name: a for a in attributi},
+            await db.instance.retrieve_sample_ids(conn),
+            {
+                an: run.attributi.select(an)
+                for an in experiment_type_resolved.attributo_names
+            },
+        )
+
+        await db.instance.create_data_set(conn, experiment_type, attributi_map)
+
+        return {}
+
+
 @app.post("/api/data-sets")
 async def create_data_set() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")

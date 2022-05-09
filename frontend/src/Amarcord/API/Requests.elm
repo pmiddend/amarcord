@@ -19,6 +19,7 @@ module Amarcord.API.Requests exposing
     , httpCheckStandardUnit
     , httpCreateAttributo
     , httpCreateDataSet
+    , httpCreateDataSetFromRun
     , httpCreateEvent
     , httpCreateExperimentType
     , httpCreateFile
@@ -154,6 +155,22 @@ httpCreateDataSet f experimentType attributi =
                 (Encode.object
                     [ ( "experiment-type", Encode.string experimentType )
                     , ( "attributi", encodeAttributoMap attributi )
+                    ]
+                )
+        }
+
+
+httpCreateDataSetFromRun : (Result RequestError () -> msg) -> String -> Int -> Cmd msg
+httpCreateDataSetFromRun f experimentType runId =
+    Http.post
+        { url = "api/data-sets/from-run"
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
+        , body =
+            jsonBody
+                (Encode.object
+                    [ ( "experiment-type", Encode.string experimentType )
+                    , ( "run-id", Encode.int runId )
                     ]
                 )
         }

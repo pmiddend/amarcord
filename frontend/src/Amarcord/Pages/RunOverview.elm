@@ -1,11 +1,11 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpDeleteEvent, httpGetRuns, httpUpdateRun)
+import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRuns, httpUpdateRun)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, attributoTargetFrameCount, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
@@ -46,6 +46,8 @@ type Msg
     | Nop
     | CurrentExperimentTypeChanged String
     | ColumnChooserMessage ColumnChooser.Msg
+    | CreateDataSetFromRun String Int
+    | CreateDataSetFromRunFinished (Result RequestError ())
 
 
 type alias EventForm =
@@ -78,6 +80,7 @@ type alias Model =
     , currentExperimentType : Maybe String
     , columnChooser : ColumnChooser.Model
     , localStorage : Maybe LocalStorage
+    , dataSetFromRunRequest : RemoteData RequestError ()
     }
 
 
@@ -94,6 +97,7 @@ init { zone, now } localStorage =
       , currentExperimentType = Nothing
       , columnChooser = ColumnChooser.init localStorage []
       , localStorage = localStorage
+      , dataSetFromRunRequest = NotAsked
       }
     , httpGetRuns RunsReceived
     )
@@ -316,8 +320,8 @@ viewProgressBar isRunning hits runFrames runHits runLengthMillis =
     [ text (formatIntHumanFriendly hits), progress ] ++ etaDisplay
 
 
-viewCurrentRun : Zone -> Posix -> Maybe String -> RunsResponseContent -> List (Html Msg)
-viewCurrentRun zone now currentExperimentType rrc =
+viewCurrentRun : Zone -> Posix -> Maybe String -> RemoteData RequestError () -> RunsResponseContent -> List (Html Msg)
+viewCurrentRun zone now currentExperimentType dataSetFromRunRequest rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
     case head rrc.runs of
         Nothing ->
@@ -431,7 +435,16 @@ viewCurrentRun zone now currentExperimentType rrc =
                 dataSetInformation =
                     case currentRunDataSet of
                         Nothing ->
-                            [ h3_ [ text "Not part of any data set" ] ]
+                            case currentExperimentType of
+                                Nothing ->
+                                    [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
+
+                                Just experimentType ->
+                                    [ p [ class "text-muted" ] [ text <| "Run is not part of any data set in \"" ++ experimentType ++ "\". You can automatically create a data set that matches the current run's attributi." ]
+                                    , button [ type_ "button", class "btn btn-secondary", onClick (CreateDataSetFromRun experimentType id), disabled (isLoading dataSetFromRunRequest) ]
+                                        [ icon { name = "plus-lg" }, text " Create data set from run" ]
+                                    , viewRemoteData "Data set created" dataSetFromRunRequest
+                                    ]
 
                         Just ds ->
                             let
@@ -440,7 +453,7 @@ viewCurrentRun zone now currentExperimentType rrc =
                                         ( Nothing, Nothing ) ->
                                             [ text "" ]
 
-                                        ( Nothing, Just runTotalFramesUnwrapped ) ->
+                                        ( Nothing, Just _ ) ->
                                             [ text "" ]
 
                                         ( Just runFramesUnwrapped, Nothing ) ->
@@ -612,7 +625,7 @@ viewInner model rrc =
         [ div
             [ class "row" ]
             [ div [ class "col-lg-6" ]
-                (viewCurrentRun model.myTimeZone model.now model.currentExperimentType rrc)
+                (viewCurrentRun model.myTimeZone model.now model.currentExperimentType model.dataSetFromRunRequest rrc)
             , div [ class "col-lg-6" ]
                 (viewRunAttributiForm
                     (Maybe.andThen (\a -> Dict.get a rrc.experimentTypes) model.currentExperimentType)
@@ -917,3 +930,9 @@ update msg model =
                     ColumnChooser.update model.columnChooser columnChooserMessage
             in
             ( { model | columnChooser = newColumnChooser }, cmds )
+
+        CreateDataSetFromRun experimentType runId ->
+            ( { model | dataSetFromRunRequest = Loading }, httpCreateDataSetFromRun CreateDataSetFromRunFinished experimentType runId )
+
+        CreateDataSetFromRunFinished result ->
+            ( { model | dataSetFromRunRequest = fromResult result }, httpGetRuns RunsReceived )
