@@ -88,3 +88,17 @@ cp App.css desy-cfel.png src/index.html output
 
 Then run `amarcord-webserver` (as described above) and go to http://localhost:5000/index.html
 in your browser.
+
+## Nix
+
+To speed up CI builds and unify dependencies, AMARCORD uses the [Nix package manager](https://nixos.org/). If you have Nix installed, building the AMARCORD Python package is as simple as
+
+``` shell
+nix-build -A pythonPackage
+```
+
+The `default.nix` file defines a set with a few possible outputs, such as `dockerImage` and `frontend`. You also have a `shell.nix` that you can use for quickly getting a Python development environment with `nix-shell`. The `frontend` directory also has a `shell.nix` with just the Elm compiler in it, right now.
+
+To manage the (pinned) dependency on nixpkgs, we use [niv](https://github.com/nmattia/niv) (and plan to use [flakes](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-flake.html) ASAP). Currently, we’re tracking nixpkgs’s `master`, and updating should be as simple as `niv update nixpkgs`.
+
+For the CI build, we have an instance of gitlab-runner on `cfeld-vm04` using the shell executor right now.

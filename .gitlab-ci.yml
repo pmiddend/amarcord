@@ -1,112 +1,45 @@
-stages:
-  - pretest
-  - test
-  - integration
-  - deploy
-  - upload-docker
+default:
+  tags:
+    - nix
 
-# this is a workaround for etcd runner issues
-# Supplemental: the runner has been "disabled", let's see if it works now.
-#default:
-#  tags:
-#    - DESY-intern
+mypy:
+  script:
+    - nix-shell default.nix -A pythonPackage --run "mypy amarcord tests"
 
-variables:
-  AMARCORD_PYTHON_DOCKER: gitlab.desy.de:5555/cfel-sc-public/amarcord/poetry-base-image:v1-1-8
-  # this is a workaround for the root CA issue in DESY’s GitLab CI (will be fixed soon (tm))
-  GIT_SSL_NO_VERIFY: "true"
-  ELM_HOME: "$CI_PROJECT_DIR/.cache/elm"
+pylint:
+  script:
+    - nix-shell default.nix -A pythonPackage --run "pylint amarcord tests"
 
 check-shell-scripts:
-  stage: pretest
-  image: koalaman/shellcheck-alpine:latest
+   script:
+     - nix-shell -p shellcheck --run "shellcheck ci/*.sh"
+
+build-docker-image:
   script:
-    - shellcheck ci/*.sh
+    - ci/nix-build-docker-image.sh
+
+nix-pin-latest:
+  script:
+    - nix-build default.nix -A pythonPackage --out-link ~/pipeline-pins/amarcord-python-package
+    - nix-build default.nix -A frontend --out-link ~/pipeline-pins/amarcord-elm-package
+  only:
+    - master
+
+nix-pin-latest-manual:
+  script:
+    - nix-build default.nix -A pythonPackage --out-link ~/pipeline-pins/amarcord-python-package
+    - nix-build default.nix -A frontend --out-link ~/pipeline-pins/amarcord-elm-package
+  when: manual
 
 check-requirements:
-  image: $AMARCORD_PYTHON_DOCKER
-  stage: test
-  script:
-    - ./ci/check-requirements.sh
-
-pylint-and-mypy:
-  image: $AMARCORD_PYTHON_DOCKER
-  stage: test
-  cache:
-    key: poetry
-    paths:
-      - .cache/pypoetry
-  script:
-    - ./ci/pylint-and-mypy.sh
+   script:
+     - nix-shell -p poetry --run ./ci/check-requirements.sh
 
 tests:
-  image: $AMARCORD_PYTHON_DOCKER
-  stage: test
   script:
-    - ./ci/run-tests.sh
+    - nix-shell default.nix -A pythonPackage --run ci/run-tests.sh
   artifacts:
     when: always
     reports:
       cobertura: coverage.xml
       junit: report.xml
-
-# Using nodejs, deprecated since the elm caching issue
-build-frontend:
-  image: node:17.4
-  stage: test
-  script:
-    - ./ci/build-frontend.sh
-  cache:
-    key: elm
-    paths:
-      - .cache/elm
-  artifacts:
-    paths:
-      - frontend/output
-
-# Using Nix - a fallback for caching issues
-#build-frontend:
-#  image: nixos/nix:2.6.0
-#  stage: test
-#  script:
-#    - ./ci/build-frontend-using-nix.sh
-#  artifacts:
-#    paths:
-#      - frontend/output
-
-upload-webserver:
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  stage: upload-docker
-  variables:
-    # To deploy this to main, we need a slug, not an SHA, actually. Need to fix that.
-    IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-    IMAGE_COMMIT_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  only:
-    - tags
-    - master
-    - datasets
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "$IMAGE_SLUG_TAG" --destination "$IMAGE_COMMIT_TAG"
-
-upload-webserver-manual:
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  stage: upload-docker
-  variables:
-    # To deploy this to main, we need a slug, not an SHA, actually. Need to fix that.
-    IMAGE_SLUG_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-    IMAGE_COMMIT_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  when: manual
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "$IMAGE_SLUG_TAG" --destination "$IMAGE_COMMIT_TAG"

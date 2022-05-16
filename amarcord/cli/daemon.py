@@ -108,5 +108,9 @@ async def _main_loop(args: Arguments) -> None:
     )
 
 
-if __name__ == "__main__":
+def main() -> None:
     asyncio.run(_main_loop(Arguments(underscores_to_dashes=True).parse_args()))
+
+
+if __name__ == "__main__":
+    main()

@@ -93,13 +93,11 @@ pytest-asyncio = "0.17.2"
 pytest-subprocess = "1.4.1"
 
 [tool.poetry.scripts]
+# These are not all files in cli/, but the ones we definitely intend to keep.
 amarcord-karabo-bridge-daemon = "amarcord.cli.karabo_bridge_daemon:main"
-amarcord-cfel-analysis-daemon = "amarcord.cli.cfel_analysis_daemon:main"
-amarcord-webserver = "amarcord.cli.webserver:main"
-amarcord-xfel-filesystem-ingester = "amarcord.cli.xfel_filesystem_ingester:main"
-amarcord-karabo-online-ingester = "amarcord.cli.karabo_online_ingester:main"
-amarcord-karabo-bridge-dumper = "amarcord.cli.karabo_bridge_dumper:main"
 amarcord-daemon = "amarcord.cli.daemon:main"
+amarcord-webserver = "amarcord.cli.webserver:main"
+amarcord-karabo-offline-ingester = "amarcord.cli.karabo_offline_ingester:main"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
