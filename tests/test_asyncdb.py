@@ -665,7 +665,7 @@ async def test_create_and_retrieve_file() -> None:
             "name.txt",
             "my description",
             original_path=None,
-            contents_location=Path(__file__).parent / "test-file.txt",
+            contents_location=Path(__file__).parent / "test-file-no-newlines.txt",
             deduplicate=False,
         )
 

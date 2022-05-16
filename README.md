@@ -37,7 +37,25 @@ source venv/bin/activate
 pip install -r requirements-dev.txt
 ```
 
-`requirements-dev.txt` also contains test dependencies and mypy types
+`requirements-dev.txt` also contains test dependencies and mypy types.
+
+### Notes for Microsoft Windows users
+
+We’re using [python-magic](https://pypi.org/project/python-magic/) to determine the type of uploaded files. This depends on `libmagic` which is not available on Windows. You can either do everything using [WSL](https://docs.microsoft.com/en-us/windows/wsl/install) or you can manually `pip install python-magic-bin` which solves the issue (note that we didn’t include the dependency with the `platform` poetry flag, because that breaks the Nix build).
+
+If you manually created your virtual environment, the way to activate it on Windows isn’t
+
+``` shell
+source venv/bin/activate
+```
+
+but rather
+
+``` shell
+source venv/Scripts/activate
+```
+
+this is for [idiotic reasons](https://stackoverflow.com/questions/43826134/why-is-the-bin-directory-named-differently-scripts-on-windows).
 
 ## How to start a backend server
 

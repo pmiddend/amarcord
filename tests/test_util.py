@@ -34,26 +34,26 @@ def test_read_file_to_string():
     )
 
 
-def test_sha256_file():
+def test_sha256_file() -> None:
     # Hash retrieved via sha256sum
     assert (
-        sha256_file(Path(__file__).parent / "test-file.txt")
-        == "f569ec22eff0ed5db9f940f6ccb602572f40002763b4623f3135feb9b01a7d96"
+        sha256_file(Path(__file__).parent / "test-file-no-newlines.txt")
+        == "c65cf1cfc0c34c720d70dbb0cb3a8432cf22a66fd1d9f998269004caad683ffe"
     )
 
     assert (
-        sha256_file_bytes(Path(__file__).parent / "test-file.txt")
-        == b"\xf5i\xec\"\xef\xf0\xed]\xb9\xf9@\xf6\xcc\xb6\x02W/@\x00'c\xb4b?15\xfe\xb9\xb0\x1a}\x96"
+        sha256_file_bytes(Path(__file__).parent / "test-file-no-newlines.txt")
+        == b'\xc6\\\xf1\xcf\xc0\xc3Lr\rp\xdb\xb0\xcb:\x842\xcf"\xa6o\xd1\xd9\xf9\x98&\x90\x04\xca\xadh?\xfe'
     )
 
     assert (
         sha256_files(
             [
-                Path(__file__).parent / "test-file.txt",
-                Path(__file__).parent / "test-file.txt",
+                Path(__file__).parent / "test-file-no-newlines.txt",
+                Path(__file__).parent / "test-file-no-newlines.txt",
             ]
         )
-        == "d2cfb2d28bff9f3754fb4300df4de177b806c1cccae989340dcad55246b4917b"
+        == "32ac0b1fc6f1b04aa5d8e1486afc3f3777c10784471f60143ef7616848e15db1"
     )
 
 
