@@ -301,7 +301,9 @@ async def _start_run(
                     ATTRIBUTO_SAMPLE: sample,
                 },
             ),
-            keep_manual_attributes_from_previous_run=False,
+            keep_manual_attributes_from_previous_run=(
+                await db.retrieve_configuration(conn)
+            ).auto_pilot,
         )
 
 

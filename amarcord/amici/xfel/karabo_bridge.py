@@ -1354,6 +1354,7 @@ async def ingest_bridge_output(
 ) -> None:
     attributi = await db.retrieve_attributi(conn, associated_table=None)
     latest_run = await db.retrieve_latest_run(conn, attributi)
+    auto_pilot = (await db.retrieve_configuration(conn)).auto_pilot
     if latest_run is not None:
         if latest_run.id < result.run_id - 1:
             # For some reason we lost runs, we create dummy runs for each lost run_id
@@ -1361,10 +1362,12 @@ async def ingest_bridge_output(
                 f"Current run {result.run_id}, latest known run {latest_run.id}, filling the gaps with dummy runs"
             )
             for missing_id in range(latest_run.id + 1, result.run_id):
-                await create_dummy_run_with_attributi(attributi, conn, db, missing_id)
-            await create_run_with_attributi(attributi, conn, db, result)
+                await create_dummy_run_with_attributi(
+                    attributi, conn, db, missing_id, auto_pilot
+                )
+            await create_run_with_attributi(attributi, conn, db, result, auto_pilot)
         elif latest_run.id == result.run_id - 1:
-            await create_run_with_attributi(attributi, conn, db, result)
+            await create_run_with_attributi(attributi, conn, db, result, auto_pilot)
         elif latest_run.id == result.run_id:
             latest_run.attributi.extend(result.attributi_values)
             await db.update_run_attributi(conn, result.run_id, latest_run.attributi)
@@ -1373,7 +1376,7 @@ async def ingest_bridge_output(
                 f"The id of the current run {result.run_id} is smaller than the last known run {latest_run.id}, which does not make sense."
             )
     else:
-        await create_run_with_attributi(attributi, conn, db, result)
+        await create_run_with_attributi(attributi, conn, db, result, auto_pilot)
     if result.dark_run is not None:
         dark_run = await db.retrieve_run(conn, result.dark_run.index, attributi)
         if dark_run is None:
@@ -1410,7 +1413,11 @@ async def ingest_bridge_output(
 
 
 async def create_dummy_run_with_attributi(
-    attributi: List[DBAttributo], conn: Connection, db: AsyncDB, run_id: int
+    attributi: List[DBAttributo],
+    conn: Connection,
+    db: AsyncDB,
+    run_id: int,
+    auto_pilot: bool,
 ):
     logger.warning(f"creating dummy run with id {run_id}")
     await db.create_run(
@@ -1420,12 +1427,16 @@ async def create_dummy_run_with_attributi(
         attributi_map=AttributiMap.from_types_and_raw(
             attributi, await db.retrieve_sample_ids(conn), {}
         ),
-        keep_manual_attributes_from_previous_run=True,
+        keep_manual_attributes_from_previous_run=auto_pilot,
     )
 
 
 async def create_run_with_attributi(
-    attributi: List[DBAttributo], conn: Connection, db: AsyncDB, result: BridgeOutput
+    attributi: List[DBAttributo],
+    conn: Connection,
+    db: AsyncDB,
+    result: BridgeOutput,
+    auto_pilot: bool,
 ):
     await db.create_run(
         conn,
@@ -1436,7 +1447,7 @@ async def create_run_with_attributi(
             await db.retrieve_sample_ids(conn),
             result.attributi_values,
         ),
-        keep_manual_attributes_from_previous_run=True,
+        keep_manual_attributes_from_previous_run=auto_pilot,
     )
 
 

@@ -176,7 +176,9 @@ async def ingest_kamzik_metadata(
             run_id,
             attributi,
             attributi_map,
-            keep_manual_attributes_from_previous_run=True,
+            keep_manual_attributes_from_previous_run=(
+                await db.retrieve_configuration(conn)
+            ).auto_pilot,
         )
 
 
