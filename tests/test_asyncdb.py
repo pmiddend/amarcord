@@ -1,8 +1,10 @@
 import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Final
 
+import numpy
 import pytest
+from sqlalchemy.exc import StatementError
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
@@ -18,32 +20,31 @@ from amarcord.db.attributo_type import (
     AttributoTypeInt,
     AttributoTypeString,
     AttributoTypeSample,
+    AttributoTypeDecimal,
 )
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
-from amarcord.db.user_configuration import UserConfiguration
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.tables import create_tables_from_metadata
+from amarcord.db.user_configuration import UserConfiguration
 
-EVENT_SOURCE = "P11User"
-
-TEST_ATTRIBUTO_VALUE = 3
-TEST_SECOND_ATTRIBUTO_VALUE = 4
-
-TEST_SAMPLE_NAME = "samplename"
-
-TEST_RUN_ID = 1
-
-TEST_ATTRIBUTO_GROUP = "testgroup"
-
-TEST_ATTRIBUTO_DESCRIPTION = "testdescription"
-
-TEST_ATTRIBUTO_NAME = AttributoId("testname")
-TEST_SECOND_ATTRIBUTO_NAME = AttributoId("testname1")
+_EVENT_SOURCE: Final = "P11User"
+_TEST_DB_URL: Final = "sqlite+aiosqlite://"
+_TEST_ATTRIBUTO_VALUE: Final = 3
+_TEST_SECOND_ATTRIBUTO_VALUE: Final = 4
+_TEST_SAMPLE_NAME: Final = "samplename"
+_TEST_RUN_ID: Final = 1
+_TEST_ATTRIBUTO_GROUP: Final = "testgroup"
+_TEST_ATTRIBUTO_DESCRIPTION: Final = "testdescription"
+_TEST_ATTRIBUTO_NAME: Final = AttributoId("testname")
+_TEST_SECOND_ATTRIBUTO_NAME: Final = AttributoId("testname1")
 
 
-async def _get_db() -> AsyncDB:
-    context = AsyncDBContext("sqlite+aiosqlite://")
+async def _get_db(use_sqlalchemy_default_json_serializer: bool = False) -> AsyncDB:
+    context = AsyncDBContext(
+        _TEST_DB_URL,
+        use_sqlalchemy_default_json_serializer=use_sqlalchemy_default_json_serializer,
+    )
     db = AsyncDB(context, create_tables_from_metadata(context.metadata))
     await db.migrate()
     return db
@@ -56,9 +57,9 @@ async def test_create_and_retrieve_attributo() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             AttributoTypeInt(),
         )
@@ -66,15 +67,15 @@ async def test_create_and_retrieve_attributo() -> None:
         attributi = await db.retrieve_attributi(conn, AssociatedTable.SAMPLE)
         assert len(attributi) == 1
         assert attributi[0].attributo_type == AttributoTypeInt()
-        assert attributi[0].name == TEST_ATTRIBUTO_NAME
-        assert attributi[0].description == TEST_ATTRIBUTO_DESCRIPTION
-        assert attributi[0].group == TEST_ATTRIBUTO_GROUP
+        assert attributi[0].name == _TEST_ATTRIBUTO_NAME
+        assert attributi[0].description == _TEST_ATTRIBUTO_DESCRIPTION
+        assert attributi[0].group == _TEST_ATTRIBUTO_GROUP
 
         # Check if the filter for the table works: there should be no attributi for runs
         assert not [
             a
             for a in await db.retrieve_attributi(conn, AssociatedTable.RUN)
-            if a.name == TEST_ATTRIBUTO_NAME
+            if a.name == _TEST_ATTRIBUTO_NAME
         ]
 
 
@@ -86,20 +87,80 @@ async def test_create_and_delete_unused_attributo() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             AttributoTypeInt(),
         )
 
-        await db.delete_attributo(conn, TEST_ATTRIBUTO_NAME)
+        await db.delete_attributo(conn, _TEST_ATTRIBUTO_NAME)
 
         assert not [
             a
             for a in await db.retrieve_attributi(conn, associated_table=None)
-            if a.name == TEST_ATTRIBUTO_NAME
+            if a.name == _TEST_ATTRIBUTO_NAME
         ]
+
+
+async def test_create_and_retrieve_sample_with_nan() -> None:
+    """Create an attributo, then a sample, and then retrieve that. NaN value is used"""
+
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        await db.create_attributo(
+            conn,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.SAMPLE,
+            AttributoTypeDecimal(),
+        )
+
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+
+        with pytest.raises(StatementError):
+            await db.create_sample(
+                conn,
+                name=_TEST_SAMPLE_NAME,
+                attributi=AttributiMap.from_types_and_json(
+                    attributi,
+                    sample_ids=[],
+                    raw_attributi={_TEST_ATTRIBUTO_NAME: numpy.NAN},
+                ),
+            )
+
+    db_default_json_serializer = await _get_db(
+        use_sqlalchemy_default_json_serializer=True
+    )
+
+    async with db_default_json_serializer.begin() as conn:
+        await db_default_json_serializer.create_attributo(
+            conn,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.SAMPLE,
+            AttributoTypeDecimal(),
+        )
+
+        attributi = await db_default_json_serializer.retrieve_attributi(
+            conn, associated_table=None
+        )
+
+        try:
+            await db_default_json_serializer.create_sample(
+                conn,
+                name=_TEST_SAMPLE_NAME,
+                attributi=AttributiMap.from_types_and_json(
+                    attributi,
+                    sample_ids=[],
+                    raw_attributi={_TEST_ATTRIBUTO_NAME: numpy.NAN},
+                ),
+            )
+        except Exception:
+            pytest.fail("Unexpected excepetion")
 
 
 async def test_create_and_retrieve_sample() -> None:
@@ -110,9 +171,9 @@ async def test_create_and_retrieve_sample() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             AttributoTypeInt(),
         )
@@ -121,11 +182,11 @@ async def test_create_and_retrieve_sample() -> None:
 
         sample_id = await db.create_sample(
             conn,
-            name=TEST_SAMPLE_NAME,
+            name=_TEST_SAMPLE_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=[],
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
         )
 
@@ -134,18 +195,18 @@ async def test_create_and_retrieve_sample() -> None:
         samples = await db.retrieve_samples(conn, attributi)
 
         assert len(samples) == 1
-        assert samples[0].name == TEST_SAMPLE_NAME
+        assert samples[0].name == _TEST_SAMPLE_NAME
         assert samples[0].id == sample_id
         assert not samples[0].files
         assert (
-            samples[0].attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME)
-            == TEST_ATTRIBUTO_VALUE
+            samples[0].attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
+            == _TEST_ATTRIBUTO_VALUE
         )
 
         sample = await db.retrieve_sample(conn, sample_id, attributi)
         assert sample is not None
         assert sample.id == sample_id
-        assert sample.name == TEST_SAMPLE_NAME
+        assert sample.name == _TEST_SAMPLE_NAME
 
 
 async def test_create_and_update_sample() -> None:
@@ -156,17 +217,17 @@ async def test_create_and_update_sample() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             AttributoTypeInt(),
         )
         await db.create_attributo(
             conn,
-            TEST_SECOND_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_SECOND_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             AttributoTypeInt(),
         )
@@ -175,13 +236,13 @@ async def test_create_and_update_sample() -> None:
 
         sample_id = await db.create_sample(
             conn,
-            name=TEST_SAMPLE_NAME,
+            name=_TEST_SAMPLE_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=[],
                 raw_attributi={
-                    TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE,
-                    TEST_SECOND_ATTRIBUTO_NAME: TEST_SECOND_ATTRIBUTO_VALUE,
+                    _TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE,
+                    _TEST_SECOND_ATTRIBUTO_NAME: _TEST_SECOND_ATTRIBUTO_VALUE,
                 },
             ),
         )
@@ -189,13 +250,13 @@ async def test_create_and_update_sample() -> None:
         await db.update_sample(
             conn,
             sample_id,
-            name=TEST_SAMPLE_NAME + "1",
+            name=_TEST_SAMPLE_NAME + "1",
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=[],
                 raw_attributi={
-                    TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE + 1,
-                    TEST_SECOND_ATTRIBUTO_NAME: TEST_SECOND_ATTRIBUTO_VALUE,
+                    _TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE + 1,
+                    _TEST_SECOND_ATTRIBUTO_NAME: _TEST_SECOND_ATTRIBUTO_VALUE,
                 },
             ),
         )
@@ -203,15 +264,15 @@ async def test_create_and_update_sample() -> None:
         samples = await db.retrieve_samples(conn, attributi)
 
         assert len(samples) == 1
-        assert samples[0].name == TEST_SAMPLE_NAME + "1"
+        assert samples[0].name == _TEST_SAMPLE_NAME + "1"
         assert samples[0].id == sample_id
         assert (
-            samples[0].attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME)
-            == TEST_ATTRIBUTO_VALUE + 1
+            samples[0].attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
+            == _TEST_ATTRIBUTO_VALUE + 1
         )
         assert (
-            samples[0].attributi.select_int_unsafe(TEST_SECOND_ATTRIBUTO_NAME)
-            == TEST_SECOND_ATTRIBUTO_VALUE
+            samples[0].attributi.select_int_unsafe(_TEST_SECOND_ATTRIBUTO_NAME)
+            == _TEST_SECOND_ATTRIBUTO_VALUE
         )
 
 
@@ -223,9 +284,9 @@ async def test_create_and_delete_sample() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             AttributoTypeInt(),
         )
@@ -234,11 +295,11 @@ async def test_create_and_delete_sample() -> None:
 
         sample_id = await db.create_sample(
             conn,
-            name=TEST_SAMPLE_NAME,
+            name=_TEST_SAMPLE_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=[],
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
         )
 
@@ -254,9 +315,9 @@ async def test_create_attributo_and_sample_then_change_attributo() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             # We create the attributo as int, then convert to string
             AttributoTypeInt(),
@@ -266,41 +327,41 @@ async def test_create_attributo_and_sample_then_change_attributo() -> None:
 
         await db.create_sample(
             conn,
-            name=TEST_SAMPLE_NAME,
+            name=_TEST_SAMPLE_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=[],
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
         )
 
         await db.update_attributo(
             conn,
-            name=TEST_ATTRIBUTO_NAME,
+            name=_TEST_ATTRIBUTO_NAME,
             conversion_flags=AttributoConversionFlags(ignore_units=False),
             new_attributo=DBAttributo(
                 # We try to change all the attributes
-                name=AttributoId(str(TEST_ATTRIBUTO_NAME) + "1"),
-                description=TEST_ATTRIBUTO_DESCRIPTION + "1",
-                group=TEST_ATTRIBUTO_GROUP + "1",
+                name=AttributoId(str(_TEST_ATTRIBUTO_NAME) + "1"),
+                description=_TEST_ATTRIBUTO_DESCRIPTION + "1",
+                group=_TEST_ATTRIBUTO_GROUP + "1",
                 associated_table=AssociatedTable.SAMPLE,
                 attributo_type=AttributoTypeString(),
             ),
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
-        test_attributi = [a for a in attributi if a.name == TEST_ATTRIBUTO_NAME + "1"]
+        test_attributi = [a for a in attributi if a.name == _TEST_ATTRIBUTO_NAME + "1"]
 
         assert len(test_attributi) == 1
-        assert test_attributi[0].name == TEST_ATTRIBUTO_NAME + "1"
-        assert test_attributi[0].description == TEST_ATTRIBUTO_DESCRIPTION + "1"
-        assert test_attributi[0].group == TEST_ATTRIBUTO_GROUP + "1"
+        assert test_attributi[0].name == _TEST_ATTRIBUTO_NAME + "1"
+        assert test_attributi[0].description == _TEST_ATTRIBUTO_DESCRIPTION + "1"
+        assert test_attributi[0].group == _TEST_ATTRIBUTO_GROUP + "1"
 
         samples = await db.retrieve_samples(conn, attributi)
-        assert samples[0].attributi.select_int(TEST_ATTRIBUTO_NAME) is None
+        assert samples[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
         assert (
             samples[0].attributi.select_string(
-                AttributoId(str(TEST_ATTRIBUTO_NAME) + "1")
+                AttributoId(str(_TEST_ATTRIBUTO_NAME) + "1")
             )
             is not None
         )
@@ -314,9 +375,9 @@ async def test_create_attributo_and_sample_then_delete_attributo() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             # We create the attributo as int, then convert to string
             AttributoTypeInt(),
@@ -326,20 +387,20 @@ async def test_create_attributo_and_sample_then_delete_attributo() -> None:
 
         await db.create_sample(
             conn,
-            name=TEST_SAMPLE_NAME,
+            name=_TEST_SAMPLE_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=[],
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
         )
 
-        await db.delete_attributo(conn, TEST_ATTRIBUTO_NAME)
+        await db.delete_attributo(conn, _TEST_ATTRIBUTO_NAME)
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         samples = await db.retrieve_samples(conn, attributi)
-        assert samples[0].attributi.select_int(TEST_ATTRIBUTO_NAME) is None
+        assert samples[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
 
 
 async def test_create_and_retrieve_runs() -> None:
@@ -350,9 +411,9 @@ async def test_create_and_retrieve_runs() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             AttributoTypeInt(),
         )
@@ -361,12 +422,12 @@ async def test_create_and_retrieve_runs() -> None:
 
         await db.create_run(
             conn,
-            run_id=TEST_RUN_ID,
+            run_id=_TEST_RUN_ID,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=await db.retrieve_sample_ids(conn),
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             keep_manual_attributes_from_previous_run=False,
         )
@@ -374,11 +435,11 @@ async def test_create_and_retrieve_runs() -> None:
         runs = await db.retrieve_runs(conn, attributi)
 
         assert len(runs) == 1
-        assert runs[0].id == TEST_RUN_ID
+        assert runs[0].id == _TEST_RUN_ID
         assert not runs[0].files
         assert (
-            runs[0].attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME)
-            == TEST_ATTRIBUTO_VALUE
+            runs[0].attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
+            == _TEST_ATTRIBUTO_VALUE
         )
 
 
@@ -390,9 +451,9 @@ async def test_create_and_retrieve_run() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             AttributoTypeInt(),
         )
@@ -401,32 +462,34 @@ async def test_create_and_retrieve_run() -> None:
 
         await db.create_run(
             conn,
-            run_id=TEST_RUN_ID,
+            run_id=_TEST_RUN_ID,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=await db.retrieve_sample_ids(conn),
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             keep_manual_attributes_from_previous_run=False,
         )
 
-        run = await db.retrieve_run(conn, TEST_RUN_ID, attributi)
+        run = await db.retrieve_run(conn, _TEST_RUN_ID, attributi)
 
         assert run is not None
-        assert run.id == TEST_RUN_ID
+        assert run.id == _TEST_RUN_ID
         assert not run.files
         assert (
-            run.attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME) == TEST_ATTRIBUTO_VALUE
+            run.attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
+            == _TEST_ATTRIBUTO_VALUE
         )
 
         run = await db.retrieve_latest_run(conn, attributi)
 
         assert run is not None
-        assert run.id == TEST_RUN_ID
+        assert run.id == _TEST_RUN_ID
         assert not run.files
         assert (
-            run.attributi.select_int_unsafe(TEST_ATTRIBUTO_NAME) == TEST_ATTRIBUTO_VALUE
+            run.attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
+            == _TEST_ATTRIBUTO_VALUE
         )
 
 
@@ -440,18 +503,18 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
         # create one that's manual and one that isn't
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
             ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.RUN,
             AttributoTypeInt(),
         )
-        second_test_attribute = AttributoId(str(TEST_ATTRIBUTO_NAME) + "2")
+        second_test_attribute = AttributoId(str(_TEST_ATTRIBUTO_NAME) + "2")
         await db.create_attributo(
             conn,
             second_test_attribute,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             AttributoTypeInt(),
         )
@@ -460,13 +523,13 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
 
         await db.create_run(
             conn,
-            run_id=TEST_RUN_ID,
+            run_id=_TEST_RUN_ID,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=await db.retrieve_sample_ids(conn),
                 # Only one of the two attributi here (the manual one)
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             # Flag doesn't matter if it's just one run
             keep_manual_attributes_from_previous_run=False,
@@ -474,11 +537,11 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        second_test_attribute_value = TEST_ATTRIBUTO_VALUE + 1
+        second_test_attribute_value = _TEST_ATTRIBUTO_VALUE + 1
         await db.create_run(
             conn,
             # Next Run ID
-            run_id=TEST_RUN_ID + 1,
+            run_id=_TEST_RUN_ID + 1,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
@@ -493,8 +556,10 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
         runs = await db.retrieve_runs(conn, attributi)
         assert len(runs) == 2
         # Assume ordering by ID descending
-        assert runs[0].id == TEST_RUN_ID + 1
-        assert runs[0].attributi.select_int(TEST_ATTRIBUTO_NAME) == TEST_ATTRIBUTO_VALUE
+        assert runs[0].id == _TEST_RUN_ID + 1
+        assert (
+            runs[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) == _TEST_ATTRIBUTO_VALUE
+        )
         assert (
             runs[0].attributi.select_int(second_test_attribute)
             == second_test_attribute_value
@@ -509,9 +574,9 @@ async def test_create_attributo_and_run_then_change_attributo() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             # We create the attributo as int, then convert to string
             AttributoTypeInt(),
@@ -521,25 +586,25 @@ async def test_create_attributo_and_run_then_change_attributo() -> None:
 
         await db.create_run(
             conn,
-            run_id=TEST_RUN_ID,
+            run_id=_TEST_RUN_ID,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=await db.retrieve_sample_ids(conn),
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             keep_manual_attributes_from_previous_run=False,
         )
 
         await db.update_attributo(
             conn,
-            name=TEST_ATTRIBUTO_NAME,
+            name=_TEST_ATTRIBUTO_NAME,
             conversion_flags=AttributoConversionFlags(ignore_units=False),
             new_attributo=DBAttributo(
                 # We try to change all the attributes
-                name=AttributoId(str(TEST_ATTRIBUTO_NAME) + "1"),
-                description=TEST_ATTRIBUTO_DESCRIPTION + "1",
-                group=TEST_ATTRIBUTO_GROUP + "1",
+                name=AttributoId(str(_TEST_ATTRIBUTO_NAME) + "1"),
+                description=_TEST_ATTRIBUTO_DESCRIPTION + "1",
+                group=_TEST_ATTRIBUTO_GROUP + "1",
                 associated_table=AssociatedTable.RUN,
                 attributo_type=AttributoTypeString(),
             ),
@@ -548,9 +613,11 @@ async def test_create_attributo_and_run_then_change_attributo() -> None:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         runs = await db.retrieve_runs(conn, attributi)
-        assert runs[0].attributi.select_int(TEST_ATTRIBUTO_NAME) is None
+        assert runs[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
         assert (
-            runs[0].attributi.select_string(AttributoId(str(TEST_ATTRIBUTO_NAME) + "1"))
+            runs[0].attributi.select_string(
+                AttributoId(str(_TEST_ATTRIBUTO_NAME) + "1")
+            )
             is not None
         )
 
@@ -563,9 +630,9 @@ async def test_create_attributo_and_run_then_delete_attributo() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             # We create the attributo as int, then convert to string
             AttributoTypeInt(),
@@ -575,22 +642,22 @@ async def test_create_attributo_and_run_then_delete_attributo() -> None:
 
         await db.create_run(
             conn,
-            run_id=TEST_RUN_ID,
+            run_id=_TEST_RUN_ID,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=await db.retrieve_sample_ids(conn),
-                raw_attributi={TEST_ATTRIBUTO_NAME: TEST_ATTRIBUTO_VALUE},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             keep_manual_attributes_from_previous_run=False,
         )
 
-        await db.delete_attributo(conn, TEST_ATTRIBUTO_NAME)
+        await db.delete_attributo(conn, _TEST_ATTRIBUTO_NAME)
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         runs = await db.retrieve_runs(conn, attributi)
-        assert runs[0].attributi.select_int(TEST_ATTRIBUTO_NAME) is None
+        assert runs[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
 
 
 async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() -> None:
@@ -601,9 +668,9 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             AttributoTypeSample(),
         )
@@ -612,7 +679,7 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
 
         sample_id = await db.create_sample(
             conn,
-            name=TEST_SAMPLE_NAME,
+            name=_TEST_SAMPLE_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi, sample_ids=[], raw_attributi={}
             ),
@@ -621,25 +688,25 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
         # Create an experiment type and a data-set. This is supposed to be deleted as well when we delete the sample
         # attributo.
         await db.create_experiment_type(
-            conn, name="sample-based", experiment_attributi_names=[TEST_ATTRIBUTO_NAME]
+            conn, name="sample-based", experiment_attributi_names=[_TEST_ATTRIBUTO_NAME]
         )
 
         await db.create_data_set(
             conn,
             "sample-based",
             AttributiMap.from_types_and_raw(
-                attributi, [sample_id], {TEST_ATTRIBUTO_NAME: sample_id}
+                attributi, [sample_id], {_TEST_ATTRIBUTO_NAME: sample_id}
             ),
         )
 
         await db.create_run(
             conn,
-            run_id=TEST_RUN_ID,
+            run_id=_TEST_RUN_ID,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
                 sample_ids=await db.retrieve_sample_ids(conn),
-                raw_attributi={TEST_ATTRIBUTO_NAME: sample_id},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: sample_id},
             ),
             keep_manual_attributes_from_previous_run=False,
         )
@@ -652,7 +719,7 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
         await db.delete_sample(conn, sample_id, delete_in_dependencies=True)
 
         runs = await db.retrieve_runs(conn, attributi)
-        assert runs[0].attributi.select_sample_id(TEST_ATTRIBUTO_NAME) is None
+        assert runs[0].attributi.select_sample_id(_TEST_ATTRIBUTO_NAME) is None
 
         assert not await db.retrieve_data_sets(conn, [], attributi)
 
@@ -907,7 +974,7 @@ async def test_create_read_delete_events() -> None:
     async with db.begin() as conn:
         event_text = "hihi"
         event_level = EventLogLevel.INFO
-        event_id = await db.create_event(conn, event_level, EVENT_SOURCE, event_text)
+        event_id = await db.create_event(conn, event_level, _EVENT_SOURCE, event_text)
 
         assert event_id > 0
 
@@ -916,11 +983,11 @@ async def test_create_read_delete_events() -> None:
         assert len(events) == 1
 
         assert events[0].id == event_id
-        assert events[0].source == EVENT_SOURCE
+        assert events[0].source == _EVENT_SOURCE
         assert events[0].text == event_text
         assert events[0].level == event_level
 
-        await db.create_event(conn, event_level, EVENT_SOURCE, event_text)
+        await db.create_event(conn, event_level, _EVENT_SOURCE, event_text)
 
         await db.delete_event(conn, event_id)
 
@@ -1014,17 +1081,17 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             AttributoTypeString(),
         )
         await db.create_attributo(
             conn,
-            TEST_SECOND_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_SECOND_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             AttributoTypeInt(),
         )
@@ -1034,15 +1101,15 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
         )
 
         run_data: Dict[int, JsonAttributiMap] = {
-            TEST_RUN_ID: {
+            _TEST_RUN_ID: {
                 # Important: here, we have "foo" and 1, below we have something else for "foo", but the same for 1
-                TEST_ATTRIBUTO_NAME: "foo",
-                TEST_SECOND_ATTRIBUTO_NAME: 1,
+                _TEST_ATTRIBUTO_NAME: "foo",
+                _TEST_SECOND_ATTRIBUTO_NAME: 1,
             },
-            TEST_RUN_ID
+            _TEST_RUN_ID
             + 1: {
-                TEST_ATTRIBUTO_NAME: "bar",
-                TEST_SECOND_ATTRIBUTO_NAME: 1,
+                _TEST_ATTRIBUTO_NAME: "bar",
+                _TEST_SECOND_ATTRIBUTO_NAME: 1,
             },
         }
 
@@ -1060,36 +1127,36 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
         bulk_attributi = await db.retrieve_bulk_run_attributi(
             conn,
             attributi=attributi,
-            run_ids=[TEST_RUN_ID, TEST_RUN_ID + 1],
+            run_ids=[_TEST_RUN_ID, _TEST_RUN_ID + 1],
         )
 
         assert bulk_attributi == {
-            TEST_ATTRIBUTO_NAME: {"foo", "bar"},
-            TEST_SECOND_ATTRIBUTO_NAME: {1},
+            _TEST_ATTRIBUTO_NAME: {"foo", "bar"},
+            _TEST_SECOND_ATTRIBUTO_NAME: {1},
         }
 
         new_test_attributo = "baz"
         await db.update_bulk_run_attributi(
             conn,
             attributi,
-            run_ids={TEST_RUN_ID, TEST_RUN_ID + 1},
+            run_ids={_TEST_RUN_ID, _TEST_RUN_ID + 1},
             attributi_values=AttributiMap.from_types_and_raw(
                 attributi,
                 [],
                 {
                     # We only store one new attributo for both runs and see if only that gets updated
-                    TEST_ATTRIBUTO_NAME: new_test_attributo,
+                    _TEST_ATTRIBUTO_NAME: new_test_attributo,
                 },
             ),
         )
 
         assert (  # type: ignore
-            await db.retrieve_run(conn, TEST_RUN_ID, attributi)
-        ).attributi.select_string(TEST_ATTRIBUTO_NAME) == new_test_attributo
+            await db.retrieve_run(conn, _TEST_RUN_ID, attributi)
+        ).attributi.select_string(_TEST_ATTRIBUTO_NAME) == new_test_attributo
 
         assert (  # type: ignore
-            await db.retrieve_run(conn, TEST_RUN_ID + 1, attributi)
-        ).attributi.select_string(TEST_ATTRIBUTO_NAME) == new_test_attributo
+            await db.retrieve_run(conn, _TEST_RUN_ID + 1, attributi)
+        ).attributi.select_string(_TEST_ATTRIBUTO_NAME) == new_test_attributo
 
 
 async def test_create_workbook() -> None:
@@ -1098,17 +1165,17 @@ async def test_create_workbook() -> None:
     async with db.begin() as conn:
         await db.create_attributo(
             conn,
-            TEST_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.SAMPLE,
             AttributoTypeString(),
         )
         await db.create_attributo(
             conn,
-            TEST_SECOND_ATTRIBUTO_NAME,
-            TEST_ATTRIBUTO_DESCRIPTION,
-            TEST_ATTRIBUTO_GROUP,
+            _TEST_SECOND_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             AttributoTypeString(),
         )
@@ -1120,7 +1187,7 @@ async def test_create_workbook() -> None:
             AttributiMap.from_types_and_raw(
                 attributi,
                 sample_ids=[],
-                raw_attributi={TEST_ATTRIBUTO_NAME: "foo"},
+                raw_attributi={_TEST_ATTRIBUTO_NAME: "foo"},
             ),
         )
 
@@ -1131,7 +1198,7 @@ async def test_create_workbook() -> None:
             attributi_map=AttributiMap.from_types_and_raw(
                 types=attributi,
                 sample_ids=[],
-                raw_attributi={TEST_SECOND_ATTRIBUTO_NAME: "foo"},
+                raw_attributi={_TEST_SECOND_ATTRIBUTO_NAME: "foo"},
             ),
             keep_manual_attributes_from_previous_run=False,
         )
@@ -1154,7 +1221,7 @@ async def test_create_workbook() -> None:
         assert runs_wb["A1"].value == "ID"
         assert runs_wb["B1"].value == ATTRIBUTO_STARTED
         assert runs_wb["C1"].value == ATTRIBUTO_STOPPED
-        assert runs_wb["D1"].value == TEST_SECOND_ATTRIBUTO_NAME
+        assert runs_wb["D1"].value == _TEST_SECOND_ATTRIBUTO_NAME
 
         assert runs_wb["D2"].value == "foo"
 
@@ -1162,7 +1229,7 @@ async def test_create_workbook() -> None:
         assert sample_wb is not None
 
         assert sample_wb["A1"].value == "Name"
-        assert sample_wb["B1"].value == TEST_ATTRIBUTO_NAME
+        assert sample_wb["B1"].value == _TEST_ATTRIBUTO_NAME
 
         assert sample_wb["A2"].value == "first sample"
         assert sample_wb["B2"].value == "foo"

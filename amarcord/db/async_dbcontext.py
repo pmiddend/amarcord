@@ -1,3 +1,4 @@
+import json
 from enum import Enum, auto
 from typing import Any
 
@@ -14,8 +15,17 @@ class CreationMode(Enum):
     DONT_CHECK = auto()
 
 
+def _json_serializer_allow_nan_false(obj: Any, **kwargs) -> str:
+    return json.dumps(obj, **kwargs, allow_nan=False)
+
+
 class AsyncDBContext:
-    def __init__(self, connection_url: str, echo: bool = False) -> None:
+    def __init__(
+        self,
+        connection_url: str,
+        echo: bool = False,
+        use_sqlalchemy_default_json_serializer: bool = False,
+    ) -> None:
         # For the sqlite in-memory stuff, see here:
         #
         # https://docs.sqlalchemy.org/en/13/dialects/sqlite.html#threading-pooling-behavior
@@ -28,6 +38,9 @@ class AsyncDBContext:
             echo=echo,
             connect_args={"check_same_thread": False} if in_memory_db else {},
             poolclass=StaticPool if in_memory_db else NullPool,
+            json_serializer=_json_serializer_allow_nan_false
+            if not use_sqlalchemy_default_json_serializer
+            else None,
         )
 
         # sqlite doesn't care about foreign keys unless you do this dance, see
