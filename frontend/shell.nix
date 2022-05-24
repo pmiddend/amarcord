@@ -1,5 +1,5 @@
 let
   pkgs = import (import ../nix/sources.nix { }).nixpkgs { };
 in pkgs.mkShell {
-  buildInputs = [ pkgs.elmPackages.elm pkgs.nodejs ];
+  buildInputs = [ pkgs.elmPackages.elm pkgs.nodejs pkgs.elm2nix ];
 }

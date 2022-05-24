@@ -6,6 +6,7 @@ module Main exposing (main)
 
 import Amarcord.API.Requests exposing (AppConfig, RequestError, httpGetConfig)
 import Amarcord.Bootstrap exposing (viewRemoteData)
+import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Html exposing (h1_, img_)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
 import Amarcord.Menu exposing (viewMenu)
@@ -31,13 +32,23 @@ import Time exposing (Posix, Zone)
 import Url as URL exposing (Url)
 
 
+maybeColumnChooser : Model -> List (Sub Msg)
+maybeColumnChooser rootModel =
+    case rootModel.page of
+        RunOverviewPage runOverviewModel ->
+            [ ColumnChooser.subscriptions runOverviewModel.columnChooser (RunOverviewPageMsg << RunOverview.ColumnChooserMessage) ]
+
+        _ ->
+            []
+
+
 main : Program (Maybe String) Model Msg
 main =
     Browser.application
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Time.every 10000 RefreshMsg
+        , subscriptions = \model -> Sub.batch (Time.every 10000 RefreshMsg :: maybeColumnChooser model)
         , onUrlRequest = LinkClicked
         , onUrlChange = UrlChanged
         }

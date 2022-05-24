@@ -5,6 +5,11 @@
         version = "1.0.1";
       };
 
+      "annaghi/dnd-list" = {
+        sha256 = "0pmnyiz1b0si8yip6wmixlybgxa8gnh3zwdpbxgq2zqwp7jx52xs";
+        version = "6.0.1";
+      };
+
       "cuducos/elm-format-number" = {
         sha256 = "0d78ghd3km0w6aarr54fqgdq21wv7m4q1xc9qy8d7fsw1sa1f1wf";
         version = "9.0.1";

@@ -1,12 +1,13 @@
-module Amarcord.ColumnChooser exposing (Model, Msg(..), init, resolveChosen, update, updateAttributi, view)
+module Amarcord.ColumnChooser exposing (Model, Msg(..), init, resolveChosen, subscriptions, update, updateAttributi, view)
 
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon)
-import Amarcord.Html exposing (input_, p_)
+import Amarcord.Html exposing (br_, em_, input_, p_)
 import Amarcord.LocalStorage exposing (LocalStorage, LocalStorageColumn, encodeLocalStorage)
-import Html exposing (Html, a, button, div, h2, label, p, span, text)
-import Html.Attributes exposing (autocomplete, checked, class, for, id, type_)
+import DnDList exposing (Listen(..), Movement(..), Operation(..))
+import Html exposing (Html, a, button, div, h2, i, label, li, p, span, text, ul)
+import Html.Attributes exposing (checked, class, id, type_)
 import Html.Events exposing (onClick, onInput)
 import List
 import List.Extra as ListExtra
@@ -15,16 +16,19 @@ import Set exposing (Set)
 import String
 
 
-type Direction
-    = Up
-    | Down
+type alias DragId =
+    Int
+
+
+type alias DropId =
+    Int
 
 
 type Msg
     = ColumnChooserSubmit
     | ColumnChooserToggleColumn String Bool
     | ColumnChooserToggle
-    | ColumnChooserMove String Direction
+    | ColumnChooserDragDrop DnDList.Msg
 
 
 type alias ToggledAttributo =
@@ -43,6 +47,7 @@ type alias Model =
     , editingColumns : List ToggledAttributo
     , open : Bool
     , localStorage : Maybe LocalStorage
+    , dnd : DnDList.Model
     }
 
 
@@ -97,13 +102,33 @@ mergeLocalStorageWithAllColumns localStorage allAttributi =
                         result
 
 
+dndConfig : DnDList.Config ToggledAttributo
+dndConfig =
+    { beforeUpdate = \_ _ list -> list
+    , movement = Vertical
+    , listen = OnDrag
+    , operation = Rotate
+    }
+
+
+system : DnDList.System ToggledAttributo Msg
+system =
+    DnDList.create dndConfig ColumnChooserDragDrop
+
+
 init : Maybe LocalStorage -> List (Attributo AttributoType) -> Model
 init localStorage allColumnsList =
     { allColumns = mergeLocalStorageWithAllColumns localStorage (List.filter (\a -> a.associatedTable == AssociatedTable.Run) allColumnsList)
     , editingColumns = []
     , open = False
     , localStorage = localStorage
+    , dnd = system.model
     }
+
+
+subscriptions : Model -> (Msg -> msg) -> Sub msg
+subscriptions model f =
+    Sub.map f (system.subscriptions model.dnd)
 
 
 resolveChosen : Model -> List (Attributo AttributoType)
@@ -132,6 +157,7 @@ updateAttributi model newAttributi =
         , editingColumns = []
         , open = False
         , localStorage = model.localStorage
+        , dnd = model.dnd
         }
 
     else
@@ -166,40 +192,62 @@ updateAttributi model newAttributi =
         , editingColumns = processAttributoList model.editingColumns
         , open = model.open
         , localStorage = model.localStorage
+        , dnd = model.dnd
         }
 
 
 view : Model -> Html Msg
 view columnChooser =
     let
-        viewAttributoButton : ToggledAttributo -> List (Html Msg)
-        viewAttributoButton { attributo, isOn } =
-            [ div [ class "d-flex p-2 align-items-center" ]
-                [ button [ class "btn btn-primary-outline btn-sm", onClick (ColumnChooserMove attributo.name Down), type_ "button" ]
-                    [ icon { name = "arrow-down-circle" } ]
-                , button [ class "btn btn-primary-outline btn-sm", onClick (ColumnChooserMove attributo.name Up), type_ "button" ]
-                    [ icon { name = "arrow-up-circle" } ]
-                , div
-                    [ class "form-check ms-2" ]
-                    [ input_
-                        [ type_ "checkbox"
-                        , class "form-check-input"
-                        , id ("column-" ++ attributo.name)
-                        , autocomplete False
+        hiddenColumnCount =
+            hiddenCount columnChooser
+
+        viewAttributoListItem itemIdx { attributo, isOn } =
+            let
+                itemId =
+                    "attributo-chooser-" ++ attributo.name
+
+                cb =
+                    input_
+                        [ class "form-check-input me-2"
+                        , type_ "checkbox"
                         , checked isOn
                         , onInput (always (ColumnChooserToggleColumn attributo.name (not isOn)))
                         ]
-                    , label
-                        [ class "form-check-label"
-                        , for ("column-" ++ attributo.name)
-                        ]
-                        [ text attributo.name ]
-                    ]
-                ]
-            ]
 
-        hiddenColumnCount =
-            hiddenCount columnChooser
+                dragHandle props =
+                    i (class "bi-grip-vertical me-3" :: props) []
+            in
+            case system.info columnChooser.dnd of
+                Nothing ->
+                    li [ class "list-group-item", id itemId ]
+                        [ dragHandle (system.dragEvents itemIdx itemId)
+                        , label []
+                            [ cb
+                            , text attributo.name
+                            ]
+                        ]
+
+                Just { dragIndex } ->
+                    if itemIdx == dragIndex then
+                        li [ class "list-group-item list-group-item-light", id itemId ] [ dragHandle [], label [] [ cb, em_ [ text "«drop here»" ] ] ]
+
+                    else
+                        li ([ class "list-group-item", id itemId ] ++ system.dropEvents itemIdx itemId)
+                            [ dragHandle []
+                            , cb
+                            , text attributo.name
+                            ]
+
+        ghostView =
+            case system.info columnChooser.dnd |> Maybe.andThen (\{ dragIndex } -> columnChooser.editingColumns |> List.drop dragIndex |> List.head) of
+                Just item ->
+                    Html.div
+                        (system.ghostStyles columnChooser.dnd)
+                        [ text item.attributo.name ]
+
+                Nothing ->
+                    text ""
     in
     div [ class "accordion" ]
         [ div [ class "accordion-item" ]
@@ -230,8 +278,11 @@ view columnChooser =
                     )
                 ]
                 [ div [ class "accordion-body" ]
-                    [ p [ class "lead" ] [ text "Click to enable/disable columns, then press \"Confirm\"." ]
-                    , div [ class "col" ] [ div [ class "mb-3" ] (List.concatMap viewAttributoButton columnChooser.editingColumns) ]
+                    [ p [ class "lead" ] [ text "Click to enable/disable columns, then press \"Confirm\".", br_, text "Press and hold ", icon { name = "grip-vertical" }, text " to drag and drop to change order." ]
+                    , ul [ class "list-group mb-3" ] (List.indexedMap viewAttributoListItem columnChooser.editingColumns)
+                    , ghostView
+
+                    --                    , div [ class "col" ] [ div [ class "mb-3" ] (List.concatMap viewAttributoButton columnChooser.editingColumns) ]
                     , p_
                         [ button [ class "btn btn-primary me-2", type_ "button", onClick ColumnChooserSubmit ] [ icon { name = "save" }, text " Confirm" ]
                         , button [ class "btn btn-secondary", type_ "button", onClick ColumnChooserToggle ] [ icon { name = "x-lg" }, text " Cancel" ]
@@ -248,56 +299,12 @@ view columnChooser =
 -- 2 :: 3 :: f [3]
 
 
-moveElement : List a -> (a -> Bool) -> Direction -> List a
-moveElement rootList f dir =
-    let
-        moveElementUp xs =
-            case xs of
-                [] ->
-                    []
-
-                first :: middle :: rest ->
-                    if f first then
-                        xs
-
-                    else if f middle then
-                        middle :: first :: rest
-
-                    else
-                        first :: moveElementUp (middle :: rest)
-
-                first :: [] ->
-                    first :: []
-
-        moveElementDown xs =
-            case xs of
-                [] ->
-                    []
-
-                first :: middle :: rest ->
-                    if f first then
-                        middle :: first :: rest
-
-                    else
-                        first :: moveElementDown (middle :: rest)
-
-                first :: [] ->
-                    first :: []
-    in
-    case dir of
-        Up ->
-            moveElementUp rootList
-
-        Down ->
-            moveElementDown rootList
-
-
 makeLocalStorageColumns : List ToggledAttributo -> List LocalStorageColumn
 makeLocalStorageColumns =
     List.map (\{ attributo, isOn } -> { isOn = isOn, attributoName = attributo.name })
 
 
-update : Model -> Msg -> ( Model, Cmd msg )
+update : Model -> Msg -> ( Model, Cmd Msg )
 update model message =
     case message of
         ColumnChooserSubmit ->
@@ -307,6 +314,7 @@ update model message =
                     , editingColumns = []
                     , open = False
                     , localStorage = model.localStorage
+                    , dnd = model.dnd
                     }
             in
             ( newColumnChooser, storeLocalStorage (encodeLocalStorage { columns = makeLocalStorageColumns model.editingColumns }) )
@@ -330,6 +338,7 @@ update model message =
                             model.editingColumns
                     , open = True
                     , localStorage = model.localStorage
+                    , dnd = model.dnd
                     }
             in
             ( newColumnChooser, Cmd.none )
@@ -342,6 +351,7 @@ update model message =
                         , editingColumns = []
                         , open = False
                         , localStorage = model.localStorage
+                        , dnd = model.dnd
                         }
                 in
                 ( newColumnChooser, Cmd.none )
@@ -353,17 +363,23 @@ update model message =
                         , editingColumns = model.allColumns
                         , open = True
                         , localStorage = model.localStorage
+                        , dnd = model.dnd
                         }
                 in
                 ( newColumnChooser, Cmd.none )
 
-        ColumnChooserMove string direction ->
+        ColumnChooserDragDrop msg ->
             let
+                ( dnd, items ) =
+                    system.update msg model.dnd model.editingColumns
+
+                newColumnChooser : Model
                 newColumnChooser =
                     { allColumns = model.allColumns
-                    , editingColumns = moveElement model.editingColumns (\ta -> ta.attributo.name == string) direction
+                    , editingColumns = items
                     , open = True
                     , localStorage = model.localStorage
+                    , dnd = dnd
                     }
             in
-            ( newColumnChooser, Cmd.none )
+            ( newColumnChooser, system.commands dnd )

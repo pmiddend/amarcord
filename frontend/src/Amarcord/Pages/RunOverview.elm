@@ -939,7 +939,7 @@ update msg model =
                 ( newColumnChooser, cmds ) =
                     ColumnChooser.update model.columnChooser columnChooserMessage
             in
-            ( { model | columnChooser = newColumnChooser }, cmds )
+            ( { model | columnChooser = newColumnChooser }, Cmd.map ColumnChooserMessage cmds )
 
         ChangeAutoPilot newValue ->
             ( model, httpUserConfigurationSetAutoPilot AutoPilotToggled newValue )
