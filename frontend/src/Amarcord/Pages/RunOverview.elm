@@ -1,6 +1,6 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRuns, httpUpdateRun, httpUserConfigurationSetAutoPilot)
+import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRuns, httpUpdateRun, httpUserConfigurationSetAutoPilot)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, attributoTargetFrameCount, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
@@ -44,12 +44,14 @@ type Msg
     | RunInitiateEdit Run
     | RunEditCancel
     | Nop
-    | CurrentExperimentTypeChanged String
+    | SelectedExperimentTypeChanged String
+    | ChangeCurrentExperimentType
     | ColumnChooserMessage ColumnChooser.Msg
     | ChangeAutoPilot Bool
     | AutoPilotToggled (Result RequestError Bool)
     | CreateDataSetFromRun String Int
     | CreateDataSetFromRunFinished (Result RequestError ())
+    | ChangeCurrentExperimentTypeFinished (Maybe String) (Result RequestError ())
 
 
 type alias EventForm =
@@ -80,9 +82,11 @@ type alias Model =
     , runEditRequest : RemoteData RequestError ()
     , submitErrors : List String
     , currentExperimentType : Maybe String
+    , selectedExperimentType : Maybe String
     , columnChooser : ColumnChooser.Model
     , localStorage : Maybe LocalStorage
     , dataSetFromRunRequest : RemoteData RequestError ()
+    , changeExperimentTypeRequest : RemoteData RequestError ()
     }
 
 
@@ -97,9 +101,11 @@ init { zone, now } localStorage =
       , runEditRequest = NotAsked
       , submitErrors = []
       , currentExperimentType = Nothing
+      , selectedExperimentType = Nothing
       , columnChooser = ColumnChooser.init localStorage []
       , localStorage = localStorage
       , dataSetFromRunRequest = NotAsked
+      , changeExperimentTypeRequest = NotAsked
       }
     , httpGetRuns RunsReceived
     )
@@ -322,8 +328,8 @@ viewProgressBar isRunning hits runFrames runHits runLengthMillis =
     [ text (formatIntHumanFriendly hits), progress ] ++ etaDisplay
 
 
-viewCurrentRun : Zone -> Posix -> Maybe String -> RemoteData RequestError () -> RunsResponseContent -> List (Html Msg)
-viewCurrentRun zone now currentExperimentType dataSetFromRunRequest rrc =
+viewCurrentRun : Zone -> Posix -> Maybe String -> Maybe String -> RemoteData RequestError () -> RemoteData RequestError () -> RunsResponseContent -> List (Html Msg)
+viewCurrentRun zone now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
     case head rrc.runs of
         Nothing ->
@@ -398,14 +404,23 @@ viewCurrentRun zone now currentExperimentType dataSetFromRunRequest rrc =
 
                 dataSetSelection =
                     [ form_
-                        [ div [ class "mb-3 form-floating" ]
-                            [ select
-                                [ class "form-select"
-                                , Html.Attributes.id "current-experiment-type"
-                                , onInput CurrentExperimentTypeChanged
+                        [ div [ class "input-group mb-3" ]
+                            [ div [ class "form-floating flex-grow-1" ]
+                                [ select
+                                    [ class "form-select"
+                                    , Html.Attributes.id "current-experiment-type"
+                                    , onInput SelectedExperimentTypeChanged
+                                    ]
+                                    (option [ selected (isNothing selectedExperimentType), value "" ] [ text "«no value»" ] :: List.map viewExperimentTypeOption (Dict.keys rrc.experimentTypes))
+                                , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
                                 ]
-                                (option [ selected (isNothing currentExperimentType), value "" ] [ text "«no value»" ] :: List.map viewExperimentTypeOption (Dict.keys rrc.experimentTypes))
-                            , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
+                            , button
+                                [ class "btn btn-primary"
+                                , type_ "button"
+                                , disabled (currentExperimentType == selectedExperimentType || isLoading changeExperimentTypeRequest)
+                                , onClick ChangeCurrentExperimentType
+                                ]
+                                [ icon { name = "save" }, text " Change" ]
                             ]
                         ]
                     ]
@@ -635,7 +650,7 @@ viewInner model rrc =
         [ div
             [ class "row" ]
             [ div [ class "col-lg-6" ]
-                (viewCurrentRun model.myTimeZone model.now model.currentExperimentType model.dataSetFromRunRequest rrc)
+                (viewCurrentRun model.myTimeZone model.now model.selectedExperimentType model.currentExperimentType model.changeExperimentTypeRequest model.dataSetFromRunRequest rrc)
             , div [ class "col-lg-6" ]
                 (viewRunAttributiForm
                     (Maybe.andThen (\a -> Dict.get a rrc.experimentTypes) model.currentExperimentType)
@@ -922,9 +937,9 @@ update msg model =
         Nop ->
             ( model, Cmd.none )
 
-        CurrentExperimentTypeChanged string ->
+        SelectedExperimentTypeChanged string ->
             ( { model
-                | currentExperimentType =
+                | selectedExperimentType =
                     if string == "" then
                         Nothing
 
@@ -952,3 +967,16 @@ update msg model =
 
         CreateDataSetFromRunFinished result ->
             ( { model | dataSetFromRunRequest = fromResult result }, httpGetRuns RunsReceived )
+
+        ChangeCurrentExperimentType ->
+            case model.runEditInfo of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just ei ->
+                    ( { model | changeExperimentTypeRequest = Loading }, httpChangeCurrentExperimentType (ChangeCurrentExperimentTypeFinished model.selectedExperimentType) model.selectedExperimentType ei.runId )
+
+        ChangeCurrentExperimentTypeFinished selectedExperimentType result ->
+            ( { model | changeExperimentTypeRequest = fromResult result, currentExperimentType = selectedExperimentType }
+            , httpGetRuns RunsReceived
+            )

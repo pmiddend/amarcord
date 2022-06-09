@@ -24,7 +24,11 @@ from amarcord.amici.om.client import (
 )
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.asyncdb import create_workbook, LIVE_STREAM_IMAGE
+from amarcord.db.asyncdb import (
+    create_workbook,
+    LIVE_STREAM_IMAGE,
+    ATTRIBUTO_GROUP_MANUAL,
+)
 from amarcord.db.attributi import (
     AttributoConversionFlags,
     datetime_to_attributo_int,
@@ -581,6 +585,53 @@ async def create_experiment_type() -> JSONDict:
             name=r.retrieve_safe_str("name"),
             experiment_attributi_names=r.retrieve_string_array("attributi-names"),
         )
+
+    return {}
+
+
+@app.post("/api/experiment-types/change-for-run")
+async def change_current_run_experiment_type() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        run_id = r.retrieve_safe_int("run-id")
+        attributi = await db.instance.retrieve_attributi(conn, None)
+        run = await db.instance.retrieve_run(
+            conn,
+            run_id,
+            attributi,
+        )
+        if run is None:
+            raise CustomWebException(
+                code=404, title=f'Couldn\'t find run with ID "{run_id}"', description=""
+            )
+        new_experiment_type = r.optional_str("experiment-type")
+        # There is no semantic yet for resetting an experiment type
+        if new_experiment_type is None:
+            return {}
+
+        experiment_type_instance = next(
+            iter(
+                x
+                for x in await db.instance.retrieve_experiment_types(conn)
+                if x.name == new_experiment_type
+            ),
+            None,
+        )
+        if experiment_type_instance is None:
+            raise CustomWebException(
+                code=404,
+                title=f'Couldn\'t find experiment type "{new_experiment_type}"',
+                description="",
+            )
+        for a in attributi:
+            if (
+                a.group == ATTRIBUTO_GROUP_MANUAL
+                and a.name not in experiment_type_instance.attributo_names
+            ):
+                run.attributi.remove_but_keep_type(a.name)
+        await db.instance.update_run_attributi(conn, run_id, run.attributi)
+        return {}
 
     return {}
 

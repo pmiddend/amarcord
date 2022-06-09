@@ -17,6 +17,7 @@ module Amarcord.API.Requests exposing
     , RunsResponseContent
     , SamplesResponse
     , StandardUnitCheckResult(..)
+    , httpChangeCurrentExperimentType
     , httpCheckStandardUnit
     , httpCreateAttributo
     , httpCreateDataSet
@@ -62,7 +63,7 @@ import Http exposing (emptyBody, filePart, jsonBody, multipartBody, stringPart)
 import Json.Decode as Decode
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
-import Maybe.Extra exposing (unwrap)
+import Maybe.Extra as MaybeExtra exposing (unwrap)
 import Set exposing (Set)
 import Time exposing (Posix, millisToPosix)
 import Tuple exposing (pair)
@@ -185,6 +186,22 @@ httpCreateDataSetFromRun f experimentType runId =
             jsonBody
                 (Encode.object
                     [ ( "experiment-type", Encode.string experimentType )
+                    , ( "run-id", Encode.int runId )
+                    ]
+                )
+        }
+
+
+httpChangeCurrentExperimentType : (Result RequestError () -> msg) -> Maybe String -> Int -> Cmd msg
+httpChangeCurrentExperimentType f experimentType runId =
+    Http.post
+        { url = "api/experiment-types/change-for-run"
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
+        , body =
+            jsonBody
+                (Encode.object
+                    [ ( "experiment-type", MaybeExtra.unwrap Encode.null Encode.string experimentType )
                     , ( "run-id", Encode.int runId )
                     ]
                 )
