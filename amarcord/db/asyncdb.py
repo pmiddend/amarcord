@@ -715,28 +715,42 @@ class AsyncDB:
                 description=new_attributo.description,
                 group=new_attributo.group,
                 json_schema=attributo_type_to_schema(new_attributo.attributo_type),
+                associated_table=new_attributo.associated_table,
             )
             .where(self.tables.attributo.c.name == name)
         )
 
         if new_attributo.associated_table == AssociatedTable.SAMPLE:
-            for s in await self.retrieve_samples(conn, current_attributi):
-                s.attributi.convert_attributo(
-                    conversion_flags=conversion_flags,
-                    old_name=name,
-                    new_name=new_attributo.name,
-                    after_type=new_attributo.attributo_type,
-                )
-                await self.update_sample(conn, cast(int, s.id), s.name, s.attributi)
+            # If we're changing the table from run to sample, we have to remove the attributo from runs
+            if current_attributo.associated_table != AssociatedTable.SAMPLE:
+                for r in await self.retrieve_runs(conn, current_attributi):
+                    r.attributi.remove_with_type(current_attributo.name)
+                    await self.update_run_attributi(conn, r.id, r.attributi)
+            else:
+                # Update column in sample(s)
+                for s in await self.retrieve_samples(conn, current_attributi):
+                    s.attributi.convert_attributo(
+                        conversion_flags=conversion_flags,
+                        old_name=name,
+                        new_name=new_attributo.name,
+                        after_type=new_attributo.attributo_type,
+                    )
+                    await self.update_sample(conn, cast(int, s.id), s.name, s.attributi)
         elif new_attributo.associated_table == AssociatedTable.RUN:
-            for r in await self.retrieve_runs(conn, current_attributi):
-                r.attributi.convert_attributo(
-                    conversion_flags=conversion_flags,
-                    old_name=name,
-                    new_name=new_attributo.name,
-                    after_type=new_attributo.attributo_type,
-                )
-                await self.update_run_attributi(conn, r.id, r.attributi)
+            # If we're changing the table from sample to run, we have to remove the attributo from samples
+            if current_attributo.associated_table != AssociatedTable.RUN:
+                for s in await self.retrieve_samples(conn, current_attributi):
+                    s.attributi.remove_with_type(current_attributo.name)
+                    await self.update_sample(conn, s.id, s.name, s.attributi)
+            else:
+                for r in await self.retrieve_runs(conn, current_attributi):
+                    r.attributi.convert_attributo(
+                        conversion_flags=conversion_flags,
+                        old_name=name,
+                        new_name=new_attributo.name,
+                        after_type=new_attributo.attributo_type,
+                    )
+                    await self.update_run_attributi(conn, r.id, r.attributi)
         else:
             raise Exception(
                 f"unimplemented: is there a new associated table {new_attributo.associated_table}?"

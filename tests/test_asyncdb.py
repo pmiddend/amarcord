@@ -79,6 +79,126 @@ async def test_create_and_retrieve_attributo() -> None:
         ]
 
 
+async def test_create_sample_attributo_then_change_to_run_attributo() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        # Create our test attributo
+        await db.create_attributo(
+            conn,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.SAMPLE,
+            AttributoTypeInt(),
+        )
+
+        # Add the attributo to a test sample
+        sample_id_with_attributo = await db.create_sample(
+            conn,
+            _TEST_SAMPLE_NAME,
+            AttributiMap.from_types_and_json(
+                await db.retrieve_attributi(conn, None),
+                sample_ids=[],
+                raw_attributi={_TEST_ATTRIBUTO_NAME: 3},
+            ),
+        )
+        sample_id_without_attributo = await db.create_sample(
+            conn,
+            _TEST_SAMPLE_NAME,
+            AttributiMap.from_types_and_json(
+                await db.retrieve_attributi(conn, None),
+                sample_ids=[],
+                raw_attributi={},
+            ),
+        )
+
+        # Now change the type to run
+        await db.update_attributo(
+            conn,
+            _TEST_ATTRIBUTO_NAME,
+            AttributoConversionFlags(ignore_units=False),
+            DBAttributo(
+                _TEST_ATTRIBUTO_NAME,
+                _TEST_ATTRIBUTO_DESCRIPTION,
+                _TEST_ATTRIBUTO_GROUP,
+                AssociatedTable.RUN,
+                AttributoTypeInt(),
+            ),
+        )
+
+        # Sample shouldn't contain the attributo anymore
+        samples = await db.retrieve_samples(
+            conn, await db.retrieve_attributi(conn, None)
+        )
+
+        assert samples[0].id == sample_id_with_attributo
+        assert samples[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
+        assert samples[1].id == sample_id_without_attributo
+        assert samples[1].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
+
+
+async def test_create_run_attributo_then_change_to_sample_attributo() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        # Create our test attributo
+        await db.create_attributo(
+            conn,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeInt(),
+        )
+
+        # Add the attributo to a test sample
+        await db.create_run(
+            conn,
+            _TEST_RUN_ID,
+            await db.retrieve_attributi(conn, None),
+            AttributiMap.from_types_and_json(
+                await db.retrieve_attributi(conn, None),
+                sample_ids=[],
+                raw_attributi={_TEST_ATTRIBUTO_NAME: 3},
+            ),
+            keep_manual_attributes_from_previous_run=False,
+        )
+        await db.create_run(
+            conn,
+            _TEST_RUN_ID + 1,
+            await db.retrieve_attributi(conn, None),
+            AttributiMap.from_types_and_json(
+                await db.retrieve_attributi(conn, None),
+                sample_ids=[],
+                raw_attributi={},
+            ),
+            keep_manual_attributes_from_previous_run=False,
+        )
+
+        # Now change the type to run
+        await db.update_attributo(
+            conn,
+            _TEST_ATTRIBUTO_NAME,
+            AttributoConversionFlags(ignore_units=False),
+            DBAttributo(
+                _TEST_ATTRIBUTO_NAME,
+                _TEST_ATTRIBUTO_DESCRIPTION,
+                _TEST_ATTRIBUTO_GROUP,
+                AssociatedTable.SAMPLE,
+                AttributoTypeInt(),
+            ),
+        )
+
+        # Sample shouldn't contain the attributo anymore
+        runs = await db.retrieve_runs(conn, await db.retrieve_attributi(conn, None))
+
+        assert runs[0].id == _TEST_RUN_ID + 1
+        assert runs[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
+        assert runs[1].id == _TEST_RUN_ID
+        assert runs[1].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
+
+
 async def test_create_and_delete_unused_attributo() -> None:
     """Create an attributo, then delete it again"""
 
