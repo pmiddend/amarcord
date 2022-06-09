@@ -42,6 +42,11 @@ toggleOn a =
     { attributo = a, isOn = True }
 
 
+toggleOff : Attributo AttributoType -> ToggledAttributo
+toggleOff a =
+    { attributo = a, isOn = False }
+
+
 type alias Model =
     { allColumns : List ToggledAttributo
     , editingColumns : List ToggledAttributo
@@ -53,15 +58,12 @@ type alias Model =
 
 mergeLocalStorageWithAllColumns : Maybe LocalStorage -> List (Attributo AttributoType) -> List ToggledAttributo
 mergeLocalStorageWithAllColumns localStorage allAttributi =
-    -- There's quite a few "catches" here:
-    --
-    -- 1. Local storage could be missing. In that case, enable all columns.
-    -- 2. We could have new columns. In this case, also enable all columns and forget the local storage.
-    -- 3. We could have columns in the local storage that are not there anymore in the DB. In that case, also discard everything.
     case localStorage of
+        -- Nothing in local storage -> turn all known columns on!
         Nothing ->
             List.map toggleOn allAttributi
 
+        -- We already have columns in local storage
         Just { columns } ->
             let
                 currentColumnNames =
@@ -70,36 +72,26 @@ mergeLocalStorageWithAllColumns localStorage allAttributi =
                 oldColumnNames =
                     Set.fromList <| List.map .attributoName columns
 
-                newColumns =
+                newColumnNames =
                     Set.diff currentColumnNames oldColumnNames
 
-                transducer : LocalStorageColumn -> Maybe (List ToggledAttributo) -> Maybe (List ToggledAttributo)
-                transducer localColumn prior =
-                    case prior of
+                newColumns =
+                    List.filterMap (\cn -> ListExtra.find (\a -> a.name == cn) allAttributi) (Set.toList newColumnNames)
+
+                -- For each column in local storage, find it in the list of current attributi
+                -- If it's found, great. If not, ignore.
+                -- This handles the case of columns being added (nothing is done here) and columns being deleted
+                -- (they are ignored here).
+                transducer : LocalStorageColumn -> List ToggledAttributo -> List ToggledAttributo
+                transducer localColumn accumulatedColumns =
+                    case ListExtra.find (\a -> a.name == localColumn.attributoName) allAttributi of
                         Nothing ->
-                            Nothing
+                            accumulatedColumns
 
-                        Just xs ->
-                            case ListExtra.find (\a -> a.name == localColumn.attributoName) allAttributi of
-                                Nothing ->
-                                    Nothing
-
-                                Just a ->
-                                    Just ({ attributo = a, isOn = localColumn.isOn } :: xs)
-
-                zipped =
-                    List.foldr transducer (Just []) columns
+                        Just a ->
+                            { attributo = a, isOn = localColumn.isOn } :: accumulatedColumns
             in
-            if not <| Set.isEmpty newColumns then
-                List.map toggleOn allAttributi
-
-            else
-                case zipped of
-                    Nothing ->
-                        List.map toggleOn allAttributi
-
-                    Just result ->
-                        result
+            List.foldr transducer [] columns ++ List.map (\a -> { attributo = a, isOn = False }) newColumns
 
 
 dndConfig : DnDList.Config ToggledAttributo
@@ -186,7 +178,7 @@ updateAttributi model newAttributi =
 
             processAttributoList : List ToggledAttributo -> List ToggledAttributo
             processAttributoList attributi =
-                List.filter (\ta -> not <| Set.member ta.attributo.name deletedAttributiNames) attributi ++ List.map toggleOn newAttributiResolved
+                List.filter (\ta -> not <| Set.member ta.attributo.name deletedAttributiNames) attributi ++ List.map toggleOff newAttributiResolved
         in
         { allColumns = processAttributoList model.allColumns
         , editingColumns = processAttributoList model.editingColumns
