@@ -244,7 +244,19 @@ view columnChooser =
     div [ class "accordion" ]
         [ div [ class "accordion-item" ]
             [ h2 [ class "accordion-header" ]
-                [ button [ class "accordion-button", type_ "button", onClick ColumnChooserToggle ]
+                [ button
+                    [ class
+                        ("accordion-button"
+                            ++ (if columnChooser.open then
+                                    ""
+
+                                else
+                                    " collapsed"
+                               )
+                        )
+                    , type_ "button"
+                    , onClick ColumnChooserToggle
+                    ]
                     [ icon { name = "columns" }
                     , span [ class "ms-1" ]
                         [ text <|
