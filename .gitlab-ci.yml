@@ -34,12 +34,11 @@ nix-pin-latest-manual:
 check-requirements:
    script:
      - nix-shell -p poetry --run ./ci/check-requirements.sh
-
 tests:
   script:
     - nix-shell default.nix -A pythonPackage --run ci/run-tests.sh
   artifacts:
-    when: always
     reports:
-      cobertura: coverage.xml
-      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
