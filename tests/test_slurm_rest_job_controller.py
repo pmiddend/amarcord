@@ -9,6 +9,7 @@ from typing import Tuple
 from typing import cast
 
 import pytest
+from pytest_subprocess import FakeProcess
 
 from amarcord.json import JSONDict
 from amarcord.amici.slurm.job_status import JobStatus
@@ -140,7 +141,7 @@ async def test_slurm_rest_job_controller_list_jobs_success() -> None:
     assert jobs[0].status == JobStatus.RUNNING
 
 
-async def test_dynamic_token_retriever_wrong_output(fake_process) -> None:
+async def test_dynamic_token_retriever_wrong_output(fake_process: FakeProcess) -> None:
     fake_process.register_subprocess(slurm_token_command(24 * 60), stdout=b"lol")
 
     with pytest.raises(Exception):
@@ -148,7 +149,7 @@ async def test_dynamic_token_retriever_wrong_output(fake_process) -> None:
         await tr()
 
 
-async def test_dynamic_token_retriever_jwt_output(fake_process) -> None:
+async def test_dynamic_token_retriever_jwt_output(fake_process: FakeProcess) -> None:
     fake_process.register_subprocess(
         slurm_token_command(24 * 60), stdout=b"SLURM_TOKEN=lol"
     )

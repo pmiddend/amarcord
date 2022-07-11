@@ -16,15 +16,15 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
-    with op.batch_alter_table("File") as batch_op:
+def upgrade() -> None:
+    with op.batch_alter_table("File") as batch_op:  # type: ignore
         batch_op.alter_column(
             "sha256", existing_type=sa.String(length=40), type_=sa.String(length=64)
         )
 
 
-def downgrade():
-    with op.batch_alter_table("File") as batch_op:
+def downgrade() -> None:
+    with op.batch_alter_table("File") as batch_op:  # type: ignore
         batch_op.alter_column(
             "sha256", existing_type=sa.String(length=64), type_=sa.String(length=40)
         )

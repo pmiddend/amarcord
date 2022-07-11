@@ -18,8 +18,8 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
-    with op.batch_alter_table("File") as batch_op:
+def upgrade() -> None:
+    with op.batch_alter_table("File") as batch_op:  # type: ignore
         # See https://stackoverflow.com/questions/43791725/sqlalchemy-how-to-make-a-longblob-column-in-mysql
         batch_op.alter_column(
             "contents",
@@ -28,5 +28,5 @@ def upgrade():
         )
 
 
-def downgrade():
+def downgrade() -> None:
     pass

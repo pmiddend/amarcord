@@ -468,7 +468,7 @@ def _convert_double_to_double(
                 f"cannot convert decimal number {v} because after unit conversion, the value {magnitude_after} it's "
                 f"not in the range {after_type.range} "
             )
-        return UnitRegistry().Quantity(v, before_type.suffix).to(after_type.suffix).m
+        return UnitRegistry().Quantity(v, before_type.suffix).to(after_type.suffix).m  # type: ignore
 
     return v
 
@@ -596,7 +596,7 @@ _conversion_matrix.update(
         (AttributoTypeString, AttributoTypeList): _convert_string_to_string_list,
         # start double
         (AttributoTypeDecimal, AttributoTypeDecimal): _convert_double_to_double,
-        (AttributoTypeDecimal, AttributoTypeInt): _convert_double_to_int,  # type: ignore
+        (AttributoTypeDecimal, AttributoTypeInt): _convert_double_to_int,
         (AttributoTypeDecimal, AttributoTypeList): _convert_double_to_double_list,
         (
             AttributoTypeDecimal,

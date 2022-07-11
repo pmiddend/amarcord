@@ -1002,7 +1002,7 @@ def test_parse_karabo_attribute_processor_wrong_combination() -> None:
     logger.warning(attributes)
 
 
-def test_parse_attributi_not_a_dict():
+def test_parse_attributi_not_a_dict() -> None:
     attributes = parse_amarcord_attributi(
         [],
         set(),
@@ -1011,7 +1011,7 @@ def test_parse_attributi_not_a_dict():
     logger.warning(attributes)
 
 
-def test_parse_attributo_duplicate_id():
+def test_parse_attributo_duplicate_id() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi={AttributoId("a")},
@@ -1022,7 +1022,7 @@ def test_parse_attributo_duplicate_id():
     logger.warning(attributes)
 
 
-def test_parse_attributo_description_id_not_string():
+def test_parse_attributo_description_id_not_string() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1033,7 +1033,7 @@ def test_parse_attributo_description_id_not_string():
     logger.warning(attributes)
 
 
-def test_parse_attributo_processor_wrong():
+def test_parse_attributo_processor_wrong() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1044,7 +1044,7 @@ def test_parse_attributo_processor_wrong():
     logger.warning(attributes)
 
 
-def test_parse_attributo_plain_attribute_not_found():
+def test_parse_attributo_plain_attribute_not_found() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1055,7 +1055,7 @@ def test_parse_attributo_plain_attribute_not_found():
     logger.warning(attributes)
 
 
-def test_parse_attributo_plain_attribute():
+def test_parse_attributo_plain_attribute() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1075,7 +1075,7 @@ def test_parse_attributo_plain_attribute():
     )
 
 
-def test_parse_attributo_plain_attribute_wrong_processor():
+def test_parse_attributo_plain_attribute_wrong_processor() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1091,7 +1091,7 @@ def test_parse_attributo_plain_attribute_wrong_processor():
     logger.warning(attributes)
 
 
-def test_parse_attributo_plain_attribute_both_coagulate_and_simple():
+def test_parse_attributo_plain_attribute_both_coagulate_and_simple() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1107,7 +1107,7 @@ def test_parse_attributo_plain_attribute_both_coagulate_and_simple():
     logger.warning(attributes)
 
 
-def test_parse_attributo_output_missing():
+def test_parse_attributo_output_missing() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1121,7 +1121,7 @@ def test_parse_attributo_output_missing():
     logger.warning(attributes)
 
 
-def test_parse_attributo_coagulate_list_invalid_id():
+def test_parse_attributo_coagulate_list_invalid_id() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1136,7 +1136,7 @@ def test_parse_attributo_coagulate_list_invalid_id():
     logger.warning(attributes)
 
 
-def test_parse_attributo_coagulate_list_no_components():
+def test_parse_attributo_coagulate_list_no_components() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1151,7 +1151,7 @@ def test_parse_attributo_coagulate_list_no_components():
     logger.warning(attributes)
 
 
-def test_parse_attributo_coagulate_list():
+def test_parse_attributo_coagulate_list() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1173,7 +1173,7 @@ def test_parse_attributo_coagulate_list():
     )
 
 
-def test_parse_attributo_coagulate_string_invalid_id():
+def test_parse_attributo_coagulate_string_invalid_id() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1188,7 +1188,7 @@ def test_parse_attributo_coagulate_string_invalid_id():
     logger.warning(attributes)
 
 
-def test_parse_attributo_coagulate_string():
+def test_parse_attributo_coagulate_string() -> None:
     attributes = parse_amarcord_attributo(
         attributo_id_raw="a",
         existing_attributi=set(),
@@ -1210,7 +1210,7 @@ def test_parse_attributo_coagulate_string():
     )
 
 
-def test_parse_attributi():
+def test_parse_attributi() -> None:
     attributes = parse_amarcord_attributi(
         {
             "aid": {
@@ -1223,23 +1223,23 @@ def test_parse_attributi():
     assert isinstance(attributes, list)
 
 
-def test_parse_configuration_not_a_dict():
+def test_parse_configuration_not_a_dict() -> None:
     config = parse_configuration("random useless text")
     assert isinstance(config, KaraboConfigurationError)
 
 
-def test_parse_configuration_empty():
+def test_parse_configuration_empty() -> None:
     config = parse_configuration({})
     assert isinstance(config, KaraboConfigurationError)
 
 
-def test_parse_configuration_without_proper_keys():
+def test_parse_configuration_without_proper_keys() -> None:
     config = parse_configuration({"useless key": "useless value"})
     assert isinstance(config, KaraboConfigurationError)
     logger.warning(config)
 
 
-def test_parse_configuration_arithmetic_mean_of_list_karabo_attribute():
+def test_parse_configuration_arithmetic_mean_of_list_karabo_attribute() -> None:
     config = parse_configuration(
         {
             CONFIG_KARABO_ATTRIBUTES_KEY: {
@@ -1266,7 +1266,7 @@ def test_parse_configuration_arithmetic_mean_of_list_karabo_attribute():
     logger.warning(config)
 
 
-def test_parse_configuration_coagulation_of_karabo_list_attribute():
+def test_parse_configuration_coagulation_of_karabo_list_attribute() -> None:
     config = parse_configuration(
         {
             CONFIG_KARABO_ATTRIBUTES_KEY: {
@@ -1293,7 +1293,7 @@ def test_parse_configuration_coagulation_of_karabo_list_attribute():
     logger.warning(config)
 
 
-def test_parse_configuration_stdev_coagulate_string():
+def test_parse_configuration_stdev_coagulate_string() -> None:
     config = parse_configuration(
         {
             CONFIG_KARABO_ATTRIBUTES_KEY: {
@@ -1330,7 +1330,7 @@ def test_parse_configuration_stdev_coagulate_string():
     logger.warning(config)
 
 
-def test_parse_configuration_stdev_coagulate_list():
+def test_parse_configuration_stdev_coagulate_list() -> None:
     config = parse_configuration(
         {
             CONFIG_KARABO_ATTRIBUTES_KEY: {
@@ -1367,7 +1367,7 @@ def test_parse_configuration_stdev_coagulate_list():
     logger.warning(config)
 
 
-def test_parse_configuration_stdev_plain_attribute():
+def test_parse_configuration_stdev_plain_attribute() -> None:
     config = parse_configuration(
         {
             CONFIG_KARABO_ATTRIBUTES_KEY: {
@@ -1397,7 +1397,7 @@ def test_parse_configuration_stdev_plain_attribute():
     logger.warning(config)
 
 
-def test_parse_configuration_stdev_plain_attribute_rev():
+def test_parse_configuration_stdev_plain_attribute_rev() -> None:
     config = parse_configuration(
         {
             CONFIG_KARABO_ATTRIBUTES_KEY: {
@@ -1425,7 +1425,7 @@ def test_parse_configuration_stdev_plain_attribute_rev():
     logger.warning(config)
 
 
-def test_parse_configuration_heterogeneous_list():
+def test_parse_configuration_heterogeneous_list() -> None:
     config = parse_configuration(
         {
             CONFIG_KARABO_ATTRIBUTES_KEY: {
@@ -1454,7 +1454,7 @@ def test_parse_configuration_heterogeneous_list():
     logger.warning(config)
 
 
-def test_parse_configuration():
+def test_parse_configuration() -> None:
     config = parse_configuration(
         {
             CONFIG_KARABO_ATTRIBUTES_KEY: {
@@ -1961,7 +1961,7 @@ def test_extra_data_locators_for_config() -> None:
     assert "subkey2" in locators["source"]
 
 
-async def test_persist_euxfel_run_result_new_run():
+async def test_persist_euxfel_run_result_new_run() -> None:
     RUN_ID = 1
     PROPOSAL_ID = 1001
     TEST_ATTRIBUTO = AttributoId("id")

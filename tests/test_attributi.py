@@ -88,7 +88,7 @@ def test_attributo_type_to_string_list() -> None:
     )
 
 
-def test_attributo_types_semantically_equivalent():
+def test_attributo_types_semantically_equivalent() -> None:
     assert attributo_types_semantically_equivalent(
         AttributoTypeInt(), AttributoTypeInt()
     )

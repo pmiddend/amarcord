@@ -20,7 +20,7 @@ async def _get_db() -> AsyncDB:
     return db
 
 
-async def test_process_data_latest_run():
+async def test_process_data_latest_run() -> None:
     db = await _get_db()
 
     processor = OnDAZMQProcessor(db)
@@ -47,19 +47,19 @@ async def test_process_data_latest_run():
     async with db.read_only_connection() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
 
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_HITS) == 1
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_FRAMES) == 2
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_HITS) == 1  # type: ignore
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_FRAMES) == 2  # type: ignore
 
     # Now stop the run and add some frames
     async with db.begin() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
-        run.attributi.append_single(ATTRIBUTO_STOPPED, datetime.utcnow())
-        await db.update_run_attributi(conn, run.id, run.attributi)
+        run.attributi.append_single(ATTRIBUTO_STOPPED, datetime.utcnow())  # type: ignore
+        await db.update_run_attributi(conn, run.id, run.attributi)  # type: ignore
 
     await processor.process_data([{"frame_is_hit": True}, {"frame_is_hit": False}])
 
     async with db.read_only_connection() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
 
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_HITS) == 1
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_FRAMES) == 2
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_HITS) == 1  # type: ignore
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_FRAMES) == 2  # type: ignore

@@ -20,7 +20,7 @@ async def _get_db() -> AsyncDB:
     return db
 
 
-async def test_process_data_without_runs():
+async def test_process_data_without_runs() -> None:
     db = await _get_db()
 
     processor = OmZMQProcessor(db)
@@ -45,7 +45,7 @@ async def test_process_data_without_runs():
     )
 
 
-async def test_process_data_latest_run():
+async def test_process_data_latest_run() -> None:
     db = await _get_db()
 
     processor = OmZMQProcessor(db)
@@ -87,14 +87,14 @@ async def test_process_data_latest_run():
         run = await db.retrieve_latest_run(conn, attributi)
 
         # 4 because the first frame gets ignored as a baseline
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 4
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 6
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 4  # type: ignore
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 6  # type: ignore
 
     # Now stop the run and add some frames
     async with db.begin() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
-        run.attributi.append_single(ATTRIBUTO_STOPPED, datetime.utcnow())
-        await db.update_run_attributi(conn, run.id, run.attributi)
+        run.attributi.append_single(ATTRIBUTO_STOPPED, datetime.utcnow())  # type: ignore
+        await db.update_run_attributi(conn, run.id, run.attributi)  # type: ignore
 
     await processor.process_data(
         {
@@ -108,5 +108,5 @@ async def test_process_data_latest_run():
         run = await db.retrieve_latest_run(conn, attributi)
 
         # 4 because the first frame gets ignored as a baseline
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 4
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 6
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 4  # type: ignore
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 6  # type: ignore

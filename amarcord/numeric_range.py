@@ -30,15 +30,16 @@ class NumericRange:
 
 
 def random_from_range(r: NumericRange) -> float:
-    left = r.minimum if r.minimum is not None else r.minimum_inclusive
-    right = r.maximum if r.maximum is not None else r.maximum_inclusive
+    left = r.minimum if r.minimum is not None else None
+    right = r.maximum if r.maximum is not None else None
     if left is not None and right is not None:
         return random.uniform(left, right)
     if left is None and right is None:
         return random.uniform(-10000, 10000)
     if left is not None and right is None:
         return random.uniform(left, left + 10000)
-    return random.uniform(right - 10000, right)
+    # mypy doesn't get it! Maybe some day.
+    return random.uniform(right - 10000, right)  # type: ignore
 
 
 def empty_range() -> NumericRange:

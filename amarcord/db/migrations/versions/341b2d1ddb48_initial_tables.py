@@ -32,7 +32,7 @@ class AssociatedTable(Enum):
     SAMPLE = "sample"
 
 
-def upgrade():
+def upgrade() -> None:
     op.create_table(
         "Run",
         sa.Column("id", sa.Integer, primary_key=True),
@@ -195,7 +195,7 @@ def upgrade():
     for column_name in ("started", "stopped"):
         # noinspection PyTypeChecker
         op.execute(
-            attributo.insert().values(
+            attributo.insert().values(  # type: ignore
                 name=column_name,
                 description="",
                 group="internal",
@@ -205,5 +205,5 @@ def upgrade():
         )
 
 
-def downgrade():
+def downgrade() -> None:
     pass

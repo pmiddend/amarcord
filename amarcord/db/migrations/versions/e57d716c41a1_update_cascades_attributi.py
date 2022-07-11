@@ -20,8 +20,8 @@ naming_convention = {
 }
 
 
-def upgrade():
-    with op.batch_alter_table(
+def upgrade() -> None:
+    with op.batch_alter_table(  # type: ignore
         "ExperimentHasAttributo", naming_convention=naming_convention
     ) as batch_op:
         if op.get_bind().engine.name == "mysql":
@@ -38,5 +38,5 @@ def upgrade():
             )
 
 
-def downgrade():
+def downgrade() -> None:
     pass

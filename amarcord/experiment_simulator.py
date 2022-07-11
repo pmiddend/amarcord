@@ -89,7 +89,7 @@ def _generate_attributo_value(
     if isinstance(a, AttributoTypeSample):
         return random.choice(sample_ids)
     if isinstance(a, AttributoTypeString):
-        return generate("n/*")
+        return generate("n/*")  # type: ignore
     if isinstance(a, AttributoTypeBoolean):
         return random.random() >= 0.5
     if isinstance(a, AttributoTypeDecimal):
@@ -322,7 +322,7 @@ gen = DocumentGenerator()
 
 
 def random_gibberish() -> str:
-    return gen.sentence()
+    return gen.sentence()  # type: ignore
 
 
 async def _generate_cfel_results(

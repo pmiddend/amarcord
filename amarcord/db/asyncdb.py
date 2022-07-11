@@ -183,7 +183,7 @@ class AsyncDB:
         name: str,
         attributi: AttributiMap,
     ) -> int:
-        return (
+        result: int = (
             await conn.execute(
                 self.tables.sample.insert().values(
                     name=name,
@@ -192,6 +192,7 @@ class AsyncDB:
                 )
             )
         ).inserted_primary_key[0]
+        return result
 
     async def update_sample(
         self,
@@ -254,7 +255,7 @@ class AsyncDB:
                 for row in group
             ]
             for key, group in itertools.groupby(
-                file_results, key=lambda row: row[association_column.name]
+                file_results, key=lambda row: row[association_column.name]  # type: ignore
             )
         }
         return result
@@ -333,7 +334,7 @@ class AsyncDB:
     async def create_event(
         self, conn: Connection, level: EventLogLevel, source: str, text: str
     ) -> int:
-        return (
+        result: int = (
             await conn.execute(
                 self.tables.event_log.insert().values(
                     created=datetime.datetime.utcnow(),
@@ -343,6 +344,7 @@ class AsyncDB:
                 )
             )
         ).inserted_primary_key[0]
+        return result
 
     async def retrieve_runs(
         self, conn: Connection, attributi: List[DBAttributo]
@@ -476,7 +478,7 @@ class AsyncDB:
             for s in await self.retrieve_samples(conn, attributi):
                 # Then remove the attributo from the sample and the accompanying types, and update.
                 s.attributi.remove_with_type(name)
-                await self.update_sample(conn, cast(int, s.id), s.name, s.attributi)
+                await self.update_sample(conn, s.id, s.name, s.attributi)
         elif found_attributo.associated_table == AssociatedTable.RUN:
             # Explanation, see above for samples
             for r in await self.retrieve_runs(conn, attributi):
@@ -735,7 +737,7 @@ class AsyncDB:
                         new_name=new_attributo.name,
                         after_type=new_attributo.attributo_type,
                     )
-                    await self.update_sample(conn, cast(int, s.id), s.name, s.attributi)
+                    await self.update_sample(conn, s.id, s.name, s.attributi)
         elif new_attributo.associated_table == AssociatedTable.RUN:
             # If we're changing the table from sample to run, we have to remove the attributo from samples
             if current_attributo.associated_table != AssociatedTable.RUN:
@@ -804,7 +806,7 @@ class AsyncDB:
 
     async def create_cfel_analysis_result(
         self, conn: Connection, r: DBCFELAnalysisResult, files: List[DBFileBlueprint]
-    ) -> None:
+    ) -> int:
         file_ids = [
             (
                 await self.create_file(
@@ -818,7 +820,7 @@ class AsyncDB:
             ).id
             for f in files
         ]
-        result_id = (
+        result_id: int = (
             await conn.execute(
                 sa.insert(self.tables.cfel_analysis_results).values(
                     directory_name=r.directory_name,
@@ -1100,7 +1102,7 @@ class AsyncDB:
                     etc.experiment_type
                 )
             ),
-            key=lambda row: row["experiment_type"],
+            key=lambda row: row["experiment_type"],  # type: ignore
         ):
             result.append(
                 DBExperimentType(key, [row["attributo_name"] for row in group])
@@ -1136,7 +1138,7 @@ class AsyncDB:
         if not attributi.items():
             raise Exception("You have to assign at least one value to an attributo")
 
-        return (
+        data_set_id: int = (
             await conn.execute(
                 self.tables.data_set.insert().values(
                     experiment_type=experiment_type,
@@ -1144,6 +1146,8 @@ class AsyncDB:
                 )
             )
         ).inserted_primary_key[0]
+
+        return data_set_id
 
     async def delete_data_set(self, conn: Connection, id_: int) -> None:
         await conn.execute(

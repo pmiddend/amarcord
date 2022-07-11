@@ -72,9 +72,9 @@ def _get_token(device_id_: str, topic: str) -> str:
     return f"{device_id_ if device_id_ is None else device_id_}.{topic}"
 
 
-async def _monitor_loop(monitor_socket) -> None:
+async def _monitor_loop(monitor_socket: Any) -> None:
     while True:
-        message = parse_monitor_message(await monitor_socket.recv_multipart())
+        message = parse_monitor_message(await monitor_socket.recv_multipart())  # type: ignore
         logger.info(f"monitor loop, received message: {message}")
         if message["event"] == zmq.EVENT_DISCONNECTED:
             logger.info("monitor loop: disconnect")
@@ -85,7 +85,7 @@ async def _monitor_loop(monitor_socket) -> None:
             logger.info("monitor loop: unimportant event")
 
 
-async def _subscriber_loop(db: AsyncDB, subscriber_socket) -> None:
+async def _subscriber_loop(db: AsyncDB, subscriber_socket: Any) -> None:
     while True:
         reply = await subscriber_socket.recv_multipart()
         logger.info(f"subscriber loop: recv: {reply}")
@@ -95,7 +95,7 @@ async def _subscriber_loop(db: AsyncDB, subscriber_socket) -> None:
             data = json.loads(reply[2].decode(), object_hook=JsonKamzikHook)
         elif stype == MSG_ARRAY:
             dtype, shape = reply[2:4]
-            reply[4] = np.frombuffer(reply[4], dtype=dtype.decode())
+            reply[4] = np.frombuffer(reply[4], dtype=dtype.decode())  # type: ignore
             data = np.reshape(reply[4], json.loads(shape.decode()))
         elif stype == MSG_PICKLE:
             data = pickle.loads(reply[2])
@@ -183,8 +183,8 @@ async def ingest_kamzik_metadata(
 
 
 async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None:
-    ctx = zmq.asyncio.Context()
-    socket = ctx.socket(zmq.REQ)
+    ctx = zmq.asyncio.Context()  # type: ignore
+    socket = ctx.socket(zmq.REQ)  # type: ignore
     socket.setsockopt(zmq.RCVTIMEO, 20000)
     socket.connect(socket_url)
     monitor_socket = socket.get_monitor_socket()
@@ -192,7 +192,7 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     logger.info(f"waiting for connection to {socket_url}...")
 
     while True:
-        message = parse_monitor_message(await monitor_socket.recv_multipart())
+        message = parse_monitor_message(await monitor_socket.recv_multipart())  # type: ignore
         if message["event"] == zmq.EVENT_CONNECTED:
             break
 
@@ -255,7 +255,7 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     socket.setsockopt(zmq.RCVTIMEO, 5000)
 
     publisher_host, publisher_port = device_publisher
-    subscriber_socket = ctx.socket(zmq.SUB)
+    subscriber_socket = ctx.socket(zmq.SUB)  # type: ignore
     subscriber_socket.setsockopt(zmq.LINGER, 0)
     subscriber_socket.connect(f"tcp://{publisher_host}:{publisher_port}")
 

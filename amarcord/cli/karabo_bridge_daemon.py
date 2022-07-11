@@ -4,7 +4,7 @@ import pickle
 from asyncio import FIRST_COMPLETED
 from pathlib import Path
 from time import time
-from typing import Optional
+from typing import Optional, Any
 
 import yaml
 import zmq
@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def _receive_loop(db: AsyncDB, karabo2: Karabo2, socket) -> None:
+async def _receive_loop(db: AsyncDB, karabo2: Karabo2, socket: Any) -> None:
     logger.info("attributi are set up, waiting for first Karabo data frame")
     debug_counter = 0
     prior_result: Optional[BridgeOutput] = None
@@ -93,9 +93,9 @@ async def _receive_loop(db: AsyncDB, karabo2: Karabo2, socket) -> None:
             logger.error("No data received in time")
 
 
-async def _monitor_loop(monitor_socket) -> None:
+async def _monitor_loop(monitor_socket: Any) -> None:
     while True:
-        message = parse_monitor_message(await monitor_socket.recv_multipart())
+        message = parse_monitor_message(await monitor_socket.recv_multipart())  # type: ignore
         logger.info(f"monitor loop, received message: {message}")
         if message["event"] == zmq.EVENT_DISCONNECTED:
             logger.info("monitor loop: disconnect")

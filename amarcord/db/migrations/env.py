@@ -18,7 +18,7 @@ if config.config_file_name is not None:
 target_metadata = None
 
 
-def run_migrations_online():
+def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
     In this scenario we need to create an Engine

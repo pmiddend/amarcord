@@ -106,11 +106,11 @@ class KaraboInputType(Enum):
             self.KARABO_TYPE_STRING,
         )
 
-    def is_decimal(self):
-        return self in (self.KARABO_TYPE_FLOAT, self.KARABO_TYPE_LIST_FLOAT)
+    def is_decimal(self) -> bool:
+        return self in (self.KARABO_TYPE_FLOAT, self.KARABO_TYPE_LIST_FLOAT)  # type: ignore
 
-    def is_numeric(self):
-        return self.is_decimal() or self == self.KARABO_TYPE_INT
+    def is_numeric(self) -> bool:
+        return self.is_decimal() or self == self.KARABO_TYPE_INT  # type: ignore
 
 
 class KaraboProcessor(Enum):
@@ -888,7 +888,7 @@ def karabo_type_matches(
             return value
     if isinstance(value, np.ndarray):
         # noinspection PyTypeChecker
-        return value.flatten().tolist()
+        return value.flatten().tolist()  # type: ignore
     return None
 
 
@@ -928,7 +928,7 @@ def run_karabo_processor(
     assert (
         processor == KaraboProcessor.KARABO_PROCESSOR_LIST_ARITHMETIC_MEAN
     ), f"unknown processor {processor}, maybe that's a new one?"
-    return mean(typed_value)
+    return mean(typed_value)  # type: ignore
 
 
 def process_karabo_frame(
@@ -1058,7 +1058,7 @@ def process_variance_accumulator_with_plain_attribute(
     new_array = (
         [value_in_frame]
         if accumulator is None
-        else cast(VarianceAccumulator, accumulator).values + [float(value_in_frame)]
+        else accumulator.values + [float(value_in_frame)]
     )
     if accumulator is None:
         return VarianceAccumulator(new_array), None
@@ -1103,7 +1103,7 @@ def process_stdev_from_values_accumulator_with_plain_attribute(
     new_array = (
         [value_in_frame]
         if accumulator is None
-        else cast(StdDevAccumulator, accumulator).values + [float(value_in_frame)]
+        else accumulator.values + [float(value_in_frame)]
     )
     if accumulator is None:
         return StdDevAccumulator(new_array), None
@@ -1340,7 +1340,7 @@ def locate_in_frame(
     sourced = frame.get(key.source, None)
     if sourced is None:
         return None
-    return sourced.get(key.subkey, None)
+    return sourced.get(key.subkey, None)  # type: ignore
 
 
 class RunStatus(Enum):
@@ -1418,7 +1418,7 @@ async def create_dummy_run_with_attributi(
     db: AsyncDB,
     run_id: int,
     auto_pilot: bool,
-):
+) -> None:
     logger.warning(f"creating dummy run with id {run_id}")
     await db.create_run(
         conn,
@@ -1437,7 +1437,7 @@ async def create_run_with_attributi(
     db: AsyncDB,
     result: BridgeOutput,
     auto_pilot: bool,
-):
+) -> None:
     await db.create_run(
         conn,
         result.run_id,
@@ -1455,7 +1455,7 @@ class Karabo2:
     def __init__(
         self,
         parsed_config: KaraboBridgeConfiguration,
-        first_train_is_start_of_run=False,
+        first_train_is_start_of_run: bool = False,
     ) -> None:
         self._first_train_is_start_of_run = first_train_is_start_of_run
         self._accumulators: AttributoAccumulatorPerId = {}
@@ -1527,7 +1527,7 @@ class Karabo2:
             logger.error(
                 f"tried to retrieve the train id from source {self._special_attributes.run_number_key.source}:{TRAIN_ID_FROM_METADATA_KEY} from the metadata dictionary, but did not find it.  You probably have to change something in the Karabo (bridge) configuration to make this work."
             )
-        return train_id
+        return train_id  # type: ignore
 
     def process_frame(
         self, metadata: Dict[str, Any], frame: Dict[str, Any]
@@ -1565,11 +1565,6 @@ class Karabo2:
             True if self._first_train_is_start_of_run else trains_in_run == 0
         )
         if run_in_progress and self._run_status == RunStatus.UNKNOWN:
-            if self._previous_run_status is None:
-                logger.info(
-                    "started in the middle of a run, waiting for it to complete"
-                )
-                self._previous_run_status = RunStatus.UNKNOWN
             return None
         if not run_in_progress and self._run_status == RunStatus.UNKNOWN:
             logger.info("started with a finished run, waiting for next run")
@@ -1640,13 +1635,13 @@ class Karabo2:
             image_in_frame = locate_in_frame(
                 frame, self._special_attributes.jet_stream_image_key
             )
-            if not isinstance(image_in_frame, np.ndarray):
+            if not isinstance(image_in_frame, np.ndarray):  # type: ignore
                 logger.warning(
                     f"image at {self._special_attributes.jet_stream_image_key} isn't an nparray but {type(image_in_frame)}"
                 )
                 image = None
             else:
-                image = image_in_frame
+                image = image_in_frame  # type: ignore
         else:
             image = None
         return BridgeOutput(
@@ -1734,8 +1729,8 @@ async def persist_euxfel_run_result(
     run_id: int,
     train_timestamps: List[float],
 ) -> None:
-    min_timestamp_unix = int(np.min(train_timestamps)) // 1000000
-    max_timestamp_unix = int(np.max(train_timestamps)) // 1000000
+    min_timestamp_unix = int(np.min(train_timestamps)) // 1000000  # type: ignore
+    max_timestamp_unix = int(np.max(train_timestamps)) // 1000000  # type: ignore
     min_timestamp = datetime_from_attributo_int(min_timestamp_unix)
     max_timestamp = datetime_from_attributo_int(max_timestamp_unix)
     new_values = result.attributi_values.copy()

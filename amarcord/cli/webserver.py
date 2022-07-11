@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, List, Optional, Final
+from typing import Dict, cast, List, Optional, Final, Any
 from zipfile import ZipFile
 
 import quart
@@ -77,7 +77,7 @@ db = QuartDatabases(app)
 
 
 @app.errorhandler(HTTPException)
-def error_handler_for_exceptions(e):
+def error_handler_for_exceptions(e: Any) -> Any:
     return handle_exception(e)
 
 
@@ -633,8 +633,6 @@ async def change_current_run_experiment_type() -> JSONDict:
         await db.instance.update_run_attributi(conn, run_id, run.attributi)
         return {}
 
-    return {}
-
 
 def _encode_experiment_type(a: DBExperimentType) -> JSONDict:
     return {
@@ -1031,9 +1029,7 @@ async def delete_attributo() -> JSONDict:
         if found_attributo.associated_table == AssociatedTable.SAMPLE:
             for s in await db.instance.retrieve_samples(conn, attributi):
                 s.attributi.remove_with_type(AttributoId(attributo_name))
-                await db.instance.update_sample(
-                    conn, cast(int, s.id), s.name, s.attributi
-                )
+                await db.instance.update_sample(conn, s.id, s.name, s.attributi)
         else:
             for run in await db.instance.retrieve_runs(conn, attributi):
                 run.attributi.remove_with_type(AttributoId(attributo_name))
@@ -1053,11 +1049,11 @@ def _encode_attributo(a: DBAttributo) -> JSONDict:
 
 
 @app.get("/api/files/<int:file_id>")
-async def read_file(file_id: int):
+async def read_file(file_id: int) -> Any:
     async with db.instance.read_only_connection() as conn:
         file_ = await db.instance.retrieve_file(conn, file_id, with_contents=True)
 
-    async def async_generator():
+    async def async_generator() -> Any:
         yield file_.contents
 
     headers = {"Content-Type": file_.type_}

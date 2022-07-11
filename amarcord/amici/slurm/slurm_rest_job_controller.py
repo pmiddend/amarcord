@@ -141,12 +141,12 @@ class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
     async def post(self, url: str, headers: Dict[str, Any], data: JSONDict) -> JSONDict:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=data) as response:
-                return await response.json()
+                return await response.json()  # type: ignore
 
     async def get(self, url: str, headers: Dict[str, Any]) -> JSONDict:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
-                return await response.json()
+                return await response.json()  # type: ignore
 
 
 def slurm_file_contains_preemption(p: Path) -> bool:
@@ -275,7 +275,7 @@ class SlurmRestJobController(JobController):
         errors = response.get("errors", None)
         assert errors is None or isinstance(errors, list)
         if errors is not None and errors:
-            raise Exception("list job request contained errors: " + ",".join(errors))  # type: ignore
+            raise Exception("list job request contained errors: " + ",".join(errors))
         if "jobs" not in response:
             raise Exception(
                 "didn't get any jobs in the response: " + json.dumps(response)

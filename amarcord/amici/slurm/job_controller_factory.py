@@ -44,7 +44,7 @@ def parse_job_controller(
         if not result:
             return None
         if len(result) > 1:
-            raise Exception(f"query string argument {x} appears more than once")  # type: ignore
+            raise Exception(f"query string argument {x} appears more than once")
         return result[0]
 
     def get_or(x: str, default_: str) -> str:
@@ -52,15 +52,15 @@ def parse_job_controller(
         if not result:
             return default_
         if len(result) > 1:
-            raise Exception(f"query string argument {x} appears more than once")  # type: ignore
+            raise Exception(f"query string argument {x} appears more than once")
         return result[0]
 
     def get_raise_missing(x: str) -> str:
         result: List[str] = qs.get(x, [])
         if not result:
-            raise Exception(f"didn't find query string argument {x}, qs is {qs}")  # type: ignore
+            raise Exception(f"didn't find query string argument {x}, qs is {qs}")
         if len(result) > 1:
-            raise Exception(f"query string argument {x} appears more than once")  # type: ignore
+            raise Exception(f"query string argument {x} appears more than once")
         return result[0]
 
     if jcc.scheme == "local":

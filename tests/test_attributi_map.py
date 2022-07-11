@@ -506,7 +506,7 @@ def test_attributi_map_check_type_for_datetime() -> None:
     ).select_datetime_unsafe(TEST_ATTRIBUTO_ID) == datetime(2022, 2, 8, 10, 43, 49)
 
 
-def test_extend_with_attributi_map():
+def test_extend_with_attributi_map() -> None:
     a = AttributiMap.from_types_and_json(
         [_create_named_attributo(AttributoId("a"), AttributoTypeString())],
         [],
@@ -522,7 +522,7 @@ def test_extend_with_attributi_map():
     assert a.select_int(AttributoId("b")) == 3
 
 
-def test_create_sub_map_for_group():
+def test_create_sub_map_for_group() -> None:
     a = AttributiMap.from_types_and_json(
         [
             DBAttributo(

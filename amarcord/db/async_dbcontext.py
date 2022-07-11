@@ -15,7 +15,7 @@ class CreationMode(Enum):
     DONT_CHECK = auto()
 
 
-def _json_serializer_allow_nan_false(obj: Any, **kwargs) -> str:
+def _json_serializer_allow_nan_false(obj: Any, **kwargs: Any) -> str:
     return json.dumps(obj, **kwargs, allow_nan=False)
 
 
@@ -45,7 +45,7 @@ class AsyncDBContext:
 
         # sqlite doesn't care about foreign keys unless you do this dance, see
         # https://stackoverflow.com/questions/2614984/sqlite-sqlalchemy-how-to-enforce-foreign-keys
-        def _fk_pragma_on_connect(dbapi_con, _con_record):
+        def _fk_pragma_on_connect(dbapi_con: Any, _con_record: Any) -> None:
             dbapi_con.execute("pragma foreign_keys=ON")
 
         if "sqlite" in connection_url:

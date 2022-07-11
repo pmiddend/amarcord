@@ -15,19 +15,19 @@ from amarcord.util import (
 )
 
 
-def test_remove_duplicates_stable():
+def test_remove_duplicates_stable() -> None:
     assert remove_duplicates_stable([4, 3, 4, 5, 6, 6]) == [4, 3, 5, 6]
 
 
-def test_dict_union():
+def test_dict_union() -> None:
     assert dict_union([{"a": 1}, {"b": 2}, {"a": 3}]) == {"a": 3, "b": 2}
 
 
-def test_last_line_of_file():
+def test_last_line_of_file() -> None:
     assert last_line_of_file(Path(__file__).parent / "test-file.txt") == "last"
 
 
-def test_read_file_to_string():
+def test_read_file_to_string() -> None:
     assert (
         read_file_to_string(Path(__file__).parent / "test-file.txt")
         == "first\nsecond\nlast"
@@ -57,7 +57,7 @@ def test_sha256_file() -> None:
     )
 
 
-def test_local_time_to_utc():
+def test_local_time_to_utc() -> None:
     # We just check if the hour has changed, not by how much.
     hour_before = 5
     assert (

@@ -6,7 +6,7 @@ from amarcord.amici.slurm.job_status import JobStatus
 from amarcord.amici.slurm.local_job_controller import LocalJobController
 
 
-async def test_main_loop(tmp_path) -> None:
+async def test_main_loop(tmp_path: Path) -> None:
     jc = LocalJobController()
 
     await jc.start_job(

@@ -22,6 +22,6 @@ def json_make_immutable(v: JSONValue) -> ImmutableJSONValue:
     if isinstance(v, (int, str, float, bool)):
         return v
     if isinstance(v, list):
-        return tuple(json_make_immutable(vs) for vs in v)  # type: ignore
+        return tuple(json_make_immutable(vs) for vs in v)
     assert isinstance(v, dict)
     return {k: json_make_immutable(vs) for k, vs in v.items()}

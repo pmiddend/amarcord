@@ -24,7 +24,7 @@ async def quart_safe_json_dict() -> JSONDict:
 
 
 class CustomJSONEncoder(JSONEncoder):
-    def default(self, object_):
+    def default(self, object_: Any) -> Any:
         # The default ISO-format for JSON encoding isn't well-parseable, better to use good olde ISO!
         if isinstance(object_, datetime.datetime):
             return datetime_to_attributo_string(object_)
@@ -49,7 +49,7 @@ class CustomWebException(Exception):
         self.code = code
 
 
-def handle_exception(e):
+def handle_exception(e: Any) -> Any:
     """Return JSON instead of HTML for HTTP errors."""
     response = e.get_response()
     if (

@@ -222,7 +222,8 @@ def convert_single_attributo_value_to_json(value: AttributoValue) -> JSONValue:
         if not value:
             return cast(List[str], [])
         if value[0] is None:
-            return None
+            # Why should this be unreachable? [None] != []
+            return None  # type: ignore
         if isinstance(value[0], (str, int, float)):
             return value
         raise Exception(
@@ -410,7 +411,7 @@ class AttributiMap:
         return set(self._attributi.keys())
 
     def items(self) -> Iterable[Tuple[AttributoId, AttributoValue]]:
-        return self._attributi.items()  # type: ignore
+        return self._attributi.items()
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, AttributiMap):
