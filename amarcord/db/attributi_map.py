@@ -1,7 +1,7 @@
 import datetime
 import math
 from dataclasses import replace
-from typing import Set, Tuple, Iterable, Any
+from typing import Tuple, Iterable, Any
 from typing import cast
 
 from amarcord.db.attributi import (
@@ -405,7 +405,7 @@ class AttributiMap:
             self.remove_with_type(old_name)
             self.append_single(new_name, after_value)
 
-    def names(self) -> Set[str]:
+    def names(self) -> set[str]:
         return set(self._attributi.keys())
 
     def items(self) -> Iterable[Tuple[AttributoId, AttributoValue]]:

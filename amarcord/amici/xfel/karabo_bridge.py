@@ -8,7 +8,6 @@ from math import fsum, isnan
 from typing import (
     Any,
     Iterable,
-    Set,
     Tuple,
     cast,
 )
@@ -142,7 +141,7 @@ class ProcessedKaraboFrame:
     # We move from Karabo terminology with source and key into just our internal ID world
     karabo_values_by_internal_id: KaraboValueByInternalId
     # Important so we have non-verbose error information (i.e. we can skip errors that happened in the last frame also)
-    not_found: Set[KaraboValueLocator]
+    not_found: set[KaraboValueLocator]
     # See above
     wrong_types: dict[KaraboValueLocator, KaraboWrongTypeError]
 
@@ -410,9 +409,9 @@ def parse_coagulation_string(s: str) -> list[str | KaraboInternalId]:
 
 def parse_amarcord_attributo(
     attributo_id_raw: str,
-    existing_attributi: Set[AttributoId],
+    existing_attributi: set[AttributoId],
     attributo_description: dict[str, Any],
-    internal_ids: Set[KaraboInternalId],
+    internal_ids: set[KaraboInternalId],
 ) -> AmarcordAttributoDescription | KaraboConfigurationError:
     attributo_id = AttributoId(attributo_id_raw)
     if attributo_id in existing_attributi:
@@ -539,7 +538,7 @@ def parse_amarcord_attributo(
 
 
 def parse_amarcord_attributi(
-    a: Any, internal_ids: Set[KaraboInternalId]
+    a: Any, internal_ids: set[KaraboInternalId]
 ) -> KaraboConfigurationError | list[AmarcordAttributoDescription]:
     if not isinstance(a, dict):
         return KaraboConfigurationError(
@@ -547,7 +546,7 @@ def parse_amarcord_attributi(
         )
     if not internal_ids:
         return []
-    existing_attributi: Set[AttributoId] = set()
+    existing_attributi: set[AttributoId] = set()
     result: list[AmarcordAttributoDescription] = []
     for attributo_id_raw, attributo_description in a.items():
         if not isinstance(attributo_description, dict):
@@ -775,7 +774,7 @@ def check_list_stdev_karabo_attributes(
     amarcord_attributi: list[AmarcordAttributoDescription],
     karabo_attributes: list[KaraboAttributeDescription],
 ) -> KaraboConfigurationError | None:
-    karabo_attributes_list_of_stdev: Set[KaraboInternalId] = set()
+    karabo_attributes_list_of_stdev: set[KaraboInternalId] = set()
 
     for ka in karabo_attributes:
         if ka.processor == KaraboProcessor.KARABO_PROCESSOR_LIST_STANDARD_DEVIATION:
@@ -826,8 +825,8 @@ def check_amarcord_attributi_with_processor_propagated_stdev(
 
 def find_all_karabo_ids_for_amarcord_attribute(
     amarcord_attributo: AmarcordAttributoDescription,
-) -> Set[KaraboInternalId]:
-    relevant_karabo_ids: Set[KaraboInternalId] = set()
+) -> set[KaraboInternalId]:
+    relevant_karabo_ids: set[KaraboInternalId] = set()
 
     if isinstance(amarcord_attributo.karabo_value_source, CoagulateString):
         for component in amarcord_attributo.karabo_value_source.value_sequence:
@@ -938,7 +937,7 @@ def process_karabo_frame(
     It also doesn't contain any extraneous data and some error information.
     """
     output_data: dict[KaraboInternalId, KaraboValue] = {}
-    not_found: Set[KaraboValueLocator] = set()
+    not_found: set[KaraboValueLocator] = set()
     wrong_types: dict[KaraboValueLocator, KaraboWrongTypeError] = {}
     for a in attributes:
         source_values = input_data.get(a.locator.source)
@@ -1453,7 +1452,7 @@ class Karabo2:
     ) -> None:
         self._first_train_is_start_of_run = first_train_is_start_of_run
         self._accumulators: AttributoAccumulatorPerId = {}
-        self._previously_not_found: Set[KaraboValueLocator] = set()
+        self._previously_not_found: set[KaraboValueLocator] = set()
         self._previously_wrong_type: dict[KaraboValueLocator, KaraboWrongTypeError] = {}
         self._special_attributes = parsed_config.special_attributes
         self._attributi = parsed_config.attributi
@@ -1705,8 +1704,8 @@ class Karabo2:
 
 def accumulator_locators_for_config(
     c: KaraboBridgeConfiguration,
-) -> dict[str, Set[str]]:
-    result: dict[str, Set[str]] = {}
+) -> dict[str, set[str]]:
+    result: dict[str, set[str]] = {}
     for karabo_attribute in c.karabo_attributes:
         source_data = result.get(karabo_attribute.locator.source, None)
         if source_data is None:

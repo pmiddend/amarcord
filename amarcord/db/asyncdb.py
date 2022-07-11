@@ -6,7 +6,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast, Tuple, Iterable, Any, Set, Final
+from typing import cast, Tuple, Iterable, Any, Final
 
 import magic
 import numpy as np
@@ -1185,7 +1185,7 @@ class AsyncDB:
 
     async def retrieve_bulk_run_attributi(
         self, conn: Connection, attributi: list[DBAttributo], run_ids: Iterable[int]
-    ) -> dict[AttributoId, Set[AttributoValue]]:
+    ) -> dict[AttributoId, set[AttributoValue]]:
         runs = await self.retrieve_runs(conn, attributi)
 
         uninteresting_attributi = (ATTRIBUTO_STOPPED, ATTRIBUTO_STARTED)
@@ -1193,7 +1193,7 @@ class AsyncDB:
             a for a in attributi if a.name not in uninteresting_attributi
         ]
 
-        attributi_values: dict[AttributoId, Set[AttributoValue]] = {
+        attributi_values: dict[AttributoId, set[AttributoValue]] = {
             a.name: set() for a in interesting_attributi
         }
         for run in (run for run in runs if run.id in run_ids):
@@ -1207,7 +1207,7 @@ class AsyncDB:
         self,
         conn: Connection,
         attributi: list[DBAttributo],
-        run_ids: Set[int],
+        run_ids: set[int],
         attributi_values: AttributiMap,
     ) -> None:
         runs = await self.retrieve_runs(conn, attributi)
@@ -1249,7 +1249,7 @@ def attributo_value_to_spreadsheet_cell(
 @dataclass(frozen=True)
 class WorkbookOutput:
     workbook: Workbook
-    files: Set[int]
+    files: set[int]
 
 
 async def create_workbook(
@@ -1311,7 +1311,7 @@ async def create_workbook(
         )
         cell.font = cell.font.copy(bold=True)
 
-    files_to_include: Set[int] = set()
+    files_to_include: set[int] = set()
     samples = await db.retrieve_samples(conn, attributi)
     for sample_row_idx, sample in enumerate(samples, start=2):
         samples_sheet.cell(
