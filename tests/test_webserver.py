@@ -1,5 +1,3 @@
-from typing import List
-
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.cli.webserver import app, db
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
@@ -91,7 +89,7 @@ async def test_update_samples() -> None:
     result = await client.get("/api/samples")
     json = JSONChecker(await result.json, "response")
 
-    samples: List[JSONDict] = json.retrieve_array("samples")
+    samples: list[JSONDict] = json.retrieve_array("samples")
     assert len(samples) == 1
 
     assert samples[0]["id"] == sample_id

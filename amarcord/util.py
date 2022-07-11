@@ -3,15 +3,13 @@ import hashlib
 import re
 from pathlib import Path
 from statistics import variance
-from typing import Callable
+from typing import Callable, Union
 from typing import Dict
 from typing import Generator
 from typing import Iterable
-from typing import List
 from typing import Sequence
 from typing import Tuple
 from typing import TypeVar
-from typing import Union
 
 import pytz
 from dateutil import tz
@@ -45,7 +43,7 @@ def rfind_regex(s: str, regex: str, start: int) -> int:
 
 
 # See https://stackoverflow.com/a/17016257
-def remove_duplicates_stable(seq: Iterable[T]) -> List[T]:
+def remove_duplicates_stable(seq: Iterable[T]) -> list[T]:
     return list(dict.fromkeys(seq))
 
 
@@ -69,7 +67,7 @@ W = TypeVar("W")
 X = TypeVar("X")
 
 
-def retupled_keys(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> List[X]:
+def retupled_keys(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> list[X]:
     return [
         f(table, attributo_id)
         for table, attributi in d.items()
@@ -85,7 +83,7 @@ def retuple_dict(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> Dict[X, W]:
     }
 
 
-def create_intervals(xs: List[int]) -> Generator[Tuple[int, int], None, None]:
+def create_intervals(xs: list[int]) -> Generator[Tuple[int, int], None, None]:
     if not xs:
         return
     sorted_xs = sorted(xs)
@@ -104,18 +102,18 @@ class UnexpectedEOF(Exception):
         super().__init__("Unexpected EOF")
 
 
-def find_by(xs: List[T], by: Callable[[T], bool]) -> T | None:
+def find_by(xs: list[T], by: Callable[[T], bool]) -> T | None:
     return next((x for x in xs if by(x)), None)
 
 
-def contains(xs: List[T], by: Callable[[T], bool]) -> bool:
+def contains(xs: list[T], by: Callable[[T], bool]) -> bool:
     for x in xs:
         if by(x):
             return True
     return False
 
 
-def natural_key(string_: str) -> List[Union[int, str]]:
+def natural_key(string_: str) -> list[int | str]:
     """See https://blog.codinghorror.com/sorting-for-humans-natural-sort-order/"""
     return [int(s) if s.isdigit() else s for s in re.split(r"(\d+)", string_)]
 
@@ -197,8 +195,8 @@ def safe_max(xs: Iterable[T], key: Callable[[T], U]) -> T | None:
         return None
 
 
-def group_by(xs: Iterable[T], key: Callable[[T], U]) -> Dict[U, List[T]]:
-    result: Dict[U, List[T]] = {}
+def group_by(xs: Iterable[T], key: Callable[[T], U]) -> Dict[U, list[T]]:
+    result: Dict[U, list[T]] = {}
     for x in xs:
         key_value = key(x)
         previous_values = result.get(key_value, None)
@@ -230,7 +228,7 @@ def replace_illegal_path_characters(filename: str) -> str:
     return re.sub(r"[^\w\-_. ]", "_", filename)
 
 
-def safe_variance(xs: List[float]) -> float | None:
+def safe_variance(xs: list[float]) -> float | None:
     if len(xs) < 2:
         return None
     return variance(xs)

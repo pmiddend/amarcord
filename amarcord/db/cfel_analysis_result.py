@@ -1,6 +1,5 @@
 import datetime
 from dataclasses import dataclass
-from typing import List
 
 from amarcord.db.table_classes import DBFile
 
@@ -26,4 +25,4 @@ class DBCFELAnalysisResult:
     crystfel_version: str
     ccstar_rsplit: float
     created: datetime.datetime
-    files: List[DBFile]
+    files: list[DBFile]

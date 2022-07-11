@@ -7,7 +7,6 @@ from enum import Enum, auto
 from math import fsum, isnan
 from typing import (
     Dict,
-    List,
     Any,
     Iterable,
     Set,
@@ -88,7 +87,7 @@ class KaraboInternalId:
         return self.value
 
 
-KaraboValue = str | float | int | List[float]
+KaraboValue = str | float | int | list[float]
 
 
 class KaraboInputType(Enum):
@@ -175,12 +174,12 @@ class PlainAttribute:
 
 @dataclass(frozen=True)
 class CoagulateString:
-    value_sequence: List[str | PlainAttribute]
+    value_sequence: list[str | PlainAttribute]
 
 
 @dataclass(frozen=True)
 class CoagulateList:
-    attributes: List[PlainAttribute]
+    attributes: list[PlainAttribute]
 
 
 KaraboValueSource = PlainAttribute | CoagulateString | CoagulateList
@@ -208,7 +207,7 @@ class KaraboSpecialAttributes:
 
 @dataclass(frozen=True)
 class KaraboBridgeConfiguration:
-    karabo_attributes: List[KaraboAttributeDescription]
+    karabo_attributes: list[KaraboAttributeDescription]
     special_attributes: KaraboSpecialAttributes
     attributi: Dict[AttributoId, AmarcordAttributoDescription]
     proposal_id: int
@@ -348,13 +347,13 @@ def parse_karabo_attribute(
 
 def parse_karabo_attributes(
     a: Any,
-) -> KaraboConfigurationError | List[KaraboAttributeDescription]:
+) -> KaraboConfigurationError | list[KaraboAttributeDescription]:
     if not isinstance(a, dict):
         return KaraboConfigurationError(
             f"in {CONFIG_KARABO_ATTRIBUTES_KEY}: expected this to be a dictionary with the Karabo sources as keys, but the type is {type(a)}"
         )
     internal_ids: Dict[KaraboInternalId, Tuple[KaraboValueLocator, int]] = {}
-    result: List[KaraboAttributeDescription] = []
+    result: list[KaraboAttributeDescription] = []
     for source, attribute_descriptions in a.items():
         if not isinstance(attribute_descriptions, dict):
             return KaraboConfigurationError(
@@ -362,7 +361,7 @@ def parse_karabo_attributes(
             )
         for subkey, attribute_description_top_level in attribute_descriptions.items():
             locator = KaraboValueLocator(source, subkey)
-            attribute_description_array: List[Dict[str, Any]] = []
+            attribute_description_array: list[Dict[str, Any]] = []
             if isinstance(attribute_description_top_level, dict):
                 attribute_description_array.append(attribute_description_top_level)
             elif isinstance(attribute_description_top_level, list):
@@ -389,8 +388,8 @@ AMARCORD_ATTRIBUTO_DESCRIPTION_COAGULATE = "coagulate"
 COAGULATION_INTERPOLATION_REGEX = re.compile(r"\$\{([^}]+)}")
 
 
-def parse_coagulation_string(s: str) -> List[str | KaraboInternalId]:
-    components: List[str | KaraboInternalId] = []
+def parse_coagulation_string(s: str) -> list[str | KaraboInternalId]:
+    components: list[str | KaraboInternalId] = []
     previous_idx: int | None = None
     for match in COAGULATION_INTERPOLATION_REGEX.finditer(s):
         # We have a first match, and some characters before it.
@@ -482,7 +481,7 @@ def parse_amarcord_attributo(
         karabo_value_source = PlainAttribute(plain_attribute_id)
     elif coagulate_attribute is not None:
         if isinstance(coagulate_attribute, list):
-            attributes: List[PlainAttribute] = []
+            attributes: list[PlainAttribute] = []
             for idx, attribute_id_raw in enumerate(coagulate_attribute):
                 plain_attribute_id = KaraboInternalId(attribute_id_raw)
                 if plain_attribute_id not in internal_ids:
@@ -507,7 +506,7 @@ def parse_amarcord_attributo(
                 )
             karabo_value_source = CoagulateList(attributes)
         elif isinstance(coagulate_attribute, str):
-            string_components: List[str | PlainAttribute] = []
+            string_components: list[str | PlainAttribute] = []
             for part in parse_coagulation_string(coagulate_attribute):
                 if isinstance(part, KaraboInternalId):
                     if part not in internal_ids:
@@ -542,7 +541,7 @@ def parse_amarcord_attributo(
 
 def parse_amarcord_attributi(
     a: Any, internal_ids: Set[KaraboInternalId]
-) -> KaraboConfigurationError | List[AmarcordAttributoDescription]:
+) -> KaraboConfigurationError | list[AmarcordAttributoDescription]:
     if not isinstance(a, dict):
         return KaraboConfigurationError(
             f"in {CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY}: expected this to be a dictionary with the attributi descriptions, but the type is {type(a)}"
@@ -550,7 +549,7 @@ def parse_amarcord_attributi(
     if not internal_ids:
         return []
     existing_attributi: Set[AttributoId] = set()
-    result: List[AmarcordAttributoDescription] = []
+    result: list[AmarcordAttributoDescription] = []
     for attributo_id_raw, attributo_description in a.items():
         if not isinstance(attributo_description, dict):
             return KaraboConfigurationError(
@@ -716,8 +715,8 @@ def parse_configuration(
 
 
 def check_for_identity_processor_and_wrong_lists(
-    attributi: List[AmarcordAttributoDescription],
-    karabo_attributes: List[KaraboAttributeDescription],
+    attributi: list[AmarcordAttributoDescription],
+    karabo_attributes: list[KaraboAttributeDescription],
 ) -> KaraboConfigurationError | None:
     karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
         a.id: a for a in karabo_attributes
@@ -751,8 +750,8 @@ def check_for_identity_processor_and_wrong_lists(
 
 
 def check_for_heterogeneous_lists(
-    attributi: List[AmarcordAttributoDescription],
-    karabo_attributes: List[KaraboAttributeDescription],
+    attributi: list[AmarcordAttributoDescription],
+    karabo_attributes: list[KaraboAttributeDescription],
 ) -> KaraboConfigurationError | None:
     karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
         a.id: a for a in karabo_attributes
@@ -774,8 +773,8 @@ def check_for_heterogeneous_lists(
 
 
 def check_list_stdev_karabo_attributes(
-    amarcord_attributi: List[AmarcordAttributoDescription],
-    karabo_attributes: List[KaraboAttributeDescription],
+    amarcord_attributi: list[AmarcordAttributoDescription],
+    karabo_attributes: list[KaraboAttributeDescription],
 ) -> KaraboConfigurationError | None:
     karabo_attributes_list_of_stdev: Set[KaraboInternalId] = set()
 
@@ -802,8 +801,8 @@ def check_list_stdev_karabo_attributes(
 
 
 def check_amarcord_attributi_with_processor_propagated_stdev(
-    amarcord_attributi: List[AmarcordAttributoDescription],
-    karabo_attributes: List[KaraboAttributeDescription],
+    amarcord_attributi: list[AmarcordAttributoDescription],
+    karabo_attributes: list[KaraboAttributeDescription],
 ) -> KaraboConfigurationError | None:
     karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
         a.id: a for a in karabo_attributes
@@ -970,7 +969,7 @@ def process_karabo_frame(
 
 @dataclass(frozen=True)
 class TakeLastAccumulator:
-    value: str | int | float | List[float] | None | np.ndarray
+    value: str | int | float | list[float] | None | np.ndarray
 
 
 @dataclass(frozen=True)
@@ -981,12 +980,12 @@ class MeanAccumulator:
 
 @dataclass(frozen=True)
 class VarianceAccumulator:
-    values: List[float]
+    values: list[float]
 
 
 @dataclass(frozen=True)
 class StdDevAccumulator:
-    values: List[float]
+    values: list[float]
 
 
 @dataclass(frozen=True)
@@ -997,7 +996,7 @@ class PropagatedStdDevAccumulator:
 
 @dataclass(frozen=True)
 class IndexedAccumulator:
-    values: List["AttributoAccumulator"]
+    values: list["AttributoAccumulator"]
 
 
 AttributoAccumulator = (
@@ -1160,8 +1159,8 @@ def process_coagulate_list(
     assert accumulator is None or len(accumulator.values) == len(
         coagulate_list.attributes
     )
-    new_values: List[AttributoValue] = []
-    new_accumulators: List[AttributoAccumulator] = []
+    new_values: list[AttributoValue] = []
+    new_accumulators: list[AttributoAccumulator] = []
     for idx, plain_karabo_attribute in enumerate(coagulate_list.attributes):
         new_accumulator_and_value = process_plain_attribute(
             frame,
@@ -1199,7 +1198,7 @@ def process_coagulate_string(
     ), f"attributo {aid}: accumulator is {type(accumulator)}, not {IndexedAccumulator}"
 
     new_value = ""
-    new_accumulators: List[AttributoAccumulator] = []
+    new_accumulators: list[AttributoAccumulator] = []
     accumulator_idx = 0
     for attribute_or_str in coagulate_string.value_sequence:
         if isinstance(attribute_or_str, str):
@@ -1292,7 +1291,7 @@ def determine_attributo_type_for_single_attributo(
 
 
 def determine_attributo_type(
-    a: AmarcordAttributoDescription, karabo_attributes: List[KaraboAttributeDescription]
+    a: AmarcordAttributoDescription, karabo_attributes: list[KaraboAttributeDescription]
 ) -> AttributoType:
     if isinstance(a.karabo_value_source, CoagulateString):
         return AttributoTypeString()
@@ -1409,7 +1408,7 @@ async def ingest_bridge_output(
 
 
 async def create_dummy_run_with_attributi(
-    attributi: List[DBAttributo],
+    attributi: list[DBAttributo],
     conn: Connection,
     db: AsyncDB,
     run_id: int,
@@ -1428,7 +1427,7 @@ async def create_dummy_run_with_attributi(
 
 
 async def create_run_with_attributi(
-    attributi: List[DBAttributo],
+    attributi: list[DBAttributo],
     conn: Connection,
     db: AsyncDB,
     result: BridgeOutput,
@@ -1723,7 +1722,7 @@ async def persist_euxfel_run_result(
     db: AsyncDB,
     result: BridgeOutput,
     run_id: int,
-    train_timestamps: List[float],
+    train_timestamps: list[float],
 ) -> None:
     min_timestamp_unix = int(np.min(train_timestamps)) // 1000000  # type: ignore
     max_timestamp_unix = int(np.max(train_timestamps)) // 1000000  # type: ignore
@@ -1757,7 +1756,7 @@ def process_trains(
     config: KaraboBridgeConfiguration,
     karabo2: Karabo2,
     run_id: int,
-    train_ids: List[int],
+    train_ids: list[int],
     trains: Iterable[Tuple[int, Dict[str, Any]]],
 ) -> BridgeOutput | None:
     def optionally_set_dict(

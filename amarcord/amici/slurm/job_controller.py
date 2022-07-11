@@ -2,7 +2,6 @@ import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
-from typing import List
 from typing import Protocol
 
 from amarcord.amici.slurm.job import Job, JobMetadata
@@ -27,7 +26,7 @@ class JobController(Protocol):
         executable: Path,
         command_line: str,
         time_limit: datetime.timedelta,
-        extra_files: List[Path],
+        extra_files: list[Path],
     ) -> JobStartResult:
         ...
 

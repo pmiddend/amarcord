@@ -3,7 +3,6 @@ import datetime
 import logging
 import random
 from pathlib import Path
-from typing import List
 
 import randomname
 from essential_generators import DocumentGenerator
@@ -30,8 +29,8 @@ from amarcord.db.attributo_type import (
     AttributoTypeBoolean,
     AttributoTypeDecimal,
     AttributoTypeDateTime,
-    AttributoTypeList,
     AttributoType,
+    AttributoTypeList,
 )
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
@@ -80,7 +79,7 @@ def random_date(start: datetime.datetime, end: datetime.datetime) -> datetime.da
 
 
 def _generate_attributo_value(
-    a: AttributoType, sample_ids: List[int]
+    a: AttributoType, sample_ids: list[int]
 ) -> AttributoValue:
     if isinstance(a, AttributoTypeInt):
         return random.randint(-300, 300)
@@ -115,7 +114,7 @@ def _generate_attributo_value(
 
 
 def _generate_attributi_map(
-    attributi: List[DBAttributo], sample_ids: List[int]
+    attributi: list[DBAttributo], sample_ids: list[int]
 ) -> AttributiMap:
     values: UntypedAttributiMap = {}
     for a in attributi:
@@ -221,7 +220,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
-        sample_names: List[str] = []
+        sample_names: list[str] = []
 
         await db.create_experiment_type(conn, SAMPLE_BASED, [ATTRIBUTO_SAMPLE])
         await db.create_experiment_type(
@@ -270,8 +269,8 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
 
 async def _start_run(
     db: AsyncDB,
-    attributi: List[DBAttributo],
-    sample_ids: List[int],
+    attributi: list[DBAttributo],
+    sample_ids: list[int],
     previous_run_id: int,
     previous_sample: int | None,
 ) -> None:

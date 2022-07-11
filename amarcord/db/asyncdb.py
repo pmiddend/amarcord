@@ -6,7 +6,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, cast, Tuple, Dict, Iterable, Any, Set, Final
+from typing import cast, Tuple, Dict, Iterable, Any, Set, Final
 
 import magic
 import numpy as np
@@ -149,7 +149,7 @@ class AsyncDB:
 
     async def retrieve_attributi(
         self, conn: Connection, associated_table: AssociatedTable | None
-    ) -> List[DBAttributo]:
+    ) -> list[DBAttributo]:
         ac = self.tables.attributo.c
         select_stmt = sa.select(
             [
@@ -215,7 +215,7 @@ class AsyncDB:
         conn: Connection,
         association_column: sa.Column,
         where_clause: Any | None = None,
-    ) -> Dict[int, List[DBFile]]:
+    ) -> Dict[int, list[DBFile]]:
         select_stmt = (
             sa.select(
                 [
@@ -240,7 +240,7 @@ class AsyncDB:
             select_stmt = select_stmt.where(where_clause)
         file_results = (await conn.execute(select_stmt)).fetchall()
 
-        result: Dict[int, List[DBFile]] = {
+        result: Dict[int, list[DBFile]] = {
             key: [
                 DBFile(
                     id=row["id"],
@@ -260,8 +260,8 @@ class AsyncDB:
         return result
 
     async def retrieve_samples(
-        self, conn: Connection, attributi: List[DBAttributo]
-    ) -> List[DBSample]:
+        self, conn: Connection, attributi: list[DBAttributo]
+    ) -> list[DBSample]:
         sample_to_files = await self._retrieve_files(
             conn, self.tables.sample_has_file.c.sample_id
         )
@@ -309,7 +309,7 @@ class AsyncDB:
             sa.delete(self.tables.file).where(self.tables.file.c.id == id_)
         )
 
-    async def retrieve_events(self, conn: Connection) -> List[DBEvent]:
+    async def retrieve_events(self, conn: Connection) -> list[DBEvent]:
         ec = self.tables.event_log.c
         event_to_files = await self._retrieve_files(
             conn, self.tables.event_has_file.c.event_id
@@ -346,8 +346,8 @@ class AsyncDB:
         return result
 
     async def retrieve_runs(
-        self, conn: Connection, attributi: List[DBAttributo]
-    ) -> List[DBRun]:
+        self, conn: Connection, attributi: list[DBAttributo]
+    ) -> list[DBRun]:
         run_to_files = await self._retrieve_files(
             conn, self.tables.run_has_file.c.run_id
         )
@@ -792,7 +792,7 @@ class AsyncDB:
             )
         )
 
-    async def retrieve_run_ids(self, conn: Connection) -> List[int]:
+    async def retrieve_run_ids(self, conn: Connection) -> list[int]:
         return [
             row[0]
             for row in conn.execute(
@@ -804,7 +804,7 @@ class AsyncDB:
         await conn.execute(sa.delete(self.tables.cfel_analysis_results))
 
     async def create_cfel_analysis_result(
-        self, conn: Connection, r: DBCFELAnalysisResult, files: List[DBFileBlueprint]
+        self, conn: Connection, r: DBCFELAnalysisResult, files: list[DBFileBlueprint]
     ) -> int:
         file_ids = [
             (
@@ -853,10 +853,10 @@ class AsyncDB:
 
     async def retrieve_cfel_analysis_results(
         self, conn: Connection
-    ) -> List[DBCFELAnalysisResult]:
+    ) -> list[DBCFELAnalysisResult]:
         ar = self.tables.cfel_analysis_results.c
         file_table = self.tables.file
-        result_to_file: Dict[int, List[Tuple[int, DBFile]]] = group_by(
+        result_to_file: Dict[int, list[Tuple[int, DBFile]]] = group_by(
             [
                 (
                     r["analysis_result_id"],
@@ -948,7 +948,7 @@ class AsyncDB:
         self,
         conn: Connection,
         run_id: int,
-        attributi: List[DBAttributo],
+        attributi: list[DBAttributo],
         attributi_map: AttributiMap,
         keep_manual_attributes_from_previous_run: bool,
     ) -> None:
@@ -974,7 +974,7 @@ class AsyncDB:
         )
 
     async def retrieve_latest_run(
-        self, conn: Connection, attributi: List[DBAttributo]
+        self, conn: Connection, attributi: list[DBAttributo]
     ) -> DBRun | None:
         maximum_id = (
             await conn.execute(sa.select([sa.func.max(self.tables.run.c.id)]))
@@ -986,7 +986,7 @@ class AsyncDB:
         return await self.retrieve_run(conn, maximum_id[0], attributi)
 
     async def retrieve_sample(
-        self, conn: Connection, id_: int, attributi: List[DBAttributo]
+        self, conn: Connection, id_: int, attributi: list[DBAttributo]
     ) -> DBSample | None:
         rc = self.tables.sample.c
         r = (
@@ -1011,7 +1011,7 @@ class AsyncDB:
         )
 
     async def retrieve_run(
-        self, conn: Connection, id_: int, attributi: List[DBAttributo]
+        self, conn: Connection, id_: int, attributi: list[DBAttributo]
     ) -> DBRun | None:
         rc = self.tables.run.c
         r = (
@@ -1041,7 +1041,7 @@ class AsyncDB:
             .where(self.tables.run.c.id == id_)
         )
 
-    async def retrieve_sample_ids(self, conn: Connection) -> List[int]:
+    async def retrieve_sample_ids(self, conn: Connection) -> list[int]:
         return [r[0] for r in await conn.execute(sa.select([self.tables.sample.c.id]))]
 
     async def clear_analysis_results(
@@ -1091,8 +1091,8 @@ class AsyncDB:
 
     async def retrieve_experiment_types(
         self, conn: Connection
-    ) -> List[DBExperimentType]:
-        result: List[DBExperimentType] = []
+    ) -> list[DBExperimentType]:
+        result: list[DBExperimentType] = []
         etc = self.tables.experiment_has_attributo.c
         # pylint: disable=use-list-copy
         for key, group in itertools.groupby(
@@ -1156,9 +1156,9 @@ class AsyncDB:
     async def retrieve_data_sets(
         self,
         conn: Connection,
-        sample_ids: List[int],
-        attributi: List[DBAttributo],
-    ) -> List[DBDataSet]:
+        sample_ids: list[int],
+        attributi: list[DBAttributo],
+    ) -> list[DBDataSet]:
         dc = self.tables.data_set.c
         return [
             DBDataSet(
@@ -1184,7 +1184,7 @@ class AsyncDB:
         )
 
     async def retrieve_bulk_run_attributi(
-        self, conn: Connection, attributi: List[DBAttributo], run_ids: Iterable[int]
+        self, conn: Connection, attributi: list[DBAttributo], run_ids: Iterable[int]
     ) -> Dict[AttributoId, Set[AttributoValue]]:
         runs = await self.retrieve_runs(conn, attributi)
 
@@ -1206,7 +1206,7 @@ class AsyncDB:
     async def update_bulk_run_attributi(
         self,
         conn: Connection,
-        attributi: List[DBAttributo],
+        attributi: list[DBAttributo],
         run_ids: Set[int],
         attributi_values: AttributiMap,
     ) -> None:

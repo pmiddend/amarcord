@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from typing import Dict
-from typing import List
 
 
 @dataclass(frozen=True)
@@ -31,7 +30,7 @@ class JSONSchemaNumber:
 
 @dataclass(frozen=True)
 class JSONSchemaString:
-    enum_: List[str] | None
+    enum_: list[str] | None
 
 
 @dataclass(frozen=True)

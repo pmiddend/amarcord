@@ -1,6 +1,6 @@
 import argparse
 import itertools
-from typing import Optional, Dict
+from typing import Dict
 
 from alembic import command
 from alembic.config import Config

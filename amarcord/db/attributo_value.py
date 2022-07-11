@@ -1,5 +1,4 @@
 import datetime
-from typing import List
 
 AttributoValue = (
     str
@@ -7,8 +6,8 @@ AttributoValue = (
     | float
     | datetime.datetime
     | bool
-    | List[int]
-    | List[str]
-    | List[float]
+    | list[int]
+    | list[str]
+    | list[float]
     | None
 )

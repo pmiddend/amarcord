@@ -1,10 +1,9 @@
 from typing import Dict, TypeAlias, Union
-from typing import List
 from typing import Tuple
 
 # Recursive types aren't supported in mypy, see
 # https://github.com/python/mypy/issues/731
-JSONArray: TypeAlias = List["JSONValue"]  # type: ignore
+JSONArray: TypeAlias = list["JSONValue"]  # type: ignore
 # pylint: disable=consider-alternative-union-syntax
 JSONValue: TypeAlias = Union[int, str, float, bool, None, "JSONDict", "JSONArray"]  # type: ignore
 JSONDict: TypeAlias = Dict[str, JSONValue]  # type: ignore

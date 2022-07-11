@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from getpass import getuser
 from os import getuid
 from typing import Dict
-from typing import List
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
@@ -35,10 +34,10 @@ def parse_job_controller(
     s: str,
 ) -> LocalJobControllerConfig | SlurmRestJobControllerConfig:
     jcc = urlparse(s)
-    qs: Dict[str, List[str]] = parse_qs(jcc.query)
+    qs: Dict[str, list[str]] = parse_qs(jcc.query)
 
     def get_or_none(x: str) -> str | None:
-        result: List[str] = qs.get(x, [])
+        result: list[str] = qs.get(x, [])
         if not result:
             return None
         if len(result) > 1:
@@ -46,7 +45,7 @@ def parse_job_controller(
         return result[0]
 
     def get_or(x: str, default_: str) -> str:
-        result: List[str] = qs.get(x, [])
+        result: list[str] = qs.get(x, [])
         if not result:
             return default_
         if len(result) > 1:
@@ -54,7 +53,7 @@ def parse_job_controller(
         return result[0]
 
     def get_raise_missing(x: str) -> str:
-        result: List[str] = qs.get(x, [])
+        result: list[str] = qs.get(x, [])
         if not result:
             raise Exception(f"didn't find query string argument {x}, qs is {qs}")
         if len(result) > 1:

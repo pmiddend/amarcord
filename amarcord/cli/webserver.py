@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, List, Final, Any
+from typing import Dict, cast, Final, Any
 from zipfile import ZipFile
 
 import quart
@@ -342,7 +342,7 @@ class DataSetSummary:
     hits: int
 
 
-def build_run_summary(matching_runs: List[DBRun]) -> DataSetSummary:
+def build_run_summary(matching_runs: list[DBRun]) -> DataSetSummary:
     result: DataSetSummary = DataSetSummary(
         numberOfRuns=len(matching_runs), frames=0, hits=0
     )
@@ -363,7 +363,7 @@ class DarkRun:
 
 
 def determine_latest_dark_run(
-    runs: List[DBRun], attributi: List[DBAttributo]
+    runs: list[DBRun], attributi: list[DBAttributo]
 ) -> DarkRun | None:
     # We might not have a dark run attribute
     if not any(a.name == ATTRIBUTO_ID_DARK_RUN_TYPE for a in attributi):
@@ -1093,17 +1093,17 @@ async def read_analysis_results() -> JSONDict:
         data_sets = await db.instance.retrieve_data_sets(
             conn, [x.id for x in samples], attributi
         )
-        data_sets_by_experiment_type: Dict[str, List[DBDataSet]] = group_by(
+        data_sets_by_experiment_type: Dict[str, list[DBDataSet]] = group_by(
             data_sets,
             lambda ds: ds.experiment_type,
         )
         runs = await db.instance.retrieve_runs(conn, attributi)
-        data_set_to_runs: Dict[int, List[DBRun]] = {
+        data_set_to_runs: Dict[int, list[DBRun]] = {
             ds.id: [r for r in runs if run_matches_dataset(r.attributi, ds.attributi)]
             for ds in data_sets
         }
         analysis_results = await db.instance.retrieve_cfel_analysis_results(conn)
-        data_set_to_analysis_results: Dict[int, List[DBCFELAnalysisResult]] = group_by(
+        data_set_to_analysis_results: Dict[int, list[DBCFELAnalysisResult]] = group_by(
             analysis_results,
             lambda key: key.data_set_id,
         )

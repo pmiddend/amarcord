@@ -5,12 +5,10 @@ import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Optional
+from typing import Any, Awaitable
 from typing import Callable
 from typing import Dict
-from typing import List
 from typing import TypedDict
-from typing import Union
 
 import aiohttp
 
@@ -33,7 +31,7 @@ class TokenRetrievalError:
     message: str
 
 
-def slurm_token_command(lifespan_minutes: int | float) -> List[str]:
+def slurm_token_command(lifespan_minutes: int | float) -> list[str]:
     return ["slurm_token", "-l", str(int(lifespan_minutes))]
 
 
@@ -190,7 +188,7 @@ class SlurmRestJobController(JobController):
         executable: Path,
         command_line: str,
         time_limit: datetime.timedelta,
-        extra_files: List[Path],
+        extra_files: list[Path],
     ) -> JobStartResult:
         # the path may be non-empty due to preemption and restart (see next line why we're not doing that in the script
         # currently)
@@ -249,7 +247,7 @@ class SlurmRestJobController(JobController):
             raise JobStartError(f"error starting job {e}")
         logger.info("response was %s", json.dumps(response))
         response_json = response
-        errors: List[SlurmError] = response_json.get("errors", None)  # type: ignore
+        errors: list[SlurmError] = response_json.get("errors", None)  # type: ignore
         if errors is not None and errors:
             raise JobStartError(
                 "there were slurm errors: "
@@ -268,7 +266,7 @@ class SlurmRestJobController(JobController):
         """Check if the given job dict (from SLURM) is "relevant for us" """
         return job.get("user_id", 0) == self._user_id
 
-    async def list_jobs(self) -> List[Job]:
+    async def list_jobs(self) -> list[Job]:
         response = await self._request_wrapper.get(
             f"{self._rest_url}/jobs", headers=await self._headers()
         )

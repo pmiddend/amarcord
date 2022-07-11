@@ -3,7 +3,6 @@ import logging
 import re
 from dataclasses import dataclass
 from time import time
-from typing import Union, Optional
 from urllib.parse import unquote
 
 import aiohttp

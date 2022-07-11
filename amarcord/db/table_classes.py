@@ -1,8 +1,6 @@
 import datetime
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
-from typing import Optional
 
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.event_log_level import EventLogLevel
@@ -26,7 +24,7 @@ class DBEvent:
     level: EventLogLevel
     source: str
     text: str
-    files: List[DBFile]
+    files: list[DBFile]
 
 
 @dataclass(frozen=True)
@@ -40,14 +38,14 @@ class DBSample:
     id: int
     name: str
     attributi: AttributiMap
-    files: List[DBFile]
+    files: list[DBFile]
 
 
 @dataclass(frozen=True)
 class DBRun:
     id: int
     attributi: AttributiMap
-    files: List[DBFile]
+    files: list[DBFile]
 
 
 @dataclass(frozen=True)

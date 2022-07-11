@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, cast
+from typing import cast
 
 import pytest
 
@@ -386,7 +386,7 @@ def test_check_attributo_types_when_extending_list() -> None:
 
     with pytest.raises(Exception):
         # invalid length
-        m.extend({TEST_ATTRIBUTO_ID: cast(List[str], [])})
+        m.extend({TEST_ATTRIBUTO_ID: cast(list[str], [])})
 
     with pytest.raises(Exception):
         # invalid length

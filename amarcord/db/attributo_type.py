@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from typing import List
-from typing import Union
+from typing import TypeAlias
 
 from amarcord.numeric_range import NumericRange
 
@@ -72,19 +71,19 @@ class AttributoTypeDateTime:
 
 @dataclass(frozen=True)
 class AttributoTypeChoice:
-    values: List[str]
+    values: list[str]
 
     def __str__(self) -> str:
         return "one of: " + ",".join(self.values)
 
 
-AttributoType = Union[
-    AttributoTypeInt,
-    AttributoTypeBoolean,
-    AttributoTypeString,
-    AttributoTypeSample,
-    AttributoTypeChoice,
-    AttributoTypeDecimal,
-    AttributoTypeDateTime,
-    AttributoTypeList,
-]
+AttributoType: TypeAlias = (
+    AttributoTypeInt
+    | AttributoTypeBoolean
+    | AttributoTypeString
+    | AttributoTypeSample
+    | AttributoTypeChoice
+    | AttributoTypeDecimal
+    | AttributoTypeDateTime
+    | AttributoTypeList
+)

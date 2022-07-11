@@ -1,7 +1,6 @@
 import asyncio
 from asyncio import FIRST_COMPLETED, Task
 from pathlib import Path
-from typing import List
 
 from tap import Tap
 from zmq.asyncio import Context
@@ -43,7 +42,7 @@ async def _main_loop(args: Arguments) -> None:
     zmq_ctx = Context.instance()
     await db.migrate()
 
-    awaitables: List[Task[None]] = []
+    awaitables: list[Task[None]] = []
 
     if args.experiment_simulator_enabled:
         await experiment_simulator_initialize_db(db)

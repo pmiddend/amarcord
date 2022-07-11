@@ -7,7 +7,6 @@ from asyncio.subprocess import Process
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
-from typing import List
 from typing import Tuple
 from typing import TypedDict
 
@@ -54,7 +53,7 @@ async def start_process_locally(
     output_base_dir_str: str,
     executable_path_str: str,
     command_line: str,
-    extra_file_paths_str: List[str],
+    extra_file_paths_str: list[str],
 ) -> Tuple[Process, Path]:
     output_base_dir = Path(output_base_dir_str)
     executable_path = Path(executable_path_str)
@@ -96,7 +95,7 @@ async def start_process_locally(
 class LocalJobController(JobController):
     # pylint: disable=super-init-not-called
     def __init__(self) -> None:
-        self._processes: List[WrappedProcess] = []
+        self._processes: list[WrappedProcess] = []
 
     async def start_job(
         self,
@@ -104,7 +103,7 @@ class LocalJobController(JobController):
         executable: Path,
         command_line: str,
         time_limit: datetime.timedelta,
-        extra_files: List[Path],
+        extra_files: list[Path],
     ) -> JobStartResult:
         process, out_dir = await start_process_locally(
             str(path),
@@ -118,7 +117,7 @@ class LocalJobController(JobController):
         )
 
     async def list_jobs(self) -> Iterable[Job]:
-        result: List[Job] = []
+        result: list[Job] = []
         for wrapped_process in self._processes:
             rc = wrapped_process.process.returncode
             result.append(

@@ -1,5 +1,3 @@
-from typing import List
-
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -15,7 +13,7 @@ def test_create_one_gap() -> None:
 
 
 @given(st.lists(st.integers()))
-def test_sorting_doesnt_matter(xs: List[int]) -> None:
+def test_sorting_doesnt_matter(xs: list[int]) -> None:
     assert list(create_intervals(xs)) == list(create_intervals(sorted(xs)))
 
 
@@ -30,7 +28,7 @@ def test_sorting_doesnt_matter(xs: List[int]) -> None:
 #
 #
 # @given(list_and_index())
-# def test_removing_element_increases_count(xs_and_idx: Tuple[List[int], int]) -> None:
+# def test_removing_element_increases_count(xs_and_idx: Tuple[list[int], int]) -> None:
 #     xs, idx = xs_and_idx
 #     original_intervals = list(create_intervals(xs))
 #     new_xs = xs.copy()

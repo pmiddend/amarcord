@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Iterable
-from typing import List
 
 from amarcord.json import JSONDict
 
@@ -41,7 +40,7 @@ class HarvestHitfinding:
 @dataclass(frozen=True)
 class HarvestIndexing:
     parameters: JSONDict
-    methods: List[str]
+    methods: list[str]
 
 
 @dataclass(frozen=True)
@@ -130,7 +129,7 @@ def _get_opt_bool(j: Dict[str, Any], s: str) -> bool | None:
     return result
 
 
-def _get_str_list(j: Dict[str, Any], s: str) -> List[str]:
+def _get_str_list(j: Dict[str, Any], s: str) -> list[str]:
     result = j[s]
     if not isinstance(result, list):
         raise ValueError(
@@ -206,7 +205,7 @@ def read_harvest_json(fn: Path) -> HarvestJson:
 
 @dataclass(frozen=True)
 class StreamMetadata:
-    input_files: List[Path]
+    input_files: list[Path]
     version: str | None
     geometry: str
     timestamp: float | None
@@ -223,7 +222,7 @@ class StreamMetadata:
 def read_crystfel_streams(stream_list: Iterable[Path]) -> StreamMetadata:
 
     version: str | None = None
-    all_fns: List[Path] = []
+    all_fns: list[Path] = []
     n_frames = 0
     n_hits = 0
     n_peaks = 0

@@ -2,7 +2,6 @@ import datetime
 import math
 from dataclasses import replace
 from typing import Dict, Set, Tuple, Iterable, Any
-from typing import List
 from typing import cast
 
 from amarcord.db.attributi import (
@@ -34,7 +33,7 @@ UntypedAttributiMap = Dict[AttributoId, AttributoValue]
 
 
 def _check_type(
-    name: str, sample_ids: List[int], type_: AttributoType, value: AttributoValue
+    name: str, sample_ids: list[int], type_: AttributoType, value: AttributoValue
 ) -> None:
     if value is None:
         return
@@ -96,7 +95,7 @@ def _check_type(
 
 
 def check_attributo_types(
-    types: Dict[AttributoId, DBAttributo], sample_ids: List[int], d: UntypedAttributiMap
+    types: Dict[AttributoId, DBAttributo], sample_ids: list[int], d: UntypedAttributiMap
 ) -> None:
     for name, value in d.items():
         type_ = types.get(name, None)
@@ -109,7 +108,7 @@ def _convert_single_attributo_value_from_json(
     i: AttributoId,
     v: JSONValue,
     types: Dict[AttributoId, DBAttributo],
-    sample_ids: List[int],
+    sample_ids: list[int],
 ) -> AttributoValue:
     attributo_type = types.get(i, None)
     if attributo_type is None:
@@ -125,7 +124,7 @@ def _convert_single_attributo_value_from_json_with_type(
     i: AttributoId,
     v: JSONValue,
     attributo_type: AttributoType,
-    sample_ids: List[int],
+    sample_ids: list[int],
 ) -> AttributoValue:
     if v is None:
         return None
@@ -219,7 +218,7 @@ def convert_single_attributo_value_to_json(value: AttributoValue) -> JSONValue:
         return datetime_to_attributo_int(value)
     if isinstance(value, list):
         if not value:
-            return cast(List[str], [])
+            return cast(list[str], [])
         if value[0] is None:
             # Why should this be unreachable? [None] != []
             return None  # type: ignore
@@ -235,7 +234,7 @@ class AttributiMap:
     def __init__(
         self,
         types_dict: Dict[AttributoId, DBAttributo],
-        sample_ids: List[int],
+        sample_ids: list[int],
         impl: UntypedAttributiMap,
     ) -> None:
         self._attributi = impl
@@ -245,7 +244,7 @@ class AttributiMap:
     @staticmethod
     def from_types_and_raw(
         types: Iterable[DBAttributo],
-        sample_ids: List[int],
+        sample_ids: list[int],
         raw_attributi: UntypedAttributiMap,
     ) -> "AttributiMap":
         result = AttributiMap({a.name: a for a in types}, sample_ids, {})
@@ -255,7 +254,7 @@ class AttributiMap:
     @staticmethod
     def from_types_and_json(
         types: Iterable[DBAttributo],
-        sample_ids: List[int],
+        sample_ids: list[int],
         raw_attributi: JsonAttributiMap,
     ) -> "AttributiMap":
         attributi: UntypedAttributiMap = {}

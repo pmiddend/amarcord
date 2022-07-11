@@ -2,7 +2,6 @@ import asyncio
 import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import List
 
 from tap import Tap
 
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class Arguments(Tap):
-    executables: List[str]
+    executables: list[str]
     output_dir: Path
 
 
