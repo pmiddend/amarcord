@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import List
-from typing import Optional
 from typing import Union
 
 from amarcord.numeric_range import NumericRange
@@ -15,8 +14,8 @@ class AttributoTypeInt:
 @dataclass(frozen=True)
 class AttributoTypeList:
     sub_type: "AttributoType"
-    min_length: Optional[int]
-    max_length: Optional[int]
+    min_length: int | None
+    max_length: int | None
 
     def __str__(self) -> str:
         if self.min_length is None and self.max_length is None:
@@ -42,8 +41,8 @@ class AttributoTypeBoolean:
 
 @dataclass(frozen=True)
 class AttributoTypeDecimal:
-    range: Optional[NumericRange] = None
-    suffix: Optional[str] = None
+    range: NumericRange | None = None
+    suffix: str | None = None
     standard_unit: bool = False
 
     def __str__(self) -> str:

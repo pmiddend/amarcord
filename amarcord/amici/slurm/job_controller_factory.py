@@ -3,8 +3,6 @@ from getpass import getuser
 from os import getuid
 from typing import Dict
 from typing import List
-from typing import Optional
-from typing import Union
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
@@ -27,19 +25,19 @@ class LocalJobControllerConfig:
 class SlurmRestJobControllerConfig:
     partition: str
     user_id: int
-    jwtToken: Optional[str]
-    tag: Optional[str]
+    jwtToken: str | None
+    tag: str | None
     user: str
     url: str
 
 
 def parse_job_controller(
     s: str,
-) -> Union[LocalJobControllerConfig, SlurmRestJobControllerConfig]:
+) -> LocalJobControllerConfig | SlurmRestJobControllerConfig:
     jcc = urlparse(s)
     qs: Dict[str, List[str]] = parse_qs(jcc.query)
 
-    def get_or_none(x: str) -> Optional[str]:
+    def get_or_none(x: str) -> str | None:
         result: List[str] = qs.get(x, [])
         if not result:
             return None
@@ -86,7 +84,7 @@ def parse_job_controller(
 
 
 def create_job_controller(
-    config: Union[LocalJobControllerConfig, SlurmRestJobControllerConfig]
+    config: LocalJobControllerConfig | SlurmRestJobControllerConfig,
 ) -> JobController:
     if isinstance(config, LocalJobControllerConfig):
         raise Exception("local job controller not supported right now")

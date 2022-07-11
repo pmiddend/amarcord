@@ -26,7 +26,7 @@ _SESSION_ID_REGEX = re.compile(r"var sessionId\s*=\s*([0-9]+);")
 
 async def retrieve_petra_initial(
     session: aiohttp.ClientSession, session_id: str
-) -> Optional[ErrorMessage]:
+) -> ErrorMessage | None:
     url = f"https://web2c.desy.de/web2cToolkit/Web2c?param=(page)%5b{session_id}%5dpetra/livestatus.xml,0"
 
     try:
@@ -45,7 +45,7 @@ async def retrieve_petra_initial(
 
 async def retrieve_petra_session_id(
     session: aiohttp.ClientSession,
-) -> Union[ErrorMessage, str]:
+) -> ErrorMessage | str:
     url = (
         "https://web2c.desy.de/web2cToolkit/Web2c?param=%28open%29petra/livestatus.xml"
     )
@@ -82,7 +82,7 @@ _MAIN_VALUE_REGEX = re.compile(
 
 async def retrieve_petra_status_values(
     ureg: UnitRegistry, session: aiohttp.ClientSession, session_id: str
-) -> Union[ErrorMessage, Petra3StatusValues]:
+) -> ErrorMessage | Petra3StatusValues:
     url = (
         f"https://web2c.desy.de/web2cToolkit/Web2c?param=%3Cupdate%3E%3CsessionId%3E{session_id}%3C/sessionId%3E%3CtimeStamp%3E"
         + str(int(time() * 1000))
@@ -124,9 +124,9 @@ async def retrieve_petra_status_values(
 
 async def _process_result(
     db: AsyncDB,
-    beam_down_before: Optional[bool],
-    current_value: Union[ErrorMessage, Petra3StatusValues],
-) -> Optional[bool]:
+    beam_down_before: bool | None,
+    current_value: ErrorMessage | Petra3StatusValues,
+) -> bool | None:
     if isinstance(current_value, ErrorMessage):
         logger.info(f"error retrieving PETRA status values: {current_value}")
         return beam_down_before
@@ -161,7 +161,7 @@ async def _process_result(
 
 async def retrieve_petra_session_id_and_initial_values(
     session: aiohttp.ClientSession,
-) -> Union[ErrorMessage, str]:
+) -> ErrorMessage | str:
     session_id = await retrieve_petra_session_id(session)
 
     if isinstance(session_id, ErrorMessage):
@@ -188,7 +188,7 @@ async def petra3_value_loop(db: AsyncDB, delay_time: float) -> None:
     session = aiohttp.ClientSession()
 
     try:
-        beam_down_before: Optional[bool] = None
+        beam_down_before: bool | None = None
         logger.info("starting petra3 retrieval")
 
         while True:

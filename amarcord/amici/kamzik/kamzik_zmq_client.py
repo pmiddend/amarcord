@@ -3,7 +3,7 @@ import json
 import logging
 import pickle
 from asyncio import FIRST_COMPLETED
-from typing import Final, Dict, Any, Optional
+from typing import Final, Dict, Any
 from base64 import b64decode
 
 import numpy as np
@@ -90,7 +90,7 @@ async def _subscriber_loop(db: AsyncDB, subscriber_socket: Any) -> None:
         reply = await subscriber_socket.recv_multipart()
         logger.info(f"subscriber loop: recv: {reply}")
         token, stype = reply[:2]
-        data: Optional[Any] = None
+        data: Any | None = None
         if stype == MSG_JSON:
             data = json.loads(reply[2].decode(), object_hook=JsonKamzikHook)
         elif stype == MSG_ARRAY:

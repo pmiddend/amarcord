@@ -1,6 +1,5 @@
 import pathlib
 from typing import Any
-from typing import Optional
 
 from sqlalchemy import types
 from sqlalchemy.engine import Dialect
@@ -12,14 +11,10 @@ class Path(types.TypeDecorator):
 
     cache_ok = True
 
-    def process_bind_param(
-        self, value: Optional[pathlib.Path], dialect: Dialect
-    ) -> Any:
+    def process_bind_param(self, value: pathlib.Path | None, dialect: Dialect) -> Any:
         return str(value) if value is not None else None
 
-    def process_result_value(
-        self, value: Any, dialect: Dialect
-    ) -> Optional[pathlib.Path]:
+    def process_result_value(self, value: Any, dialect: Dialect) -> pathlib.Path | None:
         return pathlib.Path(value) if value is not None else None
 
     def copy(self, **kw: Any) -> "Path":

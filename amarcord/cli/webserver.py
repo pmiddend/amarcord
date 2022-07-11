@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, List, Optional, Final, Any
+from typing import Dict, cast, List, Final, Any
 from zipfile import ZipFile
 
 import quart
@@ -94,7 +94,7 @@ async def create_event() -> JSONDict:
             source=cast(str, event["source"]),
             text=cast(str, event["text"]),
         )
-        file_ids = cast(List[int], event["fileIds"])
+        file_ids = cast(list[int], event["fileIds"])
         for file_id in file_ids:
             await db.instance.add_file_to_event(conn, file_id, event_id)
         if r.retrieve_safe_boolean("withLiveStream"):
@@ -236,7 +236,7 @@ async def read_samples() -> JSONDict:
         attributi = await db.instance.retrieve_attributi(
             conn, associated_table=AssociatedTable.SAMPLE
         )
-        result = {
+        result: JSONDict = {
             "samples": [
                 _encode_sample(a)
                 for a in await db.instance.retrieve_samples(conn, attributi)
@@ -245,7 +245,7 @@ async def read_samples() -> JSONDict:
         }
         if _has_artificial_delay():
             await asyncio.sleep(3)
-        return result  # type: ignore
+        return result
 
 
 def _encode_event(e: DBEvent) -> JSONDict:
@@ -364,7 +364,7 @@ class DarkRun:
 
 def determine_latest_dark_run(
     runs: List[DBRun], attributi: List[DBAttributo]
-) -> Optional[DarkRun]:
+) -> DarkRun | None:
     # We might not have a dark run attribute
     if not any(a.name == ATTRIBUTO_ID_DARK_RUN_TYPE for a in attributi):
         return None
@@ -457,7 +457,7 @@ async def read_runs() -> JSONDict:
 
         latest_dark = determine_latest_dark_run(runs, attributi)
 
-        result = {
+        result: JSONDict = {
             "live-stream-file-id": await db.instance.retrieve_file_id_by_name(
                 conn, LIVE_STREAM_IMAGE
             ),
@@ -494,7 +494,7 @@ async def read_runs() -> JSONDict:
         }
         if _has_artificial_delay():
             await asyncio.sleep(3)
-        return result  # type: ignore
+        return result
 
 
 @app.post("/api/files")
@@ -869,7 +869,7 @@ async def create_data_set() -> JSONDict:
     return {"id": data_set_id}
 
 
-def _encode_data_set(a: DBDataSet, summary: Optional[DataSetSummary]) -> JSONDict:
+def _encode_data_set(a: DBDataSet, summary: DataSetSummary | None) -> JSONDict:
     result = {
         "id": a.id,
         "experiment-type": a.experiment_type,

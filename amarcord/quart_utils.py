@@ -2,7 +2,6 @@ import datetime
 import json
 from traceback import format_exception
 from typing import Any
-from typing import Optional
 
 from quart import Quart
 from quart import request
@@ -36,7 +35,7 @@ def format_exception_single_string(e: Any) -> str:
 
 
 def create_quart_standard_error(
-    code: Optional[int], title: str, description: Optional[str]
+    code: int | None, title: str, description: str | None
 ) -> JSONDict:
     return {"code": code, "title": title, "description": description}
 
@@ -93,7 +92,7 @@ class QuartDatabases:
     def __init__(self, app: Quart) -> None:
         self.init_app(app)
         self._app = app
-        self._instance: Optional[AsyncDB] = None
+        self._instance: AsyncDB | None = None
 
     async def initialize_db(self) -> None:
         context = AsyncDBContext(

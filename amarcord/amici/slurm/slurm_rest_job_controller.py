@@ -33,11 +33,11 @@ class TokenRetrievalError:
     message: str
 
 
-def slurm_token_command(lifespan_minutes: Union[int, float]) -> List[str]:
+def slurm_token_command(lifespan_minutes: int | float) -> List[str]:
     return ["slurm_token", "-l", str(int(lifespan_minutes))]
 
 
-async def retrieve_jwt_token(lifespan_seconds: int) -> Union[str, TokenRetrievalError]:
+async def retrieve_jwt_token(lifespan_seconds: int) -> str | TokenRetrievalError:
     try:
         result = await (
             asyncio.create_subprocess_shell(
@@ -80,11 +80,11 @@ class ConstantTokenRetriever:
 
 class DynamicTokenRetriever:
     def __init__(
-        self, retriever: Callable[[int], Awaitable[Union[str, TokenRetrievalError]]]
+        self, retriever: Callable[[int], Awaitable[str | TokenRetrievalError]]
     ) -> None:
         self._token_lifetime_seconds = 86400
         self._retriever = retriever
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._last_retrieval = datetime.datetime.utcnow()
 
     async def __call__(self) -> str:
@@ -102,7 +102,7 @@ class DynamicTokenRetriever:
         return self._token
 
 
-def _convert_job(job: JSONDict) -> Optional[Job]:
+def _convert_job(job: JSONDict) -> Job | None:
     job_state = job.get("job_state", None)
     if job_state is None:
         return None

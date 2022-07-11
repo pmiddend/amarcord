@@ -3,7 +3,7 @@ import datetime
 import logging
 import random
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import randomname
 from essential_generators import DocumentGenerator
@@ -273,7 +273,7 @@ async def _start_run(
     attributi: List[DBAttributo],
     sample_ids: List[int],
     previous_run_id: int,
-    previous_sample: Optional[int],
+    previous_sample: int | None,
 ) -> None:
     async with db.begin() as conn:
         sample = (
@@ -326,7 +326,7 @@ def random_gibberish() -> str:
 
 
 async def _generate_cfel_results(
-    db: AsyncDB, files_dir: Optional[Path], conn: Connection
+    db: AsyncDB, files_dir: Path | None, conn: Connection
 ) -> None:
     data_sets = await db.retrieve_data_sets(
         conn,
@@ -375,7 +375,7 @@ async def _generate_cfel_results(
 
 
 async def experiment_simulator_main_loop(
-    db: AsyncDB, files_dir: Optional[Path], delay_seconds: float
+    db: AsyncDB, files_dir: Path | None, delay_seconds: float
 ) -> None:
     logger.info("starting experiment simulator loop")
     while True:

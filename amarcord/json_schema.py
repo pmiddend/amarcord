@@ -3,13 +3,11 @@ from enum import Enum
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import Optional
-from typing import Union
 
 
 @dataclass(frozen=True)
 class JSONSchemaInteger:
-    format: Optional[str]
+    format: str | None
 
 
 @dataclass(frozen=True)
@@ -23,33 +21,33 @@ class JSONSchemaNumberFormat(Enum):
 
 @dataclass(frozen=True)
 class JSONSchemaNumber:
-    minimum: Optional[float]
-    maximum: Optional[float]
-    exclusiveMinimum: Optional[float]
-    exclusiveMaximum: Optional[float]
-    suffix: Optional[str]
-    format_: Optional[JSONSchemaNumberFormat]
+    minimum: float | None
+    maximum: float | None
+    exclusiveMinimum: float | None
+    exclusiveMaximum: float | None
+    suffix: str | None
+    format_: JSONSchemaNumberFormat | None
 
 
 @dataclass(frozen=True)
 class JSONSchemaString:
-    enum_: Optional[List[str]]
+    enum_: List[str] | None
 
 
 @dataclass(frozen=True)
 class JSONSchemaArray:
     value_type: "JSONSchemaType"
-    min_items: Optional[int]
-    max_items: Optional[int]
+    min_items: int | None
+    max_items: int | None
 
 
-JSONSchemaType = Union[
-    JSONSchemaInteger,
-    JSONSchemaNumber,
-    JSONSchemaString,
-    JSONSchemaArray,
-    JSONSchemaBoolean,
-]
+JSONSchemaType = (
+    JSONSchemaInteger
+    | JSONSchemaNumber
+    | JSONSchemaString
+    | JSONSchemaArray
+    | JSONSchemaBoolean
+)
 
 
 def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:

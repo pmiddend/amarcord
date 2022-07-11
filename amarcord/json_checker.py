@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import Any, List, TypeVar
-from typing import Optional
 
 from amarcord.json import JSONDict, JSONArray
 
@@ -18,7 +17,7 @@ class JSONChecker:
         self.d = d
         self.description = description
 
-    def optional_str(self, key: str) -> Optional[str]:
+    def optional_str(self, key: str) -> str | None:
         result = self.d.get(key, None)
         if result is None:
             return None
@@ -28,11 +27,11 @@ class JSONChecker:
             )
         return result
 
-    def optional_path(self, key: str) -> Optional[Path]:
+    def optional_path(self, key: str) -> Path | None:
         result = self.optional_str(key)
         return Path(result) if result is not None else None
 
-    def optional_float(self, key: str) -> Optional[float]:
+    def optional_float(self, key: str) -> float | None:
         result = self.d.get(key, None)
         if result is None:
             return None
@@ -42,7 +41,7 @@ class JSONChecker:
             )
         return float(result)
 
-    def optional_int(self, key: str) -> Optional[int]:
+    def optional_int(self, key: str) -> int | None:
         result = self.d.get(key, None)
         if result is None:
             return None

@@ -1,13 +1,13 @@
 import datetime
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 from amarcord.db.table_classes import DBFile
 
 
 @dataclass(frozen=True, eq=True)
 class DBCFELAnalysisResult:
-    id: Optional[int]
+    id: int | None
     directory_name: str
     data_set_id: int
     resolution: str

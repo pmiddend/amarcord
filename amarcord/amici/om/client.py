@@ -1,7 +1,6 @@
 import datetime
 import logging
-from typing import Any, Union
-from typing import Optional
+from typing import Any
 
 import zmq
 from pint import UnitRegistry
@@ -29,7 +28,7 @@ class OmZMQData(BaseModel):
     start_timestamp: float
 
 
-def validate_om_zmq_entry(d: Any) -> Union[str, OmZMQData]:
+def validate_om_zmq_entry(d: Any) -> str | OmZMQData:
     if not isinstance(d, dict):
         logger.error("received invalid data from Om: not a dictionary but %s", type(d))
         return f"We expected a dictionary, but got a {type(d)}"
@@ -43,7 +42,7 @@ def validate_om_zmq_entry(d: Any) -> Union[str, OmZMQData]:
 class OmZMQProcessor:
     def __init__(self, db: AsyncDB) -> None:
         self._db = db
-        self._last_zeromq_data: Optional[OmZMQData] = None
+        self._last_zeromq_data: OmZMQData | None = None
 
     async def init(self) -> None:
         async with self._db.begin() as conn:

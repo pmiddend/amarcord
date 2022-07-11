@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import Optional
 from typing import Tuple
 from typing import cast
 
@@ -37,7 +36,7 @@ _REST_USER = "pmidden"
 
 class MockResponse:
     def __init__(
-        self, json_data: Optional[JSONDict], text: Optional[str], status_code: int
+        self, json_data: JSONDict | None, text: str | None, status_code: int
     ) -> None:
         self.json_data = json_data
         self.status_code = status_code

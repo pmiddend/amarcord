@@ -4,7 +4,7 @@ import pickle
 from asyncio import FIRST_COMPLETED
 from pathlib import Path
 from time import time
-from typing import Optional, Any
+from typing import Any
 
 import yaml
 import zmq
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 async def _receive_loop(db: AsyncDB, karabo2: Karabo2, socket: Any) -> None:
     logger.info("attributi are set up, waiting for first Karabo data frame")
     debug_counter = 0
-    prior_result: Optional[BridgeOutput] = None
+    prior_result: BridgeOutput | None = None
 
     def major_difference(before: BridgeOutput, after: BridgeOutput) -> bool:
         return (
@@ -105,8 +105,8 @@ async def _monitor_loop(monitor_socket: Any) -> None:
 async def karabo_loop(
     db: AsyncDB,
     zmq_context: Context,
-    karabo_endpoint: Optional[str],
-    karabo_config_file: Optional[Path],
+    karabo_endpoint: str | None,
+    karabo_config_file: Path | None,
     debug_mode: bool,
 ) -> None:
     if karabo_config_file is None or karabo_endpoint is None:
@@ -137,7 +137,7 @@ async def karabo_loop(
 
 
 # async def onda_loop(
-#     db: DB, zmq_context: Context, onda_url: Optional[str], karabo_export: KaraboExport
+#     db: DB, zmq_context: Context, onda_url: str | None, karabo_export: KaraboExport
 # ) -> None:
 #     if onda_url is None:
 #         return
@@ -194,18 +194,12 @@ async def karabo_loop(
 
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
-    karabo_config_file: Optional[
-        Path
-    ] = None  # Karabo configuration file; if given, will enable the Karabo daemon
-    karabo_endpoint: Optional[
-        str
-    ] = None  # Endpoint for the Karabo bridge (for example, tcp://localhost:4545)
-    onda_url: Optional[
-        str
-    ] = None  # URL for the OnDA ZeroMQ endpoint; if given, will enable the OnDA client
-    debug_mode: bool = (
-        False  # Debug mode (assume the first frame is the start of a run)
-    )
+    # fmt: off
+    karabo_config_file: Path | None = None  # Karabo configuration file; if given, will enable the Karabo daemon
+    karabo_endpoint: str | None = None  # Endpoint for the Karabo bridge (for example, tcp://localhost:4545)
+    onda_url: str | None = None  # URL for the OnDA ZeroMQ endpoint; if given, will enable the OnDA client
+    debug_mode: bool = False  # Debug mode (assume the first frame is the start of a run)
+    # fmt: on
 
     """AMARCORD XFEL ingest daemon"""
 
@@ -234,10 +228,10 @@ def main() -> None:
 
 async def async_main(
     db: AsyncDB,
-    karabo_endpoint: Optional[str],
-    karabo_config_file: Optional[Path],
+    karabo_endpoint: str | None,
+    karabo_config_file: Path | None,
     debug_mode: bool,
-    # onda_url: Optional[str],
+    # onda_url: str | None,
     zmq_ctx: Context,
 ) -> None:
     await karabo_loop(db, zmq_ctx, karabo_endpoint, karabo_config_file, debug_mode)

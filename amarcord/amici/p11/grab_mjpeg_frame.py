@@ -2,7 +2,7 @@
 import asyncio
 import logging
 from asyncio import StreamReader
-from typing import Optional, List
+from typing import List
 from urllib.parse import urlparse
 
 from amarcord.db.asyncdb import AsyncDB, LIVE_STREAM_IMAGE
@@ -15,7 +15,7 @@ async def mjpeg_grab_single_frame_with_reader(reader: StreamReader) -> bytes:
     line = (await reader.readline()).decode("utf-8")
 
     # Retrieve headers, wait for content type and boundary
-    boundary: Optional[str] = None
+    boundary: str | None = None
     header_lines: List[str] = []
     while line.strip() != "":
         header_lines.append(line.strip())
@@ -40,7 +40,7 @@ async def mjpeg_grab_single_frame_with_reader(reader: StreamReader) -> bytes:
         raise Exception(f'couldn\'t find content after boundary "{boundary}"')
 
     # Read in chunk headers
-    length: Optional[int] = None
+    length: int | None = None
     sub_header_lines: List[str] = []
     while line.strip() != "":
         sub_header_lines.append(line.strip())

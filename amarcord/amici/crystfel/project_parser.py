@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, List, Final
+from typing import Dict, List, Final
 
 _INFO_LINE_DELIMITER: Final = "-----"
 
@@ -17,7 +17,7 @@ def parse_crystfel_project_file(p: Path) -> CrystfelProjectFile:
     file_lines: List[str] = []
 
     with p.open("r", encoding="utf-8") as f:
-        previous_line: Optional[str] = None
+        previous_line: str | None = None
         for line_with_newline in f:
             line = line_with_newline.strip()
 

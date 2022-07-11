@@ -6,7 +6,6 @@ from typing import Any
 from typing import Dict
 from typing import Iterable
 from typing import List
-from typing import Optional
 
 from amarcord.json import JSONDict
 
@@ -16,21 +15,21 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class HarvestPeaksearch:
     method: str
-    max_num_peaks: Optional[float]
-    adc_threshold: Optional[float]
+    max_num_peaks: float | None
+    adc_threshold: float | None
     minimum_snr: float
     min_pixel_count: int
     max_pixel_count: int
     min_res: int
     max_res: int
-    bad_pixel_map_filename: Optional[Path]
-    bad_pixel_map_hdf5_path: Optional[Path]
-    local_bg_radius: Optional[float]
-    min_peak_over_neighbor: Optional[float]
-    min_snr_biggest_pix: Optional[float]
-    min_snr_peak_pix: Optional[float]
-    min_sig: Optional[float]
-    min_squared_gradient: Optional[float]
+    bad_pixel_map_filename: Path | None
+    bad_pixel_map_hdf5_path: Path | None
+    local_bg_radius: float | None
+    min_peak_over_neighbor: float | None
+    min_snr_biggest_pix: float | None
+    min_snr_peak_pix: float | None
+    min_sig: float | None
+    min_squared_gradient: float | None
     geometry: str
 
 
@@ -47,21 +46,21 @@ class HarvestIndexing:
 
 @dataclass(frozen=True)
 class HarvestIntegration:
-    method: Optional[str]
-    center_boxes: Optional[bool]
-    overpredict: Optional[bool]
-    push_res: Optional[float]
-    radius_inner: Optional[float]
-    radius_middle: Optional[float]
-    radius_outer: Optional[float]
+    method: str | None
+    center_boxes: bool | None
+    overpredict: bool | None
+    push_res: float | None
+    radius_inner: float | None
+    radius_middle: float | None
+    radius_outer: float | None
 
 
 @dataclass(frozen=True)
 class HarvestJson:
     peaksearch: HarvestPeaksearch
     hitfinding: HarvestHitfinding
-    indexing: Optional[HarvestIndexing]
-    integration: Optional[HarvestIntegration]
+    indexing: HarvestIndexing | None
+    integration: HarvestIntegration | None
 
 
 def _get_string(j: Dict[str, Any], s: str) -> str:
@@ -73,7 +72,7 @@ def _get_string(j: Dict[str, Any], s: str) -> str:
     return result
 
 
-def _get_opt_string(j: Dict[str, Any], s: str) -> Optional[str]:
+def _get_opt_string(j: Dict[str, Any], s: str) -> str | None:
     result = j.get(s, None)
     if result is None:
         return None
@@ -84,7 +83,7 @@ def _get_opt_string(j: Dict[str, Any], s: str) -> Optional[str]:
     return result
 
 
-def _get_opt_path(j: Dict[str, Any], s: str) -> Optional[Path]:
+def _get_opt_path(j: Dict[str, Any], s: str) -> Path | None:
     result = _get_opt_string(j, s)
     if result is None:
         return None
@@ -109,7 +108,7 @@ def _get_int(j: Dict[str, Any], s: str) -> int:
     return result
 
 
-def _get_opt_int(j: Dict[str, Any], s: str) -> Optional[int]:
+def _get_opt_int(j: Dict[str, Any], s: str) -> int | None:
     result = j.get(s, None)
     if result is None:
         return None
@@ -120,7 +119,7 @@ def _get_opt_int(j: Dict[str, Any], s: str) -> Optional[int]:
     return result
 
 
-def _get_opt_bool(j: Dict[str, Any], s: str) -> Optional[bool]:
+def _get_opt_bool(j: Dict[str, Any], s: str) -> bool | None:
     result = j.get(s, None)
     if result is None:
         return None
@@ -146,7 +145,7 @@ def _get_str_list(j: Dict[str, Any], s: str) -> List[str]:
     return result
 
 
-def _get_opt_float(j: Dict[str, Any], s: str) -> Optional[float]:
+def _get_opt_float(j: Dict[str, Any], s: str) -> float | None:
     result = j.get(s, None)
     if result is None:
         return None
@@ -208,9 +207,9 @@ def read_harvest_json(fn: Path) -> HarvestJson:
 @dataclass(frozen=True)
 class StreamMetadata:
     input_files: List[Path]
-    version: Optional[str]
+    version: str | None
     geometry: str
-    timestamp: Optional[float]
+    timestamp: float | None
     num_hits: int
     hit_rate: float
     n_frames: int
@@ -218,12 +217,12 @@ class StreamMetadata:
     num_crystals: int
     average_peaks_event: float
     average_resolution: float
-    command_line: Optional[str]
+    command_line: str | None
 
 
 def read_crystfel_streams(stream_list: Iterable[Path]) -> StreamMetadata:
 
-    version: Optional[str] = None
+    version: str | None = None
     all_fns: List[Path] = []
     n_frames = 0
     n_hits = 0
@@ -234,8 +233,8 @@ def read_crystfel_streams(stream_list: Iterable[Path]) -> StreamMetadata:
     geom = ""
     in_geom = False
     have_geom = False
-    command_line: Optional[str] = None
-    timestamp: Optional[float] = None
+    command_line: str | None = None
+    timestamp: float | None = None
 
     for fn in stream_list:
         timestamp = fn.stat().st_mtime

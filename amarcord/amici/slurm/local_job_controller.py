@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 from typing import List
-from typing import Optional
 from typing import Tuple
 from typing import TypedDict
 
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class JobResult(TypedDict):
     failed: bool
-    reason: Optional[str]
+    reason: str
 
 
 def _command_subprocess(subprocess_command: str, process_dir_str: str) -> None:

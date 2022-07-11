@@ -1,13 +1,12 @@
 import random
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True, eq=True)
 class NumericRange:
-    minimum: Optional[float]
+    minimum: float | None
     minimum_inclusive: bool
-    maximum: Optional[float]
+    maximum: float | None
     maximum_inclusive: bool
 
     def __repr__(self) -> str:

@@ -1,8 +1,7 @@
 import asyncio
-
 from asyncio import FIRST_COMPLETED, Task
 from pathlib import Path
-from typing import Optional, List
+from typing import List
 
 from tap import Tap
 from zmq.asyncio import Context
@@ -24,17 +23,17 @@ from amarcord.experiment_simulator import (
 
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
-    kamzik_socket_url: Optional[str] = None
+    kamzik_socket_url: str | None = None
     kamzik_device_id: str = "Runner"
-    petra3_refresh_rate_seconds: Optional[float] = None
-    om_url: Optional[str] = None
+    petra3_refresh_rate_seconds: float | None = None
+    om_url: str | None = None
     om_topic: str = "view:omdata"
-    om_simulator_port: Optional[int] = None
-    onda_url: Optional[str] = None
+    om_simulator_port: int | None = None
+    onda_url: str | None = None
     onda_topic: str = "ondadata"
     experiment_simulator_enabled: bool = False
-    experiment_simulator_files_dir: Optional[Path] = None
-    mjpeg_stream_url: Optional[str] = None
+    experiment_simulator_files_dir: Path | None = None
+    mjpeg_stream_url: str | None = None
     mjpeg_stream_delay_seconds: float = 5.0
 
 

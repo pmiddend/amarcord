@@ -7,7 +7,6 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, cast, Tuple, Dict, Iterable, Any, Set, Final
-from typing import Optional
 
 import magic
 import numpy as np
@@ -81,7 +80,7 @@ class AsyncDB:
 
     async def retrieve_file_id_by_name(
         self, conn: Connection, file_name: str
-    ) -> Optional[int]:
+    ) -> int | None:
         result = await conn.execute(
             sa.select(
                 [
@@ -149,7 +148,7 @@ class AsyncDB:
         )
 
     async def retrieve_attributi(
-        self, conn: Connection, associated_table: Optional[AssociatedTable]
+        self, conn: Connection, associated_table: AssociatedTable | None
     ) -> List[DBAttributo]:
         ac = self.tables.attributo.c
         select_stmt = sa.select(
@@ -215,7 +214,7 @@ class AsyncDB:
         self,
         conn: Connection,
         association_column: sa.Column,
-        where_clause: Optional[Any] = None,
+        where_clause: Any | None = None,
     ) -> Dict[int, List[DBFile]]:
         select_stmt = (
             sa.select(
@@ -548,7 +547,7 @@ class AsyncDB:
         )
 
     async def duplicate_file(
-        self, conn: Connection, id_: int, new_file_name: Optional[str]
+        self, conn: Connection, id_: int, new_file_name: str | None
     ) -> CreateFileResult:
         original_file = await self.retrieve_file(conn, id_, with_contents=True)
         return await self.create_file_from_bytes(
@@ -569,7 +568,7 @@ class AsyncDB:
         id_: int,
         file_name: str,
         description: str,
-        original_path: Optional[Path],
+        original_path: Path | None,
         contents: bytes,
     ) -> None:
         mime = magic.from_buffer(contents, mime=True)  # type: ignore
@@ -596,7 +595,7 @@ class AsyncDB:
         conn: Connection,
         file_name: str,
         description: str,
-        original_path: Optional[Path],
+        original_path: Path | None,
         contents: bytes,
     ) -> CreateFileResult:
         mime = magic.from_buffer(contents, mime=True)  # type: ignore
@@ -627,7 +626,7 @@ class AsyncDB:
         conn: Connection,
         file_name: str,
         description: str,
-        original_path: Optional[Path],
+        original_path: Path | None,
         contents_location: Path,
         deduplicate: bool,
     ) -> CreateFileResult:
@@ -976,7 +975,7 @@ class AsyncDB:
 
     async def retrieve_latest_run(
         self, conn: Connection, attributi: List[DBAttributo]
-    ) -> Optional[DBRun]:
+    ) -> DBRun | None:
         maximum_id = (
             await conn.execute(sa.select([sa.func.max(self.tables.run.c.id)]))
         ).fetchone()
@@ -988,7 +987,7 @@ class AsyncDB:
 
     async def retrieve_sample(
         self, conn: Connection, id_: int, attributi: List[DBAttributo]
-    ) -> Optional[DBSample]:
+    ) -> DBSample | None:
         rc = self.tables.sample.c
         r = (
             await conn.execute(
@@ -1013,7 +1012,7 @@ class AsyncDB:
 
     async def retrieve_run(
         self, conn: Connection, id_: int, attributi: List[DBAttributo]
-    ) -> Optional[DBRun]:
+    ) -> DBRun | None:
         rc = self.tables.run.c
         r = (
             await conn.execute(sa.select([rc.id, rc.attributi]).where(rc.id == id_))
@@ -1046,7 +1045,7 @@ class AsyncDB:
         return [r[0] for r in await conn.execute(sa.select([self.tables.sample.c.id]))]
 
     async def clear_analysis_results(
-        self, conn: Connection, delete_after_run_id: Optional[int] = None
+        self, conn: Connection, delete_after_run_id: int | None = None
     ) -> None:
         if delete_after_run_id is None:
             await conn.execute(sa.delete(self.tables.cfel_analysis_results))
@@ -1112,7 +1111,7 @@ class AsyncDB:
     async def create_data_set(
         self, conn: Connection, experiment_type: str, attributi: AttributiMap
     ) -> int:
-        matching_experiment_type: Optional[DBExperimentType] = next(
+        matching_experiment_type: DBExperimentType | None = next(
             (
                 x
                 for x in await self.retrieve_experiment_types(conn)

@@ -8,7 +8,6 @@ from typing import Dict
 from typing import Generator
 from typing import Iterable
 from typing import List
-from typing import Optional
 from typing import Sequence
 from typing import Tuple
 from typing import TypeVar
@@ -24,7 +23,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-def str_to_int(s: str) -> Optional[int]:
+def str_to_int(s: str) -> int | None:
     try:
         return int(s)
     except:
@@ -59,7 +58,7 @@ def dict_union(a: Sequence[Dict[K, V]]) -> Dict[K, V]:
     return result
 
 
-def str_to_float(s: str) -> Optional[float]:
+def str_to_float(s: str) -> float | None:
     try:
         return float(s)
     except:
@@ -105,7 +104,7 @@ class UnexpectedEOF(Exception):
         super().__init__("Unexpected EOF")
 
 
-def find_by(xs: List[T], by: Callable[[T], bool]) -> Optional[T]:
+def find_by(xs: List[T], by: Callable[[T], bool]) -> T | None:
     return next((x for x in xs if by(x)), None)
 
 
@@ -164,7 +163,7 @@ def read_file_to_string(p: Path) -> str:
 
 # see https://stackoverflow.com/questions/79797/how-to-convert-local-time-string-to-utc
 def local_time_to_utc(
-    d: datetime.datetime, current_time_zone: Optional[str] = None
+    d: datetime.datetime, current_time_zone: str | None = None
 ) -> datetime.datetime:
     tzname = (
         current_time_zone
@@ -190,7 +189,7 @@ def last_line_of_file(p: Path) -> str:
         return ""
 
 
-def safe_max(xs: Iterable[T], key: Callable[[T], U]) -> Optional[T]:
+def safe_max(xs: Iterable[T], key: Callable[[T], U]) -> T | None:
     try:
         # mypy wants Callable[[T], Union[SupportsDunderLT, SupportsDunderGT]] but that's internal
         return max(xs, key=key)  # type: ignore
@@ -217,7 +216,7 @@ def now_utc_unix_integer_millis() -> int:
     )
 
 
-def last_existing_dir(p: Path) -> Optional[Path]:
+def last_existing_dir(p: Path) -> Path | None:
     if p.is_dir():
         return p
     next_ = p.parent
@@ -231,7 +230,7 @@ def replace_illegal_path_characters(filename: str) -> str:
     return re.sub(r"[^\w\-_. ]", "_", filename)
 
 
-def safe_variance(xs: List[float]) -> Optional[float]:
+def safe_variance(xs: List[float]) -> float | None:
     if len(xs) < 2:
         return None
     return variance(xs)

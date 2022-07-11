@@ -3,7 +3,6 @@ import math
 from dataclasses import replace
 from typing import Dict, Set, Tuple, Iterable, Any
 from typing import List
-from typing import Optional
 from typing import cast
 
 from amarcord.db.attributi import (
@@ -305,7 +304,7 @@ class AttributiMap:
             )
         return selected
 
-    def select_datetime(self, attributo_id: AttributoId) -> Optional[datetime.datetime]:
+    def select_datetime(self, attributo_id: AttributoId) -> datetime.datetime | None:
         v = self.select(attributo_id)
         if v is None:
             return None
@@ -314,24 +313,24 @@ class AttributiMap:
         ), f'expected datetime for attributo "{attributo_id}", got {type(v)}'
         return v
 
-    def select_sample_id(self, attributo_id: AttributoId) -> Optional[int]:
+    def select_sample_id(self, attributo_id: AttributoId) -> int | None:
         return self.select_int(attributo_id)
 
-    def select_int(self, attributo_id: AttributoId) -> Optional[int]:
+    def select_int(self, attributo_id: AttributoId) -> int | None:
         v = self.select(attributo_id)
         assert v is None or isinstance(
             v, int
         ), f"attributo {attributo_id} has type {type(v)} instead of int"
         return v if v is not None else None
 
-    def select_decimal(self, attributo_id: AttributoId) -> Optional[float]:
+    def select_decimal(self, attributo_id: AttributoId) -> float | None:
         v = self.select(attributo_id)
         assert v is None or isinstance(
             v, (float, int)
         ), f"attributo {attributo_id} has type {type(v)} instead of float"
         return float(v) if v is not None else None
 
-    def select_string(self, attributo_id: AttributoId) -> Optional[str]:
+    def select_string(self, attributo_id: AttributoId) -> str | None:
         v = self.select(attributo_id)
         assert v is None or isinstance(
             v, str

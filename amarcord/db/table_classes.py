@@ -10,13 +10,13 @@ from amarcord.db.event_log_level import EventLogLevel
 
 @dataclass(frozen=True)
 class DBFile:
-    id: Optional[int]
+    id: int | None
     description: str
     type_: str
-    original_path: Optional[str]
+    original_path: str | None
     file_name: str
     size_in_bytes: int
-    contents: Optional[bytes]
+    contents: bytes | None
 
 
 @dataclass(frozen=True)
@@ -56,8 +56,8 @@ class DBIndexingParameter:
     project_file_first_discovery: datetime.datetime
     project_file_last_discovery: datetime.datetime
     project_file_path: Path
-    project_file_content: Optional[str]
-    geometry_file_content: Optional[str]
+    project_file_content: str | None
+    geometry_file_content: str | None
     project_file_hash: str
 
 

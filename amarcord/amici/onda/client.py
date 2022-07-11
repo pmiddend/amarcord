@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any
 
 import msgpack
 import zmq
@@ -24,7 +24,7 @@ class OnDAZMQData:
     hits: int
 
 
-def validate_onda_zmq_entry(d: Any) -> Union[str, OnDAZMQData]:
+def validate_onda_zmq_entry(d: Any) -> str | OnDAZMQData:
     if not isinstance(d, list):
         logger.error("received invalid data from OnDA: not a list but %s", type(d))
         return f"We expected a list, but got a {type(d)}"
