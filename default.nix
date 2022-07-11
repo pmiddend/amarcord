@@ -1,12 +1,21 @@
 let
   pkgs = import (import ./nix/sources.nix { }).nixpkgs { };
   frontend = pkgs.callPackage (import ./frontend/default.nix) { };
-  poetryOverrides = pkgs.poetry2nix.overrides.withDefaults (self: super: {
+  poetry2nix-latest-src = pkgs.fetchFromGitHub {
+    owner = "nix-community";
+    repo = "poetry2nix";
+    rev = "1.31.0";
+    hash = "sha256-0o856HWRRc5q02+vIhlIW4NpeQUDvCv3CuP1w2rZ+ho=";
+  };
+  poetry2nix = (import poetry2nix-latest-src { inherit pkgs; poetry = pkgs.poetry; });
+  poetryOverrides = poetry2nix.overrides.withDefaults (self: super: {
       # ModuleNotFoundError: No module named 'flit_core'
       # see https://github.com/nix-community/poetry2nix/issues/218
       pyparsing = super.pyparsing.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core ]; });
 
       quart = super.quart.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
+      
+      cfel-pylint-checkers = super.cfel-pylint-checkers.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
 
       # ModuleNotFoundError: No module named 'poetry'
       msgpack-types = super.msgpack-types.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
@@ -20,14 +29,14 @@ let
         buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core ];
       });
     });
-  pythonPackage = pkgs.poetry2nix.mkPoetryApplication {
+  pythonPackage = poetry2nix.mkPoetryApplication {
     projectDir = ./.;
     postInstall = ''
       wrapProgram $out/bin/amarcord-webserver --set AMARCORD_STATIC_FOLDER ${frontend}/
     '';
     overrides = poetryOverrides;
   };
-  pythonEnv = pkgs.poetry2nix.mkPoetryEnv {
+  pythonEnv = poetry2nix.mkPoetryEnv {
     projectDir = ./.;
     overrides = poetryOverrides;
   };
@@ -42,7 +51,11 @@ in
     name = "amarcord";
     tag = "latest";
 
-    contents = [ pythonPackage frontend ];
+    copyToRoot = pkgs.buildEnv {
+      name = "image-root";
+      paths = [ pythonPackage frontend ];
+      pathsToLink = [ "/bin" ];
+    };
 
     config = {
       Env = [ "AMARCORD_STATIC_FOLDER=${frontend}" ];

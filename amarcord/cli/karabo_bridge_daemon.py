@@ -97,7 +97,7 @@ async def _monitor_loop(monitor_socket: Any) -> None:
     while True:
         message = parse_monitor_message(await monitor_socket.recv_multipart())  # type: ignore
         logger.info(f"monitor loop, received message: {message}")
-        if message["event"] == zmq.EVENT_DISCONNECTED:
+        if message.get("event") == zmq.EVENT_DISCONNECTED:
             logger.info("monitor loop: disconnect")
             break
 

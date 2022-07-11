@@ -128,11 +128,11 @@ class SlurmError(TypedDict):
 
 
 class SlurmHttpWrapper:
-    # pylint: disable=unused-argument,no-self-use
+    # pylint: disable=unused-argument
     async def post(self, url: str, headers: Dict[str, Any], data: JSONDict) -> JSONDict:
         ...
 
-    # pylint: disable=unused-argument,no-self-use
+    # pylint: disable=unused-argument
     async def get(self, url: str, headers: Dict[str, Any]) -> JSONDict:
         ...
 

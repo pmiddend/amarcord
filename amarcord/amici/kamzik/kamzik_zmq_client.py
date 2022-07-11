@@ -76,10 +76,10 @@ async def _monitor_loop(monitor_socket: Any) -> None:
     while True:
         message = parse_monitor_message(await monitor_socket.recv_multipart())  # type: ignore
         logger.info(f"monitor loop, received message: {message}")
-        if message["event"] == zmq.EVENT_DISCONNECTED:
+        if message.get("event") == zmq.EVENT_DISCONNECTED:
             logger.info("monitor loop: disconnect")
             break
-        if message["event"] == zmq.EVENT_HANDSHAKE_SUCCEEDED:
+        if message.get("event") == zmq.EVENT_HANDSHAKE_SUCCEEDED:
             logger.info("monitor loop: handshake success")
         else:
             logger.info("monitor loop: unimportant event")
@@ -193,7 +193,7 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
 
     while True:
         message = parse_monitor_message(await monitor_socket.recv_multipart())  # type: ignore
-        if message["event"] == zmq.EVENT_CONNECTED:
+        if message.get("event") == zmq.EVENT_CONNECTED:
             break
 
     async with db.begin() as conn:

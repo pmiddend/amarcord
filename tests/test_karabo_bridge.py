@@ -343,7 +343,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
     )
     assert new_accumulator
     assert ATTRIBUTO_ID1 in new_accumulator
-    assert new_values[ATTRIBUTO_ID1] == initial_value
+    assert new_values.get(ATTRIBUTO_ID1) == initial_value
 
     next_value = 2
     while next_value < iterations:
@@ -357,7 +357,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_plain_attribute() -> None:
 
     expected = 0.5 * iterations * random_factor
     assert isclose(
-        cast(float, new_values[ATTRIBUTO_ID1]),
+        cast(float, new_values.get(ATTRIBUTO_ID1)),
         expected,
         rel_tol=relative_tolerance,
     )
@@ -382,7 +382,7 @@ def test_frame_to_attributo_and_cache_variance_plain_attribute() -> None:
     assert new_accumulator
     assert ATTRIBUTO_ID1 in new_accumulator
     # None because the variance of one value is undefined
-    assert new_values[ATTRIBUTO_ID1] is None
+    assert new_values.get(ATTRIBUTO_ID1) is None
 
     # Second run. It's supposed to be the variance
     second_value = 11.0
@@ -391,7 +391,7 @@ def test_frame_to_attributo_and_cache_variance_plain_attribute() -> None:
         second_frame, attributi, new_accumulator
     )
 
-    assert new_values[ATTRIBUTO_ID1] == 25.0
+    assert new_values.get(ATTRIBUTO_ID1) == 25.0
 
 
 def test_frame_to_attributo_and_cache_stdev_from_stdev_plain_attribute() -> None:
@@ -413,7 +413,7 @@ def test_frame_to_attributo_and_cache_stdev_from_stdev_plain_attribute() -> None
     assert new_accumulator
     assert ATTRIBUTO_ID1 in new_accumulator
     # None because the variance of one value is undefined
-    assert new_values[ATTRIBUTO_ID1] is None
+    assert new_values.get(ATTRIBUTO_ID1) is None
 
     second_value = -1.0
     second_frame: KaraboValueByInternalId = {INTERNAL_ID1: second_value}
@@ -421,7 +421,7 @@ def test_frame_to_attributo_and_cache_stdev_from_stdev_plain_attribute() -> None
         second_frame, attributi, new_accumulator
     )
 
-    assert new_values[ATTRIBUTO_ID1] == 0.5**0.5
+    assert new_values.get(ATTRIBUTO_ID1) == 0.5**0.5
 
 
 def test_frame_to_attributo_and_cache_stdev_from_values_plain_attribute() -> None:
@@ -443,7 +443,7 @@ def test_frame_to_attributo_and_cache_stdev_from_values_plain_attribute() -> Non
     assert new_accumulator
     assert ATTRIBUTO_ID1 in new_accumulator
     # None because the variance of one value is undefined
-    assert new_values[ATTRIBUTO_ID1] is None
+    assert new_values.get(ATTRIBUTO_ID1) is None
 
     second_value = 2.0
     second_frame: KaraboValueByInternalId = {INTERNAL_ID1: second_value}
@@ -451,7 +451,7 @@ def test_frame_to_attributo_and_cache_stdev_from_values_plain_attribute() -> Non
         second_frame, attributi, new_accumulator
     )
 
-    assert new_values[ATTRIBUTO_ID1] == 0.5
+    assert new_values.get(ATTRIBUTO_ID1) == 0.5
 
 
 def test_frame_to_attributo_and_cache_take_last_plain_attribute() -> None:
@@ -472,7 +472,7 @@ def test_frame_to_attributo_and_cache_take_last_plain_attribute() -> None:
     )
     assert new_accumulator
     assert ATTRIBUTO_ID1 in new_accumulator
-    assert new_values[ATTRIBUTO_ID1] == initial_value
+    assert new_values.get(ATTRIBUTO_ID1) == initial_value
 
     # Second run. It's supposed to be "take last", so we expect the last value ot be returned
     second_value = 11.0
@@ -481,7 +481,7 @@ def test_frame_to_attributo_and_cache_take_last_plain_attribute() -> None:
         second_frame, attributi, new_accumulator
     )
 
-    assert new_values[ATTRIBUTO_ID1] == second_value
+    assert new_values.get(ATTRIBUTO_ID1) == second_value
 
 
 def test_frame_to_attributo_and_cache_take_last_plain_attribute_string() -> None:
@@ -502,7 +502,7 @@ def test_frame_to_attributo_and_cache_take_last_plain_attribute_string() -> None
     )
     assert new_accumulator
     assert ATTRIBUTO_ID1 in new_accumulator
-    assert new_values[ATTRIBUTO_ID1] == initial_value
+    assert new_values.get(ATTRIBUTO_ID1) == initial_value
 
     # Second run. It's supposed to be "take last", so we expect the last value ot be returned
     second_value = "bar"
@@ -511,7 +511,7 @@ def test_frame_to_attributo_and_cache_take_last_plain_attribute_string() -> None
         second_frame, attributi, new_accumulator
     )
 
-    assert new_values[ATTRIBUTO_ID1] == second_value
+    assert new_values.get(ATTRIBUTO_ID1) == second_value
 
 
 def test_frame_to_attributo_and_cache_take_last_coagulate_list() -> None:
@@ -534,7 +534,7 @@ def test_frame_to_attributo_and_cache_take_last_coagulate_list() -> None:
     new_accumulator, new_values = frame_to_attributo_and_cache(
         first_frame, attributi, old_accumulator
     )
-    assert new_values[ATTRIBUTO_ID1] == [initial_value, initial_value2]
+    assert new_values.get(ATTRIBUTO_ID1) == [initial_value, initial_value2]
 
     # Second try, updated values now
     second_frame: KaraboValueByInternalId = {
@@ -545,7 +545,7 @@ def test_frame_to_attributo_and_cache_take_last_coagulate_list() -> None:
     _, new_values = frame_to_attributo_and_cache(
         second_frame, attributi, new_accumulator
     )
-    assert new_values[ATTRIBUTO_ID1] == [initial_value2, initial_value]
+    assert new_values.get(ATTRIBUTO_ID1) == [initial_value2, initial_value]
 
 
 def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_list() -> None:
@@ -568,7 +568,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_list() -> None:
     new_accumulator, new_values = frame_to_attributo_and_cache(
         first_frame, attributi, old_accumulator
     )
-    assert new_values[ATTRIBUTO_ID1] == [initial_value, initial_value2]
+    assert new_values.get(ATTRIBUTO_ID1) == [initial_value, initial_value2]
 
     # Second try, updated values now
     second_frame: KaraboValueByInternalId = {
@@ -580,7 +580,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_list() -> None:
         second_frame, attributi, new_accumulator
     )
     # arithmetic mean of both separate (is the same because of flipped values though)
-    assert new_values[ATTRIBUTO_ID1] == [50.5, 50.5]
+    assert new_values.get(ATTRIBUTO_ID1) == [50.5, 50.5]
 
 
 def test_frame_to_attributo_and_cache_list_coagulate_string() -> None:
@@ -604,7 +604,7 @@ def test_frame_to_attributo_and_cache_list_coagulate_string() -> None:
     _, new_values = frame_to_attributo_and_cache(
         first_frame, attributi, old_accumulator
     )
-    assert new_values[ATTRIBUTO_ID1] == "foo[1.0, 2.0]bar"
+    assert new_values.get(ATTRIBUTO_ID1) == "foo[1.0, 2.0]bar"
 
 
 def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_string() -> None:
@@ -635,7 +635,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_string() -> None
     new_accumulator, new_values = frame_to_attributo_and_cache(
         first_frame, attributi, old_accumulator
     )
-    assert new_values[ATTRIBUTO_ID1] == "foo1.00bar100.00baz"
+    assert new_values.get(ATTRIBUTO_ID1) == "foo1.00bar100.00baz"
 
     # Second try, updated values now
     second_frame: KaraboValueByInternalId = {
@@ -647,7 +647,7 @@ def test_frame_to_attributo_and_cache_arithmetic_mean_coagulate_string() -> None
         second_frame, attributi, new_accumulator
     )
     # arithmetic mean of both separate (is the same because of flipped values though)
-    assert new_values[ATTRIBUTO_ID1] == "foo50.50bar50.50baz"
+    assert new_values.get(ATTRIBUTO_ID1) == "foo50.50bar50.50baz"
 
 
 def test_parse_coagulation_string_no_matches() -> None:
@@ -1956,9 +1956,9 @@ def test_extra_data_locators_for_config() -> None:
     assert isinstance(config, KaraboBridgeConfiguration)
     locators = accumulator_locators_for_config(config)
     assert "source" in locators
-    assert len(locators["source"]) == 2
-    assert "subkey" in locators["source"]
-    assert "subkey2" in locators["source"]
+    assert len(list(locators.get("source", set()))) == 2
+    assert "subkey" in locators.get("source", set())
+    assert "subkey2" in locators.get("source", set())
 
 
 async def test_persist_euxfel_run_result_new_run() -> None:
