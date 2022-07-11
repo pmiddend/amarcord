@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import pytest
 
 from amarcord.amici.kamzik.kamzik_zmq_client import ingest_kamzik_metadata
@@ -27,7 +25,7 @@ async def _get_db() -> AsyncDB:
     "input_type_and_value", [(AttributoTypeInt(), 3), (AttributoTypeString(), "foo")]
 )
 async def test_process_kamzik_metadata(
-    input_type_and_value: Tuple[AttributoType, AttributoValue]
+    input_type_and_value: tuple[AttributoType, AttributoValue]
 ) -> None:
     db = await _get_db()
 

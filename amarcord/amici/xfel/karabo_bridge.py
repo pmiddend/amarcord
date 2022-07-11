@@ -8,7 +8,6 @@ from math import fsum, isnan
 from typing import (
     Any,
     Iterable,
-    Tuple,
     cast,
 )
 
@@ -241,7 +240,7 @@ def parse_karabo_attribute(
     attribute_description: Any,
     locator: KaraboValueLocator,
     aidx: int,
-    internal_ids: dict[KaraboInternalId, Tuple[KaraboValueLocator, int]],
+    internal_ids: dict[KaraboInternalId, tuple[KaraboValueLocator, int]],
 ) -> KaraboAttributeDescription | KaraboConfigurationError:
     if not isinstance(attribute_description, dict):
         return KaraboConfigurationError(
@@ -350,7 +349,7 @@ def parse_karabo_attributes(
         return KaraboConfigurationError(
             f"in {CONFIG_KARABO_ATTRIBUTES_KEY}: expected this to be a dictionary with the Karabo sources as keys, but the type is {type(a)}"
         )
-    internal_ids: dict[KaraboInternalId, Tuple[KaraboValueLocator, int]] = {}
+    internal_ids: dict[KaraboInternalId, tuple[KaraboValueLocator, int]] = {}
     result: list[KaraboAttributeDescription] = []
     for source, attribute_descriptions in a.items():
         if not isinstance(attribute_descriptions, dict):
@@ -1019,7 +1018,7 @@ def process_mean_accumulator_with_plain_attribute(
     accumulator: AttributoAccumulator | None,
     aid: AttributoId,
     value_in_frame: KaraboValue | None,
-) -> Tuple[AttributoAccumulator, AttributoValue]:
+) -> tuple[AttributoAccumulator, AttributoValue]:
     assert accumulator is None or isinstance(accumulator, MeanAccumulator)
     assert value_in_frame is not None, f"attributo {aid}: not found in frame"
     if not isinstance(value_in_frame, (float, int)):
@@ -1040,7 +1039,7 @@ def process_variance_accumulator_with_plain_attribute(
     accumulator: AttributoAccumulator | None,
     aid: AttributoId,
     value_in_frame: KaraboValue | None,
-) -> Tuple[AttributoAccumulator, AttributoValue]:
+) -> tuple[AttributoAccumulator, AttributoValue]:
     assert accumulator is None or isinstance(accumulator, VarianceAccumulator)
     assert value_in_frame is not None, f"attributo {aid}: not found in frame"
     if not isinstance(value_in_frame, (float, int)):
@@ -1062,7 +1061,7 @@ def process_propagated_stdev_accumulator_with_plain_attribute(
     accumulator: AttributoAccumulator | None,
     aid: AttributoId,
     value_in_frame: KaraboValue | None,
-) -> Tuple[AttributoAccumulator, AttributoValue]:
+) -> tuple[AttributoAccumulator, AttributoValue]:
     assert accumulator is None or isinstance(accumulator, PropagatedStdDevAccumulator)
     assert value_in_frame is not None, f"attributo {aid}: not found in frame"
     if not isinstance(value_in_frame, (float, int)):
@@ -1086,7 +1085,7 @@ def process_stdev_from_values_accumulator_with_plain_attribute(
     accumulator: AttributoAccumulator | None,
     aid: AttributoId,
     value_in_frame: KaraboValue | None,
-) -> Tuple[AttributoAccumulator, AttributoValue]:
+) -> tuple[AttributoAccumulator, AttributoValue]:
     assert accumulator is None or isinstance(accumulator, StdDevAccumulator)
     assert value_in_frame is not None, f"attributo {aid}: not found in frame"
     if not isinstance(value_in_frame, (float, int)):
@@ -1110,7 +1109,7 @@ def process_plain_attribute(
     plain_attribute: PlainAttribute,
     accumulator: AttributoAccumulator | None,
     processor: AmarcordAttributoProcessor,
-) -> Tuple[AttributoAccumulator, AttributoValue] | None:
+) -> tuple[AttributoAccumulator, AttributoValue] | None:
     value_in_frame = frame.get(plain_attribute.id, None)
     if value_in_frame is None:
         return None
@@ -1148,7 +1147,7 @@ def process_coagulate_list(
     aid: AttributoId,
     coagulate_list: CoagulateList,
     processor: AmarcordAttributoProcessor,
-) -> Tuple[IndexedAccumulator, AttributoValue] | None:
+) -> tuple[IndexedAccumulator, AttributoValue] | None:
     accumulator = accumulators.get(aid, None)
     assert accumulator is None or isinstance(
         accumulator, IndexedAccumulator
@@ -1189,7 +1188,7 @@ def process_coagulate_string(
     aid: AttributoId,
     coagulate_string: CoagulateString,
     processor: AmarcordAttributoProcessor,
-) -> Tuple[IndexedAccumulator, str] | None:
+) -> tuple[IndexedAccumulator, str] | None:
     accumulator = accumulators.get(aid, None)
     assert accumulator is None or isinstance(
         accumulator, IndexedAccumulator
@@ -1223,7 +1222,7 @@ def frame_to_attributo_and_cache(
     frame: KaraboValueByInternalId,
     attributi: Iterable[AmarcordAttributoDescription],
     old_accumulator: AttributoAccumulatorPerId,
-) -> Tuple[AttributoAccumulatorPerId, AttributoValuePerId]:
+) -> tuple[AttributoAccumulatorPerId, AttributoValuePerId]:
     accumulators: AttributoAccumulatorPerId = old_accumulator.copy()
     values: AttributoValuePerId = {}
     for a in attributi:
@@ -1755,7 +1754,7 @@ def process_trains(
     karabo2: Karabo2,
     run_id: int,
     train_ids: list[int],
-    trains: Iterable[Tuple[int, dict[str, Any]]],
+    trains: Iterable[tuple[int, dict[str, Any]]],
 ) -> BridgeOutput | None:
     def optionally_set_dict(
         dictionary: dict[str, Any], locator: KaraboValueLocator, value: Any

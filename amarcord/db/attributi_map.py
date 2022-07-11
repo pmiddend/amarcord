@@ -1,7 +1,7 @@
 import datetime
 import math
 from dataclasses import replace
-from typing import Tuple, Iterable, Any
+from typing import Iterable, Any
 from typing import cast
 
 from amarcord.db.attributi import (
@@ -408,7 +408,7 @@ class AttributiMap:
     def names(self) -> set[str]:
         return set(self._attributi.keys())
 
-    def items(self) -> Iterable[Tuple[AttributoId, AttributoValue]]:
+    def items(self) -> Iterable[tuple[AttributoId, AttributoValue]]:
         return self._attributi.items()
 
     def __eq__(self, other: Any) -> bool:

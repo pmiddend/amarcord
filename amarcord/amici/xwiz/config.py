@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Type, Tuple
+from typing import Any, Type
 
 from amarcord.amici.crystfel.project_parser import CrystfelProjectFile
 
@@ -20,7 +20,7 @@ def config_file_from_crystfel_project(
 
     result["geom"] = {"file_path": crystfel_lines}
 
-    crystfel_to_xwiz: dict[str, Tuple[str, Type]] = {
+    crystfel_to_xwiz: dict[str, tuple[str, Type]] = {
         "peak_search_params.method": ("peak_method", str),
         "peak_search_params.threshold": ("peak_threshold", float),
         "peak_search_params.min_snr": ("peak_snr", float),

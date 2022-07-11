@@ -7,7 +7,6 @@ from typing import Callable, Union
 from typing import Generator
 from typing import Iterable
 from typing import Sequence
-from typing import Tuple
 from typing import TypeVar
 
 import pytz
@@ -82,7 +81,7 @@ def retuple_dict(d: dict[K, dict[V, W]], f: Callable[[K, V], X]) -> dict[X, W]:
     }
 
 
-def create_intervals(xs: list[int]) -> Generator[Tuple[int, int], None, None]:
+def create_intervals(xs: list[int]) -> Generator[tuple[int, int], None, None]:
     if not xs:
         return
     sorted_xs = sorted(xs)

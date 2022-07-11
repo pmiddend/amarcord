@@ -28,7 +28,7 @@ def test_sorting_doesnt_matter(xs: list[int]) -> None:
 #
 #
 # @given(list_and_index())
-# def test_removing_element_increases_count(xs_and_idx: Tuple[list[int], int]) -> None:
+# def test_removing_element_increases_count(xs_and_idx: tuple[list[int], int]) -> None:
 #     xs, idx = xs_and_idx
 #     original_intervals = list(create_intervals(xs))
 #     new_xs = xs.copy()

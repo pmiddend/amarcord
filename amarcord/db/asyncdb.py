@@ -6,7 +6,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast, Tuple, Iterable, Any, Final
+from typing import cast, Iterable, Any, Final
 
 import magic
 import numpy as np
@@ -856,7 +856,7 @@ class AsyncDB:
     ) -> list[DBCFELAnalysisResult]:
         ar = self.tables.cfel_analysis_results.c
         file_table = self.tables.file
-        result_to_file: dict[int, list[Tuple[int, DBFile]]] = group_by(
+        result_to_file: dict[int, list[tuple[int, DBFile]]] = group_by(
             [
                 (
                     r["analysis_result_id"],

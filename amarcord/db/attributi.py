@@ -3,7 +3,6 @@ import logging
 from dataclasses import dataclass
 from typing import Callable
 from typing import Final
-from typing import Tuple
 from typing import Type
 
 from pint import UnitRegistry
@@ -207,7 +206,7 @@ _AttributoTypeConverter = Callable[
     AttributoValue,
 ]
 
-_conversion_matrix: dict[Tuple[Type, Type], _AttributoTypeConverter] = {}
+_conversion_matrix: dict[tuple[Type, Type], _AttributoTypeConverter] = {}
 
 
 def convert_attributo_value(
@@ -651,7 +650,7 @@ _conversion_matrix.update(
 # 1. "started time"
 # 2. "stopped time"
 # _. "the rest"
-def attributo_sort_key(r: DBAttributo) -> Tuple[int, str]:
+def attributo_sort_key(r: DBAttributo) -> tuple[int, str]:
     return (
         0 if r.name == ATTRIBUTO_STARTED else 1 if r.name == ATTRIBUTO_STOPPED else 2,
         r.name,

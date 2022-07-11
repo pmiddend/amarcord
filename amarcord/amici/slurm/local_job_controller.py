@@ -7,7 +7,6 @@ from asyncio.subprocess import Process
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
-from typing import Tuple
 from typing import TypedDict
 
 from amarcord.amici.slurm.job import JobMetadata, Job
@@ -54,7 +53,7 @@ async def start_process_locally(
     executable_path_str: str,
     command_line: str,
     extra_file_paths_str: list[str],
-) -> Tuple[Process, Path]:
+) -> tuple[Process, Path]:
     output_base_dir = Path(output_base_dir_str)
     executable_path = Path(executable_path_str)
     extra_file_paths = [Path(s) for s in extra_file_paths_str]
