@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
-from typing import Dict
 
 
 @dataclass(frozen=True)
@@ -49,7 +48,7 @@ JSONSchemaType = (
 )
 
 
-def parse_schema_type(s: Dict[str, Any]) -> JSONSchemaType:
+def parse_schema_type(s: dict[str, Any]) -> JSONSchemaType:
     type_ = s.get("type", None)
     if type_ is None:
         raise Exception("json schema has no type attribute")

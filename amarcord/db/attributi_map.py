@@ -1,7 +1,7 @@
 import datetime
 import math
 from dataclasses import replace
-from typing import Dict, Set, Tuple, Iterable, Any
+from typing import Set, Tuple, Iterable, Any
 from typing import cast
 
 from amarcord.db.attributi import (
@@ -27,9 +27,9 @@ SPECIAL_VALUE_CHOICE_NONE = ""
 
 SPECIAL_SAMPLE_ID_NONE = 0
 
-JsonAttributiMap = Dict[str, JSONValue]
+JsonAttributiMap = dict[str, JSONValue]
 
-UntypedAttributiMap = Dict[AttributoId, AttributoValue]
+UntypedAttributiMap = dict[AttributoId, AttributoValue]
 
 
 def _check_type(
@@ -95,7 +95,7 @@ def _check_type(
 
 
 def check_attributo_types(
-    types: Dict[AttributoId, DBAttributo], sample_ids: list[int], d: UntypedAttributiMap
+    types: dict[AttributoId, DBAttributo], sample_ids: list[int], d: UntypedAttributiMap
 ) -> None:
     for name, value in d.items():
         type_ = types.get(name, None)
@@ -107,7 +107,7 @@ def check_attributo_types(
 def _convert_single_attributo_value_from_json(
     i: AttributoId,
     v: JSONValue,
-    types: Dict[AttributoId, DBAttributo],
+    types: dict[AttributoId, DBAttributo],
     sample_ids: list[int],
 ) -> AttributoValue:
     attributo_type = types.get(i, None)
@@ -233,7 +233,7 @@ def convert_single_attributo_value_to_json(value: AttributoValue) -> JSONValue:
 class AttributiMap:
     def __init__(
         self,
-        types_dict: Dict[AttributoId, DBAttributo],
+        types_dict: dict[AttributoId, DBAttributo],
         sample_ids: list[int],
         impl: UntypedAttributiMap,
     ) -> None:

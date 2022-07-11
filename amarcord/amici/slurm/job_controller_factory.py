@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from getpass import getuser
 from os import getuid
-from typing import Dict
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
@@ -34,7 +33,7 @@ def parse_job_controller(
     s: str,
 ) -> LocalJobControllerConfig | SlurmRestJobControllerConfig:
     jcc = urlparse(s)
-    qs: Dict[str, list[str]] = parse_qs(jcc.query)
+    qs: dict[str, list[str]] = parse_qs(jcc.query)
 
     def get_or_none(x: str) -> str | None:
         result: list[str] = qs.get(x, [])

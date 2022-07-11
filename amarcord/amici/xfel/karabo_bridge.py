@@ -6,7 +6,6 @@ from difflib import get_close_matches
 from enum import Enum, auto
 from math import fsum, isnan
 from typing import (
-    Dict,
     Any,
     Iterable,
     Set,
@@ -131,7 +130,7 @@ class KaraboWrongTypeError:
     karabo_id: KaraboInternalId
 
 
-KaraboValueByInternalId = Dict[KaraboInternalId, KaraboValue]
+KaraboValueByInternalId = dict[KaraboInternalId, KaraboValue]
 
 
 @dataclass(frozen=True)
@@ -145,7 +144,7 @@ class ProcessedKaraboFrame:
     # Important so we have non-verbose error information (i.e. we can skip errors that happened in the last frame also)
     not_found: Set[KaraboValueLocator]
     # See above
-    wrong_types: Dict[KaraboValueLocator, KaraboWrongTypeError]
+    wrong_types: dict[KaraboValueLocator, KaraboWrongTypeError]
 
 
 @dataclass(frozen=True)
@@ -209,7 +208,7 @@ class KaraboSpecialAttributes:
 class KaraboBridgeConfiguration:
     karabo_attributes: list[KaraboAttributeDescription]
     special_attributes: KaraboSpecialAttributes
-    attributi: Dict[AttributoId, AmarcordAttributoDescription]
+    attributi: dict[AttributoId, AmarcordAttributoDescription]
     proposal_id: int
 
 
@@ -243,7 +242,7 @@ def parse_karabo_attribute(
     attribute_description: Any,
     locator: KaraboValueLocator,
     aidx: int,
-    internal_ids: Dict[KaraboInternalId, Tuple[KaraboValueLocator, int]],
+    internal_ids: dict[KaraboInternalId, Tuple[KaraboValueLocator, int]],
 ) -> KaraboAttributeDescription | KaraboConfigurationError:
     if not isinstance(attribute_description, dict):
         return KaraboConfigurationError(
@@ -352,7 +351,7 @@ def parse_karabo_attributes(
         return KaraboConfigurationError(
             f"in {CONFIG_KARABO_ATTRIBUTES_KEY}: expected this to be a dictionary with the Karabo sources as keys, but the type is {type(a)}"
         )
-    internal_ids: Dict[KaraboInternalId, Tuple[KaraboValueLocator, int]] = {}
+    internal_ids: dict[KaraboInternalId, Tuple[KaraboValueLocator, int]] = {}
     result: list[KaraboAttributeDescription] = []
     for source, attribute_descriptions in a.items():
         if not isinstance(attribute_descriptions, dict):
@@ -361,7 +360,7 @@ def parse_karabo_attributes(
             )
         for subkey, attribute_description_top_level in attribute_descriptions.items():
             locator = KaraboValueLocator(source, subkey)
-            attribute_description_array: list[Dict[str, Any]] = []
+            attribute_description_array: list[dict[str, Any]] = []
             if isinstance(attribute_description_top_level, dict):
                 attribute_description_array.append(attribute_description_top_level)
             elif isinstance(attribute_description_top_level, list):
@@ -412,7 +411,7 @@ def parse_coagulation_string(s: str) -> list[str | KaraboInternalId]:
 def parse_amarcord_attributo(
     attributo_id_raw: str,
     existing_attributi: Set[AttributoId],
-    attributo_description: Dict[str, Any],
+    attributo_description: dict[str, Any],
     internal_ids: Set[KaraboInternalId],
 ) -> AmarcordAttributoDescription | KaraboConfigurationError:
     attributo_id = AttributoId(attributo_id_raw)
@@ -718,7 +717,7 @@ def check_for_identity_processor_and_wrong_lists(
     attributi: list[AmarcordAttributoDescription],
     karabo_attributes: list[KaraboAttributeDescription],
 ) -> KaraboConfigurationError | None:
-    karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
+    karabo_attributes_per_id: dict[KaraboInternalId, KaraboAttributeDescription] = {
         a.id: a for a in karabo_attributes
     }
     for a in attributi:
@@ -753,7 +752,7 @@ def check_for_heterogeneous_lists(
     attributi: list[AmarcordAttributoDescription],
     karabo_attributes: list[KaraboAttributeDescription],
 ) -> KaraboConfigurationError | None:
-    karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
+    karabo_attributes_per_id: dict[KaraboInternalId, KaraboAttributeDescription] = {
         a.id: a for a in karabo_attributes
     }
     for a in attributi:
@@ -804,7 +803,7 @@ def check_amarcord_attributi_with_processor_propagated_stdev(
     amarcord_attributi: list[AmarcordAttributoDescription],
     karabo_attributes: list[KaraboAttributeDescription],
 ) -> KaraboConfigurationError | None:
-    karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription] = {
+    karabo_attributes_per_id: dict[KaraboInternalId, KaraboAttributeDescription] = {
         a.id: a for a in karabo_attributes
     }
     for amarcord_attributo in amarcord_attributi:
@@ -845,7 +844,7 @@ def find_all_karabo_ids_for_amarcord_attribute(
 
 def check_karabo_attribute_list_of_stdev_for_prop_stdev_amarcord_processor(
     amarcord_attributo: AmarcordAttributoDescription,
-    karabo_attributes_per_id: Dict[KaraboInternalId, KaraboAttributeDescription],
+    karabo_attributes_per_id: dict[KaraboInternalId, KaraboAttributeDescription],
     karabo_attribute_id: KaraboInternalId,
 ) -> KaraboConfigurationError | None:
     karabo_attribute = karabo_attributes_per_id[karabo_attribute_id]
@@ -927,7 +926,7 @@ def run_karabo_processor(
 
 
 def process_karabo_frame(
-    attributes: Iterable[KaraboAttributeDescription], input_data: Dict[str, Any]
+    attributes: Iterable[KaraboAttributeDescription], input_data: dict[str, Any]
 ) -> ProcessedKaraboFrame:
     """
     Take an attribute description as well as some input data (from the bridge, probably via ZeroMQ) and produce a
@@ -938,9 +937,9 @@ def process_karabo_frame(
 
     It also doesn't contain any extraneous data and some error information.
     """
-    output_data: Dict[KaraboInternalId, KaraboValue] = {}
+    output_data: dict[KaraboInternalId, KaraboValue] = {}
     not_found: Set[KaraboValueLocator] = set()
-    wrong_types: Dict[KaraboValueLocator, KaraboWrongTypeError] = {}
+    wrong_types: dict[KaraboValueLocator, KaraboWrongTypeError] = {}
     for a in attributes:
         source_values = input_data.get(a.locator.source)
         if source_values is None:
@@ -1008,9 +1007,9 @@ AttributoAccumulator = (
     | VarianceAccumulator
 )
 
-AttributoAccumulatorPerId = Dict[AttributoId, AttributoAccumulator]
+AttributoAccumulatorPerId = dict[AttributoId, AttributoAccumulator]
 
-AttributoValuePerId = Dict[AttributoId, AttributoValue]
+AttributoValuePerId = dict[AttributoId, AttributoValue]
 
 
 def karabo_value_to_attributo_value(karabo_value: KaraboValue) -> AttributoValue:
@@ -1330,7 +1329,7 @@ class BridgeOutput:
 
 
 def locate_in_frame(
-    frame: Dict[str, Any], key: KaraboValueLocator
+    frame: dict[str, Any], key: KaraboValueLocator
 ) -> KaraboValue | None:
     sourced = frame.get(key.source, None)
     if sourced is None:
@@ -1455,7 +1454,7 @@ class Karabo2:
         self._first_train_is_start_of_run = first_train_is_start_of_run
         self._accumulators: AttributoAccumulatorPerId = {}
         self._previously_not_found: Set[KaraboValueLocator] = set()
-        self._previously_wrong_type: Dict[KaraboValueLocator, KaraboWrongTypeError] = {}
+        self._previously_wrong_type: dict[KaraboValueLocator, KaraboWrongTypeError] = {}
         self._special_attributes = parsed_config.special_attributes
         self._attributi = parsed_config.attributi
         self._karabo_attributes = parsed_config.karabo_attributes
@@ -1508,7 +1507,7 @@ class Karabo2:
                         f"attributo {aid}: type differs! in DB: {existing_db_attributo.attributo_type}, in config: {a_type}"
                     )
 
-    def _extract_train_id(self, metadata: Dict[str, Any]) -> int | None:
+    def _extract_train_id(self, metadata: dict[str, Any]) -> int | None:
         run_number_source = metadata.get(
             self._special_attributes.run_number_key.source, None
         )
@@ -1525,7 +1524,7 @@ class Karabo2:
         return train_id  # type: ignore
 
     def process_frame(
-        self, metadata: Dict[str, Any], frame: Dict[str, Any]
+        self, metadata: dict[str, Any], frame: dict[str, Any]
     ) -> BridgeOutput | None:
         train_id = self._extract_train_id(metadata)
 
@@ -1656,7 +1655,7 @@ class Karabo2:
             )
         self._last_train_id = train_id
 
-    def _is_valid_proposal(self, train_id: int, frame: Dict[str, Any]) -> bool:
+    def _is_valid_proposal(self, train_id: int, frame: dict[str, Any]) -> bool:
         proposal = locate_in_frame(frame, self._special_attributes.proposal_id_key)
         if proposal is None:
             if not self._no_proposal_last_train:
@@ -1706,8 +1705,8 @@ class Karabo2:
 
 def accumulator_locators_for_config(
     c: KaraboBridgeConfiguration,
-) -> Dict[str, Set[str]]:
-    result: Dict[str, Set[str]] = {}
+) -> dict[str, Set[str]]:
+    result: dict[str, Set[str]] = {}
     for karabo_attribute in c.karabo_attributes:
         source_data = result.get(karabo_attribute.locator.source, None)
         if source_data is None:
@@ -1757,10 +1756,10 @@ def process_trains(
     karabo2: Karabo2,
     run_id: int,
     train_ids: list[int],
-    trains: Iterable[Tuple[int, Dict[str, Any]]],
+    trains: Iterable[Tuple[int, dict[str, Any]]],
 ) -> BridgeOutput | None:
     def optionally_set_dict(
-        dictionary: Dict[str, Any], locator: KaraboValueLocator, value: Any
+        dictionary: dict[str, Any], locator: KaraboValueLocator, value: Any
     ) -> None:
         if locator.source not in dictionary:
             dictionary[locator.source] = {}

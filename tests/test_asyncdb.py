@@ -1,6 +1,6 @@
 import datetime
 from pathlib import Path
-from typing import Dict, Final
+from typing import Final
 
 import numpy
 import pytest
@@ -1220,7 +1220,7 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
             conn, associated_table=AssociatedTable.RUN
         )
 
-        run_data: Dict[int, JsonAttributiMap] = {
+        run_data: dict[int, JsonAttributiMap] = {
             _TEST_RUN_ID: {
                 # Important: here, we have "foo" and 1, below we have something else for "foo", but the same for 1
                 _TEST_ATTRIBUTO_NAME: "foo",

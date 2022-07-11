@@ -2,7 +2,6 @@ import datetime
 import logging
 from dataclasses import dataclass
 from typing import Callable
-from typing import Dict
 from typing import Final
 from typing import Tuple
 from typing import Type
@@ -159,7 +158,7 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
     if isinstance(rp, AttributoTypeBoolean):
         return {"type": "boolean"}
     if isinstance(rp, AttributoTypeDecimal):
-        result_double: Dict[str, JSONValue] = {"type": "number"}
+        result_double: dict[str, JSONValue] = {"type": "number"}
         if rp.range is not None:
             if rp.range.minimum is not None:
                 if rp.range.minimum_inclusive:
@@ -208,7 +207,7 @@ _AttributoTypeConverter = Callable[
     AttributoValue,
 ]
 
-_conversion_matrix: Dict[Tuple[Type, Type], _AttributoTypeConverter] = {}
+_conversion_matrix: dict[Tuple[Type, Type], _AttributoTypeConverter] = {}
 
 
 def convert_attributo_value(

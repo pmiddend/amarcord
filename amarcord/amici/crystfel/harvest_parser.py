@@ -3,7 +3,6 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from typing import Dict
 from typing import Iterable
 
 from amarcord.json import JSONDict
@@ -62,7 +61,7 @@ class HarvestJson:
     integration: HarvestIntegration | None
 
 
-def _get_string(j: Dict[str, Any], s: str) -> str:
+def _get_string(j: dict[str, Any], s: str) -> str:
     result = j[s]
     if not isinstance(result, str):
         raise ValueError(
@@ -71,7 +70,7 @@ def _get_string(j: Dict[str, Any], s: str) -> str:
     return result
 
 
-def _get_opt_string(j: Dict[str, Any], s: str) -> str | None:
+def _get_opt_string(j: dict[str, Any], s: str) -> str | None:
     result = j.get(s, None)
     if result is None:
         return None
@@ -82,14 +81,14 @@ def _get_opt_string(j: Dict[str, Any], s: str) -> str | None:
     return result
 
 
-def _get_opt_path(j: Dict[str, Any], s: str) -> Path | None:
+def _get_opt_path(j: dict[str, Any], s: str) -> Path | None:
     result = _get_opt_string(j, s)
     if result is None:
         return None
     return Path(result)
 
 
-def _get_float(j: Dict[str, Any], s: str) -> float:
+def _get_float(j: dict[str, Any], s: str) -> float:
     result = j[s]
     if not isinstance(result, (float, int)):
         raise ValueError(
@@ -98,7 +97,7 @@ def _get_float(j: Dict[str, Any], s: str) -> float:
     return result
 
 
-def _get_int(j: Dict[str, Any], s: str) -> int:
+def _get_int(j: dict[str, Any], s: str) -> int:
     result = j[s]
     if not isinstance(result, int):
         raise ValueError(
@@ -107,7 +106,7 @@ def _get_int(j: Dict[str, Any], s: str) -> int:
     return result
 
 
-def _get_opt_int(j: Dict[str, Any], s: str) -> int | None:
+def _get_opt_int(j: dict[str, Any], s: str) -> int | None:
     result = j.get(s, None)
     if result is None:
         return None
@@ -118,7 +117,7 @@ def _get_opt_int(j: Dict[str, Any], s: str) -> int | None:
     return result
 
 
-def _get_opt_bool(j: Dict[str, Any], s: str) -> bool | None:
+def _get_opt_bool(j: dict[str, Any], s: str) -> bool | None:
     result = j.get(s, None)
     if result is None:
         return None
@@ -129,7 +128,7 @@ def _get_opt_bool(j: Dict[str, Any], s: str) -> bool | None:
     return result
 
 
-def _get_str_list(j: Dict[str, Any], s: str) -> list[str]:
+def _get_str_list(j: dict[str, Any], s: str) -> list[str]:
     result = j[s]
     if not isinstance(result, list):
         raise ValueError(
@@ -144,7 +143,7 @@ def _get_str_list(j: Dict[str, Any], s: str) -> list[str]:
     return result
 
 
-def _get_opt_float(j: Dict[str, Any], s: str) -> float | None:
+def _get_opt_float(j: dict[str, Any], s: str) -> float | None:
     result = j.get(s, None)
     if result is None:
         return None

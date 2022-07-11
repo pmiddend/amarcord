@@ -2,7 +2,6 @@ from datetime import timedelta
 
 from pathlib import Path
 from typing import Any
-from typing import Dict
 from typing import Tuple
 from typing import cast
 
@@ -47,15 +46,15 @@ class MockResponse:
 
 class MockHttpWrapper(SlurmHttpWrapper):
     def __init__(self) -> None:
-        self.post_requests: list[Tuple[str, Dict[str, Any], JSONDict]] = []
-        self.get_requests: list[Tuple[str, Dict[str, Any]]] = []
+        self.post_requests: list[Tuple[str, dict[str, Any], JSONDict]] = []
+        self.get_requests: list[Tuple[str, dict[str, Any]]] = []
         self.responses: list[JSONDict] = []
 
-    async def post(self, url: str, headers: Dict[str, Any], data: JSONDict) -> JSONDict:
+    async def post(self, url: str, headers: dict[str, Any], data: JSONDict) -> JSONDict:
         self.post_requests.append((url, headers, data))
         return self.responses.pop()
 
-    async def get(self, url: str, headers: Dict[str, Any]) -> JSONDict:
+    async def get(self, url: str, headers: dict[str, Any]) -> JSONDict:
         self.get_requests.append((url, headers))
         return self.responses.pop()
 

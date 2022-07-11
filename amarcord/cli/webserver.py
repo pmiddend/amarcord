@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, cast, Final, Any
+from typing import cast, Final, Any
 from zipfile import ZipFile
 
 import quart
@@ -448,7 +448,7 @@ async def read_runs() -> JSONDict:
             conn, [s.id for s in samples], attributi
         )
         runs = await db.instance.retrieve_runs(conn, attributi)
-        data_set_id_to_grouped: Dict[int, DataSetSummary] = {}
+        data_set_id_to_grouped: dict[int, DataSetSummary] = {}
         for ds in data_sets:
             matching_runs = [
                 r for r in runs if run_matches_dataset(r.attributi, ds.attributi)
@@ -796,7 +796,7 @@ async def create_data_set() -> JSONDict:
 
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
-        attributi_by_name: Dict[str, DBAttributo] = {a.name: a for a in attributi}
+        attributi_by_name: dict[str, DBAttributo] = {a.name: a for a in attributi}
         sample_ids = await db.instance.retrieve_sample_ids(conn)
         previous_data_sets = await db.instance.retrieve_data_sets(
             conn, sample_ids, attributi
@@ -1093,17 +1093,17 @@ async def read_analysis_results() -> JSONDict:
         data_sets = await db.instance.retrieve_data_sets(
             conn, [x.id for x in samples], attributi
         )
-        data_sets_by_experiment_type: Dict[str, list[DBDataSet]] = group_by(
+        data_sets_by_experiment_type: dict[str, list[DBDataSet]] = group_by(
             data_sets,
             lambda ds: ds.experiment_type,
         )
         runs = await db.instance.retrieve_runs(conn, attributi)
-        data_set_to_runs: Dict[int, list[DBRun]] = {
+        data_set_to_runs: dict[int, list[DBRun]] = {
             ds.id: [r for r in runs if run_matches_dataset(r.attributi, ds.attributi)]
             for ds in data_sets
         }
         analysis_results = await db.instance.retrieve_cfel_analysis_results(conn)
-        data_set_to_analysis_results: Dict[int, list[DBCFELAnalysisResult]] = group_by(
+        data_set_to_analysis_results: dict[int, list[DBCFELAnalysisResult]] = group_by(
             analysis_results,
             lambda key: key.data_set_id,
         )

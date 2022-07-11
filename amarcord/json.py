@@ -1,19 +1,19 @@
-from typing import Dict, TypeAlias, Union
 from typing import Tuple
+from typing import TypeAlias, Union
 
 # Recursive types aren't supported in mypy, see
 # https://github.com/python/mypy/issues/731
 JSONArray: TypeAlias = list["JSONValue"]  # type: ignore
 # pylint: disable=consider-alternative-union-syntax
 JSONValue: TypeAlias = Union[int, str, float, bool, None, "JSONDict", "JSONArray"]  # type: ignore
-JSONDict: TypeAlias = Dict[str, JSONValue]  # type: ignore
+JSONDict: TypeAlias = dict[str, JSONValue]  # type: ignore
 
 ImmutableJSONArray = Tuple["ImmutableJSONValue"]  # type: ignore
 # pylint: disable=consider-alternative-union-syntax
 ImmutableJSONValue = Union[  # type: ignore
     int, str, float, bool, None, "ImmutableJSONDict", "ImmutableJSONArray"  # type: ignore
 ]
-ImmutableJSONDict = Dict[str, ImmutableJSONValue]  # type: ignore
+ImmutableJSONDict = dict[str, ImmutableJSONValue]  # type: ignore
 
 
 def json_make_immutable(v: JSONValue) -> ImmutableJSONValue:

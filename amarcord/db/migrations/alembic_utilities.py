@@ -1,6 +1,5 @@
 import argparse
 import itertools
-from typing import Dict
 
 from alembic import command
 from alembic.config import Config
@@ -9,7 +8,7 @@ from amarcord.db.async_dbcontext import Connection
 
 
 def upgrade_to_connection(
-    conn: Connection, version: str, additional_args: Dict[str, str] | None = None
+    conn: Connection, version: str, additional_args: dict[str, str] | None = None
 ) -> None:
     alembic_cfg = Config()
     # see https://alembic.sqlalchemy.org/en/latest/cookbook.html#programmatic-api-use-connection-sharing-with-asyncio
@@ -33,6 +32,6 @@ def upgrade_to_connection(
 
 
 def upgrade_to_head_connection(
-    connection: Connection, additional_args: Dict[str, str] | None = None
+    connection: Connection, additional_args: dict[str, str] | None = None
 ) -> None:
     upgrade_to_connection(connection, "head", additional_args)

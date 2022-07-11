@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Awaitable
 from typing import Callable
-from typing import Dict
 from typing import TypedDict
 
 import aiohttp
@@ -127,21 +126,21 @@ class SlurmError(TypedDict):
 
 class SlurmHttpWrapper:
     # pylint: disable=unused-argument
-    async def post(self, url: str, headers: Dict[str, Any], data: JSONDict) -> JSONDict:
+    async def post(self, url: str, headers: dict[str, Any], data: JSONDict) -> JSONDict:
         ...
 
     # pylint: disable=unused-argument
-    async def get(self, url: str, headers: Dict[str, Any]) -> JSONDict:
+    async def get(self, url: str, headers: dict[str, Any]) -> JSONDict:
         ...
 
 
 class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
-    async def post(self, url: str, headers: Dict[str, Any], data: JSONDict) -> JSONDict:
+    async def post(self, url: str, headers: dict[str, Any], data: JSONDict) -> JSONDict:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=data) as response:
                 return await response.json()  # type: ignore
 
-    async def get(self, url: str, headers: Dict[str, Any]) -> JSONDict:
+    async def get(self, url: str, headers: dict[str, Any]) -> JSONDict:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
                 return await response.json()  # type: ignore
@@ -172,7 +171,7 @@ class SlurmRestJobController(JobController):
         self._user_id = user_id
         self._request_wrapper = request_wrapper
 
-    async def _headers(self) -> Dict[str, str]:
+    async def _headers(self) -> dict[str, str]:
         return {
             "Content-Type": "application/json",
             "X-SLURM-USER-NAME": self._rest_user,

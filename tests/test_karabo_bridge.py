@@ -4,7 +4,7 @@ import logging
 import pickle
 from math import isclose
 from pathlib import Path
-from typing import Dict, Any, cast
+from typing import Any, cast
 
 import numpy.random
 import pytest
@@ -1744,7 +1744,7 @@ def test_karabo2_simple_frame() -> None:
     )
     assert isinstance(config, KaraboBridgeConfiguration)
     karabo2 = Karabo2(config)
-    initial_frame: Dict[str, Any] = {
+    initial_frame: dict[str, Any] = {
         _SPECIAL_SOURCE: {
             _SPECIAL_PROPOSAL_KEY: proposal_id,
             _SPECIAL_RUN_NUMBER_KEY: 1,
@@ -1763,7 +1763,7 @@ def test_karabo2_simple_frame() -> None:
     # None since we're in the middle of a stopped run
     assert result is None
 
-    next_frame: Dict[str, Any] = {
+    next_frame: dict[str, Any] = {
         _SPECIAL_SOURCE: {
             _SPECIAL_PROPOSAL_KEY: proposal_id,
             _SPECIAL_RUN_NUMBER_KEY: 1,
@@ -1814,7 +1814,7 @@ def test_karabo2_ignore_value() -> None:
     )
     assert isinstance(config, KaraboBridgeConfiguration)
     karabo2 = Karabo2(config)
-    initial_frame: Dict[str, Any] = {
+    initial_frame: dict[str, Any] = {
         _SPECIAL_SOURCE: {
             _SPECIAL_PROPOSAL_KEY: proposal_id,
             _SPECIAL_RUN_NUMBER_KEY: 1,
@@ -1833,7 +1833,7 @@ def test_karabo2_ignore_value() -> None:
     # None since we're in the middle of a stopped run
     assert result is None
 
-    next_frame: Dict[str, Any] = {
+    next_frame: dict[str, Any] = {
         _SPECIAL_SOURCE: {
             _SPECIAL_PROPOSAL_KEY: proposal_id,
             _SPECIAL_RUN_NUMBER_KEY: 1,
@@ -1884,7 +1884,7 @@ def test_karabo2_missing_value() -> None:
     )
     assert isinstance(config, KaraboBridgeConfiguration)
     karabo2 = Karabo2(config)
-    initial_frame: Dict[str, Any] = {
+    initial_frame: dict[str, Any] = {
         _SPECIAL_SOURCE: {
             _SPECIAL_PROPOSAL_KEY: proposal_id,
             _SPECIAL_RUN_NUMBER_KEY: 1,
@@ -1903,7 +1903,7 @@ def test_karabo2_missing_value() -> None:
     # None since we're in the middle of a stopped run
     assert result is None
 
-    next_frame: Dict[str, Any] = {
+    next_frame: dict[str, Any] = {
         _SPECIAL_SOURCE: {
             _SPECIAL_PROPOSAL_KEY: proposal_id,
             _SPECIAL_RUN_NUMBER_KEY: 1,

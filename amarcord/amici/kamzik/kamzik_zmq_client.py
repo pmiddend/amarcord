@@ -3,8 +3,8 @@ import json
 import logging
 import pickle
 from asyncio import FIRST_COMPLETED
-from typing import Final, Dict, Any
 from base64 import b64decode
+from typing import Final, Any
 
 import numpy as np
 import zmq
@@ -44,7 +44,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def JsonKamzikHook(dct: Dict[str, Any]) -> Any:
+def JsonKamzikHook(dct: dict[str, Any]) -> Any:
     if "pint-unit-quantity" in dct:
         return UnitRegistry().Quantity.from_tuple(dct["pint-unit-quantity"])
     if "numpy-array" in dct:
@@ -130,7 +130,7 @@ async def ingest_kamzik_metadata(
         attributi_values, dict
     ), f"got no attributi-values in metadata dict {metadata}"
 
-    preexisting_attributi: Dict[str, DBAttributo] = {
+    preexisting_attributi: dict[str, DBAttributo] = {
         t.name: t
         for t in await db.retrieve_attributi(conn, associated_table=AssociatedTable.RUN)
     }

@@ -1,15 +1,15 @@
 from pathlib import Path
-from typing import Any, Dict, Type, Tuple
+from typing import Any, Type, Tuple
 
 from amarcord.amici.crystfel.project_parser import CrystfelProjectFile
 
 
 def config_file_from_crystfel_project(
     p: CrystfelProjectFile,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     crystfel_lines = p.info_lines
 
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
     geom = crystfel_lines.get("geom", None)
     if geom is None:
@@ -20,7 +20,7 @@ def config_file_from_crystfel_project(
 
     result["geom"] = {"file_path": crystfel_lines}
 
-    crystfel_to_xwiz: Dict[str, Tuple[str, Type]] = {
+    crystfel_to_xwiz: dict[str, Tuple[str, Type]] = {
         "peak_search_params.method": ("peak_method", str),
         "peak_search_params.threshold": ("peak_threshold", float),
         "peak_search_params.min_snr": ("peak_snr", float),
@@ -32,7 +32,7 @@ def config_file_from_crystfel_project(
         "indexing.min_peaks": ("min_peaks", int),
     }
 
-    proc_coarse: Dict[str, Any] = {}
+    proc_coarse: dict[str, Any] = {}
     result["proc_coarse"] = proc_coarse
     for crystfel, (xwiz, xwiz_type) in crystfel_to_xwiz.items():
         crystfel_value = crystfel_lines.get(crystfel, None)

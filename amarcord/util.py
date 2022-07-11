@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 from statistics import variance
 from typing import Callable, Union
-from typing import Dict
 from typing import Generator
 from typing import Iterable
 from typing import Sequence
@@ -47,7 +46,7 @@ def remove_duplicates_stable(seq: Iterable[T]) -> list[T]:
     return list(dict.fromkeys(seq))
 
 
-def dict_union(a: Sequence[Dict[K, V]]) -> Dict[K, V]:
+def dict_union(a: Sequence[dict[K, V]]) -> dict[K, V]:
     if not a:
         return {}
     result = a[0].copy()
@@ -67,7 +66,7 @@ W = TypeVar("W")
 X = TypeVar("X")
 
 
-def retupled_keys(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> list[X]:
+def retupled_keys(d: dict[K, dict[V, W]], f: Callable[[K, V], X]) -> list[X]:
     return [
         f(table, attributo_id)
         for table, attributi in d.items()
@@ -75,7 +74,7 @@ def retupled_keys(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> list[X]:
     ]
 
 
-def retuple_dict(d: Dict[K, Dict[V, W]], f: Callable[[K, V], X]) -> Dict[X, W]:
+def retuple_dict(d: dict[K, dict[V, W]], f: Callable[[K, V], X]) -> dict[X, W]:
     return {
         f(table, attributo_id): values
         for table, attributi in d.items()
@@ -195,8 +194,8 @@ def safe_max(xs: Iterable[T], key: Callable[[T], U]) -> T | None:
         return None
 
 
-def group_by(xs: Iterable[T], key: Callable[[T], U]) -> Dict[U, list[T]]:
-    result: Dict[U, list[T]] = {}
+def group_by(xs: Iterable[T], key: Callable[[T], U]) -> dict[U, list[T]]:
+    result: dict[U, list[T]] = {}
     for x in xs:
         key_value = key(x)
         previous_values = result.get(key_value, None)

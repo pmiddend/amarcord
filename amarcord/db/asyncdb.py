@@ -6,7 +6,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast, Tuple, Dict, Iterable, Any, Set, Final
+from typing import cast, Tuple, Iterable, Any, Set, Final
 
 import magic
 import numpy as np
@@ -215,7 +215,7 @@ class AsyncDB:
         conn: Connection,
         association_column: sa.Column,
         where_clause: Any | None = None,
-    ) -> Dict[int, list[DBFile]]:
+    ) -> dict[int, list[DBFile]]:
         select_stmt = (
             sa.select(
                 [
@@ -240,7 +240,7 @@ class AsyncDB:
             select_stmt = select_stmt.where(where_clause)
         file_results = (await conn.execute(select_stmt)).fetchall()
 
-        result: Dict[int, list[DBFile]] = {
+        result: dict[int, list[DBFile]] = {
             key: [
                 DBFile(
                     id=row["id"],
@@ -856,7 +856,7 @@ class AsyncDB:
     ) -> list[DBCFELAnalysisResult]:
         ar = self.tables.cfel_analysis_results.c
         file_table = self.tables.file
-        result_to_file: Dict[int, list[Tuple[int, DBFile]]] = group_by(
+        result_to_file: dict[int, list[Tuple[int, DBFile]]] = group_by(
             [
                 (
                     r["analysis_result_id"],
@@ -1185,7 +1185,7 @@ class AsyncDB:
 
     async def retrieve_bulk_run_attributi(
         self, conn: Connection, attributi: list[DBAttributo], run_ids: Iterable[int]
-    ) -> Dict[AttributoId, Set[AttributoValue]]:
+    ) -> dict[AttributoId, Set[AttributoValue]]:
         runs = await self.retrieve_runs(conn, attributi)
 
         uninteresting_attributi = (ATTRIBUTO_STOPPED, ATTRIBUTO_STARTED)
@@ -1193,7 +1193,7 @@ class AsyncDB:
             a for a in attributi if a.name not in uninteresting_attributi
         ]
 
-        attributi_values: Dict[AttributoId, Set[AttributoValue]] = {
+        attributi_values: dict[AttributoId, Set[AttributoValue]] = {
             a.name: set() for a in interesting_attributi
         }
         for run in (run for run in runs if run.id in run_ids):
@@ -1220,7 +1220,7 @@ class AsyncDB:
 
 # Any until openpyxl has official types
 def attributo_value_to_spreadsheet_cell(
-    sample_id_to_name: Dict[int, str],
+    sample_id_to_name: dict[int, str],
     attributo_type: AttributoType,
     attributo_value: AttributoValue,
 ) -> Any:
@@ -1348,7 +1348,7 @@ async def create_workbook(
         cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))
         cell.font = cell.font.copy(bold=True)
 
-    sample_id_to_name: Dict[int, str] = {s.id: s.name for s in samples}
+    sample_id_to_name: dict[int, str] = {s.id: s.name for s in samples}
     events = await db.retrieve_events(conn)
     event_iterator = 0
     run_row_idx = 2
