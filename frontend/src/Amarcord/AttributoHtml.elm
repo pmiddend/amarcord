@@ -194,6 +194,8 @@ type AttributoEditValue
         , suffix : Maybe String
         , standardUnit : Bool
         , editValue : String
+        , editValueTolerance : String
+        , toleranceIsAbsolute : Bool
         }
     | EditValueChoice { choiceValues : List String, editValue : String }
 
@@ -496,8 +498,15 @@ emptyEditValue a =
         List { subType, minLength, maxLength } ->
             EditValueList { subType = subType, minLength = minLength, maxLength = maxLength, editValue = "" }
 
-        Number { range, suffix, standardUnit } ->
-            EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = "" }
+        Number { range, suffix, standardUnit, tolerance, toleranceIsAbsolute } ->
+            EditValueNumber
+                { range = range
+                , suffix = suffix
+                , standardUnit = standardUnit
+                , editValue = ""
+                , toleranceIsAbsolute = toleranceIsAbsolute
+                , editValueTolerance = Maybe.withDefault "" (Maybe.map String.fromFloat tolerance)
+                }
 
         Choice { choiceValues } ->
             EditValueChoice { choiceValues = choiceValues, editValue = "" }
@@ -566,14 +575,41 @@ attributoValueToEditValue zone attributoName attributi value =
                 ( Choice { choiceValues }, ValueString x ) ->
                     Just (EditValueChoice { editValue = x, choiceValues = choiceValues })
 
-                ( Number { range, suffix, standardUnit }, ValueNone ) ->
-                    Just (EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = "" })
+                ( Number { range, suffix, standardUnit, tolerance, toleranceIsAbsolute }, ValueNone ) ->
+                    Just
+                        (EditValueNumber
+                            { range = range
+                            , suffix = suffix
+                            , standardUnit = standardUnit
+                            , editValue = ""
+                            , editValueTolerance = Maybe.withDefault "" (Maybe.map String.fromFloat tolerance)
+                            , toleranceIsAbsolute = toleranceIsAbsolute
+                            }
+                        )
 
-                ( Number { range, suffix, standardUnit }, ValueNumber x ) ->
-                    Just (EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = String.fromFloat x })
+                ( Number { range, suffix, standardUnit, tolerance, toleranceIsAbsolute }, ValueNumber x ) ->
+                    Just
+                        (EditValueNumber
+                            { range = range
+                            , suffix = suffix
+                            , standardUnit = standardUnit
+                            , editValue = String.fromFloat x
+                            , editValueTolerance = Maybe.withDefault "" (Maybe.map String.fromFloat tolerance)
+                            , toleranceIsAbsolute = toleranceIsAbsolute
+                            }
+                        )
 
-                ( Number { range, suffix, standardUnit }, ValueInt x ) ->
-                    Just (EditValueNumber { range = range, suffix = suffix, standardUnit = standardUnit, editValue = String.fromInt x })
+                ( Number { range, suffix, standardUnit, tolerance, toleranceIsAbsolute }, ValueInt x ) ->
+                    Just
+                        (EditValueNumber
+                            { range = range
+                            , suffix = suffix
+                            , standardUnit = standardUnit
+                            , editValue = String.fromInt x
+                            , editValueTolerance = Maybe.withDefault "" (Maybe.map String.fromFloat tolerance)
+                            , toleranceIsAbsolute = toleranceIsAbsolute
+                            }
+                        )
 
                 ( List { minLength, maxLength, subType }, ValueNone ) ->
                     Just

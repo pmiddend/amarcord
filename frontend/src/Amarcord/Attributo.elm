@@ -64,6 +64,8 @@ type AttributoType
         { range : NumericRange
         , suffix : Maybe String
         , standardUnit : Bool
+        , tolerance : Maybe Float
+        , toleranceIsAbsolute : Bool
         }
     | Choice { choiceValues : List String }
 
@@ -139,12 +141,14 @@ attributoDecoder typeDecoder =
 jsonSchemaToAttributoType : JsonSchema -> Result String AttributoType
 jsonSchemaToAttributoType x =
     case x of
-        JsonSchemaNumber { minimum, exclusiveMinimum, exclusiveMaximum, maximum, suffix, format } ->
+        JsonSchemaNumber { minimum, exclusiveMinimum, exclusiveMaximum, maximum, suffix, format, tolerance, toleranceIsAbsolute } ->
             Ok
                 (Number
                     { range = rangeFromJsonSchema minimum maximum exclusiveMinimum exclusiveMaximum
                     , standardUnit = format == Just "standard-unit"
                     , suffix = suffix
+                    , tolerance = tolerance
+                    , toleranceIsAbsolute = toleranceIsAbsolute
                     }
                 )
 

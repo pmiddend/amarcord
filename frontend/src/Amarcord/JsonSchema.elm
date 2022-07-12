@@ -15,6 +15,8 @@ type JsonSchema
         , exclusiveMaximum : Maybe Float
         , suffix : Maybe String
         , format : Maybe String
+        , tolerance : Maybe Float
+        , toleranceIsAbsolute : Bool
         }
     | JsonSchemaString { enum : Maybe (List String) }
     | JsonSchemaArray { minItems : Maybe Int, maxItems : Maybe Int, items : JsonSchema, format : Maybe String }
@@ -33,13 +35,27 @@ jsonSchemaDecoder =
                     Decode.succeed JsonSchemaBoolean
 
                 "number" ->
-                    Decode.map6 (\minimum maximum exclusiveMinimum exclusiveMaximum suffix format -> JsonSchemaNumber { minimum = minimum, maximum = maximum, exclusiveMinimum = exclusiveMinimum, exclusiveMaximum = exclusiveMaximum, suffix = suffix, format = format })
+                    Decode.map8
+                        (\minimum maximum exclusiveMinimum exclusiveMaximum suffix format tolerance toleranceIsAbsolute ->
+                            JsonSchemaNumber
+                                { minimum = minimum
+                                , maximum = maximum
+                                , exclusiveMinimum = exclusiveMinimum
+                                , exclusiveMaximum = exclusiveMaximum
+                                , suffix = suffix
+                                , format = format
+                                , tolerance = tolerance
+                                , toleranceIsAbsolute = Maybe.withDefault False toleranceIsAbsolute
+                                }
+                        )
                         (Decode.maybe (Decode.field "minimum" Decode.float))
                         (Decode.maybe (Decode.field "maximum" Decode.float))
                         (Decode.maybe (Decode.field "exclusiveMinimum" Decode.float))
                         (Decode.maybe (Decode.field "exclusiveMaximum" Decode.float))
                         (Decode.maybe (Decode.field "suffix" Decode.string))
                         (Decode.maybe (Decode.field "format" Decode.string))
+                        (Decode.maybe (Decode.field "tolerance" Decode.float))
+                        (Decode.maybe (Decode.field "toleranceIsAbsolute" Decode.bool))
 
                 "string" ->
                     Decode.map (\enum -> JsonSchemaString { enum = enum })
@@ -89,7 +105,7 @@ encodeJsonSchema x =
                                 [ ( "format", Encode.string formatReal ) ]
                        )
 
-        JsonSchemaNumber { minimum, maximum, exclusiveMinimum, exclusiveMaximum, suffix, format } ->
+        JsonSchemaNumber { minimum, maximum, exclusiveMinimum, exclusiveMaximum, suffix, format, tolerance, toleranceIsAbsolute } ->
             let
                 formatList =
                     encodeString "format" format
@@ -99,8 +115,11 @@ encodeJsonSchema x =
 
                 rangeList =
                     encodeFloat "minimum" minimum ++ encodeFloat "maximum" maximum ++ encodeFloat "exclusiveMinimum" exclusiveMinimum ++ encodeFloat "exclusiveMaximum" exclusiveMaximum
+
+                toleranceList =
+                    ( "toleranceIsAbsolute", Encode.bool toleranceIsAbsolute ) :: encodeFloat "tolerance" tolerance
             in
-            Encode.object ([ ( "type", Encode.string "number" ) ] ++ formatList ++ suffixList ++ rangeList)
+            Encode.object ([ ( "type", Encode.string "number" ) ] ++ formatList ++ suffixList ++ rangeList ++ toleranceList)
 
         JsonSchemaArray { minItems, maxItems, format, items } ->
             Encode.object <| [ ( "type", Encode.string "array" ) ] ++ encodeInt "minItems" minItems ++ encodeInt "maxItems" maxItems ++ encodeString "format" format ++ [ ( "items", encodeJsonSchema items ) ]

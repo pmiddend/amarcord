@@ -49,6 +49,8 @@ type AttributoTypeAug
         , suffixInput : String
         , suffixNormalized : NormalizedSuffix
         , standardUnit : Bool
+        , toleranceInput : String
+        , toleranceIsAbsolute : Bool
         }
     | AugChoice { choiceValues : String }
 
@@ -129,6 +131,8 @@ initialAttributoAugType x =
                 , suffixInput = ""
                 , suffixNormalized = NotNeeded
                 , standardUnit = False
+                , toleranceIsAbsolute = False
+                , toleranceInput = ""
                 }
 
         ATChoice ->
@@ -194,7 +198,7 @@ attributoTypeToJsonSchema x =
         List { subType, minLength, maxLength } ->
             JsonSchemaArray { minItems = minLength, maxItems = maxLength, items = attributoTypeToJsonSchema subType, format = Nothing }
 
-        Number { range, suffix, standardUnit } ->
+        Number { range, suffix, standardUnit, tolerance, toleranceIsAbsolute } ->
             JsonSchemaNumber
                 { suffix = suffix
                 , format =
@@ -207,6 +211,8 @@ attributoTypeToJsonSchema x =
                 , exclusiveMinimum = numericRangeExclusiveMinimum range
                 , maximum = numericRangeMaximum range
                 , exclusiveMaximum = numericRangeExclusiveMaximum range
+                , tolerance = tolerance
+                , toleranceIsAbsolute = toleranceIsAbsolute
                 }
 
         Choice { choiceValues } ->
@@ -219,12 +225,14 @@ attributoTypeToJsonSchema x =
 attributoAugTypeFromType : AttributoType -> AttributoTypeAug
 attributoAugTypeFromType x =
     case x of
-        Number { range, suffix, standardUnit } ->
+        Number { range, suffix, standardUnit, tolerance, toleranceIsAbsolute } ->
             AugNumber
                 { rangeInput = coparseRange range
                 , suffixInput = withDefault "" suffix
                 , standardUnit = standardUnit
                 , suffixNormalized = unwrap NotNeeded ValidSuffix suffix
+                , toleranceInput = Maybe.withDefault "" (Maybe.map String.fromFloat tolerance)
+                , toleranceIsAbsolute = toleranceIsAbsolute
                 }
 
         Choice { choiceValues } ->
@@ -241,6 +249,20 @@ attributoAugTypeFromType x =
             AugSimple y
 
 
+parseTolerance : String -> Result String (Maybe Float)
+parseTolerance x =
+    if String.isEmpty x then
+        Ok Nothing
+
+    else
+        case String.toFloat x of
+            Nothing ->
+                Err <| "couldn't parse input string \"" ++ x ++ "\""
+
+            Just parsed ->
+                Ok (Just parsed)
+
+
 attributoAugTypeToType : AttributoTypeAug -> Maybe AttributoType
 attributoAugTypeToType x =
     case x of
@@ -253,18 +275,25 @@ attributoAugTypeToType x =
                     Nothing
 
                 Ok range ->
-                    Just
-                        (Number
-                            { range = range
-                            , standardUnit = n.standardUnit
-                            , suffix =
-                                if n.suffixInput == "" then
-                                    Nothing
+                    case parseTolerance n.toleranceInput of
+                        Err _ ->
+                            Nothing
 
-                                else
-                                    Just n.suffixInput
-                            }
-                        )
+                        Ok tolerance ->
+                            Just
+                                (Number
+                                    { range = range
+                                    , standardUnit = n.standardUnit
+                                    , suffix =
+                                        if n.suffixInput == "" then
+                                            Nothing
+
+                                        else
+                                            Just n.suffixInput
+                                    , toleranceIsAbsolute = n.toleranceIsAbsolute
+                                    , tolerance = tolerance
+                                    }
+                                )
 
         AugChoice { choiceValues } ->
             Just <| Choice { choiceValues = List.map trim <| split "," choiceValues }
@@ -495,7 +524,7 @@ viewTypeSpecificForm x =
                                         , maxLengthInput = maxLengthInput
                                         , subType =
                                             if v == "number" then
-                                                Number { standardUnit = False, range = emptyNumericRange, suffix = Nothing }
+                                                Number { standardUnit = False, range = emptyNumericRange, suffix = Nothing, toleranceIsAbsolute = False, tolerance = Nothing }
 
                                             else
                                                 String
@@ -515,7 +544,7 @@ viewTypeSpecificForm x =
         AugSimple _ ->
             text ""
 
-        AugNumber { rangeInput, suffixInput, suffixNormalized, standardUnit } ->
+        AugNumber { rangeInput, suffixInput, suffixNormalized, standardUnit, toleranceInput, toleranceIsAbsolute } ->
             let
                 rangeInputResult : Result (Html msg) NumericRange
                 rangeInputResult =
@@ -542,6 +571,8 @@ viewTypeSpecificForm x =
                                         , suffixInput = suffixInput
                                         , suffixNormalized = suffixNormalized
                                         , standardUnit = standardUnit
+                                        , toleranceIsAbsolute = toleranceIsAbsolute
+                                        , toleranceInput = toleranceInput
                                         }
                                     )
                             )
@@ -568,6 +599,8 @@ viewTypeSpecificForm x =
                                                 , suffixInput = suffixInput
                                                 , suffixNormalized = suffixNormalized
                                                 , standardUnit = not standardUnit
+                                                , toleranceIsAbsolute = toleranceIsAbsolute
+                                                , toleranceInput = toleranceInput
                                                 }
                                             )
                                     )
@@ -594,6 +627,8 @@ viewTypeSpecificForm x =
                                             , suffixInput = newSuffix
                                             , suffixNormalized = suffixNormalized
                                             , standardUnit = standardUnit
+                                            , toleranceIsAbsolute = toleranceIsAbsolute
+                                            , toleranceInput = toleranceInput
                                             }
                                         )
                                 )
@@ -1086,10 +1121,17 @@ update msg model =
                         newAttributoType : AttributoTypeAug
                         newAttributoType =
                             case attributoTypeAug of
-                                AugNumber { rangeInput, suffixInput, suffixNormalized, standardUnit } ->
+                                AugNumber { rangeInput, suffixInput, suffixNormalized, standardUnit, toleranceInput, toleranceIsAbsolute } ->
                                     case changeResult of
                                         ResetNormalizedStatus ->
-                                            AugNumber { rangeInput = rangeInput, suffixInput = suffixInput, suffixNormalized = NotNeeded, standardUnit = standardUnit }
+                                            AugNumber
+                                                { rangeInput = rangeInput
+                                                , suffixInput = suffixInput
+                                                , suffixNormalized = NotNeeded
+                                                , standardUnit = standardUnit
+                                                , toleranceInput = toleranceInput
+                                                , toleranceIsAbsolute = toleranceIsAbsolute
+                                                }
 
                                         _ ->
                                             attributoTypeAug
@@ -1106,30 +1148,98 @@ update msg model =
 
                 Just editAttributo ->
                     case editAttributo.type_ of
-                        AugNumber { rangeInput, suffixInput, standardUnit } ->
+                        AugNumber { rangeInput, suffixInput, standardUnit, toleranceInput, toleranceIsAbsolute } ->
                             -- It could be that we made the unit check request, then the user changed the standard unit
                             -- to false, so we don't need the request result anymore
                             if not standardUnit then
-                                ( { model | unitValidationRequest = Success (), editAttributo = Just { editAttributo | type_ = AugNumber { rangeInput = rangeInput, suffixInput = suffixInput, standardUnit = standardUnit, suffixNormalized = NotNeeded } } }, Cmd.none )
+                                ( { model
+                                    | unitValidationRequest = Success ()
+                                    , editAttributo =
+                                        Just
+                                            { editAttributo
+                                                | type_ =
+                                                    AugNumber
+                                                        { rangeInput = rangeInput
+                                                        , suffixInput = suffixInput
+                                                        , standardUnit = standardUnit
+                                                        , suffixNormalized = NotNeeded
+                                                        , toleranceInput = toleranceInput
+                                                        , toleranceIsAbsolute = toleranceIsAbsolute
+                                                        }
+                                            }
+                                  }
+                                , Cmd.none
+                                )
 
                             else
                                 case requestResult of
                                     Ok (StandardUnitValid { input, normalized }) ->
                                         if input == suffixInput then
-                                            ( { model | unitValidationRequest = Success (), editAttributo = Just { editAttributo | type_ = AugNumber { rangeInput = rangeInput, suffixInput = suffixInput, standardUnit = standardUnit, suffixNormalized = ValidSuffix normalized } } }, Cmd.none )
+                                            ( { model
+                                                | unitValidationRequest = Success ()
+                                                , editAttributo =
+                                                    Just
+                                                        { editAttributo
+                                                            | type_ =
+                                                                AugNumber
+                                                                    { rangeInput = rangeInput
+                                                                    , suffixInput = suffixInput
+                                                                    , standardUnit = standardUnit
+                                                                    , suffixNormalized = ValidSuffix normalized
+                                                                    , toleranceInput = toleranceInput
+                                                                    , toleranceIsAbsolute = toleranceIsAbsolute
+                                                                    }
+                                                        }
+                                              }
+                                            , Cmd.none
+                                            )
 
                                         else
                                             ( model, httpCheckStandardUnit CheckStandardUnitFinished suffixInput )
 
                                     Ok (StandardUnitInvalid { input }) ->
                                         if input == suffixInput then
-                                            ( { model | unitValidationRequest = Success (), editAttributo = Just { editAttributo | type_ = AugNumber { rangeInput = rangeInput, suffixInput = suffixInput, standardUnit = standardUnit, suffixNormalized = InvalidSuffix } } }, Cmd.none )
+                                            ( { model
+                                                | unitValidationRequest = Success ()
+                                                , editAttributo =
+                                                    Just
+                                                        { editAttributo
+                                                            | type_ =
+                                                                AugNumber
+                                                                    { rangeInput = rangeInput
+                                                                    , suffixInput = suffixInput
+                                                                    , standardUnit = standardUnit
+                                                                    , suffixNormalized = InvalidSuffix
+                                                                    , toleranceInput = toleranceInput
+                                                                    , toleranceIsAbsolute = toleranceIsAbsolute
+                                                                    }
+                                                        }
+                                              }
+                                            , Cmd.none
+                                            )
 
                                         else
                                             ( model, httpCheckStandardUnit CheckStandardUnitFinished suffixInput )
 
                                     Err x ->
-                                        ( { model | unitValidationRequest = Failure x, editAttributo = Just { editAttributo | type_ = AugNumber { rangeInput = rangeInput, suffixInput = suffixInput, standardUnit = standardUnit, suffixNormalized = InvalidSuffix } } }, Cmd.none )
+                                        ( { model
+                                            | unitValidationRequest = Failure x
+                                            , editAttributo =
+                                                Just
+                                                    { editAttributo
+                                                        | type_ =
+                                                            AugNumber
+                                                                { rangeInput = rangeInput
+                                                                , suffixInput = suffixInput
+                                                                , standardUnit = standardUnit
+                                                                , suffixNormalized = InvalidSuffix
+                                                                , toleranceInput = toleranceInput
+                                                                , toleranceIsAbsolute = toleranceIsAbsolute
+                                                                }
+                                                    }
+                                          }
+                                        , Cmd.none
+                                        )
 
                         _ ->
                             ( { model | unitValidationRequest = Success () }, Cmd.none )
