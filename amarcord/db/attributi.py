@@ -19,8 +19,12 @@ from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.json import JSONDict
-from amarcord.json import JSONValue
-from amarcord.json_schema import JSONSchemaArray, JSONSchemaBoolean
+from amarcord.json_schema import (
+    JSONSchemaArray,
+    JSONSchemaBoolean,
+    JSONSchemaIntegerFormat,
+    JSONSchemaCustomIntegerFormat,
+)
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaNumber
 from amarcord.json_schema import JSONSchemaNumberFormat
@@ -31,11 +35,9 @@ from amarcord.numeric_range import NumericRange
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int
 
-ATTRIBUTO_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+_ATTRIBUTO_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
-JSON_SCHEMA_INTEGER_SAMPLE_ID: Final = "sample-id"
-
-JSON_SCHEMA_INTEGER_DATE_TIME: Final = "date-time"
+_JSON_SCHEMA_INTEGER_SAMPLE_ID: Final = JSONSchemaCustomIntegerFormat("sample-id")
 
 logger = logging.getLogger(__name__)
 
@@ -67,16 +69,18 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
             ),
             suffix=parsed_schema.suffix,
             standard_unit=parsed_schema.format_ == JSONSchemaNumberFormat.STANDARD_UNIT,
+            tolerance=parsed_schema.tolerance,
+            tolerance_is_absolute=parsed_schema.tolerance_is_absolute,
         )
     if isinstance(parsed_schema, JSONSchemaBoolean):
         return AttributoTypeBoolean()
     if isinstance(parsed_schema, JSONSchemaInteger):
-        if parsed_schema.format is not None:
-            if parsed_schema.format == JSON_SCHEMA_INTEGER_SAMPLE_ID:
+        if parsed_schema.format_ is not None:
+            if parsed_schema.format_ == _JSON_SCHEMA_INTEGER_SAMPLE_ID:
                 return AttributoTypeSample()
-            if parsed_schema.format == JSON_SCHEMA_INTEGER_DATE_TIME:
+            if parsed_schema.format_ == JSONSchemaIntegerFormat.DATE_TIME:
                 return AttributoTypeDateTime()
-            raise Exception(f'integer with format "{parsed_schema.format}" invalid')
+            raise Exception(f'integer with format "{parsed_schema.format_}" invalid')
         return AttributoTypeInt()
     if isinstance(parsed_schema, JSONSchemaArray):
         if isinstance(parsed_schema.value_type, JSONSchemaNumber):
@@ -114,18 +118,19 @@ def datetime_to_attributo_int(d: datetime.datetime) -> int:
 
 
 def datetime_from_attributo_int(d: int) -> datetime.datetime:
-    # seehttps://stackoverflow.com/questions/748491/how-do-i-create-a-datetime-in-python-from-milliseconds
+    # see
+    # https://stackoverflow.com/questions/748491/how-do-i-create-a-datetime-in-python-from-milliseconds
     return datetime.datetime.utcfromtimestamp(d // 1000).replace(
         microsecond=d % 1000 * 1000
     )
 
 
 def datetime_to_attributo_string(d: datetime.datetime) -> str:
-    return d.strftime(ATTRIBUTO_DATETIME_FORMAT)
+    return d.strftime(_ATTRIBUTO_DATETIME_FORMAT)
 
 
 def datetime_from_attributo_string(d: str) -> datetime.datetime:
-    return datetime.datetime.strptime(d, ATTRIBUTO_DATETIME_FORMAT)
+    return datetime.datetime.strptime(d, _ATTRIBUTO_DATETIME_FORMAT)
 
 
 def attributo_type_to_string(pt: AttributoType) -> str:
@@ -140,10 +145,23 @@ def attributo_type_to_string(pt: AttributoType) -> str:
     if isinstance(pt, AttributoTypeChoice):
         return "one of " + ", ".join(pt.values)
     if isinstance(pt, AttributoTypeDecimal):
+        tolerance_string = (
+            " ("
+            + ("absolute " if pt.tolerance_is_absolute else "")
+            + f"tolerance {pt.tolerance})"
+            if pt.tolerance is not None
+            else ""
+        )
         if pt.suffix:
-            return f"{pt.suffix} ∈ {pt.range}" if pt.range is not None else pt.suffix
+            return (
+                f"{pt.suffix} ∈ {pt.range}{tolerance_string}"
+                if pt.range is not None
+                else pt.suffix
+            )
         word = "number"
-        return f"{word} ∈ {pt.range}" if pt.range is not None else word
+        return (
+            f"{word} ∈ {pt.range}{tolerance_string}" if pt.range is not None else word
+        )
     if isinstance(pt, AttributoTypeDateTime):
         return "date-time"
     if isinstance(pt, AttributoTypeList):
@@ -151,48 +169,66 @@ def attributo_type_to_string(pt: AttributoType) -> str:
     raise Exception(f"invalid property type {type(pt)}")
 
 
-def attributo_type_to_schema(rp: AttributoType) -> JSONDict:
+def attributo_type_to_schema(rp: AttributoType) -> JSONSchemaType:
     if isinstance(rp, AttributoTypeInt):
-        return {"type": "integer"}
+        return JSONSchemaInteger(format_=None)
     if isinstance(rp, AttributoTypeBoolean):
-        return {"type": "boolean"}
+        return JSONSchemaBoolean()
     if isinstance(rp, AttributoTypeDecimal):
-        result_double: dict[str, JSONValue] = {"type": "number"}
+        minimum: float | None
+        maximum: float | None
+        exclusiveMinimum: float | None
+        exclusiveMaximum: float | None
         if rp.range is not None:
             if rp.range.minimum is not None:
                 if rp.range.minimum_inclusive:
-                    result_double["minimum"] = rp.range.minimum
+                    minimum = rp.range.minimum
+                    exclusiveMinimum = None
                 else:
-                    result_double["exclusiveMinimum"] = rp.range.minimum
+                    minimum = None
+                    exclusiveMinimum = rp.range.minimum
+            else:
+                minimum = None
+                exclusiveMinimum = None
             if rp.range.maximum is not None:
                 if rp.range.maximum_inclusive:
-                    result_double["maximum"] = rp.range.maximum
+                    maximum = rp.range.maximum
+                    exclusiveMaximum = None
                 else:
-                    result_double["exclusiveMaximum"] = rp.range.maximum
-        if rp.suffix is not None:
-            assert isinstance(rp.suffix, str)
-            result_double["suffix"] = rp.suffix
-        if rp.standard_unit:
-            result_double["format"] = "standard-unit"
-        return result_double
+                    maximum = None
+                    exclusiveMaximum = rp.range.maximum
+            else:
+                maximum = None
+                exclusiveMaximum = None
+        else:
+            minimum = None
+            maximum = None
+            exclusiveMinimum = None
+            exclusiveMaximum = None
+        return JSONSchemaNumber(
+            format_=JSONSchemaNumberFormat.STANDARD_UNIT if rp.standard_unit else None,
+            suffix=rp.suffix,
+            tolerance=rp.tolerance,
+            tolerance_is_absolute=rp.tolerance_is_absolute,
+            minimum=minimum,
+            exclusiveMinimum=exclusiveMinimum,
+            maximum=maximum,
+            exclusiveMaximum=exclusiveMaximum,
+        )
     if isinstance(rp, AttributoTypeString):
-        return {"type": "string"}
+        return JSONSchemaString(enum_=None)
     if isinstance(rp, AttributoTypeSample):
-        return {"type": "integer", "format": JSON_SCHEMA_INTEGER_SAMPLE_ID}
+        return JSONSchemaInteger(format_=_JSON_SCHEMA_INTEGER_SAMPLE_ID)
     if isinstance(rp, AttributoTypeChoice):
-        return {"type": "string", "enum": rp.values}
+        return JSONSchemaString(enum_=rp.values)
     if isinstance(rp, AttributoTypeDateTime):
-        return {"type": "integer", "format": "date-time"}
+        return JSONSchemaInteger(format_=JSONSchemaIntegerFormat.DATE_TIME)
     if isinstance(rp, AttributoTypeList):
-        base: JSONDict = {
-            "type": "array",
-            "items": attributo_type_to_schema(rp.sub_type),
-        }
-        if rp.min_length is not None:
-            base["minItems"] = rp.min_length
-        if rp.max_length is not None:
-            base["maxItems"] = rp.max_length
-        return base
+        return JSONSchemaArray(
+            value_type=attributo_type_to_schema(rp.sub_type),
+            min_items=rp.min_length,
+            max_items=rp.max_length,
+        )
     raise Exception(f"invalid property type {type(rp)}")
 
 

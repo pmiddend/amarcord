@@ -1,6 +1,9 @@
+import pytest
+
 from amarcord.db.attributi import (
     attributo_type_to_string,
     attributo_types_semantically_equivalent,
+    attributo_type_to_schema,
 )
 from amarcord.db.attributo_type import (
     AttributoTypeInt,
@@ -11,7 +14,10 @@ from amarcord.db.attributo_type import (
     AttributoTypeDecimal,
     AttributoTypeDateTime,
     AttributoTypeList,
+    AttributoType,
 )
+from amarcord.json import JSONDict
+from amarcord.json_schema import coparse_schema_type
 from amarcord.numeric_range import NumericRange
 
 
@@ -202,3 +208,104 @@ def test_attributo_types_semantically_equivalent() -> None:
             standard_unit=True,
         ),
     )
+
+
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        (
+            AttributoTypeDecimal(
+                range=None,
+                suffix=None,
+                standard_unit=False,
+                tolerance_is_absolute=False,
+                tolerance=0.5,
+            ),
+            {"type": "number", "tolerance": 0.5, "toleranceIsAbsolute": False},
+        ),
+        (
+            AttributoTypeDecimal(
+                range=None,
+                suffix=None,
+                standard_unit=False,
+                tolerance_is_absolute=True,
+                tolerance=0.5,
+            ),
+            {"type": "number", "tolerance": 0.5, "toleranceIsAbsolute": True},
+        ),
+        (
+            AttributoTypeDecimal(
+                range=None,
+                suffix=None,
+                standard_unit=False,
+                tolerance_is_absolute=True,
+                tolerance=None,
+            ),
+            {"type": "number"},
+        ),
+        (
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=1.0,
+                    maximum=3.0,
+                    minimum_inclusive=False,
+                    maximum_inclusive=False,
+                ),
+                suffix=None,
+                standard_unit=False,
+                tolerance_is_absolute=True,
+                tolerance=None,
+            ),
+            {"type": "number", "exclusiveMinimum": 1.0, "exclusiveMaximum": 3.0},
+        ),
+        (
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=1.0,
+                    maximum=3.0,
+                    minimum_inclusive=True,
+                    maximum_inclusive=False,
+                ),
+                suffix=None,
+                standard_unit=False,
+                tolerance_is_absolute=True,
+                tolerance=None,
+            ),
+            {"type": "number", "minimum": 1.0, "exclusiveMaximum": 3.0},
+        ),
+        (
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=1.0,
+                    maximum=3.0,
+                    minimum_inclusive=False,
+                    maximum_inclusive=True,
+                ),
+                suffix=None,
+                standard_unit=False,
+                tolerance_is_absolute=True,
+                tolerance=None,
+            ),
+            {"type": "number", "exclusiveMinimum": 1.0, "maximum": 3.0},
+        ),
+        (
+            AttributoTypeDecimal(
+                range=NumericRange(
+                    minimum=1.0,
+                    maximum=3.0,
+                    minimum_inclusive=True,
+                    maximum_inclusive=True,
+                ),
+                suffix=None,
+                standard_unit=False,
+                tolerance_is_absolute=True,
+                tolerance=None,
+            ),
+            {"type": "number", "minimum": 1.0, "maximum": 3.0},
+        ),
+    ],
+)
+def test_attributo_type_to_schema(
+    test_input: AttributoType, expected: JSONDict
+) -> None:
+    assert coparse_schema_type(attributo_type_to_schema(test_input)) == expected

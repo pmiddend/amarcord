@@ -12,6 +12,7 @@ from amarcord.db.attributo_type import (
 )
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.tables import create_tables_from_metadata
+from amarcord.json_schema import coparse_schema_type
 
 
 async def _get_db() -> AsyncDB:
@@ -38,7 +39,9 @@ async def test_process_kamzik_metadata(
             conn,
             {
                 "run_id": 1,
-                "attributi-schema": {name: attributo_type_to_schema(input_type)},
+                "attributi-schema": {
+                    name: coparse_schema_type(attributo_type_to_schema(input_type))
+                },
                 "attributi-values": {name: input_value},
             },
         )

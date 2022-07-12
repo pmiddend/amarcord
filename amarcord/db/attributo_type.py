@@ -43,18 +43,29 @@ class AttributoTypeDecimal:
     range: NumericRange | None = None
     suffix: str | None = None
     standard_unit: bool = False
+    tolerance_is_absolute: bool = False
+    tolerance: float | None = None
 
     def __str__(self) -> str:
+        tolerance_string = (
+            (
+                " ("
+                + ("absolute " if self.tolerance_is_absolute else "")
+                + f"tolerance {self.tolerance})"
+            )
+            if self.tolerance is not None
+            else ""
+        )
         if self.range is None and self.suffix is None:
-            return "decimal number"
+            return f"decimal number{tolerance_string}"
 
         if self.suffix is not None and self.range is not None:
-            return f"{self.suffix} as decimal number in {repr(self.range)}"
+            return f"{self.suffix} as decimal number in {repr(self.range)}{tolerance_string}"
 
         if self.suffix is not None:
-            return f"{self.suffix} as decimal number"
+            return f"{self.suffix} as decimal number{tolerance_string}"
 
-        return f"decimal number in {repr(self.range)}"
+        return f"decimal number in {repr(self.range)}{tolerance_string}"
 
 
 @dataclass(frozen=True)

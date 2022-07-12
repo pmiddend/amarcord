@@ -42,6 +42,7 @@ from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.db.table_classes import DBSample, DBFile, DBRun, DBEvent, DBFileBlueprint
 from amarcord.db.tables import DBTables
+from amarcord.json_schema import coparse_schema_type
 from amarcord.pint_util import valid_pint_unit
 from amarcord.util import sha256_file, group_by, datetime_to_local
 
@@ -452,7 +453,7 @@ class AsyncDB:
                 description=description,
                 associated_table=associated_table,
                 group=group,
-                json_schema=attributo_type_to_schema(type_),
+                json_schema=coparse_schema_type(attributo_type_to_schema(type_)),
             )
         )
 
@@ -715,7 +716,9 @@ class AsyncDB:
                 name=new_attributo.name,
                 description=new_attributo.description,
                 group=new_attributo.group,
-                json_schema=attributo_type_to_schema(new_attributo.attributo_type),
+                json_schema=coparse_schema_type(
+                    attributo_type_to_schema(new_attributo.attributo_type)
+                ),
                 associated_table=new_attributo.associated_table,
             )
             .where(self.tables.attributo.c.name == name)

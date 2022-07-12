@@ -10,6 +10,7 @@ from amarcord.db.attributi_map import (
     SPECIAL_SAMPLE_ID_NONE,
     SPECIAL_VALUE_CHOICE_NONE,
     run_matches_dataset,
+    decimal_attributi_match,
 )
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import (
@@ -617,47 +618,85 @@ def test_run_matches_dataset_bool_and_string() -> None:
     )
 
 
-def test_run_matches_dataset_float() -> None:
-    a = AttributoId("a")
-    attributi = (
-        DBAttributo(
-            a,
-            "description",
-            ATTRIBUTO_GROUP_MANUAL,
-            AssociatedTable.RUN,
-            AttributoTypeDecimal(),
+@pytest.mark.parametrize(
+    "run_value, data_set_value, tolerance, tolerance_is_absolute, matches",
+    [
+        (
+            201.0,
+            200.0,
+            0.1,
+            False,
+            True,
         ),
-    )
-    run_attributi_missing = AttributiMap.from_types_and_json(
-        attributi,
-        [],
-        {},
-    )
-    run_attributi_200 = AttributiMap.from_types_and_json(
-        attributi,
-        [],
-        {a: 200.0},
-    )
-    data_set_attributi_199 = AttributiMap.from_types_and_json(
-        attributi,
-        [],
-        {a: 199.0},
-    )
-    data_set_attributi_198 = AttributiMap.from_types_and_json(
-        attributi,
-        [],
-        {a: 198.0},
-    )
-    # This is testing the rather random relative error comparison value. But better have test than not have it. :D
-    assert run_matches_dataset(
-        run_attributi=run_attributi_200,
-        data_set_attributi=data_set_attributi_199,
-    )
-    assert not run_matches_dataset(
-        run_attributi=run_attributi_200,
-        data_set_attributi=data_set_attributi_198,
-    )
-    assert not run_matches_dataset(
-        run_attributi=run_attributi_missing,
-        data_set_attributi=data_set_attributi_198,
+        (
+            201.0,
+            200.0,
+            0.1,
+            False,
+            True,
+        ),
+        (
+            220.0,
+            200.0,
+            0.1,
+            False,
+            True,
+        ),
+        (
+            225.0,
+            200.0,
+            0.1,
+            False,
+            False,
+        ),
+        (
+            210.0,
+            200.0,
+            13,
+            True,
+            True,
+        ),
+        (
+            214.0,
+            200.0,
+            13,
+            True,
+            False,
+        ),
+        (
+            200.0,
+            200.0,
+            None,
+            True,
+            True,
+        ),
+        (
+            200.0,
+            201.0,
+            None,
+            True,
+            False,
+        ),
+    ],
+)
+def test_decimal_attributi_match(
+    run_value: float | None,
+    data_set_value: float | None,
+    tolerance: float | None,
+    tolerance_is_absolute: bool,
+    matches: bool,
+) -> None:
+    assert (
+        decimal_attributi_match(
+            AttributoTypeDecimal(
+                range=None,
+                suffix=None,
+                standard_unit=False,
+                tolerance=tolerance,
+                tolerance_is_absolute=tolerance_is_absolute,
+            ),
+            run_value,
+            data_set_value,
+        )
+        == matches
     )

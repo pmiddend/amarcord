@@ -56,7 +56,7 @@ from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
 from amarcord.json import JSONDict
 from amarcord.json_checker import JSONChecker
-from amarcord.json_schema import parse_schema_type
+from amarcord.json_schema import parse_schema_type, coparse_schema_type
 from amarcord.quart_utils import CustomJSONEncoder, CustomWebException
 from amarcord.quart_utils import QuartDatabases
 from amarcord.quart_utils import handle_exception
@@ -1046,7 +1046,7 @@ def _encode_attributo(a: DBAttributo) -> JSONDict:
         "description": a.description,
         "group": a.group,
         "associatedTable": a.associated_table.value,
-        "type": attributo_type_to_schema(a.attributo_type),
+        "type": coparse_schema_type(attributo_type_to_schema(a.attributo_type)),
     }
 
 
