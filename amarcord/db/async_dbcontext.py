@@ -41,6 +41,7 @@ class AsyncDBContext:
             json_serializer=_json_serializer_allow_nan_false
             if not use_sqlalchemy_default_json_serializer
             else None,
+            execution_options={"isolation_level": "SERIALIZABLE"},
         )
 
         # sqlite doesn't care about foreign keys unless you do this dance, see
