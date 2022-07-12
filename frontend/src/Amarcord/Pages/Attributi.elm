@@ -13,7 +13,7 @@ import Amarcord.NumericRange exposing (NumericRange(..), NumericRangeValue(..), 
 import Amarcord.Parser exposing (deadEndsToHtml)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
 import Html exposing (..)
-import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, scope, selected, style, type_, value)
+import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, scope, selected, step, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (singleton)
 import List.Extra exposing (find)
@@ -539,7 +539,11 @@ viewTypeSpecificForm x =
                 ]
 
         AugSimple SampleId ->
-            p_ [ text "A run can have one or more ", em_ [ text "sample" ], text " attributi. In the simplest case, just give one sample attributo to signify the sample that is to be screened. But it's up to you designing the experiment." ]
+            p_
+                [ text "A run can have one or more "
+                , em_ [ text "sample" ]
+                , text " attributi. In the simplest case, just give one sample attributo to signify the sample that is to be screened. But it's up to you designing the experiment."
+                ]
 
         AugSimple _ ->
             text ""
@@ -647,6 +651,63 @@ viewTypeSpecificForm x =
                         _ ->
                             text ""
                     , div [ class "form-text" ] [ text "Can be either a non-standard suffix (say “gummibears”) or a standard unit like “MHz” or “N/m^2”." ]
+                    ]
+                , div [ class "mb-3" ]
+                    [ label [ for "tolerance", class "form-label" ] [ text "Tolerance" ]
+                    , div [ class "input-group" ]
+                        [ div [ class "input-group-text" ]
+                            [ span [ class "me-1" ] [ text "Absolute" ]
+                            , input_
+                                [ class "form-check-input mt-0"
+                                , type_ "checkbox"
+                                , checked toleranceIsAbsolute
+                                , onInput
+                                    (\_ ->
+                                        EditAttributoAugChange
+                                            (AugNumber
+                                                { rangeInput = rangeInput
+                                                , suffixInput = suffixInput
+                                                , suffixNormalized = suffixNormalized
+                                                , standardUnit = standardUnit
+                                                , toleranceIsAbsolute = not toleranceIsAbsolute
+                                                , toleranceInput = toleranceInput
+                                                }
+                                            )
+                                    )
+                                ]
+                            ]
+                        , input_
+                            [ type_ "number"
+                            , step "0.01"
+                            , value toleranceInput
+                            , class "form-control"
+                            , onInput
+                                (\newToleranceInput ->
+                                    EditAttributoAugChange
+                                        (AugNumber
+                                            { rangeInput = rangeInput
+                                            , suffixInput = suffixInput
+                                            , suffixNormalized = suffixNormalized
+                                            , standardUnit = standardUnit
+                                            , toleranceIsAbsolute = toleranceIsAbsolute
+                                            , toleranceInput = newToleranceInput
+                                            }
+                                        )
+                                )
+                            ]
+                        , if not toleranceIsAbsolute then
+                            div [ class "input-group-text" ] [ text "%" ]
+
+                          else
+                            text ""
+                        ]
+                    , div [ class "form-text" ]
+                        [ text "Tolerance when matching this attributo against a data set value. Can be "
+                        , strongText "absolute"
+                        , text ", in which case we just take the difference between the run and data set attribute, and compare against the value you enter here. Can also be "
+                        , strongText "relative"
+                        , text ", in which case we subtract the bigger from the smaller value and check if the difference in percent is smaller than the tolerance."
+                        ]
                     ]
                 ]
 
