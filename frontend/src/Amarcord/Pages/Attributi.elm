@@ -7,7 +7,7 @@ import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..),
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (div_, em_, form_, h4_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.JsonSchema exposing (JsonSchema(..))
 import Amarcord.NumericRange exposing (NumericRange(..), NumericRangeValue(..), coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
@@ -231,7 +231,20 @@ attributoAugTypeFromType x =
                 , suffixInput = withDefault "" suffix
                 , standardUnit = standardUnit
                 , suffixNormalized = unwrap NotNeeded ValidSuffix suffix
-                , toleranceInput = Maybe.withDefault "" (Maybe.map String.fromFloat tolerance)
+                , toleranceInput =
+                    Maybe.withDefault ""
+                        (Maybe.map
+                            (String.fromFloat
+                                << (\t ->
+                                        if toleranceIsAbsolute then
+                                            t
+
+                                        else
+                                            t * 100.0
+                                   )
+                            )
+                            tolerance
+                        )
                 , toleranceIsAbsolute = toleranceIsAbsolute
                 }
 
@@ -291,7 +304,16 @@ attributoAugTypeToType x =
                                         else
                                             Just n.suffixInput
                                     , toleranceIsAbsolute = n.toleranceIsAbsolute
-                                    , tolerance = tolerance
+                                    , tolerance =
+                                        Maybe.map
+                                            (\t ->
+                                                if n.toleranceIsAbsolute then
+                                                    t
+
+                                                else
+                                                    t / 100.0
+                                            )
+                                            tolerance
                                     }
                                 )
 
@@ -327,6 +349,8 @@ type Msg
     = AttributiReceived (Result RequestError (List (Attributo AttributoType)))
     | AddAttributo
     | EditAttributoAssociatedTable AssociatedTable
+    | ToleranceCheckerChangeDs String
+    | ToleranceCheckerChangeRun String
     | EditAttributoName AttributoName
     | EditAttributoSubmit
     | EditAttributoCancel
@@ -345,6 +369,10 @@ type Msg
     | Nop
 
 
+type alias ToleranceChecker =
+    { dsValue : String, runValue : String }
+
+
 type alias Model =
     { attributiList : RemoteData RequestError (List (Attributo AttributoType))
     , editAttributo : Maybe (Attributo AttributoTypeAug)
@@ -354,6 +382,7 @@ type alias Model =
     , deleteRequest : RemoteData RequestError ()
     , deleteModalOpen : Maybe AttributoName
     , unitValidationRequest : RemoteData RequestError ()
+    , toleranceChecker : ToleranceChecker
     }
 
 
@@ -367,6 +396,7 @@ init _ =
       , deleteRequest = NotAsked
       , deleteModalOpen = Nothing
       , unitValidationRequest = NotAsked
+      , toleranceChecker = { dsValue = "", runValue = "" }
       }
     , httpGetAndDecodeAttributi AttributiReceived
     )
@@ -475,8 +505,8 @@ viewConversionFlags { ignoreUnits } =
         ]
 
 
-viewTypeSpecificForm : AttributoTypeAug -> Html Msg
-viewTypeSpecificForm x =
+viewTypeSpecificForm : ToleranceChecker -> AttributoTypeAug -> Html Msg
+viewTypeSpecificForm toleranceChecker x =
     case x of
         AugList { subType, minLengthInput, maxLengthInput } ->
             div []
@@ -557,6 +587,16 @@ viewTypeSpecificForm x =
 
                     else
                         mapError (deadEndsToHtml True) (parseRange rangeInput)
+
+                toleranceMatches tolerance run ds =
+                    if toleranceIsAbsolute then
+                        abs (run - ds) <= tolerance
+
+                    else
+                        abs (run - ds) <= Debug.log "tolerance / 100.0" (tolerance / 100.0) * max (abs run) (abs ds)
+
+                toleranceMaybeMatches =
+                    Maybe.withDefault True <| Maybe.map3 toleranceMatches (String.toFloat toleranceInput) (String.toFloat toleranceChecker.runValue) (String.toFloat toleranceChecker.dsValue)
             in
             div_
                 [ div [ class "mb-3" ]
@@ -654,52 +694,80 @@ viewTypeSpecificForm x =
                     ]
                 , div [ class "mb-3" ]
                     [ label [ for "tolerance", class "form-label" ] [ text "Tolerance" ]
-                    , div [ class "input-group" ]
-                        [ div [ class "input-group-text" ]
-                            [ span [ class "me-1" ] [ text "Absolute" ]
+                    , div [ class "row" ]
+                        [ div [ class "col input-group" ]
+                            [ div [ class "input-group-text" ]
+                                [ span [ class "me-1" ] [ text "Absolute" ]
+                                , input_
+                                    [ class "form-check-input mt-0"
+                                    , type_ "checkbox"
+                                    , checked toleranceIsAbsolute
+                                    , id "tolerance"
+                                    , onInput
+                                        (\_ ->
+                                            EditAttributoAugChange
+                                                (AugNumber
+                                                    { rangeInput = rangeInput
+                                                    , suffixInput = suffixInput
+                                                    , suffixNormalized = suffixNormalized
+                                                    , standardUnit = standardUnit
+                                                    , toleranceIsAbsolute = not toleranceIsAbsolute
+                                                    , toleranceInput = toleranceInput
+                                                    }
+                                                )
+                                        )
+                                    ]
+                                ]
                             , input_
-                                [ class "form-check-input mt-0"
-                                , type_ "checkbox"
-                                , checked toleranceIsAbsolute
+                                [ type_ "number"
+                                , step "0.01"
+                                , value toleranceInput
+                                , class "form-control"
                                 , onInput
-                                    (\_ ->
+                                    (\newToleranceInput ->
                                         EditAttributoAugChange
                                             (AugNumber
                                                 { rangeInput = rangeInput
                                                 , suffixInput = suffixInput
                                                 , suffixNormalized = suffixNormalized
                                                 , standardUnit = standardUnit
-                                                , toleranceIsAbsolute = not toleranceIsAbsolute
-                                                , toleranceInput = toleranceInput
+                                                , toleranceIsAbsolute = toleranceIsAbsolute
+                                                , toleranceInput = newToleranceInput
                                                 }
                                             )
                                     )
                                 ]
-                            ]
-                        , input_
-                            [ type_ "number"
-                            , step "0.01"
-                            , value toleranceInput
-                            , class "form-control"
-                            , onInput
-                                (\newToleranceInput ->
-                                    EditAttributoAugChange
-                                        (AugNumber
-                                            { rangeInput = rangeInput
-                                            , suffixInput = suffixInput
-                                            , suffixNormalized = suffixNormalized
-                                            , standardUnit = standardUnit
-                                            , toleranceIsAbsolute = toleranceIsAbsolute
-                                            , toleranceInput = newToleranceInput
-                                            }
-                                        )
-                                )
-                            ]
-                        , if not toleranceIsAbsolute then
-                            div [ class "input-group-text" ] [ text "%" ]
+                            , if not toleranceIsAbsolute then
+                                div [ class "input-group-text" ] [ text "%" ]
 
-                          else
-                            text ""
+                              else
+                                text ""
+                            ]
+                        , div [ class "col" ]
+                            [ h5_ [ text "Check tolerance" ]
+                            , div [ class "row" ]
+                                [ div [ class "col has-validation" ]
+                                    [ div [ class "form-floating" ]
+                                        [ input_
+                                            [ id "tolerance-checker-run"
+                                            , type_ "number"
+                                            , class
+                                                ("form-control"
+                                                    ++ (if toleranceMaybeMatches then
+                                                            ""
+
+                                                        else
+                                                            " is-invalid"
+                                                       )
+                                                )
+                                            , onInput ToleranceCheckerChangeRun
+                                            ]
+                                        , label [ for "tolerance-checker-run" ] [ text "Run value" ]
+                                        ]
+                                    ]
+                                , div [ class "col" ] [ div [ class "form-floating" ] [ input_ [ id "tolerance-checker-ds", type_ "number", class "form-control", onInput ToleranceCheckerChangeDs ], label [ for "tolerance-checker-ds" ] [ text "Data set value" ] ] ]
+                                ]
+                            ]
                         ]
                     , div [ class "form-text" ]
                         [ text "Tolerance when matching this attributo against a data set value. Can be "
@@ -741,8 +809,8 @@ attributoTypesForTable x =
             baseTypes
 
 
-viewTypeForm : AssociatedTable -> AttributoTypeAug -> Html Msg
-viewTypeForm table a =
+viewTypeForm : ToleranceChecker -> AssociatedTable -> AttributoTypeAug -> Html Msg
+viewTypeForm toleranceChecker table a =
     let
         makeTypeRadio : AttributoTypeEnum -> Html Msg
         makeTypeRadio e =
@@ -761,7 +829,7 @@ viewTypeForm table a =
         [ div []
             [ div [ class "form-check form-check-inline" ]
                 (List.map makeTypeRadio <| attributoTypesForTable table)
-            , viewTypeSpecificForm a
+            , viewTypeSpecificForm toleranceChecker a
             ]
         ]
 
@@ -889,7 +957,7 @@ viewEditForm model attributiList attributo =
             ]
         , div [ class "mb-3" ]
             [ label [ for "type", class "form-label" ] [ text "Type" ]
-            , viewTypeForm attributo.associatedTable attributo.type_
+            , viewTypeForm model.toleranceChecker attributo.associatedTable attributo.type_
             ]
         , if isNothing model.editAttributoOriginalName then
             text ""
@@ -1362,3 +1430,9 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none )
+
+        ToleranceCheckerChangeDs dsValue ->
+            ( { model | toleranceChecker = { dsValue = dsValue, runValue = model.toleranceChecker.runValue } }, Cmd.none )
+
+        ToleranceCheckerChangeRun runValue ->
+            ( { model | toleranceChecker = { dsValue = model.toleranceChecker.dsValue, runValue = runValue } }, Cmd.none )
