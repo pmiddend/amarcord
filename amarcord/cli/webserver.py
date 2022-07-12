@@ -11,6 +11,8 @@ from typing import cast, Final, Any
 from zipfile import ZipFile
 
 import quart
+from hypercorn import Config
+from hypercorn.asyncio import serve
 from pint import UnitRegistry
 from quart import Quart, request, redirect, send_file
 from quart_cors import cors
@@ -1169,7 +1171,7 @@ class Arguments(Tap):
     host: str = "localhost"
     db_connection_url: str = "sqlite+aiosqlite://"
     db_echo: bool = False
-    debug: bool = True
+    debug: bool = False
     delay: bool = False
     title: str = "AMARCORD"
 
@@ -1209,7 +1211,12 @@ def main() -> int:
             "TITLE": args.title,
         },
     )
-    app.run(host=args.host, port=args.port, debug=False, use_reloader=args.debug)
+    if args.debug:
+        app.run(host=args.host, port=args.port, debug=False, use_reloader=args.debug)
+    else:
+        config = Config()
+        config.bind = [f"{args.host}:{args.port}"]
+        asyncio.run(serve(app, config))
     return 0
 
 

@@ -64,6 +64,8 @@ randomname = "0.1.5"
 # For http requests
 aiohttp = "3.8.1"
 alembic = "1.7.7"
+# For the production-ready server
+hypercorn = "0.13.2"
 
 # For ZYLA cam image saving
 Pillow = "9.1.0"
