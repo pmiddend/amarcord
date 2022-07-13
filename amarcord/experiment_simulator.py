@@ -5,7 +5,6 @@ import random
 from pathlib import Path
 
 import randomname
-from essential_generators import DocumentGenerator
 from randomname import generate
 from tap import Tap
 
@@ -317,11 +316,8 @@ def _minutes_since(d: datetime.datetime) -> int:
     return int((datetime.datetime.utcnow() - d).total_seconds() / 60)
 
 
-gen = DocumentGenerator()
-
-
 def random_gibberish() -> str:
-    return gen.sentence()  # type: ignore
+    return "Test sentence please ignore"
 
 
 async def _generate_cfel_results(

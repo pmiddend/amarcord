@@ -63,8 +63,6 @@ python-magic = "0.4.24"
 toml = "0.10.2"
 # For the experiment simulator
 randomname = "0.1.5"
-# For the experiment simulator
-essential-generators = "1.0"
 # For http requests
 aiohttp = "3.8.1"
 alembic = "1.7.7"
