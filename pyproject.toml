@@ -27,8 +27,6 @@ pydantic = '1.8.2'
 numpy = { version = '1.21.4' }
 # for zmq access in the daemon
 pyzmq = '22.3.0'
-# for processing results
-pandas = '1.3.4'
 # For validating units
 pint = '0.16.1'
 # for the daemon
