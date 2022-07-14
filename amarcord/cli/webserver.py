@@ -54,6 +54,7 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
+from amarcord.filter_expression import compile_run_filter, FilterInput, FilterParseError
 from amarcord.json_types import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type, coparse_schema_type
@@ -449,7 +450,19 @@ async def read_runs() -> JSONDict:
         data_sets = await db.instance.retrieve_data_sets(
             conn, [s.id for s in samples], attributi
         )
-        runs = await db.instance.retrieve_runs(conn, attributi)
+        try:
+            run_filter = compile_run_filter(request.args.get("filter", ""))
+            runs = [
+                r
+                for r in await db.instance.retrieve_runs(conn, attributi)
+                if run_filter(
+                    FilterInput(run=r, sample_names={s.name: s.id for s in samples})
+                )
+            ]
+        except FilterParseError as e:
+            raise CustomWebException(
+                code=200, title="Error in filter string", description=str(e)
+            )
         data_set_id_to_grouped: dict[int, DataSetSummary] = {}
         for ds in data_sets:
             matching_runs = [

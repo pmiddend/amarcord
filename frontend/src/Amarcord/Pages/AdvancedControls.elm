@@ -1,6 +1,6 @@
 module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (RequestError, RunsResponse, RunsResponseContent, httpGetRuns, httpStartRun, httpStopRun)
+import Amarcord.API.Requests exposing (RequestError, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunFilter, httpGetRuns, httpStartRun, httpStopRun)
 import Amarcord.Attributo exposing (attributoStopped, retrieveAttributoValue)
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (h2_, hr_, input_, p_)
@@ -46,7 +46,7 @@ init hereAndNow =
       , manualChange = False
       , bulkUpdateModel = RunsBulkUpdate.init hereAndNow
       }
-    , httpGetRuns RunsReceived
+    , httpGetRuns emptyRunFilter RunsReceived
     )
 
 
@@ -108,7 +108,7 @@ update msg model =
             )
 
         Refresh _ ->
-            ( { model | refreshRequest = Loading }, httpGetRuns RunsReceived )
+            ( { model | refreshRequest = Loading }, httpGetRuns emptyRunFilter RunsReceived )
 
         RunIdChanged int ->
             case int of
@@ -125,10 +125,10 @@ update msg model =
             ( { model | startOrStopRequest = Loading, manualChange = False }, httpStopRun StopRunFinished )
 
         StartRunFinished result ->
-            ( { model | startOrStopRequest = fromResult result }, httpGetRuns RunsReceived )
+            ( { model | startOrStopRequest = fromResult result }, httpGetRuns emptyRunFilter RunsReceived )
 
         StopRunFinished result ->
-            ( { model | startOrStopRequest = fromResult result }, httpGetRuns RunsReceived )
+            ( { model | startOrStopRequest = fromResult result }, httpGetRuns emptyRunFilter RunsReceived )
 
         RunsBulkUpdateMsg msgInner ->
             let

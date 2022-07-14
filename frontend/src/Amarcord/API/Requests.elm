@@ -12,11 +12,13 @@ module Amarcord.API.Requests exposing
     , LatestDark
     , RequestError(..)
     , Run
+    , RunFilter(..)
     , RunsBulkGetResponse
     , RunsResponse
     , RunsResponseContent
     , SamplesResponse
     , StandardUnitCheckResult(..)
+    , emptyRunFilter
     , httpChangeCurrentExperimentType
     , httpCheckStandardUnit
     , httpCreateAttributo
@@ -47,6 +49,7 @@ module Amarcord.API.Requests exposing
     , httpUpdateRunsBulk
     , httpUpdateSample
     , httpUserConfigurationSetAutoPilot
+    , runFilterToString
     )
 
 import Amarcord.AssociatedTable as AssociatedTable
@@ -423,10 +426,24 @@ httpCreateLiveStreamSnapshot f =
         }
 
 
-httpGetRuns : (RunsResponse -> msg) -> Cmd msg
-httpGetRuns f =
+type RunFilter
+    = RunFilter String
+
+
+emptyRunFilter : RunFilter
+emptyRunFilter =
+    RunFilter ""
+
+
+runFilterToString : RunFilter -> String
+runFilterToString (RunFilter s) =
+    s
+
+
+httpGetRuns : RunFilter -> (RunsResponse -> msg) -> Cmd msg
+httpGetRuns (RunFilter filter) f =
     Http.get
-        { url = "api/runs"
+        { url = "api/runs?filter=" ++ filter
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError

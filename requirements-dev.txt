@@ -39,6 +39,7 @@ isort==5.10.1; python_full_version >= "3.7.2" and python_version < "3.11" and py
 itsdangerous==2.1.2; python_version >= "3.7" and python_full_version >= "3.7.0"
 jinja2==3.1.2; python_version >= "3.7" and python_full_version >= "3.7.0"
 karabo-bridge==0.6.1
+lark==1.1.2
 lazy-object-proxy==1.7.1; python_version >= "3.6" and python_full_version >= "3.7.2"
 mako==1.2.1; python_version >= "3.7"
 markupsafe==2.1.1; python_version >= "3.7" and python_full_version >= "3.7.0"

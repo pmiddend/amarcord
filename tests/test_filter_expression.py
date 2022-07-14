@@ -21,13 +21,22 @@ from amarcord.filter_expression import compile_run_filter, FilterInput
 @pytest.mark.parametrize(
     "filter_expression, run_id, attributi_types, attributi, result",
     [
+        ("", 2, {}, {}, True),
         ("id > 1", 2, {}, {}, True),
         ("id > 1", 1, {}, {}, False),
+        ('id > "3"', 1, {}, {}, Exception),
         (
             "sample_name == 1",
             1,
             {"sample_name": AttributoTypeSample()},
             {"sample_name": 1},
+            True,
+        ),
+        (
+            '"sample name" == 1',
+            1,
+            {"sample name": AttributoTypeSample()},
+            {"sample name": 1},
             True,
         ),
         (

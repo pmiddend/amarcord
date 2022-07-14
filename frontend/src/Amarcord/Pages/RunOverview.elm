@@ -1,9 +1,9 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunsResponse, RunsResponseContent, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRuns, httpUpdateRun, httpUserConfigurationSetAutoPilot)
+import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRuns, httpUpdateRun, httpUserConfigurationSetAutoPilot, runFilterToString)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, attributoTargetFrameCount, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, attributoTargetFrameCount, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 import Amarcord.ColumnChooser as ColumnChooser
@@ -12,7 +12,7 @@ import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, hr_, img_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
@@ -21,6 +21,7 @@ import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
 import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Html.Events.Extra exposing (onEnter)
 import List exposing (head)
 import List.Extra exposing (find)
 import Maybe
@@ -29,7 +30,7 @@ import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import Set exposing (Set)
 import String exposing (fromInt)
 import Time exposing (Posix, Zone, posixToMillis)
-import Tuple exposing (second)
+import Tuple exposing (first, second)
 
 
 type Msg
@@ -43,6 +44,7 @@ type Msg
     | RunEditFinished (Result RequestError ())
     | RunInitiateEdit Run
     | RunEditCancel
+    | RunFilterSubMsg RunFilterMsg
     | Nop
     | SelectedExperimentTypeChanged String
     | ChangeCurrentExperimentType
@@ -72,6 +74,84 @@ type alias RunEditInfo =
     }
 
 
+type alias RunFilterInfo =
+    { runFilter : RunFilter
+    , nextRunFilter : String
+    , runFilterRequest : RemoteData RequestError ()
+    }
+
+
+type RunFilterMsg
+    = RunFilterEdit String
+    | RunFilterReset
+    | RunFilterSubmit
+    | RunFilterSubmitFinished RunsResponse
+
+
+initRunFilter =
+    { runFilter = emptyRunFilter
+    , nextRunFilter = ""
+    , runFilterRequest = NotAsked
+    }
+
+
+viewRunFilter : RunFilterInfo -> Html RunFilterMsg
+viewRunFilter model =
+    form_
+        [ h5_ [ text "Run filter" ]
+        , div [ class "input-group mb-3" ]
+            [ input_
+                [ type_ "text"
+                , class "form-control"
+                , value model.nextRunFilter
+                , onInput RunFilterEdit
+                , disabled (isLoading model.runFilterRequest)
+                , onEnter RunFilterSubmit
+                ]
+            , button
+                [ class "btn btn-outline-secondary"
+                , onClick RunFilterReset
+                , type_ "button"
+                ]
+                [ text "Reset" ]
+            , button
+                [ class "btn btn-secondary"
+                , disabled (isLoading model.runFilterRequest)
+                , type_ "button"
+                , onClick RunFilterSubmit
+                ]
+                [ icon { name = "save" }, text " Update" ]
+            ]
+        , case model.runFilterRequest of
+            Failure e ->
+                div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showRequestError e ] ] ]
+
+            _ ->
+                text ""
+        ]
+
+
+updateRunFilter : RunFilterInfo -> RunFilterMsg -> ( RunFilterInfo, Cmd RunFilterMsg )
+updateRunFilter model msg =
+    case msg of
+        RunFilterEdit newRunFilter ->
+            ( { model | nextRunFilter = newRunFilter }, Cmd.none )
+
+        RunFilterReset ->
+            ( { model | nextRunFilter = runFilterToString model.runFilter, runFilterRequest = NotAsked }, Cmd.none )
+
+        RunFilterSubmit ->
+            ( { model | runFilterRequest = Loading }, httpGetRuns (RunFilter model.nextRunFilter) RunFilterSubmitFinished )
+
+        RunFilterSubmitFinished response ->
+            case response of
+                Err e ->
+                    ( { model | runFilterRequest = Failure e }, Cmd.none )
+
+                Ok _ ->
+                    ( { model | runFilter = RunFilter model.nextRunFilter, runFilterRequest = Success () }, Cmd.none )
+
+
 type alias Model =
     { runs : RemoteData RequestError RunsResponseContent
     , myTimeZone : Zone
@@ -80,6 +160,7 @@ type alias Model =
     , now : Posix
     , runEditInfo : Maybe RunEditInfo
     , runEditRequest : RemoteData RequestError ()
+    , runFilter : RunFilterInfo
     , submitErrors : List String
     , currentExperimentType : Maybe String
     , selectedExperimentType : Maybe String
@@ -99,6 +180,7 @@ init { zone, now } localStorage =
       , now = now
       , runEditInfo = Nothing
       , runEditRequest = NotAsked
+      , runFilter = initRunFilter
       , submitErrors = []
       , currentExperimentType = Nothing
       , selectedExperimentType = Nothing
@@ -107,7 +189,7 @@ init { zone, now } localStorage =
       , dataSetFromRunRequest = NotAsked
       , changeExperimentTypeRequest = NotAsked
       }
-    , httpGetRuns RunsReceived
+    , httpGetRuns emptyRunFilter RunsReceived
     )
 
 
@@ -682,6 +764,8 @@ viewInner model rrc =
                     ]
                 ]
     , hr_
+    , Html.map RunFilterSubMsg <| viewRunFilter model.runFilter
+    , hr_
     , div [ class "row" ] [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ], viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc ]
     ]
 
@@ -814,7 +898,7 @@ update msg model =
                     ( model, Cmd.none )
 
                 _ ->
-                    ( { model | refreshRequest = Loading, now = now }, httpGetRuns RunsReceived )
+                    ( { model | refreshRequest = Loading, now = now }, httpGetRuns model.runFilter.runFilter RunsReceived )
 
         EventFormMsg eventFormMsg ->
             let
@@ -825,7 +909,7 @@ update msg model =
             , Cmd.batch
                 ((case eventFormMsg of
                     EventForm.SubmitFinished _ ->
-                        httpGetRuns RunsReceived
+                        httpGetRuns model.runFilter.runFilter RunsReceived
 
                     _ ->
                         Cmd.none
@@ -840,7 +924,7 @@ update msg model =
         EventDeleteFinished result ->
             case result of
                 Ok _ ->
-                    ( model, httpGetRuns RunsReceived )
+                    ( model, httpGetRuns model.runFilter.runFilter RunsReceived )
 
                 _ ->
                     ( model, Cmd.none )
@@ -903,11 +987,11 @@ update msg model =
                                     , initiatedManually = False
                                     }
                             in
-                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Maybe.map resetEditedFlags model.runEditInfo }, httpGetRuns RunsReceived )
+                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Maybe.map resetEditedFlags model.runEditInfo }, httpGetRuns model.runFilter.runFilter RunsReceived )
 
                         _ ->
                             -- Super unlikely case, we don't really have a successful runs request, after finishing editing a run?
-                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Nothing }, httpGetRuns RunsReceived )
+                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Nothing }, httpGetRuns model.runFilter.runFilter RunsReceived )
 
         RunInitiateEdit run ->
             case model.runs of
@@ -960,13 +1044,13 @@ update msg model =
             ( model, httpUserConfigurationSetAutoPilot AutoPilotToggled newValue )
 
         AutoPilotToggled _ ->
-            ( model, httpGetRuns RunsReceived )
+            ( model, httpGetRuns model.runFilter.runFilter RunsReceived )
 
         CreateDataSetFromRun experimentType runId ->
             ( { model | dataSetFromRunRequest = Loading }, httpCreateDataSetFromRun CreateDataSetFromRunFinished experimentType runId )
 
         CreateDataSetFromRunFinished result ->
-            ( { model | dataSetFromRunRequest = fromResult result }, httpGetRuns RunsReceived )
+            ( { model | dataSetFromRunRequest = fromResult result }, httpGetRuns model.runFilter.runFilter RunsReceived )
 
         ChangeCurrentExperimentType ->
             case model.runEditInfo of
@@ -978,5 +1062,23 @@ update msg model =
 
         ChangeCurrentExperimentTypeFinished selectedExperimentType result ->
             ( { model | changeExperimentTypeRequest = fromResult result, currentExperimentType = selectedExperimentType }
-            , httpGetRuns RunsReceived
+            , httpGetRuns model.runFilter.runFilter RunsReceived
             )
+
+        RunFilterSubMsg runFilterMsg ->
+            let
+                ( newRunFilter, cmds ) =
+                    updateRunFilter model.runFilter runFilterMsg
+
+                newModel =
+                    { model | runFilter = newRunFilter }
+
+                afterRunsResponse =
+                    case runFilterMsg of
+                        RunFilterSubmitFinished (Ok response) ->
+                            update (RunsReceived (Ok response)) newModel
+
+                        _ ->
+                            ( newModel, Cmd.none )
+            in
+            ( first afterRunsResponse, Cmd.batch [ second afterRunsResponse, Cmd.map RunFilterSubMsg cmds ] )

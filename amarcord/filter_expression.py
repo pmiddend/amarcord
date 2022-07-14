@@ -71,6 +71,10 @@ LogicalOperator = Callable[[bool, bool], bool]
 LogicalCombinator = Callable[[RunFilterFunction, RunFilterFunction], bool]
 
 
+class FilterParseError(Exception):
+    pass
+
+
 def _transform_comparison_operand_before_comparison(
     aid: AttributoId,
     input_: AttributoValue,
@@ -80,18 +84,18 @@ def _transform_comparison_operand_before_comparison(
     if isinstance(type_, AttributoTypeSample):
         if isinstance(input_, (int, float)):
             if input_ not in sample_names.values():
-                raise Exception(
+                raise FilterParseError(
                     f'attributo "{aid}": the sample ID {input_} is not known. You can also specify the sample name if you don\'t want to use the ID.'
                 )
             return input_
         if isinstance(input_, str):
             sample_id_from_dict = sample_names.get(input_)
             if sample_id_from_dict is None:
-                raise Exception(
+                raise FilterParseError(
                     f'sample with name "{input_}" not found{maybe_you_meant(input_, sample_names.keys())}'
                 )
             return sample_id_from_dict
-        raise Exception(
+        raise FilterParseError(
             f'attributo "{aid}" is of type "Sample ID", so we excepted a string (the sample name) or the sample ID. However, we got "{input_}".'
         )
     return input_
@@ -113,7 +117,7 @@ def _comparison_filter(
     else:
         attributo = run.attributi.retrieve_type(aid)
         if attributo is None:
-            raise Exception(
+            raise FilterParseError(
                 f'attributo "{aid}" not defined{maybe_you_meant(aid, run.attributi.names())}'
             )
         type_ = attributo.attributo_type
@@ -121,7 +125,12 @@ def _comparison_filter(
     operand_processed = _transform_comparison_operand_before_comparison(
         aid, operand, type_, filter_input.sample_names
     )
-    return comparison_op(attributo_value, operand_processed)
+    try:
+        return comparison_op(attributo_value, operand_processed)
+    except TypeError:
+        raise FilterParseError(
+            f'attributo "{aid}": wrong type for comparison; left-hand side is {attributo_value} (type {type(attributo_value).__name__}), right-hand side is {operand_processed} (type {type(operand_processed).__name__}); maybe remove or add quotation marks?'
+        )
 
 
 # noinspection PyMethodMayBeStatic
@@ -149,7 +158,12 @@ class MyTransformer(Transformer):
         return items
 
     def identifier_string(self, items: list[Token]) -> str:
-        return items[0].value  # type: ignore
+        v = items[0].value
+        if not v:
+            return v  # type: ignore
+        if v[0] == '"' and v[-1] == '"':
+            return v[1:-1]  # type: ignore
+        return v  # type: ignore
 
     def lop_and(self, _items: list[Token]) -> LogicalOperator:
         return lambda a, b: a and b
@@ -212,4 +226,10 @@ class MyTransformer(Transformer):
 
 
 def compile_run_filter(query_string: str) -> RunFilterFunction:
-    return MyTransformer().transform(_filter_expression_parser.parse(query_string))  # type: ignore
+    if not query_string:
+        return lambda _: True
+    try:
+        parse_result = _filter_expression_parser.parse(query_string)
+    except Exception as e:
+        raise FilterParseError(e)
+    return MyTransformer().transform(parse_result)  # type: ignore
