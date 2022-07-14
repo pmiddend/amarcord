@@ -11,7 +11,7 @@ from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import datetime_to_attributo_string
 from amarcord.db.tables import create_tables_from_metadata
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 
 
 async def quart_safe_json_dict() -> JSONDict:

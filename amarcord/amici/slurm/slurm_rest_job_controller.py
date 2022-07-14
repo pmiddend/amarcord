@@ -17,7 +17,7 @@ from amarcord.amici.slurm.job_controller import JobStartError
 from amarcord.amici.slurm.job_controller import JobStartResult
 from amarcord.amici.slurm.slurm_util import build_sbatch
 from amarcord.amici.slurm.slurm_util import parse_job_state
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 from amarcord.util import last_line_of_file
 
 _DESY_SLURM_URL = "https://max-portal.desy.de/sapi/slurm/v0.0.36"

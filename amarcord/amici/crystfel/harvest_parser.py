@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from typing import Iterable
 
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 
 logger = logging.getLogger(__name__)
 

@@ -16,7 +16,7 @@ from amarcord.db.attributo_type import (
     AttributoTypeList,
     AttributoType,
 )
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 from amarcord.json_schema import coparse_schema_type
 from amarcord.numeric_range import NumericRange
 

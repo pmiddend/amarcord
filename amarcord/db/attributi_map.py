@@ -21,7 +21,7 @@ from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.json import JSONValue
+from amarcord.json_types import JSONValue
 
 SPECIAL_VALUE_CHOICE_NONE = ""
 
@@ -417,6 +417,7 @@ class AttributiMap:
         return set(self._attributi.keys())
 
     def items(self) -> Iterable[tuple[AttributoId, AttributoValue]]:
+        # noinspection PyTypeChecker,PydanticTypeChecker
         return self._attributi.items()
 
     def __eq__(self, other: Any) -> bool:
@@ -429,6 +430,9 @@ class AttributiMap:
 
     def __repr__(self) -> str:
         return self._attributi.__repr__()
+
+    def retrieve_type(self, attributo_id: AttributoId) -> DBAttributo | None:
+        return self._types.get(attributo_id)
 
 
 def decimal_attributi_match(

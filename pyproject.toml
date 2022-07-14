@@ -70,6 +70,9 @@ hypercorn = "0.13.2"
 # For ZYLA cam image saving
 Pillow = "9.1.0"
 
+# For parsing the filter expressions
+lark = "1.1.2"
+
 [tool.poetry.dev-dependencies]
 black = '22.3.0'
 mypy = '0.942'

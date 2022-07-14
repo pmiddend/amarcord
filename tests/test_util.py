@@ -1,6 +1,8 @@
 import datetime
 from pathlib import Path
 
+import pytest
+
 from amarcord.util import (
     remove_duplicates_stable,
     dict_union,
@@ -12,6 +14,7 @@ from amarcord.util import (
     local_time_to_utc,
     group_by,
     replace_illegal_path_characters,
+    maybe_you_meant,
 )
 
 
@@ -76,3 +79,14 @@ def test_group_by() -> None:
 
 def test_remove_illegal_path_characters() -> None:
     assert replace_illegal_path_characters("foo\\bar|baz") == "foo_bar_baz"
+
+
+@pytest.mark.parametrize(
+    "input_string, candidates, result",
+    [("apple", ["appel"], True), ("apple", ["mango"], False)],
+)
+def test_maybe_you_meant(
+    input_string: str, candidates: list[str], result: bool
+) -> None:
+    result_str = maybe_you_meant(input_string, candidates)
+    assert (len(result_str) > 0) == result

@@ -2,7 +2,7 @@ import datetime
 from dataclasses import dataclass
 from typing import NewType
 
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 from amarcord.amici.slurm.job_status import JobStatus
 
 JobMetadata = NewType("JobMetadata", JSONDict)

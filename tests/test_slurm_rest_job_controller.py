@@ -7,7 +7,7 @@ from typing import cast
 import pytest
 from pytest_subprocess import FakeProcess
 
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 from amarcord.amici.slurm.job_status import JobStatus
 from amarcord.amici.slurm.slurm_rest_job_controller import (
     DynamicTokenRetriever,

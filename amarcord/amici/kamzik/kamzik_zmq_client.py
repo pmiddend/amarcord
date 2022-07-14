@@ -22,7 +22,7 @@ from amarcord.db.attributi import (
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 from amarcord.json_schema import parse_schema_type
 
 _METADATA: Final = "Metadata"

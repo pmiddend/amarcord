@@ -1,6 +1,6 @@
 import pytest
 
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 from amarcord.json_schema import (
     parse_schema_type,
     JSONSchemaInteger,

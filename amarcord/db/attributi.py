@@ -18,7 +18,6 @@ from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.json import JSONDict
 from amarcord.json_schema import (
     JSONSchemaArray,
     JSONSchemaBoolean,
@@ -31,6 +30,7 @@ from amarcord.json_schema import JSONSchemaNumberFormat
 from amarcord.json_schema import JSONSchemaString
 from amarcord.json_schema import JSONSchemaType
 from amarcord.json_schema import parse_schema_type
+from amarcord.json_types import JSONDict
 from amarcord.numeric_range import NumericRange
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int

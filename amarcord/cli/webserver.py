@@ -54,7 +54,7 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type, coparse_schema_type
 from amarcord.quart_utils import CustomJSONEncoder, CustomWebException

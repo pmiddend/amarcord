@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
 from statistics import variance
 from typing import Callable, Union
@@ -236,3 +237,12 @@ def datetime_to_local(value: datetime.datetime) -> datetime.datetime:
     return (
         value.replace(tzinfo=tz.tzutc()).astimezone(tz.tzlocal()).replace(tzinfo=None)
     )
+
+
+def maybe_you_meant(s: str, strs: Iterable[str]) -> str:
+    if not strs:
+        return ""
+    max_match, ratio = max(
+        ((t, SequenceMatcher(None, s, t).ratio()) for t in strs), key=lambda x: x[1]
+    )
+    return f', maybe you meant "{max_match}"?' if ratio > 0.5 else ""

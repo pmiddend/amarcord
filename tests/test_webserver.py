@@ -2,7 +2,7 @@ from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.cli.webserver import app, db
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
-from amarcord.json import JSONDict
+from amarcord.json_types import JSONDict
 from amarcord.json_checker import JSONChecker
 
 IN_MEMORY_DB_URL = "sqlite+aiosqlite://"
