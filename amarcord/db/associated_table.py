@@ -1,6 +1,7 @@
-from enum import Enum
+from enum import Enum, unique
 
 
+@unique
 class AssociatedTable(Enum):
     RUN = "run"
     SAMPLE = "sample"

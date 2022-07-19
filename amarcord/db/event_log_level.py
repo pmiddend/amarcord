@@ -1,7 +1,8 @@
 import logging
-from enum import Enum
+from enum import Enum, unique
 
 
+@unique
 class EventLogLevel(Enum):
     INFO = "info"
     WARNING = "warning"

@@ -3,7 +3,7 @@ import logging
 import re
 from dataclasses import dataclass
 from difflib import get_close_matches
-from enum import Enum, auto
+from enum import Enum, auto, unique
 from math import fsum, isnan
 from typing import (
     Any,
@@ -87,6 +87,7 @@ class KaraboInternalId:
 KaraboValue = str | float | int | list[float]
 
 
+@unique
 class KaraboInputType(Enum):
     KARABO_TYPE_LIST_FLOAT = "List[float]"
     KARABO_TYPE_FLOAT = "float"
@@ -107,6 +108,7 @@ class KaraboInputType(Enum):
         return self.is_decimal() or self == self.KARABO_TYPE_INT  # type: ignore
 
 
+@unique
 class KaraboProcessor(Enum):
     KARABO_PROCESSOR_IDENTITY = "identity"
     KARABO_PROCESSOR_LIST_TAKE_LAST = "list-take-last"
@@ -156,6 +158,7 @@ class KaraboAttributeDescription:
     standard_unit: bool
 
 
+@unique
 class AmarcordAttributoProcessor(Enum):
     AMARCORD_PROCESSOR_ARITHMETIC_MEAN = "arithmetic-mean"
     AMARCORD_PROCESSOR_VARIANCE = "variance"
