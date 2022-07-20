@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import Any
+from typing import Any, Final
 
 import zmq
 from pint import UnitRegistry
@@ -8,16 +8,20 @@ from pydantic import BaseModel, ValidationError
 from zmq.asyncio import Context
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STOPPED, ATTRIBUTO_STARTED
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeInt, AttributoTypeDecimal
+from amarcord.db.dbattributo import DBAttributo
 
-ATTRIBUTO_NUMBER_OF_HITS = AttributoId("hits")
-ATTRIBUTO_NUMBER_OF_FRAMES = AttributoId("frames")
-ATTRIBUTO_NUMBER_OF_OM_HITS = AttributoId("om_hits")
-ATTRIBUTO_NUMBER_OF_OM_FRAMES = AttributoId("om_frames")
-ATTRIBUTO_FRAME_TIME = AttributoId("frame_time")
+OM_ATTRIBUTO_GROUP: Final = "om"
+
+ATTRIBUTO_NUMBER_OF_HITS: Final = AttributoId("hits")
+ATTRIBUTO_NUMBER_OF_FRAMES: Final = AttributoId("frames")
+ATTRIBUTO_NUMBER_OF_OM_HITS: Final = AttributoId("om_hits")
+ATTRIBUTO_NUMBER_OF_OM_FRAMES: Final = AttributoId("om_frames")
+ATTRIBUTO_FRAME_TIME: Final = AttributoId("frame_time")
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +43,48 @@ def validate_om_zmq_entry(d: Any) -> str | OmZMQData:
         return str(e)
 
 
+async def create_om_attributi(
+    db: AsyncDB, conn: Connection, attributi_list: list[DBAttributo]
+) -> None:
+    attributi = {k.name: k for k in attributi_list}
+    if ATTRIBUTO_NUMBER_OF_HITS not in attributi:
+        await db.create_attributo(
+            conn,
+            ATTRIBUTO_NUMBER_OF_HITS,
+            "",
+            OM_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeInt(),
+        )
+    if ATTRIBUTO_NUMBER_OF_FRAMES not in attributi:
+        await db.create_attributo(
+            conn,
+            ATTRIBUTO_NUMBER_OF_FRAMES,
+            "",
+            OM_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeInt(),
+        )
+    if ATTRIBUTO_NUMBER_OF_OM_FRAMES not in attributi:
+        await db.create_attributo(
+            conn,
+            ATTRIBUTO_NUMBER_OF_OM_FRAMES,
+            "",
+            OM_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeInt(),
+        )
+    if ATTRIBUTO_NUMBER_OF_OM_HITS not in attributi:
+        await db.create_attributo(
+            conn,
+            ATTRIBUTO_NUMBER_OF_OM_HITS,
+            "",
+            OM_ATTRIBUTO_GROUP,
+            AssociatedTable.RUN,
+            AttributoTypeInt(),
+        )
+
+
 class OmZMQProcessor:
     def __init__(self, db: AsyncDB) -> None:
         self._db = db
@@ -46,79 +92,11 @@ class OmZMQProcessor:
 
     async def init(self) -> None:
         async with self._db.begin() as conn:
-            attributi = {
-                k.name: k
-                for k in await self._db.retrieve_attributi(
-                    conn, associated_table=AssociatedTable.RUN
-                )
-            }
-            if ATTRIBUTO_NUMBER_OF_HITS not in attributi:
-                await self._db.create_attributo(
-                    conn,
-                    ATTRIBUTO_NUMBER_OF_HITS,
-                    "",
-                    "om",
-                    AssociatedTable.RUN,
-                    AttributoTypeInt(),
-                )
-            if ATTRIBUTO_NUMBER_OF_FRAMES not in attributi:
-                await self._db.create_attributo(
-                    conn,
-                    ATTRIBUTO_NUMBER_OF_FRAMES,
-                    "",
-                    "om",
-                    AssociatedTable.RUN,
-                    AttributoTypeInt(),
-                )
-            om_attributes_present_before = (
-                ATTRIBUTO_NUMBER_OF_OM_FRAMES in attributi
-                and ATTRIBUTO_NUMBER_OF_OM_HITS in attributi
+            await create_om_attributi(
+                self._db,
+                conn,
+                await self._db.retrieve_attributi(conn, AssociatedTable.RUN),
             )
-            non_om_attributes_present_before = (
-                ATTRIBUTO_NUMBER_OF_FRAMES in attributi
-                and ATTRIBUTO_NUMBER_OF_HITS in attributi
-            )
-            if ATTRIBUTO_NUMBER_OF_OM_FRAMES not in attributi:
-                await self._db.create_attributo(
-                    conn,
-                    ATTRIBUTO_NUMBER_OF_OM_FRAMES,
-                    "",
-                    "om",
-                    AssociatedTable.RUN,
-                    AttributoTypeInt(),
-                )
-            if ATTRIBUTO_NUMBER_OF_OM_HITS not in attributi:
-                await self._db.create_attributo(
-                    conn,
-                    ATTRIBUTO_NUMBER_OF_OM_HITS,
-                    "",
-                    "om",
-                    AssociatedTable.RUN,
-                    AttributoTypeInt(),
-                )
-            if not om_attributes_present_before and non_om_attributes_present_before:
-                logger.info("Updating older runs")
-                for run in await self._db.retrieve_runs(
-                    conn, await self._db.retrieve_attributi(conn, associated_table=None)
-                ):
-                    number_of_frames = run.attributi.select_int(
-                        ATTRIBUTO_NUMBER_OF_FRAMES
-                    )
-                    number_of_hits = run.attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS)
-                    if number_of_frames is not None and number_of_hits is not None:
-                        run.attributi.append_single(
-                            ATTRIBUTO_NUMBER_OF_OM_HITS, number_of_hits
-                        )
-                        run.attributi.append_single(
-                            ATTRIBUTO_NUMBER_OF_OM_FRAMES, number_of_frames
-                        )
-                        run.attributi.append_single(
-                            ATTRIBUTO_NUMBER_OF_FRAMES, int(number_of_frames * 9.6)
-                        )
-                        run.attributi.append_single(
-                            ATTRIBUTO_NUMBER_OF_HITS, int(number_of_hits * 9.6)
-                        )
-                    await self._db.update_run_attributi(conn, run.id, run.attributi)
 
     async def main_loop(self, zmq_context: Context, url: str, topic: str) -> None:
         logger.info("starting OM observer main loop...")
