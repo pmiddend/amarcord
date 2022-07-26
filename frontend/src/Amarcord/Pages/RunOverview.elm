@@ -1,6 +1,6 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRuns, httpUpdateRun, httpUserConfigurationSetAutoPilot, runFilterToString)
+import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, attributoTargetFrameCount, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
@@ -17,9 +17,10 @@ import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, posixDiffMinutes, scrollToTop)
+import Date exposing (Date)
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
-import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
+import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, name, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onEnter)
 import List exposing (head)
@@ -29,7 +30,7 @@ import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import Set exposing (Set)
 import String exposing (fromInt)
-import Time exposing (Posix, Zone, posixToMillis)
+import Time exposing (Posix, Weekday(..), Zone, posixToMillis)
 import Tuple exposing (first, second)
 
 
@@ -54,6 +55,8 @@ type Msg
     | CreateDataSetFromRun String Int
     | CreateDataSetFromRunFinished (Result RequestError ())
     | ChangeCurrentExperimentTypeFinished (Maybe String) (Result RequestError ())
+    | ResetDate
+    | SetRunDateFilter RunEventDate
 
 
 type alias EventForm =
@@ -81,6 +84,10 @@ type alias RunFilterInfo =
     }
 
 
+type alias RunDateFilterInfo =
+    { runDateFilter : RunEventDateFilter }
+
+
 type RunFilterMsg
     = RunFilterEdit String
     | RunFilterReset
@@ -92,6 +99,11 @@ initRunFilter =
     { runFilter = emptyRunFilter
     , nextRunFilter = ""
     , runFilterRequest = NotAsked
+    }
+
+
+initRunDateFilter =
+    { runDateFilter = emptyRunEventDateFilter
     }
 
 
@@ -141,7 +153,7 @@ updateRunFilter model msg =
             ( { model | nextRunFilter = runFilterToString model.runFilter, runFilterRequest = NotAsked }, Cmd.none )
 
         RunFilterSubmit ->
-            ( { model | runFilterRequest = Loading }, httpGetRuns (RunFilter model.nextRunFilter) RunFilterSubmitFinished )
+            ( { model | runFilterRequest = Loading }, httpGetRunsFilter (RunFilter model.nextRunFilter) emptyRunEventDateFilter RunFilterSubmitFinished )
 
         RunFilterSubmitFinished response ->
             case response of
@@ -158,6 +170,8 @@ type alias Model =
     , refreshRequest : RemoteData RequestError ()
     , eventForm : EventForm.Model
     , now : Posix
+    , runDateFilter : RunDateFilterInfo
+    , runDates : List RunEventDate
     , runEditInfo : Maybe RunEditInfo
     , runEditRequest : RemoteData RequestError ()
     , runFilter : RunFilterInfo
@@ -178,6 +192,8 @@ init { zone, now } localStorage =
       , refreshRequest = NotAsked
       , eventForm = EventForm.init
       , now = now
+      , runDates = []
+      , runDateFilter = initRunDateFilter
       , runEditInfo = Nothing
       , runEditRequest = NotAsked
       , runFilter = initRunFilter
@@ -189,7 +205,7 @@ init { zone, now } localStorage =
       , dataSetFromRunRequest = NotAsked
       , changeExperimentTypeRequest = NotAsked
       }
-    , httpGetRuns emptyRunFilter RunsReceived
+    , httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived
     )
 
 
@@ -728,46 +744,120 @@ viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditReq
 
 viewInner : Model -> RunsResponseContent -> List (Html Msg)
 viewInner model rrc =
-    [ div [ class "container" ]
-        [ div
-            [ class "row" ]
-            [ div [ class "col-lg-6" ]
-                (viewCurrentRun model.myTimeZone model.now model.selectedExperimentType model.currentExperimentType model.changeExperimentTypeRequest model.dataSetFromRunRequest rrc)
-            , div [ class "col-lg-6" ]
-                (viewRunAttributiForm
-                    (Maybe.andThen (\a -> Dict.get a rrc.experimentTypes) model.currentExperimentType)
-                    (head rrc.runs)
-                    model.submitErrors
-                    model.runEditRequest
-                    rrc.samples
-                    model.runEditInfo
-                )
-            ]
-        ]
-    , hr_
-    , Html.map EventFormMsg (EventForm.view model.eventForm)
-    , hr_
-    , case rrc.jetStreamFileId of
-        Nothing ->
-            Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
-
-        Just jetStreamId ->
-            div [ class "row" ]
-                [ div [ class "col-lg-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
-                , div [ class "col-lg-6 text-center" ]
-                    [ figure [ class "figure" ]
-                        [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
-                        , figcaption [ class "figure-caption" ]
-                            [ text "Live stream image"
-                            ]
-                        ]
+    List.concat
+        [ [ div [ class "container" ]
+                [ div
+                    [ class "row" ]
+                    [ div [ class "col-lg-6" ]
+                        (viewCurrentRun model.myTimeZone model.now model.selectedExperimentType model.currentExperimentType model.changeExperimentTypeRequest model.dataSetFromRunRequest rrc)
+                    , div [ class "col-lg-6" ]
+                        (viewRunAttributiForm
+                            (Maybe.andThen (\a -> Dict.get a rrc.experimentTypes) model.currentExperimentType)
+                            (head rrc.runs)
+                            model.submitErrors
+                            model.runEditRequest
+                            rrc.samples
+                            model.runEditInfo
+                        )
                     ]
                 ]
-    , hr_
-    , Html.map RunFilterSubMsg <| viewRunFilter model.runFilter
-    , hr_
-    , div [ class "row" ] [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ], viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc ]
+          , hr_
+          , Html.map EventFormMsg (EventForm.view model.eventForm)
+          , hr_
+          , case rrc.jetStreamFileId of
+                Nothing ->
+                    Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
+
+                Just jetStreamId ->
+                    div [ class "row" ]
+                        [ div [ class "col-lg-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
+                        , div [ class "col-lg-6 text-center" ]
+                            [ figure [ class "figure" ]
+                                [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
+                                , figcaption [ class "figure-caption" ]
+                                    [ text "Live stream image"
+                                    ]
+                                ]
+                            ]
+                        ]
+          , hr_
+          , Html.map RunFilterSubMsg <| viewRunFilter model.runFilter
+          ]
+        , runDatesGroup model
+        , [ hr_
+          , div [ class "row" ]
+                [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ]
+                , viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc
+                ]
+          ]
+        ]
+
+
+runDatesGroup : Model -> List (Html Msg)
+runDatesGroup model =
+    if List.isEmpty model.runDates then
+        []
+
+    else
+        [ div [ class "btn-group" ] (dateFilterButtons model) ]
+
+
+runDateFilterIsNothing : RunEventDateFilter -> Bool
+runDateFilterIsNothing rdf =
+    case runEventDateFilter rdf of
+        Nothing ->
+            True
+
+        Maybe.Just _ ->
+            False
+
+
+dateEqualsDateInFilter : RunEventDate -> RunEventDateFilter -> Bool
+dateEqualsDateInFilter rd rdf =
+    case runEventDateFilter rdf of
+        Nothing ->
+            False
+
+        Maybe.Just a ->
+            a == rd
+
+
+dateFilterButtons : Model -> List (Html Msg)
+dateFilterButtons model =
+    List.concat
+        [ [ input_
+                [ type_ "radio"
+                , class "btn-check"
+                , id "all_dates"
+                , checked
+                    (runDateFilterIsNothing model.runDateFilter.runDateFilter)
+                , onClick ResetDate
+                ]
+          , label [ class "btn btn-outline-primary", for "all_dates" ] [ text "All dates" ]
+          ]
+        , List.concatMap (dateRadioOption model) model.runDates
+        ]
+
+
+dateRadioOption : Model -> RunEventDate -> List (Html Msg)
+dateRadioOption model runEventDate =
+    [ input_ [ type_ "radio", class "btn-check", id ("filter" ++ runEventDateToString runEventDate), checked (dateEqualsDateInFilter runEventDate model.runDateFilter.runDateFilter), onClick (SetRunDateFilter runEventDate) ]
+    , label [ class "btn btn-outline-primary", for ("filter" ++ runEventDateToString runEventDate) ] [ text (formattedOrEmptyDate runEventDate) ]
     ]
+
+
+formattedOrEmptyDate : RunEventDate -> String
+formattedOrEmptyDate runEventDate =
+    let
+        date =
+            runEventDateToString runEventDate
+    in
+    case Date.fromIsoString date of
+        Ok v ->
+            Date.format "EE, d MMM y" v
+
+        Err _ ->
+            "Unreadable date <" ++ date ++ ">"
 
 
 view : Model -> Html Msg
@@ -844,9 +934,42 @@ updateColumnChooser localStorage ccm currentRuns runsResponse =
             ColumnChooser.init localStorage []
 
 
+extractRunDates : RunsResponse -> List RunEventDate
+extractRunDates runDates =
+    case runDates of
+        Err _ ->
+            []
+
+        Ok values ->
+            values.runsDates
+
+
+updateRunDateFilter : RunDateFilterInfo -> RunEventDate -> RunDateFilterInfo
+updateRunDateFilter runDateFilterInfo runDate =
+    { runDateFilterInfo | runDateFilter = specificRunEventDateFilter runDate }
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ResetDate ->
+            ( { model
+                | runDateFilter = initRunDateFilter
+              }
+            , httpGetRunsFilter model.runFilter.runFilter initRunDateFilter.runDateFilter RunsReceived
+            )
+
+        SetRunDateFilter runDate ->
+            let
+                newRunDateFilter =
+                    updateRunDateFilter model.runDateFilter runDate
+            in
+            ( { model
+                | runDateFilter = newRunDateFilter
+              }
+            , httpGetRunsFilter model.runFilter.runFilter newRunDateFilter.runDateFilter RunsReceived
+            )
+
         RunsReceived response ->
             let
                 hasLiveStream =
@@ -862,6 +985,7 @@ update msg model =
             in
             ( { model
                 | runs = fromResult response
+                , runDates = extractRunDates response
                 , runEditInfo = updateRunEditInfo model.myTimeZone model.runEditInfo response
                 , columnChooser = updateColumnChooser model.localStorage model.columnChooser model.runs response
                 , eventForm = newEventForm
@@ -898,7 +1022,7 @@ update msg model =
                     ( model, Cmd.none )
 
                 _ ->
-                    ( { model | refreshRequest = Loading, now = now }, httpGetRuns model.runFilter.runFilter RunsReceived )
+                    ( { model | refreshRequest = Loading, now = now }, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
 
         EventFormMsg eventFormMsg ->
             let
@@ -909,7 +1033,7 @@ update msg model =
             , Cmd.batch
                 ((case eventFormMsg of
                     EventForm.SubmitFinished _ ->
-                        httpGetRuns model.runFilter.runFilter RunsReceived
+                        httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
 
                     _ ->
                         Cmd.none
@@ -924,7 +1048,7 @@ update msg model =
         EventDeleteFinished result ->
             case result of
                 Ok _ ->
-                    ( model, httpGetRuns model.runFilter.runFilter RunsReceived )
+                    ( model, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
 
                 _ ->
                     ( model, Cmd.none )
@@ -987,11 +1111,15 @@ update msg model =
                                     , initiatedManually = False
                                     }
                             in
-                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Maybe.map resetEditedFlags model.runEditInfo }, httpGetRuns model.runFilter.runFilter RunsReceived )
+                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Maybe.map resetEditedFlags model.runEditInfo }
+                            , httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
+                            )
 
                         _ ->
                             -- Super unlikely case, we don't really have a successful runs request, after finishing editing a run?
-                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Nothing }, httpGetRuns model.runFilter.runFilter RunsReceived )
+                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Nothing }
+                            , httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
+                            )
 
         RunInitiateEdit run ->
             case model.runs of
@@ -1044,13 +1172,13 @@ update msg model =
             ( model, httpUserConfigurationSetAutoPilot AutoPilotToggled newValue )
 
         AutoPilotToggled _ ->
-            ( model, httpGetRuns model.runFilter.runFilter RunsReceived )
+            ( model, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
 
         CreateDataSetFromRun experimentType runId ->
             ( { model | dataSetFromRunRequest = Loading }, httpCreateDataSetFromRun CreateDataSetFromRunFinished experimentType runId )
 
         CreateDataSetFromRunFinished result ->
-            ( { model | dataSetFromRunRequest = fromResult result }, httpGetRuns model.runFilter.runFilter RunsReceived )
+            ( { model | dataSetFromRunRequest = fromResult result }, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
 
         ChangeCurrentExperimentType ->
             case model.runEditInfo of
@@ -1058,11 +1186,13 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just ei ->
-                    ( { model | changeExperimentTypeRequest = Loading }, httpChangeCurrentExperimentType (ChangeCurrentExperimentTypeFinished model.selectedExperimentType) model.selectedExperimentType ei.runId )
+                    ( { model | changeExperimentTypeRequest = Loading }
+                    , httpChangeCurrentExperimentType (ChangeCurrentExperimentTypeFinished model.selectedExperimentType) model.selectedExperimentType ei.runId
+                    )
 
         ChangeCurrentExperimentTypeFinished selectedExperimentType result ->
             ( { model | changeExperimentTypeRequest = fromResult result, currentExperimentType = selectedExperimentType }
-            , httpGetRuns model.runFilter.runFilter RunsReceived
+            , httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
             )
 
         RunFilterSubMsg runFilterMsg ->

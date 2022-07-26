@@ -1,9 +1,11 @@
+import datetime
+
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.cli.webserver import app, db
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
-from amarcord.json_types import JSONDict
 from amarcord.json_checker import JSONChecker
+from amarcord.json_types import JSONDict
 
 IN_MEMORY_DB_URL = "sqlite+aiosqlite://"
 
@@ -184,6 +186,48 @@ async def test_start_and_stop_runs() -> None:
     assert len(runs_response_json["runs"]) == 1
     stopped = runs_response_json["runs"][0]["attributi"][ATTRIBUTO_STOPPED] is not None
     assert stopped is not None
+
+
+async def test_filter_runs_by_started_date() -> None:
+    app.config.update(
+        {
+            "DB_URL": "sqlite+aiosqlite://",
+            "DB_ECHO": False,
+            "HAS_ARTIFICIAL_DELAY": False,
+        },
+    )
+    await db.initialize_db()
+    client = app.test_client()
+
+    # Start run 1
+    await client.get("/api/runs/1/start")
+
+    runs_response = await client.get("/api/runs")
+    runs_response_json = await runs_response.json
+
+    assert "runs" in runs_response_json
+    assert len(runs_response_json["runs"]) == 1
+    assert runs_response_json["runs"][0]["attributi"][ATTRIBUTO_STARTED] is not None
+    assert ATTRIBUTO_STOPPED not in runs_response_json["runs"][0]["attributi"]
+
+    # Stop the run
+    await client.get("/api/runs/stop-latest")
+
+    runs_response = await client.get("/api/runs")
+    runs_response_json = await runs_response.json
+
+    assert "runs" in runs_response_json
+    assert len(runs_response_json["runs"]) == 1
+    stopped = runs_response_json["runs"][0]["attributi"][ATTRIBUTO_STOPPED] is not None
+    assert stopped is not None
+    assert runs_response_json["filter-dates"] == [
+        datetime.date.today().strftime("%Y-%m-%d")
+    ]
+
+    # get the (non-existing) runs from another day
+    runs_filtered_response = await client.get("/api/runs?date=2000-01-01")
+    runs_filtered_response_json = await runs_filtered_response.json
+    assert len(runs_filtered_response_json["runs"]) == 0
 
 
 async def test_attributi_are_presorted() -> None:

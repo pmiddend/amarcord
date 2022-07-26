@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import cast, Final, Any
+from typing import cast, Final, Any, Set
 from zipfile import ZipFile
 
 import quart
@@ -55,9 +55,9 @@ from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
 from amarcord.filter_expression import compile_run_filter, FilterInput, FilterParseError
-from amarcord.json_types import JSONDict
 from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import parse_schema_type, coparse_schema_type
+from amarcord.json_types import JSONDict
 from amarcord.quart_utils import CustomJSONEncoder, CustomWebException
 from amarcord.quart_utils import QuartDatabases
 from amarcord.quart_utils import handle_exception
@@ -65,6 +65,7 @@ from amarcord.quart_utils import quart_safe_json_dict
 from amarcord.util import group_by, create_intervals
 
 AUTO_PILOT: Final = "auto-pilot"
+DATE_FORMAT: Final = "%Y-%m-%d"
 
 app = Quart(
     __name__,
@@ -440,6 +441,29 @@ async def update_runs_bulk() -> JSONDict:
         return {}
 
 
+def extract_runs_and_event_dates(runs: list[DBRun], events: list[DBEvent]) -> list[str]:
+    set_of_dates: Set[str] = set()
+    for run in runs:
+        started_date = run.attributi.select_datetime(ATTRIBUTO_STARTED)
+        if started_date is not None:
+            set_of_dates.add(started_date.strftime(DATE_FORMAT))
+    for event in events:
+        set_of_dates.add(event.created.strftime(DATE_FORMAT))
+
+    return sorted(set_of_dates, reverse=True)
+
+
+def run_has_started_date(run: DBRun, date_filter: str) -> bool:
+    started = run.attributi.select_datetime(ATTRIBUTO_STARTED)
+    if started is not None:
+        return started.strftime(DATE_FORMAT) == date_filter
+    return True
+
+
+def event_has_date(event: DBEvent, date_filter: str) -> bool:
+    return event.created.strftime(DATE_FORMAT) == date_filter
+
+
 @app.get("/api/runs")
 async def read_runs() -> JSONDict:
     async with db.instance.read_only_connection() as conn:
@@ -450,19 +474,35 @@ async def read_runs() -> JSONDict:
         data_sets = await db.instance.retrieve_data_sets(
             conn, [s.id for s in samples], attributi
         )
+        all_runs = await db.instance.retrieve_runs(conn, attributi)
+        all_events = await db.instance.retrieve_events(conn)
+
         try:
             run_filter = compile_run_filter(request.args.get("filter", ""))
             runs = [
-                r
-                for r in await db.instance.retrieve_runs(conn, attributi)
+                run
+                for run in all_runs
                 if run_filter(
-                    FilterInput(run=r, sample_names={s.name: s.id for s in samples})
+                    FilterInput(run=run, sample_names={s.name: s.id for s in samples})
                 )
             ]
         except FilterParseError as e:
             raise CustomWebException(
                 code=200, title="Error in filter string", description=str(e)
             )
+
+        date_filter = request.args.get("date", "").strip()
+        runs = (
+            [run for run in runs if run_has_started_date(run, date_filter)]
+            if date_filter
+            else runs
+        )
+        events = (
+            [event for event in all_events if event_has_date(event, date_filter)]
+            if date_filter
+            else all_events
+        )
+
         data_set_id_to_grouped: dict[int, DataSetSummary] = {}
         for ds in data_sets:
             matching_runs = [
@@ -476,6 +516,7 @@ async def read_runs() -> JSONDict:
             "live-stream-file-id": await db.instance.retrieve_file_id_by_name(
                 conn, LIVE_STREAM_IMAGE
             ),
+            "filter-dates": extract_runs_and_event_dates(all_runs, all_events),
             "runs": [
                 {
                     "id": r.id,
@@ -501,9 +542,7 @@ async def read_runs() -> JSONDict:
                 _encode_data_set(a, data_set_id_to_grouped.get(a.id, None))
                 for a in data_sets
             ],
-            "events": [
-                _encode_event(e) for e in await db.instance.retrieve_events(conn)
-            ],
+            "events": [_encode_event(e) for e in events],
             "samples": [_encode_sample(a) for a in samples],
             "auto-pilot": (await db.instance.retrieve_configuration(conn)).auto_pilot,
         }

@@ -1,9 +1,9 @@
 module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (RequestError, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunFilter, httpGetRuns, httpStartRun, httpStopRun)
+import Amarcord.API.Requests exposing (RequestError, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpGetRunsFilter, httpStartRun, httpStopRun)
 import Amarcord.Attributo exposing (attributoStopped, retrieveAttributoValue)
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Html exposing (h2_, hr_, input_, p_)
+import Amarcord.Html exposing (h2_, hr_, input_)
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow)
 import Html exposing (Html, a, button, div, form, h2, label, p, text)
@@ -46,7 +46,7 @@ init hereAndNow =
       , manualChange = False
       , bulkUpdateModel = RunsBulkUpdate.init hereAndNow
       }
-    , httpGetRuns emptyRunFilter RunsReceived
+    , httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived
     )
 
 
@@ -108,7 +108,7 @@ update msg model =
             )
 
         Refresh _ ->
-            ( { model | refreshRequest = Loading }, httpGetRuns emptyRunFilter RunsReceived )
+            ( { model | refreshRequest = Loading }, httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived )
 
         RunIdChanged int ->
             case int of
@@ -125,10 +125,10 @@ update msg model =
             ( { model | startOrStopRequest = Loading, manualChange = False }, httpStopRun StopRunFinished )
 
         StartRunFinished result ->
-            ( { model | startOrStopRequest = fromResult result }, httpGetRuns emptyRunFilter RunsReceived )
+            ( { model | startOrStopRequest = fromResult result }, httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived )
 
         StopRunFinished result ->
-            ( { model | startOrStopRequest = fromResult result }, httpGetRuns emptyRunFilter RunsReceived )
+            ( { model | startOrStopRequest = fromResult result }, httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived )
 
         RunsBulkUpdateMsg msgInner ->
             let

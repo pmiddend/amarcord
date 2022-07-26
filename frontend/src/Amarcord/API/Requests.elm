@@ -12,12 +12,15 @@ module Amarcord.API.Requests exposing
     , LatestDark
     , RequestError(..)
     , Run
+    , RunEventDate
+    , RunEventDateFilter(..)
     , RunFilter(..)
     , RunsBulkGetResponse
     , RunsResponse
     , RunsResponseContent
     , SamplesResponse
     , StandardUnitCheckResult(..)
+    , emptyRunEventDateFilter
     , emptyRunFilter
     , httpChangeCurrentExperimentType
     , httpCheckStandardUnit
@@ -40,8 +43,8 @@ module Amarcord.API.Requests exposing
     , httpGetConfig
     , httpGetDataSets
     , httpGetExperimentTypes
-    , httpGetRuns
     , httpGetRunsBulk
+    , httpGetRunsFilter
     , httpGetSamples
     , httpStartRun
     , httpStopRun
@@ -49,7 +52,10 @@ module Amarcord.API.Requests exposing
     , httpUpdateRunsBulk
     , httpUpdateSample
     , httpUserConfigurationSetAutoPilot
+    , runEventDateFilter
+    , runEventDateToString
     , runFilterToString
+    , specificRunEventDateFilter
     )
 
 import Amarcord.AssociatedTable as AssociatedTable
@@ -387,6 +393,7 @@ latestDarkDecoder =
 
 type alias RunsResponseContent =
     { runs : List Run
+    , runsDates : List RunEventDate
     , latestDark : Maybe LatestDark
     , attributi : List (Attributo AttributoType)
     , events : List Event
@@ -440,15 +447,59 @@ runFilterToString (RunFilter s) =
     s
 
 
-httpGetRuns : RunFilter -> (RunsResponse -> msg) -> Cmd msg
-httpGetRuns (RunFilter filter) f =
+type RunEventDate
+    = RunEventDate String
+
+
+type RunEventDateFilter
+    = RunEventDateFilter (Maybe RunEventDate)
+
+
+emptyRunEventDateFilter : RunEventDateFilter
+emptyRunEventDateFilter =
+    RunEventDateFilter Nothing
+
+
+specificRunEventDateFilter : RunEventDate -> RunEventDateFilter
+specificRunEventDateFilter rd =
+    RunEventDateFilter (Just rd)
+
+
+runEventDateFilter : RunEventDateFilter -> Maybe RunEventDate
+runEventDateFilter (RunEventDateFilter rdf) =
+    case rdf of
+        Nothing ->
+            Nothing
+
+        Just rd ->
+            Just rd
+
+
+maybeRunEventDateToString : Maybe RunEventDate -> String
+maybeRunEventDateToString rd =
+    case rd of
+        Nothing ->
+            ""
+
+        Just (RunEventDate s) ->
+            s
+
+
+runEventDateToString : RunEventDate -> String
+runEventDateToString (RunEventDate s) =
+    s
+
+
+getRuns : String -> (RunsResponse -> msg) -> Cmd msg
+getRuns path f =
     Http.get
-        { url = "api/runs?filter=" ++ filter
+        { url = path
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError
                     (Decode.succeed RunsResponseContent
                         |> required "runs" (Decode.list runDecoder)
+                        |> required "filter-dates" (Decode.list decodeRunEventDate)
                         |> required "latest-dark" (Decode.maybe latestDarkDecoder)
                         |> required "attributi" (Decode.list (attributoDecoder attributoTypeDecoder))
                         |> required "events" (Decode.list eventDecoder)
@@ -459,6 +510,11 @@ httpGetRuns (RunFilter filter) f =
                         |> required "live-stream-file-id" (Decode.maybe Decode.int)
                     )
         }
+
+
+httpGetRunsFilter : RunFilter -> RunEventDateFilter -> (RunsResponse -> msg) -> Cmd msg
+httpGetRunsFilter (RunFilter filter) redf f =
+    getRuns ("api/runs?filter=" ++ filter ++ "&date=" ++ maybeRunEventDateToString (runEventDateFilter redf)) f
 
 
 type alias RunsResponse =
@@ -522,6 +578,11 @@ runDecoder =
 decodePosix : Decode.Decoder Posix
 decodePosix =
     Decode.map millisToPosix Decode.int
+
+
+decodeRunEventDate : Decode.Decoder RunEventDate
+decodeRunEventDate =
+    Decode.map RunEventDate Decode.string
 
 
 eventDecoder : Decode.Decoder Event
