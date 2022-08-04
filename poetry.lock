@@ -512,9 +512,9 @@ optional = false
 python-versions = "*"
 
 [package.extras]
-atomic_cache = ["atomicwrites"]
-nearley = ["js2py"]
 regex = ["regex"]
+nearley = ["js2py"]
+atomic_cache = ["atomicwrites"]
 
 [[package]]
 name = "lazy-object-proxy"
@@ -750,8 +750,8 @@ optional = false
 python-versions = ">=3.6"
 
 [package.extras]
-dev = ["pre-commit", "tox"]
-testing = ["pytest", "pytest-benchmark"]
+testing = ["pytest-benchmark", "pytest"]
+dev = ["tox", "pre-commit"]
 
 [[package]]
 name = "priority"
@@ -832,8 +832,8 @@ optional = false
 python-versions = ">=3.6"
 
 [package.extras]
-ed25519 = ["PyNaCl (>=1.4.0)"]
 rsa = ["cryptography"]
+ed25519 = ["PyNaCl (>=1.4.0)"]
 
 [[package]]
 name = "pyparsing"
@@ -1261,7 +1261,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8, <3.11"
-content-hash = "4ba3027c893663259f81f101055b2bacbd81989ce01ebcb366f90c33f9c6985f"
+content-hash = "c68c707b440c3e2db760e50dd3309bef4acd9531e37cb71f7b57c985a47f8151"
 
 [metadata.files]
 aiofiles = [

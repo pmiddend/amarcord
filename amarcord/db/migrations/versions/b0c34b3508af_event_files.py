@@ -5,9 +5,8 @@ Revises: f60b739624ae
 Create Date: 2022-03-31 13:49:11.899040
 
 """
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 from sqlalchemy import ForeignKey

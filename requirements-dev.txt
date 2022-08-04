@@ -35,7 +35,7 @@ importlib-metadata==4.12.0; python_version < "3.9" and python_version >= "3.7"
 importlib-resources==5.8.0; python_version < "3.9" and python_version >= "3.7"
 iniconfig==1.1.1; python_version >= "3.7" and python_full_version < "3.0.0" or python_full_version >= "3.5.0" and python_version >= "3.7"
 isodate==0.6.1
-isort==5.10.1; python_full_version >= "3.7.2" and python_version < "3.11" and python_version >= "3.8"
+isort==5.10.1; python_full_version >= "3.6.1" and python_version < "4.0"
 itsdangerous==2.1.2; python_version >= "3.7" and python_full_version >= "3.7.0"
 jinja2==3.1.2; python_version >= "3.7" and python_full_version >= "3.7.0"
 karabo-bridge==0.6.1

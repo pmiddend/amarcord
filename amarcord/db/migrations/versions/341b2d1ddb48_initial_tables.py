@@ -9,10 +9,11 @@ Create Date: 2022-03-23 16:33:43.172942
 from enum import Enum
 
 import sqlalchemy as sa
-from sqlalchemy import String, ForeignKey
-from sqlalchemy.sql import table, column
 from alembic import op
-
+from sqlalchemy import ForeignKey
+from sqlalchemy import String
+from sqlalchemy.sql import column
+from sqlalchemy.sql import table
 
 # revision identifiers, used by Alembic.
 revision = "341b2d1ddb48"

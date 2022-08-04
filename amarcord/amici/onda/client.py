@@ -6,10 +6,8 @@ import msgpack
 import zmq
 from zmq.asyncio import Context
 
-from amarcord.amici.om.client import (
-    ATTRIBUTO_NUMBER_OF_HITS,
-    ATTRIBUTO_NUMBER_OF_FRAMES,
-)
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STOPPED

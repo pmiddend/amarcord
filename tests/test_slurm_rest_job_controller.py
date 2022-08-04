@@ -1,5 +1,4 @@
 from datetime import timedelta
-
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -7,15 +6,13 @@ from typing import cast
 import pytest
 from pytest_subprocess import FakeProcess
 
-from amarcord.json_types import JSONDict
 from amarcord.amici.slurm.job_status import JobStatus
-from amarcord.amici.slurm.slurm_rest_job_controller import (
-    DynamicTokenRetriever,
-    slurm_token_command,
-)
+from amarcord.amici.slurm.slurm_rest_job_controller import DynamicTokenRetriever
 from amarcord.amici.slurm.slurm_rest_job_controller import SlurmHttpWrapper
 from amarcord.amici.slurm.slurm_rest_job_controller import SlurmRestJobController
 from amarcord.amici.slurm.slurm_rest_job_controller import retrieve_jwt_token
+from amarcord.amici.slurm.slurm_rest_job_controller import slurm_token_command
+from amarcord.json_types import JSONDict
 
 _TEST_USER_ID = 1
 _TIME_LIMIT = timedelta(minutes=60)

@@ -1,11 +1,13 @@
 import json
-from enum import Enum, auto
+from enum import Enum
+from enum import auto
 from typing import Any
 
 from sqlalchemy import MetaData
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import StaticPool
 
 Connection = Any
 

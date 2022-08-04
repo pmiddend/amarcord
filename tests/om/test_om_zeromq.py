@@ -1,11 +1,9 @@
 from datetime import datetime
 
-from amarcord.amici.om.client import (
-    OmZMQProcessor,
-    ATTRIBUTO_STOPPED,
-    ATTRIBUTO_NUMBER_OF_OM_FRAMES,
-    ATTRIBUTO_NUMBER_OF_OM_HITS,
-)
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_FRAMES
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_HITS
+from amarcord.amici.om.client import ATTRIBUTO_STOPPED
+from amarcord.amici.om.client import OmZMQProcessor
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB

@@ -6,7 +6,8 @@ from time import time
 from urllib.parse import unquote
 
 import aiohttp
-from pint import UnitRegistry, Quantity
+from pint import Quantity
+from pint import UnitRegistry
 
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.event_log_level import EventLogLevel

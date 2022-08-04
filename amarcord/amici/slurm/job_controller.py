@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Iterable
 from typing import Protocol
 
-from amarcord.amici.slurm.job import Job, JobMetadata
+from amarcord.amici.slurm.job import Job
+from amarcord.amici.slurm.job import JobMetadata
 
 
 @dataclass(frozen=True)

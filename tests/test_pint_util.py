@@ -1,7 +1,8 @@
 from pint import UnitRegistry
 
 from amarcord.db.attributo_type import AttributoTypeDecimal
-from amarcord.pint_util import pint_quantity_to_attributo_type, valid_pint_unit
+from amarcord.pint_util import pint_quantity_to_attributo_type
+from amarcord.pint_util import valid_pint_unit
 
 
 def test_pint_quantity_to_attributo_type() -> None:

@@ -3,17 +3,13 @@ from pathlib import Path
 import h5py
 import pytest
 
-from amarcord.amici.om.client import (
-    ATTRIBUTO_NUMBER_OF_FRAMES,
-    ATTRIBUTO_NUMBER_OF_OM_HITS,
-    ATTRIBUTO_NUMBER_OF_HITS,
-    ATTRIBUTO_NUMBER_OF_OM_FRAMES,
-)
-from amarcord.amici.p11.frame_calculation import (
-    update_frames_in_run,
-    retrieve_frames_for_data_file,
-    retrieve_frames_for_raw_file_glob,
-)
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_FRAMES
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_HITS
+from amarcord.amici.p11.frame_calculation import retrieve_frames_for_data_file
+from amarcord.amici.p11.frame_calculation import retrieve_frames_for_raw_file_glob
+from amarcord.amici.p11.frame_calculation import update_frames_in_run
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_type import AttributoTypeInt

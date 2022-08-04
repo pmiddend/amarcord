@@ -6,11 +6,9 @@ from pathlib import Path
 from tap import Tap
 
 from amarcord.amici.slurm.job_status import JobStatus
-from amarcord.amici.slurm.slurm_rest_job_controller import (
-    SlurmRestJobController,
-    DynamicTokenRetriever,
-    retrieve_jwt_token,
-)
+from amarcord.amici.slurm.slurm_rest_job_controller import DynamicTokenRetriever
+from amarcord.amici.slurm.slurm_rest_job_controller import SlurmRestJobController
+from amarcord.amici.slurm.slurm_rest_job_controller import retrieve_jwt_token
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO

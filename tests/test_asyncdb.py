@@ -8,20 +8,19 @@ from sqlalchemy.exc import StatementError
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.asyncdb import AsyncDB, ATTRIBUTO_GROUP_MANUAL, create_workbook
-from amarcord.db.attributi import (
-    AttributoConversionFlags,
-    ATTRIBUTO_STARTED,
-    ATTRIBUTO_STOPPED,
-)
-from amarcord.db.attributi_map import AttributiMap, JsonAttributiMap
+from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.asyncdb import create_workbook
+from amarcord.db.attributi import ATTRIBUTO_STARTED
+from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.attributi import AttributoConversionFlags
+from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributi_map import JsonAttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoTypeInt,
-    AttributoTypeString,
-    AttributoTypeSample,
-    AttributoTypeDecimal,
-)
+from amarcord.db.attributo_type import AttributoTypeDecimal
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel

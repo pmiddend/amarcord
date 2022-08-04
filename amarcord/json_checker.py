@@ -1,7 +1,9 @@
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
+from typing import TypeVar
 
-from amarcord.json_types import JSONDict, JSONArray
+from amarcord.json_types import JSONArray
+from amarcord.json_types import JSONDict
 
 T = TypeVar("T")
 

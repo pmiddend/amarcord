@@ -10,6 +10,10 @@ pylint:
   script:
     - nix-shell default.nix -A pythonPackage --run "pylint amarcord tests"
 
+isort:
+  script:
+    - nix-shell default.nix -A pythonPackage --run "isort --check amarcord tests"
+
 check-shell-scripts:
    script:
      - nix-shell -p shellcheck --run "shellcheck ci/*.sh"

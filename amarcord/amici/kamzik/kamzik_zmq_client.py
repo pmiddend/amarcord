@@ -4,7 +4,8 @@ import logging
 import pickle
 from asyncio import FIRST_COMPLETED
 from base64 import b64decode
-from typing import Final, Any
+from typing import Any
+from typing import Final
 
 import numpy as np
 import zmq
@@ -15,15 +16,13 @@ from zmq.utils.monitor import parse_monitor_message
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import (
-    schema_to_attributo_type,
-    attributo_types_semantically_equivalent,
-)
+from amarcord.db.attributi import attributo_types_semantically_equivalent
+from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.json_types import JSONDict
 from amarcord.json_schema import parse_schema_type
+from amarcord.json_types import JSONDict
 
 _METADATA: Final = "Metadata"
 KAMZIK_ATTRIBUTO_GROUP: Final = "kamzik"

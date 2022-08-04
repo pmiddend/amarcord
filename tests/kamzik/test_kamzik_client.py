@@ -5,11 +5,9 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import attributo_type_to_schema
-from amarcord.db.attributo_type import (
-    AttributoTypeInt,
-    AttributoType,
-    AttributoTypeString,
-)
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.json_schema import coparse_schema_type

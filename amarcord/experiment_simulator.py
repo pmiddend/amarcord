@@ -10,32 +10,28 @@ from tap import Tap
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
-from amarcord.db.asyncdb import (
-    AsyncDB,
-    ATTRIBUTO_GROUP_MANUAL,
-)
-from amarcord.db.attributi import (
-    ATTRIBUTO_STARTED,
-    ATTRIBUTO_STOPPED,
-)
-from amarcord.db.attributi_map import AttributiMap, UntypedAttributiMap
+from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.attributi import ATTRIBUTO_STARTED
+from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributi_map import UntypedAttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoTypeInt,
-    AttributoTypeChoice,
-    AttributoTypeSample,
-    AttributoTypeString,
-    AttributoTypeBoolean,
-    AttributoTypeDecimal,
-    AttributoTypeDateTime,
-    AttributoType,
-    AttributoTypeList,
-)
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDecimal
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.table_classes import DBRun, DBFileBlueprint
+from amarcord.db.table_classes import DBFileBlueprint
+from amarcord.db.table_classes import DBRun
 from amarcord.numeric_range import NumericRange
 from amarcord.util import safe_max
 

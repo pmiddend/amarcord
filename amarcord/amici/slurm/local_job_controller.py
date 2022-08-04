@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Iterable
 from typing import TypedDict
 
-from amarcord.amici.slurm.job import JobMetadata, Job
-from amarcord.amici.slurm.job_controller import JobStartResult, JobController
+from amarcord.amici.slurm.job import Job
+from amarcord.amici.slurm.job import JobMetadata
+from amarcord.amici.slurm.job_controller import JobController
+from amarcord.amici.slurm.job_controller import JobStartResult
 from amarcord.amici.slurm.job_status import JobStatus
 from amarcord.json_types import JSONDict
 

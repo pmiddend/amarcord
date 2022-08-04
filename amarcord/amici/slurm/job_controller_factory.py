@@ -5,12 +5,10 @@ from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
 from amarcord.amici.slurm.job_controller import JobController
-from amarcord.amici.slurm.slurm_rest_job_controller import (
-    ConstantTokenRetriever,
-    TokenRetriever,
-)
+from amarcord.amici.slurm.slurm_rest_job_controller import ConstantTokenRetriever
 from amarcord.amici.slurm.slurm_rest_job_controller import DynamicTokenRetriever
 from amarcord.amici.slurm.slurm_rest_job_controller import SlurmRestJobController
+from amarcord.amici.slurm.slurm_rest_job_controller import TokenRetriever
 from amarcord.amici.slurm.slurm_rest_job_controller import retrieve_jwt_token
 
 

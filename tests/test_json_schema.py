@@ -1,19 +1,17 @@
 import pytest
 
+from amarcord.json_schema import JSONSchemaArray
+from amarcord.json_schema import JSONSchemaBoolean
+from amarcord.json_schema import JSONSchemaCustomIntegerFormat
+from amarcord.json_schema import JSONSchemaInteger
+from amarcord.json_schema import JSONSchemaIntegerFormat
+from amarcord.json_schema import JSONSchemaNumber
+from amarcord.json_schema import JSONSchemaNumberFormat
+from amarcord.json_schema import JSONSchemaString
+from amarcord.json_schema import JSONSchemaType
+from amarcord.json_schema import coparse_schema_type
+from amarcord.json_schema import parse_schema_type
 from amarcord.json_types import JSONDict
-from amarcord.json_schema import (
-    parse_schema_type,
-    JSONSchemaInteger,
-    JSONSchemaBoolean,
-    JSONSchemaNumber,
-    JSONSchemaNumberFormat,
-    JSONSchemaString,
-    JSONSchemaArray,
-    JSONSchemaType,
-    JSONSchemaCustomIntegerFormat,
-    JSONSchemaIntegerFormat,
-    coparse_schema_type,
-)
 
 
 def test_parse_schema_type_no_type() -> None:

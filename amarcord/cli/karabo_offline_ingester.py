@@ -5,12 +5,10 @@ from pathlib import Path
 import yaml
 from tap import Tap
 
-from amarcord.amici.xfel.karabo_bridge import (
-    parse_configuration,
-    KaraboConfigurationError,
-    KaraboBridgeConfiguration,
-)
 from amarcord.amici.xfel.extra_data_utils import extra_data_ingest_run
+from amarcord.amici.xfel.karabo_bridge import KaraboBridgeConfiguration
+from amarcord.amici.xfel.karabo_bridge import KaraboConfigurationError
+from amarcord.amici.xfel.karabo_bridge import parse_configuration
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.tables import create_tables_from_metadata

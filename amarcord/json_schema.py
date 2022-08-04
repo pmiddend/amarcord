@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Final
+from typing import Any
+from typing import Final
 
-from amarcord.json_types import JSONDict, JSONValue
+from amarcord.json_types import JSONDict
+from amarcord.json_types import JSONValue
 
 _JSON_SCHEMA_TYPE_BOOLEAN: Final = "boolean"
 

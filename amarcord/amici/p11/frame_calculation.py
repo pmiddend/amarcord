@@ -3,18 +3,18 @@ from glob import glob
 from multiprocessing import Pool
 from pathlib import Path
 from time import time
-from typing import Final, Callable, Optional
+from typing import Callable
+from typing import Final
+from typing import Optional
 
 import h5py
 
 from amarcord.amici.kamzik.kamzik_zmq_client import KAMZIK_ATTRIBUTO_GROUP
-from amarcord.amici.om.client import (
-    ATTRIBUTO_NUMBER_OF_FRAMES,
-    create_om_attributi,
-    ATTRIBUTO_NUMBER_OF_OM_HITS,
-    ATTRIBUTO_NUMBER_OF_OM_FRAMES,
-    ATTRIBUTO_NUMBER_OF_HITS,
-)
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_FRAMES
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_HITS
+from amarcord.amici.om.client import create_om_attributi
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB

@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Any, Type
+from typing import Any
+from typing import Type
 
 from amarcord.amici.crystfel.project_parser import CrystfelProjectFile
 

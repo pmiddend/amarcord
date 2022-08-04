@@ -1,15 +1,19 @@
 from dataclasses import dataclass
 from functools import partial
-from typing import Final, TypeAlias, Callable, Any, Dict
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Final
+from typing import TypeAlias
 
-from lark import Lark, Transformer, Token
+from lark import Lark
+from lark import Token
+from lark import Transformer
 
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoTypeSample,
-    AttributoType,
-    AttributoTypeInt,
-)
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.table_classes import DBRun
 from amarcord.util import maybe_you_meant

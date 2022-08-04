@@ -4,58 +4,56 @@ import logging
 import pickle
 from math import isclose
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
+from typing import cast
 
 import numpy.random
 import pytest
 import yaml
 
-from amarcord.amici.xfel.karabo_bridge import (
-    process_karabo_frame,
-    KaraboAttributeDescription,
-    KaraboValueLocator,
-    KaraboInputType,
-    KaraboProcessor,
-    BridgeOutput,
-    KaraboInternalId,
-    frame_to_attributo_and_cache,
-    KaraboValueByInternalId,
-    AmarcordAttributoDescription,
-    AttributoId,
-    AmarcordAttributoProcessor,
-    PlainAttribute,
-    AttributoAccumulatorPerId,
-    CoagulateList,
-    CoagulateString,
-    parse_coagulation_string,
-    parse_karabo_attributes,
-    KaraboConfigurationError,
-    parse_karabo_attribute,
-    parse_amarcord_attributi,
-    parse_amarcord_attributo,
-    parse_configuration,
-    CONFIG_KARABO_ATTRIBUTES_KEY,
-    CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES,
-    CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY,
-    KaraboBridgeConfiguration,
-    CONFIG_KARABO_PROPOSAL,
-    Karabo2,
-    ingest_bridge_output,
-    determine_attributo_type,
-    ATTRIBUTO_ID_DARK_RUN_TYPE,
-    accumulator_locators_for_config,
-    persist_euxfel_run_result,
-    process_trains,
-)
+from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
+from amarcord.amici.xfel.karabo_bridge import CONFIG_KARABO_AMARCORD_ATTRIBUTI_KEY
+from amarcord.amici.xfel.karabo_bridge import CONFIG_KARABO_ATTRIBUTES_KEY
+from amarcord.amici.xfel.karabo_bridge import CONFIG_KARABO_PROPOSAL
+from amarcord.amici.xfel.karabo_bridge import CONFIG_KARABO_SPECIAL_KARABO_ATTRIBUTES
+from amarcord.amici.xfel.karabo_bridge import AmarcordAttributoDescription
+from amarcord.amici.xfel.karabo_bridge import AmarcordAttributoProcessor
+from amarcord.amici.xfel.karabo_bridge import AttributoAccumulatorPerId
+from amarcord.amici.xfel.karabo_bridge import AttributoId
+from amarcord.amici.xfel.karabo_bridge import BridgeOutput
+from amarcord.amici.xfel.karabo_bridge import CoagulateList
+from amarcord.amici.xfel.karabo_bridge import CoagulateString
+from amarcord.amici.xfel.karabo_bridge import Karabo2
+from amarcord.amici.xfel.karabo_bridge import KaraboAttributeDescription
+from amarcord.amici.xfel.karabo_bridge import KaraboBridgeConfiguration
+from amarcord.amici.xfel.karabo_bridge import KaraboConfigurationError
+from amarcord.amici.xfel.karabo_bridge import KaraboInputType
+from amarcord.amici.xfel.karabo_bridge import KaraboInternalId
+from amarcord.amici.xfel.karabo_bridge import KaraboProcessor
+from amarcord.amici.xfel.karabo_bridge import KaraboValueByInternalId
+from amarcord.amici.xfel.karabo_bridge import KaraboValueLocator
+from amarcord.amici.xfel.karabo_bridge import PlainAttribute
+from amarcord.amici.xfel.karabo_bridge import accumulator_locators_for_config
+from amarcord.amici.xfel.karabo_bridge import determine_attributo_type
+from amarcord.amici.xfel.karabo_bridge import frame_to_attributo_and_cache
+from amarcord.amici.xfel.karabo_bridge import ingest_bridge_output
+from amarcord.amici.xfel.karabo_bridge import parse_amarcord_attributi
+from amarcord.amici.xfel.karabo_bridge import parse_amarcord_attributo
+from amarcord.amici.xfel.karabo_bridge import parse_coagulation_string
+from amarcord.amici.xfel.karabo_bridge import parse_configuration
+from amarcord.amici.xfel.karabo_bridge import parse_karabo_attribute
+from amarcord.amici.xfel.karabo_bridge import parse_karabo_attributes
+from amarcord.amici.xfel.karabo_bridge import persist_euxfel_run_result
+from amarcord.amici.xfel.karabo_bridge import process_karabo_frame
+from amarcord.amici.xfel.karabo_bridge import process_trains
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import ATTRIBUTO_STARTED, ATTRIBUTO_STOPPED
-from amarcord.db.attributo_type import (
-    AttributoTypeDecimal,
-    AttributoTypeString,
-    AttributoTypeList,
-)
+from amarcord.db.attributi import ATTRIBUTO_STARTED
+from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.attributo_type import AttributoTypeDecimal
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.tables import create_tables_from_metadata
 
 _SPECIAL_SOURCE = "amarcord"

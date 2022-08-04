@@ -3,19 +3,17 @@ from pathlib import Path
 
 import pytest
 
-from amarcord.util import (
-    remove_duplicates_stable,
-    dict_union,
-    last_line_of_file,
-    read_file_to_string,
-    sha256_file,
-    sha256_file_bytes,
-    sha256_files,
-    local_time_to_utc,
-    group_by,
-    replace_illegal_path_characters,
-    maybe_you_meant,
-)
+from amarcord.util import dict_union
+from amarcord.util import group_by
+from amarcord.util import last_line_of_file
+from amarcord.util import local_time_to_utc
+from amarcord.util import maybe_you_meant
+from amarcord.util import read_file_to_string
+from amarcord.util import remove_duplicates_stable
+from amarcord.util import replace_illegal_path_characters
+from amarcord.util import sha256_file
+from amarcord.util import sha256_file_bytes
+from amarcord.util import sha256_files
 
 
 def test_remove_duplicates_stable() -> None:

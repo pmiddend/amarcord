@@ -4,7 +4,8 @@ import logging
 from asyncio import StreamReader
 from urllib.parse import urlparse
 
-from amarcord.db.asyncdb import AsyncDB, LIVE_STREAM_IMAGE
+from amarcord.db.asyncdb import LIVE_STREAM_IMAGE
+from amarcord.db.asyncdb import AsyncDB
 
 logger = logging.getLogger(__name__)
 

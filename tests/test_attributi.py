@@ -1,23 +1,19 @@
 import pytest
 
-from amarcord.db.attributi import (
-    attributo_type_to_string,
-    attributo_types_semantically_equivalent,
-    attributo_type_to_schema,
-)
-from amarcord.db.attributo_type import (
-    AttributoTypeInt,
-    AttributoTypeBoolean,
-    AttributoTypeString,
-    AttributoTypeSample,
-    AttributoTypeChoice,
-    AttributoTypeDecimal,
-    AttributoTypeDateTime,
-    AttributoTypeList,
-    AttributoType,
-)
-from amarcord.json_types import JSONDict
+from amarcord.db.attributi import attributo_type_to_schema
+from amarcord.db.attributi import attributo_type_to_string
+from amarcord.db.attributi import attributo_types_semantically_equivalent
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDecimal
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.json_schema import coparse_schema_type
+from amarcord.json_types import JSONDict
 from amarcord.numeric_range import NumericRange
 
 

@@ -5,17 +5,16 @@ import pytest
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoType,
-    AttributoTypeDecimal,
-    AttributoTypeString,
-    AttributoTypeList,
-    AttributoTypeBoolean,
-    AttributoTypeSample,
-)
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeDecimal
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.table_classes import DBRun
-from amarcord.filter_expression import compile_run_filter, FilterInput
+from amarcord.filter_expression import FilterInput
+from amarcord.filter_expression import compile_run_filter
 
 
 @pytest.mark.parametrize(

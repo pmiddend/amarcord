@@ -1,17 +1,17 @@
 import datetime
 import math
 from dataclasses import replace
-from typing import Iterable, Any
+from typing import Any
+from typing import Iterable
 from typing import cast
 
-from amarcord.db.attributi import (
-    convert_attributo_value,
-    AttributoConversionFlags,
-    datetime_to_attributo_int,
-    datetime_from_attributo_int,
-)
+from amarcord.db.attributi import AttributoConversionFlags
+from amarcord.db.attributi import convert_attributo_value
+from amarcord.db.attributi import datetime_from_attributo_int
+from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal

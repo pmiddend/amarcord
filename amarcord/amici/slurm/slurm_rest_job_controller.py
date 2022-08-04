@@ -5,13 +5,15 @@ import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable
+from typing import Any
+from typing import Awaitable
 from typing import Callable
 from typing import TypedDict
 
 import aiohttp
 
-from amarcord.amici.slurm.job import Job, JobMetadata
+from amarcord.amici.slurm.job import Job
+from amarcord.amici.slurm.job import JobMetadata
 from amarcord.amici.slurm.job_controller import JobController
 from amarcord.amici.slurm.job_controller import JobStartError
 from amarcord.amici.slurm.job_controller import JobStartResult

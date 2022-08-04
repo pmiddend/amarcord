@@ -3,35 +3,34 @@ import logging
 import re
 from dataclasses import dataclass
 from difflib import get_close_matches
-from enum import Enum, auto, unique
-from math import fsum, isnan
-from typing import (
-    Any,
-    Iterable,
-    cast,
-)
+from enum import Enum
+from enum import auto
+from enum import unique
+from math import fsum
+from math import isnan
+from typing import Any
+from typing import Iterable
+from typing import cast
 
 import numpy as np
-from numpy import mean, std
+from numpy import mean
+from numpy import std
 from pint import UnitRegistry
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
-from amarcord.db.asyncdb import AsyncDB, LIVE_STREAM_IMAGE
-from amarcord.db.attributi import (
-    ATTRIBUTO_STARTED,
-    ATTRIBUTO_STOPPED,
-    datetime_from_attributo_int,
-)
+from amarcord.db.asyncdb import LIVE_STREAM_IMAGE
+from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.attributi import ATTRIBUTO_STARTED
+from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.attributi import datetime_from_attributo_int
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoType,
-    AttributoTypeDecimal,
-    AttributoTypeString,
-    AttributoTypeList,
-    AttributoTypeInt,
-)
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeDecimal
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 

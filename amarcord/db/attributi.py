@@ -8,7 +8,8 @@ from typing import Type
 from pint import UnitRegistry
 
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoType, AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
@@ -18,13 +19,11 @@ from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
-from amarcord.json_schema import (
-    JSONSchemaArray,
-    JSONSchemaBoolean,
-    JSONSchemaIntegerFormat,
-    JSONSchemaCustomIntegerFormat,
-)
+from amarcord.json_schema import JSONSchemaArray
+from amarcord.json_schema import JSONSchemaBoolean
+from amarcord.json_schema import JSONSchemaCustomIntegerFormat
 from amarcord.json_schema import JSONSchemaInteger
+from amarcord.json_schema import JSONSchemaIntegerFormat
 from amarcord.json_schema import JSONSchemaNumber
 from amarcord.json_schema import JSONSchemaNumberFormat
 from amarcord.json_schema import JSONSchemaString

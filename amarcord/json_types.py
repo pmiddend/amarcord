@@ -1,4 +1,5 @@
-from typing import TypeAlias, Union
+from typing import TypeAlias
+from typing import Union
 
 # Recursive types aren't supported in mypy, see
 # https://github.com/python/mypy/issues/731

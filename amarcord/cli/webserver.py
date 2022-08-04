@@ -3,49 +3,48 @@ import datetime
 import json
 import os
 import sys
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import cast, Final, Any, Set
+from typing import Any
+from typing import Final
+from typing import Set
+from typing import cast
 from zipfile import ZipFile
 
 import quart
 from hypercorn import Config
 from hypercorn.asyncio import serve
 from pint import UnitRegistry
-from quart import Quart, request, redirect, send_file
+from quart import Quart
+from quart import redirect
+from quart import request
+from quart import send_file
 from quart_cors import cors
 from tap import Tap
 from werkzeug import Response
 from werkzeug.exceptions import HTTPException
 
-from amarcord.amici.om.client import (
-    ATTRIBUTO_NUMBER_OF_HITS,
-    ATTRIBUTO_NUMBER_OF_FRAMES,
-)
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.asyncdb import (
-    create_workbook,
-    LIVE_STREAM_IMAGE,
-    ATTRIBUTO_GROUP_MANUAL,
-)
-from amarcord.db.attributi import (
-    AttributoConversionFlags,
-    datetime_to_attributo_int,
-    ATTRIBUTO_STARTED,
-    ATTRIBUTO_STOPPED,
-    attributo_sort_key,
-)
+from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.asyncdb import LIVE_STREAM_IMAGE
+from amarcord.db.asyncdb import create_workbook
+from amarcord.db.attributi import ATTRIBUTO_STARTED
+from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.attributi import AttributoConversionFlags
+from amarcord.db.attributi import attributo_sort_key
 from amarcord.db.attributi import attributo_type_to_schema
+from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import schema_to_attributo_type
-from amarcord.db.attributi_map import (
-    AttributiMap,
-    run_matches_dataset,
-    JsonAttributiMap,
-    convert_single_attributo_value_to_json,
-)
+from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributi_map import JsonAttributiMap
+from amarcord.db.attributi_map import convert_single_attributo_value_to_json
+from amarcord.db.attributi_map import run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
@@ -53,16 +52,24 @@ from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
-from amarcord.db.table_classes import DBFile, DBEvent, DBSample, DBRun
-from amarcord.filter_expression import compile_run_filter, FilterInput, FilterParseError
+from amarcord.db.table_classes import DBEvent
+from amarcord.db.table_classes import DBFile
+from amarcord.db.table_classes import DBRun
+from amarcord.db.table_classes import DBSample
+from amarcord.filter_expression import FilterInput
+from amarcord.filter_expression import FilterParseError
+from amarcord.filter_expression import compile_run_filter
 from amarcord.json_checker import JSONChecker
-from amarcord.json_schema import parse_schema_type, coparse_schema_type
+from amarcord.json_schema import coparse_schema_type
+from amarcord.json_schema import parse_schema_type
 from amarcord.json_types import JSONDict
-from amarcord.quart_utils import CustomJSONEncoder, CustomWebException
+from amarcord.quart_utils import CustomJSONEncoder
+from amarcord.quart_utils import CustomWebException
 from amarcord.quart_utils import QuartDatabases
 from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
-from amarcord.util import group_by, create_intervals
+from amarcord.util import create_intervals
+from amarcord.util import group_by
 
 AUTO_PILOT: Final = "auto-pilot"
 DATE_FORMAT: Final = "%Y-%m-%d"

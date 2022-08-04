@@ -4,11 +4,12 @@ import re
 from difflib import SequenceMatcher
 from pathlib import Path
 from statistics import variance
-from typing import Callable, Union
+from typing import Callable
 from typing import Generator
 from typing import Iterable
 from typing import Sequence
 from typing import TypeVar
+from typing import Union
 
 import pytz
 from dateutil import tz

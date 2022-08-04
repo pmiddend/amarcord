@@ -1,5 +1,6 @@
 import asyncio
-from asyncio import FIRST_COMPLETED, Task
+from asyncio import FIRST_COMPLETED
+from asyncio import Task
 from pathlib import Path
 
 from tap import Tap
@@ -14,10 +15,8 @@ from amarcord.amici.petra3.petra3_online_values import petra3_value_loop
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.tables import create_tables_from_metadata
-from amarcord.experiment_simulator import (
-    experiment_simulator_initialize_db,
-    experiment_simulator_main_loop,
-)
+from amarcord.experiment_simulator import experiment_simulator_initialize_db
+from amarcord.experiment_simulator import experiment_simulator_main_loop
 
 
 class Arguments(Tap):

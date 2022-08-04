@@ -4,10 +4,8 @@ from typing import cast
 
 from tap import Tap
 
-from amarcord.amici.p11.frame_calculation import (
-    update_runs_add_file_globs,
-    update_run_frames,
-)
+from amarcord.amici.p11.frame_calculation import update_run_frames
+from amarcord.amici.p11.frame_calculation import update_runs_add_file_globs
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.tables import create_tables_from_metadata

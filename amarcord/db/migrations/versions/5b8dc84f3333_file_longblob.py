@@ -5,9 +5,8 @@ Revises: b0c34b3508af
 Create Date: 2022-04-04 15:37:40.966678
 
 """
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 from sqlalchemy.dialects.mysql import LONGBLOB

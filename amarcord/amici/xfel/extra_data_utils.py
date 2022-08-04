@@ -1,13 +1,11 @@
 from extra_data import open_run
 
-from amarcord.amici.xfel.karabo_bridge import (
-    KaraboBridgeConfiguration,
-    Karabo2,
-    logger,
-    accumulator_locators_for_config,
-    persist_euxfel_run_result,
-    process_trains,
-)
+from amarcord.amici.xfel.karabo_bridge import Karabo2
+from amarcord.amici.xfel.karabo_bridge import KaraboBridgeConfiguration
+from amarcord.amici.xfel.karabo_bridge import accumulator_locators_for_config
+from amarcord.amici.xfel.karabo_bridge import logger
+from amarcord.amici.xfel.karabo_bridge import persist_euxfel_run_result
+from amarcord.amici.xfel.karabo_bridge import process_trains
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 

@@ -4,13 +4,12 @@ from typing import Final
 
 import pytest
 
-from amarcord.db.attributi import (
-    AttributoConversionFlags,
-    datetime_to_attributo_string,
-    datetime_to_attributo_int,
-)
+from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi import convert_attributo_value
-from amarcord.db.attributo_type import AttributoTypeChoice, AttributoTypeBoolean
+from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.attributi import datetime_to_attributo_string
+from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt

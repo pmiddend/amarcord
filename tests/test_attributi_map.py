@@ -5,25 +5,21 @@ import pytest
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
-from amarcord.db.attributi_map import (
-    AttributiMap,
-    SPECIAL_SAMPLE_ID_NONE,
-    SPECIAL_VALUE_CHOICE_NONE,
-    run_matches_dataset,
-    decimal_attributi_match,
-)
+from amarcord.db.attributi_map import SPECIAL_SAMPLE_ID_NONE
+from amarcord.db.attributi_map import SPECIAL_VALUE_CHOICE_NONE
+from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributi_map import decimal_attributi_match
+from amarcord.db.attributi_map import run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import (
-    AttributoTypeInt,
-    AttributoTypeString,
-    AttributoTypeBoolean,
-    AttributoTypeDecimal,
-    AttributoType,
-    AttributoTypeSample,
-    AttributoTypeDateTime,
-    AttributoTypeChoice,
-    AttributoTypeList,
-)
+from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChoice
+from amarcord.db.attributo_type import AttributoTypeDateTime
+from amarcord.db.attributo_type import AttributoTypeDecimal
+from amarcord.db.attributo_type import AttributoTypeInt
+from amarcord.db.attributo_type import AttributoTypeList
+from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.numeric_range import NumericRange
 
