@@ -8,9 +8,11 @@ from typing import Any
 from typing import Final
 
 import numpy as np
+import structlog
 import zmq
 import zmq.asyncio
 from pint import UnitRegistry
+from structlog.stdlib import BoundLogger
 from zmq.utils.monitor import parse_monitor_message
 
 from amarcord.db.associated_table import AssociatedTable
@@ -40,7 +42,7 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 def JsonKamzikHook(dct: dict[str, Any]) -> Any:
@@ -55,7 +57,9 @@ def JsonKamzikHook(dct: dict[str, Any]) -> Any:
     return dct
 
 
-async def _handle_readout(db: AsyncDB, conn: Connection, token: str, data: Any) -> None:
+async def _handle_readout(
+    parent_logger: BoundLogger, db: AsyncDB, conn: Connection, token: str, data: Any
+) -> None:
     attribute_parts = token.split(".")
     # attribute_id = ".".join(attribute_parts[:-1])
     if attribute_parts[1] == TOKEN_ATTRIBUTE:
@@ -63,31 +67,35 @@ async def _handle_readout(db: AsyncDB, conn: Connection, token: str, data: Any) 
 
         if attribute_path[-2] == _METADATA and attribute_path[-1] == "Value":
             assert isinstance(data, dict)
-            logger.info("ingesting new metadata...")
-            await ingest_kamzik_metadata(db, conn, data)
+            parent_logger.info("ingesting new metadata...")
+            await ingest_kamzik_metadata(parent_logger, db, conn, data)
 
 
 def _get_token(device_id_: str, topic: str) -> str:
     return f"{device_id_ if device_id_ is None else device_id_}.{topic}"
 
 
-async def _monitor_loop(monitor_socket: Any) -> None:
+async def _monitor_loop(parent_log: BoundLogger, monitor_socket: Any) -> None:
+    log = parent_log.bind(loop="monitor loop")
     while True:
         message = parse_monitor_message(await monitor_socket.recv_multipart())  # type: ignore
-        logger.info(f"monitor loop, received message: {message}")
+        log.info(f"received message: {message}")
         if message.get("event") == zmq.EVENT_DISCONNECTED:
-            logger.info("monitor loop: disconnect")
+            log.info("disconnect")
             break
         if message.get("event") == zmq.EVENT_HANDSHAKE_SUCCEEDED:
-            logger.info("monitor loop: handshake success")
+            log.info("handshake success")
         else:
-            logger.info("monitor loop: unimportant event")
+            log.info("unimportant event")
 
 
-async def _subscriber_loop(db: AsyncDB, subscriber_socket: Any) -> None:
+async def _subscriber_loop(
+    parent_log: BoundLogger, db: AsyncDB, subscriber_socket: Any
+) -> None:
+    log = parent_log.bind(loop="subscriber loop")
     while True:
         reply = await subscriber_socket.recv_multipart()
-        logger.info(f"subscriber loop: recv: {reply}")
+        log.info(f"recv: {reply}")
         token, stype = reply[:2]
         data: Any | None = None
         if stype == MSG_JSON:
@@ -100,14 +108,14 @@ async def _subscriber_loop(db: AsyncDB, subscriber_socket: Any) -> None:
             data = pickle.loads(reply[2])
         if data is not None:
             async with db.begin() as conn:
-                await _handle_readout(db, conn, token.decode(), data)
+                await _handle_readout(log, db, conn, token.decode(), data)
 
 
 async def ingest_kamzik_metadata(
-    db: AsyncDB, conn: Connection, metadata: JSONDict
+    parent_log: BoundLogger, db: AsyncDB, conn: Connection, metadata: JSONDict
 ) -> None:
     if metadata == {}:
-        logger.info("got empty metadata dict")
+        parent_log.info("got empty metadata dict")
         return
 
     run_id = metadata.get("run_id", None)
@@ -188,7 +196,8 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     socket.connect(socket_url)
     monitor_socket = socket.get_monitor_socket()
 
-    logger.info(f"waiting for connection to {socket_url}...")
+    log = logger.bind(socket_url=socket_url)
+    log.info("waiting for connection...")
 
     while True:
         message = parse_monitor_message(await monitor_socket.recv_multipart())  # type: ignore
@@ -200,15 +209,15 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
             conn, EventLogLevel.INFO, "🤖 kamzik", "Kamzik client (re)started"
         )
 
-    logger.info(f"connected to {socket_url}")
+    log.info("connected")
 
     await socket.send_multipart(
         [INSTRUCTION_INIT, device_id.encode(encoding="utf-8")], copy=False
     )
 
-    logger.info("waiting for initial package")
+    log.info("waiting for initial package")
     message = await socket.recv_multipart()
-    logger.info("initial package received")
+    log.info("initial package received")
 
     status, token, msg_type = message[:3]
     if msg_type == MSG_JSON:
@@ -229,7 +238,7 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     if status != RESPONSE_OK:
         raise Exception(f"initial package invalid, status: {status}")
 
-    logger.info("decoding initial package content")
+    log.info("decoding initial package content")
     (
         attributes,
         attributes_sharing_map,
@@ -247,9 +256,9 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     if metadata is not None:
         metadata_value = attributes.get("Value", None)
         if metadata_value is not None:
-            logger.info("initial metadata received, ingesting...")
+            log.info("initial metadata received, ingesting...")
             async with db.begin() as conn:
-                await ingest_kamzik_metadata(db, conn, metadata)
+                await ingest_kamzik_metadata(log, db, conn, metadata)
 
     socket.setsockopt(zmq.RCVTIMEO, 5000)
 
@@ -263,15 +272,15 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
     subscriber_socket.setsockopt_string(zmq.SUBSCRIBE, token)
 
     if attributes_sharing_map:
-        logger.info(f"got attribute sharing for {attributes_sharing_map}, ignoring")
+        log.info(f"got attribute sharing for {attributes_sharing_map}, ignoring")
         # This one is too harsh
         # raise NotImplementedError(f"got attribute sharing for {attributes_sharing_map}")
 
-    logger.info("starting main loops")
+    log.info("starting main loops")
     await asyncio.wait(
         (
-            asyncio.create_task(_monitor_loop(monitor_socket)),
-            asyncio.create_task(_subscriber_loop(db, subscriber_socket)),
+            asyncio.create_task(_monitor_loop(log, monitor_socket)),
+            asyncio.create_task(_subscriber_loop(log, db, subscriber_socket)),
         ),
         return_when=FIRST_COMPLETED,
     )

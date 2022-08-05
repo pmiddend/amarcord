@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 import asyncio
-import logging
 from asyncio import StreamReader
 from urllib.parse import urlparse
+
+import structlog
 
 from amarcord.db.asyncdb import LIVE_STREAM_IMAGE
 from amarcord.db.asyncdb import AsyncDB
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 async def mjpeg_grab_single_frame_with_reader(reader: StreamReader) -> bytes:

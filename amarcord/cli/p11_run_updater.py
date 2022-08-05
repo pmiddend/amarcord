@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import cast
 
+import structlog.stdlib
 from tap import Tap
 
 from amarcord.amici.p11.frame_calculation import update_run_frames
@@ -14,7 +15,7 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 _RUN_ID_PLACEHOLDER = "${run_id}"
 

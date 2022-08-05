@@ -1,6 +1,5 @@
 # pylint: disable=use-tuple-over-list
 import datetime
-import logging
 import pickle
 from math import isclose
 from pathlib import Path
@@ -9,6 +8,7 @@ from typing import cast
 
 import numpy.random
 import pytest
+import structlog
 import yaml
 
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
@@ -73,7 +73,7 @@ _STANDARD_SPECIAL_ATTRIBUTES = {
     "darkRunType": {"source": _SPECIAL_SOURCE, "key": _SPECIAL_DARK_RUN_TYPE_KEY},
 }
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 ATTRIBUTO_DESCRIPTION = "attributo description"
 ATTRIBUTO_ID1 = AttributoId("attributo-id")
@@ -687,25 +687,25 @@ def test_parse_coagulation_string_no_suffix_after_last_match() -> None:
 def test_parse_karabo_attributes_not_a_dict() -> None:
     attributes = parse_karabo_attributes([])
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attributes_not_a_dict_per_source() -> None:
     attributes = parse_karabo_attributes({"source": [1, 2, 3]})
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attributes_not_a_dict_per_attribute() -> None:
     attributes = parse_karabo_attributes({"source": {"subkey": 1}})
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attributes_not_a_dict_per_attribute_subdict() -> None:
     attributes = parse_karabo_attributes({"source": {"subkey": [1]}})
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_id_missing() -> None:
@@ -721,7 +721,7 @@ def test_parse_karabo_attribute_id_missing() -> None:
         {},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_id_taken() -> None:
@@ -737,7 +737,7 @@ def test_parse_karabo_attribute_id_taken() -> None:
         {KaraboInternalId("foo"): (KaraboValueLocator("source2", "subkey2"), 0)},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_id_wrong_type() -> None:
@@ -753,7 +753,7 @@ def test_parse_karabo_attribute_id_wrong_type() -> None:
         {},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_input_type_missing() -> None:
@@ -768,7 +768,7 @@ def test_parse_karabo_attribute_input_type_missing() -> None:
         {},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_input_type_wrong() -> None:
@@ -784,7 +784,7 @@ def test_parse_karabo_attribute_input_type_wrong() -> None:
         {},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_processor_missing_non_scalar() -> None:
@@ -799,7 +799,7 @@ def test_parse_karabo_attribute_processor_missing_non_scalar() -> None:
         {},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_processor_identity_non_scalar() -> None:
@@ -844,7 +844,7 @@ def test_parse_karabo_attribute_processor_wrong() -> None:
         {},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_unit_missing() -> None:
@@ -876,7 +876,7 @@ def test_parse_karabo_attribute_is_si_unit_not_boolean() -> None:
     )
     assert isinstance(attributes, KaraboConfigurationError)
     assert "is-si-unit should be a boolean, but is" in attributes.message
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_unknown_unit() -> None:
@@ -894,7 +894,7 @@ def test_parse_karabo_attribute_unknown_unit() -> None:
     )
     assert isinstance(attributes, KaraboConfigurationError)
     assert "got a unit in unit, but one we don't know" in attributes.message
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_unspcified_unit() -> None:
@@ -911,7 +911,7 @@ def test_parse_karabo_attribute_unspcified_unit() -> None:
     )
     assert isinstance(attributes, KaraboConfigurationError)
     assert "you didn't specify a unit" in attributes.message
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_non_numeric_ignore() -> None:
@@ -929,7 +929,7 @@ def test_parse_karabo_attribute_non_numeric_ignore() -> None:
     )
     assert isinstance(attributes, KaraboConfigurationError)
     assert "ignore only accepts numeric values" in attributes.message
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_ignore_on_non_numeric_attribute() -> None:
@@ -947,7 +947,7 @@ def test_parse_karabo_attribute_ignore_on_non_numeric_attribute() -> None:
     )
     assert isinstance(attributes, KaraboConfigurationError)
     assert "ignore specified, but type is not numeric" in attributes.message
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_unit_wrong() -> None:
@@ -963,7 +963,7 @@ def test_parse_karabo_attribute_unit_wrong() -> None:
         {},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_karabo_attribute_unit_wrong_but_nonstandard() -> None:
@@ -997,7 +997,7 @@ def test_parse_karabo_attribute_processor_wrong_combination() -> None:
         {},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributi_not_a_dict() -> None:
@@ -1006,7 +1006,7 @@ def test_parse_attributi_not_a_dict() -> None:
         set(),
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_duplicate_id() -> None:
@@ -1017,7 +1017,7 @@ def test_parse_attributo_duplicate_id() -> None:
         internal_ids=set(),
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_description_id_not_string() -> None:
@@ -1028,7 +1028,7 @@ def test_parse_attributo_description_id_not_string() -> None:
         internal_ids=set(),
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_processor_wrong() -> None:
@@ -1039,7 +1039,7 @@ def test_parse_attributo_processor_wrong() -> None:
         internal_ids=set(),
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_plain_attribute_not_found() -> None:
@@ -1050,7 +1050,7 @@ def test_parse_attributo_plain_attribute_not_found() -> None:
         internal_ids={KaraboInternalId("foo")},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_plain_attribute() -> None:
@@ -1086,7 +1086,7 @@ def test_parse_attributo_plain_attribute_wrong_processor() -> None:
         internal_ids={KaraboInternalId("foo")},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_plain_attribute_both_coagulate_and_simple() -> None:
@@ -1102,7 +1102,7 @@ def test_parse_attributo_plain_attribute_both_coagulate_and_simple() -> None:
         internal_ids={KaraboInternalId("foo")},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_output_missing() -> None:
@@ -1116,7 +1116,7 @@ def test_parse_attributo_output_missing() -> None:
         internal_ids={KaraboInternalId("foo")},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_coagulate_list_invalid_id() -> None:
@@ -1131,7 +1131,7 @@ def test_parse_attributo_coagulate_list_invalid_id() -> None:
         internal_ids={KaraboInternalId("foo")},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_coagulate_list_no_components() -> None:
@@ -1146,7 +1146,7 @@ def test_parse_attributo_coagulate_list_no_components() -> None:
         internal_ids={KaraboInternalId("foo"), KaraboInternalId("bar")},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_coagulate_list() -> None:
@@ -1183,7 +1183,7 @@ def test_parse_attributo_coagulate_string_invalid_id() -> None:
         internal_ids={KaraboInternalId("foo")},
     )
     assert isinstance(attributes, KaraboConfigurationError)
-    logger.warning(attributes)
+    logger.warning(str(attributes))
 
 
 def test_parse_attributo_coagulate_string() -> None:
@@ -1234,7 +1234,7 @@ def test_parse_configuration_empty() -> None:
 def test_parse_configuration_without_proper_keys() -> None:
     config = parse_configuration({"useless key": "useless value"})
     assert isinstance(config, KaraboConfigurationError)
-    logger.warning(config)
+    logger.warning(str(config))
 
 
 def test_parse_configuration_arithmetic_mean_of_list_karabo_attribute() -> None:
@@ -1261,7 +1261,7 @@ def test_parse_configuration_arithmetic_mean_of_list_karabo_attribute() -> None:
         }
     )
     assert isinstance(config, KaraboConfigurationError)
-    logger.warning(config)
+    logger.warning(str(config))
 
 
 def test_parse_configuration_coagulation_of_karabo_list_attribute() -> None:
@@ -1288,7 +1288,7 @@ def test_parse_configuration_coagulation_of_karabo_list_attribute() -> None:
         }
     )
     assert isinstance(config, KaraboConfigurationError)
-    logger.warning(config)
+    logger.warning(str(config))
 
 
 def test_parse_configuration_stdev_coagulate_string() -> None:
@@ -1325,7 +1325,7 @@ def test_parse_configuration_stdev_coagulate_string() -> None:
         "the type of all dependent Karabo attributes should be the list-standard-deviation"
         in config.message
     )
-    logger.warning(config)
+    logger.warning(str(config))
 
 
 def test_parse_configuration_stdev_coagulate_list() -> None:
@@ -1362,7 +1362,7 @@ def test_parse_configuration_stdev_coagulate_list() -> None:
         "the type of all dependent Karabo attributes should be the list-standard-deviation"
         in config.message
     )
-    logger.warning(config)
+    logger.warning(str(config))
 
 
 def test_parse_configuration_stdev_plain_attribute() -> None:
@@ -1392,7 +1392,7 @@ def test_parse_configuration_stdev_plain_attribute() -> None:
         "attributo beam_pos: the type of all dependent Karabo attributes should be the list-standard-deviation"
         in config.message
     )
-    logger.warning(config)
+    logger.warning(str(config))
 
 
 def test_parse_configuration_stdev_plain_attribute_rev() -> None:
@@ -1420,7 +1420,7 @@ def test_parse_configuration_stdev_plain_attribute_rev() -> None:
     )
     assert isinstance(config, KaraboConfigurationError)
     assert "id1 can only be processed propagated-standard-deviation" in config.message
-    logger.warning(config)
+    logger.warning(str(config))
 
 
 def test_parse_configuration_heterogeneous_list() -> None:
@@ -1449,7 +1449,7 @@ def test_parse_configuration_heterogeneous_list() -> None:
         }
     )
     assert isinstance(config, KaraboConfigurationError)
-    logger.warning(config)
+    logger.warning(str(config))
 
 
 def test_parse_configuration() -> None:
@@ -1534,7 +1534,7 @@ def test_karabo2_without_db() -> None:
     frame_output5 = karabo2.process_frame(metadata, data)
     assert frame_output5.attributi_values[ATTRIBUTO_STOPPED] is not None  # type: ignore
 
-    logger.warning(frame_output5.attributi_values)  # type: ignore
+    logger.warning(str(frame_output5.attributi_values))  # type: ignore
 
 
 async def _get_db() -> AsyncDB:

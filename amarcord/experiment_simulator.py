@@ -5,6 +5,7 @@ import random
 from pathlib import Path
 
 import randomname
+import structlog
 from randomname import generate
 from tap import Tap
 
@@ -57,7 +58,7 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class Arguments(Tap):
@@ -387,19 +388,21 @@ async def experiment_simulator_main_loop(
                 previous_sample=None,
             )
         else:
+            log = logger.bind(run_id=last_run.id)
+
             stopped_time = last_run.attributi.select_datetime(ATTRIBUTO_STOPPED)
 
             if stopped_time is None:
                 started = last_run.attributi.select_datetime_unsafe(ATTRIBUTO_STARTED)
 
                 if _minutes_since(started) > random.uniform(5, 10):
-                    logger.info(f"Stopping run {last_run.id}")
+                    log.info("Stopping run")
                     await _stop_run(db, last_run)
                 else:
-                    logger.info(f"Letting run {last_run.id} go on for a bit")
+                    log.info("Letting run go on for a bit")
             else:
                 if _minutes_since(stopped_time) > random.uniform(0, 2):
-                    logger.info(f"Starting new run {last_run.id+1}")
+                    log.info("Starting new run", run_id=last_run.id + 1)
                     await _start_run(
                         db,
                         attributi=attributi,
@@ -410,7 +413,7 @@ async def experiment_simulator_main_loop(
                         ),
                     )
                 else:
-                    logger.info(f"Letting run {last_run.id} wait for a bit")
+                    log.info("Letting run wait for a bit")
 
         if random.uniform(0, 1000) > 990:
             logger.info("adding a new event")

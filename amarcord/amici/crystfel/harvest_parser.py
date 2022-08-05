@@ -1,13 +1,14 @@
 import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from typing import Iterable
 
+import structlog
+
 from amarcord.json_types import JSONDict
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -236,7 +237,8 @@ def read_crystfel_streams(stream_list: Iterable[Path]) -> StreamMetadata:
 
     for fn in stream_list:
         timestamp = fn.stat().st_mtime
-        logger.debug("reading stream file %s", fn)
+        log = logger.bind(file_name=fn)
+        log.debug("reading stream file")
         with fn.open("r") as f:
             while True:
                 fline = f.readline()
@@ -262,7 +264,7 @@ def read_crystfel_streams(stream_list: Iterable[Path]) -> StreamMetadata:
                     filename = Path(fline.split(": ", 1)[1])
                     n_frames += 1
                     if filename not in all_fns:
-                        logger.debug("new filename: %s", filename)
+                        log.debug(f"new filename: {filename}")
                         all_fns.append(Path(filename))
 
                 if fline == "hit = 1":

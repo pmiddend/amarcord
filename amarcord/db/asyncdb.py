@@ -2,7 +2,6 @@ import datetime
 import hashlib
 import io
 import itertools
-import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +13,7 @@ from typing import cast
 import magic
 import numpy as np
 import sqlalchemy as sa
+import structlog.stdlib
 from openpyxl import Workbook
 from PIL import Image
 
@@ -55,7 +55,7 @@ from amarcord.util import sha256_file
 
 LIVE_STREAM_IMAGE: Final = "live-stream-image"
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @dataclass(frozen=True)

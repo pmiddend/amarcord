@@ -1,4 +1,3 @@
-import logging
 from glob import glob
 from multiprocessing import Pool
 from pathlib import Path
@@ -8,6 +7,8 @@ from typing import Final
 from typing import Optional
 
 import h5py
+import structlog
+from structlog.stdlib import BoundLogger
 
 from amarcord.amici.kamzik.kamzik_zmq_client import KAMZIK_ATTRIBUTO_GROUP
 from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
@@ -23,7 +24,7 @@ from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.table_classes import DBRun
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 def retrieve_frames_for_data_file(data_file: Path) -> int:
@@ -38,7 +39,8 @@ def retrieve_frames_for_raw_file_glob(file_glob: str) -> int:
             result += retrieve_frames_for_data_file(Path(h5_file))
         except:
             logger.exception(
-                f"{h5_file}: couldn't get to dimension 1 of entry/data/data, ignoring"
+                "couldn't get to dimension 1 of entry/data/data, ignoring",
+                h5_file=h5_file,
             )
     return result
 
@@ -46,7 +48,9 @@ def retrieve_frames_for_raw_file_glob(file_glob: str) -> int:
 ATTRIBUTO_RAW_FILES: Final = AttributoId("raw_files")
 
 
-def update_frames_in_run(attributi: AttributiMap, frames: int) -> None:
+def update_frames_in_run(
+    log: BoundLogger, attributi: AttributiMap, frames: int
+) -> None:
     attributi.append_single(ATTRIBUTO_NUMBER_OF_FRAMES, frames)
 
     om_frames = attributi.select_int(ATTRIBUTO_NUMBER_OF_OM_FRAMES)
@@ -54,12 +58,12 @@ def update_frames_in_run(attributi: AttributiMap, frames: int) -> None:
 
     if om_frames is not None and om_hits is not None and om_frames != 0:
         new_hits = int(frames * om_hits / om_frames)
-        logger.info(f"new hits: {new_hits}")
+        log.info(f"new hits: {new_hits}")
         attributi.append_single(
             ATTRIBUTO_NUMBER_OF_HITS, int(frames * om_hits / om_frames)
         )
     else:
-        logger.info("cannot update hits (no om_hits/frames)")
+        log.info("cannot update hits (no om_hits/frames)")
 
 
 async def update_runs_add_file_globs(
@@ -80,8 +84,9 @@ async def update_runs_add_file_globs(
     for run in await db.retrieve_runs(
         conn, await db.retrieve_attributi(conn, AssociatedTable.RUN)
     ):
+        log = logger.bind(run_id=run.id)
         file_glob = raw_file_glob(run.id)
-        logger.info(f"run {run.id}: adding glob {file_glob}")
+        log.info(f"adding glob {file_glob}")
         run.attributi.append_single(ATTRIBUTO_RAW_FILES, file_glob)
         await db.update_run_attributi(conn, run.id, run.attributi)
 
@@ -89,14 +94,13 @@ async def update_runs_add_file_globs(
 def retrieve_run_frames_async(
     run: DBRun,
 ) -> Optional[tuple[int, int]]:
+    log = logger.bind(run_id=run.id)
     file_glob_for_run = run.attributi.select_string(ATTRIBUTO_RAW_FILES)
     if file_glob_for_run is None:
-        logger.warning(
-            f"run {run.id}: no file glob found (attributo is present though)"
-        )
+        log.warning("no file glob found (attributo is present though)")
         return None
     frames = retrieve_frames_for_raw_file_glob(file_glob_for_run)
-    logger.info(f"run {run.id}: {frames} frames")
+    log.info("{frames} frames")
     return run.id, frames
 
 
@@ -130,12 +134,13 @@ async def update_run_frames(db: AsyncDB, pool_size: int) -> None:
     # step 3: update runs based on the frames found
     async with db.begin() as conn:
         for run_id, frames in runs_and_frames:
+            log = logger.bind(run_id=run_id)
             attributi = await db.retrieve_attributi(conn, AssociatedTable.RUN)
             run = await db.retrieve_run(conn, run_id, attributi)
             if run is None:
                 continue
-            update_frames_in_run(run.attributi, frames)
-            logger.info(f"run {run_id}: detected {frames} frames")
+            update_frames_in_run(log, run.attributi, frames)
+            log.info(f"detected {frames} frames")
             await db.update_run_attributi(conn, run_id, run.attributi)
     finish = time()
     logger.info(f"updated frames, took {finish - begin}s")

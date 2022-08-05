@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import logging
 import shutil
 import subprocess
 from asyncio.subprocess import Process
@@ -9,6 +8,8 @@ from pathlib import Path
 from typing import Iterable
 from typing import TypedDict
 
+import structlog
+
 from amarcord.amici.slurm.job import Job
 from amarcord.amici.slurm.job import JobMetadata
 from amarcord.amici.slurm.job_controller import JobController
@@ -16,7 +17,7 @@ from amarcord.amici.slurm.job_controller import JobStartResult
 from amarcord.amici.slurm.job_status import JobStatus
 from amarcord.json_types import JSONDict
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 class JobResult(TypedDict):
@@ -72,9 +73,7 @@ async def start_process_locally(
         shutil.copyfile(extra_file, process_dir / extra_file.name)
 
     logger.info(
-        "Copying main executable %s to output directory as %s",
-        executable_path,
-        executable_path.name,
+        f"Copying main executable {executable_path} to output directory as {executable_path.name}"
     )
     relative_executable = process_dir / executable_path.name
     # Important to use copy2 here because it copies file permissions as well:
@@ -82,7 +81,7 @@ async def start_process_locally(
     shutil.copy2(executable_path, relative_executable)
 
     subprocess_command = f"{relative_executable} {command_line}"
-    logger.info("Running the following command line: %s", subprocess_command)
+    logger.info(f"Running the following command line: {subprocess_command}")
 
     proc = await asyncio.create_subprocess_shell(
         subprocess_command,

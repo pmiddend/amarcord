@@ -1,12 +1,13 @@
 import datetime
-import logging
 from typing import Any
 from typing import Final
 
+import structlog
 import zmq
 from pint import UnitRegistry
 from pydantic import BaseModel
 from pydantic import ValidationError
+from structlog.stdlib import BoundLogger
 from zmq.asyncio import Context
 
 from amarcord.db.associated_table import AssociatedTable
@@ -27,7 +28,7 @@ ATTRIBUTO_NUMBER_OF_OM_HITS: Final = AttributoId("om_hits")
 ATTRIBUTO_NUMBER_OF_OM_FRAMES: Final = AttributoId("om_frames")
 ATTRIBUTO_FRAME_TIME: Final = AttributoId("frame_time")
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 class OmZMQData(BaseModel):
@@ -36,9 +37,9 @@ class OmZMQData(BaseModel):
     start_timestamp: float
 
 
-def validate_om_zmq_entry(d: Any) -> str | OmZMQData:
+def validate_om_zmq_entry(log: BoundLogger, d: Any) -> str | OmZMQData:
     if not isinstance(d, dict):
-        logger.error("received invalid data from Om: not a dictionary but %s", type(d))
+        log.error("received invalid data from Om: not a dictionary but %s", type(d))
         return f"We expected a dictionary, but got a {type(d)}"
 
     try:
@@ -93,6 +94,7 @@ class OmZMQProcessor:
     def __init__(self, db: AsyncDB) -> None:
         self._db = db
         self._last_zeromq_data: OmZMQData | None = None
+        self._log = logger
 
     async def init(self) -> None:
         async with self._db.begin() as conn:
@@ -103,7 +105,8 @@ class OmZMQProcessor:
             )
 
     async def main_loop(self, zmq_context: Context, url: str, topic: str) -> None:
-        logger.info("starting OM observer main loop...")
+        self._log = self._log.bind(url=url, topic=topic)
+        self._log.info("starting OM observer main loop...")
         socket = zmq_context.socket(zmq.SUB)  # type: ignore
         socket.connect(url)
         socket.setsockopt_string(zmq.SUBSCRIBE, topic)
@@ -111,17 +114,17 @@ class OmZMQProcessor:
         while True:
             prefix = await socket.recv_string()
             if prefix != topic:
-                logger.error(
-                    f'Didn\'t receive the topic string "{topic}" before a message, instead "{prefix}". Bailing out since I cannot guarantee proper messaging from this point on.'
+                self._log.error(
+                    f'Didn\'t receive the topic string before a message, instead "{prefix}". Bailing out since I cannot guarantee proper messaging from this point on.'
                 )
                 break
             full_msg = await socket.recv_pyobj()
             await self.process_data(full_msg)
 
     async def process_data(self, data: Any) -> None:
-        current_zeromq_data = validate_om_zmq_entry(data)
+        current_zeromq_data = validate_om_zmq_entry(self._log, data)
         if isinstance(current_zeromq_data, str):
-            logger.warning(
+            self._log.warning(
                 f"Got a ZeroMQ frame from OM that's not what we expected. The error is\n\n{current_zeromq_data}\n\nThe data is:\n\n{data}"
             )
             return
@@ -135,7 +138,7 @@ class OmZMQProcessor:
             and current_zeromq_data is not None
             and last_zeromq_data.start_timestamp != current_zeromq_data.start_timestamp
         ):
-            logger.info("Detected an Om restart, skipping the initial frame...")
+            self._log.info("Detected an Om restart, skipping the initial frame...")
             return
 
         async with self._db.begin() as conn:
@@ -193,7 +196,7 @@ class OmZMQProcessor:
                     iter(x for x in attributi if x.name == ATTRIBUTO_FRAME_TIME), None
                 )
                 if frame_time_attributo is None:
-                    logger.error(
+                    self._log.error(
                         f'frame time attributo "{ATTRIBUTO_FRAME_TIME}" missing in attributo list'
                     )
                     return
@@ -201,12 +204,12 @@ class OmZMQProcessor:
                 if not isinstance(
                     frame_time_attributo.attributo_type, AttributoTypeDecimal
                 ):
-                    logger.error(
+                    self._log.error(
                         f'frame time attributo "{ATTRIBUTO_FRAME_TIME}" is not decimal but {frame_time_attributo.attributo_type}'
                     )
 
                 if not frame_time_attributo.attributo_type.standard_unit:
-                    logger.error(
+                    self._log.error(
                         f"frame time attributo {ATTRIBUTO_FRAME_TIME} is a decimal, but not a standard unit: {frame_time_attributo.attributo_type}"
                     )
                     return

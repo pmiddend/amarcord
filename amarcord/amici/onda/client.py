@@ -1,9 +1,10 @@
-import logging
 from dataclasses import dataclass
 from typing import Any
 
 import msgpack
+import structlog
 import zmq
+from structlog.stdlib import BoundLogger
 from zmq.asyncio import Context
 
 from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
@@ -13,7 +14,7 @@ from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
 from amarcord.db.attributo_type import AttributoTypeInt
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -22,9 +23,9 @@ class OnDAZMQData:
     hits: int
 
 
-def validate_onda_zmq_entry(d: Any) -> str | OnDAZMQData:
+def validate_onda_zmq_entry(log: BoundLogger, d: Any) -> str | OnDAZMQData:
     if not isinstance(d, list):
-        logger.error("received invalid data from OnDA: not a list but %s", type(d))
+        log.error("received invalid data from OnDA: not a list but %s", type(d))
         return f"We expected a list, but got a {type(d)}"
 
     return OnDAZMQData(
@@ -35,6 +36,7 @@ def validate_onda_zmq_entry(d: Any) -> str | OnDAZMQData:
 class OnDAZMQProcessor:
     def __init__(self, db: AsyncDB) -> None:
         self._db = db
+        self._log = logger
 
     async def init(self) -> None:
         async with self._db.begin() as conn:
@@ -64,7 +66,8 @@ class OnDAZMQProcessor:
                 )
 
     async def main_loop(self, zmq_context: Context, url: str, topic: str) -> None:
-        logger.info("starting OnDA observer main loop...")
+        self._log = self._log.bind(url=url, topic=topic)
+        self._log.info("starting OnDA observer main loop...")
         socket = zmq_context.socket(zmq.SUB)  # type: ignore
         socket.connect(url)
         socket.setsockopt_string(zmq.SUBSCRIBE, topic)
@@ -72,8 +75,8 @@ class OnDAZMQProcessor:
         while True:
             prefix = await socket.recv_string()
             if prefix != topic:
-                logger.error(
-                    f'Didn\'t receive the topic string "{topic}" before a message, instead "{prefix}". Bailing out since I cannot guarantee proper messaging from this point on.'
+                self._log.error(
+                    f'Didn\'t receive the topic string before a message, instead "{prefix}". Bailing out since I cannot guarantee proper messaging from this point on.'
                 )
                 break
             # noinspection PyUnresolvedReferences
@@ -81,9 +84,9 @@ class OnDAZMQProcessor:
             await self.process_data(msgpack.unpackb(full_msg))
 
     async def process_data(self, data: Any) -> None:
-        current_zeromq_data = validate_onda_zmq_entry(data)
+        current_zeromq_data = validate_onda_zmq_entry(self._log, data)
         if isinstance(current_zeromq_data, str):
-            logger.warning(
+            self._log.warning(
                 f"Got a ZeroMQ frame from OnDA that's not what we expected. The error is\n\n{current_zeromq_data}\n\nThe data is:\n\n{data}"
             )
             return

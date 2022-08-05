@@ -3,6 +3,7 @@ import logging
 from datetime import timedelta
 from pathlib import Path
 
+import structlog.stdlib
 from tap import Tap
 
 from amarcord.amici.slurm.job_status import JobStatus
@@ -14,7 +15,7 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 class Arguments(Tap):

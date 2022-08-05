@@ -1,11 +1,11 @@
 import asyncio
-import logging
 import re
 from dataclasses import dataclass
 from time import time
 from urllib.parse import unquote
 
 import aiohttp
+import structlog
 from pint import Quantity
 from pint import UnitRegistry
 
@@ -13,7 +13,7 @@ from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.error_message import ErrorMessage
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @dataclass(frozen=True)

@@ -1,12 +1,12 @@
 import asyncio
-import logging
 import time
 from random import uniform
 
+import structlog
 import zmq
 from zmq.asyncio import Context
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 async def om_simulator_loop(zmq_ctx: Context, delay_seconds: float, port: int) -> None:

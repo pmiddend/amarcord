@@ -6,6 +6,7 @@ from pathlib import Path
 from time import time
 from typing import Any
 
+import structlog
 import yaml
 import zmq
 from karabo_bridge import deserialize
@@ -26,7 +27,7 @@ logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 async def _receive_loop(db: AsyncDB, karabo2: Karabo2, socket: Any) -> None:

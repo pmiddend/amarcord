@@ -1,5 +1,4 @@
 import datetime
-import logging
 import re
 from dataclasses import dataclass
 from difflib import get_close_matches
@@ -13,6 +12,7 @@ from typing import Iterable
 from typing import cast
 
 import numpy as np
+import structlog
 from numpy import mean
 from numpy import std
 from pint import UnitRegistry
@@ -36,7 +36,7 @@ from amarcord.db.dbattributo import DBAttributo
 
 SPECIAL_ATTRIBUTE_JET_STREAM_IMAGE = "jetStreamImage"
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 # Train ID is taken from the ".tid" field in the metadata
 TRAIN_ID_FROM_METADATA_KEY = "timestamp.tid"

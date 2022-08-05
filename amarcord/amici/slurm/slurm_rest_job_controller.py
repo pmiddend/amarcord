@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import json
-import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +10,7 @@ from typing import Callable
 from typing import TypedDict
 
 import aiohttp
+import structlog
 
 from amarcord.amici.slurm.job import Job
 from amarcord.amici.slurm.job import JobMetadata
@@ -24,7 +24,7 @@ from amarcord.util import last_line_of_file
 
 _DESY_SLURM_URL = "https://max-portal.desy.de/sapi/slurm/v0.0.36"
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @dataclass(eq=True, frozen=True)
@@ -215,10 +215,7 @@ class SlurmRestJobController(JobController):
         sbatch_content = build_sbatch(content="\n".join(lines))
         url = f"{self._rest_url}/job/submit"
         logger.info(
-            "sending the following sbatch script to %s (headers %s): %s",
-            url,
-            json.dumps(await self._headers()),
-            sbatch_content,
+            f"sending the following sbatch script to {url} (headers {json.dumps(await self._headers())}): {sbatch_content}"
         )
         json_request: JSONDict = {
             "script": sbatch_content,
@@ -246,7 +243,7 @@ class SlurmRestJobController(JobController):
             )
         except Exception as e:
             raise JobStartError(f"error starting job {e}")
-        logger.info("response was %s", json.dumps(response))
+        logger.info(f"response was {json.dumps(response)}")
         response_json = response
         errors: list[SlurmError] = response_json.get("errors", None)  # type: ignore
         if errors is not None and errors:

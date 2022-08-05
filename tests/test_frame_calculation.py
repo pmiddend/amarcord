@@ -2,6 +2,7 @@ from pathlib import Path
 
 import h5py
 import pytest
+import structlog
 
 from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
 from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
@@ -14,6 +15,8 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.dbattributo import DBAttributo
+
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @pytest.mark.parametrize(
@@ -54,7 +57,7 @@ def test_update_frames_in_run(
             ATTRIBUTO_NUMBER_OF_OM_FRAMES: input_om_frames,
         },
     )
-    update_frames_in_run(attributi, input_frames)
+    update_frames_in_run(logger, attributi, input_frames)
     assert attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS) == output_hits
 
 
