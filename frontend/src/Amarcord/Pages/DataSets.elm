@@ -28,14 +28,21 @@ type DataSetMsg
     | DataSetExperimentTypeChange String
     | DataSetAttributiChange AttributoNameWithValueUpdate
     | DataSetSubmit
+    | AddDataSet
+    | CancelAddDataSet
+
+
+type alias NewDataSet =
+    { experimentType : Maybe String
+    , attributi : EditableAttributiAndOriginal
+    }
 
 
 type alias DataSetModel =
     { createRequest : RemoteData RequestError ()
     , deleteRequest : RemoteData RequestError ()
+    , newDataSet : Maybe NewDataSet
     , dataSets : RemoteData RequestError DataSetResult
-    , newDataSetExperimentType : Maybe String
-    , newDataSetAttributi : EditableAttributiAndOriginal
     , submitErrors : List String
     , zone : Zone
     }
@@ -46,9 +53,8 @@ initDataSet hereAndNow =
     ( { createRequest = NotAsked
       , deleteRequest = NotAsked
       , dataSets = Loading
-      , newDataSetExperimentType = Nothing
       , submitErrors = []
-      , newDataSetAttributi = emptyEditableAttributiAndOriginal
+      , newDataSet = Nothing
       , zone = hereAndNow.zone
       }
     , httpGetDataSets DataSetsReceived
@@ -70,28 +76,46 @@ updateDataSet msg model =
         DataSetDeleteSubmit dataSetId ->
             ( { model | deleteRequest = Loading }, httpDeleteDataSet DataSetDeleted dataSetId )
 
-        DataSetAttributiChange update ->
-            ( { model
-                | newDataSetAttributi =
-                    { originalAttributi = model.newDataSetAttributi.originalAttributi
-                    , editableAttributi = editEditableAttributi model.newDataSetAttributi.editableAttributi update
-                    }
-              }
-            , Cmd.none
-            )
+        AddDataSet ->
+            ( { model | newDataSet = Just { experimentType = Nothing, attributi = emptyEditableAttributiAndOriginal } }, Cmd.none )
 
-        DataSetSubmit ->
-            case model.newDataSetExperimentType of
+        CancelAddDataSet ->
+            ( { model | newDataSet = Nothing }, Cmd.none )
+
+        DataSetAttributiChange update ->
+            case model.newDataSet of
                 Nothing ->
                     ( model, Cmd.none )
 
-                Just experimentType ->
-                    case convertEditValues model.zone model.newDataSetAttributi of
-                        Err errorList ->
-                            ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+                Just newDataSetForm ->
+                    let
+                        newDataSet =
+                            { experimentType = newDataSetForm.experimentType
+                            , attributi =
+                                { originalAttributi = newDataSetForm.attributi.originalAttributi
+                                , editableAttributi = editEditableAttributi newDataSetForm.attributi.editableAttributi update
+                                }
+                            }
+                    in
+                    ( { model | newDataSet = Just newDataSet }, Cmd.none )
 
-                        Ok editedAttributi ->
-                            ( { model | createRequest = Loading }, httpCreateDataSet DataSetCreated experimentType editedAttributi )
+        DataSetSubmit ->
+            case model.newDataSet of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just newDataSet ->
+                    case newDataSet.experimentType of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just experimentType ->
+                            case convertEditValues model.zone newDataSet.attributi of
+                                Err errorList ->
+                                    ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+
+                                Ok editedAttributi ->
+                                    ( { model | createRequest = Loading }, httpCreateDataSet DataSetCreated experimentType editedAttributi )
 
         DataSetExperimentTypeChange newExperimentType ->
             case model.dataSets of
@@ -109,13 +133,14 @@ updateDataSet msg model =
 
                                 Just et ->
                                     List.member attributo.name et.attributeNames
+
+                        newDataSet =
+                            Just
+                                { experimentType = Just newExperimentType
+                                , attributi = createEditableAttributi model.zone (List.filter attributoInExperimentType attributi) emptyAttributoMap
+                                }
                     in
-                    ( { model
-                        | newDataSetExperimentType = Just newExperimentType
-                        , newDataSetAttributi = createEditableAttributi model.zone (List.filter attributoInExperimentType attributi) emptyAttributoMap
-                      }
-                    , Cmd.none
-                    )
+                    ( { model | newDataSet = newDataSet }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -164,27 +189,41 @@ viewDataSet model =
                         , td_ [ button [ class "btn btn-sm btn-danger", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 
-                viewExperimentTypeOption et =
-                    option [ selected (model.newDataSetExperimentType == Just et.name) ] [ text et.name ]
+                viewExperimentTypeOption currentEt et =
+                    option [ selected (currentEt == Just et.name) ] [ text et.name ]
+
+                newDataSetForm =
+                    case model.newDataSet of
+                        Nothing ->
+                            button [ type_ "button", onClick AddDataSet, class "btn btn-primary mb-3" ] [ icon { name = "plus-lg" }, text " Add Data Set" ]
+
+                        Just newDataSet ->
+                            form_
+                                ([ h5_ [ text "New data set" ]
+                                 , div [ class "mb-3" ]
+                                    [ select [ class "form-select", onInput DataSetExperimentTypeChange ]
+                                        (option [ selected (isNothing newDataSet.experimentType) ] [ text "«no value»" ] :: List.map (viewExperimentTypeOption newDataSet.experimentType) experimentTypes)
+                                    ]
+                                 ]
+                                    ++ viewEditForm samples newDataSet.attributi
+                                    ++ [ button
+                                            [ type_ "button"
+                                            , class "btn btn-primary mb-3 me-3"
+                                            , onClick DataSetSubmit
+                                            , disabled (newDataSet.experimentType == Nothing)
+                                            ]
+                                            [ icon { name = "plus" }, text " Add Data Set" ]
+                                       , button
+                                            [ type_ "button"
+                                            , class "btn btn-secondary mb-3"
+                                            , onClick CancelAddDataSet
+                                            ]
+                                            [ icon { name = "x-lg" }, text " Cancel" ]
+                                       ]
+                                )
             in
             [ h1_ [ text "Data Sets" ]
-            , form_
-                ([ h5_ [ text "New data set" ]
-                 , div [ class "mb-3" ]
-                    [ select [ class "form-select", onInput DataSetExperimentTypeChange ]
-                        (option [ selected (isNothing model.newDataSetExperimentType) ] [ text "«no value»" ] :: List.map viewExperimentTypeOption experimentTypes)
-                    ]
-                 ]
-                    ++ viewEditForm samples model.newDataSetAttributi
-                    ++ [ button
-                            [ type_ "button"
-                            , class "btn btn-primary mb-3"
-                            , onClick DataSetSubmit
-                            , disabled (model.newDataSetExperimentType == Nothing)
-                            ]
-                            [ icon { name = "plus" }, text " Add Data Set" ]
-                       ]
-                )
+            , newDataSetForm
             , viewRemoteData "Deletion successful!" model.deleteRequest
             , viewRemoteData "Creation successful!" model.createRequest
             , table [ class "table table-striped" ]
