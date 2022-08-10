@@ -5,7 +5,7 @@ module Amarcord.Attributo exposing
     , AttributoType(..)
     , AttributoValue(..)
     , attributoDecoder
-    , attributoFrames
+    , attributoHitRate
     , attributoHits
     , attributoIsNumber
     , attributoIsString
@@ -17,11 +17,13 @@ module Amarcord.Attributo exposing
     , createAnnotatedAttributoMap
     , emptyAttributoMap
     , extractDateTime
+    , extractFloat
     , jsonSchemaToAttributoType
     , mapAttributo
     , mapAttributoMaybe
     , retrieveAttributoValue
     , retrieveDateTimeAttributoValue
+    , retrieveFloatAttributoValue
     , retrieveIntAttributoValue
     , updateAttributoMap
     )
@@ -206,6 +208,11 @@ retrieveIntAttributoValue name m =
     Maybe.andThen extractInt <| retrieveAttributoValue name m
 
 
+retrieveFloatAttributoValue : AttributoName -> AttributoMap AttributoValue -> Maybe Float
+retrieveFloatAttributoValue name m =
+    Maybe.andThen extractFloat <| retrieveAttributoValue name m
+
+
 retrieveDateTimeAttributoValue : AttributoName -> AttributoMap AttributoValue -> Maybe Posix
 retrieveDateTimeAttributoValue name m =
     Maybe.andThen extractDateTime <| retrieveAttributoValue name m
@@ -240,6 +247,16 @@ extractInt x =
             Nothing
 
 
+extractFloat : AttributoValue -> Maybe Float
+extractFloat x =
+    case x of
+        ValueNumber s ->
+            Just s
+
+        _ ->
+            Nothing
+
+
 extractDateTime : AttributoValue -> Maybe Posix
 extractDateTime =
     Maybe.map millisToPosix << extractInt
@@ -250,9 +267,9 @@ attributoStarted =
     "started"
 
 
-attributoFrames : AttributoName
-attributoFrames =
-    "frames"
+attributoHitRate : AttributoName
+attributoHitRate =
+    "hit_rate"
 
 
 attributoHits : AttributoName

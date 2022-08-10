@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from amarcord.amici.onda.client import ATTRIBUTO_NUMBER_OF_FRAMES
-from amarcord.amici.onda.client import ATTRIBUTO_NUMBER_OF_HITS
+from amarcord.amici.onda.client import ATTRIBUTO_NUMBER_OF_OM_FRAMES
+from amarcord.amici.onda.client import ATTRIBUTO_NUMBER_OF_OM_HITS
 from amarcord.amici.onda.client import ATTRIBUTO_STOPPED
 from amarcord.amici.onda.client import OnDAZMQProcessor
 from amarcord.db.associated_table import AssociatedTable
@@ -45,8 +45,8 @@ async def test_process_data_latest_run() -> None:
     async with db.read_only_connection() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
 
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_HITS) == 1  # type: ignore
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_FRAMES) == 2  # type: ignore
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 1  # type: ignore
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 2  # type: ignore
 
     # Now stop the run and add some frames
     async with db.begin() as conn:
@@ -59,5 +59,5 @@ async def test_process_data_latest_run() -> None:
     async with db.read_only_connection() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
 
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_HITS) == 1  # type: ignore
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_FRAMES) == 2  # type: ignore
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 1  # type: ignore
+        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 2  # type: ignore

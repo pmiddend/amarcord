@@ -3,8 +3,8 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoFrames, attributoHits, attributoStarted, attributoStopped, attributoTargetFrameCount, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveIntAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoHitRate, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
@@ -12,11 +12,11 @@ import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, div_, em_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, millisDiffHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMillis, posixDiffMinutes, scrollToTop)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMinutes, scrollToTop)
 import Date exposing (Date)
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
@@ -313,119 +313,6 @@ viewRunsTable zone chosenColumns { runs, attributi, events, samples } =
         ]
 
 
-calculateEtaMillis : Int -> Int -> Int -> Int -> Maybe Int
-calculateEtaMillis totalHits framesInRun hitsInRun runLengthMillis =
-    if runLengthMillis == 0 || framesInRun == 0 then
-        Nothing
-
-    else
-        let
-            framesPerSecond =
-                toFloat framesInRun / toFloat runLengthMillis * 1000.0
-
-            hitRate =
-                toFloat hitsInRun / toFloat framesInRun
-
-            hitsPerSecond =
-                framesPerSecond * hitRate
-
-            targetHits =
-                max 0 <| 10000 - totalHits
-
-            secondsNeeded =
-                toFloat targetHits / hitsPerSecond
-        in
-        Just <| round <| secondsNeeded * 1000.0
-
-
-viewProgressBar : Bool -> Int -> Maybe Int -> Maybe Int -> Maybe Int -> List (Html msg)
-viewProgressBar isRunning hits runFrames runHits runLengthMillis =
-    let
-        eta : Maybe Int
-        eta =
-            MaybeExtra.join <| Maybe.map3 (calculateEtaMillis hits) runFrames runHits runLengthMillis
-
-        etaWarning =
-            MaybeExtra.unwrap "bg-success"
-                (\realEta ->
-                    if realEta > 12 * 60 * 60 * 1000 then
-                        "bg-warning"
-
-                    else
-                        "bg-success"
-                )
-                eta
-
-        etaDisplay =
-            MaybeExtra.unwrap []
-                (\realEta ->
-                    if realEta > 0 then
-                        [ span_ [ text "Time until 10k hits:" ]
-                        , br_
-                        , em_ [ text <| millisDiffHumanFriendly realEta ]
-                        ]
-
-                    else
-                        []
-                )
-                eta
-
-        toGoalPercent =
-            floor <| toFloat hits * 100.0 / 10000.0
-
-        overshootPercent =
-            floor <| 100.0 / toFloat toGoalPercent * 100.0
-
-        progress =
-            if toGoalPercent <= 100 then
-                div [ class "progress" ]
-                    [ div
-                        [ class
-                            ("progress-bar progress-bar-striped "
-                                ++ etaWarning
-                                ++ (if isRunning then
-                                        ""
-
-                                    else
-                                        " bg-secondary "
-                                   )
-                                ++ (if isRunning then
-                                        " progress-bar-animated"
-
-                                    else
-                                        ""
-                                   )
-                            )
-                        , style "width" (String.fromInt toGoalPercent ++ "%")
-                        ]
-                        []
-                    ]
-
-            else
-                div [ class "progress" ]
-                    [ div
-                        [ class
-                            ("progress-bar progress-bar-striped"
-                                ++ (if isRunning then
-                                        " bg-success"
-
-                                    else
-                                        " bg-secondary"
-                                   )
-                            )
-                        , style "width" (String.fromInt overshootPercent ++ "%")
-                        ]
-                        []
-                    , div
-                        [ class "progress-bar progress-bar-striped"
-                        , style "width" (String.fromInt (100 - overshootPercent) ++ "%")
-                        ]
-                        []
-                    ]
-    in
-    [ text (formatIntHumanFriendly hits), progress ] ++ etaDisplay
-
-
 viewCurrentRun : Zone -> Posix -> Maybe String -> Maybe String -> RemoteData RequestError () -> RemoteData RequestError () -> RunsResponseContent -> List (Html Msg)
 viewCurrentRun zone now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
@@ -443,32 +330,9 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                 runStopped =
                     retrieveDateTimeAttributoValue attributoStopped attributi
 
-                stoppedOrNow : Posix
-                stoppedOrNow =
-                    Maybe.withDefault now runStopped
-
-                runLengthMillis : Maybe Int
-                runLengthMillis =
-                    Maybe.map (posixDiffMillis stoppedOrNow) runStarted
-
-                runFrames : Maybe Int
-                runFrames =
-                    retrieveIntAttributoValue attributoFrames attributi
-
-                runHits : Maybe Int
-                runHits =
-                    retrieveIntAttributoValue attributoHits attributi
-
                 runHitRate : Maybe Float
                 runHitRate =
-                    MaybeExtra.andThen2 (\frames hits -> Just <| toFloat hits / toFloat frames * 100.0) runFrames runHits
-
-                runTotalFrames : Maybe Int
-                runTotalFrames =
-                    retrieveIntAttributoValue attributoTargetFrameCount attributi
-
-                isRunning =
-                    isNothing runStopped
+                    retrieveFloatAttributoValue attributoHitRate attributi
 
                 runInformationCopy =
                     [ div [ class "form-check form-switch mb-3" ]
@@ -571,58 +435,14 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
 
                         Just ds ->
                             let
-                                runFramesProgress =
-                                    case ( runFrames, runTotalFrames ) of
-                                        ( Nothing, Nothing ) ->
-                                            [ text "" ]
-
-                                        ( Nothing, Just _ ) ->
-                                            [ text "" ]
-
-                                        ( Just runFramesUnwrapped, Nothing ) ->
-                                            [ text <| formatIntHumanFriendly runFramesUnwrapped ]
-
-                                        ( Just runFramesUnwrapped, Just runTotalFramesUnwrapped ) ->
-                                            let
-                                                runProgressPercent =
-                                                    if runTotalFramesUnwrapped == 0 then
-                                                        0.0
-
-                                                    else
-                                                        toFloat runFramesUnwrapped / toFloat runTotalFramesUnwrapped * 100.0
-                                            in
-                                            [ text (formatIntHumanFriendly runFramesUnwrapped ++ "/" ++ formatIntHumanFriendly runTotalFramesUnwrapped)
-                                            , div [ class "progress" ]
-                                                [ div [ class "progress-bar", style "width" (String.fromFloat runProgressPercent ++ "%") ] []
-                                                ]
-                                            ]
-
                                 footer : DataSetSummary -> Html msg
-                                footer { numberOfRuns, hits, frames } =
+                                footer { numberOfRuns, hitRate } =
                                     tfoot []
                                         [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
-                                        , tr_ [ td_ [ text "Frames" ], td_ [ text (formatIntHumanFriendly frames) ] ]
-                                        , tr_
-                                            [ td_ [ text "Hits" ]
-                                            , td_ <| viewProgressBar isRunning hits runFrames runHits runLengthMillis
-                                            ]
                                         , tr_
                                             [ td_ [ text "Hit Rate" ]
-                                            , td_
-                                                [ text
-                                                    (if frames /= 0 then
-                                                        formatFloatHumanFriendly (toFloat hits / toFloat frames * 100.0) ++ "%"
-
-                                                     else
-                                                        ""
-                                                    )
-                                                ]
+                                            , td_ [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") hitRate ]
                                             ]
-                                        , tr [ style "border-top" "2px solid black" ]
-                                            [ td_ [ text "Frames (this run)" ]
-                                            , td_ runFramesProgress
-                                            ]
-                                        , tr_ [ td_ [ text "Hits (this run)" ], td_ [ text <| MaybeExtra.unwrap "" formatIntHumanFriendly runHits ] ]
                                         , tr_
                                             [ td_ [ text "Hit Rate (this run)" ]
                                             , td_

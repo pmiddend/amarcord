@@ -141,19 +141,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                         ul_ (List.map (\runRange -> li_ [ text runRange ]) runs)
                     ]
                 , td_ [ text <| MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.frames) dataSet.summary ]
-                , td_ [ text <| MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.hits) dataSet.summary ]
-                , td_
-                    [ text <|
-                        MaybeExtra.unwrap ""
-                            (\summary ->
-                                if summary.frames > 0 then
-                                    formatFloatHumanFriendly (toFloat summary.hits / toFloat summary.frames * 100.0) ++ "%"
-
-                                else
-                                    ""
-                            )
-                            dataSet.summary
-                    ]
+                , td_ [ text <| MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.hitRate) dataSet.summary ]
                 ]
             ]
                 ++ (if List.isEmpty analysisResults then
@@ -184,7 +172,6 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                     , th_ [ text "Number of Runs" ]
                     , th_ [ text "Runs" ]
                     , th_ [ text "Frames" ]
-                    , th_ [ text "Hits" ]
                     , th_ [ text "Hit Rate" ]
                     ]
                 ]

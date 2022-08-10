@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
+from statistics import mean
 from tempfile import NamedTemporaryFile
 from typing import Any
 from typing import Final
@@ -27,8 +28,7 @@ from tap import Tap
 from werkzeug import Response
 from werkzeug.exceptions import HTTPException
 
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
+from amarcord.amici.om.client import ATTRIBUTO_HIT_RATE
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
@@ -56,6 +56,7 @@ from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBFile
 from amarcord.db.table_classes import DBRun
 from amarcord.db.table_classes import DBSample
+from amarcord.experiment_simulator import ATTRIBUTO_TARGET_FRAME_COUNT
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
@@ -350,21 +351,29 @@ async def update_run() -> JSONDict:
 class DataSetSummary:
     numberOfRuns: int
     frames: int
-    hits: int
+    hit_rate: float | None
 
 
-def build_run_summary(matching_runs: list[DBRun]) -> DataSetSummary:
-    result: DataSetSummary = DataSetSummary(
-        numberOfRuns=len(matching_runs), frames=0, hits=0
+def _build_run_summary(matching_runs: list[DBRun]) -> DataSetSummary:
+    # ugly, but we cannot filter on a function result in a generator expression
+    hit_rates = list(
+        filter(
+            lambda x: x is not None,
+            (run.attributi.select_decimal(ATTRIBUTO_HIT_RATE) for run in matching_runs),
+        )
     )
-    for run in matching_runs:
-        hit_result = run.attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS)
-        if hit_result is not None:
-            result.hits += hit_result
-        frames_result = run.attributi.select_int(ATTRIBUTO_NUMBER_OF_FRAMES)
-        if frames_result is not None:
-            result.frames += frames_result
-    return result
+    frames = filter(
+        lambda x: x is not None,
+        (
+            run.attributi.select_int(ATTRIBUTO_TARGET_FRAME_COUNT)
+            for run in matching_runs
+        ),
+    )
+    return DataSetSummary(
+        len(matching_runs),
+        sum(frames),  # type: ignore
+        mean(hit_rates) if hit_rates else None,  # type: ignore
+    )
 
 
 @dataclass(frozen=True)
@@ -515,7 +524,7 @@ async def read_runs() -> JSONDict:
             matching_runs = [
                 r for r in runs if run_matches_dataset(r.attributi, ds.attributi)
             ]
-            data_set_id_to_grouped[ds.id] = build_run_summary(matching_runs)
+            data_set_id_to_grouped[ds.id] = _build_run_summary(matching_runs)
 
         latest_dark = determine_latest_dark_run(runs, attributi)
 
@@ -939,8 +948,8 @@ def _encode_data_set(a: DBDataSet, summary: DataSetSummary | None) -> JSONDict:
     if summary is not None:
         result["summary"] = {
             "number-of-runs": summary.numberOfRuns,
-            "hits": summary.hits,
             "frames": summary.frames,
+            "hit-rate": summary.hit_rate,
         }
     return result
 
@@ -1177,7 +1186,7 @@ async def read_analysis_results() -> JSONDict:
                     {
                         "data-set": _encode_data_set(
                             ds,
-                            build_run_summary(data_set_to_runs.get(ds.id, [])),
+                            _build_run_summary(data_set_to_runs.get(ds.id, [])),
                         ),
                         "analysis-results": [
                             _encode_cfel_analysis_result(k)
@@ -1271,7 +1280,9 @@ def main() -> int:
         },
     )
     if args.debug:
-        app.run(host=args.host, port=args.port, debug=False, use_reloader=args.debug)
+        app.run(
+            host=args.host, port=args.port, debug=args.debug, use_reloader=args.debug
+        )
     else:
         config = Config()
         config.bind = [f"{args.host}:{args.port}"]

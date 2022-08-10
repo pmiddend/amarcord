@@ -1,10 +1,8 @@
-import datetime
 from typing import Any
 from typing import Final
 
 import structlog
 import zmq
-from pint import UnitRegistry
 from pydantic import BaseModel
 from pydantic import ValidationError
 from structlog.stdlib import BoundLogger
@@ -13,7 +11,6 @@ from zmq.asyncio import Context
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import ATTRIBUTO_STARTED
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeDecimal
@@ -22,11 +19,9 @@ from amarcord.db.dbattributo import DBAttributo
 
 OM_ATTRIBUTO_GROUP: Final = "om"
 
-ATTRIBUTO_NUMBER_OF_HITS: Final = AttributoId("hits")
-ATTRIBUTO_NUMBER_OF_FRAMES: Final = AttributoId("frames")
+ATTRIBUTO_HIT_RATE: Final = AttributoId("hit_rate")
 ATTRIBUTO_NUMBER_OF_OM_HITS: Final = AttributoId("om_hits")
 ATTRIBUTO_NUMBER_OF_OM_FRAMES: Final = AttributoId("om_frames")
-ATTRIBUTO_FRAME_TIME: Final = AttributoId("frame_time")
 
 logger = structlog.stdlib.get_logger(__name__)
 
@@ -52,23 +47,14 @@ async def create_om_attributi(
     db: AsyncDB, conn: Connection, attributi_list: list[DBAttributo]
 ) -> None:
     attributi = {k.name: k for k in attributi_list}
-    if ATTRIBUTO_NUMBER_OF_HITS not in attributi:
+    if ATTRIBUTO_HIT_RATE not in attributi:
         await db.create_attributo(
             conn,
-            ATTRIBUTO_NUMBER_OF_HITS,
+            ATTRIBUTO_HIT_RATE,
             "",
             OM_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
-            AttributoTypeInt(),
-        )
-    if ATTRIBUTO_NUMBER_OF_FRAMES not in attributi:
-        await db.create_attributo(
-            conn,
-            ATTRIBUTO_NUMBER_OF_FRAMES,
-            "",
-            OM_ATTRIBUTO_GROUP,
-            AssociatedTable.RUN,
-            AttributoTypeInt(),
+            AttributoTypeDecimal(suffix="%", standard_unit=False),
         )
     if ATTRIBUTO_NUMBER_OF_OM_FRAMES not in attributi:
         await db.create_attributo(
@@ -183,55 +169,12 @@ class OmZMQProcessor:
                 ATTRIBUTO_NUMBER_OF_OM_FRAMES,
                 final_om_frames,
             )
-            # If we have an exposure time, we can even update the total number of hits/frames
-            frame_time = latest_run.attributi.select_decimal(ATTRIBUTO_FRAME_TIME)
-            started = latest_run.attributi.select_datetime(ATTRIBUTO_STARTED)
-            if (
-                frame_time is not None
-                and frame_time > 0
-                and started is not None
-                and final_om_frames > 0
-            ):
-                frame_time_attributo = next(
-                    iter(x for x in attributi if x.name == ATTRIBUTO_FRAME_TIME), None
-                )
-                if frame_time_attributo is None:
-                    self._log.error(
-                        f'frame time attributo "{ATTRIBUTO_FRAME_TIME}" missing in attributo list'
-                    )
-                    return
-
-                if not isinstance(
-                    frame_time_attributo.attributo_type, AttributoTypeDecimal
-                ):
-                    self._log.error(
-                        f'frame time attributo "{ATTRIBUTO_FRAME_TIME}" is not decimal but {frame_time_attributo.attributo_type}'
-                    )
-
-                if not frame_time_attributo.attributo_type.standard_unit:
-                    self._log.error(
-                        f"frame time attributo {ATTRIBUTO_FRAME_TIME} is a decimal, but not a standard unit: {frame_time_attributo.attributo_type}"
-                    )
-                    return
-
-                frame_time_quantity = (
-                    UnitRegistry()(frame_time_attributo.attributo_type.suffix)
-                    * frame_time
-                ).to("s")
-                seconds_since_start = (
-                    datetime.datetime.utcnow() - started
-                ) / datetime.timedelta(seconds=1)
-                frames_since_start = seconds_since_start / frame_time_quantity.m
-                hits_since_start = final_om_hits / final_om_frames * frames_since_start
-                latest_run.attributi.append_single(
-                    ATTRIBUTO_NUMBER_OF_FRAMES,
-                    int(frames_since_start),
-                )
-                latest_run.attributi.append_single(
-                    ATTRIBUTO_NUMBER_OF_HITS,
-                    int(hits_since_start),
-                )
-
+            latest_run.attributi.append_single(
+                ATTRIBUTO_HIT_RATE,
+                final_om_hits / final_om_frames * 100.0
+                if final_om_frames != 0
+                else 0.0,
+            )
             await self._db.update_run_attributi(
                 conn, latest_run.id, latest_run.attributi
             )

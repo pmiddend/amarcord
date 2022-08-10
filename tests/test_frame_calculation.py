@@ -4,61 +4,10 @@ import h5py
 import pytest
 import structlog
 
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_FRAMES
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_HITS
 from amarcord.amici.p11.frame_calculation import retrieve_frames_for_data_file
 from amarcord.amici.p11.frame_calculation import retrieve_frames_for_raw_file_glob
-from amarcord.amici.p11.frame_calculation import update_frames_in_run
-from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.attributo_type import AttributoTypeInt
-from amarcord.db.dbattributo import DBAttributo
 
 logger = structlog.stdlib.get_logger(__name__)
-
-
-@pytest.mark.parametrize(
-    "input_frames, input_om_frames, input_om_hits, output_hits",
-    [
-        (100, None, None, None),
-        (100, 10, None, None),
-        (100, None, 10, None),
-        (100, 10, 1, 10),
-        (100, 0, 1, None),
-    ],
-)
-def test_update_frames_in_run(
-    input_frames: int,
-    input_om_frames: int | None,
-    input_om_hits: int | None,
-    output_hits: int | None,
-) -> None:
-    attributi = AttributiMap.from_types_and_json(
-        [
-            DBAttributo(
-                x,
-                "",
-                "",
-                AssociatedTable.RUN,
-                AttributoTypeInt(),
-            )
-            for x in (
-                ATTRIBUTO_NUMBER_OF_HITS,
-                ATTRIBUTO_NUMBER_OF_FRAMES,
-                ATTRIBUTO_NUMBER_OF_OM_HITS,
-                ATTRIBUTO_NUMBER_OF_OM_FRAMES,
-            )
-        ],
-        sample_ids=[],
-        raw_attributi={
-            ATTRIBUTO_NUMBER_OF_OM_HITS: input_om_hits,
-            ATTRIBUTO_NUMBER_OF_OM_FRAMES: input_om_frames,
-        },
-    )
-    update_frames_in_run(logger, attributi, input_frames)
-    assert attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS) == output_hits
 
 
 @pytest.mark.parametrize("input_frame_count", [1, 1000, 1337])

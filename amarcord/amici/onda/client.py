@@ -7,11 +7,13 @@ import zmq
 from structlog.stdlib import BoundLogger
 from zmq.asyncio import Context
 
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
+from amarcord.amici.om.client import ATTRIBUTO_HIT_RATE
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_FRAMES
+from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_HITS
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -46,23 +48,32 @@ class OnDAZMQProcessor:
                     conn, associated_table=AssociatedTable.RUN
                 )
             }
-            if ATTRIBUTO_NUMBER_OF_HITS not in attributi:
+            if ATTRIBUTO_NUMBER_OF_OM_HITS not in attributi:
                 await self._db.create_attributo(
                     conn,
-                    ATTRIBUTO_NUMBER_OF_HITS,
+                    ATTRIBUTO_NUMBER_OF_OM_HITS,
                     "",
                     "onda",
                     AssociatedTable.RUN,
                     AttributoTypeInt(),
                 )
-            if ATTRIBUTO_NUMBER_OF_FRAMES not in attributi:
+            if ATTRIBUTO_NUMBER_OF_OM_FRAMES not in attributi:
                 await self._db.create_attributo(
                     conn,
-                    ATTRIBUTO_NUMBER_OF_FRAMES,
+                    ATTRIBUTO_NUMBER_OF_OM_FRAMES,
                     "",
                     "onda",
                     AssociatedTable.RUN,
                     AttributoTypeInt(),
+                )
+            if ATTRIBUTO_HIT_RATE not in attributi:
+                await self._db.create_attributo(
+                    conn,
+                    ATTRIBUTO_HIT_RATE,
+                    "",
+                    "onda",
+                    AssociatedTable.RUN,
+                    AttributoTypeDecimal(suffix="%", standard_unit=False),
                 )
 
     async def main_loop(self, zmq_context: Context, url: str, topic: str) -> None:
@@ -111,21 +122,29 @@ class OnDAZMQProcessor:
             assert current_zeromq_data is not None
             new_hits = current_zeromq_data.hits
             new_frames = current_zeromq_data.frames
-            current_hits = latest_run.attributi.select_int(ATTRIBUTO_NUMBER_OF_HITS)
-            current_frames = latest_run.attributi.select_int(ATTRIBUTO_NUMBER_OF_FRAMES)
+            current_hits = latest_run.attributi.select_int(ATTRIBUTO_NUMBER_OF_OM_HITS)
+            current_frames = latest_run.attributi.select_int(
+                ATTRIBUTO_NUMBER_OF_OM_FRAMES
+            )
             final_om_hits = (
                 new_hits if current_hits is None else new_hits + current_hits
             )
             latest_run.attributi.append_single(
-                ATTRIBUTO_NUMBER_OF_HITS,
+                ATTRIBUTO_NUMBER_OF_OM_HITS,
                 final_om_hits,
             )
             final_om_frames = (
                 new_frames if current_frames is None else new_frames + current_frames
             )
             latest_run.attributi.append_single(
-                ATTRIBUTO_NUMBER_OF_FRAMES,
+                ATTRIBUTO_NUMBER_OF_OM_FRAMES,
                 final_om_frames,
+            )
+            latest_run.attributi.append_single(
+                ATTRIBUTO_HIT_RATE,
+                final_om_hits / final_om_frames * 100.0
+                if final_om_frames != 0.0
+                else 0.0,
             )
             await self._db.update_run_attributi(
                 conn, latest_run.id, latest_run.attributi

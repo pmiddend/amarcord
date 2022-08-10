@@ -46,11 +46,7 @@ async def _main_loop(args: Arguments) -> None:
     if args.experiment_simulator_enabled:
         await experiment_simulator_initialize_db(db)
         awaitables.append(
-            asyncio.create_task(
-                experiment_simulator_main_loop(
-                    db, args.experiment_simulator_files_dir, delay_seconds=5.0
-                )
-            )
+            asyncio.create_task(experiment_simulator_main_loop(db, delay_seconds=5.0))
         )
 
     if args.mjpeg_stream_url is not None:

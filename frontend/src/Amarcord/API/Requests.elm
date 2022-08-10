@@ -155,8 +155,8 @@ dataSetSummaryDecoder =
     Decode.map3
         DataSetSummary
         (Decode.field "number-of-runs" Decode.int)
-        (Decode.field "hits" Decode.int)
         (Decode.field "frames" Decode.int)
+        (Decode.field "hit-rate" (Decode.maybe Decode.float))
 
 
 dataSetDecoder : Decode.Decoder DataSet

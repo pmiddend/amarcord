@@ -2,7 +2,6 @@ import asyncio
 import datetime
 import logging
 import random
-from pathlib import Path
 
 import randomname
 import structlog
@@ -10,7 +9,6 @@ from randomname import generate
 from tap import Tap
 
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STARTED
@@ -28,10 +26,8 @@ from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
-from amarcord.db.table_classes import DBFileBlueprint
 from amarcord.db.table_classes import DBRun
 from amarcord.numeric_range import NumericRange
 from amarcord.util import safe_max
@@ -317,58 +313,7 @@ def random_gibberish() -> str:
     return "Test sentence please ignore"
 
 
-async def _generate_cfel_results(
-    db: AsyncDB, files_dir: Path | None, conn: Connection
-) -> None:
-    data_sets = await db.retrieve_data_sets(
-        conn,
-        await db.retrieve_sample_ids(conn),
-        await db.retrieve_attributi(conn, associated_table=None),
-    )
-
-    await db.clear_cfel_analysis_results(conn)
-
-    files = (
-        random.choices(
-            [DBFileBlueprint(f.name, f) for f in files_dir.iterdir()],
-            k=random.randint(0, 3),
-        )
-        if files_dir is not None
-        else []
-    )
-
-    for data_set in data_sets:
-        await db.create_cfel_analysis_result(
-            conn,
-            DBCFELAnalysisResult(
-                id=None,
-                directory_name="/gpfs/cfel/foo/bar/baz",
-                data_set_id=data_set.id,
-                resolution=f"{random.uniform(1, 5):.2f}A",
-                rsplit=random.uniform(1, 2),
-                cchalf=random.uniform(1, 2),
-                ccstar=random.uniform(1, 2),
-                snr=random.uniform(1, 2),
-                completeness=random.uniform(1, 2),
-                multiplicity=random.uniform(1, 2),
-                total_measurements=int(random.uniform(1, 30000)),
-                unique_reflections=int(random.uniform(1, 30000)),
-                num_patterns=int(random.uniform(1, 30000)),
-                num_hits=int(random.uniform(1, 30000)),
-                indexed_patterns=int(random.uniform(1, 30000)),
-                indexed_crystals=int(random.uniform(1, 30000)),
-                crystfel_version="0.9.1",
-                ccstar_rsplit=random.uniform(-1000, 1000),
-                created=datetime.datetime.utcnow(),
-                files=[],
-            ),
-            files,
-        )
-
-
-async def experiment_simulator_main_loop(
-    db: AsyncDB, files_dir: Path | None, delay_seconds: float
-) -> None:
+async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> None:
     logger.info("starting experiment simulator loop")
     while True:
         async with db.read_only_connection() as conn:
@@ -421,8 +366,5 @@ async def experiment_simulator_main_loop(
                 await db.create_event(
                     conn, EventLogLevel.INFO, random_person_name(), random_gibberish()
                 )
-
-        async with db.begin() as conn:
-            await _generate_cfel_results(db, files_dir, conn)
 
         await asyncio.sleep(delay_seconds)

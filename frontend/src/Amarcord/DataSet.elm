@@ -5,8 +5,8 @@ import Amarcord.Attributo exposing (AttributoMap, AttributoValue)
 
 type alias DataSetSummary =
     { numberOfRuns : Int
-    , hits : Int
     , frames : Int
+    , hitRate : Maybe Float
     }
 
 

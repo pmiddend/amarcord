@@ -8,13 +8,8 @@ from typing import Optional
 
 import h5py
 import structlog
-from structlog.stdlib import BoundLogger
 
 from amarcord.amici.kamzik.kamzik_zmq_client import KAMZIK_ATTRIBUTO_GROUP
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_FRAMES
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_HITS
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_FRAMES
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_HITS
 from amarcord.amici.om.client import create_om_attributi
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
@@ -23,6 +18,7 @@ from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.table_classes import DBRun
+from amarcord.experiment_simulator import ATTRIBUTO_TARGET_FRAME_COUNT
 
 logger = structlog.stdlib.get_logger(__name__)
 
@@ -48,22 +44,8 @@ def retrieve_frames_for_raw_file_glob(file_glob: str) -> int:
 ATTRIBUTO_RAW_FILES: Final = AttributoId("raw_files")
 
 
-def update_frames_in_run(
-    log: BoundLogger, attributi: AttributiMap, frames: int
-) -> None:
-    attributi.append_single(ATTRIBUTO_NUMBER_OF_FRAMES, frames)
-
-    om_frames = attributi.select_int(ATTRIBUTO_NUMBER_OF_OM_FRAMES)
-    om_hits = attributi.select_int(ATTRIBUTO_NUMBER_OF_OM_HITS)
-
-    if om_frames is not None and om_hits is not None and om_frames != 0:
-        new_hits = int(frames * om_hits / om_frames)
-        log.info(f"new hits: {new_hits}")
-        attributi.append_single(
-            ATTRIBUTO_NUMBER_OF_HITS, int(frames * om_hits / om_frames)
-        )
-    else:
-        log.info("cannot update hits (no om_hits/frames)")
+def update_frames_in_run(attributi: AttributiMap, frames: int) -> None:
+    attributi.append_single(ATTRIBUTO_TARGET_FRAME_COUNT, frames)
 
 
 async def update_runs_add_file_globs(
@@ -139,7 +121,7 @@ async def update_run_frames(db: AsyncDB, pool_size: int) -> None:
             run = await db.retrieve_run(conn, run_id, attributi)
             if run is None:
                 continue
-            update_frames_in_run(log, run.attributi, frames)
+            update_frames_in_run(run.attributi, frames)
             log.info(f"detected {frames} frames")
             await db.update_run_attributi(conn, run_id, run.attributi)
     finish = time()
