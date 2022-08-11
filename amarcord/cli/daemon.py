@@ -31,6 +31,7 @@ class Arguments(Tap):
     onda_topic: str = "ondadata"
     experiment_simulator_enabled: bool = False
     experiment_simulator_files_dir: Path | None = None
+    experiment_simulator_set_indexing_rate: bool
     mjpeg_stream_url: str | None = None
     mjpeg_stream_delay_seconds: float = 5.0
 
@@ -46,7 +47,13 @@ async def _main_loop(args: Arguments) -> None:
     if args.experiment_simulator_enabled:
         await experiment_simulator_initialize_db(db)
         awaitables.append(
-            asyncio.create_task(experiment_simulator_main_loop(db, delay_seconds=5.0))
+            asyncio.create_task(
+                experiment_simulator_main_loop(
+                    db,
+                    delay_seconds=5.0,
+                    set_indexing_rate=args.experiment_simulator_set_indexing_rate,
+                )
+            )
         )
 
     if args.mjpeg_stream_url is not None:

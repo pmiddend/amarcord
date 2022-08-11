@@ -8,6 +8,8 @@ import structlog
 from randomname import generate
 from tap import Tap
 
+from amarcord.amici.om.client import ATTRIBUTO_HIT_RATE
+from amarcord.amici.om.client import ATTRIBUTO_INDEXING_RATE
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.asyncdb import AsyncDB
@@ -61,6 +63,7 @@ class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     verbose: bool = False  # Show more log messages
     wait_time_seconds: float  # How long to wait before simulating another event (in seconds)
+    set_indexing_rate: bool  # Set some value for the indexing rate of the run
 
 
 def random_date(start: datetime.datetime, end: datetime.datetime) -> datetime.datetime:
@@ -210,6 +213,14 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             AssociatedTable.RUN,
             AttributoTypeBoolean(),
         )
+        await db.create_attributo(
+            conn,
+            ATTRIBUTO_INDEXING_RATE,
+            "",
+            "om",
+            AssociatedTable.RUN,
+            AttributoTypeDecimal(suffix="%", standard_unit=False),
+        )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
         sample_names: list[str] = []
@@ -313,7 +324,9 @@ def random_gibberish() -> str:
     return "Test sentence please ignore"
 
 
-async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> None:
+async def experiment_simulator_main_loop(
+    db: AsyncDB, delay_seconds: float, set_indexing_rate: bool
+) -> None:
     logger.info("starting experiment simulator loop")
     while True:
         async with db.read_only_connection() as conn:
@@ -366,5 +379,21 @@ async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> N
                 await db.create_event(
                     conn, EventLogLevel.INFO, random_person_name(), random_gibberish()
                 )
+
+        if set_indexing_rate:
+            async with db.begin() as conn:
+                latest_run = await db.retrieve_latest_run(conn, attributi)
+                if (
+                    latest_run is not None
+                    and latest_run.attributi.select_datetime(ATTRIBUTO_STOPPED) is None
+                ):
+                    hit_rate = latest_run.attributi.select_decimal(ATTRIBUTO_HIT_RATE)
+                    if hit_rate is not None:
+                        latest_run.attributi.append_single(
+                            ATTRIBUTO_INDEXING_RATE, random.uniform(0, 90)
+                        )
+                        await db.update_run_attributi(
+                            conn, latest_run.id, latest_run.attributi
+                        )
 
         await asyncio.sleep(delay_seconds)

@@ -22,6 +22,7 @@ OM_ATTRIBUTO_GROUP: Final = "om"
 ATTRIBUTO_HIT_RATE: Final = AttributoId("hit_rate")
 ATTRIBUTO_NUMBER_OF_OM_HITS: Final = AttributoId("om_hits")
 ATTRIBUTO_NUMBER_OF_OM_FRAMES: Final = AttributoId("om_frames")
+ATTRIBUTO_INDEXING_RATE: Final = AttributoId("indexing_rate")
 
 logger = structlog.stdlib.get_logger(__name__)
 

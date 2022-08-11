@@ -3,7 +3,7 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoHitRate, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoHitRate, attributoIndexingRate, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 import Amarcord.ColumnChooser as ColumnChooser
@@ -334,6 +334,10 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                 runHitRate =
                     retrieveFloatAttributoValue attributoHitRate attributi
 
+                runIndexingRate : Maybe Float
+                runIndexingRate =
+                    retrieveFloatAttributoValue attributoIndexingRate attributi
+
                 runInformationCopy =
                     [ div [ class "form-check form-switch mb-3" ]
                         [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.runInformationCopy, onInput (always (ChangeAutoPilot (not rrc.runInformationCopy))) ]
@@ -436,7 +440,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                         Just ds ->
                             let
                                 footer : DataSetSummary -> Html msg
-                                footer { numberOfRuns, hitRate } =
+                                footer { numberOfRuns, hitRate, indexingRate } =
                                     tfoot []
                                         [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
                                         , tr_
@@ -447,6 +451,16 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                             [ td_ [ text "Hit Rate (this run)" ]
                                             , td_
                                                 [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") runHitRate
+                                                ]
+                                            ]
+                                        , tr_
+                                            [ td_ [ text "Indexing Rate" ]
+                                            , td_ [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") indexingRate ]
+                                            ]
+                                        , tr_
+                                            [ td_ [ text "Indexing Rate (this run)" ]
+                                            , td_
+                                                [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") runIndexingRate
                                                 ]
                                             ]
                                         ]

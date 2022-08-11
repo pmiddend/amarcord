@@ -29,6 +29,7 @@ from werkzeug import Response
 from werkzeug.exceptions import HTTPException
 
 from amarcord.amici.om.client import ATTRIBUTO_HIT_RATE
+from amarcord.amici.om.client import ATTRIBUTO_INDEXING_RATE
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
@@ -352,6 +353,7 @@ class DataSetSummary:
     numberOfRuns: int
     frames: int
     hit_rate: float | None
+    indexing_rate: float | None
 
 
 def _build_run_summary(matching_runs: list[DBRun]) -> DataSetSummary:
@@ -360,6 +362,16 @@ def _build_run_summary(matching_runs: list[DBRun]) -> DataSetSummary:
         filter(
             lambda x: x is not None,
             (run.attributi.select_decimal(ATTRIBUTO_HIT_RATE) for run in matching_runs),
+        )
+    )
+    # ugly, but we cannot filter on a function result in a generator expression
+    indexing_rates = list(
+        filter(
+            lambda x: x is not None,
+            (
+                run.attributi.select_decimal(ATTRIBUTO_INDEXING_RATE)
+                for run in matching_runs
+            ),
         )
     )
     frames = filter(
@@ -373,6 +385,7 @@ def _build_run_summary(matching_runs: list[DBRun]) -> DataSetSummary:
         len(matching_runs),
         sum(frames),  # type: ignore
         mean(hit_rates) if hit_rates else None,  # type: ignore
+        mean(indexing_rates) if indexing_rates else None,  # type: ignore
     )
 
 
@@ -478,6 +491,17 @@ def run_has_started_date(run: DBRun, date_filter: str) -> bool:
 
 def event_has_date(event: DBEvent, date_filter: str) -> bool:
     return event.created.strftime(DATE_FORMAT) == date_filter
+
+
+# @app.get("/api/runs/latest")
+# async def read_latest_run() -> JSONDict:
+#     async with db.instance.read_only_connection() as conn:
+#         run = await db.instance.retrieve_latest_run(
+#             conn, await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
+#         )
+#         if run is None:
+#             return {"run": None}
+#         return {"run": {"id": run.id, "attributi": run.attributi.to_json()}}
 
 
 @app.get("/api/runs")
@@ -950,6 +974,7 @@ def _encode_data_set(a: DBDataSet, summary: DataSetSummary | None) -> JSONDict:
             "number-of-runs": summary.numberOfRuns,
             "frames": summary.frames,
             "hit-rate": summary.hit_rate,
+            "indexing-rate": summary.indexing_rate,
         }
     return result
 

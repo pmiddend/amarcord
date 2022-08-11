@@ -7,6 +7,7 @@ module Amarcord.Attributo exposing
     , attributoDecoder
     , attributoHitRate
     , attributoHits
+    , attributoIndexingRate
     , attributoIsNumber
     , attributoIsString
     , attributoMapNames
@@ -270,6 +271,11 @@ attributoStarted =
 attributoHitRate : AttributoName
 attributoHitRate =
     "hit_rate"
+
+
+attributoIndexingRate : AttributoName
+attributoIndexingRate =
+    "indexing_rate"
 
 
 attributoHits : AttributoName

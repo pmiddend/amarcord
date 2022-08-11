@@ -152,11 +152,12 @@ httpGetExperimentTypes f =
 
 dataSetSummaryDecoder : Decode.Decoder DataSetSummary
 dataSetSummaryDecoder =
-    Decode.map3
+    Decode.map4
         DataSetSummary
         (Decode.field "number-of-runs" Decode.int)
         (Decode.field "frames" Decode.int)
         (Decode.field "hit-rate" (Decode.maybe Decode.float))
+        (Decode.field "indexing-rate" (Decode.maybe Decode.float))
 
 
 dataSetDecoder : Decode.Decoder DataSet

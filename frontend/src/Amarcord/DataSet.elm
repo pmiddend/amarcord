@@ -7,6 +7,7 @@ type alias DataSetSummary =
     { numberOfRuns : Int
     , frames : Int
     , hitRate : Maybe Float
+    , indexingRate : Maybe Float
     }
 
 

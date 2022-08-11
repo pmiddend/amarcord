@@ -142,6 +142,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                     ]
                 , td_ [ text <| MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.frames) dataSet.summary ]
                 , td_ [ text <| MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.hitRate) dataSet.summary ]
+                , td_ [ text <| MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.indexingRate) dataSet.summary ]
                 ]
             ]
                 ++ (if List.isEmpty analysisResults then
@@ -173,6 +174,7 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                     , th_ [ text "Runs" ]
                     , th_ [ text "Frames" ]
                     , th_ [ text "Hit Rate" ]
+                    , th_ [ text "Indexing Rate" ]
                     ]
                 ]
             , tbody_ (List.concatMap viewResultRow (second experimentTypeAndDataSets))
