@@ -1,9 +1,9 @@
 module Amarcord.Pages.Help exposing (..)
 
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Html exposing (em_, h1_, h2_, h3_, h4_, h5_, img_, li_, nav_, p_, strongText, ul_)
+import Amarcord.Html exposing (em_, h1_, h2_, h3_, h4_, img_,  p_, strongText)
 import Amarcord.Route as Route exposing (makeLink)
-import Html exposing (a, div, h5, img, li, nav, ol, text, ul)
+import Html exposing (a, div, h5, img, li, ol, text, ul)
 import Html.Attributes exposing (class, href, src)
 
 

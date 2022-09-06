@@ -63,6 +63,25 @@ def _table_file(metadata: sa.MetaData) -> sa.Table:
     )
 
 
+def _table_beamtime_schedule(metadata: sa.MetaData, sample: sa.Table) -> sa.Table:
+    return sa.Table(
+        "BeamtimeSchedule",
+        metadata,
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column(
+            "sample_id",
+            sa.Integer(),
+            # If the sample vanishes, delete this entry as well
+            ForeignKey(_fk_identifier(sample.c.id), ondelete="cascade"),
+        ),
+        sa.Column("users", sa.String(length=255), nullable=False),
+        sa.Column("td_support", sa.String(length=255), nullable=False),
+        sa.Column("comment", sa.Text(), nullable=False),
+        sa.Column("shift", sa.String(length=255), nullable=False),
+        sa.Column("date", sa.String(length=10), nullable=False),
+    )
+
+
 def _table_experiment_has_attributo(
     metadata: sa.MetaData, attributo: sa.Table
 ) -> sa.Table:
@@ -261,6 +280,7 @@ class DBTables:
         sample_has_file: sa.Table,
         run_has_file: sa.Table,
         event_has_file: sa.Table,
+        beamtime_schedule: sa.Table,
     ) -> None:
         self.configuration = configuration
         self.event_has_file = event_has_file
@@ -275,6 +295,7 @@ class DBTables:
         self.cfel_analysis_results = cfel_analysis_results
         self.file = file
         self.sample_has_file = sample_has_file
+        self.beamtime_schedule = beamtime_schedule
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
@@ -303,4 +324,5 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         ),
         run_has_file=_table_run_has_file(metadata, run, file),
         event_has_file=_table_event_has_file(metadata, event_log, file),
+        beamtime_schedule=_table_beamtime_schedule(metadata, sample),
     )

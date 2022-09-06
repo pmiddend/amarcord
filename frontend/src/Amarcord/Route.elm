@@ -8,6 +8,7 @@ type Route
     = Root
     | Samples
     | DataSets
+    | Schedule
     | ExperimentTypes
     | RunOverview
     | Attributi
@@ -78,6 +79,9 @@ makeLink x =
         ExperimentTypes ->
             routePrefix ++ "/experimenttypes"
 
+        Schedule ->
+            routePrefix ++ "/schedule"
+
 
 makeFilesLink : Int -> String
 makeFilesLink id =
@@ -91,6 +95,7 @@ matchRoute =
         , map Attributi (s "attributi")
         , map Samples (s "samples")
         , map RunOverview (s "runoverview")
+        , map Schedule (s "schedule")
         , map AdvancedControls (s "advancedcontrols")
         , map Analysis (s "analysis")
         , map DataSets (s "datasets")

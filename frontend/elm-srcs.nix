@@ -119,9 +119,4 @@
         sha256 = "1ghw75fq2p316gw95b3mknfhkq7196fc6ziy6c5ic34gxfb03zvg";
         version = "1.0.4";
       };
-
-      "rtfeldman/elm-iso8601-date-strings" = {
-        sha256 = "1ah491kgyicgvy1c9myylqvhzb7ya9kgmn0hcsv23ymvqgaf6b1a";
-        version = "1.1.4";
-      };
 }

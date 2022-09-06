@@ -19,6 +19,8 @@ module Amarcord.API.Requests exposing
     , RunsResponse
     , RunsResponseContent
     , SamplesResponse
+    , ScheduleEntry
+    , ScheduleResponse
     , StandardUnitCheckResult(..)
     , emptyRunEventDateFilter
     , emptyRunFilter
@@ -46,11 +48,13 @@ module Amarcord.API.Requests exposing
     , httpGetRunsBulk
     , httpGetRunsFilter
     , httpGetSamples
+    , httpGetSchedule
     , httpStartRun
     , httpStopRun
     , httpUpdateRun
     , httpUpdateRunsBulk
     , httpUpdateSample
+    , httpUpdateSchedule
     , httpUserConfigurationSetAutoPilot
     , runEventDateFilter
     , runEventDateToString
@@ -935,3 +939,65 @@ httpStopRun f =
                 valueOrError <|
                     Decode.succeed ()
         }
+
+
+type alias ScheduleResponse =
+    { schedule : List ScheduleEntry
+    }
+
+
+type alias ScheduleEntry =
+    { users : String
+    , sampleId : Maybe Int
+    , date : String
+    , shift : String
+    , comment : String
+    , tdSupport : String
+    }
+
+
+scheduleEntryDecoder : Decode.Decoder ScheduleEntry
+scheduleEntryDecoder =
+    Decode.map6
+        ScheduleEntry
+        (Decode.field "users" Decode.string)
+        (Decode.maybe (Decode.field "sample_id" Decode.int))
+        (Decode.field "date" Decode.string)
+        (Decode.field "shift" Decode.string)
+        (Decode.field "comment" Decode.string)
+        (Decode.field "td_support" Decode.string)
+
+
+httpGetSchedule : (Result RequestError ScheduleResponse -> msg) -> Cmd msg
+httpGetSchedule f =
+    Http.get
+        { url = "api/schedule"
+        , expect =
+            Http.expectJson (f << httpResultToRequestError)
+                (valueOrError <|
+                    Decode.map
+                        ScheduleResponse
+                        (Decode.field "schedule" <| Decode.list scheduleEntryDecoder)
+                )
+        }
+
+
+httpUpdateSchedule : (Result RequestError () -> msg) -> List ScheduleEntry -> Cmd msg
+httpUpdateSchedule req scheduleEntries =
+    Http.post
+        { url = "api/schedule"
+        , expect = Http.expectJson (req << httpResultToRequestError) (valueOrError <| Decode.succeed ())
+        , body = jsonBody (Encode.object [ ( "schedule", Encode.list encodeScheduleList scheduleEntries ) ])
+        }
+
+
+encodeScheduleList : ScheduleEntry -> Encode.Value
+encodeScheduleList se =
+    Encode.object
+        [ ( "users", Encode.string se.users )
+        , ( "shift", Encode.string se.shift )
+        , ( "date", Encode.string se.date )
+        , ( "sample_id", MaybeExtra.unwrap Encode.null Encode.int se.sampleId )
+        , ( "comment", Encode.string se.comment )
+        , ( "td_support", Encode.string se.tdSupport )
+        ]

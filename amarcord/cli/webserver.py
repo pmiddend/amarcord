@@ -53,6 +53,7 @@ from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
+from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBFile
 from amarcord.db.table_classes import DBRun
@@ -765,6 +766,37 @@ async def delete_experiment_type() -> JSONDict:
         )
 
     return {}
+
+
+@app.get("/api/schedule")
+async def get_beamtime_schedule() -> JSONDict:
+    async with db.instance.read_only_connection() as conn:
+        schedule = await db.instance.retrieve_beamtime_schedule(conn)
+        return {"schedule": schedule}
+
+
+@app.post("/api/schedule")
+async def update_beamtime_schedule() -> JSONDict:
+    request_json = JSONChecker(await quart_safe_json_dict(), "request")
+    async with db.instance.begin() as conn:
+        await db.instance.replace_beamtime_schedule(
+            conn=conn,
+            schedule=[
+                BeamtimeScheduleEntry(
+                    users=shift_dict.get("users", None),
+                    date=shift_dict.get("date", None),
+                    shift=shift_dict.get("shift", None),
+                    comment=shift_dict.get("comment", ""),
+                    td_support=shift_dict.get("td_support", ""),
+                    sample_id=shift_dict.get("sample_id", None),
+                )
+                for shift_dict in request_json.retrieve_safe_list("schedule")
+            ],
+        )
+
+    async with db.instance.begin() as conn:
+        schedule = await db.instance.retrieve_beamtime_schedule(conn)
+        return {"schedule": schedule}
 
 
 @app.get("/api/live-stream/snapshot")

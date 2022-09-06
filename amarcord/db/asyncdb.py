@@ -39,6 +39,7 @@ from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
+from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBFile
 from amarcord.db.table_classes import DBFileBlueprint
@@ -85,6 +86,38 @@ class AsyncDB:
 
     async def dispose(self) -> None:
         await self.dbcontext.dispose()
+
+    async def replace_beamtime_schedule(
+        self, conn: Connection, schedule: list[BeamtimeScheduleEntry]
+    ) -> None:
+        await conn.execute(self.tables.beamtime_schedule.delete())
+        for entry in schedule:
+            await conn.execute(
+                self.tables.beamtime_schedule.insert().values(
+                    users=entry.users,
+                    date=entry.date,
+                    shift=entry.shift,
+                    sample_id=entry.sample_id,
+                    td_support=entry.td_support,
+                    comment=entry.comment,
+                )
+            )
+
+    async def retrieve_beamtime_schedule(
+        self, conn: Connection
+    ) -> list[BeamtimeScheduleEntry]:
+        schedule = await conn.execute(self.tables.beamtime_schedule.select())
+        return [
+            BeamtimeScheduleEntry(
+                users=se.users,
+                comment=se.comment,
+                date=se.date,
+                shift=se.shift,
+                td_support=se.td_support,
+                sample_id=se.sample_id,
+            )
+            for se in schedule.fetchall()
+        ]
 
     async def retrieve_file_id_by_name(
         self, conn: Connection, file_name: str

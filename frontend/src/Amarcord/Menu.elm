@@ -62,6 +62,7 @@ menu =
         [ { route = Route.ExperimentTypes, description = "Experiment Types", iconName = "clipboard-check" }
         , { route = Route.Attributi, description = "Attributi", iconName = "card-list" }
         , { route = Route.AdvancedControls, description = "Advanced", iconName = "speedometer" }
+        , { route = Route.Schedule, description = "Schedule", iconName = "calendar-week" }
         ]
     , Leaf { route = Route.Root, description = "Help", iconName = "patch-question" }
     ]

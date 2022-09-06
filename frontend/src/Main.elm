@@ -15,6 +15,7 @@ import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
+import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Pages.Help as Help
 import Amarcord.Pages.RunOverview as RunOverview
 import Amarcord.Pages.Samples as Samples
@@ -62,6 +63,7 @@ type Msg
     | DataSetsMsg DataSets.DataSetMsg
     | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
     | AnalysisPageMsg Analysis.Msg
+    | ScheduleMsg Schedule.ScheduleMsg
     | LinkClicked UrlRequest
     | UrlChanged Url
     | RefreshMsg Posix
@@ -76,6 +78,7 @@ type Page
     | RunOverviewPage RunOverview.Model
     | AdvancedControlsPage AdvancedControls.Model
     | DataSetsPage DataSets.DataSetModel
+    | SchedulePage Schedule.ScheduleModel
     | ExperimentTypesPage ExperimentTypes.ExperimentTypeModel
     | AnalysisPage Analysis.Model
 
@@ -175,6 +178,12 @@ currentView model =
             div []
                 [ AdvancedControls.view pageModel
                     |> Html.map AdvancedControlsPageMsg
+                ]
+
+        SchedulePage sm ->
+            div []
+                [ Schedule.view sm
+                    |> Html.map ScheduleMsg
                 ]
 
         SamplesPage pageModel ->
@@ -281,6 +290,15 @@ updateInner hereAndNow appConfig msg model =
             in
             ( { model | page = SamplesPage updatedPageModel }
             , Cmd.map SamplesPageMsg updatedCmd
+            )
+
+        ( ScheduleMsg scheduleMsg, SchedulePage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Schedule.updateSchedule scheduleMsg pageModel
+            in
+            ( { model | page = SchedulePage updatedPageModel }
+            , Cmd.map ScheduleMsg updatedCmd
             )
 
         ( RunOverviewPageMsg subMsg, RunOverviewPage pageModel ) ->
@@ -421,6 +439,13 @@ initCurrentPage localStorage hereAndNow appConfig ( model, existingCmds ) =
                             DataSets.initDataSet hereAndNow
                     in
                     ( DataSetsPage pageModel, Cmd.map DataSetsMsg pageCmds )
+
+                Route.Schedule ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Schedule.initSchedule
+                    in
+                    ( SchedulePage pageModel, Cmd.map ScheduleMsg pageCmds )
 
                 Route.ExperimentTypes ->
                     let
