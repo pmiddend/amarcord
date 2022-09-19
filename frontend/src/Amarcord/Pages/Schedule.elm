@@ -8,14 +8,13 @@ import Amarcord.Html exposing (input_)
 import Amarcord.Sample exposing (Sample, SampleId)
 import Date
 import Dict exposing (Dict)
-import Html exposing (Html, button, div, em, h3, hr, option, select, span, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (class, disabled, id, placeholder, selected, style, type_, value)
+import Html exposing (Html, button, div, em, h3, option, select, span, table, tbody, td, text, th, thead, tr)
+import Html.Attributes exposing (class, disabled, id, placeholder, selected, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List.Extra
 import Maybe.Extra
 import Regex
 import RemoteData exposing (RemoteData(..), fromResult)
-import Set
 
 
 type ScheduleMsg
@@ -24,12 +23,14 @@ type ScheduleMsg
     | SubmitShift
     | ModifyShift ShiftId
     | SubmitModifiedShift ShiftId
-    | RemoveShift ScheduleEntry
+    | RemoveShift ShiftId
+    | SubmitDeleteShift ScheduleEntry
     | UpdateNewShiftByColumn TableColumn String
     | UpdateNewShiftSample String
     | UpdateToModifyShiftByColumn TableColumn String
     | UpdateToModifyShiftSample String
     | ResetToModifyShift
+    | ResetToDeleteShift
     | SamplesReceived SamplesResponse
 
 
@@ -43,14 +44,15 @@ type alias ShiftId =
     Int
 
 
-type alias EditSchedule =
+type alias ScheduleEntryToModify =
     { scheduleEntry : ScheduleEntry, id : Maybe ShiftId }
 
 
 type alias ScheduleModel =
     { schedule : Dict ShiftId ScheduleEntry
     , newScheduleEntry : ScheduleEntry
-    , editingScheduleEntry : EditSchedule
+    , editingScheduleEntry : ScheduleEntryToModify
+    , deletingScheduleEntry : ScheduleEntryToModify
     , samples : RemoteData RequestError SamplesAndAttributi
     }
 
@@ -60,8 +62,8 @@ emptyScheduleEntry =
     { users = "", date = "", shift = "", sampleId = Nothing, comment = "", tdSupport = "" }
 
 
-emptyScheduleEntryToEdit : EditSchedule
-emptyScheduleEntryToEdit =
+emptyScheduleEntryToModify : ScheduleEntryToModify
+emptyScheduleEntryToModify =
     { scheduleEntry = emptyScheduleEntry, id = Nothing }
 
 
@@ -105,7 +107,8 @@ initSchedule =
     ( { samples = Loading
       , schedule = Dict.empty
       , newScheduleEntry = emptyScheduleEntry
-      , editingScheduleEntry = emptyScheduleEntryToEdit
+      , editingScheduleEntry = emptyScheduleEntryToModify
+      , deletingScheduleEntry = emptyScheduleEntryToModify
       }
     , Cmd.batch [ httpGetSchedule ScheduleReceived, httpGetSamples SamplesReceived ]
     )
@@ -178,17 +181,39 @@ scheduleEntryView model shiftIdValue =
     let
         modifiedScheduleId =
             model.editingScheduleEntry.id
+
+        deletingScheduleId =
+            model.deletingScheduleEntry.id
     in
     case modifiedScheduleId of
         Nothing ->
-            let
-                entry =
-                    Tuple.second shiftIdValue
+            case deletingScheduleId of
+                Nothing ->
+                    let
+                        entry =
+                            Tuple.second shiftIdValue
 
-                shiftId =
-                    Tuple.first shiftIdValue
-            in
-            readOnlyScheduleEntryView model shiftId entry
+                        shiftId =
+                            Tuple.first shiftIdValue
+                    in
+                    readOnlyScheduleEntryView model entry shiftId
+
+                Just idShiftToDelete ->
+                    let
+                        entry =
+                            Tuple.second shiftIdValue
+
+                        shiftId =
+                            Tuple.first shiftIdValue
+
+                        entryToDelete =
+                            model.deletingScheduleEntry.scheduleEntry
+                    in
+                    if idShiftToDelete == shiftId then
+                        deleteScheduleEntryView model entryToDelete
+
+                    else
+                        readOnlyScheduleEntryView model entry shiftId
 
         Just idShiftToModify ->
             let
@@ -205,7 +230,7 @@ scheduleEntryView model shiftIdValue =
                 editingScheduleEntryView model entryToModify idShiftToModify
 
             else
-                readOnlyScheduleEntryView model shiftId entry
+                readOnlyScheduleEntryView model entry shiftId
 
 
 editingScheduleEntryView : ScheduleModel -> ScheduleEntry -> ShiftId -> Html ScheduleMsg
@@ -262,47 +287,92 @@ editingScheduleEntryView model entryToModify idShiftToModify =
                 ]
             ]
         , td [ styleColumn Actions ]
-            [ button [ class "btn btn-success", type_ "button", onClick <| SubmitModifiedShift idShiftToModify, disabled <| cannotAddSchedule entryToModify ] [ icon { name = "check" } ]
-            , button [ class "btn btn-info", type_ "button", onClick ResetToModifyShift ] [ icon { name = "x" } ]
+            [ div [ class "form-control-sm" ]
+                [ button
+                    [ class "btn btn-sm btn-success me-1"
+                    , type_ "button"
+                    , onClick <| SubmitModifiedShift idShiftToModify
+                    , disabled <| cannotAddSchedule entryToModify
+                    ]
+                    [ icon { name = "check" } ]
+                , button
+                    [ class "btn btn-sm btn-warning"
+                    , type_ "button"
+                    , onClick ResetToModifyShift
+                    ]
+                    [ icon { name = "x" } ]
+                ]
             ]
         ]
 
 
-readOnlyScheduleEntryView : ScheduleModel -> ShiftId -> ScheduleEntry -> Html ScheduleMsg
-readOnlyScheduleEntryView model shiftid entry =
-    tr []
-        [ td [ styleColumn Date ] [ text <| dateEntry entry.date ]
-        , td [ styleColumn Shift ] [ text entry.shift ]
-        , td [ styleColumn Users ] [ text entry.users ]
-        , td [ styleColumn TdSupport ] [ text entry.tdSupport ]
-        , td [ styleColumn Sample ]
-            [ case entry.sampleId of
-                Nothing ->
-                    text ""
+deleteScheduleEntryView : ScheduleModel -> ScheduleEntry -> Html ScheduleMsg
+deleteScheduleEntryView model entry =
+    tr [] <|
+        shiftSubview model entry
+            ++ [ td [ styleColumn Actions ]
+                    [ div [ class "form-control-sm" ]
+                        [ button
+                            [ class "btn btn-sm btn-success me-1"
+                            , type_ "button"
+                            , onClick (SubmitDeleteShift entry)
+                            ]
+                            [ icon { name = "check" } ]
+                        , button
+                            [ class "btn btn-sm btn-warning"
+                            , type_ "button"
+                            , onClick ResetToDeleteShift
+                            ]
+                            [ icon { name = "x" }
+                            ]
+                        ]
+                    ]
+               ]
 
-                Just sampleId ->
-                    case model.samples of
-                        Success samples ->
-                            case List.Extra.find (\sample -> sampleId == sample.id) samples.samples of
-                                Nothing ->
-                                    text ("Sample ID " ++ String.fromInt sampleId ++ " is unknown")
 
-                                Just s ->
-                                    text s.name
+readOnlyScheduleEntryView : ScheduleModel -> ScheduleEntry -> ShiftId -> Html ScheduleMsg
+readOnlyScheduleEntryView model entry shiftId =
+    tr [] <|
+        shiftSubview model entry
+            ++ [ td [ styleColumn Actions ]
+                    [ div [ class "form-control-sm" ]
+                        [ button [ class "btn btn-sm btn-info me-1", type_ "button", onClick (ModifyShift shiftId) ] [ icon { name = "pencil-square" } ]
+                        , button [ class "btn btn-sm btn-danger", type_ "button", onClick (RemoveShift shiftId) ] [ icon { name = "trash" } ]
+                        ]
+                    ]
+               ]
 
-                        Loading ->
-                            text ""
 
-                        _ ->
-                            text ("Sample ID " ++ String.fromInt sampleId ++ " is unknown")
-            ]
-        , td [ styleColumn Comment ]
-            [ text entry.comment ]
-        , td [ styleColumn Actions ]
-            [ button [ class "btn btn-primary", type_ "button", onClick (ModifyShift shiftid) ] [ icon { name = "pencil-square" } ]
-            , button [ class "btn btn-warning", type_ "button", onClick (RemoveShift entry) ] [ icon { name = "trash" } ]
-            ]
+shiftSubview : ScheduleModel -> ScheduleEntry -> List (Html ScheduleMsg)
+shiftSubview model entry =
+    [ td [ styleColumn Date ] [ text <| dateEntry entry.date ]
+    , td [ styleColumn Shift ] [ text entry.shift ]
+    , td [ styleColumn Users ] [ text entry.users ]
+    , td [ styleColumn TdSupport ] [ text entry.tdSupport ]
+    , td [ styleColumn Sample ]
+        [ case entry.sampleId of
+            Nothing ->
+                text ""
+
+            Just sampleId ->
+                case model.samples of
+                    Success samples ->
+                        case List.Extra.find (\sample -> sampleId == sample.id) samples.samples of
+                            Nothing ->
+                                text ("Sample ID " ++ String.fromInt sampleId ++ " is unknown")
+
+                            Just s ->
+                                text s.name
+
+                    Loading ->
+                        text ""
+
+                    _ ->
+                        text ("Sample ID " ++ String.fromInt sampleId ++ " is unknown")
         ]
+    , td [ styleColumn Comment ]
+        [ text entry.comment ]
+    ]
 
 
 newScheduleEntryView : ScheduleModel -> Html ScheduleMsg
@@ -354,7 +424,9 @@ newScheduleEntryView model =
                 ]
             ]
         , td [ styleColumn Actions ]
-            [ button [ class "btn btn-success", type_ "button", onClick SubmitShift, disabled <| cannotAddSchedule model.newScheduleEntry ] [ icon { name = "calendar-plus" } ]
+            [ div [ class "form-control-sm" ]
+                [ button [ class "btn btn-sm btn-primary", type_ "button", onClick SubmitShift, disabled <| cannotAddSchedule model.newScheduleEntry ] [ icon { name = "calendar-plus" } ]
+                ]
             ]
         ]
 
@@ -504,7 +576,7 @@ updateSchedule msg model =
                     ( { model
                         | schedule = scheduleDictFromScheduleList response.schedule
                         , newScheduleEntry = emptyScheduleEntry
-                        , editingScheduleEntry = emptyScheduleEntryToEdit
+                        , editingScheduleEntry = emptyScheduleEntryToModify
                       }
                     , Cmd.none
                     )
@@ -534,7 +606,7 @@ updateSchedule msg model =
             in
             ( { model | newScheduleEntry = ns }, Cmd.none )
 
-        RemoveShift scheduleEntry ->
+        SubmitDeleteShift scheduleEntry ->
             let
                 newScheduleValues =
                     List.Extra.remove scheduleEntry (Dict.values model.schedule)
@@ -545,9 +617,24 @@ updateSchedule msg model =
             ( { model
                 | schedule = newScheduleDict
                 , newScheduleEntry = emptyScheduleEntry
-                , editingScheduleEntry = emptyScheduleEntryToEdit
+                , editingScheduleEntry = emptyScheduleEntryToModify
+                , deletingScheduleEntry = emptyScheduleEntryToModify
               }
             , httpUpdateSchedule ScheduleUpdated newScheduleValues
+            )
+
+        RemoveShift shiftId ->
+            let
+                newEmptyScheduleEntry =
+                    { emptyScheduleEntryToModify
+                        | id = Just shiftId
+                        , scheduleEntry = Maybe.withDefault emptyScheduleEntry (Dict.get shiftId model.schedule)
+                    }
+            in
+            ( { model
+                | deletingScheduleEntry = newEmptyScheduleEntry
+              }
+            , Cmd.none
             )
 
         SamplesReceived samplesResponse ->
@@ -567,17 +654,16 @@ updateSchedule msg model =
 
         ModifyShift shiftId ->
             ( let
-                ff =
-                    emptyScheduleEntryToEdit
-
-                f1 =
-                    { ff
+                newEmptyScheduleEntry =
+                    { emptyScheduleEntryToModify
                         | id = Just shiftId
                         , scheduleEntry = Maybe.withDefault emptyScheduleEntry (Dict.get shiftId model.schedule)
                     }
               in
               { model
-                | editingScheduleEntry = f1
+                | editingScheduleEntry = newEmptyScheduleEntry
+                , deletingScheduleEntry = emptyScheduleEntryToModify
+                , newScheduleEntry = emptyScheduleEntry
               }
             , Cmd.none
             )
@@ -631,7 +717,10 @@ updateSchedule msg model =
             ( { model | editingScheduleEntry = nse2 }, Cmd.none )
 
         ResetToModifyShift ->
-            ( { model | editingScheduleEntry = emptyScheduleEntryToEdit }, httpGetSchedule ScheduleReceived )
+            ( { model | editingScheduleEntry = emptyScheduleEntryToModify }, httpGetSchedule ScheduleReceived )
+
+        ResetToDeleteShift ->
+            ( { model | deletingScheduleEntry = emptyScheduleEntryToModify }, httpGetSchedule ScheduleReceived )
 
 
 updateScheduleEntryByColumn : ScheduleEntry -> TableColumn -> String -> ScheduleEntry
