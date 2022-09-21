@@ -80,7 +80,7 @@ mypy = '0.942'
 types-pytz = "2021.3.6"
 pylint = '2.14.4'
 perflint = '0.7.3'
-pyfakefs = '4.5.3'
+pyfakefs = '4.7.0'
 openpyxl-stubs = "0.1.21"
 # for the daemon
 msgpack-types = "0.1.0"
@@ -104,6 +104,7 @@ amarcord-karabo-bridge-daemon = "amarcord.cli.karabo_bridge_daemon:main"
 amarcord-daemon = "amarcord.cli.daemon:main"
 amarcord-webserver = "amarcord.cli.webserver:main"
 amarcord-karabo-offline-ingester = "amarcord.cli.karabo_offline_ingester:main"
+amarcord-slurm-runner = "amarcord.cli.slurm_runner:main"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -111,5 +112,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.isort]
 profile = "black"
-multi_line_output = 7
 force_single_line = "true"

@@ -21,9 +21,9 @@ from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.db.user_configuration import UserConfiguration
 
@@ -1113,76 +1113,6 @@ async def test_create_read_delete_events() -> None:
         assert len(await db.retrieve_events(conn)) == 1
 
 
-async def test_create_analysis_result() -> None:
-    db = await _get_db()
-
-    async with db.begin() as conn:
-        attributo_name = "a1"
-        await db.create_attributo(
-            conn,
-            name=attributo_name,
-            description="",
-            group=ATTRIBUTO_GROUP_MANUAL,
-            associated_table=AssociatedTable.RUN,
-            type_=AttributoTypeString(),
-        )
-
-        # Create experiment type
-        e_type_name = "e1"
-        await db.create_experiment_type(conn, e_type_name, [attributo_name])
-
-        attributi = await db.retrieve_attributi(conn, associated_table=None)
-
-        raw_attributi: JsonAttributiMap = {attributo_name: "foo"}
-        data_set_id = await db.create_data_set(
-            conn,
-            e_type_name,
-            AttributiMap.from_types_and_json(
-                types=attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
-                raw_attributi=raw_attributi,
-            ),
-        )
-
-        result_id = await db.create_cfel_analysis_result(
-            conn,
-            DBCFELAnalysisResult(
-                id=None,
-                directory_name="/tmp",
-                data_set_id=data_set_id,
-                resolution="1.0",
-                rsplit=1.0,
-                cchalf=1.0,
-                ccstar=1.0,
-                snr=1.0,
-                completeness=1.0,
-                multiplicity=1.0,
-                total_measurements=100,
-                unique_reflections=50,
-                num_patterns=1,
-                num_hits=0,
-                indexed_patterns=10,
-                indexed_crystals=100,
-                crystfel_version="1.0",
-                ccstar_rsplit=1.0,
-                created=datetime.datetime.utcnow(),
-                files=[],
-            ),
-            [],
-        )
-
-        analysis_results = await db.retrieve_cfel_analysis_results(conn)
-
-        assert len(analysis_results) == 1
-        assert analysis_results[0].id == result_id
-        # Smoke test
-        assert analysis_results[0].crystfel_version == "1.0"
-
-        await db.clear_cfel_analysis_results(conn)
-
-        assert not await db.retrieve_cfel_analysis_results(conn)
-
-
 async def test_create_and_retrieve_attributo_no_runs() -> None:
     db = await _get_db()
 
@@ -1359,5 +1289,38 @@ async def test_retrieve_and_update_configuration() -> None:
 
     async with db.begin() as conn:
         assert (await db.retrieve_configuration(conn)).auto_pilot
-        await db.update_configuration(conn, UserConfiguration(auto_pilot=False))
+        await db.update_configuration(
+            conn, UserConfiguration(auto_pilot=False, use_online_crystfel=False)
+        )
         assert not (await db.retrieve_configuration(conn)).auto_pilot
+
+
+async def test_create_analysis_result() -> None:
+    db = await _get_db()
+
+    async with db.begin() as conn:
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+
+        await db.create_run(
+            conn,
+            run_id=1,
+            attributi=attributi,
+            attributi_map=AttributiMap.from_types_and_json(
+                attributi, sample_ids=[], raw_attributi={}
+            ),
+            keep_manual_attributes_from_previous_run=False,
+        )
+
+        indexing_result_id = await db.create_indexing_result(
+            conn,
+            DBIndexingResultInput(
+                created=datetime.datetime.utcnow(),
+                run_id=1,
+                frames=0,
+                hits=0,
+                not_indexed_frames=0,
+                runtime_status=None,
+            ),
+        )
+
+        assert indexing_result_id is not None

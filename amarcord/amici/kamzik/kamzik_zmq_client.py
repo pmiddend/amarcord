@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import logging
 import pickle
@@ -23,6 +24,7 @@ from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.json_schema import parse_schema_type
 from amarcord.json_types import JSONDict
 
@@ -178,15 +180,28 @@ async def ingest_kamzik_metadata(
     if existing_run is not None:
         await db.update_run_attributi(conn, run_id, attributi_map)
     else:
+        config = await db.retrieve_configuration(conn)
+        logger.info(f"creating run {run_id}")
         await db.create_run(
             conn,
             run_id,
             attributi,
             attributi_map,
-            keep_manual_attributes_from_previous_run=(
-                await db.retrieve_configuration(conn)
-            ).auto_pilot,
+            keep_manual_attributes_from_previous_run=config.auto_pilot,
         )
+        if config.use_online_crystfel:
+            logger.info(f"queueing CrystFEL online indexing job for run {run_id}")
+            await db.create_indexing_result(
+                conn,
+                DBIndexingResultInput(
+                    created=datetime.datetime.utcnow(),
+                    run_id=run_id,
+                    frames=0,
+                    hits=0,
+                    not_indexed_frames=0,
+                    runtime_status=None,
+                ),
+            )
 
 
 async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None:

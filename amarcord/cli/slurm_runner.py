@@ -1,68 +1,74 @@
 import asyncio
-import logging
+import json
 from datetime import timedelta
 from pathlib import Path
+from typing import Optional
 
-import structlog.stdlib
+import structlog
 from tap import Tap
 
-from amarcord.amici.slurm.job_status import JobStatus
-from amarcord.amici.slurm.slurm_rest_job_controller import DynamicTokenRetriever
-from amarcord.amici.slurm.slurm_rest_job_controller import SlurmRestJobController
-from amarcord.amici.slurm.slurm_rest_job_controller import retrieve_jwt_token
-
-logging.basicConfig(
-    format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
+from amarcord.amici.workload_manager.job_status import JobStatus
+from amarcord.amici.workload_manager.workload_manager_factory import (
+    create_workload_manager,  # NOQA
+)
+from amarcord.amici.workload_manager.workload_manager_factory import (
+    parse_workload_manager_uri,  # NOQA
 )
 
 logger = structlog.stdlib.get_logger(__name__)
 
 
 class Arguments(Tap):
-    partition: str = "cfel-cdi"
-    user_id: int
-    user_name: str
-    destination_path: Path
+    workload_manager_uri: str
+    working_directory: Path
     executable: Path
     command_line: str
-    time_limit_minutes: int = 60
+    time_limit_minutes: int
+    stdout: Optional[Path] = None
+    stderr: Optional[Path] = None
 
 
-args = Arguments(underscores_to_dashes=True).parse_args()
-job_controller = SlurmRestJobController(
-    partition=args.partition,
-    token_retriever=DynamicTokenRetriever(retrieve_jwt_token),
-    user_id=args.user_id,
-    rest_user=args.user_name,
-)
+async def _main_loop(args: Arguments) -> None:
+    workload_manager = create_workload_manager(
+        parse_workload_manager_uri(args.workload_manager_uri)
+    )
 
-
-async def run_main() -> None:
-    result = await job_controller.start_job(
-        path=args.destination_path,
-        executable=args.executable,
-        command_line=args.command_line,
-        time_limit=timedelta(minutes=args.time_limit_minutes),
-        extra_files=[],
+    start_result = await workload_manager.start_job(
+        args.working_directory,
+        args.executable,
+        args.command_line,
+        timedelta(minutes=args.time_limit_minutes),
+        args.stdout,
+        args.stderr,
     )
 
     logger.info(
-        f"job started, output dir {result.output_directory}, metadata: {result.metadata}"
+        f"started job; id {start_result.job_id}, metadata: {json.dumps(start_result.metadata)}"
     )
 
-    done = False
-    while not done:
-        await asyncio.sleep(1.0)
-        jobs = await job_controller.list_jobs()
-        logger.info(f"found {len(jobs)} job(s)...")
-        for job in jobs:
-            logger.info(f"job {job}")
-            if job_controller.equals(job.metadata, result.metadata):
-                logger.info(f"found our job, status: {job.status}")
-                if job.status == JobStatus.COMPLETED:
-                    logger.info("completed, breaking")
-                    done = True
-                    break
+    while True:
+        logger.info("checking job status...")
+
+        for job in await workload_manager.list_jobs():
+            if job.id != start_result.job_id:
+                continue
+            if job.status == JobStatus.RUNNING:
+                logger.info("job is still running")
+            elif job.status == JobStatus.QUEUED:
+                logger.info("job is queued")
+            elif job.status == JobStatus.FAILED:
+                logger.info("job has failed")
+                return
+            else:
+                logger.info("job complete")
+                return
+
+        await asyncio.sleep(3.0)
 
 
-asyncio.run(run_main())
+def main() -> None:
+    asyncio.run(_main_loop(Arguments(underscores_to_dashes=True).parse_args()))
+
+
+if __name__ == "__main__":
+    main()

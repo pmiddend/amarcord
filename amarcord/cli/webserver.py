@@ -28,8 +28,6 @@ from tap import Tap
 from werkzeug import Response
 from werkzeug.exceptions import HTTPException
 
-from amarcord.amici.om.client import ATTRIBUTO_HIT_RATE
-from amarcord.amici.om.client import ATTRIBUTO_INDEXING_RATE
 from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
@@ -48,17 +46,20 @@ from amarcord.db.attributi_map import convert_single_attributo_value_to_json
 from amarcord.db.attributi_map import run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeBoolean
-from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
+from amarcord.db.indexing_result import DBIndexingFOM
+from amarcord.db.indexing_result import DBIndexingResultDone
+from amarcord.db.indexing_result import DBIndexingResultOutput
+from amarcord.db.indexing_result import DBIndexingResultRunning
+from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBFile
 from amarcord.db.table_classes import DBRun
 from amarcord.db.table_classes import DBSample
-from amarcord.experiment_simulator import ATTRIBUTO_TARGET_FRAME_COUNT
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
@@ -75,6 +76,7 @@ from amarcord.util import create_intervals
 from amarcord.util import group_by
 
 AUTO_PILOT: Final = "auto-pilot"
+ONLINE_CRYSTFEL: Final = "online-crystfel"
 DATE_FORMAT: Final = "%Y-%m-%d"
 
 app = Quart(
@@ -349,44 +351,13 @@ async def update_run() -> JSONDict:
     return {}
 
 
-@dataclass
-class DataSetSummary:
-    numberOfRuns: int
-    frames: int
-    hit_rate: float | None
-    indexing_rate: float | None
-
-
-def _build_run_summary(matching_runs: list[DBRun]) -> DataSetSummary:
-    # ugly, but we cannot filter on a function result in a generator expression
-    hit_rates = list(
-        filter(
-            lambda x: x is not None,
-            (run.attributi.select_decimal(ATTRIBUTO_HIT_RATE) for run in matching_runs),
-        )
-    )
-    # ugly, but we cannot filter on a function result in a generator expression
-    indexing_rates = list(
-        filter(
-            lambda x: x is not None,
-            (
-                run.attributi.select_decimal(ATTRIBUTO_INDEXING_RATE)
-                for run in matching_runs
-            ),
-        )
-    )
-    frames = filter(
-        lambda x: x is not None,
-        (
-            run.attributi.select_int(ATTRIBUTO_TARGET_FRAME_COUNT)
-            for run in matching_runs
-        ),
-    )
-    return DataSetSummary(
-        len(matching_runs),
-        sum(frames),  # type: ignore
-        mean(hit_rates) if hit_rates else None,  # type: ignore
-        mean(indexing_rates) if indexing_rates else None,  # type: ignore
+def _summary_from_foms(ir: list[DBIndexingFOM]) -> DBIndexingFOM:
+    if not ir:
+        return empty_indexing_fom
+    return DBIndexingFOM(
+        hit_rate=mean(x.hit_rate for x in ir),
+        indexing_rate=mean(x.indexing_rate for x in ir),
+        indexed_frames=sum(x.indexed_frames for x in ir),
     )
 
 
@@ -494,17 +465,6 @@ def event_has_date(event: DBEvent, date_filter: str) -> bool:
     return event.created.strftime(DATE_FORMAT) == date_filter
 
 
-# @app.get("/api/runs/latest")
-# async def read_latest_run() -> JSONDict:
-#     async with db.instance.read_only_connection() as conn:
-#         run = await db.instance.retrieve_latest_run(
-#             conn, await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
-#         )
-#         if run is None:
-#             return {"run": None}
-#         return {"run": {"id": run.id, "attributi": run.attributi.to_json()}}
-
-
 @app.get("/api/runs")
 async def read_runs() -> JSONDict:
     async with db.instance.read_only_connection() as conn:
@@ -544,15 +504,26 @@ async def read_runs() -> JSONDict:
             else all_events
         )
 
-        data_set_id_to_grouped: dict[int, DataSetSummary] = {}
-        for ds in data_sets:
-            matching_runs = [
-                r for r in runs if run_matches_dataset(r.attributi, ds.attributi)
-            ]
-            data_set_id_to_grouped[ds.id] = _build_run_summary(matching_runs)
+        indexing_results_for_runs: dict[int, list[DBIndexingResultOutput]] = group_by(
+            await db.instance.retrieve_indexing_results(conn), lambda ir: ir.run_id
+        )
+        run_foms: dict[int, DBIndexingFOM] = {
+            r.id: _indexing_fom_for_run(indexing_results_for_runs, r) for r in runs
+        }
+        data_set_id_to_grouped: dict[int, DBIndexingFOM] = {
+            ds.id: _summary_from_foms(
+                [
+                    run_foms.get(r.id, empty_indexing_fom)
+                    for r in runs
+                    if run_matches_dataset(r.attributi, ds.attributi)
+                ]
+            )
+            for ds in data_sets
+        }
 
         latest_dark = determine_latest_dark_run(runs, attributi)
 
+        user_configuration = await db.instance.retrieve_configuration(conn)
         result: JSONDict = {
             "live-stream-file-id": await db.instance.retrieve_file_id_by_name(
                 conn, LIVE_STREAM_IMAGE
@@ -563,6 +534,7 @@ async def read_runs() -> JSONDict:
                     "id": r.id,
                     "attributi": r.attributi.to_json(),
                     "files": [_encode_file(f) for f in r.files],
+                    "summary": _encode_summary(run_foms.get(r.id, empty_indexing_fom)),
                     "data-sets": [
                         ds.id
                         for ds in data_sets
@@ -585,7 +557,8 @@ async def read_runs() -> JSONDict:
             ],
             "events": [_encode_event(e) for e in events],
             "samples": [_encode_sample(a) for a in samples],
-            "auto-pilot": (await db.instance.retrieve_configuration(conn)).auto_pilot,
+            AUTO_PILOT: user_configuration.auto_pilot,
+            ONLINE_CRYSTFEL: user_configuration.use_online_crystfel,
         }
         if _has_artificial_delay():
             await asyncio.sleep(3)
@@ -638,36 +611,51 @@ async def create_file() -> JSONDict:
 @app.get("/api/user-config/<key>")
 async def read_user_configuration_single(key: str) -> JSONDict:
     async with db.instance.read_only_connection() as conn:
-        if key != AUTO_PILOT:
-            raise CustomWebException(
-                code=400,
-                title=f'Invalid key "{key}"',
-                description=f'Couldn\'t find config key {key}, only know "{AUTO_PILOT}"!',
-            )
-        return {"value": (await db.instance.retrieve_configuration(conn)).auto_pilot}
+        user_configuration = await db.instance.retrieve_configuration(conn)
+        if key == AUTO_PILOT:
+            return {"value": user_configuration.auto_pilot}
+        if key == ONLINE_CRYSTFEL:
+            return {"value": user_configuration.use_online_crystfel}
+        raise CustomWebException(
+            code=400,
+            title=f'Invalid key "{key}"',
+            description=f'Couldn\'t find config key {key}, only know "{AUTO_PILOT}", "{ONLINE_CRYSTFEL}"!',
+        )
 
 
 @app.patch("/api/user-config/<key>/<value>")
 async def update_user_configuration_single(key: str, value: str) -> JSONDict:
     async with db.instance.begin() as conn:
-        if key != "auto-pilot":
-            raise CustomWebException(
-                code=400,
-                title=f'Invalid key "{key}"',
-                description=f'Couldn\'t find config key {key}, only know "{AUTO_PILOT}"!',
+        user_configuration = await db.instance.retrieve_configuration(conn)
+        if key == AUTO_PILOT:
+            new_value = value == "True"
+
+            new_configuration = replace(
+                user_configuration,
+                auto_pilot=new_value,
             )
+            await db.instance.update_configuration(
+                conn,
+                new_configuration,
+            )
+            return {"value": new_value}
+        if key == ONLINE_CRYSTFEL:
+            new_value = value == "True"
 
-        auto_pilot = value == "True"
-
-        new_configuration = replace(
-            await db.instance.retrieve_configuration(conn),
-            auto_pilot=auto_pilot,
+            new_configuration = replace(
+                user_configuration,
+                use_online_crystfel=new_value,
+            )
+            await db.instance.update_configuration(
+                conn,
+                new_configuration,
+            )
+            return {"value": new_value}
+        raise CustomWebException(
+            code=400,
+            title=f'Invalid key "{key}"',
+            description=f'Couldn\'t find config key {key}, only know "{AUTO_PILOT}"!',
         )
-        await db.instance.update_configuration(
-            conn,
-            new_configuration,
-        )
-        return {"value": auto_pilot}
 
 
 @app.post("/api/experiment-types")
@@ -995,20 +983,23 @@ async def create_data_set() -> JSONDict:
     return {"id": data_set_id}
 
 
-def _encode_data_set(a: DBDataSet, summary: DataSetSummary | None) -> JSONDict:
+def _encode_data_set(a: DBDataSet, summary: DBIndexingFOM | None) -> JSONDict:
     result = {
         "id": a.id,
         "experiment-type": a.experiment_type,
         "attributi": a.attributi.to_json(),
     }
     if summary is not None:
-        result["summary"] = {
-            "number-of-runs": summary.numberOfRuns,
-            "frames": summary.frames,
-            "hit-rate": summary.hit_rate,
-            "indexing-rate": summary.indexing_rate,
-        }
+        result["summary"] = _encode_summary(summary)
     return result
+
+
+def _encode_summary(summary: DBIndexingFOM) -> JSONDict:
+    return {
+        "hit-rate": summary.hit_rate,
+        "indexing-rate": summary.indexing_rate,
+        "indexed-frames": summary.indexed_frames,
+    }
 
 
 @app.get("/api/data-sets")
@@ -1212,6 +1203,41 @@ async def read_config() -> JSONDict:
     return {"title": app.config["TITLE"]}
 
 
+def _build_summary_for_runs(
+    run_list: list[DBRun],
+    indexing_results_for_runs: dict[int, list[DBIndexingResultOutput]],
+) -> DBIndexingFOM:
+    indexing_results: list[DBIndexingFOM] = []
+    for run in run_list:
+        fom_for_run = _indexing_fom_for_run(indexing_results_for_runs, run)
+        if fom_for_run is not None:
+            indexing_results.append(fom_for_run)
+
+    if indexing_results:
+        return _summary_from_foms(indexing_results)
+    return empty_indexing_fom
+
+
+def _indexing_fom_for_run(
+    indexing_results_for_runs: dict[int, list[DBIndexingResultOutput]], run: DBRun
+) -> DBIndexingFOM:
+    indexing_results_for_run = sorted(
+        [
+            (ir.id, ir.runtime_status)
+            for ir in indexing_results_for_runs.get(run.id, [])
+            if isinstance(
+                ir.runtime_status,
+                (DBIndexingResultDone, DBIndexingResultRunning),
+            )
+        ],
+        key=lambda ir: ir[0],
+        reverse=True,
+    )
+    if indexing_results_for_run:
+        return indexing_results_for_run[0][1].fom
+    return empty_indexing_fom
+
+
 @app.get("/api/analysis/analysis-results")
 async def read_analysis_results() -> JSONDict:
     async with db.instance.read_only_connection() as conn:
@@ -1229,66 +1255,41 @@ async def read_analysis_results() -> JSONDict:
             ds.id: [r for r in runs if run_matches_dataset(r.attributi, ds.attributi)]
             for ds in data_sets
         }
-        analysis_results = await db.instance.retrieve_cfel_analysis_results(conn)
-        data_set_to_analysis_results: dict[int, list[DBCFELAnalysisResult]] = group_by(
-            analysis_results,
-            lambda key: key.data_set_id,
+        # This is horrible, one SQL query could do the trick here. But efficiency comes second.
+        indexing_results_for_runs: dict[int, list[DBIndexingResultOutput]] = group_by(
+            await db.instance.retrieve_indexing_results(conn), lambda ir: ir.run_id
         )
+        run_foms: dict[int, DBIndexingFOM] = {
+            r.id: _indexing_fom_for_run(indexing_results_for_runs, r) for r in runs
+        }
+
+        def _build_data_set_result(ds: DBDataSet) -> JSONDict:
+            runs_in_ds = data_set_to_runs.get(ds.id, [])
+            return {
+                "data-set": _encode_data_set(
+                    ds,
+                    _summary_from_foms(
+                        [
+                            run_foms.get(r.id, empty_indexing_fom)
+                            for r in runs
+                            if run_matches_dataset(r.attributi, ds.attributi)
+                        ]
+                    ),
+                ),
+                "runs": [
+                    str(t[0]) if t[0] == t[1] else f"{t[0]}-{t[1]}"
+                    for t in create_intervals([r.id for r in runs_in_ds])
+                ],
+            }
 
         return {
             "attributi": [_encode_attributo(a) for a in attributi],
             "sample-id-to-name": [[x.id, x.name] for x in samples],
             "experiment-types": {
-                experiment_type: [
-                    {
-                        "data-set": _encode_data_set(
-                            ds,
-                            _build_run_summary(data_set_to_runs.get(ds.id, [])),
-                        ),
-                        "analysis-results": [
-                            _encode_cfel_analysis_result(k)
-                            for k in sorted(
-                                data_set_to_analysis_results.get(ds.id, []),
-                                key=lambda r: r.data_set_id,
-                            )
-                        ],
-                        "runs": [
-                            str(t[0]) if t[0] == t[1] else f"{t[0]}-{t[1]}"
-                            for t in create_intervals(
-                                [r.id for r in data_set_to_runs.get(ds.id, [])]
-                            )
-                        ],
-                    }
-                    for ds in data_sets
-                ]
+                experiment_type: [_build_data_set_result(ds) for ds in data_sets]
                 for experiment_type, data_sets in data_sets_by_experiment_type.items()
             },
         }
-
-
-def _encode_cfel_analysis_result(k: DBCFELAnalysisResult) -> JSONDict:
-    return {
-        "id": k.id,
-        "directoryName": k.directory_name,
-        "dataSetId": k.data_set_id,
-        "resolution": k.resolution,
-        "rsplit": k.rsplit,
-        "cchalf": k.cchalf,
-        "ccstar": k.ccstar,
-        "snr": k.snr,
-        "completeness": k.completeness,
-        "multiplicity": k.multiplicity,
-        "totalMeasurements": k.total_measurements,
-        "uniqueReflections": k.unique_reflections,
-        "numPatterns": k.num_patterns,
-        "numHits": k.num_hits,
-        "indexedPatterns": k.indexed_patterns,
-        "indexedCrystals": k.indexed_crystals,
-        "crystfelVersion": k.crystfel_version,
-        "ccstarRSplit": k.ccstar_rsplit,
-        "created": datetime_to_attributo_int(k.created),
-        "files": [_encode_file(f) for f in k.files],
-    }
 
 
 class Arguments(Tap):

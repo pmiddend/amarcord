@@ -10,12 +10,12 @@ import h5py
 import structlog
 
 from amarcord.amici.kamzik.kamzik_zmq_client import KAMZIK_ATTRIBUTO_GROUP
-from amarcord.amici.om.client import create_om_attributi
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.table_classes import DBRun
 from amarcord.experiment_simulator import ATTRIBUTO_TARGET_FRAME_COUNT
@@ -105,7 +105,15 @@ async def update_run_frames(db: AsyncDB, pool_size: int) -> None:
         assert (
             raw_file_glob_attributo is not None
         ), f'expected an attributo "{raw_file_glob_attributo}" to be present, showing where the files for the run lie; you can create that with "update_runs_add_file_globs" separately'
-        await create_om_attributi(db, conn, attributi)
+        if ATTRIBUTO_TARGET_FRAME_COUNT not in attributi_dict:
+            await db.create_attributo(
+                conn,
+                ATTRIBUTO_TARGET_FRAME_COUNT,
+                "",
+                "external",
+                AssociatedTable.RUN,
+                AttributoTypeInt(),
+            )
         attributi = await db.retrieve_attributi(conn, AssociatedTable.RUN)
         runs = await db.retrieve_runs(conn, attributi)
 

@@ -2,19 +2,18 @@ import asyncio
 from datetime import timedelta
 from pathlib import Path
 
-from amarcord.amici.slurm.job_status import JobStatus
-from amarcord.amici.slurm.local_job_controller import LocalJobController
+from amarcord.amici.workload_manager.job_status import JobStatus
+from amarcord.amici.workload_manager.local_workload_manager import LocalWorkloadManager
 
 
 async def test_main_loop(tmp_path: Path) -> None:
-    jc = LocalJobController()
+    jc = LocalWorkloadManager()
 
     await jc.start_job(
-        path=tmp_path,
+        working_directory=tmp_path,
         executable=Path(__file__).parent / "test-script.sh",
         command_line="",
         time_limit=timedelta(),
-        extra_files=[],
     )
 
     completed = False
@@ -22,7 +21,7 @@ async def test_main_loop(tmp_path: Path) -> None:
         jobs = list(await jc.list_jobs())
         assert jobs
 
-        if jobs[0].status == JobStatus.COMPLETED:
+        if jobs[0].status == JobStatus.SUCCESSFUL:
             completed = True
             break
 

@@ -2,18 +2,28 @@ import asyncio
 from asyncio import FIRST_COMPLETED
 from asyncio import Task
 from pathlib import Path
+from typing import Optional
 
 from tap import Tap
 from zmq.asyncio import Context
 
+from amarcord.amici.crystfel.daemon import CrystFELOnlineConfig
+from amarcord.amici.crystfel.daemon import indexing_loop
 from amarcord.amici.kamzik.kamzik_zmq_client import kamzik_main_loop
 from amarcord.amici.om.client import OmZMQProcessor
+from amarcord.amici.om.indexing_daemon import om_indexing_loop
 from amarcord.amici.om.simulator import om_simulator_loop
-from amarcord.amici.onda.client import OnDAZMQProcessor
 from amarcord.amici.p11.grab_mjpeg_frame import mjpeg_stream_loop
 from amarcord.amici.petra3.petra3_online_values import petra3_value_loop
+from amarcord.amici.workload_manager.workload_manager_factory import (
+    create_workload_manager,  # NOQA
+)
+from amarcord.amici.workload_manager.workload_manager_factory import (
+    parse_workload_manager_uri,  # NOQA
+)
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.experiment_simulator import experiment_simulator_initialize_db
 from amarcord.experiment_simulator import experiment_simulator_main_loop
@@ -21,19 +31,23 @@ from amarcord.experiment_simulator import experiment_simulator_main_loop
 
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
-    kamzik_socket_url: str | None = None
+    kamzik_socket_url: Optional[str] = None
     kamzik_device_id: str = "Runner"
-    petra3_refresh_rate_seconds: float | None = None
-    om_url: str | None = None
+    petra3_refresh_rate_seconds: Optional[float] = None
+    om_url: Optional[str] = None
     om_topic: str = "view:omdata"
-    om_simulator_port: int | None = None
-    onda_url: str | None = None
-    onda_topic: str = "ondadata"
+    om_simulator_port: Optional[int] = None
+    om_indexing_file: Optional[Path] = None  # Whether to enable the Om indexing daemon
     experiment_simulator_enabled: bool = False
-    experiment_simulator_files_dir: Path | None = None
-    experiment_simulator_set_indexing_rate: bool
-    mjpeg_stream_url: str | None = None
+    experiment_simulator_files_dir: Optional[Path] = None
+    mjpeg_stream_url: Optional[str] = None
     mjpeg_stream_delay_seconds: float = 5.0
+    online_crystfel_delay_seconds: Optional[float] = None
+    online_crystfel_output_base_directory: Optional[Path] = None
+    online_crystfel_cell_file_path: Optional[Path] = None
+    online_crystfel_indexing_script_path: Optional[Path] = None
+    online_crystfel_sample_attributo: Optional[str] = None
+    online_crystfel_workload_manager_uri: Optional[str] = None
 
 
 async def _main_loop(args: Arguments) -> None:
@@ -44,6 +58,44 @@ async def _main_loop(args: Arguments) -> None:
 
     awaitables: list[Task[None]] = []
 
+    if (
+        args.online_crystfel_delay_seconds is not None
+        and args.online_crystfel_output_base_directory is not None
+        and args.online_crystfel_indexing_script_path is not None
+        and args.online_crystfel_workload_manager_uri is not None
+        and args.online_crystfel_sample_attributo is not None
+        and args.online_crystfel_cell_file_path is not None
+    ):
+        awaitables.append(
+            asyncio.create_task(
+                indexing_loop(
+                    db,
+                    create_workload_manager(
+                        parse_workload_manager_uri(
+                            args.online_crystfel_workload_manager_uri
+                        )
+                    ),
+                    CrystFELOnlineConfig(
+                        args.online_crystfel_output_base_directory,
+                        args.online_crystfel_cell_file_path,
+                        args.online_crystfel_indexing_script_path,
+                        AttributoId(args.online_crystfel_sample_attributo),
+                    ),
+                    args.online_crystfel_delay_seconds,
+                )
+            )
+        )
+
+    if args.om_indexing_file is not None:
+        awaitables.append(
+            asyncio.create_task(
+                om_indexing_loop(
+                    db,
+                    watch_file=args.om_indexing_file,
+                )
+            )
+        )
+
     if args.experiment_simulator_enabled:
         await experiment_simulator_initialize_db(db)
         awaitables.append(
@@ -51,7 +103,6 @@ async def _main_loop(args: Arguments) -> None:
                 experiment_simulator_main_loop(
                     db,
                     delay_seconds=5.0,
-                    set_indexing_rate=args.experiment_simulator_set_indexing_rate,
                 )
             )
         )
@@ -79,21 +130,9 @@ async def _main_loop(args: Arguments) -> None:
 
     if args.om_url is not None:
         processor = OmZMQProcessor(db)
-        await processor.init()
-
         awaitables.append(
             asyncio.create_task(
                 processor.main_loop(zmq_ctx, args.om_url, args.om_topic)
-            )
-        )
-
-    if args.onda_url is not None:
-        onda_processor = OnDAZMQProcessor(db)
-        await onda_processor.init()
-
-        awaitables.append(
-            asyncio.create_task(
-                onda_processor.main_loop(zmq_ctx, args.onda_url, args.onda_topic)
             )
         )
 

@@ -6,12 +6,20 @@ from typing import cast
 import pytest
 from pytest_subprocess import FakeProcess
 
-from amarcord.amici.slurm.job_status import JobStatus
-from amarcord.amici.slurm.slurm_rest_job_controller import DynamicTokenRetriever
-from amarcord.amici.slurm.slurm_rest_job_controller import SlurmHttpWrapper
-from amarcord.amici.slurm.slurm_rest_job_controller import SlurmRestJobController
-from amarcord.amici.slurm.slurm_rest_job_controller import retrieve_jwt_token
-from amarcord.amici.slurm.slurm_rest_job_controller import slurm_token_command
+from amarcord.amici.workload_manager.job_status import JobStatus
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    DynamicTokenRetriever,  # NOQA
+)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import SlurmHttpWrapper
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    SlurmRestWorkloadManager,  # NOQA
+)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    retrieve_jwt_token,  # NOQA
+)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    slurm_token_command,  # NOQA
+)
 from amarcord.json_types import JSONDict
 
 _TEST_USER_ID = 1
@@ -30,7 +38,7 @@ _REST_USER = "pmidden"
 
 class MockResponse:
     def __init__(
-        self, json_data: JSONDict | None, text: str | None, status_code: int
+        self, json_data: None | JSONDict, text: None | str, status_code: int
     ) -> None:
         self.json_data = json_data
         self.status_code = status_code
@@ -57,21 +65,20 @@ class MockHttpWrapper(SlurmHttpWrapper):
 
 async def test_slurm_rest_job_controller_start_job() -> None:
     http_wrapper = MockHttpWrapper()
-    controller = SlurmRestJobController(
+    controller = SlurmRestWorkloadManager(
         partition=_TEST_PARTITION,
+        reservation=None,
         token_retriever=_TEST_TOKEN_RETRIEVER,
-        user_id=_TEST_USER_ID,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
     )
 
     http_wrapper.responses.append({"job_id": 1})
     await controller.start_job(
-        path=Path("test"),
+        working_directory=Path("test"),
         executable=Path("/tmp/executable"),
         command_line="",
         time_limit=_TIME_LIMIT,
-        extra_files=[],
     )
 
     assert http_wrapper.post_requests
@@ -79,10 +86,10 @@ async def test_slurm_rest_job_controller_start_job() -> None:
 
 async def test_slurm_rest_job_controller_list_jobs_with_errors() -> None:
     http_wrapper = MockHttpWrapper()
-    controller = SlurmRestJobController(
+    controller = SlurmRestWorkloadManager(
         partition=_TEST_PARTITION,
+        reservation=None,
         token_retriever=_TEST_TOKEN_RETRIEVER,
-        user_id=_TEST_USER_ID,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
     )
@@ -95,10 +102,10 @@ async def test_slurm_rest_job_controller_list_jobs_with_errors() -> None:
 
 async def test_slurm_rest_job_controller_list_jobs_other_users_are_ignored() -> None:
     http_wrapper = MockHttpWrapper()
-    controller = SlurmRestJobController(
+    controller = SlurmRestWorkloadManager(
         partition=_TEST_PARTITION,
+        reservation=None,
         token_retriever=_TEST_TOKEN_RETRIEVER,
-        user_id=_TEST_USER_ID,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
     )
@@ -109,10 +116,10 @@ async def test_slurm_rest_job_controller_list_jobs_other_users_are_ignored() -> 
 
 async def test_slurm_rest_job_controller_list_jobs_success() -> None:
     http_wrapper = MockHttpWrapper()
-    controller = SlurmRestJobController(
+    controller = SlurmRestWorkloadManager(
         partition=_TEST_PARTITION,
+        reservation=None,
         token_retriever=_TEST_TOKEN_RETRIEVER,
-        user_id=_TEST_USER_ID,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
     )

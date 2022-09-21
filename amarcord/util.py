@@ -247,3 +247,9 @@ def maybe_you_meant(s: str, strs: Iterable[str]) -> str:
         ((t, SequenceMatcher(None, s, t).ratio()) for t in strs), key=lambda x: x[1]
     )
     return f', maybe you meant "{max_match}"?' if ratio > 0.5 else ""
+
+
+def first(xs: Iterable[T]) -> Union[None, T]:
+    for x in xs:
+        return x
+    return None

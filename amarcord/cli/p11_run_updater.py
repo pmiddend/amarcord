@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 from typing import cast
 
 import structlog.stdlib
@@ -23,7 +24,7 @@ _RUN_ID_PLACEHOLDER = "${run_id}"
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     # fmt: off
-    file_glob: str | None # String containing the special placeholder ${run_id} which gets replaced by the actual run ID; runs will get a raw_files attributo if this is specified
+    file_glob: Optional[str] # String containing the special placeholder ${run_id} which gets replaced by the actual run ID; runs will get a raw_files attributo if this is specified
     # fmt: on
 
     pool_size: int = 10  # Size of the parallel computation pool for frame calculation (depends on IO usage)

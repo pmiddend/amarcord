@@ -4,11 +4,15 @@ import Amarcord.Attributo exposing (AttributoMap, AttributoValue)
 
 
 type alias DataSetSummary =
-    { numberOfRuns : Int
-    , frames : Int
-    , hitRate : Maybe Float
+    { hitRate : Maybe Float
     , indexingRate : Maybe Float
+    , indexedFrames : Int
     }
+
+
+emptySummary : DataSetSummary
+emptySummary =
+    { hitRate = Nothing, indexingRate = Nothing, indexedFrames = 0 }
 
 
 type alias DataSet =

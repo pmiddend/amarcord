@@ -1,21 +1,20 @@
 module Amarcord.Pages.Analysis exposing (Model, Msg, init, update, view)
 
-import Amarcord.API.Requests exposing (AnalysisResultsExperimentType, AnalysisResultsRoot, CfelAnalysisResult, RequestError, httpGetAnalysisResults)
+import Amarcord.API.Requests exposing (AnalysisResultsExperimentType, AnalysisResultsRoot, RequestError, httpGetAnalysisResults)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.File as Amarcord
-import Amarcord.Html exposing (br_, div_, h2_, img_, li_, p_, tbody_, td_, th_, thead_, tr_, ul_)
-import Amarcord.Route exposing (makeFilesLink)
+import Amarcord.Html exposing (div_, h2_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
-import Html exposing (Html, a, div, figcaption, figure, h4, small, table, td, text, tr)
-import Html.Attributes exposing (class, colspan, href, src)
+import Html exposing (Html, div, h4, table, text)
+import Html.Attributes exposing (class)
+import Maybe
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult)
-import String
+import String exposing (join)
 import Time exposing (Zone)
 import Tuple exposing (first, second)
 
@@ -54,114 +53,38 @@ viewResultsTableForSingleExperimentType :
     -> Html msg
 viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeAndDataSets =
     let
-        headerNamesAnalysisResults =
-            [ "Resolution"
-            , "RSplit"
-            , "CCHalf"
-            , "CC*"
-            , "SNR"
-            , "Completeness"
-            , "Multiplicity"
-            , "Total Measurements"
-            , "Unique Reflections"
-            , "Num. patterns"
-            , "Num Hits"
-            , "Indexed Patterns"
-            , "Indexed Crystals"
-            , "CC*-Rsplit"
-            , "CrystFEL version"
-            ]
-
-        textTd =
-            td_ << List.singleton << text
-
-        floatTd =
-            textTd << formatFloatHumanFriendly
-
-        intTd =
-            textTd << String.fromInt
-
-        viewFile : Amarcord.File -> Html msg
-        viewFile { id, type_, description, fileName, sizeInBytes, originalPath } =
-            if String.startsWith "image/" type_ then
-                div_ [ figure [ class "figure" ] [ img_ [ src ("api/files/" ++ String.fromInt id), class "figure-img img-fluid rounded" ], figcaption [ class "figure-caption" ] [ text description ] ] ]
-
-            else
-                let
-                    originalPathSuffix =
-                        case originalPath of
-                            Nothing ->
-                                []
-
-                            Just op ->
-                                [ br_, small [ class "text-muted" ] [ text <| "Original path: " ], small [ class "text-muted font-monospace" ] [ text op ] ]
-                in
-                p_
-                    ([ a [ href (makeFilesLink id) ] [ text ("Download \"" ++ fileName ++ "\"") ], text (" (" ++ String.fromInt (sizeInBytes // 1024) ++ "KiB)") ] ++ originalPathSuffix)
-
-        viewCfelAnalysisResultRows : CfelAnalysisResult -> List (Html msg)
-        viewCfelAnalysisResultRows { directoryName, dataSetId, resolution, rsplit, cchalf, ccstar, snr, completeness, multiplicity, totalMeasurements, uniqueReflections, numPatterns, numHits, indexedPatterns, indexedCrystals, created, crystfelVersion, ccstarRSplit, files } =
-            let
-                dataRow =
-                    tr_
-                        [ textTd resolution
-                        , floatTd rsplit
-                        , floatTd cchalf
-                        , floatTd ccstar
-                        , floatTd snr
-                        , floatTd completeness
-                        , floatTd multiplicity
-                        , intTd totalMeasurements
-                        , intTd uniqueReflections
-                        , intTd numPatterns
-                        , intTd numHits
-                        , intTd indexedPatterns
-                        , intTd indexedCrystals
-                        , floatTd ccstarRSplit
-                        , textTd crystfelVersion
-                        ]
-            in
-            if List.isEmpty files then
-                [ dataRow ]
-
-            else
-                dataRow :: [ tr_ [ td [ colspan (List.length headerNamesAnalysisResults) ] (List.map viewFile files) ] ]
-
         viewResultRow : AnalysisResultsExperimentType -> List (Html msg)
-        viewResultRow { dataSet, analysisResults, runs } =
+        viewResultRow { dataSet, runs } =
             [ tr_
                 [ td_ [ text (String.fromInt dataSet.id) ]
                 , td_ [ viewDataSetTable attributi zone sampleIds dataSet False Nothing ]
-                , td_ [ MaybeExtra.unwrap (text "") (\summary -> text (String.fromInt summary.numberOfRuns)) dataSet.summary ]
+                , td_ [ text <| join ", " runs ]
                 , td_
-                    [ if List.isEmpty runs then
-                        text ""
+                    [ text <|
+                        if List.isEmpty runs then
+                            ""
 
-                      else
-                        ul_ (List.map (\runRange -> li_ [ text runRange ]) runs)
+                        else
+                            MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.hitRate) dataSet.summary
                     ]
-                , td_ [ text <| MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.frames) dataSet.summary ]
-                , td_ [ text <| MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.hitRate) dataSet.summary ]
-                , td_ [ text <| MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.indexingRate) dataSet.summary ]
+                , td_
+                    [ text <|
+                        if List.isEmpty runs then
+                            ""
+
+                        else
+                            MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.indexingRate) dataSet.summary
+                    ]
+                , td_
+                    [ text <|
+                        if List.isEmpty runs then
+                            ""
+
+                        else
+                            MaybeExtra.unwrap "" (\summary -> formatIntHumanFriendly summary.indexedFrames) dataSet.summary
+                    ]
                 ]
             ]
-                ++ (if List.isEmpty analysisResults then
-                        []
-
-                    else
-                        [ tr [ class "table-secondary" ]
-                            [ td [ colspan 7 ]
-                                [ table [ class "table table-sm" ]
-                                    [ thead_
-                                        [ tr_
-                                            (List.map (\header -> th_ [ text header ]) headerNamesAnalysisResults)
-                                        ]
-                                    , tbody_ (List.concatMap viewCfelAnalysisResultRows analysisResults)
-                                    ]
-                                ]
-                            ]
-                        ]
-                   )
     in
     div_
         [ h2_ [ text (first experimentTypeAndDataSets) ]
@@ -170,11 +93,10 @@ viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeA
                 [ tr_
                     [ th_ [ text "Data Set ID" ]
                     , th_ [ text "Attributi" ]
-                    , th_ [ text "Number of Runs" ]
-                    , th_ [ text "Runs" ]
-                    , th_ [ text "Frames" ]
+                    , th_ [ text "Run IDs" ]
                     , th_ [ text "Hit Rate" ]
                     , th_ [ text "Indexing Rate" ]
+                    , th_ [ text "Indexed Frames" ]
                     ]
                 ]
             , tbody_ (List.concatMap viewResultRow (second experimentTypeAndDataSets))

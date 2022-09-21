@@ -2,14 +2,14 @@ import asyncio
 import datetime
 import logging
 import random
+from pathlib import Path
 
 import randomname
 import structlog
 from randomname import generate
+from structlog.stdlib import BoundLogger
 from tap import Tap
 
-from amarcord.amici.om.client import ATTRIBUTO_HIT_RATE
-from amarcord.amici.om.client import ATTRIBUTO_INDEXING_RATE
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.asyncdb import AsyncDB
@@ -30,8 +30,13 @@ from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.indexing_result import DBIndexingFOM
+from amarcord.db.indexing_result import DBIndexingResultDone
+from amarcord.db.indexing_result import DBIndexingResultInput
+from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.table_classes import DBRun
 from amarcord.numeric_range import NumericRange
+from amarcord.util import first
 from amarcord.util import safe_max
 
 TIME_RESOLVED = AttributoId("time-resolved")
@@ -63,7 +68,6 @@ class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     verbose: bool = False  # Show more log messages
     wait_time_seconds: float  # How long to wait before simulating another event (in seconds)
-    set_indexing_rate: bool  # Set some value for the indexing rate of the run
 
 
 def random_date(start: datetime.datetime, end: datetime.datetime) -> datetime.datetime:
@@ -213,14 +217,6 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             AssociatedTable.RUN,
             AttributoTypeBoolean(),
         )
-        await db.create_attributo(
-            conn,
-            ATTRIBUTO_INDEXING_RATE,
-            "",
-            "om",
-            AssociatedTable.RUN,
-            AttributoTypeDecimal(suffix="%", standard_unit=False),
-        )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
         sample_names: list[str] = []
@@ -278,14 +274,16 @@ async def _start_run(
     previous_sample: int | None,
 ) -> None:
     async with db.begin() as conn:
+
         sample = (
             random.choice(sample_ids)
             if previous_sample is None or random.uniform(0, 100) > 80
             else previous_sample
         )
+        run_id = previous_run_id + 1
         await db.create_run(
             conn,
-            run_id=previous_run_id + 1,
+            run_id=run_id,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_raw(
                 attributi,
@@ -307,10 +305,49 @@ async def _start_run(
                 await db.retrieve_configuration(conn)
             ).auto_pilot,
         )
+        await db.create_indexing_result(
+            conn,
+            DBIndexingResultInput(
+                created=datetime.datetime.utcnow(),
+                run_id=run_id,
+                hits=int(random.uniform(1, 10000)),
+                not_indexed_frames=int(random.uniform(1, 10000)),
+                frames=int(random.uniform(1, 10000)),
+                runtime_status=DBIndexingResultRunning(
+                    stream_file=Path("/home/homeless-shelter/dont-use.stream"),
+                    job_id=1,
+                    fom=_random_fom(None),
+                ),
+            ),
+        )
+
+
+def _random_fom(previous_fom: DBIndexingFOM | None) -> DBIndexingFOM:
+    return DBIndexingFOM(
+        hit_rate=random.uniform(0, 100),
+        indexing_rate=random.uniform(0, 100),
+        indexed_frames=previous_fom.indexed_frames + int(random.uniform(10, 100))
+        if previous_fom is not None
+        else 10,
+    )
 
 
 async def _stop_run(db: AsyncDB, run: DBRun) -> None:
     async with db.begin() as conn:
+        previous_indexing_result = first(
+            ir for ir in await db.retrieve_indexing_results(conn) if ir.run_id == run.id
+        )
+        if previous_indexing_result is not None and isinstance(
+            previous_indexing_result.runtime_status, DBIndexingResultRunning
+        ):
+            rs = previous_indexing_result.runtime_status
+            await db.update_indexing_result_status(
+                conn,
+                indexing_result_id=previous_indexing_result.id,
+                runtime_status=DBIndexingResultDone(
+                    stream_file=rs.stream_file, job_error=None, fom=rs.fom
+                ),
+            )
         new_attributi = run.attributi.copy()
         new_attributi.append_single(ATTRIBUTO_STOPPED, datetime.datetime.utcnow())
         await db.update_run_attributi(conn, run.id, new_attributi)
@@ -324,9 +361,28 @@ def random_gibberish() -> str:
     return "Test sentence please ignore"
 
 
-async def experiment_simulator_main_loop(
-    db: AsyncDB, delay_seconds: float, set_indexing_rate: bool
-) -> None:
+async def _update_run(db: AsyncDB, run: DBRun, log: BoundLogger) -> None:
+    log.info("Letting run go on for a bit")
+
+    async with db.begin() as conn:
+        ir = first(
+            ir for ir in await db.retrieve_indexing_results(conn) if ir.run_id == run.id
+        )
+        if ir is None:
+            return
+        rs = ir.runtime_status
+        if not isinstance(rs, DBIndexingResultRunning):
+            return
+        await db.update_indexing_result_status(
+            conn,
+            indexing_result_id=ir.id,
+            runtime_status=DBIndexingResultRunning(
+                stream_file=rs.stream_file, job_id=rs.job_id, fom=_random_fom(rs.fom)
+            ),
+        )
+
+
+async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> None:
     logger.info("starting experiment simulator loop")
     while True:
         async with db.read_only_connection() as conn:
@@ -357,7 +413,7 @@ async def experiment_simulator_main_loop(
                     log.info("Stopping run")
                     await _stop_run(db, last_run)
                 else:
-                    log.info("Letting run go on for a bit")
+                    await _update_run(db, last_run, log)
             else:
                 if _minutes_since(stopped_time) > random.uniform(0, 2):
                     log.info("Starting new run", run_id=last_run.id + 1)
@@ -379,21 +435,5 @@ async def experiment_simulator_main_loop(
                 await db.create_event(
                     conn, EventLogLevel.INFO, random_person_name(), random_gibberish()
                 )
-
-        if set_indexing_rate:
-            async with db.begin() as conn:
-                latest_run = await db.retrieve_latest_run(conn, attributi)
-                if (
-                    latest_run is not None
-                    and latest_run.attributi.select_datetime(ATTRIBUTO_STOPPED) is None
-                ):
-                    hit_rate = latest_run.attributi.select_decimal(ATTRIBUTO_HIT_RATE)
-                    if hit_rate is not None:
-                        latest_run.attributi.append_single(
-                            ATTRIBUTO_INDEXING_RATE, random.uniform(0, 90)
-                        )
-                        await db.update_run_attributi(
-                            conn, latest_run.id, latest_run.attributi
-                        )
 
         await asyncio.sleep(delay_seconds)

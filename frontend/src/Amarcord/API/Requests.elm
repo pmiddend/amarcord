@@ -2,7 +2,6 @@ module Amarcord.API.Requests exposing
     ( AnalysisResultsExperimentType
     , AnalysisResultsRoot
     , AppConfig
-    , CfelAnalysisResult
     , ConversionFlags
     , DataSetResult
     , Event
@@ -56,6 +55,7 @@ module Amarcord.API.Requests exposing
     , httpUpdateSample
     , httpUpdateSchedule
     , httpUserConfigurationSetAutoPilot
+    , httpUserConfigurationSetOnlineCrystFEL
     , runEventDateFilter
     , runEventDateToString
     , runFilterToString
@@ -156,12 +156,11 @@ httpGetExperimentTypes f =
 
 dataSetSummaryDecoder : Decode.Decoder DataSetSummary
 dataSetSummaryDecoder =
-    Decode.map4
+    Decode.map3
         DataSetSummary
-        (Decode.field "number-of-runs" Decode.int)
-        (Decode.field "frames" Decode.int)
         (Decode.field "hit-rate" (Decode.maybe Decode.float))
         (Decode.field "indexing-rate" (Decode.maybe Decode.float))
+        (Decode.field "indexed-frames" Decode.int)
 
 
 dataSetDecoder : Decode.Decoder DataSet
@@ -239,58 +238,8 @@ type alias DataSetResult =
     }
 
 
-type alias CfelAnalysisResult =
-    { id : Int
-    , directoryName : String
-    , dataSetId : Int
-    , resolution : String
-    , rsplit : Float
-    , cchalf : Float
-    , ccstar : Float
-    , snr : Float
-    , completeness : Float
-    , multiplicity : Float
-    , totalMeasurements : Int
-    , uniqueReflections : Int
-    , numPatterns : Int
-    , numHits : Int
-    , indexedPatterns : Int
-    , indexedCrystals : Int
-    , crystfelVersion : String
-    , ccstarRSplit : Float
-    , created : Posix
-    , files : List File
-    }
-
-
-cfelAnalysisDecoder : Decode.Decoder CfelAnalysisResult
-cfelAnalysisDecoder =
-    Decode.succeed CfelAnalysisResult
-        |> required "id" Decode.int
-        |> required "directoryName" Decode.string
-        |> required "dataSetId" Decode.int
-        |> required "resolution" Decode.string
-        |> required "rsplit" Decode.float
-        |> required "cchalf" Decode.float
-        |> required "ccstar" Decode.float
-        |> required "snr" Decode.float
-        |> required "completeness" Decode.float
-        |> required "multiplicity" Decode.float
-        |> required "totalMeasurements" Decode.int
-        |> required "uniqueReflections" Decode.int
-        |> required "numPatterns" Decode.int
-        |> required "numHits" Decode.int
-        |> required "indexedPatterns" Decode.int
-        |> required "indexedCrystals" Decode.int
-        |> required "crystfelVersion" Decode.string
-        |> required "ccstarRSplit" Decode.float
-        |> required "created" decodePosix
-        |> required "files" (Decode.list fileDecoder)
-
-
 type alias AnalysisResultsExperimentType =
     { dataSet : DataSet
-    , analysisResults : List CfelAnalysisResult
     , runs : List String
     }
 
@@ -304,10 +253,9 @@ type alias AnalysisResultsRoot =
 
 analysisResultsExperimentTypeDecoder : Decode.Decoder AnalysisResultsExperimentType
 analysisResultsExperimentTypeDecoder =
-    Decode.map3
+    Decode.map2
         AnalysisResultsExperimentType
         (Decode.field "data-set" dataSetDecoder)
-        (Decode.field "analysis-results" (Decode.list cfelAnalysisDecoder))
         (Decode.field "runs" (Decode.list Decode.string))
 
 
@@ -370,6 +318,7 @@ httpGetDataSets f =
 type alias Run =
     { id : Int
     , attributi : AttributoMap AttributoValue
+    , summary : DataSetSummary
     , files : List File
     , dataSets : List Int
     }
@@ -405,17 +354,20 @@ type alias RunsResponseContent =
     , samples : List (Sample Int (AttributoMap AttributoValue) File)
     , dataSets : List DataSet
     , experimentTypes : Dict String (Set String)
-    , runInformationCopy : Bool
+    , autoPilot : Bool
+    , onlineCrystFEL : Bool
     , jetStreamFileId : Maybe Int
     }
 
 
-httpUserConfigurationSetAutoPilot : (Result RequestError Bool -> msg) -> Bool -> Cmd msg
-httpUserConfigurationSetAutoPilot f autoPilot =
+httpUserConfigurationSetBoolean : String -> (Result RequestError Bool -> msg) -> Bool -> Cmd msg
+httpUserConfigurationSetBoolean description f newValue =
     httpPatch
         { url =
-            "api/user-config/auto-pilot/"
-                ++ (if autoPilot then
+            "api/user-config/"
+                ++ description
+                ++ "/"
+                ++ (if newValue then
                         "True"
 
                     else
@@ -425,6 +377,16 @@ httpUserConfigurationSetAutoPilot f autoPilot =
             Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.field "value" Decode.bool)
         , body = emptyBody
         }
+
+
+httpUserConfigurationSetOnlineCrystFEL : (Result RequestError Bool -> msg) -> Bool -> Cmd msg
+httpUserConfigurationSetOnlineCrystFEL =
+    httpUserConfigurationSetBoolean "online-crystfel"
+
+
+httpUserConfigurationSetAutoPilot : (Result RequestError Bool -> msg) -> Bool -> Cmd msg
+httpUserConfigurationSetAutoPilot =
+    httpUserConfigurationSetBoolean "auto-pilot"
 
 
 httpCreateLiveStreamSnapshot : (Result RequestError File -> msg) -> Cmd msg
@@ -512,6 +474,7 @@ getRuns path f =
                         |> required "data-sets" (Decode.list dataSetDecoder)
                         |> required "experiment-types" (Decode.dict (Decode.map Set.fromList <| Decode.list Decode.string))
                         |> required "auto-pilot" Decode.bool
+                        |> required "online-crystfel" Decode.bool
                         |> required "live-stream-file-id" (Decode.maybe Decode.int)
                     )
         }
@@ -572,10 +535,11 @@ attributoMapDecoder =
 
 runDecoder : Decode.Decoder Run
 runDecoder =
-    Decode.map4
+    Decode.map5
         Run
         (Decode.field "id" Decode.int)
         (Decode.field "attributi" attributoMapDecoder)
+        (Decode.field "summary" dataSetSummaryDecoder)
         (Decode.field "files" (Decode.list fileDecoder))
         (Decode.field "data-sets" (Decode.list Decode.int))
 

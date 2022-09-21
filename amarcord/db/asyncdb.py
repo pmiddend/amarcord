@@ -33,16 +33,21 @@ from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.cfel_analysis_result import DBCFELAnalysisResult
 from amarcord.db.data_set import DBDataSet
+from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
+from amarcord.db.indexing_result import DBIndexingFOM
+from amarcord.db.indexing_result import DBIndexingResultDone
+from amarcord.db.indexing_result import DBIndexingResultInput
+from amarcord.db.indexing_result import DBIndexingResultOutput
+from amarcord.db.indexing_result import DBIndexingResultRunning
+from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBFile
-from amarcord.db.table_classes import DBFileBlueprint
 from amarcord.db.table_classes import DBRun
 from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import DBTables
@@ -51,7 +56,6 @@ from amarcord.db.user_configuration import initial_user_configuration
 from amarcord.json_schema import coparse_schema_type
 from amarcord.pint_util import valid_pint_unit
 from amarcord.util import datetime_to_local
-from amarcord.util import group_by
 from amarcord.util import sha256_file
 
 LIVE_STREAM_IMAGE: Final = "live-stream-image"
@@ -67,6 +71,34 @@ class CreateFileResult:
 
 
 ATTRIBUTO_GROUP_MANUAL = "manual"
+
+
+def _evaluate_indexing_result_runtime_status(
+    db_row: Any,
+) -> DBIndexingResultRuntimeStatus:
+    return (
+        DBIndexingResultDone(
+            stream_file=Path(db_row["stream_file"]),
+            job_error=db_row["job_error"],
+            fom=DBIndexingFOM(
+                db_row["hit_rate"],
+                db_row["indexing_rate"],
+                db_row["indexed_frames"],
+            ),
+        )
+        if db_row["job_status"] == DBJobStatus.DONE
+        else DBIndexingResultRunning(
+            stream_file=Path(db_row["stream_file"]),
+            job_id=db_row["job_id"],
+            fom=DBIndexingFOM(
+                db_row["hit_rate"],
+                db_row["indexing_rate"],
+                db_row["indexed_frames"],
+            ),
+        )
+        if db_row["job_status"] == DBJobStatus.RUNNING
+        else None
+    )
 
 
 class AsyncDB:
@@ -167,13 +199,17 @@ class AsyncDB:
                 sa.select(
                     [
                         self.tables.configuration.c.auto_pilot,
+                        self.tables.configuration.c.use_online_crystfel,
                     ]
                 ).order_by(self.tables.configuration.c.id.desc())
             )
         ).fetchone()
 
         return (
-            UserConfiguration(auto_pilot=result[0])
+            UserConfiguration(
+                auto_pilot=result[0],
+                use_online_crystfel=result[1] if result[1] is not None else False,
+            )
             if result is not None
             else initial_user_configuration()
         )
@@ -184,6 +220,7 @@ class AsyncDB:
         await conn.execute(
             self.tables.configuration.insert().values(
                 auto_pilot=configuration.auto_pilot,
+                use_online_crystfel=configuration.use_online_crystfel,
                 created=datetime.datetime.utcnow(),
             )
         )
@@ -475,8 +512,7 @@ class AsyncDB:
         # I honestly don't remember why I added this
         # if not re.fullmatch(ATTRIBUTO_NAME_REGEX, name, re.IGNORECASE):
         #     raise ValueError(
-        #         f'attributo name "{name}" contains invalid characters (maybe a number at the beginning '
-        #         f"or a dash?)"
+        #         f'attributo name "{name}" contains invalid characters (maybe a number at the beginning or a dash?)"
         #     )
         if associated_table == AssociatedTable.SAMPLE and isinstance(
             type_, AttributoTypeSample
@@ -843,149 +879,48 @@ class AsyncDB:
             ).fetchall()
         ]
 
-    async def clear_cfel_analysis_results(self, conn: Connection) -> None:
-        await conn.execute(sa.delete(self.tables.cfel_analysis_results))
-
-    async def create_cfel_analysis_result(
-        self, conn: Connection, r: DBCFELAnalysisResult, files: list[DBFileBlueprint]
+    async def create_indexing_result(
+        self, conn: Connection, r: DBIndexingResultInput
     ) -> int:
-        file_ids = [
-            (
-                await self.create_file(
-                    conn,
-                    f.location.name,
-                    f.description,
-                    contents_location=f.location,
-                    original_path=f.location.resolve(),
-                    deduplicate=True,
-                )
-            ).id
-            for f in files
-        ]
-        result_id: int = (
+        fom = (
+            r.runtime_status.fom
+            if isinstance(
+                r.runtime_status,
+                (DBIndexingResultRunning, DBIndexingResultDone),
+            )
+            else None
+        )
+        return (  # type: ignore
             await conn.execute(
-                sa.insert(self.tables.cfel_analysis_results).values(
-                    directory_name=r.directory_name,
-                    data_set_id=r.data_set_id,
-                    resolution=r.resolution,
-                    rsplit=r.rsplit,
-                    cchalf=r.cchalf,
-                    ccstar=r.ccstar,
-                    snr=r.snr,
-                    completeness=r.completeness,
-                    multiplicity=r.multiplicity,
-                    total_measurements=r.total_measurements,
-                    unique_reflections=r.unique_reflections,
-                    num_patterns=r.num_patterns,
-                    num_hits=r.num_hits,
-                    indexed_patterns=r.indexed_patterns,
-                    indexed_crystals=r.indexed_crystals,
-                    crystfel_version=r.crystfel_version,
-                    ccstar_rsplit=r.ccstar_rsplit,
+                sa.insert(self.tables.indexing_result).values(
                     created=r.created,
+                    run_id=r.run_id,
+                    stream_file=str(r.runtime_status.stream_file)
+                    if isinstance(
+                        r.runtime_status,
+                        (DBIndexingResultRunning, DBIndexingResultDone),
+                    )
+                    else None,
+                    hits=r.hits,
+                    frames=r.frames,
+                    not_indexed_frames=r.not_indexed_frames,
+                    hit_rate=fom.hit_rate if fom is not None else 0.0,
+                    indexing_rate=fom.indexing_rate if fom is not None else 0.0,
+                    indexed_frames=fom.indexed_frames if fom is not None else 0.0,
+                    job_id=r.runtime_status.job_id
+                    if isinstance(r.runtime_status, DBIndexingResultRunning)
+                    else None,
+                    job_status=DBJobStatus.RUNNING
+                    if isinstance(r.runtime_status, DBIndexingResultRunning)
+                    else DBJobStatus.QUEUED
+                    if r.runtime_status is None
+                    else DBJobStatus.DONE,
+                    job_error=r.runtime_status.job_error
+                    if isinstance(r.runtime_status, DBIndexingResultDone)
+                    else None,
                 )
             )
         ).inserted_primary_key[0]
-        for fid in file_ids:
-            await conn.execute(
-                sa.insert(self.tables.cfel_analysis_result_has_file).values(
-                    analysis_result_id=result_id, file_id=fid
-                )
-            )
-        return result_id
-
-    async def retrieve_cfel_analysis_results(
-        self, conn: Connection
-    ) -> list[DBCFELAnalysisResult]:
-        ar = self.tables.cfel_analysis_results.c
-        file_table = self.tables.file
-        result_to_file: dict[int, list[tuple[int, DBFile]]] = group_by(
-            [
-                (
-                    r["analysis_result_id"],
-                    DBFile(
-                        id=r["id"],
-                        description=r["description"],
-                        type_=r["type"],
-                        file_name=r["file_name"],
-                        size_in_bytes=r["size_in_bytes"],
-                        original_path=r["original_path"],
-                        contents=None,
-                    ),
-                )
-                for r in await (
-                    conn.execute(
-                        sa.select(
-                            [
-                                file_table.c.id,
-                                file_table.c.description,
-                                file_table.c.type,
-                                file_table.c.file_name,
-                                file_table.c.size_in_bytes,
-                                file_table.c.original_path,
-                                self.tables.cfel_analysis_result_has_file.c.analysis_result_id,
-                            ]
-                        ).join(
-                            self.tables.cfel_analysis_result_has_file,
-                            self.tables.cfel_analysis_result_has_file.c.file_id
-                            == file_table.c.id,
-                        )
-                    )
-                )
-            ],
-            key=lambda x: x[0],
-        )
-        return [
-            DBCFELAnalysisResult(
-                id=r["id"],
-                directory_name=r["directory_name"],
-                data_set_id=r["data_set_id"],
-                resolution=r["resolution"],
-                rsplit=r["rsplit"],
-                cchalf=r["cchalf"],
-                ccstar=r["ccstar"],
-                snr=r["snr"],
-                completeness=r["completeness"],
-                multiplicity=r["multiplicity"],
-                total_measurements=r["total_measurements"],
-                unique_reflections=r["unique_reflections"],
-                num_patterns=r["num_patterns"],
-                num_hits=r["num_hits"],
-                indexed_patterns=r["indexed_patterns"],
-                indexed_crystals=r["indexed_crystals"],
-                crystfel_version=r["crystfel_version"],
-                ccstar_rsplit=r["ccstar_rsplit"],
-                created=r["created"],
-                files=[x[1] for x in result_to_file.get(r["id"], [])],
-            )
-            for r in await (
-                conn.execute(
-                    sa.select(
-                        [
-                            ar.id,
-                            ar.directory_name,
-                            ar.data_set_id,
-                            ar.resolution,
-                            ar.rsplit,
-                            ar.cchalf,
-                            ar.ccstar,
-                            ar.snr,
-                            ar.completeness,
-                            ar.multiplicity,
-                            ar.total_measurements,
-                            ar.unique_reflections,
-                            ar.num_patterns,
-                            ar.num_hits,
-                            ar.indexed_patterns,
-                            ar.indexed_crystals,
-                            ar.crystfel_version,
-                            ar.ccstar_rsplit,
-                            ar.created,
-                        ]
-                    )
-                )
-            )
-        ]
 
     async def create_run(
         self,
@@ -1086,18 +1021,6 @@ class AsyncDB:
 
     async def retrieve_sample_ids(self, conn: Connection) -> list[int]:
         return [r[0] for r in await conn.execute(sa.select([self.tables.sample.c.id]))]
-
-    async def clear_analysis_results(
-        self, conn: Connection, delete_after_run_id: int | None = None
-    ) -> None:
-        if delete_after_run_id is None:
-            await conn.execute(sa.delete(self.tables.cfel_analysis_results))
-        else:
-            await conn.execute(
-                sa.delete(self.tables.cfel_analysis_results).where(
-                    self.tables.cfel_analysis_results.c.run_from > delete_after_run_id
-                )
-            )
 
     async def create_experiment_type(
         self, conn: Connection, name: str, experiment_attributi_names: Iterable[str]
@@ -1259,6 +1182,170 @@ class AsyncDB:
             for attributo_id, attributo_value in attributi_values.items():
                 run.attributi.append_single(attributo_id, attributo_value)
             await self.update_run_attributi(conn, run.id, run.attributi)
+
+    async def retrieve_indexing_results(
+        self, conn: Connection
+    ) -> list[DBIndexingResultOutput]:
+        ir = self.tables.indexing_result
+
+        return [
+            DBIndexingResultOutput(
+                id=r["id"],
+                created=r["created"],
+                run_id=r["run_id"],
+                frames=r["frames"],
+                hits=r["hits"],
+                not_indexed_frames=r["not_indexed_frames"],
+                runtime_status=_evaluate_indexing_result_runtime_status(r),
+            )
+            for r in await conn.execute(
+                sa.select(
+                    [
+                        ir.c.id,
+                        ir.c.created,
+                        ir.c.run_id,
+                        ir.c.stream_file,
+                        ir.c.frames,
+                        ir.c.hits,
+                        ir.c.not_indexed_frames,
+                        ir.c.hit_rate,
+                        ir.c.indexing_rate,
+                        ir.c.indexed_frames,
+                        ir.c.job_id,
+                        ir.c.job_status,
+                        ir.c.job_error,
+                    ]
+                )
+            )
+        ]
+
+    async def update_indexing_result(
+        self,
+        conn: Connection,
+        indexing_result_id: int,
+        new_result: DBIndexingResultInput,
+    ) -> None:
+        runtime_status = new_result.runtime_status
+        await conn.execute(
+            sa.update(self.tables.indexing_result)
+            .values(
+                {
+                    "stream_file": None,
+                    "frames": new_result.frames,
+                    "hits": new_result.hits,
+                    "not_indexed_frames": new_result.not_indexed_frames,
+                    "job_id": None,
+                    "job_status": DBJobStatus.QUEUED,
+                    "job_error": None,
+                }
+                if runtime_status is None
+                else {
+                    "stream_file": str(runtime_status.stream_file),
+                    "frames": new_result.frames,
+                    "hits": new_result.hits,
+                    "not_indexed_frames": new_result.not_indexed_frames,
+                    "hit_rate": runtime_status.fom.hit_rate,
+                    "indexing_rate": runtime_status.fom.indexing_rate,
+                    "indexed_frames": runtime_status.fom.indexed_frames,
+                    "job_id": runtime_status.job_id,
+                    "job_status": DBJobStatus.RUNNING,
+                    "job_error": None,
+                }
+                if isinstance(runtime_status, DBIndexingResultRunning)
+                else {
+                    "stream_file": str(runtime_status.stream_file),
+                    "frames": new_result.frames,
+                    "hits": new_result.hits,
+                    "not_indexed_frames": new_result.not_indexed_frames,
+                    "hit_rate": runtime_status.fom.hit_rate,
+                    "indexing_rate": runtime_status.fom.indexing_rate,
+                    "indexed_frames": runtime_status.fom.indexed_frames,
+                    "job_id": None,
+                    "job_status": DBJobStatus.DONE,
+                    "job_error": runtime_status.job_error,
+                }
+            )
+            .where(self.tables.indexing_result.c.id == indexing_result_id)
+        )
+
+    async def update_indexing_result_status(
+        self,
+        conn: Connection,
+        indexing_result_id: int,
+        runtime_status: DBIndexingResultRuntimeStatus,
+    ) -> None:
+        await conn.execute(
+            sa.update(self.tables.indexing_result)
+            .values(
+                {
+                    "stream_file": None,
+                    "job_id": None,
+                    "job_status": DBJobStatus.QUEUED,
+                    "job_error": None,
+                }
+                if runtime_status is None
+                else {
+                    "stream_file": str(runtime_status.stream_file),
+                    "hit_rate": runtime_status.fom.hit_rate,
+                    "indexing_rate": runtime_status.fom.indexing_rate,
+                    "indexed_frames": runtime_status.fom.indexed_frames,
+                    "job_id": runtime_status.job_id,
+                    "job_status": DBJobStatus.RUNNING,
+                    "job_error": None,
+                }
+                if isinstance(runtime_status, DBIndexingResultRunning)
+                else {
+                    "stream_file": str(runtime_status.stream_file),
+                    "hit_rate": runtime_status.fom.hit_rate,
+                    "indexing_rate": runtime_status.fom.indexing_rate,
+                    "indexed_frames": runtime_status.fom.indexed_frames,
+                    "job_id": None,
+                    "job_status": DBJobStatus.DONE,
+                    "job_error": runtime_status.job_error,
+                }
+            )
+            .where(self.tables.indexing_result.c.id == indexing_result_id)
+        )
+
+    async def retrieve_indexing_result_for_run(
+        self, conn: Connection, run_id: int
+    ) -> None | DBIndexingResultOutput:
+        ir = self.tables.indexing_result
+
+        r = (
+            await conn.execute(
+                sa.select(
+                    [
+                        ir.c.id,
+                        ir.c.created,
+                        ir.c.run_id,
+                        ir.c.stream_file,
+                        ir.c.frames,
+                        ir.c.hits,
+                        ir.c.not_indexed_frames,
+                        ir.c.hit_rate,
+                        ir.c.indexing_rate,
+                        ir.c.indexed_frames,
+                        ir.c.job_id,
+                        ir.c.job_status,
+                        ir.c.job_error,
+                    ]
+                ).where(ir.c.run_id == run_id)
+            )
+        ).fetchone()
+
+        if r is None:
+            return None
+
+        return DBIndexingResultOutput(
+            id=r["id"],
+            created=r["created"],
+            run_id=r["run_id"],
+            frames=r["frames"],
+            hits=r["hits"],
+            not_indexed_frames=r["not_indexed_frames"],
+            runtime_status=_evaluate_indexing_result_runtime_status(r),
+        )
 
 
 # Any until openpyxl has official types

@@ -1,7 +1,5 @@
 from datetime import datetime
 
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_FRAMES
-from amarcord.amici.om.client import ATTRIBUTO_NUMBER_OF_OM_HITS
 from amarcord.amici.om.client import ATTRIBUTO_STOPPED
 from amarcord.amici.om.client import OmZMQProcessor
 from amarcord.db.associated_table import AssociatedTable
@@ -22,8 +20,6 @@ async def test_process_data_without_runs() -> None:
     db = await _get_db()
 
     processor = OmZMQProcessor(db)
-
-    await processor.init()
 
     # Send first frame, will be ignored
     await processor.process_data(
@@ -47,8 +43,6 @@ async def test_process_data_latest_run() -> None:
     db = await _get_db()
 
     processor = OmZMQProcessor(db)
-
-    await processor.init()
 
     async with db.begin() as conn:
         attributi = await db.retrieve_attributi(
@@ -83,10 +77,13 @@ async def test_process_data_latest_run() -> None:
 
     async with db.read_only_connection() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
+        assert run is not None
 
-        # 4 because the first frame gets ignored as a baseline
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 4  # type: ignore
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 6  # type: ignore
+        indexing_result = await db.retrieve_indexing_result_for_run(conn, run.id)
+
+        assert indexing_result is not None
+        assert indexing_result.hits == 4
+        assert indexing_result.frames == 6
 
     # Now stop the run and add some frames
     async with db.begin() as conn:
@@ -104,7 +101,12 @@ async def test_process_data_latest_run() -> None:
 
     async with db.read_only_connection() as conn:
         run = await db.retrieve_latest_run(conn, attributi)
+        assert run is not None
+
+        indexing_result = await db.retrieve_indexing_result_for_run(conn, run.id)
+
+        assert indexing_result is not None
 
         # 4 because the first frame gets ignored as a baseline
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_HITS) == 4  # type: ignore
-        assert run.attributi.select_int_unsafe(ATTRIBUTO_NUMBER_OF_OM_FRAMES) == 6  # type: ignore
+        assert indexing_result.hits == 4
+        assert indexing_result.frames == 6

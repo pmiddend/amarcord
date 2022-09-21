@@ -1,25 +1,27 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
+import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoHitRate, attributoIndexingRate, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
-import Amarcord.DataSet exposing (DataSet, DataSetSummary)
+import Amarcord.DataSet exposing (DataSet, DataSetSummary, emptySummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
 import Amarcord.File exposing (File)
+import Amarcord.Gauge exposing (gauge, thisFillColor, totalFillColor)
 import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMinutes, scrollToTop)
+import Char exposing (fromCode)
 import Date exposing (Date)
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
+import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
 import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, name, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onEnter)
@@ -51,7 +53,9 @@ type Msg
     | ChangeCurrentExperimentType
     | ColumnChooserMessage ColumnChooser.Msg
     | ChangeAutoPilot Bool
+    | ChangeOnlineCrystFEL Bool
     | AutoPilotToggled (Result RequestError Bool)
+    | OnlineCrystFELToggled (Result RequestError Bool)
     | CreateDataSetFromRun String Int
     | CreateDataSetFromRunFinished (Result RequestError ())
     | ChangeCurrentExperimentTypeFinished (Maybe String) (Result RequestError ())
@@ -320,7 +324,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
         Nothing ->
             List.singleton <| text ""
 
-        Just { id, attributi, dataSets } ->
+        Just { id, attributi, summary, dataSets } ->
             let
                 runStarted : Maybe Posix
                 runStarted =
@@ -330,19 +334,20 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                 runStopped =
                     retrieveDateTimeAttributoValue attributoStopped attributi
 
-                runHitRate : Maybe Float
-                runHitRate =
-                    retrieveFloatAttributoValue attributoHitRate attributi
-
-                runIndexingRate : Maybe Float
-                runIndexingRate =
-                    retrieveFloatAttributoValue attributoIndexingRate attributi
-
-                runInformationCopy =
+                autoPilot =
                     [ div [ class "form-check form-switch mb-3" ]
-                        [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.runInformationCopy, onInput (always (ChangeAutoPilot (not rrc.runInformationCopy))) ]
+                        [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.autoPilot, onInput (always (ChangeAutoPilot (not rrc.autoPilot))) ]
                         , label [ class "form-check-label", for "auto-pilot" ] [ text "Auto pilot" ]
                         , div [ class "form-text" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
+                        ]
+                    ]
+
+                onlineCrystFEL =
+                    [ div [ class "form-check form-switch mb-3" ]
+                        [ input_ [ type_ "checkbox", Html.Attributes.id "crystfel-online", class "form-check-input", checked rrc.onlineCrystFEL, onInput (always (ChangeOnlineCrystFEL (not rrc.onlineCrystFEL))) ]
+                        , label [ class "form-check-label", for "crystfel-online" ] [ text "Use CrystFEL Online" ]
+
+                        -- , div [ class "form-text" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
                         ]
                     ]
 
@@ -423,6 +428,59 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                             in
                             [ div [ class ("alert d-flex align-items-center p-2 alert-" ++ warningLevel) ] [ div [ class "me-1" ] [ icon { name = "aspect-ratio-fill" } ], div_ [ text <| " Latest dark (id " ++ String.fromInt latestDark.id ++ "): " ++ String.fromInt diffMinutes ++ " minute(s) ago" ] ], hr_ ]
 
+                smallBox color =
+                    span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
+
+                indexingProgress =
+                    [ div [ class "d-flex justify-content-center" ]
+                        [ div [ class "progress", style "width" "80%" ]
+                            [ div
+                                [ class
+                                    ("progress-bar"
+                                        ++ (if MaybeExtra.isJust runStopped then
+                                                ""
+
+                                            else
+                                                " progress-bar-striped progress-bar-animated"
+                                           )
+                                    )
+                                , style "width" ((String.fromInt <| min 100 <| round <| toFloat summary.indexedFrames / 10000 * 100.0) ++ "%")
+                                ]
+                                []
+                            ]
+                        ]
+                    , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ String.fromInt summary.indexedFrames ++ "/" ++ "10.000" ] ]
+                    ]
+
+                twoValueGauge title this total =
+                    case total of
+                        Nothing ->
+                            case this of
+                                Nothing ->
+                                    []
+
+                                Just thisValue ->
+                                    [ gauge this total, div_ [ em [ class "amarcord-small-text" ] [ smallBox thisFillColor, text <| " " ++ title ++ " " ++ formatFloatHumanFriendly thisValue ++ "%" ] ] ]
+
+                        Just totalValue ->
+                            case this of
+                                Nothing ->
+                                    [ gauge this total
+                                    , div_ [ em [ class "amarcord-small-text" ] [ smallBox totalFillColor, text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%" ] ]
+                                    ]
+
+                                Just thisValue ->
+                                    [ gauge this total
+                                    , div_
+                                        [ em [ class "amarcord-small-text" ]
+                                            [ smallBox thisFillColor
+                                            , text (" run: " ++ formatFloatHumanFriendly thisValue ++ "% | ")
+                                            , smallBox totalFillColor
+                                            , text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%"
+                                            ]
+                                        ]
+                                    ]
+
                 dataSetInformation =
                     case currentRunDataSet of
                         Nothing ->
@@ -438,43 +496,21 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                     ]
 
                         Just ds ->
-                            let
-                                footer : DataSetSummary -> Html msg
-                                footer { numberOfRuns, hitRate, indexingRate } =
-                                    tfoot []
-                                        [ tr_ [ td_ [ text "Runs" ], td_ [ text (String.fromInt numberOfRuns) ] ]
-                                        , tr_
-                                            [ td_ [ text "Hit Rate" ]
-                                            , td_ [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") hitRate ]
-                                            ]
-                                        , tr_
-                                            [ td_ [ text "Hit Rate (this run)" ]
-                                            , td_
-                                                [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") runHitRate
-                                                ]
-                                            ]
-                                        , tr_
-                                            [ td_ [ text "Indexing Rate" ]
-                                            , td_ [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") indexingRate ]
-                                            ]
-                                        , tr_
-                                            [ td_ [ text "Indexing Rate (this run)" ]
-                                            , td_
-                                                [ text <| MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") runIndexingRate
-                                                ]
-                                            ]
-                                        ]
-                            in
-                            [ h3_ [ text "Data set" ]
+                            [ div [ class "d-flex flex-row justify-content-evenly" ]
+                                [ div [ class "text-center" ] (twoValueGauge "Indexing rate" summary.indexingRate Nothing)
+                                , div [ class "text-center" ] (twoValueGauge "Hit rate" summary.hitRate Nothing)
+                                ]
+                            , div [ class "mb-3" ] indexingProgress
+                            , h3_ [ text "Data set" ]
                             , viewDataSetTable rrc.attributi
                                 zone
                                 (sampleIdDict rrc.samples)
                                 ds
                                 True
-                                (Maybe.map footer ds.summary)
+                                Nothing
                             ]
             in
-            header ++ runInformationCopy ++ darkRunInformation rrc.latestDark ++ dataSetSelection ++ dataSetInformation
+            header ++ autoPilot ++ onlineCrystFEL ++ darkRunInformation rrc.latestDark ++ dataSetSelection ++ dataSetInformation
 
 
 viewRunAttributiForm : Maybe (Set String) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
@@ -918,6 +954,7 @@ update msg model =
                                 run =
                                     { id = runEditInfo.runId
                                     , attributi = editedAttributi
+                                    , summary = emptySummary
                                     , files = []
                                     , dataSets = []
                                     }
@@ -1005,7 +1042,13 @@ update msg model =
         ChangeAutoPilot newValue ->
             ( model, httpUserConfigurationSetAutoPilot AutoPilotToggled newValue )
 
+        ChangeOnlineCrystFEL newValue ->
+            ( model, httpUserConfigurationSetOnlineCrystFEL OnlineCrystFELToggled newValue )
+
         AutoPilotToggled _ ->
+            ( model, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
+
+        OnlineCrystFELToggled _ ->
             ( model, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
 
         CreateDataSetFromRun experimentType runId ->

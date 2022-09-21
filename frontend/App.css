@@ -47,6 +47,14 @@ a:hover {
     padding: 0.5rem !important;
 }
 
+.amarcord-small-text {
+    font-size: 0.75rem
+}
+
+.amarcord-gauge-text {
+    stroke: none
+}
+
 /* This needs some more work. */
 /*.amarcord-alert-small .btn-close {*/
 /*    font-size: 0.5rem !important;*/

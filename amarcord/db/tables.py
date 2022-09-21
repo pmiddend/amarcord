@@ -7,6 +7,7 @@ from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.sql import ColumnElement
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ def _table_configuration(metadata: sa.MetaData) -> sa.Table:
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("created", sa.DateTime, nullable=False),
         sa.Column("auto_pilot", sa.Boolean, nullable=False),
+        sa.Column("use_online_crystfel", sa.Boolean, nullable=False),
     )
 
 
@@ -111,27 +113,6 @@ def _table_data_set(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_cfel_analysis_result_has_file(
-    metadata: sa.MetaData, cfel_analysis_result: sa.Table, file: sa.Table
-) -> sa.Table:
-    return sa.Table(
-        "CFELAnalysisResultHasFile",
-        metadata,
-        sa.Column(
-            "analysis_result_id",
-            sa.Integer(),
-            # If the analysis result vanishes, delete this row here
-            ForeignKey(_fk_identifier(cfel_analysis_result.c.id), ondelete="cascade"),
-        ),
-        sa.Column(
-            "file_id",
-            sa.Integer(),
-            # If the file vanishes (why would it?), delete this entry
-            ForeignKey(_fk_identifier(file.c.id), ondelete="cascade"),
-        ),
-    )
-
-
 def _table_sample_has_file(
     metadata: sa.MetaData, sample: sa.Table, file: sa.Table
 ) -> sa.Table:
@@ -206,35 +187,27 @@ def _table_sample(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_cfel_analysis_results(metadata: sa.MetaData, data_set: sa.Table) -> sa.Table:
+def _table_indexing_result(metadata: sa.MetaData, run: sa.Table) -> sa.Table:
     return sa.Table(
-        "CFELAnalysisResults",
+        "IndexingResult",
         metadata,
-        sa.Column("directory_name", sa.String(length=255), nullable=False),
         sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("created", sa.DateTime, nullable=False),
         sa.Column(
-            "data_set_id",
+            "run_id",
             sa.Integer,
-            # If the data set vanishes, delete the corresponding analysis result as well
-            ForeignKey(_fk_identifier(data_set.c.id), ondelete="cascade"),
-            nullable=False,
+            ForeignKey(_fk_identifier(run.c.id), ondelete="cascade"),
         ),
-        sa.Column("resolution", sa.String(length=255), nullable=False),
-        sa.Column("rsplit", sa.Float, nullable=False),
-        sa.Column("cchalf", sa.Float, nullable=False),
-        sa.Column("ccstar", sa.Float, nullable=False),
-        sa.Column("snr", sa.Float, nullable=False),
-        sa.Column("completeness", sa.Float, nullable=False),
-        sa.Column("multiplicity", sa.Float, nullable=False),
-        sa.Column("total_measurements", sa.Integer, nullable=False),
-        sa.Column("unique_reflections", sa.Integer, nullable=False),
-        sa.Column("num_patterns", sa.Integer, nullable=False),
-        sa.Column("num_hits", sa.Integer, nullable=False),
-        sa.Column("indexed_patterns", sa.Integer, nullable=False),
-        sa.Column("indexed_crystals", sa.Integer, nullable=False),
-        sa.Column("crystfel_version", sa.String(length=64), nullable=False),
-        sa.Column("ccstar_rsplit", sa.Float, nullable=True),
-        sa.Column("created", sa.DateTime(), nullable=False),
+        sa.Column("stream_file", sa.Text(), nullable=True),
+        sa.Column("frames", sa.Integer(), nullable=True),
+        sa.Column("hits", sa.Integer(), nullable=True),
+        sa.Column("not_indexed_frames", sa.Integer(), nullable=True),
+        sa.Column("hit_rate", sa.Float(), nullable=False),
+        sa.Column("indexing_rate", sa.Float(), nullable=False),
+        sa.Column("indexed_frames", sa.Integer(), nullable=False),
+        sa.Column("job_id", sa.Integer, nullable=True),
+        sa.Column("job_status", sa.Enum(DBJobStatus), nullable=False),
+        sa.Column("job_error", sa.Text, nullable=True),
     )
 
 
@@ -272,8 +245,6 @@ class DBTables:
         run: sa.Table,
         attributo: sa.Table,
         event_log: sa.Table,
-        cfel_analysis_results: sa.Table,
-        cfel_analysis_result_has_file: sa.Table,
         experiment_has_attributo: sa.Table,
         file: sa.Table,
         data_set: sa.Table,
@@ -281,10 +252,10 @@ class DBTables:
         run_has_file: sa.Table,
         event_has_file: sa.Table,
         beamtime_schedule: sa.Table,
+        indexing_result: sa.Table,
     ) -> None:
         self.configuration = configuration
         self.event_has_file = event_has_file
-        self.cfel_analysis_result_has_file = cfel_analysis_result_has_file
         self.data_set = data_set
         self.experiment_has_attributo = experiment_has_attributo
         self.run_has_file = run_has_file
@@ -292,10 +263,10 @@ class DBTables:
         self.sample = sample
         self.run = run
         self.attributo = attributo
-        self.cfel_analysis_results = cfel_analysis_results
         self.file = file
         self.sample_has_file = sample_has_file
         self.beamtime_schedule = beamtime_schedule
+        self.indexing_result = indexing_result
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
@@ -304,8 +275,8 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     file = _table_file(metadata)
     table_attributo = _table_attributo(metadata)
     data_set = _table_data_set(metadata)
-    cfel_analysis_results = _table_cfel_analysis_results(metadata, data_set)
     event_log = _table_event_log(metadata)
+    indexing_result = _table_indexing_result(metadata, run)
     return DBTables(
         configuration=_table_configuration(metadata),
         sample=sample,
@@ -313,16 +284,13 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         attributo=table_attributo,
         event_log=event_log,
         data_set=data_set,
-        cfel_analysis_results=cfel_analysis_results,
         experiment_has_attributo=_table_experiment_has_attributo(
             metadata, table_attributo
         ),
         file=file,
         sample_has_file=_table_sample_has_file(metadata, sample, file),
-        cfel_analysis_result_has_file=_table_cfel_analysis_result_has_file(
-            metadata, cfel_analysis_results, file
-        ),
         run_has_file=_table_run_has_file(metadata, run, file),
         event_has_file=_table_event_has_file(metadata, event_log, file),
         beamtime_schedule=_table_beamtime_schedule(metadata, sample),
+        indexing_result=indexing_result,
     )

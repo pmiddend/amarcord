@@ -5,15 +5,11 @@ module Amarcord.Attributo exposing
     , AttributoType(..)
     , AttributoValue(..)
     , attributoDecoder
-    , attributoHitRate
-    , attributoHits
-    , attributoIndexingRate
     , attributoIsNumber
     , attributoIsString
     , attributoMapNames
     , attributoStarted
     , attributoStopped
-    , attributoTargetFrameCount
     , attributoTypeDecoder
     , createAnnotatedAttributoMap
     , emptyAttributoMap
@@ -266,26 +262,6 @@ extractDateTime =
 attributoStarted : AttributoName
 attributoStarted =
     "started"
-
-
-attributoHitRate : AttributoName
-attributoHitRate =
-    "hit_rate"
-
-
-attributoIndexingRate : AttributoName
-attributoIndexingRate =
-    "indexing_rate"
-
-
-attributoHits : AttributoName
-attributoHits =
-    "hits"
-
-
-attributoTargetFrameCount : AttributoName
-attributoTargetFrameCount =
-    "target_frame_count"
 
 
 attributoStopped : AttributoName
