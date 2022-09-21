@@ -14,7 +14,7 @@ import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, form_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, em_, form_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, SampleId, sampleMapAttributi, sampleMapId)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
@@ -215,6 +215,15 @@ viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
                 )
             ]
         , p [ class "lead" ] [ text "Note: If you prepared your crystals in multiple batches, please create one sample per batch. This helps during analysis." ]
+        , p [ class "lead" ]
+            [ text "For the "
+            , em_ [ text "space group" ]
+            , text " and "
+            , em_ [ text "point group" ]
+            , text ", refer to "
+            , a [ href "https://www.desy.de/~twhite/crystfel/twin-calculator.pdf" ] [ text "this PDF" ]
+            , text "."
+            ]
         , div [ class "mb-3" ]
             [ label [ for "name", class "form-label" ] [ text "Name", sup_ [ text "*" ] ]
             , input_
