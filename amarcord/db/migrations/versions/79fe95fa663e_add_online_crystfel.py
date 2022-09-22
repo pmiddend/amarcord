@@ -29,6 +29,7 @@ def upgrade() -> None:
     with op.batch_alter_table("UserConfiguration") as batch_op:  # type: ignore
         batch_op.add_column(Column("use_online_crystfel", sa.Boolean, nullable=False))
 
+    op.drop_table("CFELAnalysisResultHasFile")
     op.drop_table("CFELAnalysisResults")
     op.create_table(
         "IndexingResult",
