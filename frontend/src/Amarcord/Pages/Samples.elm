@@ -177,8 +177,8 @@ viewFiles fileUploadError newFile files =
         filesTable ++ uploadForm
 
 
-viewEditForm : RemoteData RequestError () -> List String -> NewFileUpload -> Sample (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
-viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
+viewEditForm : List (Sample SampleId (AttributoMap AttributoValue) File) -> RemoteData RequestError () -> List String -> NewFileUpload -> Sample (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
+viewEditForm samples fileUploadRequest submitErrorsList newFileUpload editingSample =
     let
         attributoFormMsgToMsg : AttributoFormMsg -> Msg
         attributoFormMsgToMsg x =
@@ -192,7 +192,16 @@ viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
                     Nop
 
         attributiFormEntries =
-            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] attributo)) sample.attributi.editableAttributi
+            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] attributo)) editingSample.attributi.editableAttributi
+
+        otherSamplesNames =
+            List.map .name <|
+                case editingSample.id of
+                    Nothing ->
+                        samples
+
+                    Just editingId ->
+                        List.filter (\s -> not <| .id s == editingId) samples
 
         submitErrors =
             case submitErrorsList of
@@ -203,11 +212,27 @@ viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
                     [ p_ [ strongText "There were submission errors:" ]
                     , ul [ class "text-danger" ] <| List.map (\e -> li_ [ text e ]) errors
                     ]
+
+        isDuplicateName =
+            otherSamplesNames
+                |> List.map String.trim
+                |> List.member (String.trim editingSample.name)
+
+        isValidSampleName =
+            not isDuplicateName
+                && (String.trim editingSample.name /= "")
+
+        isInvalidSampleNameStyle =
+            if not isValidSampleName then
+                " is-invalid"
+
+            else
+                ""
     in
     form_ <|
         [ h4_
             [ text
-                (if isNothing sample.id then
+                (if isNothing editingSample.id then
                     "Add new sample"
 
                  else
@@ -230,35 +255,35 @@ viewEditForm fileUploadRequest submitErrorsList newFileUpload sample =
                 [ type_ "text"
                 , class
                     ("form-control"
-                        ++ (if sample.name == "" then
-                                " is-invalid"
-
-                            else
-                                ""
-                           )
+                        ++ isInvalidSampleNameStyle
                     )
                 , id "name"
-                , value sample.name
+                , value editingSample.name
                 , onInput EditSampleName
                 ]
-            , if sample.name /= "" then
-                text ""
+            , if String.trim editingSample.name /= "" then
+                if isDuplicateName then
+                    div [ class "invalid-feedback" ] [ text "Name already used" ]
+
+                else
+                    text ""
 
               else
                 div [ class "invalid-feedback" ] [ text "Name is mandatory" ]
             ]
         ]
             ++ attributiFormEntries
-            ++ viewFiles fileUploadRequest newFileUpload sample.files
+            ++ viewFiles fileUploadRequest newFileUpload editingSample.files
             ++ submitErrors
             ++ [ button
                     [ class "btn btn-primary me-3 mb-3"
                     , onClick EditSampleSubmit
+                    , disabled (not isValidSampleName)
                     , type_ "button"
                     ]
                     [ icon { name = "plus-lg" }
                     , text
-                        (if isNothing sample.id then
+                        (if isNothing editingSample.id then
                             " Add new sample"
 
                          else
@@ -350,8 +375,8 @@ viewInner model =
                         Nothing ->
                             button [ class "btn btn-primary", onClick AddSample ] [ icon { name = "plus-lg" }, text " Add sample" ]
 
-                        Just ea ->
-                            viewEditForm model.fileUploadRequest model.submitErrors model.newFileUpload ea
+                        Just editSample ->
+                            viewEditForm samples model.fileUploadRequest model.submitErrors model.newFileUpload editSample
 
                 modifyRequestResult =
                     case model.modifyRequest of
