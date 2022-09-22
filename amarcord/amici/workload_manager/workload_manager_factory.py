@@ -1,7 +1,6 @@
 import datetime
 from dataclasses import dataclass
 from getpass import getuser
-from os import getuid
 from pathlib import Path
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -36,7 +35,6 @@ class LocalWorkloadManagerConfig:
 class SlurmRestWorkloadManagerConfig:
     partition: str
     reservation: None | str
-    user_id: int
     token: None | str
     user: str
     url: str
@@ -97,7 +95,6 @@ def parse_workload_manager_uri(
             return SlurmRestWorkloadManagerConfig(
                 partition=get_raise_missing("partition"),
                 reservation=get_or_none("reservation"),
-                user_id=int(get_or("userId", str(getuid()))),
                 token=get_or_none("slurmToken"),
                 user=get_or("user", getuser()),
                 url=f"{output_scheme}://{jcc.hostname}"
