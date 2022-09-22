@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Iterable
 
 from amarcord.amici.workload_manager.job import Job
-from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
@@ -48,12 +47,3 @@ class DummyWorkloadManager(WorkloadManager):
 
     async def list_jobs(self) -> Iterable[Job]:
         return self.jobs
-
-    def equals(self, metadata_a: JobMetadata, metadata_b: JobMetadata) -> bool:
-        pass
-
-    def is_our_job(self, metadata_a: JobMetadata) -> bool:
-        pass
-
-    def should_restart(self, job_id: int, output_directory: Path) -> bool:
-        pass

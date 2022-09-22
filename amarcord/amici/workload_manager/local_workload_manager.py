@@ -14,7 +14,6 @@ from amarcord.amici.workload_manager.job import JobMetadata
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
-from amarcord.json_types import JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -135,9 +134,3 @@ class LocalWorkloadManager(WorkloadManager):
                 )
             )
         return result
-
-    def equals(self, metadata_a: JSONDict, metadata_b: JSONDict) -> bool:
-        return metadata_a.get("pid", None) == metadata_b.get("pid", None)
-
-    def should_restart(self, job_id: int, output_directory: Path) -> bool:
-        return False

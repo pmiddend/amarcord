@@ -22,7 +22,7 @@ xdg = '5.1.1'
 # For parsing the arguments for programs (always required basically)
 typed-argument-parser = '1.7.2'
 # For the config file
-pydantic = '1.8.2'
+pydantic = '1.10.2'
 # numpy for Karabo statistics, processing results
 numpy = { version = '1.21.4' }
 # for zmq access in the daemon

@@ -14,7 +14,6 @@ from amarcord.amici.om.client import OmZMQProcessor
 from amarcord.amici.om.indexing_daemon import om_indexing_loop
 from amarcord.amici.om.simulator import om_simulator_loop
 from amarcord.amici.p11.grab_mjpeg_frame import mjpeg_stream_loop
-from amarcord.amici.petra3.petra3_online_values import petra3_value_loop
 from amarcord.amici.workload_manager.workload_manager_factory import (
     create_workload_manager,  # NOQA
 )
@@ -121,11 +120,6 @@ async def _main_loop(args: Arguments) -> None:
             asyncio.create_task(
                 kamzik_main_loop(db, args.kamzik_socket_url, args.kamzik_device_id)
             )
-        )
-
-    if args.petra3_refresh_rate_seconds is not None:
-        awaitables.append(
-            asyncio.create_task(petra3_value_loop(db, args.petra3_refresh_rate_seconds))
         )
 
     if args.om_url is not None:

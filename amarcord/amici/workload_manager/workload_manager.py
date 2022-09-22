@@ -37,11 +37,3 @@ class WorkloadManager(ABC):
     @abstractmethod
     async def list_jobs(self) -> Iterable[Job]:
         ...
-
-    @abstractmethod
-    def equals(self, metadata_a: JobMetadata, metadata_b: JobMetadata) -> bool:
-        ...
-
-    @abstractmethod
-    def should_restart(self, job_id: int, output_directory: Path) -> bool:
-        ...

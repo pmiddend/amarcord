@@ -1,0 +1,62 @@
+{
+    "applicant": {
+        "email": "hans.dampf@cfel.de",
+        "institute": "Deutsches Elektronen-Synchrotron",
+        "lastname": "Dampf",
+        "userId": "1337",
+        "username": "H_Dampf"
+    },
+    "asapo": {
+        "beamtimeClbtTokenPath": "shared/asapo-token-clbt.txt",
+        "beamtimeTokenPath": "shared/asapo-token.txt",
+        "endpoint": "asapo-ps-0.desy.de:8400"
+    },
+    "beamline": "p11",
+    "beamlineAlias": "P11",
+    "beamlineSetup": "Crystallography (1-axis goniostat)",
+    "beamtimeId": "11010000",
+    "contact": "Hans Dampf",
+    "corePath": "/asap3/petra3/gpfs/p11/2022/data/11010000",
+    "eventEnd": "2022-04-06 01:00:00",
+    "eventStart": "2022-04-04 09:00:00",
+    "facility": "PETRA III",
+    "generated": "2022-03-24 14:35:01",
+    "leader": {
+        "email": "h.dampf@desy.de",
+        "institute": "Deutsches Elektronen-Synchrotron",
+        "lastname": "Dampf",
+        "userId": "1338",
+        "username": "HDAmpf"
+    },
+    "onlineAnalysis": {
+        "reservedNodes": [
+            "max-node1",
+            "max-node2"
+        ],
+        "slurmPartition": "ponline_p11",
+        "slurmReservation": "11010000",
+        "sshPrivateKeyPath": "shared/id_rsa",
+        "sshPublicKeyPath": "shared/id_rsa.pub",
+        "userAccount": "bttest"
+    },
+    "pi": {
+        "email": "hans.dampf@cfel.de",
+        "institute": "Deutsches Elektronen-Synchrotron",
+        "lastname": "Dampf",
+        "userId": "8564",
+        "username": "D_Dampf"
+    },
+    "proposalId": "20200001",
+    "proposalType": "II",
+    "retentionPeriod": "onsite",
+    "title": "Hans Dampf in da house",
+    "unixId": "None",
+    "users": {
+        "doorDb": [
+	    "hdampf",
+	    "adampf"
+        ],
+        "special": [],
+        "unknown": []
+    }
+}

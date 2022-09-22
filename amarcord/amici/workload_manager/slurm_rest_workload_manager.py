@@ -182,9 +182,6 @@ class SlurmRestWorkloadManager(WorkloadManager):
             "X-SLURM-USER-TOKEN": await self._token_retriever(),
         }
 
-    def should_restart(self, job_id: int, output_directory: Path) -> bool:
-        return slurm_file_contains_preemption(output_directory)
-
     async def start_job(
         self,
         working_directory: Path,
@@ -289,7 +286,3 @@ class SlurmRestWorkloadManager(WorkloadManager):
             )
             raise Exception("jobs array empty, token expired?")
         return [j for j in (_convert_job(job) for job in jobs) if j is not None]
-
-    def equals(self, metadata_a: JobMetadata, metadata_b: JobMetadata) -> bool:
-        """This is used to bring together jobs in the database and jobs coming from SLURM"""
-        return metadata_a.get("job_id", None) == metadata_b.get("job_id", None)

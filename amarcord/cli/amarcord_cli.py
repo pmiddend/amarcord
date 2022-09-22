@@ -1,13 +1,22 @@
 import asyncio
 
+import structlog
 from tap import Tap
 
+from amarcord.amici.petra3.beamline_metadata import BeamlineMetadata
+from amarcord.amici.petra3.beamline_metadata import OnlineAnalysis
+from amarcord.amici.workload_manager.slurm_remote_workload_manager import (
+    SlurmRemoteWorkloadManager,
+)
+from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STARTED
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.tables import create_tables_from_metadata
+
+logger = structlog.stdlib.get_logger(__name__)
 
 
 class Arguments(Tap):
@@ -58,5 +67,36 @@ def main() -> None:
     asyncio.run(_main_loop(Arguments(underscores_to_dashes=True).parse_args()))
 
 
+async def _async_main(wm: WorkloadManager) -> None:
+    # while True:
+    logger.info("listing jobs")
+    jobs = await wm.list_jobs()
+    for job in jobs:
+        logger.info(f"job: {job}")
+    await asyncio.sleep(5.0)
+
+
 if __name__ == "__main__":
-    main()
+    workload_manager = SlurmRemoteWorkloadManager(
+        BeamlineMetadata(
+            beamtimeId="11010000",
+            onlineAnalysis=OnlineAnalysis(
+                reservedNodes=[],
+                slurmPartition="cfel-cdi",
+                slurmReservation=None,
+                sshPrivateKeyPath=None,
+                sshPublicKeyPath=None,
+                userAccount="pmidden",
+            ),
+        ),
+        additional_ssh_options=False,
+    )
+    asyncio.run(_async_main(workload_manager))
+    # asyncio.run(
+    #     run_remote_sbatch(
+    #         logger,
+    #         ,
+    #         ["/gpfs/cfel/user/pmidden/amarcord-merging-test/test-tool.sh", "hehe"],
+    #     )
+    # )
+    # main()
