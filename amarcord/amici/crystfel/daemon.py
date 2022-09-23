@@ -110,6 +110,8 @@ async def _retrieve_cell_file(
     cell_description_str = sample.attributi.select_string(ATTRIBUTO_CELL_DESCRIPTION)
     if cell_description_str is None:
         return None
+    if cell_description_str.strip() == "":
+        return None
     cell_file = parse_cell_description(cell_description_str)
     if cell_file is None:
         return f"Cell description for sample is wrong: {cell_description_str}"
@@ -129,6 +131,10 @@ async def start_indexing_job(
 ) -> None:
     assert indexing_result.id is not None
 
+    logger.info(
+        f"starting indexing job for run {indexing_result.run_id} and result id {indexing_result.id}"
+    )
+
     job_base_directory = config.output_base_directory
     output_base_name = f"run_{indexing_result.run_id}_indexing_{indexing_result.id}"
     stream_file = job_base_directory / f"{output_base_name}.stream"
@@ -136,6 +142,9 @@ async def start_indexing_job(
         async with db.begin() as conn:
             output_cell_file = await _retrieve_cell_file(
                 db, conn, indexing_result.run_id, config.cell_file_directory, config
+            )
+            logger.info(
+                f"cell file is {output_cell_file} (type {type(output_cell_file)}"
             )
             if isinstance(output_cell_file, str):
                 await db.update_indexing_result_status(
@@ -149,16 +158,20 @@ async def start_indexing_job(
                 )
                 return
 
+        logger.info(
+            f'command line for this job is "{indexing_result.run_id}" "{stream_file}" "{output_cell_file}"'
+        )
         job_start_result = await workload_manager.start_job(
             working_directory=job_base_directory,
             executable=config.indexing_script_path,
-            command_line=f"{stream_file} {output_cell_file}"
+            command_line=f"{indexing_result.run_id} {stream_file} {output_cell_file}"
             if output_cell_file is not None
             else str(stream_file),
             time_limit=timedelta(days=1),
             stdout=job_base_directory / f"{output_base_name}_stdout.txt",
             stderr=job_base_directory / f"{output_base_name}_stderr.txt",
         )
+        logger.info(f"job start successful, ID {job_start_result.job_id}")
         async with db.begin() as conn:
             await db.update_indexing_result_status(
                 conn,
@@ -170,6 +183,7 @@ async def start_indexing_job(
                 ),
             )
     except JobStartError as e:
+        logger.error(f"job start errored: {e}")
         async with db.begin() as conn:
             await db.update_indexing_result_status(
                 conn,
@@ -213,24 +227,24 @@ class _IndexingFom:
 
 
 async def _calculate_indexing_fom(stream_file: Path) -> None | _IndexingFom:
+    indexing_tool = "grep"
+
     frames = await _run_integer_tool(
-        ["rg", "--count", "Image filename", str(stream_file)]
+        [indexing_tool, "--count", "Image filename", str(stream_file)]
     )
     not_indexed_frames = await _run_integer_tool(
         [
-            "rg",
-            "--max-count",
-            str(frames),
+            indexing_tool,
             "--count",
             "indexed_by = none",
             str(stream_file),
         ]
     )
     hits = await _run_integer_tool(
-        ["rg", "--max-count", str(frames), "--count", "hit = 1", str(stream_file)]
+        [indexing_tool, "--count", "hit = 1", str(stream_file)]
     )
     indexed_crystals = await _run_integer_tool(
-        ["rg", "--count", "Begin crystal", str(stream_file)]
+        [indexing_tool, "--count", "Begin crystal", str(stream_file)]
     )
     return (
         _IndexingFom(
@@ -364,6 +378,7 @@ async def indexing_loop(
     config: CrystFELOnlineConfig,
     sleep_seconds: float,
 ) -> None:
+    logger.info("starting Online CrystFEL indexing loop")
     while True:
         async with db.read_only_connection() as conn:
             user_config = await db.retrieve_configuration(conn)
