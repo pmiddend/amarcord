@@ -226,6 +226,47 @@ class _IndexingFom:
     indexed_crystals: int
 
 
+_INDEXING_RE = re.compile(
+    r"(\d+) images processed, (\d+) hits \([^)]+\), (\d+) indexable \([^)]+\), (\d+) crystals, .*"
+)
+
+
+def calculate_indexing_fom_fast(
+    this_logger: BoundLogger, stderr_file: Path
+) -> None | _IndexingFom:
+    if not stderr_file.is_file():
+        return None
+    with stderr_file.open("r") as f:
+        images: None | int = None
+        hits: None | int = None
+        indexable: None | int = None
+        crystals: None | int = None
+        for line in f:
+            match = _INDEXING_RE.search(line)
+            if match is None:
+                continue
+            try:
+                images = int(match.group(1))
+                hits = int(match.group(2))
+                indexable = int(match.group(3))
+                crystals = int(match.group(4))
+            except:
+                this_logger.warning(f"indexing log line, but invalid format: {line}")
+        if (
+            images is not None
+            and hits is not None
+            and indexable is not None
+            and crystals is not None
+        ):
+            return _IndexingFom(
+                frames=images,
+                hits=hits,
+                indexed_frames=indexable,
+                indexed_crystals=crystals,
+            )
+        return None
+
+
 async def _calculate_indexing_fom(stream_file: Path) -> None | _IndexingFom:
     indexing_tool = "grep"
 
@@ -272,6 +313,7 @@ def _db_fom_from_raw_fom(fom: _IndexingFom) -> DBIndexingFOM:
 async def _update_indexing_fom(
     log: BoundLogger,
     db: AsyncDB,
+    config: CrystFELOnlineConfig,
     indexing_result: DBIndexingResultOutput,
     runtime_status: DBIndexingResultRunning,
 ) -> None:
@@ -283,7 +325,11 @@ async def _update_indexing_fom(
         return
 
     log.info("calculating FoM")
-    fom = await _calculate_indexing_fom(runtime_status.stream_file)
+    fom = calculate_indexing_fom_fast(
+        log,
+        config.output_base_directory
+        / f"run_{indexing_result.run_id}_indexing_{indexing_result.id}_stderr.txt",
+    )
     if fom is None:
         log.info("no FoM to be found")
         return
@@ -360,7 +406,7 @@ async def _indexing_loop_iteration(
                 JobStatus.SUCCESSFUL,
             ):
                 await _update_indexing_fom(
-                    log, db, indexing_result, indexing_result.runtime_status
+                    log, db, config, indexing_result, indexing_result.runtime_status
                 )
             else:
                 # Job has finished somehow (could be erroneous)

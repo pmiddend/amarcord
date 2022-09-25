@@ -3,9 +3,11 @@ from pathlib import Path
 from typing import Final
 
 import pytest
+import structlog
 
-from amarcord.amici.crystfel.daemon import CrystFELCellFile
+from amarcord.amici.crystfel.daemon import CrystFELCellFile, _IndexingFom
 from amarcord.amici.crystfel.daemon import CrystFELOnlineConfig
+from amarcord.amici.crystfel.daemon import calculate_indexing_fom_fast
 from amarcord.amici.crystfel.daemon import parse_cell_description
 from amarcord.amici.crystfel.daemon import start_indexing_job
 from amarcord.amici.crystfel.daemon import write_cell_file
@@ -23,6 +25,8 @@ from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.tables import create_tables_from_metadata
+
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @pytest.mark.parametrize(
@@ -344,3 +348,12 @@ async def test_start_indexing_job_start_error(tmp_path: Path) -> None:
         assert len(ir) == 1
         assert isinstance(ir[0].runtime_status, DBIndexingResultDone)
         assert ir[0].runtime_status.job_error is not None
+
+
+def test_update_indexing_fom_fast() -> None:
+    fom = calculate_indexing_fom_fast(
+        logger, Path(__file__).parent / "crystfel" / "test.stream"
+    )
+    assert fom == _IndexingFom(
+        frames=4999, hits=2523, indexed_frames=1263, indexed_crystals=1263
+    )
