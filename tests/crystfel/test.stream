@@ -1,0 +1,232 @@
+This is what I understood your unit cell to be:
+tetragonal P, unique axis c, right handed.
+a      b      c            alpha   beta  gamma
+ 79.20  79.20  38.00 A     90.00  90.00  90.00 deg
+List of indexing methods:
+   0: asdf-nolatt-cell          (asdf using cell parameters as prior information)
+Indexing parameters:
+                  Check unit cell parameters: on
+                        Check peak alignment: on
+                   Refine indexing solutions: on
+ Multi-lattice indexing ("delete and retry"): off
+                              Retry indexing: off
+Worker 6 exited normally
+Worker 20 exited normally
+Worker 8 exited normally
+Worker 14 exited normally
+Worker 24 exited normally
+Worker 46 exited normally
+Worker 44 exited normally
+Worker 50 exited normally
+Worker 52 exited normally
+Worker 176 exited normally
+Worker 188 exited normally
+537 images processed, 229 hits (42.6%), 131 indexable (57.2% of hits, 24.4% overall), 131 crystals, 107.4 images/sec.
+Worker 7 exited normally
+Worker 10 exited normally
+Worker 18 exited normally
+Worker 28 exited normally
+Worker 31 exited normally
+Worker 32 exited normally
+Worker 36 exited normally
+Worker 37 exited normally
+Worker 38 exited normally
+Worker 48 exited normally
+Worker 60 exited normally
+Worker 61 exited normally
+Worker 70 exited normally
+Worker 72 exited normally
+Worker 80 exited normally
+Worker 100 exited normally
+Worker 104 exited normally
+Worker 106 exited normally
+Worker 108 exited normally
+Worker 110 exited normally
+Worker 112 exited normally
+Worker 117 exited normally
+Worker 118 exited normally
+Worker 146 exited normally
+Worker 158 exited normally
+Worker 160 exited normally
+Worker 174 exited normally
+Worker 178 exited normally
+Worker 186 exited normally
+Worker 189 exited normally
+Worker 190 exited normally
+917 images processed, 438 hits (47.8%), 218 indexable (49.8% of hits, 23.8% overall), 218 crystals, 31.7 images/sec.
+1165 images processed, 545 hits (46.8%), 275 indexable (50.5% of hits, 23.6% overall), 275 crystals, 16.5 images/sec.
+2006 images processed, 952 hits (47.5%), 498 indexable (52.3% of hits, 24.8% overall), 498 crystals, 168.2 images/sec.
+2927 images processed, 1448 hits (49.5%), 737 indexable (50.9% of hits, 25.2% overall), 737 crystals, 51.1 images/sec.
+3752 images processed, 1863 hits (49.7%), 966 indexable (51.9% of hits, 25.7% overall), 966 crystals, 165.0 images/sec.
+4868 images processed, 2415 hits (49.6%), 1200 indexable (49.7% of hits, 24.7% overall), 1200 crystals, 159.4 images/sec.
+Worker 0 exited normally
+Worker 1 exited normally
+Worker 4 exited normally
+Worker 5 exited normally
+Worker 9 exited normally
+Worker 11 exited normally
+Worker 12 exited normally
+Worker 13 exited normally
+Worker 16 exited normally
+Worker 17 exited normally
+Worker 19 exited normally
+Worker 21 exited normally
+Worker 22 exited normally
+Worker 25 exited normally
+Worker 26 exited normally
+Worker 29 exited normally
+Worker 30 exited normally
+Worker 33 exited normally
+Worker 39 exited normally
+Worker 40 exited normally
+Worker 41 exited normally
+Worker 42 exited normally
+Worker 45 exited normally
+Worker 49 exited normally
+Worker 53 exited normally
+Worker 55 exited normally
+Worker 56 exited normally
+Worker 57 exited normally
+Worker 58 exited normally
+Worker 59 exited normally
+Worker 62 exited normally
+Worker 63 exited normally
+Worker 65 exited normally
+Worker 67 exited normally
+Worker 69 exited normally
+Worker 71 exited normally
+Worker 73 exited normally
+Worker 74 exited normally
+Worker 75 exited normally
+Worker 77 exited normally
+Worker 78 exited normally
+Worker 82 exited normally
+Worker 83 exited normally
+Worker 84 exited normally
+Worker 85 exited normally
+Worker 87 exited normally
+Worker 88 exited normally
+Worker 89 exited normally
+Worker 91 exited normally
+Worker 92 exited normally
+Worker 93 exited normally
+Worker 94 exited normally
+Worker 95 exited normally
+Worker 96 exited normally
+Worker 97 exited normally
+Worker 98 exited normally
+Worker 99 exited normally
+Worker 101 exited normally
+Worker 102 exited normally
+Worker 107 exited normally
+Worker 109 exited normally
+Worker 111 exited normally
+Worker 113 exited normally
+Worker 114 exited normally
+Worker 115 exited normally
+Worker 116 exited normally
+Worker 119 exited normally
+Worker 120 exited normally
+Worker 121 exited normally
+Worker 124 exited normally
+Worker 125 exited normally
+Worker 126 exited normally
+Worker 127 exited normally
+Worker 128 exited normally
+Worker 129 exited normally
+Worker 131 exited normally
+Worker 132 exited normally
+Worker 133 exited normally
+Worker 135 exited normally
+Worker 136 exited normally
+Worker 137 exited normally
+Worker 138 exited normally
+Worker 139 exited normally
+Worker 140 exited normally
+Worker 141 exited normally
+Worker 142 exited normally
+Worker 143 exited normally
+Worker 144 exited normally
+Worker 145 exited normally
+Worker 147 exited normally
+Worker 148 exited normally
+Worker 149 exited normally
+Worker 150 exited normally
+Worker 151 exited normally
+Worker 152 exited normally
+Worker 154 exited normally
+Worker 155 exited normally
+Worker 157 exited normally
+Worker 159 exited normally
+Worker 161 exited normally
+Worker 162 exited normally
+Worker 163 exited normally
+Worker 164 exited normally
+Worker 165 exited normally
+Worker 166 exited normally
+Worker 168 exited normally
+Worker 172 exited normally
+Worker 173 exited normally
+Worker 175 exited normally
+Worker 177 exited normally
+Worker 179 exited normally
+Worker 180 exited normally
+Worker 181 exited normally
+Worker 182 exited normally
+Worker 183 exited normally
+Worker 187 exited normally
+4968 images processed, 2492 hits (50.2%), 1236 indexable (49.6% of hits, 24.9% overall), 1236 crystals, 12.5 images/sec.
+Worker 167 exited normally
+Worker 170 exited normally
+Worker 23 exited normally
+Worker 54 exited normally
+Worker 66 exited normally
+Worker 79 exited normally
+Worker 68 exited normally
+Worker 76 exited normally
+Worker 103 exited normally
+Worker 86 exited normally
+Worker 123 exited normally
+Worker 153 exited normally
+Worker 134 exited normally
+Worker 169 exited normally
+Worker 156 exited normally
+Worker 191 exited normally
+Worker 3 exited normally
+Worker 43 exited normally
+Worker 51 exited normally
+Worker 15 exited normally
+Worker 47 exited normally
+Worker 64 exited normally
+Worker 105 exited normally
+Worker 130 exited normally
+Worker 27 exited normally
+Worker 34 exited normally
+Worker 90 exited normally
+Worker 122 exited normally
+Worker 171 exited normally
+Worker 185 exited normally
+Worker 184 exited normally
+Worker 81 exited normally
+Worker 2 exited normally
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 6.2 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+Couldn't get ASAP::O data: error: service unavailable, message: file /asap3/petra3/gpfs/p11/2022/data/11015430/raw/32/32-0.h5 does not exist or cannot be read, details: api:/v0.2/transfer, host:131.169.251.52:24025
+4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals, 0.0 images/sec.
+Worker 35 exited normally
+All workers exited - shutting down
+Waiting for the last patterns to be processed...
+Final: 4999 images processed, 2523 hits (50.5%), 1263 indexable (50.1% of hits, 25.3% overall), 1263 crystals.

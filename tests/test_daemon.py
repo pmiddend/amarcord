@@ -5,8 +5,9 @@ from typing import Final
 import pytest
 import structlog
 
-from amarcord.amici.crystfel.daemon import CrystFELCellFile, _IndexingFom
+from amarcord.amici.crystfel.daemon import CrystFELCellFile
 from amarcord.amici.crystfel.daemon import CrystFELOnlineConfig
+from amarcord.amici.crystfel.daemon import _IndexingFom
 from amarcord.amici.crystfel.daemon import calculate_indexing_fom_fast
 from amarcord.amici.crystfel.daemon import parse_cell_description
 from amarcord.amici.crystfel.daemon import start_indexing_job
@@ -188,7 +189,7 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
     assert workload_manager.job_starts[0].executable == indexing_script
     assert workload_manager.job_starts[0].working_directory == base_dir
     assert workload_manager.job_starts[0].command_line.startswith(
-        f"{base_dir}/run_1_indexing_1.stream {cell_file_dir}/sample_"
+        f"1 {base_dir}/run_1_indexing_1.stream {cell_file_dir}/sample_"
     )
     async with db.read_only_connection() as conn:
         ir = await db.retrieve_indexing_results(conn)
@@ -243,7 +244,7 @@ async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
     assert workload_manager.job_starts[0].working_directory == base_dir
     assert (
         workload_manager.job_starts[0].command_line
-        == f"{base_dir}/run_1_indexing_1.stream"
+        == f"1 {base_dir}/run_1_indexing_1.stream None"
     )
     async with db.read_only_connection() as conn:
         ir = await db.retrieve_indexing_results(conn)

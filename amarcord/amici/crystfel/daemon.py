@@ -164,9 +164,7 @@ async def start_indexing_job(
         job_start_result = await workload_manager.start_job(
             working_directory=job_base_directory,
             executable=config.indexing_script_path,
-            command_line=f"{indexing_result.run_id} {stream_file} {output_cell_file}"
-            if output_cell_file is not None
-            else str(stream_file),
+            command_line=f"{indexing_result.run_id} {stream_file} {output_cell_file}",
             time_limit=timedelta(days=1),
             stdout=job_base_directory / f"{output_base_name}_stdout.txt",
             stderr=job_base_directory / f"{output_base_name}_stderr.txt",
