@@ -432,6 +432,15 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                     span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
 
                 indexingProgress =
+                    let
+                        progressSummary =
+                            case Maybe.andThen .summary currentRunDataSet of
+                                Nothing ->
+                                    summary
+
+                                Just dsSummary ->
+                                    dsSummary
+                    in
                     [ div [ class "d-flex justify-content-center" ]
                         [ div [ class "progress", style "width" "80%" ]
                             [ div
@@ -444,12 +453,12 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                                 " progress-bar-striped progress-bar-animated"
                                            )
                                     )
-                                , style "width" ((String.fromInt <| min 100 <| round <| toFloat summary.indexedFrames / 10000 * 100.0) ++ "%")
+                                , style "width" ((String.fromInt <| min 100 <| round <| toFloat progressSummary.indexedFrames / 10000 * 100.0) ++ "%")
                                 ]
                                 []
                             ]
                         ]
-                    , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ String.fromInt summary.indexedFrames ++ "/" ++ "10.000" ] ]
+                    , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ String.fromInt progressSummary.indexedFrames ++ "/" ++ "10.000" ] ]
                     ]
 
                 twoValueGauge title this total =
