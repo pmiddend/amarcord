@@ -5,6 +5,7 @@ module Amarcord.Attributo exposing
     , AttributoType(..)
     , AttributoValue(..)
     , attributoDecoder
+    , attributoExposureTime
     , attributoIsNumber
     , attributoIsString
     , attributoMapNames
@@ -267,3 +268,8 @@ attributoStarted =
 attributoStopped : AttributoName
 attributoStopped =
     "stopped"
+
+
+attributoExposureTime : AttributoName
+attributoExposureTime =
+    "exposure_time"

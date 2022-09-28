@@ -3,8 +3,8 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
@@ -13,15 +13,15 @@ import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
 import Amarcord.File exposing (File)
 import Amarcord.Gauge exposing (gauge, thisFillColor, totalFillColor)
-import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Sample exposing (Sample, sampleIdDict)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMinutes, scrollToTop)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMinutes, scrollToTop, secondsDiffHumanFriendly)
 import Char exposing (fromCode)
 import Date exposing (Date)
 import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tfoot, tr, ul)
+import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tr, ul)
 import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, name, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onEnter)
@@ -334,6 +334,10 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                 runStopped =
                     retrieveDateTimeAttributoValue attributoStopped attributi
 
+                runExposureTime : Maybe Float
+                runExposureTime =
+                    retrieveFloatAttributoValue attributoExposureTime attributi
+
                 autoPilot =
                     [ div [ class "form-check form-switch mb-3" ]
                         [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.autoPilot, onInput (always (ChangeAutoPilot (not rrc.autoPilot))) ]
@@ -440,6 +444,48 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
 
                                 Just dsSummary ->
                                     dsSummary
+
+                        etaFor10kFrames =
+                            case summary.indexingRate of
+                                Nothing ->
+                                    Nothing
+
+                                Just ir ->
+                                    case summary.hitRate of
+                                        Nothing ->
+                                            Nothing
+
+                                        Just hr ->
+                                            if ir > 0.01 && hr > 0.01 then
+                                                case runExposureTime of
+                                                    Nothing ->
+                                                        Nothing
+
+                                                    Just realExposureTime ->
+                                                        let
+                                                            framesPerSecond =
+                                                                1000 / (2 * realExposureTime)
+
+                                                            indexedFramesPerSecond =
+                                                                framesPerSecond * ir / 100.0 * hr / 100.0
+
+                                                            remainingFrames =
+                                                                10000 - progressSummary.indexedFrames
+
+                                                            remainingTimeStr =
+                                                                secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
+
+                                                            remainingFramesToCapture =
+                                                                round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
+                                                        in
+                                                        if remainingFrames > 0 then
+                                                            Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
+
+                                                        else
+                                                            Nothing
+
+                                            else
+                                                Nothing
                     in
                     [ div [ class "d-flex justify-content-center" ]
                         [ div [ class "progress", style "width" "80%" ]
@@ -458,7 +504,13 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                 []
                             ]
                         ]
-                    , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ String.fromInt progressSummary.indexedFrames ++ "/" ++ "10.000" ] ]
+                    , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ formatIntHumanFriendly progressSummary.indexedFrames ++ "/" ++ formatIntHumanFriendly 10000 ] ]
+                    , case etaFor10kFrames of
+                        Nothing ->
+                            text ""
+
+                        Just eta ->
+                            div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ eta ] ]
                     ]
 
                 twoValueGauge title this total =

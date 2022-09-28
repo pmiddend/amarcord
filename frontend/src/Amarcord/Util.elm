@@ -131,6 +131,11 @@ formatPosixDateTimeCompatible zone posix =
     year ++ "-" ++ month ++ "-" ++ day ++ "T" ++ hour ++ ":" ++ minute
 
 
+secondsDiffHumanFriendly : Int -> String
+secondsDiffHumanFriendly diffSeconds =
+    millisDiffHumanFriendly (diffSeconds * 1000)
+
+
 millisDiffHumanFriendly : Int -> String
 millisDiffHumanFriendly diffMillis =
     let
