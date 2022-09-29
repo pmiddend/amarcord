@@ -56,6 +56,7 @@ def _ssh_command(
 def _sbatch_command_prefix(
     bt_info: BeamlineMetadata,
     working_directory: Path,
+    explicit_node: None | str,
     time: str,
     stdout: None | Path,
     stderr: None | Path,
@@ -65,6 +66,8 @@ def _sbatch_command_prefix(
         f"--chdir={working_directory}",
         f"--time={time}",
     ]
+    if explicit_node is not None:
+        options.append(f"--nodelist={explicit_node}")
     if stdout is not None:
         options.append(f"--output={stdout}")
     if stderr is not None:
@@ -154,6 +157,7 @@ async def run_remote_sbatch(
     parent_logger: BoundLogger,
     beamline_metadata: BeamlineMetadata,
     working_directory: Path,
+    explicit_node: None | str,
     stdout: None | Path,
     stderr: None | Path,
     remote_command_args: list[str],
@@ -166,6 +170,7 @@ async def run_remote_sbatch(
         bt_info=beamline_metadata,
         working_directory=working_directory,
         time="1-0",
+        explicit_node=explicit_node,
         stdout=stdout,
         stderr=stderr,
     )
@@ -203,10 +208,14 @@ async def run_remote_sbatch(
 
 class SlurmRemoteWorkloadManager(WorkloadManager):
     def __init__(
-        self, metadata: BeamlineMetadata, additional_ssh_options: bool
+        self,
+        metadata: BeamlineMetadata,
+        explicit_node: None | str,
+        additional_ssh_options: bool,
     ) -> None:
         self._metadata = metadata
         self._additional_ssh_options = additional_ssh_options
+        self._explicit_node = explicit_node
 
     async def list_jobs(self) -> Iterable[Job]:
         return await run_remote_list_jobs(
@@ -227,6 +236,7 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
                 parent_logger=logger,
                 beamline_metadata=self._metadata,
                 working_directory=working_directory,
+                explicit_node=self._explicit_node,
                 remote_command_args=[str(executable)] + shlex.split(command_line),
                 stdout=stdout,
                 stderr=stderr,

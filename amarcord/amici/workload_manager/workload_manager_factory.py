@@ -43,6 +43,7 @@ class SlurmRestWorkloadManagerConfig:
 @dataclass(frozen=True)
 class RemotePetraSlurmWorkloadManagerConfig:
     beamtime_id_or_metadata_file: str | Path
+    explicit_node: None | str
     additional_ssh_options: bool
 
 
@@ -88,6 +89,7 @@ def parse_workload_manager_uri(
                 if beamtime_id is not None
                 else Path(jcc.path),
                 additional_ssh_options=get_or_none("use-additional-ssh-options") == "1",
+                explicit_node=get_or_none("explicit-node"),
             )
         case "slurmrest" | "slurmrestsecure":
             # slurmrestsecure://max-portal.desy.de/sapi/slurm/v0.0.36?token=sdflskdfjsdlfsjd&user=pmidden
@@ -114,7 +116,9 @@ def create_workload_manager(
 ) -> WorkloadManager:
     match config:
         case RemotePetraSlurmWorkloadManagerConfig(
-            beamtime_id_or_metadata_file, additional_ssh_options
+            beamtime_id_or_metadata_file,
+            additional_ssh_options=additional_ssh_options,
+            explicit_node=explicit_node,
         ):
             if isinstance(beamtime_id_or_metadata_file, str):
                 metadata = locate_beamtime_metadata(
@@ -128,7 +132,11 @@ def create_workload_manager(
                     )
             else:
                 metadata = parse_beamline_metadata(beamtime_id_or_metadata_file)
-            return SlurmRemoteWorkloadManager(metadata, additional_ssh_options)
+            return SlurmRemoteWorkloadManager(
+                metadata,
+                additional_ssh_options=additional_ssh_options,
+                explicit_node=explicit_node,
+            )
         case LocalWorkloadManagerConfig():
             raise Exception("local workload manager not supported right now")
         case SlurmRestWorkloadManagerConfig(

@@ -26,6 +26,7 @@ class Arguments(Tap):
     time_limit_minutes: int
     stdout: Optional[Path] = None
     stderr: Optional[Path] = None
+    explicit_node: Optional[str] = None
 
 
 async def _main_loop(args: Arguments) -> None:

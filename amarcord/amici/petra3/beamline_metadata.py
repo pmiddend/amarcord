@@ -27,7 +27,7 @@ def locate_beamtime_metadata(
 ) -> None | BeamlineMetadata:
     result = (
         beamtime_directory(beamtime_id, beamline, year)
-        / f"beamline-metadata-{beamtime_id}.json"
+        / f"beamtime-metadata-{beamtime_id}.json"
     )
     if result.is_file():
         return parse_beamline_metadata(result)

@@ -90,6 +90,7 @@ if __name__ == "__main__":
             ),
         ),
         additional_ssh_options=False,
+        explicit_node=None,
     )
     asyncio.run(_async_main(workload_manager))
     # asyncio.run(
