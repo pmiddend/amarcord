@@ -2,8 +2,6 @@ import datetime
 from dataclasses import dataclass
 from getpass import getuser
 from pathlib import Path
-from urllib.parse import parse_qs
-from urllib.parse import urlparse
 
 from amarcord.amici.petra3.beamline_metadata import locate_beamtime_metadata
 from amarcord.amici.petra3.beamline_metadata import parse_beamline_metadata
@@ -11,7 +9,10 @@ from amarcord.amici.workload_manager.slurm_remote_workload_manager import (
     SlurmRemoteWorkloadManager,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    ConstantTokenRetriever,  # NOQA
+    MAXWELL_SLURM_URL,  # NOQA
+)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    ConstantTokenRetriever,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     DynamicTokenRetriever,  # NOQA
@@ -24,14 +25,15 @@ from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     retrieve_jwt_token,  # NOQA
 )
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
+from amarcord.simple_uri import parse_simple_uri
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class LocalWorkloadManagerConfig:
     pass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class SlurmRestWorkloadManagerConfig:
     partition: str
     reservation: None | str
@@ -40,68 +42,76 @@ class SlurmRestWorkloadManagerConfig:
     url: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class RemotePetraSlurmWorkloadManagerConfig:
     beamtime_id_or_metadata_file: str | Path
     explicit_node: None | str
     additional_ssh_options: bool
 
 
-def parse_workload_manager_uri(
+def parse_workload_manager_config(
     s: str,
 ) -> LocalWorkloadManagerConfig | SlurmRestWorkloadManagerConfig | RemotePetraSlurmWorkloadManagerConfig:
-    jcc = urlparse(s)
-    qs: dict[str, list[str]] = parse_qs(jcc.query)
+    jcc = parse_simple_uri(s)
 
-    def get_or_none(x: str) -> None | str:
-        result: list[str] = qs.get(x, [])
-        if not result:
-            return None
-        if len(result) > 1:
-            raise Exception(f"query string argument {x} appears more than once")
-        return result[0]
-
-    def get_or(x: str, default_: str) -> str:
-        result: list[str] = qs.get(x, [])
-        if not result:
-            return default_
-        if len(result) > 1:
-            raise Exception(f"query string argument {x} appears more than once")
-        return result[0]
-
-    def get_raise_missing(x: str) -> str:
-        result: list[str] = qs.get(x, [])
-        if not result:
-            raise Exception(f"didn't find query string argument {x}, qs is {qs}")
-        if len(result) > 1:
-            raise Exception(f"query string argument {x} appears more than once")
-        return result[0]
+    if isinstance(jcc, str):
+        raise Exception(f"invalid workload manager simple URI: {jcc}")
 
     match jcc.scheme:
         case "local":
             return LocalWorkloadManagerConfig()
-        case "petra3slurmremote":
-            # petra3slurmremote://?beamtime-id=11010000
-            # petra3slurmremote:////tmp/metadata.json
-            beamtime_id = get_or_none("beamtime-id")
-            return RemotePetraSlurmWorkloadManagerConfig(
-                beamtime_id_or_metadata_file=beamtime_id
-                if beamtime_id is not None
-                else Path(jcc.path),
-                additional_ssh_options=get_or_none("use-additional-ssh-options") == "1",
-                explicit_node=get_or_none("explicit-node"),
+        case "petra3-slurm-remote":
+            beamtime_id = jcc.string_parameter("beamtime-id")
+            beamtime_id_or_metadata_file = (
+                beamtime_id if beamtime_id is not None else jcc.path_parameter("path")
             )
-        case "slurmrest" | "slurmrestsecure":
-            # slurmrestsecure://max-portal.desy.de/sapi/slurm/v0.0.36?token=sdflskdfjsdlfsjd&user=pmidden
-            output_scheme = "http" if jcc.scheme == "slurmrest" else "https"
+            if beamtime_id_or_metadata_file is None:
+                raise Exception(
+                    "invalid workload manager simple URI: got no beamtime ID and no metadata file"
+                )
+            additional_ssh_options = jcc.bool_parameter("use-additional-ssh-options")
+            return RemotePetraSlurmWorkloadManagerConfig(
+                beamtime_id_or_metadata_file=beamtime_id_or_metadata_file,
+                additional_ssh_options=additional_ssh_options
+                if additional_ssh_options is not None
+                else True,
+                explicit_node=jcc.string_parameter("explicit-node"),
+            )
+        case "maxwell-rest":
+            partition = jcc.string_parameter("partition")
+            if partition is None:
+                raise Exception(
+                    'invalid scheme for SLURM REST: "partition" is mandatory'
+                )
+            user = jcc.string_parameter("user")
             return SlurmRestWorkloadManagerConfig(
-                partition=get_raise_missing("partition"),
-                reservation=get_or_none("reservation"),
-                token=get_or_none("slurmToken"),
-                user=get_or("user", getuser()),
-                url=f"{output_scheme}://{jcc.hostname}"
-                + (":" + str(jcc.port) if jcc.port is not None else "")
-                + jcc.path,
+                partition=partition,
+                reservation=jcc.string_parameter("reservation"),
+                token=jcc.string_parameter("token"),
+                user=user if user is not None else getuser(),
+                url=MAXWELL_SLURM_URL,
+            )
+        case "slurm-rest":
+            output_scheme = "http" if jcc.bool_parameter("use-http") else "https"
+            partition = jcc.string_parameter("partition")
+            if partition is None:
+                raise Exception(
+                    'invalid scheme for SLURM REST: "partition" is mandatory'
+                )
+            host = jcc.string_parameter("host")
+            if host is None:
+                raise Exception('invalid scheme for SLURM REST: "host" is mandatory')
+            port = jcc.string_parameter("port")
+            path = jcc.string_parameter("path")
+            user = jcc.string_parameter("user")
+            return SlurmRestWorkloadManagerConfig(
+                partition=partition,
+                reservation=jcc.string_parameter("reservation"),
+                token=jcc.string_parameter("token"),
+                user=user if user is not None else getuser(),
+                url=f"{output_scheme}://{host}"
+                + (f":{port}" if port is not None else "")
+                + (path if path is not None else ""),
             )
         case _:
             raise Exception(

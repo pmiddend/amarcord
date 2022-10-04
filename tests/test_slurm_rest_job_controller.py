@@ -8,7 +8,10 @@ from pytest_subprocess import FakeProcess
 
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    DynamicTokenRetriever,  # NOQA
+    MAXWELL_SLURM_URL,  # NOQA
+)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    DynamicTokenRetriever,
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import SlurmHttpWrapper
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
@@ -71,6 +74,7 @@ async def test_slurm_rest_job_controller_start_job() -> None:
         token_retriever=_TEST_TOKEN_RETRIEVER,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
+        rest_url=MAXWELL_SLURM_URL,
     )
 
     http_wrapper.responses.append({"job_id": 1})
@@ -92,6 +96,7 @@ async def test_slurm_rest_job_controller_list_jobs_with_errors() -> None:
         token_retriever=_TEST_TOKEN_RETRIEVER,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
+        rest_url=MAXWELL_SLURM_URL,
     )
 
     http_wrapper.responses.append({"errors": ["hehe"]})
@@ -108,6 +113,7 @@ async def test_slurm_rest_job_controller_list_jobs_other_users_are_ignored() -> 
         token_retriever=_TEST_TOKEN_RETRIEVER,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
+        rest_url=MAXWELL_SLURM_URL,
     )
 
     http_wrapper.responses.append({"jobs": [{"user_id": 2}]})
@@ -122,6 +128,7 @@ async def test_slurm_rest_job_controller_list_jobs_success() -> None:
         token_retriever=_TEST_TOKEN_RETRIEVER,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
+        rest_url=MAXWELL_SLURM_URL,
     )
 
     http_wrapper.responses.append(

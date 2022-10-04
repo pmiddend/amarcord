@@ -12,7 +12,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
     create_workload_manager,  # NOQA
 )
 from amarcord.amici.workload_manager.workload_manager_factory import (
-    parse_workload_manager_uri,  # NOQA
+    parse_workload_manager_config,  # NOQA
 )
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -31,7 +31,7 @@ class Arguments(Tap):
 
 async def _main_loop(args: Arguments) -> None:
     workload_manager = create_workload_manager(
-        parse_workload_manager_uri(args.workload_manager_uri)
+        parse_workload_manager_config(args.workload_manager_uri)
     )
 
     start_result = await workload_manager.start_job(

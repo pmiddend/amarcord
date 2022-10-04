@@ -18,7 +18,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
     create_workload_manager,  # NOQA
 )
 from amarcord.amici.workload_manager.workload_manager_factory import (
-    parse_workload_manager_uri,  # NOQA
+    parse_workload_manager_config,  # NOQA
 )
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
@@ -70,7 +70,7 @@ async def _main_loop(args: Arguments) -> None:
                 indexing_loop(
                     db,
                     create_workload_manager(
-                        parse_workload_manager_uri(
+                        parse_workload_manager_config(
                             args.online_crystfel_workload_manager_uri
                         )
                     ),

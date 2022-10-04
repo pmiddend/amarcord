@@ -23,7 +23,7 @@ from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.json_types import JSONDict
 from amarcord.util import last_line_of_file
 
-_DESY_SLURM_URL = "https://max-portal.desy.de/sapi/slurm/v0.0.36"
+MAXWELL_SLURM_URL = "https://max-portal.desy.de/sapi/slurm/v0.0.36"
 
 logger = logging.getLogger(__name__)
 
@@ -164,8 +164,8 @@ class SlurmRestWorkloadManager(WorkloadManager):
         partition: str,
         reservation: None | str,
         token_retriever: TokenRetriever,
+        rest_url: str,
         rest_user: None | str = None,
-        rest_url: str = _DESY_SLURM_URL,
         request_wrapper: SlurmHttpWrapper = SlurmRequestsHttpWrapper(),
     ) -> None:
         self._partition = partition
