@@ -133,6 +133,7 @@ class DontUpdate:
     pass
 
 
+# pylint: disable=consider-alternative-union-syntax
 TriOptional = Union[T, None, DontUpdate]
 
 

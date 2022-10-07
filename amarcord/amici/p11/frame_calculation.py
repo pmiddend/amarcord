@@ -4,7 +4,6 @@ from pathlib import Path
 from time import time
 from typing import Callable
 from typing import Final
-from typing import Optional
 
 import h5py
 import structlog
@@ -75,7 +74,7 @@ async def update_runs_add_file_globs(
 
 def retrieve_run_frames_async(
     run: DBRun,
-) -> Optional[tuple[int, int]]:
+) -> None | tuple[int, int]:
     log = logger.bind(run_id=run.id)
     file_glob_for_run = run.attributi.select_string(ATTRIBUTO_RAW_FILES)
     if file_glob_for_run is None:

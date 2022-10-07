@@ -24,6 +24,7 @@ _RUN_ID_PLACEHOLDER = "${run_id}"
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
     # fmt: off
+    # pylint: disable=consider-alternative-union-syntax
     file_glob: Optional[str] # String containing the special placeholder ${run_id} which gets replaced by the actual run ID; runs will get a raw_files attributo if this is specified
     # fmt: on
 

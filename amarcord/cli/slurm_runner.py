@@ -24,8 +24,11 @@ class Arguments(Tap):
     executable: Path
     command_line: str
     time_limit_minutes: int
+    # pylint: disable=consider-alternative-union-syntax
     stdout: Optional[Path] = None
+    # pylint: disable=consider-alternative-union-syntax
     stderr: Optional[Path] = None
+    # pylint: disable=consider-alternative-union-syntax
     explicit_node: Optional[str] = None
 
 

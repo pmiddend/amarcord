@@ -1594,7 +1594,6 @@ class Karabo2:
             self._accumulators,
         )
         # Karabo could send NaN to us
-        # pylint: disable=use-dict-comprehension
         for k, v in attributi_values.items():
             if isinstance(v, (float, np.floating)) and isnan(v):
                 attributi_values[k] = None

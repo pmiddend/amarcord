@@ -113,3 +113,14 @@ build-backend = "poetry.core.masonry.api"
 [tool.isort]
 profile = "black"
 force_single_line = "true"
+
+[tool.pylint.'TYPECHECK']
+ignored-modules = ["alembic.op","alembic.context"]
+generated-members = ["SUB","SUBSCRIBE","EVENT_DISCONNECTED","EVENT_HANDSHAKE_SUCCEEDED","REQ","RCVTIMEO","EVENT_CONNECTED","PUB"]
+
+[tool.pylint.'MASTER']
+load-plugins=["pylint.extensions.typing","pylint.extensions.redefined_variable_type","cfel_pylint_checkers.no_direct_dict_access"]
+extension-pkg-allow-list=["pydantic"]
+
+[tool.pylint.'MESSAGES CONTROL']
+disable=["invalid-name", "missing-module-docstring", "too-many-instance-attributes", "too-many-branches", "missing-class-docstring", "missing-function-docstring", "line-too-long", "missing-final-newline", "logging-not-lazy", "broad-except", "too-many-arguments", "bare-except", "too-few-public-methods", "too-many-locals", "too-many-nested-blocks", "too-many-statements", "too-many-public-methods", "too-many-return-statements", "blacklisted-name", "duplicate-code", "logging-fstring-interpolation", "too-many-lines", "too-many-boolean-expressions", "logging-format-interpolation", "raise-missing-from", "deprecated-typing-alias"]

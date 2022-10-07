@@ -30,22 +30,35 @@ from amarcord.experiment_simulator import experiment_simulator_main_loop
 
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    # pylint: disable=consider-alternative-union-syntax
     kamzik_socket_url: Optional[str] = None
     kamzik_device_id: str = "Runner"
+    # pylint: disable=consider-alternative-union-syntax
     petra3_refresh_rate_seconds: Optional[float] = None
+    # pylint: disable=consider-alternative-union-syntax
     om_url: Optional[str] = None
     om_topic: str = "view:omdata"
+    # pylint: disable=consider-alternative-union-syntax
     om_simulator_port: Optional[int] = None
+    # pylint: disable=consider-alternative-union-syntax
     om_indexing_file: Optional[Path] = None  # Whether to enable the Om indexing daemon
     experiment_simulator_enabled: bool = False
+    # pylint: disable=consider-alternative-union-syntax
     experiment_simulator_files_dir: Optional[Path] = None
+    # pylint: disable=consider-alternative-union-syntax
     mjpeg_stream_url: Optional[str] = None
     mjpeg_stream_delay_seconds: float = 5.0
+    # pylint: disable=consider-alternative-union-syntax
     online_crystfel_delay_seconds: Optional[float] = None
+    # pylint: disable=consider-alternative-union-syntax
     online_crystfel_output_base_directory: Optional[Path] = None
+    # pylint: disable=consider-alternative-union-syntax
     online_crystfel_cell_file_path: Optional[Path] = None
+    # pylint: disable=consider-alternative-union-syntax
     online_crystfel_indexing_script_path: Optional[Path] = None
+    # pylint: disable=consider-alternative-union-syntax
     online_crystfel_sample_attributo: Optional[str] = None
+    # pylint: disable=consider-alternative-union-syntax
     online_crystfel_workload_manager_uri: Optional[str] = None
 
 

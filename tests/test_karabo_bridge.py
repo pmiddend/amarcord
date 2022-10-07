@@ -1,4 +1,3 @@
-# pylint: disable=use-tuple-over-list
 import datetime
 import pickle
 from math import isclose

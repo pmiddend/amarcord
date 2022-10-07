@@ -1060,7 +1060,6 @@ class AsyncDB:
     ) -> list[DBExperimentType]:
         result: list[DBExperimentType] = []
         etc = self.tables.experiment_has_attributo.c
-        # pylint: disable=use-list-copy
         for key, group in itertools.groupby(
             await conn.execute(
                 sa.select([etc.experiment_type, etc.attributo_name]).order_by(
