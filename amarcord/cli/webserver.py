@@ -3,7 +3,6 @@ import datetime
 import json
 import os
 import sys
-from dataclasses import dataclass
 from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
@@ -28,7 +27,6 @@ from tap import Tap
 from werkzeug import Response
 from werkzeug.exceptions import HTTPException
 
-from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.asyncdb import LIVE_STREAM_IMAGE
@@ -361,38 +359,6 @@ def _summary_from_foms(ir: list[DBIndexingFOM]) -> DBIndexingFOM:
     )
 
 
-@dataclass(frozen=True)
-class DarkRun:
-    id: int
-    started: datetime.datetime
-
-
-def determine_latest_dark_run(
-    runs: list[DBRun], attributi: list[DBAttributo]
-) -> DarkRun | None:
-    # We might not have a dark run attribute
-    if not any(a.name == ATTRIBUTO_ID_DARK_RUN_TYPE for a in attributi):
-        return None
-    # Assume runs are ordered descending by ID here
-    result = next(
-        iter(
-            r
-            for r in runs
-            if r.attributi.select_string(ATTRIBUTO_ID_DARK_RUN_TYPE) is not None
-        ),
-        None,
-    )
-    if result is None:
-        return None
-    started = result.attributi.select_datetime(ATTRIBUTO_STARTED)
-    if started is None:
-        return None
-    return DarkRun(
-        result.id,
-        started,
-    )
-
-
 @app.post("/api/runs/bulk")
 async def read_runs_bulk() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
@@ -521,8 +487,6 @@ async def read_runs() -> JSONDict:
             for ds in data_sets
         }
 
-        latest_dark = determine_latest_dark_run(runs, attributi)
-
         user_configuration = await db.instance.retrieve_configuration(conn)
         result: JSONDict = {
             "live-stream-file-id": await db.instance.retrieve_file_id_by_name(
@@ -543,12 +507,6 @@ async def read_runs() -> JSONDict:
                 }
                 for r in runs
             ],
-            "latest-dark": {
-                "id": latest_dark.id,
-                "started": datetime_to_attributo_int(latest_dark.started),
-            }
-            if latest_dark
-            else None,
             "attributi": [_encode_attributo(a) for a in attributi],
             "experiment-types": {a.name: a.attributo_names for a in experiment_types},
             "data-sets": [

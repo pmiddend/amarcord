@@ -1,6 +1,5 @@
 import datetime
 
-from amarcord.amici.xfel.karabo_bridge import ATTRIBUTO_ID_DARK_RUN_TYPE
 from amarcord.cli.webserver import app
 from amarcord.cli.webserver import db
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
@@ -285,51 +284,6 @@ async def test_attributi_are_presorted() -> None:
     assert runs_response_json["attributi"][0]["name"] == ATTRIBUTO_STARTED
     assert runs_response_json["attributi"][1]["name"] == ATTRIBUTO_STOPPED
     assert runs_response_json["attributi"][2]["name"] == testattributo
-
-
-async def test_latest_dark() -> None:
-    app.config.update(
-        {
-            "DB_URL": "sqlite+aiosqlite://",
-            "DB_ECHO": False,
-            "HAS_ARTIFICIAL_DELAY": False,
-        },
-    )
-    # Don't pre-initialize started/stopped, so we can really check if the order mattered
-    await db.initialize_db()
-    client = app.test_client()
-
-    await client.post(
-        "/api/attributi",
-        json={
-            "name": ATTRIBUTO_ID_DARK_RUN_TYPE,
-            "description": "",
-            "group": ATTRIBUTO_GROUP_MANUAL,
-            "associatedTable": "run",
-            "type": {"type": "string"},
-        },
-    )
-
-    # Start run 1
-    await client.get("/api/runs/1/start")
-
-    # Stop the run
-    await client.get("/api/runs/stop-latest")
-
-    # Set dark run type
-    await client.patch(
-        "/api/runs",
-        json={
-            "id": 1,
-            "attributi": {ATTRIBUTO_ID_DARK_RUN_TYPE: "lol"},
-        },
-    )
-
-    runs_response = await client.get("/api/runs")
-    runs_response_json = await runs_response.json
-
-    ld = runs_response_json.get("latest-dark", None)
-    assert ld is not None
 
 
 async def test_create_data_set_with_unspecified_boolean() -> None:

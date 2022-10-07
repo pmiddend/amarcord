@@ -1,6 +1,6 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (Event, LatestDark, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
+import Amarcord.API.Requests exposing (Event, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
@@ -409,29 +409,6 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                         Just experimentType ->
                             find (\ds -> ds.experimentType == experimentType && List.member ds.id dataSets) rrc.dataSets
 
-                darkRunInformation : Maybe LatestDark -> List (Html msg)
-                darkRunInformation x =
-                    case x of
-                        Nothing ->
-                            []
-
-                        Just latestDark ->
-                            let
-                                diffMinutes =
-                                    posixDiffMinutes now latestDark.started
-
-                                warningLevel =
-                                    if diffMinutes < 5 * 50 then
-                                        "success"
-
-                                    else if diffMinutes < 10 * 60 then
-                                        "warning"
-
-                                    else
-                                        "danger"
-                            in
-                            [ div [ class ("alert d-flex align-items-center p-2 alert-" ++ warningLevel) ] [ div [ class "me-1" ] [ icon { name = "aspect-ratio-fill" } ], div_ [ text <| " Latest dark (id " ++ String.fromInt latestDark.id ++ "): " ++ String.fromInt diffMinutes ++ " minute(s) ago" ] ], hr_ ]
-
                 smallBox color =
                     span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
 
@@ -571,7 +548,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                 Nothing
                             ]
             in
-            header ++ autoPilot ++ onlineCrystFEL ++ darkRunInformation rrc.latestDark ++ dataSetSelection ++ dataSetInformation
+            header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation
 
 
 viewRunAttributiForm : Maybe (Set String) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)

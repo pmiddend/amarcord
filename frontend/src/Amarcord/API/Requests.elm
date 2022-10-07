@@ -8,7 +8,6 @@ module Amarcord.API.Requests exposing
     , ExperimentType
     , ExperimentTypesResponse
     , IncludeLiveStream(..)
-    , LatestDark
     , RequestError(..)
     , Run
     , RunEventDate
@@ -334,21 +333,9 @@ type alias Event =
     }
 
 
-type alias LatestDark =
-    { id : Int
-    , started : Posix
-    }
-
-
-latestDarkDecoder : Decode.Decoder LatestDark
-latestDarkDecoder =
-    Decode.map2 LatestDark (Decode.field "id" Decode.int) (Decode.field "started" decodePosix)
-
-
 type alias RunsResponseContent =
     { runs : List Run
     , runsDates : List RunEventDate
-    , latestDark : Maybe LatestDark
     , attributi : List (Attributo AttributoType)
     , events : List Event
     , samples : List (Sample Int (AttributoMap AttributoValue) File)
@@ -467,7 +454,6 @@ getRuns path f =
                     (Decode.succeed RunsResponseContent
                         |> required "runs" (Decode.list runDecoder)
                         |> required "filter-dates" (Decode.list decodeRunEventDate)
-                        |> required "latest-dark" (Decode.maybe latestDarkDecoder)
                         |> required "attributi" (Decode.list (attributoDecoder attributoTypeDecoder))
                         |> required "events" (Decode.list eventDecoder)
                         |> required "samples" (Decode.list sampleDecoder)
