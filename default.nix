@@ -4,8 +4,8 @@ let
   poetry2nix-latest-src = pkgs.fetchFromGitHub {
     owner = "nix-community";
     repo = "poetry2nix";
-    rev = "1.31.0";
-    hash = "sha256-0o856HWRRc5q02+vIhlIW4NpeQUDvCv3CuP1w2rZ+ho=";
+    rev = "1.34.1";
+    hash = "sha256-aEhdKq5PTG20cN+4OHhRHnp5tE8mbwpKyO48bbDAt40=";
   };
   poetry2nix = (import poetry2nix-latest-src { inherit pkgs; poetry = pkgs.poetry; });
   poetryOverrides = poetry2nix.overrides.withDefaults (self: super: {
