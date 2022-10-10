@@ -9,12 +9,12 @@ from amarcord.db.attributi import convert_attributo_value
 from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import datetime_to_attributo_string
 from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.numeric_range import NumericRange
 
@@ -489,11 +489,11 @@ def test_attributo_double_string() -> None:
     )
 
 
-def test_attributo_sample_to_sample() -> None:
+def test_attributo_chemical_to_chemical() -> None:
     assert (
         convert_attributo_value(
-            AttributoTypeSample(),
-            AttributoTypeSample(),
+            AttributoTypeChemical(),
+            AttributoTypeChemical(),
             _default_flags,
             1,
         )

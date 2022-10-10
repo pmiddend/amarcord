@@ -12,7 +12,7 @@ import Time exposing (Zone)
 
 
 viewDataSetTable : List (Attributo AttributoType) -> Zone -> Dict.Dict Int String -> DataSet -> Bool -> Maybe (Html msg) -> Html msg
-viewDataSetTable attributi zone sampleIdToName ds withHeader footer =
+viewDataSetTable attributi zone chemicalIdToName ds withHeader footer =
     let
         viewAttributiValueRow : AttributoMap AttributoValue -> String -> Html msg
         viewAttributiValueRow attributoValues name =
@@ -23,7 +23,7 @@ viewDataSetTable attributi zone sampleIdToName ds withHeader footer =
                 Just attributo ->
                     tr_
                         [ td [ style "width" "50%" ] [ text attributo.name ]
-                        , td [ style "width" "50%" ] [ viewAttributoCell { shortDateTime = False, colorize = False } zone sampleIdToName attributoValues attributo ]
+                        , td [ style "width" "50%" ] [ viewAttributoCell { shortDateTime = False, colorize = False } zone chemicalIdToName attributoValues attributo ]
                         ]
     in
     table

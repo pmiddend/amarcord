@@ -13,12 +13,12 @@ import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
 import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
+import Amarcord.Pages.Chemicals as Chemicals
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
-import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Pages.Help as Help
 import Amarcord.Pages.RunOverview as RunOverview
-import Amarcord.Pages.Samples as Samples
+import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (version)
@@ -57,7 +57,7 @@ main =
 
 type Msg
     = AttributiPageMsg Attributi.Msg
-    | SamplesPageMsg Samples.Msg
+    | ChemicalsPageMsg Chemicals.Msg
     | RunOverviewPageMsg RunOverview.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
     | DataSetsMsg DataSets.DataSetMsg
@@ -74,7 +74,7 @@ type Msg
 type Page
     = RootPage
     | AttributiPage Attributi.Model
-    | SamplesPage Samples.Model
+    | ChemicalsPage Chemicals.Model
     | RunOverviewPage RunOverview.Model
     | AdvancedControlsPage AdvancedControls.Model
     | DataSetsPage DataSets.DataSetModel
@@ -186,10 +186,10 @@ currentView model =
                     |> Html.map ScheduleMsg
                 ]
 
-        SamplesPage pageModel ->
+        ChemicalsPage pageModel ->
             div []
-                [ Samples.view pageModel
-                    |> Html.map SamplesPageMsg
+                [ Chemicals.view pageModel
+                    |> Html.map ChemicalsPageMsg
                 ]
 
         RunOverviewPage pageModel ->
@@ -283,13 +283,13 @@ updateInner hereAndNow appConfig msg model =
             , Cmd.map AdvancedControlsPageMsg updatedCmd
             )
 
-        ( SamplesPageMsg subMsg, SamplesPage pageModel ) ->
+        ( ChemicalsPageMsg subMsg, ChemicalsPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
-                    Samples.update subMsg pageModel
+                    Chemicals.update subMsg pageModel
             in
-            ( { model | page = SamplesPage updatedPageModel }
-            , Cmd.map SamplesPageMsg updatedCmd
+            ( { model | page = ChemicalsPage updatedPageModel }
+            , Cmd.map ChemicalsPageMsg updatedCmd
             )
 
         ( ScheduleMsg scheduleMsg, SchedulePage pageModel ) ->
@@ -412,12 +412,12 @@ initCurrentPage localStorage hereAndNow appConfig ( model, existingCmds ) =
                     in
                     ( AdvancedControlsPage pageModel, Cmd.map AdvancedControlsPageMsg pageCmds )
 
-                Route.Samples ->
+                Route.Chemicals ->
                     let
                         ( pageModel, pageCmds ) =
-                            Samples.init hereAndNow
+                            Chemicals.init hereAndNow
                     in
-                    ( SamplesPage pageModel, Cmd.map SamplesPageMsg pageCmds )
+                    ( ChemicalsPage pageModel, Cmd.map ChemicalsPageMsg pageCmds )
 
                 Route.RunOverview ->
                     let

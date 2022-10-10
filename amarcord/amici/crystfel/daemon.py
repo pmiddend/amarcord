@@ -32,7 +32,7 @@ class CrystFELOnlineConfig:
     output_base_directory: Path
     cell_file_directory: Path
     indexing_script_path: Path
-    sample_attributo: AttributoId
+    chemical_attributo: AttributoId
 
 
 @dataclass(frozen=True, eq=True)
@@ -101,25 +101,25 @@ async def _retrieve_cell_file(
         attributi,
     )
     assert run is not None
-    sample_id = run.attributi.select_sample_id(config.sample_attributo)
-    if sample_id is None:
-        return "Sample not set for run"
-    sample = await db.retrieve_sample(conn, sample_id, attributi)
-    if sample is None:
-        return f"Sample {sample_id} not found"
-    cell_description_str = sample.attributi.select_string(ATTRIBUTO_CELL_DESCRIPTION)
+    chemical_id = run.attributi.select_chemical_id(config.chemical_attributo)
+    if chemical_id is None:
+        return "chemical not set for run"
+    chemical = await db.retrieve_chemical(conn, chemical_id, attributi)
+    if chemical is None:
+        return f"chemical {chemical_id} not found"
+    cell_description_str = chemical.attributi.select_string(ATTRIBUTO_CELL_DESCRIPTION)
     if cell_description_str is None:
         return None
     if cell_description_str.strip() == "":
         return None
     cell_file = parse_cell_description(cell_description_str)
     if cell_file is None:
-        return f"Cell description for sample is wrong: {cell_description_str}"
-    output_cell_file = base_path / f"sample_{sample_id}_{int(time())}.cell"
+        return f"Cell description for chemical is wrong: {cell_description_str}"
+    output_cell_file = base_path / f"chemical_{chemical_id}_{int(time())}.cell"
     try:
         write_cell_file(cell_file, output_cell_file)
     except Exception as e:
-        return f"Cell file not writeable for sample: {sample_id}: {e}"
+        return f"Cell file not writeable for chemical: {chemical_id}: {e}"
     return output_cell_file
 
 

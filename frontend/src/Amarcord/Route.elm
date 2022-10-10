@@ -6,7 +6,7 @@ import Url.Parser exposing (Parser, fragment, map, oneOf, parse, s, top)
 
 type Route
     = Root
-    | Samples
+    | Chemicals
     | DataSets
     | Schedule
     | ExperimentTypes
@@ -67,8 +67,8 @@ makeLink x =
         AdvancedControls ->
             routePrefix ++ "/advancedcontrols"
 
-        Samples ->
-            routePrefix ++ "/samples"
+        Chemicals ->
+            routePrefix ++ "/chemicals"
 
         Analysis ->
             routePrefix ++ "/analysis"
@@ -93,7 +93,7 @@ matchRoute =
     oneOf
         [ map Root top
         , map Attributi (s "attributi")
-        , map Samples (s "samples")
+        , map Chemicals (s "chemicals")
         , map RunOverview (s "runoverview")
         , map Schedule (s "schedule")
         , map AdvancedControls (s "advancedcontrols")

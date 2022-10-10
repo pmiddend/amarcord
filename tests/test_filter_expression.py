@@ -7,9 +7,9 @@ from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.table_classes import DBRun
@@ -25,31 +25,31 @@ from amarcord.filter_expression import compile_run_filter
         ("id > 1", 1, {}, {}, False),
         ('id > "3"', 1, {}, {}, Exception),
         (
-            "sample_name == 1",
+            "chemical_name == 1",
             1,
-            {"sample_name": AttributoTypeSample()},
-            {"sample_name": 1},
+            {"chemical_name": AttributoTypeChemical()},
+            {"chemical_name": 1},
             True,
         ),
         (
-            '"sample name" == 1',
+            '"chemical name" == 1',
             1,
-            {"sample name": AttributoTypeSample()},
-            {"sample name": 1},
+            {"chemical name": AttributoTypeChemical()},
+            {"chemical name": 1},
             True,
         ),
         (
-            'sample_name == "lyso"',
+            'chemical_name == "lyso"',
             1,
-            {"sample_name": AttributoTypeSample()},
-            {"sample_name": 1},
+            {"chemical_name": AttributoTypeChemical()},
+            {"chemical_name": 1},
             True,
         ),
         (
-            'sample_name == "lyso22"',
+            'chemical_name == "lyso22"',
             1,
-            {"sample_name": AttributoTypeSample()},
-            {"sample_name": 1},
+            {"chemical_name": AttributoTypeChemical()},
+            {"chemical_name": 1},
             Exception,
         ),
         ("foo > 3.0", 1, {"foo": AttributoTypeDecimal()}, {"foo": 4.0}, True),
@@ -149,7 +149,7 @@ def test_compile_run_filter(
             )
             for key, value in attributi_types.items()
         },
-        sample_ids=[1],
+        chemical_ids=[1],
         impl={AttributoId(key): value for key, value in attributi.items()},
     )
     filter_input = FilterInput(
@@ -158,7 +158,7 @@ def test_compile_run_filter(
             attributi_map,
             files=[],
         ),
-        sample_names={"lyso": 1},
+        chemical_names={"lyso": 1},
     )
     if isinstance(result, bool):
         assert compile_run_filter(filter_expression)(filter_input) == result

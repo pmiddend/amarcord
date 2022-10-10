@@ -77,7 +77,7 @@
 #         if existing_run is not None
 #         else AttributiMap.from_types_and_json(
 #             attributi,
-#             sample_ids=[],
+#             chemical_ids=[],
 #             raw_attributi={},
 #         )
 #     )

@@ -20,7 +20,7 @@ Content-Type: application/json
 {
   "name": "somenumber",
   "description": "a number with a range",
-  "associatedTable": "sample",
+  "associatedTable": "chemical",
   "type": {
     "type": "number",
     "format": "standard-unit",
@@ -56,26 +56,26 @@ Content-Type: application/json
   }
 }
 
-# Add a new sample
-POST http://localhost:5000/api/samples
+# Add a new chemical
+POST http://localhost:5000/api/chemicals
 Content-Type: application/json
 
 {
-  "name": "firstsample",
+  "name": "firstchemical",
   "attributi": {
   }
 }
 
-# Retrieve all samples
-GET http://localhost:5000/api/samples
+# Retrieve all chemicals
+GET http://localhost:5000/api/chemicals
 
-# Update a new sample
-POST http://localhost:5000/api/samples
+# Update a new chemical
+POST http://localhost:5000/api/chemicals
 Content-Type: application/json
 
 {
   "id": 1,
-  "name": "firstsample",
+  "name": "firstchemical",
   "attributi": {
     "somenumber": 3.5
   }

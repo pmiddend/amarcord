@@ -65,16 +65,16 @@ def _table_file(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_beamtime_schedule(metadata: sa.MetaData, sample: sa.Table) -> sa.Table:
+def _table_beamtime_schedule(metadata: sa.MetaData, chemical: sa.Table) -> sa.Table:
     return sa.Table(
         "BeamtimeSchedule",
         metadata,
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column(
-            "sample_id",
+            "chemical_id",
             sa.Integer(),
-            # If the sample vanishes, delete this entry as well
-            ForeignKey(_fk_identifier(sample.c.id), ondelete="cascade"),
+            # If the chemical vanishes, delete this entry as well
+            ForeignKey(_fk_identifier(chemical.c.id), ondelete="cascade"),
         ),
         sa.Column("users", sa.String(length=255), nullable=False),
         sa.Column("td_support", sa.String(length=255), nullable=False),
@@ -113,17 +113,17 @@ def _table_data_set(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_sample_has_file(
-    metadata: sa.MetaData, sample: sa.Table, file: sa.Table
+def _table_chemical_has_file(
+    metadata: sa.MetaData, chemical: sa.Table, file: sa.Table
 ) -> sa.Table:
     return sa.Table(
-        "SampleHasFile",
+        "ChemicalHasFile",
         metadata,
         sa.Column(
-            "sample_id",
+            "chemical_id",
             sa.Integer(),
-            # If the sample vanishes, delete this entry as well
-            ForeignKey(_fk_identifier(sample.c.id), ondelete="cascade"),
+            # If the chemical vanishes, delete this entry as well
+            ForeignKey(_fk_identifier(chemical.c.id), ondelete="cascade"),
         ),
         sa.Column(
             "file_id",
@@ -176,9 +176,9 @@ def _table_event_has_file(
     )
 
 
-def _table_sample(metadata: sa.MetaData) -> sa.Table:
+def _table_chemical(metadata: sa.MetaData) -> sa.Table:
     return sa.Table(
-        "Sample",
+        "Chemical",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.String(length=255), nullable=False),
@@ -241,14 +241,14 @@ class DBTables:
     def __init__(
         self,
         configuration: sa.Table,
-        sample: sa.Table,
+        chemical: sa.Table,
         run: sa.Table,
         attributo: sa.Table,
         event_log: sa.Table,
         experiment_has_attributo: sa.Table,
         file: sa.Table,
         data_set: sa.Table,
-        sample_has_file: sa.Table,
+        chemical_has_file: sa.Table,
         run_has_file: sa.Table,
         event_has_file: sa.Table,
         beamtime_schedule: sa.Table,
@@ -260,17 +260,17 @@ class DBTables:
         self.experiment_has_attributo = experiment_has_attributo
         self.run_has_file = run_has_file
         self.event_log = event_log
-        self.sample = sample
+        self.chemical = chemical
         self.run = run
         self.attributo = attributo
         self.file = file
-        self.sample_has_file = sample_has_file
+        self.chemical_has_file = chemical_has_file
         self.beamtime_schedule = beamtime_schedule
         self.indexing_result = indexing_result
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
-    sample = _table_sample(metadata)
+    chemical = _table_chemical(metadata)
     run = _table_run(metadata)
     file = _table_file(metadata)
     table_attributo = _table_attributo(metadata)
@@ -279,7 +279,7 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     indexing_result = _table_indexing_result(metadata, run)
     return DBTables(
         configuration=_table_configuration(metadata),
-        sample=sample,
+        chemical=chemical,
         run=run,
         attributo=table_attributo,
         event_log=event_log,
@@ -288,9 +288,9 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
             metadata, table_attributo
         ),
         file=file,
-        sample_has_file=_table_sample_has_file(metadata, sample, file),
+        chemical_has_file=_table_chemical_has_file(metadata, chemical, file),
         run_has_file=_table_run_has_file(metadata, run, file),
         event_has_file=_table_event_has_file(metadata, event_log, file),
-        beamtime_schedule=_table_beamtime_schedule(metadata, sample),
+        beamtime_schedule=_table_beamtime_schedule(metadata, chemical),
         indexing_result=indexing_result,
     )

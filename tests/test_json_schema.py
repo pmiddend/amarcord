@@ -114,8 +114,8 @@ def test_parse_schema_type_no_type() -> None:
         ({"type": "boolean"}, JSONSchemaBoolean()),
         ({"type": "integer"}, JSONSchemaInteger(format_=None)),
         (
-            {"type": "integer", "format": "sample-id"},
-            JSONSchemaInteger(format_=JSONSchemaCustomIntegerFormat("sample-id")),
+            {"type": "integer", "format": "chemical-id"},
+            JSONSchemaInteger(format_=JSONSchemaCustomIntegerFormat("chemical-id")),
         ),
         (
             {"type": "integer", "format": "date-time"},

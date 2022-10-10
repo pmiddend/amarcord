@@ -69,9 +69,9 @@ class AttributoTypeDecimal:
 
 
 @dataclass(frozen=True)
-class AttributoTypeSample:
+class AttributoTypeChemical:
     def __str__(self) -> str:
-        return "sample"
+        return "chemical"
 
 
 @dataclass(frozen=True)
@@ -92,7 +92,7 @@ AttributoType: TypeAlias = (
     AttributoTypeInt
     | AttributoTypeBoolean
     | AttributoTypeString
-    | AttributoTypeSample
+    | AttributoTypeChemical
     | AttributoTypeChoice
     | AttributoTypeDecimal
     | AttributoTypeDateTime

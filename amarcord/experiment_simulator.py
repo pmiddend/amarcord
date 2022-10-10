@@ -20,12 +20,12 @@ from amarcord.db.attributi_map import UntypedAttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
@@ -41,7 +41,7 @@ from amarcord.util import safe_max
 
 TIME_RESOLVED = AttributoId("time-resolved")
 
-SAMPLE_BASED = AttributoId("sample-based")
+CHEMICAL_BASED = AttributoId("chemical-based")
 
 ATTRIBUTO_TRASH = AttributoId("trash")
 
@@ -55,7 +55,7 @@ ATTRIBUTO_FRAME_TIME = AttributoId("frame_time")
 
 ATTRIBUTO_TARGET_FRAME_COUNT = AttributoId("target_frame_count")
 
-ATTRIBUTO_SAMPLE = AttributoId("sample")
+ATTRIBUTO_CHEMICAL = AttributoId("chemical")
 
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -78,14 +78,14 @@ def random_date(start: datetime.datetime, end: datetime.datetime) -> datetime.da
 
 
 def _generate_attributo_value(
-    a: AttributoType, sample_ids: list[int]
+    a: AttributoType, chemical_ids: list[int]
 ) -> AttributoValue:
     if isinstance(a, AttributoTypeInt):
         return random.randint(-300, 300)
     if isinstance(a, AttributoTypeChoice):
         return random.choice(a.values)
-    if isinstance(a, AttributoTypeSample):
-        return random.choice(sample_ids)
+    if isinstance(a, AttributoTypeChemical):
+        return random.choice(chemical_ids)
     if isinstance(a, AttributoTypeString):
         return generate("n/*")  # type: ignore
     if isinstance(a, AttributoTypeBoolean):
@@ -108,12 +108,12 @@ def _generate_attributo_value(
         elements_min = a.min_length if a.min_length is not None else 0
         elements_max = a.max_length if a.max_length is not None else 10
         elements_no = random.randrange(elements_min, elements_max + 1)
-        return [_generate_attributo_value(a.sub_type, sample_ids) for _ in range(elements_no)]  # type: ignore
+        return [_generate_attributo_value(a.sub_type, chemical_ids) for _ in range(elements_no)]  # type: ignore
     raise Exception(f"invalid attributo type {a}")
 
 
 def _generate_attributi_map(
-    attributi: list[DBAttributo], sample_ids: list[int]
+    attributi: list[DBAttributo], chemical_ids: list[int]
 ) -> AttributiMap:
     values: UntypedAttributiMap = {}
     for a in attributi:
@@ -124,7 +124,9 @@ def _generate_attributi_map(
         values[a.name] = _generate_attributo_value(a.attributo_type, [])
 
     return AttributiMap(
-        types_dict={a.name: a for a in attributi}, sample_ids=sample_ids, impl=values
+        types_dict={a.name: a for a in attributi},
+        chemical_ids=chemical_ids,
+        impl=values,
     )
 
 
@@ -136,7 +138,7 @@ def random_person_name() -> str:
 
 async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
     async with db.begin() as conn:
-        if await db.retrieve_samples(
+        if await db.retrieve_chemicals(
             conn, await db.retrieve_attributi(conn, associated_table=None)
         ):
             return
@@ -144,26 +146,26 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         await db.create_attributo(
             conn,
             "producer",
-            "Who produced the sample?",
+            "Who produced the chemical?",
             ATTRIBUTO_GROUP_MANUAL,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeString(),
         )
         await db.create_attributo(
             conn,
             "compound",
-            "What's in the sample?",
+            "What's in the chemical?",
             ATTRIBUTO_GROUP_MANUAL,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeString(),
         )
         await db.create_attributo(
             conn,
-            ATTRIBUTO_SAMPLE,
+            ATTRIBUTO_CHEMICAL,
             "",
             ATTRIBUTO_GROUP_MANUAL,
             AssociatedTable.RUN,
-            AttributoTypeSample(),
+            AttributoTypeChemical(),
         )
         await db.create_attributo(
             conn,
@@ -219,25 +221,25 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
-        sample_names: list[str] = []
+        chemical_names: list[str] = []
 
-        await db.create_experiment_type(conn, SAMPLE_BASED, [ATTRIBUTO_SAMPLE])
+        await db.create_experiment_type(conn, CHEMICAL_BASED, [ATTRIBUTO_CHEMICAL])
         await db.create_experiment_type(
-            conn, TIME_RESOLVED, [ATTRIBUTO_SAMPLE, ATTRIBUTO_FLOW_RATE]
+            conn, TIME_RESOLVED, [ATTRIBUTO_CHEMICAL, ATTRIBUTO_FLOW_RATE]
         )
 
         for _ in range(random.randrange(3, 10)):
-            sample_name = randomname.generate(
+            chemical_name = randomname.generate(
                 "a/materials", ("n/plants", "n/food"), sep=" "
             )
-            while sample_name in sample_names:
-                sample_name = generate("n/plants")
-            sample_id = await db.create_sample(
+            while chemical_name in chemical_names:
+                chemical_name = generate("n/plants")
+            chemical_id = await db.create_chemical(
                 conn,
-                sample_name,
+                chemical_name,
                 AttributiMap.from_types_and_json(
                     attributi,
-                    sample_ids=[],
+                    chemical_ids=[],
                     raw_attributi={
                         "producer": random_person_name(),
                         "compound": randomname.generate("n/minerals"),
@@ -246,9 +248,9 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             )
             await db.create_data_set(
                 conn,
-                SAMPLE_BASED,
+                CHEMICAL_BASED,
                 AttributiMap.from_types_and_json(
-                    attributi, [sample_id], {ATTRIBUTO_SAMPLE: sample_id}
+                    attributi, [chemical_id], {ATTRIBUTO_CHEMICAL: chemical_id}
                 ),
             )
             for current_flow_rate in range(0, 4):
@@ -257,9 +259,9 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
                     TIME_RESOLVED,
                     AttributiMap.from_types_and_json(
                         attributi,
-                        [sample_id],
+                        [chemical_id],
                         {
-                            ATTRIBUTO_SAMPLE: sample_id,
+                            ATTRIBUTO_CHEMICAL: chemical_id,
                             ATTRIBUTO_FLOW_RATE: current_flow_rate,
                         },
                     ),
@@ -269,16 +271,16 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
 async def _start_run(
     db: AsyncDB,
     attributi: list[DBAttributo],
-    sample_ids: list[int],
+    chemical_ids: list[int],
     previous_run_id: int,
-    previous_sample: int | None,
+    previous_chemical: int | None,
 ) -> None:
     async with db.begin() as conn:
 
-        sample = (
-            random.choice(sample_ids)
-            if previous_sample is None or random.uniform(0, 100) > 80
-            else previous_sample
+        chemical = (
+            random.choice(chemical_ids)
+            if previous_chemical is None or random.uniform(0, 100) > 80
+            else previous_chemical
         )
         run_id = previous_run_id + 1
         await db.create_run(
@@ -287,7 +289,7 @@ async def _start_run(
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_raw(
                 attributi,
-                sample_ids=sample_ids,
+                chemical_ids=chemical_ids,
                 raw_attributi={
                     ATTRIBUTO_STARTED: datetime.datetime.utcnow(),
                     ATTRIBUTO_FRAME_TIME: 1.0 / 130.0,
@@ -298,7 +300,7 @@ async def _start_run(
                     ATTRIBUTO_COMMENT: random_gibberish()
                     if random.uniform(0, 100) > 70
                     else "",
-                    ATTRIBUTO_SAMPLE: sample,
+                    ATTRIBUTO_CHEMICAL: chemical,
                 },
             ),
             keep_manual_attributes_from_previous_run=(
@@ -387,7 +389,7 @@ async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> N
     while True:
         async with db.read_only_connection() as conn:
             attributi = await db.retrieve_attributi(conn, associated_table=None)
-            sample_ids = [s.id for s in await db.retrieve_samples(conn, attributi)]
+            chemical_ids = [s.id for s in await db.retrieve_chemicals(conn, attributi)]
             runs = await db.retrieve_runs(conn, attributi)
 
         last_run = safe_max(runs, key=lambda r: r.id)
@@ -397,9 +399,9 @@ async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> N
             await _start_run(
                 db,
                 attributi=attributi,
-                sample_ids=sample_ids,
+                chemical_ids=chemical_ids,
                 previous_run_id=0,
-                previous_sample=None,
+                previous_chemical=None,
             )
         else:
             log = logger.bind(run_id=last_run.id)
@@ -420,10 +422,10 @@ async def experiment_simulator_main_loop(db: AsyncDB, delay_seconds: float) -> N
                     await _start_run(
                         db,
                         attributi=attributi,
-                        sample_ids=sample_ids,
+                        chemical_ids=chemical_ids,
                         previous_run_id=last_run.id,
-                        previous_sample=last_run.attributi.select_int_unsafe(
-                            ATTRIBUTO_SAMPLE
+                        previous_chemical=last_run.attributi.select_int_unsafe(
+                            ATTRIBUTO_CHEMICAL
                         ),
                     )
                 else:

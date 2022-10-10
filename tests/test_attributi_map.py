@@ -5,7 +5,7 @@ import pytest
 
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
-from amarcord.db.attributi_map import SPECIAL_SAMPLE_ID_NONE
+from amarcord.db.attributi_map import SPECIAL_CHEMICAL_ID_NONE
 from amarcord.db.attributi_map import SPECIAL_VALUE_CHOICE_NONE
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributi_map import decimal_attributi_match
@@ -13,12 +13,12 @@ from amarcord.db.attributi_map import run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.numeric_range import NumericRange
@@ -192,27 +192,27 @@ def test_attributi_map_invalid_list_value() -> None:
         )
 
 
-def test_attributi_map_sample_id_zero_is_none() -> None:
+def test_attributi_map_chemical_id_zero_is_none() -> None:
     amap = AttributiMap.from_types_and_json(
-        [_create_attributo(AttributoTypeSample())],
+        [_create_attributo(AttributoTypeChemical())],
         [1],
-        {TEST_ATTRIBUTO_ID: SPECIAL_SAMPLE_ID_NONE},
+        {TEST_ATTRIBUTO_ID: SPECIAL_CHEMICAL_ID_NONE},
     )
-    assert amap.select(TEST_ATTRIBUTO_ID) == SPECIAL_SAMPLE_ID_NONE
+    assert amap.select(TEST_ATTRIBUTO_ID) == SPECIAL_CHEMICAL_ID_NONE
 
 
-def test_attributi_map_check_type_for_sample() -> None:
+def test_attributi_map_check_type_for_chemical() -> None:
     with pytest.raises(Exception):
-        # Give a wrong sample ID for a sample attributo, should not work
+        # Give a wrong chemical ID for a chemical attributo, should not work
         AttributiMap.from_types_and_json(
-            [_create_attributo(AttributoTypeSample())],
+            [_create_attributo(AttributoTypeChemical())],
             [1],
             {TEST_ATTRIBUTO_ID: 2},
         )
 
-    # Give a valid sample ID for a sample attributo, should work
+    # Give a valid chemical ID for a chemical attributo, should work
     am = AttributiMap.from_types_and_json(
-        [_create_attributo(AttributoTypeSample())],
+        [_create_attributo(AttributoTypeChemical())],
         [1],
         {TEST_ATTRIBUTO_ID: 1},
     )
@@ -401,10 +401,10 @@ def test_check_attributo_types_when_extending_non_existing_attributo() -> None:
         )
 
 
-def test_check_attributo_types_when_extending_sample() -> None:
+def test_check_attributo_types_when_extending_chemical() -> None:
     m = AttributiMap.from_types_and_json(
-        [_create_attributo(AttributoTypeSample())],
-        # Only one sample allowed: 1
+        [_create_attributo(AttributoTypeChemical())],
+        # Only one chemical allowed: 1
         [1],
         {},
     )
@@ -412,9 +412,9 @@ def test_check_attributo_types_when_extending_sample() -> None:
     with pytest.raises(Exception):
         m.extend({TEST_ATTRIBUTO_ID: "a"})
     with pytest.raises(Exception):
-        # Sample 3 isn't valid
+        # chemical 3 isn't valid
         m.extend({TEST_ATTRIBUTO_ID: 3})
-    # Sample 1 valid
+    # chemical 1 valid
     m.extend({TEST_ATTRIBUTO_ID: 1})
 
 

@@ -53,7 +53,7 @@ menu =
     [ Leaf { route = Route.RunOverview, description = "Overview", iconName = "card-list" }
     , Dropdown "Library"
         "collection"
-        [ { route = Route.Samples, description = "Samples", iconName = "gem" }
+        [ { route = Route.Chemicals, description = "Chemicals", iconName = "gem" }
         , { route = Route.DataSets, description = "Data Sets", iconName = "folder2" }
         ]
     , Leaf { route = Route.Analysis, description = "Analysis", iconName = "bar-chart-steps" }

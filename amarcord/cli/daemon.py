@@ -57,7 +57,7 @@ class Arguments(Tap):
     # pylint: disable=consider-alternative-union-syntax
     online_crystfel_indexing_script_path: Optional[Path] = None
     # pylint: disable=consider-alternative-union-syntax
-    online_crystfel_sample_attributo: Optional[str] = None
+    online_crystfel_chemical_attributo: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
     online_crystfel_workload_manager_uri: Optional[str] = None
 
@@ -75,7 +75,7 @@ async def _main_loop(args: Arguments) -> None:
         and args.online_crystfel_output_base_directory is not None
         and args.online_crystfel_indexing_script_path is not None
         and args.online_crystfel_workload_manager_uri is not None
-        and args.online_crystfel_sample_attributo is not None
+        and args.online_crystfel_chemical_attributo is not None
         and args.online_crystfel_cell_file_path is not None
     ):
         awaitables.append(
@@ -91,7 +91,7 @@ async def _main_loop(args: Arguments) -> None:
                         args.online_crystfel_output_base_directory,
                         args.online_crystfel_cell_file_path,
                         args.online_crystfel_indexing_script_path,
-                        AttributoId(args.online_crystfel_sample_attributo),
+                        AttributoId(args.online_crystfel_chemical_attributo),
                     ),
                     args.online_crystfel_delay_seconds,
                 )

@@ -1,6 +1,6 @@
-module Amarcord.Pages.Samples exposing (Model, Msg, init, update, view)
+module Amarcord.Pages.Chemicals exposing (Model, Msg, init, update, view)
 
-import Amarcord.API.Requests exposing (RequestError, SamplesResponse, httpCreateFile, httpCreateSample, httpDeleteSample, httpGetSamples, httpUpdateSample)
+import Amarcord.API.Requests exposing (ChemicalsResponse, RequestError, httpCreateChemical, httpCreateFile, httpDeleteChemical, httpGetChemicals, httpUpdateChemical)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo
     exposing
@@ -12,11 +12,11 @@ import Amarcord.Attributo
         )
 import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
+import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (br_, em_, form_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Sample exposing (Sample, SampleId, sampleMapAttributi, sampleMapId)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
 import Dict exposing (Dict)
 import File as ElmFile
@@ -32,8 +32,8 @@ import String
 import Time exposing (Month(..), Posix, Zone)
 
 
-type alias SamplesAndAttributi =
-    { samples : List (Sample SampleId (AttributoMap AttributoValue) File)
+type alias ChemicalsAndAttributi =
+    { chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
     , attributi : List (Attributo AttributoType)
     }
 
@@ -45,11 +45,11 @@ type alias NewFileUpload =
 
 
 type alias Model =
-    { samples : RemoteData RequestError SamplesAndAttributi
-    , deleteModalOpen : Maybe ( String, SampleId )
-    , sampleDeleteRequest : RemoteData RequestError ()
+    { chemicals : RemoteData RequestError ChemicalsAndAttributi
+    , deleteModalOpen : Maybe ( String, ChemicalId )
+    , chemicalDeleteRequest : RemoteData RequestError ()
     , fileUploadRequest : RemoteData RequestError ()
-    , editSample : Maybe (Sample (Maybe Int) EditableAttributiAndOriginal File)
+    , editChemical : Maybe (Chemical (Maybe Int) EditableAttributiAndOriginal File)
     , modifyRequest : RemoteData RequestError ()
     , myTimeZone : Zone
     , submitErrors : List String
@@ -58,18 +58,18 @@ type alias Model =
 
 
 type Msg
-    = SamplesReceived SamplesResponse
+    = ChemicalsReceived ChemicalsResponse
     | CancelDelete
-    | AskDelete String SampleId
-    | InitiateEdit (Sample Int (AttributoMap AttributoValue) File)
-    | ConfirmDelete SampleId
-    | AddSample
-    | EditSampleName String
-    | SampleDeleteFinished (Result RequestError ())
-    | EditSampleSubmit
-    | EditSampleCancel
-    | EditSampleFinished (Result RequestError ())
-    | EditSampleAttributo AttributoNameWithValueUpdate
+    | AskDelete String ChemicalId
+    | InitiateEdit (Chemical Int (AttributoMap AttributoValue) File)
+    | ConfirmDelete ChemicalId
+    | AddChemical
+    | EditChemicalName String
+    | ChemicalDeleteFinished (Result RequestError ())
+    | EditChemicalSubmit
+    | EditChemicalCancel
+    | EditChemicalFinished (Result RequestError ())
+    | EditChemicalAttributo AttributoNameWithValueUpdate
     | EditNewFileDescription String
     | EditNewFileFile ElmFile.File
     | EditFileUpload
@@ -82,17 +82,17 @@ type Msg
 
 init : HereAndNow -> ( Model, Cmd Msg )
 init { zone } =
-    ( { samples = Loading
+    ( { chemicals = Loading
       , deleteModalOpen = Nothing
-      , sampleDeleteRequest = NotAsked
+      , chemicalDeleteRequest = NotAsked
       , modifyRequest = NotAsked
       , fileUploadRequest = NotAsked
-      , editSample = Nothing
+      , editChemical = Nothing
       , myTimeZone = zone
       , submitErrors = []
       , newFileUpload = { file = Nothing, description = "" }
       }
-    , httpGetSamples SamplesReceived
+    , httpGetChemicals ChemicalsReceived
     )
 
 
@@ -177,31 +177,31 @@ viewFiles fileUploadError newFile files =
         filesTable ++ uploadForm
 
 
-viewEditForm : List (Sample SampleId (AttributoMap AttributoValue) File) -> RemoteData RequestError () -> List String -> NewFileUpload -> Sample (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
-viewEditForm samples fileUploadRequest submitErrorsList newFileUpload editingSample =
+viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) File) -> RemoteData RequestError () -> List String -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
+viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingChemical =
     let
         attributoFormMsgToMsg : AttributoFormMsg -> Msg
         attributoFormMsgToMsg x =
             case x of
                 AttributoFormValueUpdate vu ->
-                    EditSampleAttributo vu
+                    EditChemicalAttributo vu
 
-                -- With samples, pressing return and submitting would close the form.
+                -- With chemicals, pressing return and submitting would close the form.
                 -- That's very unexpected!
                 AttributoFormSubmit ->
                     Nop
 
         attributiFormEntries =
-            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] attributo)) editingSample.attributi.editableAttributi
+            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] attributo)) editingChemical.attributi.editableAttributi
 
-        otherSamplesNames =
+        otherChemicalsNames =
             List.map .name <|
-                case editingSample.id of
+                case editingChemical.id of
                     Nothing ->
-                        samples
+                        chemicals
 
                     Just editingId ->
-                        List.filter (\s -> not <| .id s == editingId) samples
+                        List.filter (\s -> not <| .id s == editingId) chemicals
 
         submitErrors =
             case submitErrorsList of
@@ -214,16 +214,16 @@ viewEditForm samples fileUploadRequest submitErrorsList newFileUpload editingSam
                     ]
 
         isDuplicateName =
-            otherSamplesNames
+            otherChemicalsNames
                 |> List.map String.trim
-                |> List.member (String.trim editingSample.name)
+                |> List.member (String.trim editingChemical.name)
 
-        isValidSampleName =
+        isValidChemicalName =
             not isDuplicateName
-                && (String.trim editingSample.name /= "")
+                && (String.trim editingChemical.name /= "")
 
-        isInvalidSampleNameStyle =
-            if not isValidSampleName then
+        isInvalidChemicalNameStyle =
+            if not isValidChemicalName then
                 " is-invalid"
 
             else
@@ -232,14 +232,14 @@ viewEditForm samples fileUploadRequest submitErrorsList newFileUpload editingSam
     form_ <|
         [ h4_
             [ text
-                (if isNothing editingSample.id then
-                    "Add new sample"
+                (if isNothing editingChemical.id then
+                    "Add new chemical"
 
                  else
-                    "Edit sample"
+                    "Edit chemical"
                 )
             ]
-        , p [ class "lead" ] [ text "Note: If you prepared your crystals in multiple batches, please create one sample per batch. This helps during analysis." ]
+        , p [ class "lead" ] [ text "Note: If you prepared your crystals in multiple batches, please create one chemical per batch. This helps during analysis." ]
         , p [ class "lead" ]
             [ text "For the "
             , em_ [ text "space group" ]
@@ -255,13 +255,13 @@ viewEditForm samples fileUploadRequest submitErrorsList newFileUpload editingSam
                 [ type_ "text"
                 , class
                     ("form-control"
-                        ++ isInvalidSampleNameStyle
+                        ++ isInvalidChemicalNameStyle
                     )
                 , id "name"
-                , value editingSample.name
-                , onInput EditSampleName
+                , value editingChemical.name
+                , onInput EditChemicalName
                 ]
-            , if String.trim editingSample.name /= "" then
+            , if String.trim editingChemical.name /= "" then
                 if isDuplicateName then
                     div [ class "invalid-feedback" ] [ text "Name already used" ]
 
@@ -273,18 +273,18 @@ viewEditForm samples fileUploadRequest submitErrorsList newFileUpload editingSam
             ]
         ]
             ++ attributiFormEntries
-            ++ viewFiles fileUploadRequest newFileUpload editingSample.files
+            ++ viewFiles fileUploadRequest newFileUpload editingChemical.files
             ++ submitErrors
             ++ [ button
                     [ class "btn btn-primary me-3 mb-3"
-                    , onClick EditSampleSubmit
-                    , disabled (not isValidSampleName)
+                    , onClick EditChemicalSubmit
+                    , disabled (not isValidChemicalName)
                     , type_ "button"
                     ]
                     [ icon { name = "plus-lg" }
                     , text
-                        (if isNothing editingSample.id then
-                            " Add new sample"
+                        (if isNothing editingChemical.id then
+                            " Add new chemical"
 
                          else
                             " Confirm edit"
@@ -292,15 +292,15 @@ viewEditForm samples fileUploadRequest submitErrorsList newFileUpload editingSam
                     ]
                , button
                     [ class "btn btn-secondary me-3 mb-3"
-                    , onClick EditSampleCancel
+                    , onClick EditChemicalCancel
                     , type_ "button"
                     ]
                     [ icon { name = "x-lg" }, text " Cancel" ]
                ]
 
 
-viewSampleRow : Zone -> List (Attributo AttributoType) -> Sample SampleId (AttributoMap AttributoValue) File -> Html Msg
-viewSampleRow zone attributi sample =
+viewChemicalRow : Zone -> List (Attributo AttributoType) -> Chemical ChemicalId (AttributoMap AttributoValue) File -> Html Msg
+viewChemicalRow zone attributi chemical =
     let
         viewFile { id, type_, fileName, description } =
             li [ class "list-group-item" ] <|
@@ -314,28 +314,28 @@ viewSampleRow zone attributi sample =
                     ]
 
         files =
-            case sample.files of
+            case chemical.files of
                 [] ->
                     text ""
 
                 _ ->
-                    ul [ class "list-group list-group-flush" ] (List.map viewFile sample.files)
+                    ul [ class "list-group list-group-flush" ] (List.map viewFile chemical.files)
     in
     tr_ <|
-        [ td_ [ text <| String.fromInt sample.id ] ]
-            ++ [ td_ [ text sample.name ] ]
-            ++ List.map (viewAttributoCell { shortDateTime = False, colorize = False } zone Dict.empty sample.attributi) attributi
+        [ td_ [ text <| String.fromInt chemical.id ] ]
+            ++ [ td_ [ text chemical.name ] ]
+            ++ List.map (viewAttributoCell { shortDateTime = False, colorize = False } zone Dict.empty chemical.attributi) attributi
             ++ [ td_ [ files ]
                ]
             ++ [ td [ class "text-nowrap" ]
-                    [ button [ class "btn btn-sm btn-danger me-3", onClick (AskDelete sample.name sample.id) ] [ icon { name = "trash" } ]
-                    , button [ class "btn btn-sm btn-info", onClick (InitiateEdit sample) ] [ icon { name = "pencil-square" } ]
+                    [ button [ class "btn btn-sm btn-danger me-3", onClick (AskDelete chemical.name chemical.id) ] [ icon { name = "trash" } ]
+                    , button [ class "btn btn-sm btn-info", onClick (InitiateEdit chemical) ] [ icon { name = "pencil-square" } ]
                     ]
                ]
 
 
-viewSampleTable : Zone -> List (Sample SampleId (AttributoMap AttributoValue) File) -> List (Attributo AttributoType) -> Html Msg
-viewSampleTable zone samples attributi =
+viewChemicalTable : Zone -> List (Chemical ChemicalId (AttributoMap AttributoValue) File) -> List (Attributo AttributoType) -> Html Msg
+viewChemicalTable zone chemicals attributi =
     let
         attributiColumns : List (Html msg)
         attributiColumns =
@@ -352,31 +352,31 @@ viewSampleTable zone samples attributi =
                        ]
             ]
         , tbody_
-            (List.map (viewSampleRow zone attributi) samples)
+            (List.map (viewChemicalRow zone attributi) chemicals)
         ]
 
 
 viewInner : Model -> List (Html Msg)
 viewInner model =
-    case model.samples of
+    case model.chemicals of
         NotAsked ->
             singleton <| text ""
 
         Loading ->
-            singleton <| loadingBar "Loading samples..."
+            singleton <| loadingBar "Loading chemicals..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve samples" ] ] ++ [ showRequestError e ]
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ] ] ++ [ showRequestError e ]
 
-        Success { samples, attributi } ->
+        Success { chemicals, attributi } ->
             let
                 prefix =
-                    case model.editSample of
+                    case model.editChemical of
                         Nothing ->
-                            button [ class "btn btn-primary", onClick AddSample ] [ icon { name = "plus-lg" }, text " Add sample" ]
+                            button [ class "btn btn-primary", onClick AddChemical ] [ icon { name = "plus-lg" }, text " Add chemical" ]
 
-                        Just editSample ->
-                            viewEditForm samples model.fileUploadRequest model.submitErrors model.newFileUpload editSample
+                        Just editChemical ->
+                            viewEditForm chemicals model.fileUploadRequest model.submitErrors model.newFileUpload editChemical
 
                 modifyRequestResult =
                     case model.modifyRequest of
@@ -395,7 +395,7 @@ viewInner model =
                                 ]
 
                 deleteRequestResult =
-                    case model.sampleDeleteRequest of
+                    case model.chemicalDeleteRequest of
                         NotAsked ->
                             text ""
 
@@ -413,7 +413,7 @@ viewInner model =
             prefix
                 :: modifyRequestResult
                 :: deleteRequestResult
-                :: viewSampleTable model.myTimeZone (List.sortBy .id samples) attributi
+                :: viewChemicalTable model.myTimeZone (List.sortBy .id chemicals) attributi
                 :: []
 
 
@@ -425,14 +425,14 @@ view model =
                 Nothing ->
                     []
 
-                Just ( sampleName, sampleId ) ->
+                Just ( chemicalName, chemicalId ) ->
                     [ Dialog.view
                         (Just
                             { header = Nothing
-                            , body = Just (span_ [ text "Really delete sample ", strongText sampleName, text "?" ])
+                            , body = Just (span_ [ text "Really delete chemical ", strongText chemicalName, text "?" ])
                             , closeMessage = Just CancelDelete
                             , containerClass = Nothing
-                            , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete sampleId) ] [ text "Really delete!" ])
+                            , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete chemicalId) ] [ text "Really delete!" ])
                             }
                         )
                     ]
@@ -440,13 +440,13 @@ view model =
     div [ class "container" ] (maybeDeleteModal ++ viewInner model)
 
 
-editSampleFromAttributiAndValues : Zone -> List (Attributo AttributoType) -> Sample (Maybe Int) (AttributoMap AttributoValue) a -> Sample (Maybe Int) EditableAttributiAndOriginal a
-editSampleFromAttributiAndValues zone attributi =
-    sampleMapAttributi (createEditableAttributi zone attributi)
+editChemicalFromAttributiAndValues : Zone -> List (Attributo AttributoType) -> Chemical (Maybe Int) (AttributoMap AttributoValue) a -> Chemical (Maybe Int) EditableAttributiAndOriginal a
+editChemicalFromAttributiAndValues zone attributi =
+    chemicalMapAttributi (createEditableAttributi zone attributi)
 
 
-emptySample : Sample (Maybe Int) (AttributoMap a) b
-emptySample =
+emptyChemical : Chemical (Maybe Int) (AttributoMap a) b
+emptyChemical =
     { id = Nothing, name = "", attributi = emptyAttributoMap, files = [] }
 
 
@@ -457,109 +457,109 @@ emptyNewFileUpload =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        SamplesReceived response ->
-            ( { model | samples = fromResult <| Result.map (\( samples, attributi ) -> { samples = samples, attributi = attributi }) <| response }, Cmd.none )
+        ChemicalsReceived response ->
+            ( { model | chemicals = fromResult <| Result.map (\( chemicals, attributi ) -> { chemicals = chemicals, attributi = attributi }) <| response }, Cmd.none )
 
         -- The user pressed "yes, really delete!" in the modal
-        ConfirmDelete sampleId ->
-            ( { model | sampleDeleteRequest = Loading, deleteModalOpen = Nothing }, httpDeleteSample SampleDeleteFinished sampleId )
+        ConfirmDelete chemicalId ->
+            ( { model | chemicalDeleteRequest = Loading, deleteModalOpen = Nothing }, httpDeleteChemical ChemicalDeleteFinished chemicalId )
 
         -- The user closed the "Really delete?" modal
         CancelDelete ->
             ( { model | deleteModalOpen = Nothing }, Cmd.none )
 
         -- The deletion request for an object finished
-        SampleDeleteFinished result ->
+        ChemicalDeleteFinished result ->
             case result of
                 Err e ->
-                    ( { model | sampleDeleteRequest = Failure e }, Cmd.none )
+                    ( { model | chemicalDeleteRequest = Failure e }, Cmd.none )
 
                 Ok _ ->
-                    ( { model | sampleDeleteRequest = Success () }, httpGetSamples SamplesReceived )
+                    ( { model | chemicalDeleteRequest = Success () }, httpGetChemicals ChemicalsReceived )
 
         -- The user pressed the "Add new object" button
-        AddSample ->
-            case model.samples of
+        AddChemical ->
+            case model.chemicals of
                 Success { attributi } ->
-                    ( { model | editSample = Just (editSampleFromAttributiAndValues model.myTimeZone attributi emptySample) }, Cmd.none )
+                    ( { model | editChemical = Just (editChemicalFromAttributiAndValues model.myTimeZone attributi emptyChemical) }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
 
         -- The name of the object changed
-        EditSampleName newName ->
-            case model.editSample of
+        EditChemicalName newName ->
+            case model.editChemical of
                 Nothing ->
                     ( model, Cmd.none )
 
-                Just editSample ->
-                    ( { model | editSample = Just { editSample | name = newName } }, Cmd.none )
+                Just editChemical ->
+                    ( { model | editChemical = Just { editChemical | name = newName } }, Cmd.none )
 
         -- The user pressed the submit change button (either creating or editing an object)
-        EditSampleSubmit ->
-            case model.editSample of
+        EditChemicalSubmit ->
+            case model.editChemical of
                 Nothing ->
                     ( model, Cmd.none )
 
-                Just editSample ->
+                Just editChemical ->
                     let
                         -- either edit or create, depending on the ID
                         operation =
-                            Maybe.unwrap httpCreateSample (always httpUpdateSample) editSample.id
+                            Maybe.unwrap httpCreateChemical (always httpUpdateChemical) editChemical.id
                     in
                     if model.newFileUpload.description /= "" || isJust model.newFileUpload.file then
                         ( { model | submitErrors = [ "There is still a file in the upload form. Submit or clear the form!" ] }, Cmd.none )
 
                     else
-                        case convertEditValues model.myTimeZone editSample.attributi of
+                        case convertEditValues model.myTimeZone editChemical.attributi of
                             Err errorList ->
                                 ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
                             Ok editedAttributi ->
                                 let
-                                    sampleToSend =
-                                        { id = editSample.id
-                                        , name = editSample.name
+                                    chemicalToSend =
+                                        { id = editChemical.id
+                                        , name = editChemical.name
                                         , attributi = editedAttributi
-                                        , files = List.map .id editSample.files
+                                        , files = List.map .id editChemical.files
                                         }
                                 in
-                                ( { model | modifyRequest = Loading }, operation EditSampleFinished sampleToSend )
+                                ( { model | modifyRequest = Loading }, operation EditChemicalFinished chemicalToSend )
 
-        EditSampleCancel ->
-            ( { model | editSample = Nothing, newFileUpload = emptyNewFileUpload, fileUploadRequest = NotAsked, modifyRequest = NotAsked, sampleDeleteRequest = NotAsked, submitErrors = [] }, Cmd.none )
+        EditChemicalCancel ->
+            ( { model | editChemical = Nothing, newFileUpload = emptyNewFileUpload, fileUploadRequest = NotAsked, modifyRequest = NotAsked, chemicalDeleteRequest = NotAsked, submitErrors = [] }, Cmd.none )
 
-        EditSampleFinished result ->
+        EditChemicalFinished result ->
             case result of
                 Err e ->
                     ( { model | modifyRequest = Failure e }, Cmd.none )
 
                 Ok _ ->
-                    ( { model | modifyRequest = Success (), editSample = Nothing, fileUploadRequest = NotAsked, sampleDeleteRequest = NotAsked, submitErrors = [] }, httpGetSamples SamplesReceived )
+                    ( { model | modifyRequest = Success (), editChemical = Nothing, fileUploadRequest = NotAsked, chemicalDeleteRequest = NotAsked, submitErrors = [] }, httpGetChemicals ChemicalsReceived )
 
-        EditSampleAttributo v ->
-            case model.editSample of
-                -- This is the unlikely case that we have an "attributo was edited" message, but sample is edited
+        EditChemicalAttributo v ->
+            case model.editChemical of
+                -- This is the unlikely case that we have an "attributo was edited" message, but chemical is edited
                 Nothing ->
                     ( model, Cmd.none )
 
-                Just editSample ->
+                Just editChemical ->
                     let
                         newEditable =
-                            editEditableAttributi editSample.attributi.editableAttributi v
+                            editEditableAttributi editChemical.attributi.editableAttributi v
 
-                        newSample =
-                            { editSample | attributi = { originalAttributi = editSample.attributi.originalAttributi, editableAttributi = newEditable } }
+                        newChemical =
+                            { editChemical | attributi = { originalAttributi = editChemical.attributi.originalAttributi, editableAttributi = newEditable } }
                     in
-                    ( { model | editSample = Just newSample }, Cmd.none )
+                    ( { model | editChemical = Just newChemical }, Cmd.none )
 
-        AskDelete sampleName sampleId ->
-            ( { model | deleteModalOpen = Just ( sampleName, sampleId ) }, Cmd.none )
+        AskDelete chemicalName chemicalId ->
+            ( { model | deleteModalOpen = Just ( chemicalName, chemicalId ) }, Cmd.none )
 
-        InitiateEdit sample ->
-            case model.samples of
+        InitiateEdit chemical ->
+            case model.chemicals of
                 Success { attributi } ->
-                    ( { model | editSample = Just (editSampleFromAttributiAndValues model.myTimeZone attributi (sampleMapId Just sample)) }, scrollToTop (always Nop) )
+                    ( { model | editChemical = Just (editChemicalFromAttributiAndValues model.myTimeZone attributi (chemicalMapId Just chemical)) }, scrollToTop (always Nop) )
 
                 _ ->
                     ( model, Cmd.none )
@@ -593,27 +593,27 @@ update msg model =
 
                 Ok file ->
                     let
-                        newEditSample =
-                            case model.editSample of
+                        newEditChemical =
+                            case model.editChemical of
                                 Nothing ->
                                     Nothing
 
-                                Just editSample ->
-                                    Just { editSample | files = file :: editSample.files }
+                                Just editChemical ->
+                                    Just { editChemical | files = file :: editChemical.files }
                     in
-                    ( { model | fileUploadRequest = Success (), newFileUpload = emptyNewFileUpload, editSample = newEditSample }, Cmd.none )
+                    ( { model | fileUploadRequest = Success (), newFileUpload = emptyNewFileUpload, editChemical = newEditChemical }, Cmd.none )
 
         EditFileDelete toDeleteId ->
-            case model.editSample of
+            case model.editChemical of
                 Nothing ->
                     ( model, Cmd.none )
 
-                Just editSample ->
+                Just editChemical ->
                     let
-                        newEditSample =
-                            Just { editSample | files = List.filter (\x -> x.id /= toDeleteId) editSample.files }
+                        newEditChemical =
+                            Just { editChemical | files = List.filter (\x -> x.id /= toDeleteId) editChemical.files }
                     in
-                    ( { model | editSample = newEditSample, fileUploadRequest = NotAsked }, Cmd.none )
+                    ( { model | editChemical = newEditChemical, fileUploadRequest = NotAsked }, Cmd.none )
 
         EditResetNewFileUpload ->
             ( { model | newFileUpload = emptyNewFileUpload }, Cmd.none )

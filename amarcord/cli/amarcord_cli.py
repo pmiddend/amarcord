@@ -38,7 +38,7 @@ async def _main_loop(args: Arguments) -> None:
             attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
-                await db.retrieve_sample_ids(conn),
+                await db.retrieve_chemical_ids(conn),
                 {ATTRIBUTO_STARTED: 1657321200000},
             ),
             keep_manual_attributes_from_previous_run=False,

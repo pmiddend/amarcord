@@ -5,12 +5,12 @@ from amarcord.db.attributi import attributo_type_to_string
 from amarcord.db.attributi import attributo_types_semantically_equivalent
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.json_schema import coparse_schema_type
 from amarcord.json_types import JSONDict
@@ -29,8 +29,8 @@ def test_attributo_type_to_string_string() -> None:
     assert attributo_type_to_string(AttributoTypeString()) == "string"
 
 
-def test_attributo_type_to_string_sample() -> None:
-    assert attributo_type_to_string(AttributoTypeSample()) == "Sample ID"
+def test_attributo_type_to_string_chemical() -> None:
+    assert attributo_type_to_string(AttributoTypeChemical()) == "chemical ID"
 
 
 def test_attributo_type_to_string_choice() -> None:

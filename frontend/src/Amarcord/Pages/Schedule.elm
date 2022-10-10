@@ -1,11 +1,11 @@
 module Amarcord.Pages.Schedule exposing (..)
 
-import Amarcord.API.Requests exposing (ExperimentType, ExperimentTypesResponse, RequestError, SamplesResponse, ScheduleEntry, ScheduleResponse, httpGetSamples, httpGetSchedule, httpUpdateSchedule)
+import Amarcord.API.Requests exposing (ChemicalsResponse, ExperimentType, ExperimentTypesResponse, RequestError, ScheduleEntry, ScheduleResponse, httpGetChemicals, httpGetSchedule, httpUpdateSchedule)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon)
+import Amarcord.Chemical exposing (Chemical, ChemicalId)
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (input_)
-import Amarcord.Sample exposing (Sample, SampleId)
 import Date
 import Dict exposing (Dict)
 import Html exposing (Html, button, div, em, h3, option, select, span, table, tbody, td, text, th, thead, tr)
@@ -26,16 +26,16 @@ type ScheduleMsg
     | RemoveShift ShiftId
     | SubmitDeleteShift ScheduleEntry
     | UpdateNewShiftByColumn TableColumn String
-    | UpdateNewShiftSample String
+    | UpdateNewShiftChemical String
     | UpdateToModifyShiftByColumn TableColumn String
-    | UpdateToModifyShiftSample String
+    | UpdateToModifyShiftChemical String
     | ResetToModifyShift
     | ResetToDeleteShift
-    | SamplesReceived SamplesResponse
+    | ChemicalsReceived ChemicalsResponse
 
 
-type alias SamplesAndAttributi =
-    { samples : List (Sample SampleId (AttributoMap AttributoValue) File)
+type alias ChemicalsAndAttributi =
+    { chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
     , attributi : List (Attributo AttributoType)
     }
 
@@ -53,13 +53,13 @@ type alias ScheduleModel =
     , newScheduleEntry : ScheduleEntry
     , editingScheduleEntry : ScheduleEntryToModify
     , deletingScheduleEntry : ScheduleEntryToModify
-    , samples : RemoteData RequestError SamplesAndAttributi
+    , chemicals : RemoteData RequestError ChemicalsAndAttributi
     }
 
 
 emptyScheduleEntry : ScheduleEntry
 emptyScheduleEntry =
-    { users = "", date = "", shift = "", sampleId = Nothing, comment = "", tdSupport = "" }
+    { users = "", date = "", shift = "", chemicalId = Nothing, comment = "", tdSupport = "" }
 
 
 emptyScheduleEntryToModify : ScheduleEntryToModify
@@ -72,7 +72,7 @@ type TableColumn
     | Shift
     | Users
     | TdSupport
-    | Sample
+    | Chemical
     | Comment
     | Actions
 
@@ -92,7 +92,7 @@ styleColumn column =
         TdSupport ->
             style "width" "8%"
 
-        Sample ->
+        Chemical ->
             style "width" "12%"
 
         Comment ->
@@ -104,13 +104,13 @@ styleColumn column =
 
 initSchedule : ( ScheduleModel, Cmd ScheduleMsg )
 initSchedule =
-    ( { samples = Loading
+    ( { chemicals = Loading
       , schedule = Dict.empty
       , newScheduleEntry = emptyScheduleEntry
       , editingScheduleEntry = emptyScheduleEntryToModify
       , deletingScheduleEntry = emptyScheduleEntryToModify
       }
-    , Cmd.batch [ httpGetSchedule ScheduleReceived, httpGetSamples SamplesReceived ]
+    , Cmd.batch [ httpGetSchedule ScheduleReceived, httpGetChemicals ChemicalsReceived ]
     )
 
 
@@ -126,7 +126,7 @@ view model =
                         , th [ styleColumn Shift ] [ text "Shift" ]
                         , th [ styleColumn Users ] [ text "Users" ]
                         , th [ styleColumn TdSupport ] [ text "TD-Support" ]
-                        , th [ styleColumn Sample ] [ text "Sample" ]
+                        , th [ styleColumn Chemical ] [ text "Chemical" ]
                         , th [ styleColumn Comment ] [ text "Comment" ]
                         , th [ styleColumn Actions ] [ text "Actions" ]
                         ]
@@ -140,40 +140,40 @@ view model =
                     )
                 ]
             ]
-        , case unscheduledSamplesNames model of
+        , case unscheduledChemicalsNames model of
             Nothing ->
                 div [] []
 
             Just us ->
                 div []
-                    [ em [] [ text <| "Following samples have not yet been scheduled: " ]
+                    [ em [] [ text <| "Following chemicals have not yet been scheduled: " ]
                     , span [] [ text <| us ]
                     ]
         ]
 
 
-unscheduledSamplesNames : ScheduleModel -> Maybe String
-unscheduledSamplesNames model =
+unscheduledChemicalsNames : ScheduleModel -> Maybe String
+unscheduledChemicalsNames model =
     let
-        samples =
-            case model.samples of
+        chemicals =
+            case model.chemicals of
                 Success s ->
-                    s.samples
+                    s.chemicals
 
                 _ ->
                     []
 
-        sampleIsNotScheduled s =
-            List.member s.id (Maybe.Extra.values (List.map .sampleId (Dict.values model.schedule))) == False
+        chemicalIsNotScheduled s =
+            List.member s.id (Maybe.Extra.values (List.map .chemicalId (Dict.values model.schedule))) == False
 
-        unscheduledSamples =
-            List.filter sampleIsNotScheduled samples
+        unscheduledChemicals =
+            List.filter chemicalIsNotScheduled chemicals
     in
-    if List.isEmpty unscheduledSamples then
+    if List.isEmpty unscheduledChemicals then
         Nothing
 
     else
-        Just (String.join ", " (List.map .name unscheduledSamples))
+        Just (String.join ", " (List.map .name unscheduledChemicals))
 
 
 scheduleEntryView : ScheduleModel -> ( ShiftId, ScheduleEntry ) -> Html ScheduleMsg
@@ -274,8 +274,8 @@ editingScheduleEntryView model entryToModify idShiftToModify =
                 , onInput (UpdateToModifyShiftByColumn TdSupport)
                 ]
             ]
-        , td [ styleColumn Sample ]
-            [ sampleDropdownEdit entryToModify.sampleId model
+        , td [ styleColumn Chemical ]
+            [ chemicalDropdownEdit entryToModify.chemicalId model
             ]
         , td [ styleColumn Comment ]
             [ input_
@@ -349,17 +349,17 @@ shiftSubview model entry =
     , td [ styleColumn Shift ] [ text entry.shift ]
     , td [ styleColumn Users ] [ text entry.users ]
     , td [ styleColumn TdSupport ] [ text entry.tdSupport ]
-    , td [ styleColumn Sample ]
-        [ case entry.sampleId of
+    , td [ styleColumn Chemical ]
+        [ case entry.chemicalId of
             Nothing ->
                 text ""
 
-            Just sampleId ->
-                case model.samples of
-                    Success samples ->
-                        case List.Extra.find (\sample -> sampleId == sample.id) samples.samples of
+            Just chemicalId ->
+                case model.chemicals of
+                    Success chemicals ->
+                        case List.Extra.find (\chemical -> chemicalId == chemical.id) chemicals.chemicals of
                             Nothing ->
-                                text ("Sample ID " ++ String.fromInt sampleId ++ " is unknown")
+                                text ("Chemical ID " ++ String.fromInt chemicalId ++ " is unknown")
 
                             Just s ->
                                 text s.name
@@ -368,7 +368,7 @@ shiftSubview model entry =
                         text ""
 
                     _ ->
-                        text ("Sample ID " ++ String.fromInt sampleId ++ " is unknown")
+                        text ("Chemical ID " ++ String.fromInt chemicalId ++ " is unknown")
         ]
     , td [ styleColumn Comment ]
         [ text entry.comment ]
@@ -412,8 +412,8 @@ newScheduleEntryView model =
                 , onInput (UpdateNewShiftByColumn TdSupport)
                 ]
             ]
-        , td [ styleColumn Sample ]
-            [ sampleDropdown model
+        , td [ styleColumn Chemical ]
+            [ chemicalDropdown model
             ]
         , td [ styleColumn Comment ]
             [ input_
@@ -431,61 +431,61 @@ newScheduleEntryView model =
         ]
 
 
-sampleDropdown : ScheduleModel -> Html ScheduleMsg
-sampleDropdown model =
+chemicalDropdown : ScheduleModel -> Html ScheduleMsg
+chemicalDropdown model =
     let
-        optionEntry sample =
-            option [ value <| String.fromInt sample.id ] [ text sample.name ]
+        optionEntry chemical =
+            option [ value <| String.fromInt chemical.id ] [ text chemical.name ]
 
-        listSamplesOptions =
+        listChemicalsOptions =
             List.map optionEntry <|
-                case model.samples of
-                    Success samples ->
-                        samples.samples
+                case model.chemicals of
+                    Success chemicals ->
+                        chemicals.chemicals
 
                     _ ->
                         []
     in
-    select [ class "form-select", onInput UpdateNewShiftSample ] <|
+    select [ class "form-select", onInput UpdateNewShiftChemical ] <|
         (option [ selected True ] [ text "«none selected»" ]
-            :: listSamplesOptions
+            :: listChemicalsOptions
         )
 
 
-sampleDropdownEdit : Maybe Int -> ScheduleModel -> Html ScheduleMsg
-sampleDropdownEdit modifiableSampleId model =
+chemicalDropdownEdit : Maybe Int -> ScheduleModel -> Html ScheduleMsg
+chemicalDropdownEdit modifiableChemicalId model =
     let
         isNothingSelected =
-            case modifiableSampleId of
+            case modifiableChemicalId of
                 Nothing ->
                     False
 
                 Just _ ->
                     True
 
-        isSampleSelected sampleId =
-            case modifiableSampleId of
+        isChemicalSelected chemicalId =
+            case modifiableChemicalId of
                 Nothing ->
                     False
 
                 Just i ->
-                    sampleId == i
+                    chemicalId == i
 
-        optionEntry sample =
-            option [ selected (isSampleSelected sample.id), value <| String.fromInt sample.id ] [ text sample.name ]
+        optionEntry chemical =
+            option [ selected (isChemicalSelected chemical.id), value <| String.fromInt chemical.id ] [ text chemical.name ]
 
-        listSamplesOptions =
+        listChemicalsOptions =
             List.map optionEntry <|
-                case model.samples of
-                    Success samples ->
-                        samples.samples
+                case model.chemicals of
+                    Success chemicals ->
+                        chemicals.chemicals
 
                     _ ->
                         []
     in
-    select [ class "form-select", onInput UpdateToModifyShiftSample ] <|
+    select [ class "form-select", onInput UpdateToModifyShiftChemical ] <|
         (option [ selected isNothingSelected ] [ text "«none selected»" ]
-            :: listSamplesOptions
+            :: listChemicalsOptions
         )
 
 
@@ -530,12 +530,12 @@ sortScheduleEntry a b =
                     LT
 
                 EQ ->
-                    case a.sampleId of
+                    case a.chemicalId of
                         Nothing ->
                             EQ
 
                         Just sa ->
-                            case b.sampleId of
+                            case b.chemicalId of
                                 Nothing ->
                                     EQ
 
@@ -596,13 +596,13 @@ updateSchedule msg model =
             , Cmd.none
             )
 
-        UpdateNewShiftSample sampleId ->
+        UpdateNewShiftChemical chemicalId ->
             let
                 nse =
                     model.newScheduleEntry
 
                 ns =
-                    { nse | sampleId = String.toInt sampleId }
+                    { nse | chemicalId = String.toInt chemicalId }
             in
             ( { model | newScheduleEntry = ns }, Cmd.none )
 
@@ -637,14 +637,14 @@ updateSchedule msg model =
             , Cmd.none
             )
 
-        SamplesReceived samplesResponse ->
-            case samplesResponse of
+        ChemicalsReceived chemicalsResponse ->
+            case chemicalsResponse of
                 Ok _ ->
                     ( { model
-                        | samples =
+                        | chemicals =
                             fromResult <|
-                                Result.map (\( samples, attributi ) -> { samples = samples, attributi = attributi }) <|
-                                    samplesResponse
+                                Result.map (\( chemicals, attributi ) -> { chemicals = chemicals, attributi = attributi }) <|
+                                    chemicalsResponse
                       }
                     , Cmd.none
                     )
@@ -700,7 +700,7 @@ updateSchedule msg model =
             , Cmd.none
             )
 
-        UpdateToModifyShiftSample sampleId ->
+        UpdateToModifyShiftChemical chemicalId ->
             let
                 modScheduleEntry =
                     model.editingScheduleEntry
@@ -709,7 +709,7 @@ updateSchedule msg model =
                     modScheduleEntry.scheduleEntry
 
                 fig =
-                    { mid | sampleId = String.toInt sampleId }
+                    { mid | chemicalId = String.toInt chemicalId }
 
                 nse2 =
                     { modScheduleEntry | scheduleEntry = fig }
@@ -760,7 +760,7 @@ updateScheduleEntryByColumn se column data =
 
             _ ->
                 se.comment
-    , sampleId = se.sampleId
+    , chemicalId = se.chemicalId
     }
 
 

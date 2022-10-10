@@ -2,6 +2,7 @@ module Amarcord.API.Requests exposing
     ( AnalysisResultsExperimentType
     , AnalysisResultsRoot
     , AppConfig
+    , ChemicalsResponse
     , ConversionFlags
     , DataSetResult
     , Event
@@ -16,7 +17,6 @@ module Amarcord.API.Requests exposing
     , RunsBulkGetResponse
     , RunsResponse
     , RunsResponseContent
-    , SamplesResponse
     , ScheduleEntry
     , ScheduleResponse
     , StandardUnitCheckResult(..)
@@ -25,33 +25,33 @@ module Amarcord.API.Requests exposing
     , httpChangeCurrentExperimentType
     , httpCheckStandardUnit
     , httpCreateAttributo
+    , httpCreateChemical
     , httpCreateDataSet
     , httpCreateDataSetFromRun
     , httpCreateEvent
     , httpCreateExperimentType
     , httpCreateFile
     , httpCreateLiveStreamSnapshot
-    , httpCreateSample
     , httpDeleteAttributo
+    , httpDeleteChemical
     , httpDeleteDataSet
     , httpDeleteEvent
     , httpDeleteExperimentType
-    , httpDeleteSample
     , httpEditAttributo
     , httpGetAnalysisResults
     , httpGetAndDecodeAttributi
+    , httpGetChemicals
     , httpGetConfig
     , httpGetDataSets
     , httpGetExperimentTypes
     , httpGetRunsBulk
     , httpGetRunsFilter
-    , httpGetSamples
     , httpGetSchedule
     , httpStartRun
     , httpStopRun
+    , httpUpdateChemical
     , httpUpdateRun
     , httpUpdateRunsBulk
-    , httpUpdateSample
     , httpUpdateSchedule
     , httpUserConfigurationSetAutoPilot
     , httpUserConfigurationSetOnlineCrystFEL
@@ -63,10 +63,10 @@ module Amarcord.API.Requests exposing
 
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue(..), attributoDecoder, attributoTypeDecoder)
+import Amarcord.Chemical exposing (Chemical, ChemicalId)
 import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.File exposing (File)
 import Amarcord.JsonSchema exposing (JsonSchema, encodeJsonSchema)
-import Amarcord.Sample exposing (Sample, SampleId)
 import Amarcord.UserError exposing (CustomError, customErrorDecoder)
 import Amarcord.Util exposing (httpDelete, httpPatch)
 import Dict exposing (Dict)
@@ -232,7 +232,7 @@ httpDeleteDataSet f id =
 type alias DataSetResult =
     { dataSets : List DataSet
     , attributi : List (Attributo AttributoType)
-    , samples : List (Sample SampleId (AttributoMap AttributoValue) File)
+    , chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
     , experimentTypes : List ExperimentType
     }
 
@@ -246,7 +246,7 @@ type alias AnalysisResultsExperimentType =
 type alias AnalysisResultsRoot =
     { experimentTypes : Dict String (List AnalysisResultsExperimentType)
     , attributi : List (Attributo AttributoType)
-    , sampleIdToName : Dict Int String
+    , chemicalIdToName : Dict Int String
     }
 
 
@@ -263,7 +263,7 @@ analysisResultsRootDecoder =
     Decode.map3 AnalysisResultsRoot
         (Decode.field "experiment-types" <| Decode.dict (Decode.list analysisResultsExperimentTypeDecoder))
         (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
-        (Decode.field "sample-id-to-name" <|
+        (Decode.field "chemical-id-to-name" <|
             Decode.map Dict.fromList <|
                 Decode.list <|
                     Decode.map2 pair (Decode.index 0 Decode.int) (Decode.index 1 Decode.string)
@@ -302,7 +302,7 @@ dataSetResultDecoder =
         DataSetResult
         (Decode.field "data-sets" <| Decode.list dataSetDecoder)
         (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
-        (Decode.field "samples" <| Decode.list sampleDecoder)
+        (Decode.field "chemicals" <| Decode.list chemicalDecoder)
         (Decode.field "experiment-types" <| Decode.list experimentTypeDecoder)
 
 
@@ -338,7 +338,7 @@ type alias RunsResponseContent =
     , runsDates : List RunEventDate
     , attributi : List (Attributo AttributoType)
     , events : List Event
-    , samples : List (Sample Int (AttributoMap AttributoValue) File)
+    , chemicals : List (Chemical Int (AttributoMap AttributoValue) File)
     , dataSets : List DataSet
     , experimentTypes : Dict String (Set String)
     , autoPilot : Bool
@@ -456,7 +456,7 @@ getRuns path f =
                         |> required "filter-dates" (Decode.list decodeRunEventDate)
                         |> required "attributi" (Decode.list (attributoDecoder attributoTypeDecoder))
                         |> required "events" (Decode.list eventDecoder)
-                        |> required "samples" (Decode.list sampleDecoder)
+                        |> required "chemicals" (Decode.list chemicalDecoder)
                         |> required "data-sets" (Decode.list dataSetDecoder)
                         |> required "experiment-types" (Decode.dict (Decode.map Set.fromList <| Decode.list Decode.string))
                         |> required "auto-pilot" Decode.bool
@@ -638,7 +638,7 @@ encodeRunsBulkGetRequest bg =
 type alias RunsBulkGetResponse =
     { attributiMap : AttributoMap (List AttributoValue)
     , attributi : List (Attributo AttributoType)
-    , samples : List (Sample SampleId (AttributoMap AttributoValue) File)
+    , chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
     }
 
 
@@ -653,7 +653,7 @@ httpGetRunsBulk f a =
                     Decode.map3 RunsBulkGetResponse
                         (Decode.field "attributi-map" <| Decode.dict (Decode.list attributoValueDecoder))
                         (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
-                        (Decode.field "samples" <| Decode.list sampleDecoder)
+                        (Decode.field "chemicals" <| Decode.list chemicalDecoder)
         }
 
 
@@ -776,22 +776,22 @@ encodeAssociatedTable x =
         AssociatedTable.Run ->
             Encode.string "run"
 
-        AssociatedTable.Sample ->
-            Encode.string "sample"
+        AssociatedTable.Chemical ->
+            Encode.string "chemical"
 
 
-sampleDecoder : Decode.Decoder (Sample SampleId (AttributoMap AttributoValue) File)
-sampleDecoder =
+chemicalDecoder : Decode.Decoder (Chemical ChemicalId (AttributoMap AttributoValue) File)
+chemicalDecoder =
     Decode.map4
-        Sample
+        Chemical
         (Decode.field "id" Decode.int)
         (Decode.field "name" Decode.string)
         (Decode.field "attributi" attributoMapDecoder)
         (Decode.field "files" (Decode.list fileDecoder))
 
 
-encodeSample : Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Encode.Value
-encodeSample s =
+encodeChemical : Chemical (Maybe Int) (AttributoMap AttributoValue) Int -> Encode.Value
+encodeChemical s =
     Encode.object <|
         [ ( "name", Encode.string s.name )
         , ( "attributi", encodeAttributoMap s.attributi )
@@ -800,46 +800,46 @@ encodeSample s =
             ++ unwrap [] (\id -> [ ( "id", Encode.int id ) ]) s.id
 
 
-type alias SamplesResponse =
-    Result RequestError ( List (Sample SampleId (AttributoMap AttributoValue) File), List (Attributo AttributoType) )
+type alias ChemicalsResponse =
+    Result RequestError ( List (Chemical ChemicalId (AttributoMap AttributoValue) File), List (Attributo AttributoType) )
 
 
-httpGetSamples : (SamplesResponse -> msg) -> Cmd msg
-httpGetSamples f =
+httpGetChemicals : (ChemicalsResponse -> msg) -> Cmd msg
+httpGetChemicals f =
     Http.get
-        { url = "api/samples"
+        { url = "api/chemicals"
         , expect =
             Http.expectJson (f << httpResultToRequestError) <|
                 valueOrError <|
-                    Decode.map2 (\samples attributi -> ( samples, attributi ))
-                        (Decode.field "samples" <| Decode.list sampleDecoder)
+                    Decode.map2 (\chemicals attributi -> ( chemicals, attributi ))
+                        (Decode.field "chemicals" <| Decode.list chemicalDecoder)
                         (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
         }
 
 
-httpCreateSample : (Result RequestError () -> msg) -> Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd msg
-httpCreateSample f a =
+httpCreateChemical : (Result RequestError () -> msg) -> Chemical (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd msg
+httpCreateChemical f a =
     Http.post
-        { url = "api/samples"
+        { url = "api/chemicals"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
-        , body = jsonBody (encodeSample a)
+        , body = jsonBody (encodeChemical a)
         }
 
 
-httpUpdateSample : (Result RequestError () -> msg) -> Sample (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd msg
-httpUpdateSample f a =
+httpUpdateChemical : (Result RequestError () -> msg) -> Chemical (Maybe Int) (AttributoMap AttributoValue) Int -> Cmd msg
+httpUpdateChemical f a =
     httpPatch
-        { url = "api/samples"
+        { url = "api/chemicals"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
-        , body = jsonBody (encodeSample a)
+        , body = jsonBody (encodeChemical a)
         }
 
 
-httpDeleteSample : (Result RequestError () -> msg) -> Int -> Cmd msg
-httpDeleteSample f sampleId =
+httpDeleteChemical : (Result RequestError () -> msg) -> Int -> Cmd msg
+httpDeleteChemical f chemicalId =
     httpDelete
-        { url = "api/samples"
-        , body = jsonBody (Encode.object [ ( "id", Encode.int sampleId ) ])
+        { url = "api/chemicals"
+        , body = jsonBody (Encode.object [ ( "id", Encode.int chemicalId ) ])
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         }
 
@@ -898,7 +898,7 @@ type alias ScheduleResponse =
 
 type alias ScheduleEntry =
     { users : String
-    , sampleId : Maybe Int
+    , chemicalId : Maybe Int
     , date : String
     , shift : String
     , comment : String
@@ -911,7 +911,7 @@ scheduleEntryDecoder =
     Decode.map6
         ScheduleEntry
         (Decode.field "users" Decode.string)
-        (Decode.maybe (Decode.field "sample_id" Decode.int))
+        (Decode.maybe (Decode.field "chemical_id" Decode.int))
         (Decode.field "date" Decode.string)
         (Decode.field "shift" Decode.string)
         (Decode.field "comment" Decode.string)
@@ -947,7 +947,7 @@ encodeScheduleList se =
         [ ( "users", Encode.string se.users )
         , ( "shift", Encode.string se.shift )
         , ( "date", Encode.string se.date )
-        , ( "sample_id", MaybeExtra.unwrap Encode.null Encode.int se.sampleId )
+        , ( "chemical_id", MaybeExtra.unwrap Encode.null Encode.int se.chemicalId )
         , ( "comment", Encode.string se.comment )
         , ( "td_support", Encode.string se.tdSupport )
         ]

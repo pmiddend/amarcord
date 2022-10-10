@@ -5,7 +5,7 @@ import Json.Decode as Decode
 
 type AssociatedTable
     = Run
-    | Sample
+    | Chemical
 
 
 associatedTableDecoder : Decode.Decoder AssociatedTable
@@ -17,8 +17,8 @@ associatedTableDecoder =
                     "run" ->
                         Decode.succeed Run
 
-                    "sample" ->
-                        Decode.succeed Sample
+                    "chemical" ->
+                        Decode.succeed Chemical
 
                     _ ->
                         Decode.fail <| "unknown table " ++ str
@@ -31,5 +31,5 @@ associatedTableToString x =
         Run ->
             "Run"
 
-        Sample ->
-            "Sample"
+        Chemical ->
+            "Chemical"

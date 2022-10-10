@@ -59,7 +59,7 @@ type AttributoTypeEnum
     = ATInt
     | ATDateTime
     | ATBoolean
-    | ATSample
+    | ATChemical
     | ATString
     | ATList
     | ATNumber
@@ -75,8 +75,8 @@ attributoTypeEnumToString x =
         ATDateTime ->
             "date-time"
 
-        ATSample ->
-            "sample"
+        ATChemical ->
+            "chemical"
 
         ATString ->
             "string"
@@ -103,8 +103,8 @@ attributoTypeToEnum x =
         DateTime ->
             ATDateTime
 
-        SampleId ->
-            ATSample
+        ChemicalId ->
+            ATChemical
 
         String ->
             ATString
@@ -146,8 +146,8 @@ initialAttributoAugType x =
         ATDateTime ->
             AugSimple DateTime
 
-        ATSample ->
-            AugSimple SampleId
+        ATChemical ->
+            AugSimple ChemicalId
 
         ATString ->
             AugSimple String
@@ -177,7 +177,7 @@ attributoAugTypeToEnum x =
 
 emptyAugAttributo : Attributo AttributoTypeAug
 emptyAugAttributo =
-    { name = "", description = "", group = manualAttributiGroup, associatedTable = Sample, type_ = AugSimple String }
+    { name = "", description = "", group = manualAttributiGroup, associatedTable = Chemical, type_ = AugSimple String }
 
 
 attributoTypeToJsonSchema : AttributoType -> JsonSchema
@@ -189,8 +189,8 @@ attributoTypeToJsonSchema x =
         DateTime ->
             JsonSchemaInteger { format = Just "date-time" }
 
-        SampleId ->
-            JsonSchemaInteger { format = Just "sample-id" }
+        ChemicalId ->
+            JsonSchemaInteger { format = Just "chemical-id" }
 
         String ->
             JsonSchemaString { enum = Nothing }
@@ -411,8 +411,8 @@ attributoTypeToHtml x =
         DateTime ->
             [ text "date-time" ]
 
-        SampleId ->
-            [ text "sample ID" ]
+        ChemicalId ->
+            [ text "chemical ID" ]
 
         String ->
             [ text "string" ]
@@ -568,11 +568,11 @@ viewTypeSpecificForm toleranceChecker x =
                     ]
                 ]
 
-        AugSimple SampleId ->
+        AugSimple ChemicalId ->
             p_
                 [ text "A run can have one or more "
-                , em_ [ text "sample" ]
-                , text " attributi. In the simplest case, just give one sample attributo to signify the sample that is to be screened. But it's up to you designing the experiment."
+                , em_ [ text "chemical" ]
+                , text " attributi. In the simplest case, just give one chemical attributo to signify the chemical that is to be screened. But it's up to you designing the experiment."
                 ]
 
         AugSimple _ ->
@@ -803,9 +803,9 @@ attributoTypesForTable x =
     in
     case x of
         Run ->
-            ATSample :: baseTypes
+            ATChemical :: baseTypes
 
-        Sample ->
+        Chemical ->
             baseTypes
 
 
@@ -887,13 +887,13 @@ viewEditForm model attributiList attributo =
                     ]
                 , div [ class "form-check form-check-inline" ]
                     [ input_
-                        [ id "associated-table-sample"
+                        [ id "associated-table-chemical"
                         , class "form-check-input"
                         , type_ "radio"
-                        , checked (attributo.associatedTable == Sample)
-                        , onInput (\_ -> EditAttributoAssociatedTable Sample)
+                        , checked (attributo.associatedTable == Chemical)
+                        , onInput (\_ -> EditAttributoAssociatedTable Chemical)
                         ]
-                    , label [ for "associated-table-sample" ] [ text "Sample" ]
+                    , label [ for "associated-table-chemical" ] [ text "Chemical" ]
                     ]
                 ]
             ]
@@ -1016,7 +1016,7 @@ viewInner model =
                 --            ]
                 --        , div [ id "collapseHelp", class "accordion-collapse collapse" ]
                 --            [ div [ class "accordion-body" ]
-                --                [ p_ [ text "Every experiment is a little different. Different detectors, different samples, you name it!" ]
+                --                [ p_ [ text "Every experiment is a little different. Different detectors, different chemicals, you name it!" ]
                 --                ]
                 --            ]
                 --        ]

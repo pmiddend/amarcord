@@ -12,8 +12,8 @@ from lark import Transformer
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeInt
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.table_classes import DBRun
 from amarcord.util import maybe_you_meant
@@ -66,7 +66,7 @@ identifier_string: IDENTIFIER | STRING
 @dataclass(frozen=True)
 class FilterInput:
     run: DBRun
-    sample_names: Dict[str, int]
+    chemical_names: Dict[str, int]
 
 
 RunFilterFunction: TypeAlias = Callable[[FilterInput], bool]
@@ -83,24 +83,24 @@ def _transform_comparison_operand_before_comparison(
     aid: AttributoId,
     input_: AttributoValue,
     type_: AttributoType,
-    sample_names: dict[str, int],
+    chemical_names: dict[str, int],
 ) -> AttributoValue:
-    if isinstance(type_, AttributoTypeSample):
+    if isinstance(type_, AttributoTypeChemical):
         if isinstance(input_, (int, float)):
-            if input_ not in sample_names.values():
+            if input_ not in chemical_names.values():
                 raise FilterParseError(
-                    f'attributo "{aid}": the sample ID {input_} is not known. You can also specify the sample name if you don\'t want to use the ID.'
+                    f'attributo "{aid}": the chemical ID {input_} is not known. You can also specify the chemical name if you don\'t want to use the ID.'
                 )
             return input_
         if isinstance(input_, str):
-            sample_id_from_dict = sample_names.get(input_)
-            if sample_id_from_dict is None:
+            chemical_id_from_dict = chemical_names.get(input_)
+            if chemical_id_from_dict is None:
                 raise FilterParseError(
-                    f'sample with name "{input_}" not found{maybe_you_meant(input_, sample_names.keys())}'
+                    f'chemical with name "{input_}" not found{maybe_you_meant(input_, chemical_names.keys())}'
                 )
-            return sample_id_from_dict
+            return chemical_id_from_dict
         raise FilterParseError(
-            f'attributo "{aid}" is of type "Sample ID", so we excepted a string (the sample name) or the sample ID. However, we got "{input_}".'
+            f'attributo "{aid}" is of type "Chemical ID", so we excepted a string (the chemical name) or the chemical ID. However, we got "{input_}".'
         )
     return input_
 
@@ -127,7 +127,7 @@ def _comparison_filter(
         type_ = attributo.attributo_type
         attributo_value = run.attributi.select(aid)
     operand_processed = _transform_comparison_operand_before_comparison(
-        aid, operand, type_, filter_input.sample_names
+        aid, operand, type_, filter_input.chemical_names
     )
     try:
         return comparison_op(attributo_value, operand_processed)

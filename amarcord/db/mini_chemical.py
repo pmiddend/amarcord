@@ -2,6 +2,6 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, eq=True)
-class DBMiniSample:
-    sample_id: int
-    sample_name: str
+class DBMiniChemical:
+    chemical_id: int
+    chemical_name: str

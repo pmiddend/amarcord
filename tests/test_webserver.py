@@ -12,10 +12,10 @@ IN_MEMORY_DB_URL = "sqlite+aiosqlite://"
 
 TEST_ATTRIBUTO_NAME = "testattributo"
 TEST_ATTRIBUTO_NAME2 = "testattributo2"
-TEST_SAMPLE_NAME = "samplename"
+TEST_chemical_NAME = "chemicalname"
 
 
-async def test_read_samples() -> None:
+async def test_read_chemicals() -> None:
     app.config.update(
         {
             "DB_URL": "sqlite+aiosqlite://",
@@ -26,13 +26,13 @@ async def test_read_samples() -> None:
     await db.initialize_db()
     client = app.test_client()
 
-    result = await client.get("/api/samples")
+    result = await client.get("/api/chemicals")
     json = JSONChecker(await result.json, "response")
 
-    assert len(json.retrieve_safe_list("samples")) == 0
+    assert len(json.retrieve_safe_list("chemicals")) == 0
 
 
-async def test_update_samples() -> None:
+async def test_update_chemicals() -> None:
     app.config.update(
         {
             "DB_URL": "sqlite+aiosqlite://",
@@ -49,7 +49,7 @@ async def test_update_samples() -> None:
             "name": TEST_ATTRIBUTO_NAME,
             "description": "description",
             "group": ATTRIBUTO_GROUP_MANUAL,
-            "associatedTable": "sample",
+            "associatedTable": "chemical",
             "type": {"type": "string"},
         },
     )
@@ -59,28 +59,28 @@ async def test_update_samples() -> None:
             "name": TEST_ATTRIBUTO_NAME2,
             "description": "description",
             "group": ATTRIBUTO_GROUP_MANUAL,
-            "associatedTable": "sample",
+            "associatedTable": "chemical",
             "type": {"type": "string"},
         },
     )
 
     result = await client.post(
-        "/api/samples",
+        "/api/chemicals",
         json={
-            "name": TEST_SAMPLE_NAME,
+            "name": TEST_chemical_NAME,
             "attributi": {TEST_ATTRIBUTO_NAME: "foo", TEST_ATTRIBUTO_NAME2: "bar"},
             "fileIds": [],
         },
     )
 
     json = JSONChecker(await result.json, "response")
-    sample_id = json.retrieve_safe_int("id")
+    chemical_id = json.retrieve_safe_int("id")
 
     result = await client.patch(
-        "/api/samples",
+        "/api/chemicals",
         json={
-            "id": sample_id,
-            "name": TEST_SAMPLE_NAME,
+            "id": chemical_id,
+            "name": TEST_chemical_NAME,
             # Only update hte second attributo. The first should stay the same.
             "attributi": {TEST_ATTRIBUTO_NAME2: "baz"},
             "fileIds": [],
@@ -89,15 +89,15 @@ async def test_update_samples() -> None:
 
     assert result.status_code == 200
 
-    result = await client.get("/api/samples")
+    result = await client.get("/api/chemicals")
     json = JSONChecker(await result.json, "response")
 
-    samples: list[JSONDict] = json.retrieve_array("samples")
-    assert len(samples) == 1
+    chemicals: list[JSONDict] = json.retrieve_array("chemicals")
+    assert len(chemicals) == 1
 
-    assert samples[0]["id"] == sample_id
-    assert samples[0]["attributi"][TEST_ATTRIBUTO_NAME] == "foo"  # type: ignore
-    assert samples[0]["attributi"][TEST_ATTRIBUTO_NAME2] == "baz"  # type: ignore
+    assert chemicals[0]["id"] == chemical_id
+    assert chemicals[0]["attributi"][TEST_ATTRIBUTO_NAME] == "foo"  # type: ignore
+    assert chemicals[0]["attributi"][TEST_ATTRIBUTO_NAME2] == "baz"  # type: ignore
 
 
 async def test_data_sets() -> None:

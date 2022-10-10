@@ -10,12 +10,12 @@ from pint import UnitRegistry
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
@@ -36,7 +36,7 @@ from amarcord.util import str_to_int
 
 _ATTRIBUTO_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
-_JSON_SCHEMA_INTEGER_SAMPLE_ID: Final = JSONSchemaCustomIntegerFormat("sample-id")
+_JSON_SCHEMA_INTEGER_CHEMICAL_ID: Final = JSONSchemaCustomIntegerFormat("chemical-id")
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +75,8 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
         return AttributoTypeBoolean()
     if isinstance(parsed_schema, JSONSchemaInteger):
         if parsed_schema.format_ is not None:
-            if parsed_schema.format_ == _JSON_SCHEMA_INTEGER_SAMPLE_ID:
-                return AttributoTypeSample()
+            if parsed_schema.format_ == _JSON_SCHEMA_INTEGER_CHEMICAL_ID:
+                return AttributoTypeChemical()
             if parsed_schema.format_ == JSONSchemaIntegerFormat.DATE_TIME:
                 return AttributoTypeDateTime()
             raise Exception(f'integer with format "{parsed_schema.format_}" invalid')
@@ -143,8 +143,8 @@ def attributo_type_to_string(pt: AttributoType) -> str:
         return "yes/no"
     if isinstance(pt, AttributoTypeString):
         return "string"
-    if isinstance(pt, AttributoTypeSample):
-        return "Sample ID"
+    if isinstance(pt, AttributoTypeChemical):
+        return "chemical ID"
     if isinstance(pt, AttributoTypeChoice):
         return "one of " + ", ".join(pt.values)
     if isinstance(pt, AttributoTypeDecimal):
@@ -220,8 +220,8 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONSchemaType:
         )
     if isinstance(rp, AttributoTypeString):
         return JSONSchemaString(enum_=None)
-    if isinstance(rp, AttributoTypeSample):
-        return JSONSchemaInteger(format_=_JSON_SCHEMA_INTEGER_SAMPLE_ID)
+    if isinstance(rp, AttributoTypeChemical):
+        return JSONSchemaInteger(format_=_JSON_SCHEMA_INTEGER_CHEMICAL_ID)
     if isinstance(rp, AttributoTypeChoice):
         return JSONSchemaString(enum_=rp.values)
     if isinstance(rp, AttributoTypeDateTime):
@@ -665,8 +665,11 @@ _conversion_matrix.update(
             AttributoTypeBoolean,
             AttributoTypeDecimal,
         ): _convert_boolean_to_double,
-        # start sample
-        (AttributoTypeSample, AttributoTypeSample): lambda before, after, flags, v: v,
+        # start chemical
+        (
+            AttributoTypeChemical,
+            AttributoTypeChemical,
+        ): lambda before, after, flags, v: v,
         # start datetime
         (
             AttributoTypeDateTime,

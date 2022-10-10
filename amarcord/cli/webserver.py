@@ -54,10 +54,10 @@ from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
+from amarcord.db.table_classes import DBChemical
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBFile
 from amarcord.db.table_classes import DBRun
-from amarcord.db.table_classes import DBSample
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
@@ -160,64 +160,64 @@ async def download_spreadsheet() -> quart.wrappers.response.Response:
         )
 
 
-@app.post("/api/samples")
-async def create_sample() -> JSONDict:
+@app.post("/api/chemicals")
+async def create_chemical() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
-        sample_id = await db.instance.create_sample(
+        chemical_id = await db.instance.create_chemical(
             conn,
             name=r.retrieve_safe_str("name"),
             attributi=AttributiMap.from_types_and_json(
-                await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE),
-                sample_ids=[],
+                await db.instance.retrieve_attributi(conn, AssociatedTable.CHEMICAL),
+                chemical_ids=[],
                 raw_attributi=r.retrieve_safe_object("attributi"),
             ),
         )
         file_ids = r.retrieve_int_array("fileIds")
         for file_id in file_ids:
-            await db.instance.add_file_to_sample(conn, file_id, sample_id)
+            await db.instance.add_file_to_chemical(conn, file_id, chemical_id)
 
-    return {"id": sample_id}
+    return {"id": chemical_id}
 
 
-@app.patch("/api/samples")
-async def update_sample() -> JSONDict:
+@app.patch("/api/chemicals")
+async def update_chemical() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
-        sample_id = r.retrieve_safe_int("id")
-        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.SAMPLE)
-        sample = await db.instance.retrieve_sample(conn, sample_id, attributi)
-        assert sample is not None
-        sample_attributi = sample.attributi
-        sample_attributi.extend_with_attributi_map(
+        chemical_id = r.retrieve_safe_int("id")
+        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.CHEMICAL)
+        chemical = await db.instance.retrieve_chemical(conn, chemical_id, attributi)
+        assert chemical is not None
+        chemical_attributi = chemical.attributi
+        chemical_attributi.extend_with_attributi_map(
             AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi=r.retrieve_safe_object("attributi"),
             )
         )
-        await db.instance.update_sample(
+        await db.instance.update_chemical(
             conn,
-            id_=sample_id,
+            id_=chemical_id,
             name=r.retrieve_safe_str("name"),
-            attributi=sample_attributi,
+            attributi=chemical_attributi,
         )
-        await db.instance.remove_files_from_sample(conn, sample_id)
+        await db.instance.remove_files_from_chemical(conn, chemical_id)
         file_ids = r.retrieve_int_array("fileIds")
         for file_id in file_ids:
-            await db.instance.add_file_to_sample(conn, file_id, sample_id)
+            await db.instance.add_file_to_chemical(conn, file_id, chemical_id)
 
     return {}
 
 
-@app.delete("/api/samples")
-async def delete_sample() -> JSONDict:
+@app.delete("/api/chemicals")
+async def delete_chemical() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
-        await db.instance.delete_sample(
+        await db.instance.delete_chemical(
             conn, id_=r.retrieve_safe_int("id"), delete_in_dependencies=True
         )
 
@@ -235,7 +235,7 @@ def _encode_file(f: DBFile) -> JSONDict:
     }
 
 
-def _encode_sample(a: DBSample) -> JSONDict:
+def _encode_chemical(a: DBChemical) -> JSONDict:
     return {
         "id": a.id,
         "name": a.name,
@@ -244,16 +244,16 @@ def _encode_sample(a: DBSample) -> JSONDict:
     }
 
 
-@app.get("/api/samples")
-async def read_samples() -> JSONDict:
+@app.get("/api/chemicals")
+async def read_chemicals() -> JSONDict:
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(
-            conn, associated_table=AssociatedTable.SAMPLE
+            conn, associated_table=AssociatedTable.CHEMICAL
         )
         result: JSONDict = {
-            "samples": [
-                _encode_sample(a)
-                for a in await db.instance.retrieve_samples(conn, attributi)
+            "chemicals": [
+                _encode_chemical(a)
+                for a in await db.instance.retrieve_chemicals(conn, attributi)
             ],
             "attributi": [_encode_attributo(a) for a in attributi],
         }
@@ -292,7 +292,7 @@ async def start_run(run_id: int) -> JSONDict:
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_raw(
                 types=attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={ATTRIBUTO_STARTED: datetime.datetime.utcnow()},
             ),
             keep_manual_attributes_from_previous_run=True,
@@ -335,10 +335,10 @@ async def update_run() -> JSONDict:
                 title=f"Couldn't find run {run_id}, was it deleted?",
                 description="",
             )
-        sample_ids = await db.instance.retrieve_sample_ids(conn)
+        chemical_ids = await db.instance.retrieve_chemical_ids(conn)
         raw_attributi = r.retrieve_safe_object("attributi")
         current_run.attributi.extend_with_attributi_map(
-            AttributiMap.from_types_and_json(attributi, sample_ids, raw_attributi)
+            AttributiMap.from_types_and_json(attributi, chemical_ids, raw_attributi)
         )
         await db.instance.update_run_attributi(
             conn,
@@ -365,9 +365,9 @@ async def read_runs_bulk() -> JSONDict:
 
     async with db.instance.read_only_connection() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
-        samples = await db.instance.retrieve_samples(conn, attributi)
+        chemicals = await db.instance.retrieve_chemicals(conn, attributi)
         return {
-            "samples": [_encode_sample(s) for s in samples],
+            "chemicals": [_encode_chemical(s) for s in chemicals],
             "attributi": [
                 _encode_attributo(a)
                 for a in attributi
@@ -401,7 +401,7 @@ async def update_runs_bulk() -> JSONDict:
             set(r.retrieve_int_array("run-ids")),
             AttributiMap.from_types_and_json(
                 attributi,
-                await db.instance.retrieve_sample_ids(conn),
+                await db.instance.retrieve_chemical_ids(conn),
                 r.retrieve_safe_object("attributi"),
             ),
         )
@@ -436,10 +436,10 @@ async def read_runs() -> JSONDict:
     async with db.instance.read_only_connection() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
         attributi.sort(key=attributo_sort_key)
-        samples = await db.instance.retrieve_samples(conn, attributi)
+        chemicals = await db.instance.retrieve_chemicals(conn, attributi)
         experiment_types = await db.instance.retrieve_experiment_types(conn)
         data_sets = await db.instance.retrieve_data_sets(
-            conn, [s.id for s in samples], attributi
+            conn, [s.id for s in chemicals], attributi
         )
         all_runs = await db.instance.retrieve_runs(conn, attributi)
         all_events = await db.instance.retrieve_events(conn)
@@ -450,7 +450,9 @@ async def read_runs() -> JSONDict:
                 run
                 for run in all_runs
                 if run_filter(
-                    FilterInput(run=run, sample_names={s.name: s.id for s in samples})
+                    FilterInput(
+                        run=run, chemical_names={s.name: s.id for s in chemicals}
+                    )
                 )
             ]
         except FilterParseError as e:
@@ -514,7 +516,7 @@ async def read_runs() -> JSONDict:
                 for a in data_sets
             ],
             "events": [_encode_event(e) for e in events],
-            "samples": [_encode_sample(a) for a in samples],
+            "chemicals": [_encode_chemical(a) for a in chemicals],
             AUTO_PILOT: user_configuration.auto_pilot,
             ONLINE_CRYSTFEL: user_configuration.use_online_crystfel,
         }
@@ -734,7 +736,7 @@ async def update_beamtime_schedule() -> JSONDict:
                     shift=shift_dict.get("shift", None),
                     comment=shift_dict.get("comment", ""),
                     td_support=shift_dict.get("td_support", ""),
-                    sample_id=shift_dict.get("sample_id", None),
+                    chemical_id=shift_dict.get("chemical_id", None),
                 )
                 for shift_dict in request_json.retrieve_safe_list("schedule")
             ],
@@ -850,7 +852,7 @@ async def create_data_set_from_run() -> JSONDict:
 
         attributi_map = AttributiMap(
             {a.name: a for a in attributi},
-            await db.instance.retrieve_sample_ids(conn),
+            await db.instance.retrieve_chemical_ids(conn),
             {
                 an: run.attributi.select(an)
                 for an in experiment_type_resolved.attributo_names
@@ -869,9 +871,9 @@ async def create_data_set() -> JSONDict:
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
         attributi_by_name: dict[str, DBAttributo] = {a.name: a for a in attributi}
-        sample_ids = await db.instance.retrieve_sample_ids(conn)
+        chemical_ids = await db.instance.retrieve_chemical_ids(conn)
         previous_data_sets = await db.instance.retrieve_data_sets(
-            conn, sample_ids, attributi
+            conn, chemical_ids, attributi
         )
 
         experiment_type_name = r.retrieve_safe_str("experiment-type")
@@ -933,7 +935,7 @@ async def create_data_set() -> JSONDict:
             experiment_type=experiment_type_name,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids,
+                chemical_ids,
                 processed_attributi,
             ),
         )
@@ -968,18 +970,18 @@ async def read_data_sets() -> JSONDict:
         attributi = list(
             await db.instance.retrieve_attributi(conn, associated_table=None)
         )
-        samples = await db.instance.retrieve_samples(conn, attributi)
+        chemicals = await db.instance.retrieve_chemicals(conn, attributi)
         experiment_types = await db.instance.retrieve_experiment_types(conn)
         return {
             "data-sets": [
                 _encode_data_set(a, summary=None)
                 for a in await db.instance.retrieve_data_sets(
                     conn,
-                    [s.id for s in samples],
+                    [s.id for s in chemicals],
                     attributi,
                 )
             ],
-            "samples": [_encode_sample(s) for s in samples],
+            "chemicals": [_encode_chemical(s) for s in chemicals],
             "attributi": [_encode_attributo(a) for a in attributi],
             "experiment-types": [_encode_experiment_type(a) for a in experiment_types],
         }
@@ -1102,10 +1104,10 @@ async def delete_attributo() -> JSONDict:
             name=AttributoId(attributo_name),
         )
 
-        if found_attributo.associated_table == AssociatedTable.SAMPLE:
-            for s in await db.instance.retrieve_samples(conn, attributi):
+        if found_attributo.associated_table == AssociatedTable.CHEMICAL:
+            for s in await db.instance.retrieve_chemicals(conn, attributi):
                 s.attributi.remove_with_type(AttributoId(attributo_name))
-                await db.instance.update_sample(conn, s.id, s.name, s.attributi)
+                await db.instance.update_chemical(conn, s.id, s.name, s.attributi)
         else:
             for run in await db.instance.retrieve_runs(conn, attributi):
                 run.attributi.remove_with_type(AttributoId(attributo_name))
@@ -1200,9 +1202,9 @@ def _indexing_fom_for_run(
 async def read_analysis_results() -> JSONDict:
     async with db.instance.read_only_connection() as conn:
         attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
-        samples = await db.instance.retrieve_samples(conn, attributi)
+        chemicals = await db.instance.retrieve_chemicals(conn, attributi)
         data_sets = await db.instance.retrieve_data_sets(
-            conn, [x.id for x in samples], attributi
+            conn, [x.id for x in chemicals], attributi
         )
         data_sets_by_experiment_type: dict[str, list[DBDataSet]] = group_by(
             data_sets,
@@ -1242,7 +1244,7 @@ async def read_analysis_results() -> JSONDict:
 
         return {
             "attributi": [_encode_attributo(a) for a in attributi],
-            "sample-id-to-name": [[x.id, x.name] for x in samples],
+            "chemical-id-to-name": [[x.id, x.name] for x in chemicals],
             "experiment-types": {
                 experiment_type: [_build_data_set_result(ds) for ds in data_sets]
                 for experiment_type, data_sets in data_sets_by_experiment_type.items()

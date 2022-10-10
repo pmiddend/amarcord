@@ -17,9 +17,9 @@ from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributi_map import JsonAttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
@@ -31,7 +31,7 @@ _EVENT_SOURCE: Final = "P11User"
 _TEST_DB_URL: Final = "sqlite+aiosqlite://"
 _TEST_ATTRIBUTO_VALUE: Final = 3
 _TEST_SECOND_ATTRIBUTO_VALUE: Final = 4
-_TEST_SAMPLE_NAME: Final = "samplename"
+_TEST_CHEMICAL_NAME: Final = "chemicalname"
 _TEST_RUN_ID: Final = 1
 _TEST_ATTRIBUTO_GROUP: Final = "testgroup"
 _TEST_ATTRIBUTO_DESCRIPTION: Final = "testdescription"
@@ -50,7 +50,7 @@ async def _get_db(use_sqlalchemy_default_json_serializer: bool = False) -> Async
 
 
 async def test_create_and_retrieve_attributo() -> None:
-    """Just a really simple test: create a single attributo for a sample, then retrieve it"""
+    """Just a really simple test: create a single attributo for a chemical, then retrieve it"""
     db = await _get_db()
 
     async with db.begin() as conn:
@@ -59,11 +59,11 @@ async def test_create_and_retrieve_attributo() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeInt(),
         )
 
-        attributi = await db.retrieve_attributi(conn, AssociatedTable.SAMPLE)
+        attributi = await db.retrieve_attributi(conn, AssociatedTable.CHEMICAL)
         assert len(attributi) == 1
         assert attributi[0].attributo_type == AttributoTypeInt()
         assert attributi[0].name == _TEST_ATTRIBUTO_NAME
@@ -78,7 +78,7 @@ async def test_create_and_retrieve_attributo() -> None:
         ]
 
 
-async def test_create_sample_attributo_then_change_to_run_attributo() -> None:
+async def test_create_chemical_attributo_then_change_to_run_attributo() -> None:
     db = await _get_db()
 
     async with db.begin() as conn:
@@ -88,26 +88,26 @@ async def test_create_sample_attributo_then_change_to_run_attributo() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeInt(),
         )
 
-        # Add the attributo to a test sample
-        sample_id_with_attributo = await db.create_sample(
+        # Add the attributo to a test chemical
+        chemical_id_with_attributo = await db.create_chemical(
             conn,
-            _TEST_SAMPLE_NAME,
+            _TEST_CHEMICAL_NAME,
             AttributiMap.from_types_and_json(
                 await db.retrieve_attributi(conn, None),
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: 3},
             ),
         )
-        sample_id_without_attributo = await db.create_sample(
+        chemical_id_without_attributo = await db.create_chemical(
             conn,
-            _TEST_SAMPLE_NAME,
+            _TEST_CHEMICAL_NAME,
             AttributiMap.from_types_and_json(
                 await db.retrieve_attributi(conn, None),
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={},
             ),
         )
@@ -126,18 +126,18 @@ async def test_create_sample_attributo_then_change_to_run_attributo() -> None:
             ),
         )
 
-        # Sample shouldn't contain the attributo anymore
-        samples = await db.retrieve_samples(
+        # chemical shouldn't contain the attributo anymore
+        chemicals = await db.retrieve_chemicals(
             conn, await db.retrieve_attributi(conn, None)
         )
 
-        assert samples[0].id == sample_id_with_attributo
-        assert samples[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
-        assert samples[1].id == sample_id_without_attributo
-        assert samples[1].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
+        assert chemicals[0].id == chemical_id_with_attributo
+        assert chemicals[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
+        assert chemicals[1].id == chemical_id_without_attributo
+        assert chemicals[1].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
 
 
-async def test_create_run_attributo_then_change_to_sample_attributo() -> None:
+async def test_create_run_attributo_then_change_to_chemical_attributo() -> None:
     db = await _get_db()
 
     async with db.begin() as conn:
@@ -151,14 +151,14 @@ async def test_create_run_attributo_then_change_to_sample_attributo() -> None:
             AttributoTypeInt(),
         )
 
-        # Add the attributo to a test sample
+        # Add the attributo to a test chemical
         await db.create_run(
             conn,
             _TEST_RUN_ID,
             await db.retrieve_attributi(conn, None),
             AttributiMap.from_types_and_json(
                 await db.retrieve_attributi(conn, None),
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: 3},
             ),
             keep_manual_attributes_from_previous_run=False,
@@ -169,7 +169,7 @@ async def test_create_run_attributo_then_change_to_sample_attributo() -> None:
             await db.retrieve_attributi(conn, None),
             AttributiMap.from_types_and_json(
                 await db.retrieve_attributi(conn, None),
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={},
             ),
             keep_manual_attributes_from_previous_run=False,
@@ -184,12 +184,12 @@ async def test_create_run_attributo_then_change_to_sample_attributo() -> None:
                 _TEST_ATTRIBUTO_NAME,
                 _TEST_ATTRIBUTO_DESCRIPTION,
                 _TEST_ATTRIBUTO_GROUP,
-                AssociatedTable.SAMPLE,
+                AssociatedTable.CHEMICAL,
                 AttributoTypeInt(),
             ),
         )
 
-        # Sample shouldn't contain the attributo anymore
+        # chemical shouldn't contain the attributo anymore
         runs = await db.retrieve_runs(conn, await db.retrieve_attributi(conn, None))
 
         assert runs[0].id == _TEST_RUN_ID + 1
@@ -209,7 +209,7 @@ async def test_create_and_delete_unused_attributo() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeInt(),
         )
 
@@ -222,8 +222,8 @@ async def test_create_and_delete_unused_attributo() -> None:
         ]
 
 
-async def test_create_and_retrieve_sample_with_nan() -> None:
-    """Create an attributo, then a sample, and then retrieve that. NaN value is used"""
+async def test_create_and_retrieve_chemical_with_nan() -> None:
+    """Create an attributo, then a chemical, and then retrieve that. NaN value is used"""
 
     db = await _get_db()
 
@@ -233,19 +233,19 @@ async def test_create_and_retrieve_sample_with_nan() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeDecimal(),
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         with pytest.raises(StatementError):
-            await db.create_sample(
+            await db.create_chemical(
                 conn,
-                name=_TEST_SAMPLE_NAME,
+                name=_TEST_CHEMICAL_NAME,
                 attributi=AttributiMap.from_types_and_json(
                     attributi,
-                    sample_ids=[],
+                    chemical_ids=[],
                     raw_attributi={_TEST_ATTRIBUTO_NAME: numpy.NAN},
                 ),
             )
@@ -260,7 +260,7 @@ async def test_create_and_retrieve_sample_with_nan() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeDecimal(),
         )
 
@@ -269,12 +269,12 @@ async def test_create_and_retrieve_sample_with_nan() -> None:
         )
 
         try:
-            await db_default_json_serializer.create_sample(
+            await db_default_json_serializer.create_chemical(
                 conn,
-                name=_TEST_SAMPLE_NAME,
+                name=_TEST_CHEMICAL_NAME,
                 attributi=AttributiMap.from_types_and_json(
                     attributi,
-                    sample_ids=[],
+                    chemical_ids=[],
                     raw_attributi={_TEST_ATTRIBUTO_NAME: numpy.NAN},
                 ),
             )
@@ -282,8 +282,8 @@ async def test_create_and_retrieve_sample_with_nan() -> None:
             pytest.fail("Unexpected excepetion")
 
 
-async def test_create_and_retrieve_sample() -> None:
-    """Create an attributo, then a sample, and then retrieve that"""
+async def test_create_and_retrieve_chemical() -> None:
+    """Create an attributo, then a chemical, and then retrieve that"""
 
     db = await _get_db()
 
@@ -293,43 +293,43 @@ async def test_create_and_retrieve_sample() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeInt(),
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        sample_id = await db.create_sample(
+        chemical_id = await db.create_chemical(
             conn,
-            name=_TEST_SAMPLE_NAME,
+            name=_TEST_CHEMICAL_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
         )
 
-        assert isinstance(sample_id, int)
+        assert isinstance(chemical_id, int)
 
-        samples = await db.retrieve_samples(conn, attributi)
+        chemicals = await db.retrieve_chemicals(conn, attributi)
 
-        assert len(samples) == 1
-        assert samples[0].name == _TEST_SAMPLE_NAME
-        assert samples[0].id == sample_id
-        assert not samples[0].files
+        assert len(chemicals) == 1
+        assert chemicals[0].name == _TEST_CHEMICAL_NAME
+        assert chemicals[0].id == chemical_id
+        assert not chemicals[0].files
         assert (
-            samples[0].attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
+            chemicals[0].attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
             == _TEST_ATTRIBUTO_VALUE
         )
 
-        sample = await db.retrieve_sample(conn, sample_id, attributi)
-        assert sample is not None
-        assert sample.id == sample_id
-        assert sample.name == _TEST_SAMPLE_NAME
+        chemical = await db.retrieve_chemical(conn, chemical_id, attributi)
+        assert chemical is not None
+        assert chemical.id == chemical_id
+        assert chemical.name == _TEST_CHEMICAL_NAME
 
 
-async def test_create_and_update_sample() -> None:
-    """Create two attributi, then a sample, and then update that"""
+async def test_create_and_update_chemical() -> None:
+    """Create two attributi, then a chemical, and then update that"""
 
     db = await _get_db()
 
@@ -339,7 +339,7 @@ async def test_create_and_update_sample() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeInt(),
         )
         await db.create_attributo(
@@ -347,18 +347,18 @@ async def test_create_and_update_sample() -> None:
             _TEST_SECOND_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeInt(),
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        sample_id = await db.create_sample(
+        chemical_id = await db.create_chemical(
             conn,
-            name=_TEST_SAMPLE_NAME,
+            name=_TEST_CHEMICAL_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={
                     _TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE,
                     _TEST_SECOND_ATTRIBUTO_NAME: _TEST_SECOND_ATTRIBUTO_VALUE,
@@ -366,13 +366,13 @@ async def test_create_and_update_sample() -> None:
             ),
         )
 
-        await db.update_sample(
+        await db.update_chemical(
             conn,
-            sample_id,
-            name=_TEST_SAMPLE_NAME + "1",
+            chemical_id,
+            name=_TEST_CHEMICAL_NAME + "1",
             attributi=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={
                     _TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE + 1,
                     _TEST_SECOND_ATTRIBUTO_NAME: _TEST_SECOND_ATTRIBUTO_VALUE,
@@ -380,23 +380,23 @@ async def test_create_and_update_sample() -> None:
             ),
         )
 
-        samples = await db.retrieve_samples(conn, attributi)
+        chemicals = await db.retrieve_chemicals(conn, attributi)
 
-        assert len(samples) == 1
-        assert samples[0].name == _TEST_SAMPLE_NAME + "1"
-        assert samples[0].id == sample_id
+        assert len(chemicals) == 1
+        assert chemicals[0].name == _TEST_CHEMICAL_NAME + "1"
+        assert chemicals[0].id == chemical_id
         assert (
-            samples[0].attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
+            chemicals[0].attributi.select_int_unsafe(_TEST_ATTRIBUTO_NAME)
             == _TEST_ATTRIBUTO_VALUE + 1
         )
         assert (
-            samples[0].attributi.select_int_unsafe(_TEST_SECOND_ATTRIBUTO_NAME)
+            chemicals[0].attributi.select_int_unsafe(_TEST_SECOND_ATTRIBUTO_NAME)
             == _TEST_SECOND_ATTRIBUTO_VALUE
         )
 
 
-async def test_create_and_delete_sample() -> None:
-    """Create an attributo, then a sample, delete the sample again"""
+async def test_create_and_delete_chemical() -> None:
+    """Create an attributo, then a chemical, delete the chemical again"""
 
     db = await _get_db()
 
@@ -406,28 +406,28 @@ async def test_create_and_delete_sample() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeInt(),
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        sample_id = await db.create_sample(
+        chemical_id = await db.create_chemical(
             conn,
-            name=_TEST_SAMPLE_NAME,
+            name=_TEST_CHEMICAL_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
         )
 
-        await db.delete_sample(conn, sample_id, delete_in_dependencies=True)
-        assert not await db.retrieve_samples(conn, attributi)
+        await db.delete_chemical(conn, chemical_id, delete_in_dependencies=True)
+        assert not await db.retrieve_chemicals(conn, attributi)
 
 
-async def test_create_attributo_and_sample_then_change_attributo() -> None:
-    """Create an attributo, then a sample, then change the attributo. Should propagate to the sample"""
+async def test_create_attributo_and_chemical_then_change_attributo() -> None:
+    """Create an attributo, then a chemical, then change the attributo. Should propagate to the chemical"""
 
     db = await _get_db()
 
@@ -437,19 +437,19 @@ async def test_create_attributo_and_sample_then_change_attributo() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             # We create the attributo as int, then convert to string
             AttributoTypeInt(),
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        await db.create_sample(
+        await db.create_chemical(
             conn,
-            name=_TEST_SAMPLE_NAME,
+            name=_TEST_CHEMICAL_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
         )
@@ -463,7 +463,7 @@ async def test_create_attributo_and_sample_then_change_attributo() -> None:
                 name=AttributoId(str(_TEST_ATTRIBUTO_NAME) + "1"),
                 description=_TEST_ATTRIBUTO_DESCRIPTION + "1",
                 group=_TEST_ATTRIBUTO_GROUP + "1",
-                associated_table=AssociatedTable.SAMPLE,
+                associated_table=AssociatedTable.CHEMICAL,
                 attributo_type=AttributoTypeString(),
             ),
         )
@@ -476,18 +476,18 @@ async def test_create_attributo_and_sample_then_change_attributo() -> None:
         assert test_attributi[0].description == _TEST_ATTRIBUTO_DESCRIPTION + "1"
         assert test_attributi[0].group == _TEST_ATTRIBUTO_GROUP + "1"
 
-        samples = await db.retrieve_samples(conn, attributi)
-        assert samples[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
+        chemicals = await db.retrieve_chemicals(conn, attributi)
+        assert chemicals[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
         assert (
-            samples[0].attributi.select_string(
+            chemicals[0].attributi.select_string(
                 AttributoId(str(_TEST_ATTRIBUTO_NAME) + "1")
             )
             is not None
         )
 
 
-async def test_create_attributo_and_sample_then_delete_attributo() -> None:
-    """Create an attributo, then a sample, then delete the attributo. Should propagate to the sample"""
+async def test_create_attributo_and_chemical_then_delete_attributo() -> None:
+    """Create an attributo, then a chemical, then delete the attributo. Should propagate to the chemical"""
 
     db = await _get_db()
 
@@ -497,19 +497,19 @@ async def test_create_attributo_and_sample_then_delete_attributo() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             # We create the attributo as int, then convert to string
             AttributoTypeInt(),
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        await db.create_sample(
+        await db.create_chemical(
             conn,
-            name=_TEST_SAMPLE_NAME,
+            name=_TEST_CHEMICAL_NAME,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
         )
@@ -518,8 +518,8 @@ async def test_create_attributo_and_sample_then_delete_attributo() -> None:
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        samples = await db.retrieve_samples(conn, attributi)
-        assert samples[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
+        chemicals = await db.retrieve_chemicals(conn, attributi)
+        assert chemicals[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
 
 
 async def test_create_and_retrieve_runs() -> None:
@@ -545,7 +545,7 @@ async def test_create_and_retrieve_runs() -> None:
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
+                chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             keep_manual_attributes_from_previous_run=False,
@@ -585,7 +585,7 @@ async def test_create_and_retrieve_run() -> None:
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
+                chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             keep_manual_attributes_from_previous_run=False,
@@ -646,7 +646,7 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
+                chemical_ids=await db.retrieve_chemical_ids(conn),
                 # Only one of the two attributi here (the manual one)
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
@@ -664,7 +664,7 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
+                chemical_ids=await db.retrieve_chemical_ids(conn),
                 # The other attributo with a different value
                 raw_attributi={second_test_attribute: second_test_attribute_value},
             ),
@@ -709,7 +709,7 @@ async def test_create_attributo_and_run_then_change_attributo() -> None:
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
+                chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             keep_manual_attributes_from_previous_run=False,
@@ -765,7 +765,7 @@ async def test_create_attributo_and_run_then_delete_attributo() -> None:
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
+                chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
             keep_manual_attributes_from_previous_run=False,
@@ -779,8 +779,8 @@ async def test_create_attributo_and_run_then_delete_attributo() -> None:
         assert runs[0].attributi.select_int(_TEST_ATTRIBUTO_NAME) is None
 
 
-async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() -> None:
-    """This is a bit of an edge case: we have an attributo that signifies the sample of a run, and we create a run and a sample, and then we delete the sample"""
+async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemical() -> None:
+    """This is a bit of an edge case: we have an attributo that signifies the chemical of a run, and we create a run and a chemical, and then we delete the chemical"""
 
     db = await _get_db()
 
@@ -791,30 +791,32 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
-            AttributoTypeSample(),
+            AttributoTypeChemical(),
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        sample_id = await db.create_sample(
+        chemical_id = await db.create_chemical(
             conn,
-            name=_TEST_SAMPLE_NAME,
+            name=_TEST_CHEMICAL_NAME,
             attributi=AttributiMap.from_types_and_json(
-                attributi, sample_ids=[], raw_attributi={}
+                attributi, chemical_ids=[], raw_attributi={}
             ),
         )
 
-        # Create an experiment type and a data-set. This is supposed to be deleted as well when we delete the sample
+        # Create an experiment type and a data-set. This is supposed to be deleted as well when we delete the chemical
         # attributo.
         await db.create_experiment_type(
-            conn, name="sample-based", experiment_attributi_names=[_TEST_ATTRIBUTO_NAME]
+            conn,
+            name="chemical-based",
+            experiment_attributi_names=[_TEST_ATTRIBUTO_NAME],
         )
 
         await db.create_data_set(
             conn,
-            "sample-based",
+            "chemical-based",
             AttributiMap.from_types_and_raw(
-                attributi, [sample_id], {_TEST_ATTRIBUTO_NAME: sample_id}
+                attributi, [chemical_id], {_TEST_ATTRIBUTO_NAME: chemical_id}
             ),
         )
 
@@ -824,21 +826,21 @@ async def test_create_attributo_and_run_and_sample_for_run_then_delete_sample() 
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
                 attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
-                raw_attributi={_TEST_ATTRIBUTO_NAME: sample_id},
+                chemical_ids=await db.retrieve_chemical_ids(conn),
+                raw_attributi={_TEST_ATTRIBUTO_NAME: chemical_id},
             ),
             keep_manual_attributes_from_previous_run=False,
         )
 
         with pytest.raises(Exception):
-            # This doesn't work, because the sample is being used
-            await db.delete_sample(conn, sample_id, delete_in_dependencies=False)
+            # This doesn't work, because the chemical is being used
+            await db.delete_chemical(conn, chemical_id, delete_in_dependencies=False)
 
         # This works, because we explicitly say we want to delete it from the runs
-        await db.delete_sample(conn, sample_id, delete_in_dependencies=True)
+        await db.delete_chemical(conn, chemical_id, delete_in_dependencies=True)
 
         runs = await db.retrieve_runs(conn, attributi)
-        assert runs[0].attributi.select_sample_id(_TEST_ATTRIBUTO_NAME) is None
+        assert runs[0].attributi.select_chemical_id(_TEST_ATTRIBUTO_NAME) is None
 
         assert not await db.retrieve_data_sets(conn, [], attributi)
 
@@ -995,7 +997,7 @@ async def test_create_and_retrieve_data_sets() -> None:
             e_type_name,
             AttributiMap.from_types_and_json(
                 types=attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
+                chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi=raw_attributi,
             ),
         )
@@ -1003,7 +1005,7 @@ async def test_create_and_retrieve_data_sets() -> None:
         assert id_ > 0
 
         data_sets = await db.retrieve_data_sets(
-            conn, await db.retrieve_sample_ids(conn), attributi
+            conn, await db.retrieve_chemical_ids(conn), attributi
         )
 
         assert len(data_sets) == 1
@@ -1014,7 +1016,7 @@ async def test_create_and_retrieve_data_sets() -> None:
         await db.delete_data_set(conn, id_)
         assert not (
             await db.retrieve_data_sets(
-                conn, await db.retrieve_sample_ids(conn), attributi
+                conn, await db.retrieve_chemical_ids(conn), attributi
             )
         )
 
@@ -1059,7 +1061,7 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
             e_type_name,
             AttributiMap.from_types_and_json(
                 types=attributi,
-                sample_ids=await db.retrieve_sample_ids(conn),
+                chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi=raw_attributi,
             ),
         )
@@ -1080,7 +1082,7 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
         data_sets = list(
             await db.retrieve_data_sets(
                 conn,
-                await db.retrieve_sample_ids(conn),
+                await db.retrieve_chemical_ids(conn),
                 await db.retrieve_attributi(conn, associated_table=None),
             )
         )
@@ -1168,7 +1170,7 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
                 run_id=run_id,
                 attributi=attributi,
                 attributi_map=AttributiMap.from_types_and_json(
-                    attributi, sample_ids=[], raw_attributi=data
+                    attributi, chemical_ids=[], raw_attributi=data
                 ),
                 keep_manual_attributes_from_previous_run=False,
             )
@@ -1217,7 +1219,7 @@ async def test_create_workbook() -> None:
             _TEST_ATTRIBUTO_NAME,
             _TEST_ATTRIBUTO_DESCRIPTION,
             _TEST_ATTRIBUTO_GROUP,
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeString(),
         )
         await db.create_attributo(
@@ -1230,12 +1232,12 @@ async def test_create_workbook() -> None:
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
-        await db.create_sample(
+        await db.create_chemical(
             conn,
-            "first sample",
+            "first chemical",
             AttributiMap.from_types_and_raw(
                 attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: "foo"},
             ),
         )
@@ -1246,7 +1248,7 @@ async def test_create_workbook() -> None:
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_raw(
                 types=attributi,
-                sample_ids=[],
+                chemical_ids=[],
                 raw_attributi={_TEST_SECOND_ATTRIBUTO_NAME: "foo"},
             ),
             keep_manual_attributes_from_previous_run=False,
@@ -1274,14 +1276,14 @@ async def test_create_workbook() -> None:
 
         assert runs_wb["D2"].value == "foo"
 
-        sample_wb = wb["Samples"]
-        assert sample_wb is not None
+        chemical_wb = wb["chemicals"]
+        assert chemical_wb is not None
 
-        assert sample_wb["A1"].value == "Name"
-        assert sample_wb["B1"].value == _TEST_ATTRIBUTO_NAME
+        assert chemical_wb["A1"].value == "Name"
+        assert chemical_wb["B1"].value == _TEST_ATTRIBUTO_NAME
 
-        assert sample_wb["A2"].value == "first sample"
-        assert sample_wb["B2"].value == "foo"
+        assert chemical_wb["A2"].value == "first chemical"
+        assert chemical_wb["B2"].value == "foo"
 
 
 async def test_retrieve_and_update_configuration() -> None:
@@ -1306,7 +1308,7 @@ async def test_create_analysis_result() -> None:
             run_id=1,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
-                attributi, sample_ids=[], raw_attributi={}
+                attributi, chemical_ids=[], raw_attributi={}
             ),
             keep_manual_attributes_from_previous_run=False,
         )

@@ -34,7 +34,7 @@ class DBFileBlueprint:
 
 
 @dataclass(frozen=True)
-class DBSample:
+class DBChemical:
     id: int
     name: str
     attributi: AttributiMap

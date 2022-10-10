@@ -5,10 +5,10 @@ import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, emptyAttributoMap)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
+import Amarcord.Chemical exposing (Chemical, chemicalIdDict)
 import Amarcord.DataSet exposing (DataSet)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
-import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow)
 import Html exposing (Html, button, div, h4, option, select, table, text)
 import Html.Attributes exposing (class, disabled, selected, type_)
@@ -146,8 +146,8 @@ updateDataSet msg model =
                     ( model, Cmd.none )
 
 
-viewEditForm : List (Sample Int a b) -> EditableAttributiAndOriginal -> List (Html DataSetMsg)
-viewEditForm samples =
+viewEditForm : List (Chemical Int a b) -> EditableAttributiAndOriginal -> List (Html DataSetMsg)
+viewEditForm chemicals =
     let
         attributoFormMsgToMsg : AttributoFormMsg -> DataSetMsg
         attributoFormMsgToMsg x =
@@ -158,7 +158,7 @@ viewEditForm samples =
                 AttributoFormSubmit ->
                     DataSetSubmit
     in
-    List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm samples attributo)) << .editableAttributi
+    List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm chemicals attributo)) << .editableAttributi
 
 
 view : DataSetModel -> Html DataSetMsg
@@ -178,14 +178,14 @@ viewDataSet model =
         Failure e ->
             List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ] ] ++ [ showRequestError e ]
 
-        Success { samples, attributi, dataSets, experimentTypes } ->
+        Success { chemicals, attributi, dataSets, experimentTypes } ->
             let
                 viewRow : DataSet -> Html DataSetMsg
                 viewRow ds =
                     tr_
                         [ td_ [ text (String.fromInt ds.id) ]
                         , td_ [ text ds.experimentType ]
-                        , td_ [ viewDataSetTable attributi model.zone (sampleIdDict samples) ds False Nothing ]
+                        , td_ [ viewDataSetTable attributi model.zone (chemicalIdDict chemicals) ds False Nothing ]
                         , td_ [ button [ class "btn btn-sm btn-danger", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 
@@ -205,7 +205,7 @@ viewDataSet model =
                                         (option [ selected (isNothing newDataSet.experimentType) ] [ text "«no value»" ] :: List.map (viewExperimentTypeOption newDataSet.experimentType) experimentTypes)
                                     ]
                                  ]
-                                    ++ viewEditForm samples newDataSet.attributi
+                                    ++ viewEditForm chemicals newDataSet.attributi
                                     ++ [ button
                                             [ type_ "button"
                                             , class "btn btn-primary mb-3 me-3"

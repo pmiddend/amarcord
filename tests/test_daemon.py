@@ -20,7 +20,7 @@ from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoTypeSample
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultInput
@@ -109,18 +109,18 @@ async def _get_db(use_sqlalchemy_default_json_serializer: bool = False) -> Async
 async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -> None:
     async with db.begin() as conn:
         await db.create_attributo(
-            conn, "sample", "", "manual", AssociatedTable.RUN, AttributoTypeSample()
+            conn, "chemical", "", "manual", AssociatedTable.RUN, AttributoTypeChemical()
         )
         await db.create_attributo(
             conn,
             "cell description",
             "",
             "manual",
-            AssociatedTable.SAMPLE,
+            AssociatedTable.CHEMICAL,
             AttributoTypeString(),
         )
         attributi = await db.retrieve_attributi(conn, None)
-        sample_id = await db.create_sample(
+        chemical_id = await db.create_chemical(
             conn,
             "lyso",
             AttributiMap.from_types_and_raw(
@@ -136,7 +136,7 @@ async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -
             run_id=1,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_raw(
-                attributi, [sample_id], {AttributoId("sample"): sample_id}
+                attributi, [chemical_id], {AttributoId("chemical"): chemical_id}
             ),
             keep_manual_attributes_from_previous_run=True,
         )
@@ -179,7 +179,7 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
             output_base_directory=base_dir,
             cell_file_directory=cell_file_dir,
             indexing_script_path=indexing_script,
-            sample_attributo=AttributoId("sample"),
+            chemical_attributo=AttributoId("chemical"),
         ),
         indexing_result,
     )
@@ -189,7 +189,7 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
     assert workload_manager.job_starts[0].executable == indexing_script
     assert workload_manager.job_starts[0].working_directory == base_dir
     assert workload_manager.job_starts[0].command_line.startswith(
-        f"1 {base_dir}/run_1_indexing_1.stream {cell_file_dir}/sample_"
+        f"1 {base_dir}/run_1_indexing_1.stream {cell_file_dir}/chemical_"
     )
     async with db.read_only_connection() as conn:
         ir = await db.retrieve_indexing_results(conn)
@@ -234,7 +234,7 @@ async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
             output_base_directory=base_dir,
             cell_file_directory=cell_file_dir,
             indexing_script_path=indexing_script,
-            sample_attributo=AttributoId("sample"),
+            chemical_attributo=AttributoId("chemical"),
         ),
         indexing_result,
     )
@@ -290,7 +290,7 @@ async def test_start_indexing_job_invalid_cell_file(tmp_path: Path) -> None:
             output_base_directory=base_dir,
             cell_file_directory=cell_file_dir,
             indexing_script_path=indexing_script,
-            sample_attributo=AttributoId("sample"),
+            chemical_attributo=AttributoId("chemical"),
         ),
         indexing_result,
     )
@@ -339,7 +339,7 @@ async def test_start_indexing_job_start_error(tmp_path: Path) -> None:
             output_base_directory=base_dir,
             cell_file_directory=cell_file_dir,
             indexing_script_path=indexing_script,
-            sample_attributo=AttributoId("sample"),
+            chemical_attributo=AttributoId("chemical"),
         ),
         indexing_result,
     )

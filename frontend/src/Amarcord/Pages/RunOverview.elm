@@ -4,8 +4,9 @@ import Amarcord.API.Requests exposing (Event, RequestError, Run, RunEventDate, R
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
+import Amarcord.Chemical exposing (Chemical, chemicalIdDict)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSet exposing (DataSet, DataSetSummary, emptySummary)
@@ -16,7 +17,6 @@ import Amarcord.Gauge exposing (gauge, thisFillColor, totalFillColor)
 import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Sample exposing (Sample, sampleIdDict)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMinutes, scrollToTop, secondsDiffHumanFriendly)
 import Char exposing (fromCode)
 import Date exposing (Date)
@@ -219,15 +219,15 @@ attributiColumnHeaders =
 
 
 attributiColumns : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> List (Html Msg)
-attributiColumns zone sampleIds attributi run =
-    List.map (viewAttributoCell { shortDateTime = True, colorize = True } zone sampleIds run.attributi) <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi
+attributiColumns zone chemicalIds attributi run =
+    List.map (viewAttributoCell { shortDateTime = True, colorize = True } zone chemicalIds run.attributi) <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi
 
 
 viewRunRow : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
-viewRunRow zone sampleIds attributi r =
+viewRunRow zone chemicalIds attributi r =
     tr [ style "white-space" "nowrap" ] <|
         td_ [ text (fromInt r.id) ]
-            :: attributiColumns zone sampleIds attributi r
+            :: attributiColumns zone chemicalIds attributi r
             ++ [ td_
                     [ button
                         [ class "btn btn-link amarcord-small-link-button"
@@ -270,7 +270,7 @@ viewEventRow zone attributoColumnCount e =
 
 
 viewRunAndEventRows : Zone -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
-viewRunAndEventRows zone sampleIds attributi runs events =
+viewRunAndEventRows zone chemicalIds attributi runs events =
     case ( head runs, head events ) of
         -- No elements, neither runs nor events, left anymore
         ( Nothing, Nothing ) ->
@@ -278,7 +278,7 @@ viewRunAndEventRows zone sampleIds attributi runs events =
 
         -- Only runs left
         ( Just _, Nothing ) ->
-            List.map (viewRunRow zone sampleIds attributi) runs
+            List.map (viewRunRow zone chemicalIds attributi) runs
 
         -- Only events left
         ( Nothing, Just _ ) ->
@@ -289,22 +289,22 @@ viewRunAndEventRows zone sampleIds attributi runs events =
             case Maybe.andThen extractDateTime <| retrieveAttributoValue attributoStarted run.attributi of
                 Just runStarted ->
                     if posixBefore event.created runStarted then
-                        viewRunRow zone sampleIds attributi run :: viewRunAndEventRows zone sampleIds attributi (List.drop 1 runs) events
+                        viewRunRow zone chemicalIds attributi run :: viewRunAndEventRows zone chemicalIds attributi (List.drop 1 runs) events
 
                     else
-                        viewEventRow zone (List.length attributi) event :: viewRunAndEventRows zone sampleIds attributi runs (List.drop 1 events)
+                        viewEventRow zone (List.length attributi) event :: viewRunAndEventRows zone chemicalIds attributi runs (List.drop 1 events)
 
                 -- We don't have a start time...take the run
                 Nothing ->
-                    viewRunRow zone sampleIds attributi run :: viewRunAndEventRows zone sampleIds attributi (List.drop 1 runs) events
+                    viewRunRow zone chemicalIds attributi run :: viewRunAndEventRows zone chemicalIds attributi (List.drop 1 runs) events
 
 
 viewRunsTable : Zone -> List (Attributo AttributoType) -> RunsResponseContent -> Html Msg
-viewRunsTable zone chosenColumns { runs, attributi, events, samples } =
+viewRunsTable zone chosenColumns { runs, attributi, events, chemicals } =
     let
         runRows : List (Html Msg)
         runRows =
-            viewRunAndEventRows zone (sampleIdDict samples) chosenColumns runs events
+            viewRunAndEventRows zone (chemicalIdDict chemicals) chosenColumns runs events
     in
     table [ class "table amarcord-table-fix-head table-bordered table-hover" ]
         [ thead_
@@ -542,7 +542,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                             , h3_ [ text "Data set" ]
                             , viewDataSetTable rrc.attributi
                                 zone
-                                (sampleIdDict rrc.samples)
+                                (chemicalIdDict rrc.chemicals)
                                 ds
                                 True
                                 Nothing
@@ -551,8 +551,8 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
             header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation
 
 
-viewRunAttributiForm : Maybe (Set String) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Sample Int a b) -> Maybe RunEditInfo -> List (Html Msg)
-viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditRequest samples rei =
+viewRunAttributiForm : Maybe (Set String) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Chemical Int a b) -> Maybe RunEditInfo -> List (Html Msg)
+viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditRequest chemicals rei =
     case rei of
         Nothing ->
             []
@@ -567,10 +567,10 @@ viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditReq
                         Just attributiNames ->
                             Set.member a.name attributiNames
 
-                -- For ergonomic reasons, we want sample attributi to be on top - everything else should be
+                -- For ergonomic reasons, we want chemical attributi to be on top - everything else should be
                 -- sorted alphabetically
                 attributoSortKey a =
-                    ( if isEditValueSampleId (second a.type_) then
+                    ( if isEditValueChemicalId (second a.type_) then
                         0
 
                       else
@@ -646,7 +646,7 @@ viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditReq
                      else
                         text ""
                    , form [ class "mb-3" ]
-                        (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm samples) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
+                        (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
                    ]
 
 
@@ -664,7 +664,7 @@ viewInner model rrc =
                             (head rrc.runs)
                             model.submitErrors
                             model.runEditRequest
-                            rrc.samples
+                            rrc.chemicals
                             model.runEditInfo
                         )
                     ]
@@ -963,7 +963,7 @@ update msg model =
 
         RunEditInfoValueUpdate v ->
             case model.runEditInfo of
-                -- This is the unlikely case that we have an "attributo was edited" message, but sample is edited
+                -- This is the unlikely case that we have an "attributo was edited" message, but chemical is edited
                 Nothing ->
                     ( model, Cmd.none )
 

@@ -52,7 +52,7 @@ type AttributoValue
 type AttributoType
     = Int
     | DateTime
-    | SampleId
+    | ChemicalId
     | String
     | Boolean
     | List
@@ -154,8 +154,8 @@ jsonSchemaToAttributoType x =
 
         JsonSchemaInteger { format } ->
             case format of
-                Just "sample-id" ->
-                    Ok SampleId
+                Just "chemical-id" ->
+                    Ok ChemicalId
 
                 Just "date-time" ->
                     Ok DateTime

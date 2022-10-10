@@ -39,9 +39,9 @@ init hereAndNow =
 
 
 viewInner : Zone -> AnalysisResultsRoot -> List (Html Msg)
-viewInner zone { experimentTypes, attributi, sampleIdToName } =
+viewInner zone { experimentTypes, attributi, chemicalIdToName } =
     List.map
-        (viewResultsTableForSingleExperimentType attributi zone sampleIdToName)
+        (viewResultsTableForSingleExperimentType attributi zone chemicalIdToName)
         (Dict.toList experimentTypes)
 
 
@@ -51,13 +51,13 @@ viewResultsTableForSingleExperimentType :
     -> Dict Int String
     -> ( String, List AnalysisResultsExperimentType )
     -> Html msg
-viewResultsTableForSingleExperimentType attributi zone sampleIds experimentTypeAndDataSets =
+viewResultsTableForSingleExperimentType attributi zone chemicalIds experimentTypeAndDataSets =
     let
         viewResultRow : AnalysisResultsExperimentType -> List (Html msg)
         viewResultRow { dataSet, runs } =
             [ tr_
                 [ td_ [ text (String.fromInt dataSet.id) ]
-                , td_ [ viewDataSetTable attributi zone sampleIds dataSet False Nothing ]
+                , td_ [ viewDataSetTable attributi zone chemicalIds dataSet False Nothing ]
                 , td_ [ text <| join ", " runs ]
                 , td_
                     [ text <|

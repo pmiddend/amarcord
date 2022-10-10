@@ -4,9 +4,9 @@ import Amarcord.API.Requests exposing (RequestError, RunsBulkGetResponse, httpGe
 import Amarcord.Attributo exposing (AttributoMap, AttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, viewAttributoForm)
 import Amarcord.Bootstrap exposing (icon, viewRemoteData)
+import Amarcord.Chemical exposing (Chemical, ChemicalId)
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (form_, input_, li_, p_, strongText)
-import Amarcord.Sample exposing (Sample, SampleId)
 import Amarcord.Util exposing (HereAndNow)
 import Dict
 import Html exposing (Html, button, div, label, p, text, ul)
@@ -19,7 +19,7 @@ import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 
 type alias EditableAttributiData =
     { actualEditableAttributi : EditableAttributiAndOriginal
-    , samples : List (Sample SampleId (AttributoMap AttributoValue) File)
+    , chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
     }
 
 
@@ -42,7 +42,7 @@ type Msg
 
 
 viewBulkAttributiForm : RemoteData RequestError () -> List String -> EditableAttributiData -> Html Msg
-viewBulkAttributiForm editRequest submitErrorsList { samples, actualEditableAttributi } =
+viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAttributi } =
     let
         submitErrors =
             case submitErrorsList of
@@ -80,7 +80,7 @@ viewBulkAttributiForm editRequest submitErrorsList { samples, actualEditableAttr
                 AttributoFormSubmit ->
                     SubmitBulkChange
     in
-    form_ (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm samples) actualEditableAttributi.editableAttributi ++ submitErrors ++ submitSuccess ++ okButton)
+    form_ (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals) actualEditableAttributi.editableAttributi ++ submitErrors ++ submitSuccess ++ okButton)
 
 
 view : Model -> Html Msg
@@ -223,21 +223,21 @@ update model msg =
                         editableAttributi =
                             createEditableAttributi model.hereAndNow.zone bulkResponse.attributi (buildAttributoMap bulkResponse.attributiMap)
                     in
-                    ( { model | runsBulkGetRequest = Success { actualEditableAttributi = editableAttributi, samples = bulkResponse.samples } }, Cmd.none )
+                    ( { model | runsBulkGetRequest = Success { actualEditableAttributi = editableAttributi, chemicals = bulkResponse.chemicals } }, Cmd.none )
 
                 Err error ->
                     ( { model | runsBulkGetRequest = Failure error }, Cmd.none )
 
         AttributoChange v ->
             case model.runsBulkGetRequest of
-                Success { actualEditableAttributi, samples } ->
+                Success { actualEditableAttributi, chemicals } ->
                     let
                         newEditable =
                             editEditableAttributi actualEditableAttributi.editableAttributi v
 
                         newRunsBulkGetRequest =
                             { actualEditableAttributi = { editableAttributi = newEditable, originalAttributi = actualEditableAttributi.originalAttributi }
-                            , samples = samples
+                            , chemicals = chemicals
                             }
                     in
                     ( { model | runsBulkGetRequest = Success newRunsBulkGetRequest }, Cmd.none )

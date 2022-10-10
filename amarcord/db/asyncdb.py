@@ -30,8 +30,8 @@ from amarcord.db.attributi import schema_json_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeDecimal
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.db_job_status import DBJobStatus
@@ -46,10 +46,10 @@ from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
+from amarcord.db.table_classes import DBChemical
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBFile
 from amarcord.db.table_classes import DBRun
-from amarcord.db.table_classes import DBSample
 from amarcord.db.tables import DBTables
 from amarcord.db.user_configuration import UserConfiguration
 from amarcord.db.user_configuration import initial_user_configuration
@@ -129,7 +129,7 @@ class AsyncDB:
                     users=entry.users,
                     date=entry.date,
                     shift=entry.shift,
-                    sample_id=entry.sample_id,
+                    chemical_id=entry.chemical_id,
                     td_support=entry.td_support,
                     comment=entry.comment,
                 )
@@ -146,7 +146,7 @@ class AsyncDB:
                 date=se.date,
                 shift=se.shift,
                 td_support=se.td_support,
-                sample_id=se.sample_id,
+                chemical_id=se.chemical_id,
             )
             for se in schedule.fetchall()
         ]
@@ -254,7 +254,7 @@ class AsyncDB:
             for a in result
         ]
 
-    async def create_sample(
+    async def create_chemical(
         self,
         conn: Connection,
         name: str,
@@ -262,7 +262,7 @@ class AsyncDB:
     ) -> int:
         result: int = (
             await conn.execute(
-                self.tables.sample.insert().values(
+                self.tables.chemical.insert().values(
                     name=name,
                     modified=datetime.datetime.utcnow(),
                     attributi=attributi.to_json(),
@@ -271,7 +271,7 @@ class AsyncDB:
         ).inserted_primary_key[0]
         return result
 
-    async def update_sample(
+    async def update_chemical(
         self,
         conn: Connection,
         id_: int,
@@ -279,13 +279,13 @@ class AsyncDB:
         attributi: AttributiMap,
     ) -> None:
         await conn.execute(
-            sa.update(self.tables.sample)
+            sa.update(self.tables.chemical)
             .values(
                 name=name,
                 modified=datetime.datetime.utcnow(),
                 attributi=attributi.to_json(),
             )
-            .where(self.tables.sample.c.id == id_)
+            .where(self.tables.chemical.c.id == id_)
         )
 
     async def _retrieve_files(
@@ -337,34 +337,34 @@ class AsyncDB:
         }
         return result
 
-    async def retrieve_samples(
+    async def retrieve_chemicals(
         self, conn: Connection, attributi: list[DBAttributo]
-    ) -> list[DBSample]:
-        sample_to_files = await self._retrieve_files(
-            conn, self.tables.sample_has_file.c.sample_id
+    ) -> list[DBChemical]:
+        chemical_to_files = await self._retrieve_files(
+            conn, self.tables.chemical_has_file.c.chemical_id
         )
 
         select_stmt = sa.select(
             [
-                self.tables.sample.c.id,
-                self.tables.sample.c.name,
-                self.tables.sample.c.attributi,
+                self.tables.chemical.c.id,
+                self.tables.chemical.c.name,
+                self.tables.chemical.c.attributi,
             ]
-        ).order_by(self.tables.sample.c.name)
+        ).order_by(self.tables.chemical.c.name)
 
         result = await conn.execute(select_stmt)
 
         return [
-            DBSample(
+            DBChemical(
                 id=a["id"],
                 name=a["name"],
                 attributi=AttributiMap.from_types_and_json(
                     types=attributi,
-                    # Sample IDs not needed since samples cannot refer to themselves (yet!)
-                    sample_ids=[],
+                    # chemical IDs not needed since chemicals cannot refer to themselves (yet!)
+                    chemical_ids=[],
                     raw_attributi=a["attributi"],
                 ),
-                files=sample_to_files.get(a["id"], []),
+                files=chemical_to_files.get(a["id"], []),
             )
             for a in result
         ]
@@ -439,14 +439,14 @@ class AsyncDB:
 
         result = await conn.execute(select_stmt)
 
-        sample_ids = await self.retrieve_sample_ids(conn)
+        chemical_ids = await self.retrieve_chemical_ids(conn)
 
         return [
             DBRun(
                 id=a["id"],
                 attributi=AttributiMap.from_types_and_json(
                     types=attributi,
-                    sample_ids=sample_ids,
+                    chemical_ids=chemical_ids,
                     raw_attributi=a["attributi"],
                 ),
                 files=run_to_files.get(a["id"], []),
@@ -454,50 +454,56 @@ class AsyncDB:
             for a in result
         ]
 
-    async def delete_sample(
+    async def delete_chemical(
         self, conn: Connection, id_: int, delete_in_dependencies: bool
     ) -> None:
         attributi = await self.retrieve_attributi(conn, AssociatedTable.RUN)
 
-        sample_ids = await self.retrieve_sample_ids(conn)
+        chemical_ids = await self.retrieve_chemical_ids(conn)
 
-        # check if we have a sample attributo in runs and then do integrity checking
-        sample_attributi = [
-            x for x in attributi if isinstance(x.attributo_type, AttributoTypeSample)
+        # check if we have a chemical attributo in runs and then do integrity checking
+        chemical_attributi = [
+            x for x in attributi if isinstance(x.attributo_type, AttributoTypeChemical)
         ]
 
-        if sample_attributi:
+        if chemical_attributi:
             for r in await self.retrieve_runs(conn, attributi):
                 run_attributi = r.attributi
                 changed = False
-                for sample_attributo in sample_attributi:
-                    run_sample = r.attributi.select_sample_id(sample_attributo.name)
-                    if run_sample == id_:
+                for chemical_attributo in chemical_attributi:
+                    run_chemical = r.attributi.select_chemical_id(
+                        chemical_attributo.name
+                    )
+                    if run_chemical == id_:
                         if delete_in_dependencies:
-                            run_attributi.remove_with_type(sample_attributo.name)
+                            run_attributi.remove_with_type(chemical_attributo.name)
                             changed = True
                         else:
-                            raise Exception(f"run {r.id} still has sample {id_}")
+                            raise Exception(f"run {r.id} still has chemical {id_}")
                 if changed:
                     await self.update_run_attributi(conn, r.id, run_attributi)
 
             for ds in await self.retrieve_data_sets(
-                conn, sample_ids=sample_ids, attributi=attributi
+                conn, chemical_ids=chemical_ids, attributi=attributi
             ):
                 changed = False
-                for sample_attributo in sample_attributi:
-                    ds_sample = ds.attributi.select_sample_id(sample_attributo.name)
-                    if ds_sample == id_:
+                for chemical_attributo in chemical_attributi:
+                    ds_chemical = ds.attributi.select_chemical_id(
+                        chemical_attributo.name
+                    )
+                    if ds_chemical == id_:
                         if delete_in_dependencies:
-                            ds.attributi.remove_with_type(sample_attributo.name)
+                            ds.attributi.remove_with_type(chemical_attributo.name)
                             changed = True
                         else:
-                            raise Exception(f"data set {ds.id} still has sample {id_}")
+                            raise Exception(
+                                f"data set {ds.id} still has chemical {id_}"
+                            )
                 if changed:
                     await self.delete_data_set(conn, ds.id)
 
         await conn.execute(
-            sa.delete(self.tables.sample).where(self.tables.sample.c.id == id_)
+            sa.delete(self.tables.chemical).where(self.tables.chemical.c.id == id_)
         )
 
     async def create_attributo(
@@ -514,10 +520,10 @@ class AsyncDB:
         #     raise ValueError(
         #         f'attributo name "{name}" contains invalid characters (maybe a number at the beginning or a dash?)"
         #     )
-        if associated_table == AssociatedTable.SAMPLE and isinstance(
-            type_, AttributoTypeSample
+        if associated_table == AssociatedTable.CHEMICAL and isinstance(
+            type_, AttributoTypeChemical
         ):
-            raise ValueError(f"{name}: Samples can't have attributi of type sample")
+            raise ValueError(f"{name}: chemicals can't have attributi of type chemical")
         if isinstance(type_, AttributoTypeDecimal) and type_.standard_unit:
             if type_.suffix is None:
                 raise ValueError(f"{name}: got a standard unit, but no suffix")
@@ -548,15 +554,15 @@ class AsyncDB:
             sa.delete(self.tables.attributo).where(self.tables.attributo.c.name == name)
         )
 
-        if found_attributo.associated_table == AssociatedTable.SAMPLE:
-            # This is the tricky bit: we need to retrieve the samples with the old attributi list. The samples haven't
+        if found_attributo.associated_table == AssociatedTable.CHEMICAL:
+            # This is the tricky bit: we need to retrieve the chemicals with the old attributi list. The chemicals haven't
             # been converted to the new format, so using the new attributi list would make that fail validation.
-            for s in await self.retrieve_samples(conn, attributi):
-                # Then remove the attributo from the sample and the accompanying types, and update.
+            for s in await self.retrieve_chemicals(conn, attributi):
+                # Then remove the attributo from the chemical and the accompanying types, and update.
                 s.attributi.remove_with_type(name)
-                await self.update_sample(conn, s.id, s.name, s.attributi)
+                await self.update_chemical(conn, s.id, s.name, s.attributi)
         elif found_attributo.associated_table == AssociatedTable.RUN:
-            # Explanation, see above for samples
+            # Explanation, see above for chemicals
             for r in await self.retrieve_runs(conn, attributi):
                 r.attributi.remove_with_type(name)
                 await self.update_run_attributi(conn, r.id, r.attributi)
@@ -800,28 +806,28 @@ class AsyncDB:
             .where(self.tables.attributo.c.name == name)
         )
 
-        if new_attributo.associated_table == AssociatedTable.SAMPLE:
-            # If we're changing the table from run to sample, we have to remove the attributo from runs
-            if current_attributo.associated_table != AssociatedTable.SAMPLE:
+        if new_attributo.associated_table == AssociatedTable.CHEMICAL:
+            # If we're changing the table from run to chemical, we have to remove the attributo from runs
+            if current_attributo.associated_table != AssociatedTable.CHEMICAL:
                 for r in await self.retrieve_runs(conn, current_attributi):
                     r.attributi.remove_with_type(current_attributo.name)
                     await self.update_run_attributi(conn, r.id, r.attributi)
             else:
-                # Update column in sample(s)
-                for s in await self.retrieve_samples(conn, current_attributi):
+                # Update column in chemical(s)
+                for s in await self.retrieve_chemicals(conn, current_attributi):
                     s.attributi.convert_attributo(
                         conversion_flags=conversion_flags,
                         old_name=name,
                         new_name=new_attributo.name,
                         after_type=new_attributo.attributo_type,
                     )
-                    await self.update_sample(conn, s.id, s.name, s.attributi)
+                    await self.update_chemical(conn, s.id, s.name, s.attributi)
         elif new_attributo.associated_table == AssociatedTable.RUN:
-            # If we're changing the table from sample to run, we have to remove the attributo from samples
+            # If we're changing the table from chemical to run, we have to remove the attributo from chemicals
             if current_attributo.associated_table != AssociatedTable.RUN:
-                for s in await self.retrieve_samples(conn, current_attributi):
+                for s in await self.retrieve_chemicals(conn, current_attributi):
                     s.attributi.remove_with_type(current_attributo.name)
-                    await self.update_sample(conn, s.id, s.name, s.attributi)
+                    await self.update_chemical(conn, s.id, s.name, s.attributi)
             else:
                 for r in await self.retrieve_runs(conn, current_attributi):
                     r.attributi.convert_attributo(
@@ -836,8 +842,8 @@ class AsyncDB:
                 f"unimplemented: is there a new associated table {new_attributo.associated_table}?"
             )
 
-        sample_ids = await self.retrieve_sample_ids(conn)
-        for ds in await self.retrieve_data_sets(conn, sample_ids, current_attributi):
+        chemical_ids = await self.retrieve_chemical_ids(conn)
+        for ds in await self.retrieve_data_sets(conn, chemical_ids, current_attributi):
             ds.attributi.convert_attributo(
                 conversion_flags=conversion_flags,
                 old_name=name,
@@ -846,12 +852,12 @@ class AsyncDB:
             )
             await self.update_data_set_attributi(conn, ds.id, ds.attributi)
 
-    async def add_file_to_sample(
-        self, conn: Connection, file_id: int, sample_id: int
+    async def add_file_to_chemical(
+        self, conn: Connection, file_id: int, chemical_id: int
     ) -> None:
         await conn.execute(
-            sa.insert(self.tables.sample_has_file).values(
-                file_id=file_id, sample_id=sample_id
+            sa.insert(self.tables.chemical_has_file).values(
+                file_id=file_id, chemical_id=chemical_id
             )
         )
 
@@ -864,10 +870,12 @@ class AsyncDB:
             )
         )
 
-    async def remove_files_from_sample(self, conn: Connection, sample_id: int) -> None:
+    async def remove_files_from_chemical(
+        self, conn: Connection, chemical_id: int
+    ) -> None:
         await conn.execute(
-            sa.delete(self.tables.sample_has_file).where(
-                self.tables.sample_has_file.c.sample_id == sample_id
+            sa.delete(self.tables.chemical_has_file).where(
+                self.tables.chemical_has_file.c.chemical_id == chemical_id
             )
         )
 
@@ -963,10 +971,10 @@ class AsyncDB:
 
         return await self.retrieve_run(conn, maximum_id[0], attributi)
 
-    async def retrieve_sample(
+    async def retrieve_chemical(
         self, conn: Connection, id_: int, attributi: list[DBAttributo]
-    ) -> DBSample | None:
-        rc = self.tables.sample.c
+    ) -> DBChemical | None:
+        rc = self.tables.chemical.c
         r = (
             await conn.execute(
                 sa.select([rc.id, rc.name, rc.attributi]).where(rc.id == id_)
@@ -974,16 +982,16 @@ class AsyncDB:
         ).fetchone()
         files = await self._retrieve_files(
             conn,
-            self.tables.sample_has_file.c.sample_id,
-            (self.tables.sample_has_file.c.sample_id == id_),
+            self.tables.chemical_has_file.c.chemical_id,
+            (self.tables.chemical_has_file.c.chemical_id == id_),
         )
         if r is None:
             return None
-        return DBSample(
+        return DBChemical(
             id=id_,
             name=r["name"],
             attributi=AttributiMap.from_types_and_json(
-                attributi, sample_ids=[], raw_attributi=r["attributi"]
+                attributi, chemical_ids=[], raw_attributi=r["attributi"]
             ),
             files=files.get(id_, []),
         )
@@ -1005,7 +1013,7 @@ class AsyncDB:
         return DBRun(
             id=id_,
             attributi=AttributiMap.from_types_and_json(
-                attributi, await self.retrieve_sample_ids(conn), r["attributi"]
+                attributi, await self.retrieve_chemical_ids(conn), r["attributi"]
             ),
             files=files.get(id_, []),
         )
@@ -1019,8 +1027,10 @@ class AsyncDB:
             .where(self.tables.run.c.id == id_)
         )
 
-    async def retrieve_sample_ids(self, conn: Connection) -> list[int]:
-        return [r[0] for r in await conn.execute(sa.select([self.tables.sample.c.id]))]
+    async def retrieve_chemical_ids(self, conn: Connection) -> list[int]:
+        return [
+            r[0] for r in await conn.execute(sa.select([self.tables.chemical.c.id]))
+        ]
 
     async def create_experiment_type(
         self, conn: Connection, name: str, experiment_attributi_names: Iterable[str]
@@ -1121,7 +1131,7 @@ class AsyncDB:
     async def retrieve_data_sets(
         self,
         conn: Connection,
-        sample_ids: list[int],
+        chemical_ids: list[int],
         attributi: list[DBAttributo],
     ) -> list[DBDataSet]:
         dc = self.tables.data_set.c
@@ -1130,7 +1140,7 @@ class AsyncDB:
                 id=r["id"],
                 experiment_type=r["experiment_type"],
                 attributi=AttributiMap.from_types_and_json(
-                    attributi, sample_ids=sample_ids, raw_attributi=r["attributi"]
+                    attributi, chemical_ids=chemical_ids, raw_attributi=r["attributi"]
                 ),
             )
             for r in await conn.execute(
@@ -1349,17 +1359,19 @@ class AsyncDB:
 
 # Any until openpyxl has official types
 def attributo_value_to_spreadsheet_cell(
-    sample_id_to_name: dict[int, str],
+    chemical_id_to_name: dict[int, str],
     attributo_type: AttributoType,
     attributo_value: AttributoValue,
 ) -> Any:
     if attributo_value is None:
         return None
-    if isinstance(attributo_type, AttributoTypeSample):
+    if isinstance(attributo_type, AttributoTypeChemical):
         if not isinstance(attributo_value, int):
-            raise TypeError(f"sample IDs have to have type int, got {attributo_value}")
-        return sample_id_to_name.get(
-            attributo_value, f"invalid sample ID {attributo_value}"
+            raise TypeError(
+                f"chemical IDs have to have type int, got {attributo_value}"
+            )
+        return chemical_id_to_name.get(
+            attributo_value, f"invalid chemical ID {attributo_value}"
         )
     if isinstance(attributo_value, datetime.datetime):
         return datetime_to_local(attributo_value)
@@ -1389,7 +1401,7 @@ async def create_workbook(
     runs_sheet = wb.active
     runs_sheet.title = "Runs"
     attributi_sheet = wb.create_sheet("Attributi")
-    samples_sheet = wb.create_sheet("Samples")
+    chemicals_sheet = wb.create_sheet("chemicals")
 
     attributi = await db.retrieve_attributi(conn, associated_table=None)
     attributi.sort(key=attributo_sort_key)
@@ -1426,48 +1438,48 @@ async def create_workbook(
             value=attributo_type_to_string(attributo.attributo_type),
         )
 
-    sample_attributi = [
-        a for a in attributi if a.associated_table == AssociatedTable.SAMPLE
+    chemical_attributi = [
+        a for a in attributi if a.associated_table == AssociatedTable.CHEMICAL
     ]
-    for sample_column, sample_header_name in enumerate(
+    for chemical_column, chemical_header_name in enumerate(
         [AttributoId("Name")]
-        + [a.name for a in sample_attributi]
+        + [a.name for a in chemical_attributi]
         + [AttributoId("File IDs")],
         start=1,
     ):
-        cell = samples_sheet.cell(
-            row=1, column=sample_column, value=str(sample_header_name)
+        cell = chemicals_sheet.cell(
+            row=1, column=chemical_column, value=str(chemical_header_name)
         )
         cell.font = cell.font.copy(bold=True)
 
     files_to_include: set[int] = set()
-    samples = await db.retrieve_samples(conn, attributi)
-    for sample_row_idx, sample in enumerate(samples, start=2):
-        samples_sheet.cell(
-            row=sample_row_idx,
+    chemicals = await db.retrieve_chemicals(conn, attributi)
+    for chemical_row_idx, chemical in enumerate(chemicals, start=2):
+        chemicals_sheet.cell(
+            row=chemical_row_idx,
             column=1,
-            value=sample.name,
+            value=chemical.name,
         )
-        for sample_column_idx, sample_attributo in enumerate(
-            sample_attributi,
+        for chemical_column_idx, chemical_attributo in enumerate(
+            chemical_attributi,
             start=2,
         ):
-            samples_sheet.cell(
-                row=sample_row_idx,
-                column=sample_column_idx,
+            chemicals_sheet.cell(
+                row=chemical_row_idx,
+                column=chemical_column_idx,
                 value=attributo_value_to_spreadsheet_cell(
-                    sample_id_to_name={},
-                    attributo_type=sample_attributo.attributo_type,
-                    attributo_value=sample.attributi.select(sample_attributo.name),
+                    chemical_id_to_name={},
+                    attributo_type=chemical_attributo.attributo_type,
+                    attributo_value=chemical.attributi.select(chemical_attributo.name),
                 ),
             )
-        if sample.files:
-            samples_sheet.cell(
-                row=sample_row_idx,
-                column=2 + len(sample_attributi),
-                value=", ".join(str(f.id) for f in sample.files),
+        if chemical.files:
+            chemicals_sheet.cell(
+                row=chemical_row_idx,
+                column=2 + len(chemical_attributi),
+                value=", ".join(str(f.id) for f in chemical.files),
             )
-            files_to_include.update(cast(int, f.id) for f in sample.files)
+            files_to_include.update(cast(int, f.id) for f in chemical.files)
 
     run_attributi = [a for a in attributi if a.associated_table == AssociatedTable.RUN]
     for run_column, run_header_name in enumerate(
@@ -1477,7 +1489,7 @@ async def create_workbook(
         cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))
         cell.font = cell.font.copy(bold=True)
 
-    sample_id_to_name: dict[int, str] = {s.id: s.name for s in samples}
+    chemical_id_to_name: dict[int, str] = {s.id: s.name for s in chemicals}
     events = await db.retrieve_events(conn)
     event_iterator = 0
     run_row_idx = 2
@@ -1513,7 +1525,7 @@ async def create_workbook(
                 row=run_row_idx,
                 column=run_column_idx,
                 value=attributo_value_to_spreadsheet_cell(
-                    sample_id_to_name=sample_id_to_name,
+                    chemical_id_to_name=chemical_id_to_name,
                     attributo_type=run_attributo.attributo_type,
                     attributo_value=run.attributi.select(run_attributo.name),
                 ),

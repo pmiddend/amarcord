@@ -12,12 +12,12 @@ from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeChoice
 from amarcord.db.attributo_type import AttributoTypeDateTime
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
-from amarcord.db.attributo_type import AttributoTypeSample
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
@@ -25,7 +25,7 @@ from amarcord.json_types import JSONValue
 
 SPECIAL_VALUE_CHOICE_NONE = ""
 
-SPECIAL_SAMPLE_ID_NONE = 0
+SPECIAL_CHEMICAL_ID_NONE = 0
 
 JsonAttributiMap = dict[str, JSONValue]
 
@@ -33,18 +33,18 @@ UntypedAttributiMap = dict[AttributoId, AttributoValue]
 
 
 def _check_type(
-    name: str, sample_ids: list[int], type_: AttributoType, value: AttributoValue
+    name: str, chemical_ids: list[int], type_: AttributoType, value: AttributoValue
 ) -> None:
     if value is None:
         return
-    if isinstance(type_, AttributoTypeSample):
+    if isinstance(type_, AttributoTypeChemical):
         if not isinstance(value, int):
             raise Exception(
                 f'attributo "{name}": should have type int, but got value {value}'
             )
-        if value != SPECIAL_SAMPLE_ID_NONE and value not in sample_ids:
-            raise Exception(f'attributo "{name}": invalid sample ID {value}')
-    if isinstance(type_, (AttributoTypeInt, AttributoTypeSample)):
+        if value != SPECIAL_CHEMICAL_ID_NONE and value not in chemical_ids:
+            raise Exception(f'attributo "{name}": invalid chemical ID {value}')
+    if isinstance(type_, (AttributoTypeInt, AttributoTypeChemical)):
         if not isinstance(value, int):
             raise Exception(
                 f'attributo "{name}": should have type int, but got value {value}'
@@ -87,7 +87,7 @@ def _check_type(
         ), f'attributo "{name}": list max length is {type_.min_length}, got {len(value)} element(s)'
 
         for i, v in enumerate(value):
-            _check_type(name + f"[{i}]", sample_ids, type_.sub_type, v)  # type: ignore
+            _check_type(name + f"[{i}]", chemical_ids, type_.sub_type, v)  # type: ignore
     elif isinstance(type_, AttributoTypeDateTime):
         assert isinstance(
             value, datetime.datetime
@@ -95,20 +95,22 @@ def _check_type(
 
 
 def check_attributo_types(
-    types: dict[AttributoId, DBAttributo], sample_ids: list[int], d: UntypedAttributiMap
+    types: dict[AttributoId, DBAttributo],
+    chemical_ids: list[int],
+    d: UntypedAttributiMap,
 ) -> None:
     for name, value in d.items():
         type_ = types.get(name, None)
         if type_ is None:
             raise Exception(f'attributo "{name}" not found!')
-        _check_type(name, sample_ids, type_.attributo_type, value)
+        _check_type(name, chemical_ids, type_.attributo_type, value)
 
 
 def _convert_single_attributo_value_from_json(
     i: AttributoId,
     v: JSONValue,
     types: dict[AttributoId, DBAttributo],
-    sample_ids: list[int],
+    chemical_ids: list[int],
 ) -> AttributoValue:
     attributo_type = types.get(i, None)
     if attributo_type is None:
@@ -116,7 +118,7 @@ def _convert_single_attributo_value_from_json(
             f'cannot convert attributo "{i}" from JSON, don\'t have a type! value is "{v}"'
         )
     return _convert_single_attributo_value_from_json_with_type(
-        i, v, attributo_type.attributo_type, sample_ids
+        i, v, attributo_type.attributo_type, chemical_ids
     )
 
 
@@ -124,16 +126,16 @@ def _convert_single_attributo_value_from_json_with_type(
     i: AttributoId,
     v: JSONValue,
     attributo_type: AttributoType,
-    sample_ids: list[int],
+    chemical_ids: list[int],
 ) -> AttributoValue:
     if v is None:
         return None
-    if isinstance(attributo_type, AttributoTypeSample):
+    if isinstance(attributo_type, AttributoTypeChemical):
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
-        if v != SPECIAL_SAMPLE_ID_NONE and v not in sample_ids:
-            raise Exception(f"{v} is not a valid sample ID")
+        if v != SPECIAL_CHEMICAL_ID_NONE and v not in chemical_ids:
+            raise Exception(f"{v} is not a valid chemical ID")
         return v
     if isinstance(attributo_type, AttributoTypeBoolean):
         assert isinstance(
@@ -204,7 +206,7 @@ def _convert_single_attributo_value_from_json_with_type(
             )
         return [  # type: ignore
             _convert_single_attributo_value_from_json_with_type(
-                i, sub_value, attributo_type.sub_type, sample_ids
+                i, sub_value, attributo_type.sub_type, chemical_ids
             )
             for sub_value in v
         ]
@@ -234,27 +236,27 @@ class AttributiMap:
     def __init__(
         self,
         types_dict: dict[AttributoId, DBAttributo],
-        sample_ids: list[int],
+        chemical_ids: list[int],
         impl: UntypedAttributiMap,
     ) -> None:
         self._attributi = impl
         self._types = types_dict
-        self._sample_ids = sample_ids
+        self._chemical_ids = chemical_ids
 
     @staticmethod
     def from_types_and_raw(
         types: Iterable[DBAttributo],
-        sample_ids: list[int],
+        chemical_ids: list[int],
         raw_attributi: UntypedAttributiMap,
     ) -> "AttributiMap":
-        result = AttributiMap({a.name: a for a in types}, sample_ids, {})
+        result = AttributiMap({a.name: a for a in types}, chemical_ids, {})
         result.extend(raw_attributi)
         return result
 
     @staticmethod
     def from_types_and_json(
         types: Iterable[DBAttributo],
-        sample_ids: list[int],
+        chemical_ids: list[int],
         raw_attributi: JsonAttributiMap,
     ) -> "AttributiMap":
         attributi: UntypedAttributiMap = {}
@@ -262,16 +264,19 @@ class AttributiMap:
         if raw_attributi is not None:
             for attributo_name, attributo_value in raw_attributi.items():
                 v = _convert_single_attributo_value_from_json(
-                    AttributoId(attributo_name), attributo_value, types_dict, sample_ids
+                    AttributoId(attributo_name),
+                    attributo_value,
+                    types_dict,
+                    chemical_ids,
                 )
                 attributi[AttributoId(attributo_name)] = v
 
-        return AttributiMap(types_dict, sample_ids, attributi)
+        return AttributiMap(types_dict, chemical_ids, attributi)
 
     def copy(self) -> "AttributiMap":
         return AttributiMap(
             types_dict=self._types.copy(),
-            sample_ids=self._sample_ids.copy(),
+            chemical_ids=self._chemical_ids.copy(),
             impl=self._attributi.copy(),
         )
 
@@ -312,7 +317,7 @@ class AttributiMap:
         ), f'expected datetime for attributo "{attributo_id}", got {type(v)}'
         return v
 
-    def select_sample_id(self, attributo_id: AttributoId) -> int | None:
+    def select_chemical_id(self, attributo_id: AttributoId) -> int | None:
         return self.select_int(attributo_id)
 
     def select_int(self, attributo_id: AttributoId) -> int | None:
@@ -348,7 +353,7 @@ class AttributiMap:
         return type_.attributo_type, value
 
     def extend(self, new_attributi: UntypedAttributiMap) -> None:
-        check_attributo_types(self._types, self._sample_ids, new_attributi)
+        check_attributo_types(self._types, self._chemical_ids, new_attributi)
         for k, v in new_attributi.items():
             if v is not None:
                 self._attributi[k] = v
@@ -357,7 +362,7 @@ class AttributiMap:
         attributi_in_group = {k.name for k in self._types.values() if k.group == group}
         return AttributiMap(
             self._types.copy(),
-            self._sample_ids.copy(),
+            self._chemical_ids.copy(),
             {k: v for k, v in self._attributi.items() if k in attributi_in_group},
         )
 

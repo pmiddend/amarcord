@@ -170,7 +170,7 @@ async def ingest_kamzik_metadata(
     existing_run = await db.retrieve_run(conn, run_id, attributi)
     kamzik_attributi_map = AttributiMap.from_types_and_json(
         attributi,
-        sample_ids=await db.retrieve_sample_ids(conn),
+        chemical_ids=await db.retrieve_chemical_ids(conn),
         raw_attributi=attributi_values,
     )
     attributi_map: AttributiMap

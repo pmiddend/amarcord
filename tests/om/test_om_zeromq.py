@@ -53,7 +53,7 @@ async def test_process_data_latest_run() -> None:
             1,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
-                types=attributi, sample_ids=[], raw_attributi={}
+                types=attributi, chemical_ids=[], raw_attributi={}
             ),
             keep_manual_attributes_from_previous_run=False,
         )

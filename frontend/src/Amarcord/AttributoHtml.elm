@@ -1,9 +1,9 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueSampleId, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
+import Amarcord.Chemical exposing (Chemical)
 import Amarcord.Html exposing (br_, input_, span_, strongText)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
-import Amarcord.Sample exposing (Sample)
 import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, localDateTimeParser)
 import Dict exposing (Dict, get)
 import FormatNumber exposing (format)
@@ -54,7 +54,7 @@ type alias ViewAttributoValueProperties =
 
 
 viewAttributoCell : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
-viewAttributoCell props zone sampleIds attributiValues { name, group, type_ } =
+viewAttributoCell props zone chemicalIds attributiValues { name, group, type_ } =
     td
         [ class
             (if props.colorize && group == "manual" then
@@ -69,12 +69,12 @@ viewAttributoCell props zone sampleIds attributiValues { name, group, type_ } =
                 text ""
 
             Just v ->
-                viewAttributoValue props zone sampleIds type_ v
+                viewAttributoValue props zone chemicalIds type_ v
         ]
 
 
 viewAttributoValue : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoType -> AttributoValue -> Html msg
-viewAttributoValue props zone sampleIds type_ value =
+viewAttributoValue props zone chemicalIds type_ value =
     case value of
         ValueNone ->
             text ""
@@ -88,14 +88,14 @@ viewAttributoValue props zone sampleIds type_ value =
 
         ValueInt int ->
             case type_ of
-                SampleId ->
+                ChemicalId ->
                     if int == 0 then
                         text ""
 
                     else
-                        case get int sampleIds of
+                        case get int chemicalIds of
                             Nothing ->
-                                text "invalid sample ID"
+                                text "invalid chemical ID"
 
                             Just sid ->
                                 text sid
@@ -122,10 +122,10 @@ viewAttributoValue props zone sampleIds type_ value =
                 List { subType } ->
                     case subType of
                         Number _ ->
-                            span_ <| [ text "(" ] ++ intersperse (text ", ") (List.map (viewAttributoValue props zone sampleIds subType) attributoValues) ++ [ text ")" ]
+                            span_ <| [ text "(" ] ++ intersperse (text ", ") (List.map (viewAttributoValue props zone chemicalIds subType) attributoValues) ++ [ text ")" ]
 
                         String ->
-                            span_ <| intersperse (text ",") <| List.map (viewAttributoValue props zone sampleIds subType) attributoValues
+                            span_ <| intersperse (text ",") <| List.map (viewAttributoValue props zone chemicalIds subType) attributoValues
 
                         _ ->
                             text "unsupported list element type"
@@ -181,7 +181,7 @@ type AttributoEditValue
     = EditValueInt String
     | EditValueDateTime String
     | EditValueBoolean Bool
-    | EditValueSampleId (Maybe Int)
+    | EditValueChemicalId (Maybe Int)
     | EditValueString String
     | EditValueList
         { subType : AttributoType
@@ -200,10 +200,10 @@ type AttributoEditValue
     | EditValueChoice { choiceValues : List String, editValue : String }
 
 
-isEditValueSampleId : AttributoEditValue -> Bool
-isEditValueSampleId x =
+isEditValueChemicalId : AttributoEditValue -> Bool
+isEditValueChemicalId x =
     case x of
-        EditValueSampleId _ ->
+        EditValueChemicalId _ ->
             True
 
         _ ->
@@ -226,8 +226,8 @@ type AttributoFormMsg
     | AttributoFormSubmit
 
 
-viewAttributoForm : List (Sample Int a b) -> EditableAttributo -> Html AttributoFormMsg
-viewAttributoForm samples a =
+viewAttributoForm : List (Chemical Int a b) -> EditableAttributo -> Html AttributoFormMsg
+viewAttributoForm chemicals a =
     case second a.type_ of
         EditValueString s ->
             div [ class "mb-3" ] <|
@@ -393,7 +393,7 @@ viewAttributoForm samples a =
                            ]
                 ]
 
-        EditValueSampleId selectedId ->
+        EditValueChemicalId selectedId ->
             let
                 makeOption { id, name } =
                     option [ selected (Just id == selectedId), value (fromInt id) ] [ text name ]
@@ -403,9 +403,9 @@ viewAttributoForm samples a =
                 , select
                     [ id ("attributo-" ++ a.name)
                     , class "form-select"
-                    , onInput (AttributoFormValueUpdate << AttributoNameWithValueUpdate a.name << SetValue << EditValueSampleId << String.toInt)
+                    , onInput (AttributoFormValueUpdate << AttributoNameWithValueUpdate a.name << SetValue << EditValueChemicalId << String.toInt)
                     ]
-                    (option [ selected (isNothing selectedId), value "0" ] [ text "«no value»" ] :: List.map makeOption samples)
+                    (option [ selected (isNothing selectedId), value "0" ] [ text "«no value»" ] :: List.map makeOption chemicals)
                 ]
 
 
@@ -489,8 +489,8 @@ emptyEditValue a =
         DateTime ->
             EditValueDateTime ""
 
-        SampleId ->
-            EditValueSampleId Nothing
+        ChemicalId ->
+            EditValueChemicalId Nothing
 
         String ->
             EditValueString ""
@@ -554,11 +554,11 @@ attributoValueToEditValue zone attributoName attributi value =
                 ( Int, ValueNone ) ->
                     Just (EditValueInt "")
 
-                ( SampleId, ValueInt x ) ->
-                    Just (EditValueSampleId (Just x))
+                ( ChemicalId, ValueInt x ) ->
+                    Just (EditValueChemicalId (Just x))
 
-                ( SampleId, ValueNone ) ->
-                    Just (EditValueSampleId Nothing)
+                ( ChemicalId, ValueNone ) ->
+                    Just (EditValueChemicalId Nothing)
 
                 ( String, ValueNone ) ->
                     Just (EditValueString "")
@@ -686,8 +686,8 @@ editValueToValue zone x =
                 Err error ->
                     Err (deadEndsToString error)
 
-        EditValueSampleId sampleId ->
-            Ok (ValueInt (withDefault 0 sampleId))
+        EditValueChemicalId chemicalId ->
+            Ok (ValueInt (withDefault 0 chemicalId))
 
         EditValueString string ->
             Ok (ValueString string)
