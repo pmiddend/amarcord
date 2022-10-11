@@ -37,7 +37,7 @@ nix-pin-latest-manual:
 
 check-requirements:
    script:
-     - nix-shell -p poetry --run ./ci/check-requirements.sh
+     - nix-shell --run ./ci/check-requirements.sh
 tests:
   script:
     - nix-shell default.nix -A pythonPackage --run ci/run-tests.sh
