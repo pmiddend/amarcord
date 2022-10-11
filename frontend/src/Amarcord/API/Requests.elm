@@ -6,7 +6,6 @@ module Amarcord.API.Requests exposing
     , ConversionFlags
     , DataSetResult
     , Event
-    , ExperimentType
     , ExperimentTypesResponse
     , IncludeLiveStream(..)
     , RequestError(..)
@@ -14,6 +13,7 @@ module Amarcord.API.Requests exposing
     , RunEventDate
     , RunEventDateFilter(..)
     , RunFilter(..)
+    , RunId
     , RunsBulkGetResponse
     , RunsResponse
     , RunsResponseContent
@@ -31,7 +31,6 @@ module Amarcord.API.Requests exposing
     , httpCreateEvent
     , httpCreateExperimentType
     , httpCreateFile
-    , httpCreateLiveStreamSnapshot
     , httpDeleteAttributo
     , httpDeleteChemical
     , httpDeleteDataSet
@@ -61,10 +60,11 @@ module Amarcord.API.Requests exposing
     , specificRunEventDateFilter
     )
 
+import Amarcord.API.DataSet exposing (DataSet, DataSetSummary, dataSetDecoder, dataSetSummaryDecoder)
+import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId, experimentTypeDecoder)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue(..), attributoDecoder, attributoTypeDecoder)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue(..), attributoDecoder, attributoMapDecoder, attributoTypeDecoder, attributoValueDecoder)
 import Amarcord.Chemical exposing (Chemical, ChemicalId)
-import Amarcord.DataSet exposing (DataSet, DataSetSummary)
 import Amarcord.File exposing (File)
 import Amarcord.JsonSchema exposing (JsonSchema, encodeJsonSchema)
 import Amarcord.UserError exposing (CustomError, customErrorDecoder)
@@ -76,9 +76,12 @@ import Json.Decode as Decode
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
 import Maybe.Extra as MaybeExtra exposing (unwrap)
-import Set exposing (Set)
 import Time exposing (Posix, millisToPosix)
 import Tuple exposing (pair)
+
+
+type alias RunId =
+    Int
 
 
 type alias ConversionFlags =
@@ -94,17 +97,6 @@ errorDecoder =
 valueOrError : Decode.Decoder value -> Decode.Decoder (Result CustomError value)
 valueOrError valueDecoder =
     Decode.oneOf [ Decode.map Err errorDecoder, Decode.map Ok valueDecoder ]
-
-
-type alias ExperimentType =
-    { name : String
-    , attributeNames : List String
-    }
-
-
-experimentTypeDecoder : Decode.Decoder ExperimentType
-experimentTypeDecoder =
-    Decode.map2 ExperimentType (Decode.field "name" Decode.string) (Decode.field "attributo-names" <| Decode.list Decode.string)
 
 
 httpCreateExperimentType : (Result RequestError () -> msg) -> String -> List String -> Cmd msg
@@ -123,11 +115,11 @@ httpCreateExperimentType f name attributiNames =
         }
 
 
-httpDeleteExperimentType : (Result RequestError () -> msg) -> String -> Cmd msg
-httpDeleteExperimentType f experimentTypeName =
+httpDeleteExperimentType : (Result RequestError () -> msg) -> ExperimentTypeId -> Cmd msg
+httpDeleteExperimentType f experimentTypeId =
     httpDelete
         { url = "api/experiment-types"
-        , body = jsonBody (Encode.object [ ( "name", Encode.string experimentTypeName ) ])
+        , body = jsonBody (Encode.object [ ( "id", Encode.int experimentTypeId ) ])
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
         }
 
@@ -153,27 +145,8 @@ httpGetExperimentTypes f =
         }
 
 
-dataSetSummaryDecoder : Decode.Decoder DataSetSummary
-dataSetSummaryDecoder =
-    Decode.map3
-        DataSetSummary
-        (Decode.field "hit-rate" (Decode.maybe Decode.float))
-        (Decode.field "indexing-rate" (Decode.maybe Decode.float))
-        (Decode.field "indexed-frames" Decode.int)
-
-
-dataSetDecoder : Decode.Decoder DataSet
-dataSetDecoder =
-    Decode.map4
-        DataSet
-        (Decode.field "id" Decode.int)
-        (Decode.field "experiment-type" Decode.string)
-        (Decode.field "attributi" attributoMapDecoder)
-        (Decode.maybe <| Decode.field "summary" dataSetSummaryDecoder)
-
-
-httpCreateDataSet : (Result RequestError () -> msg) -> String -> AttributoMap AttributoValue -> Cmd msg
-httpCreateDataSet f experimentType attributi =
+httpCreateDataSet : (Result RequestError () -> msg) -> ExperimentTypeId -> AttributoMap AttributoValue -> Cmd msg
+httpCreateDataSet f experimentTypeId attributi =
     Http.post
         { url = "api/data-sets"
         , expect =
@@ -181,15 +154,15 @@ httpCreateDataSet f experimentType attributi =
         , body =
             jsonBody
                 (Encode.object
-                    [ ( "experiment-type", Encode.string experimentType )
+                    [ ( "experiment-type-id", Encode.int experimentTypeId )
                     , ( "attributi", encodeAttributoMap attributi )
                     ]
                 )
         }
 
 
-httpCreateDataSetFromRun : (Result RequestError () -> msg) -> String -> Int -> Cmd msg
-httpCreateDataSetFromRun f experimentType runId =
+httpCreateDataSetFromRun : (Result RequestError () -> msg) -> ExperimentTypeId -> RunId -> Cmd msg
+httpCreateDataSetFromRun f experimentTypeId runId =
     Http.post
         { url = "api/data-sets/from-run"
         , expect =
@@ -197,15 +170,15 @@ httpCreateDataSetFromRun f experimentType runId =
         , body =
             jsonBody
                 (Encode.object
-                    [ ( "experiment-type", Encode.string experimentType )
+                    [ ( "experiment-type-id", Encode.int experimentTypeId )
                     , ( "run-id", Encode.int runId )
                     ]
                 )
         }
 
 
-httpChangeCurrentExperimentType : (Result RequestError () -> msg) -> Maybe String -> Int -> Cmd msg
-httpChangeCurrentExperimentType f experimentType runId =
+httpChangeCurrentExperimentType : (Result RequestError () -> msg) -> Maybe ExperimentTypeId -> RunId -> Cmd msg
+httpChangeCurrentExperimentType f experimentTypeId runId =
     Http.post
         { url = "api/experiment-types/change-for-run"
         , expect =
@@ -213,7 +186,7 @@ httpChangeCurrentExperimentType f experimentType runId =
         , body =
             jsonBody
                 (Encode.object
-                    [ ( "experiment-type", MaybeExtra.unwrap Encode.null Encode.string experimentType )
+                    [ ( "experiment-type-id", MaybeExtra.unwrap Encode.null Encode.int experimentTypeId )
                     , ( "run-id", Encode.int runId )
                     ]
                 )
@@ -340,7 +313,7 @@ type alias RunsResponseContent =
     , events : List Event
     , chemicals : List (Chemical Int (AttributoMap AttributoValue) File)
     , dataSets : List DataSet
-    , experimentTypes : Dict String (Set String)
+    , experimentTypes : List ExperimentType
     , autoPilot : Bool
     , onlineCrystFEL : Bool
     , jetStreamFileId : Maybe Int
@@ -374,17 +347,6 @@ httpUserConfigurationSetOnlineCrystFEL =
 httpUserConfigurationSetAutoPilot : (Result RequestError Bool -> msg) -> Bool -> Cmd msg
 httpUserConfigurationSetAutoPilot =
     httpUserConfigurationSetBoolean "auto-pilot"
-
-
-httpCreateLiveStreamSnapshot : (Result RequestError File -> msg) -> Cmd msg
-httpCreateLiveStreamSnapshot f =
-    Http.get
-        { url = "api/live-stream/snapshot"
-        , expect =
-            Http.expectJson (f << httpResultToRequestError) <|
-                valueOrError <|
-                    fileDecoder
-        }
 
 
 type RunFilter
@@ -458,7 +420,7 @@ getRuns path f =
                         |> required "events" (Decode.list eventDecoder)
                         |> required "chemicals" (Decode.list chemicalDecoder)
                         |> required "data-sets" (Decode.list dataSetDecoder)
-                        |> required "experiment-types" (Decode.dict (Decode.map Set.fromList <| Decode.list Decode.string))
+                        |> required "experiment-types" (Decode.list experimentTypeDecoder)
                         |> required "auto-pilot" Decode.bool
                         |> required "online-crystfel" Decode.bool
                         |> required "live-stream-file-id" (Decode.maybe Decode.int)
@@ -500,23 +462,6 @@ encodeAttributoValue x =
 
         ValueBoolean bool ->
             Encode.bool bool
-
-
-attributoValueDecoder : Decode.Decoder AttributoValue
-attributoValueDecoder =
-    Decode.oneOf
-        [ Decode.map ValueString Decode.string
-        , Decode.map ValueInt Decode.int
-        , Decode.map ValueNumber Decode.float
-        , Decode.map ValueBoolean Decode.bool
-        , Decode.null ValueNone
-        , Decode.map ValueList (Decode.list (Decode.lazy (\_ -> attributoValueDecoder)))
-        ]
-
-
-attributoMapDecoder : Decode.Decoder (AttributoMap AttributoValue)
-attributoMapDecoder =
-    Decode.dict attributoValueDecoder
 
 
 runDecoder : Decode.Decoder Run
@@ -602,7 +547,7 @@ httpUpdateRun f a =
 
 
 type alias RunsBulkUpdateRequest =
-    { runIds : List Int
+    { runIds : List RunId
     , attributi : AttributoMap AttributoValue
     }
 
@@ -625,7 +570,7 @@ httpUpdateRunsBulk f a =
 
 
 type alias RunsBulkGetRequest =
-    { runIds : List Int }
+    { runIds : List RunId }
 
 
 encodeRunsBulkGetRequest : RunsBulkGetRequest -> Encode.Value
@@ -869,7 +814,7 @@ httpCreateFile f description file =
         }
 
 
-httpStartRun : Int -> (Result RequestError () -> msg) -> Cmd msg
+httpStartRun : RunId -> (Result RequestError () -> msg) -> Cmd msg
 httpStartRun runId f =
     Http.get
         { url = "api/runs/" ++ String.fromInt runId ++ "/start"

@@ -806,7 +806,7 @@ async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemica
 
         # Create an experiment type and a data-set. This is supposed to be deleted as well when we delete the chemical
         # attributo.
-        await db.create_experiment_type(
+        et_id = await db.create_experiment_type(
             conn,
             name="chemical-based",
             experiment_attributi_names=[_TEST_ATTRIBUTO_NAME],
@@ -814,7 +814,7 @@ async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemica
 
         await db.create_data_set(
             conn,
-            "chemical-based",
+            et_id,
             AttributiMap.from_types_and_raw(
                 attributi, [chemical_id], {_TEST_ATTRIBUTO_NAME: chemical_id}
             ),
@@ -949,15 +949,17 @@ async def test_create_and_retrieve_experiment_types() -> None:
             )
 
         # Create the experiment type, then retrieve it, then delete it again and check if that worked
-        await db.create_experiment_type(conn, e_type_name, [first_name, second_name])
+        et_id = await db.create_experiment_type(
+            conn, e_type_name, [first_name, second_name]
+        )
 
         e_types = list(await db.retrieve_experiment_types(conn))
         assert len(e_types) == 1
         assert e_types[0].name == e_type_name
-        assert e_types[0].attributo_names == [first_name, second_name]
+        assert e_types[0].attributi_names == [first_name, second_name]
 
         # Now delete it again
-        await db.delete_experiment_type(conn, e_type_name)
+        await db.delete_experiment_type(conn, et_id)
 
         assert not await db.retrieve_experiment_types(conn)
 
@@ -987,14 +989,16 @@ async def test_create_and_retrieve_data_sets() -> None:
 
         # Create experiment type
         e_type_name = "e1"
-        await db.create_experiment_type(conn, e_type_name, [first_name, second_name])
+        et_id = await db.create_experiment_type(
+            conn, e_type_name, [first_name, second_name]
+        )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         raw_attributi = {first_name: 1, second_name: "f"}
         id_ = await db.create_data_set(
             conn,
-            e_type_name,
+            et_id,
             AttributiMap.from_types_and_json(
                 types=attributi,
                 chemical_ids=await db.retrieve_chemical_ids(conn),
@@ -1010,7 +1014,7 @@ async def test_create_and_retrieve_data_sets() -> None:
 
         assert len(data_sets) == 1
         assert data_sets[0].id == id_
-        assert data_sets[0].experiment_type == e_type_name
+        assert data_sets[0].experiment_type_id == et_id
         assert data_sets[0].attributi.to_json() == raw_attributi
 
         await db.delete_data_set(conn, id_)
@@ -1022,7 +1026,7 @@ async def test_create_and_retrieve_data_sets() -> None:
 
         with pytest.raises(Exception):
             await db.create_data_set(
-                conn, e_type_name, AttributiMap.from_types_and_json(attributi, [], {})
+                conn, et_id, AttributiMap.from_types_and_json(attributi, [], {})
             )
 
 
@@ -1051,14 +1055,16 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
 
         # Create experiment type
         e_type_name = "e1"
-        await db.create_experiment_type(conn, e_type_name, [first_name, second_name])
+        et_id = await db.create_experiment_type(
+            conn, e_type_name, [first_name, second_name]
+        )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         raw_attributi = {first_name: 1, second_name: "f"}
         await db.create_data_set(
             conn,
-            e_type_name,
+            et_id,
             AttributiMap.from_types_and_json(
                 types=attributi,
                 chemical_ids=await db.retrieve_chemical_ids(conn),

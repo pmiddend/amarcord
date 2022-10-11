@@ -510,7 +510,7 @@ async def read_runs() -> JSONDict:
                 for r in runs
             ],
             "attributi": [_encode_attributo(a) for a in attributi],
-            "experiment-types": {a.name: a.attributo_names for a in experiment_types},
+            "experiment-types": [_encode_experiment_type(a) for a in experiment_types],
             "data-sets": [
                 _encode_data_set(a, data_set_id_to_grouped.get(a.id, None))
                 for a in data_sets
@@ -623,13 +623,13 @@ async def create_experiment_type() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
-        await db.instance.create_experiment_type(
+        et_id = await db.instance.create_experiment_type(
             conn,
             name=r.retrieve_safe_str("name"),
             experiment_attributi_names=r.retrieve_string_array("attributi-names"),
         )
 
-    return {}
+    return {"id": et_id}
 
 
 @app.post("/api/experiment-types/change-for-run")
@@ -648,7 +648,7 @@ async def change_current_run_experiment_type() -> JSONDict:
             raise CustomWebException(
                 code=404, title=f'Couldn\'t find run with ID "{run_id}"', description=""
             )
-        new_experiment_type = r.optional_str("experiment-type")
+        new_experiment_type = r.optional_int("experiment-type-id")
         # There is no semantic yet for resetting an experiment type
         if new_experiment_type is None:
             return {}
@@ -657,20 +657,20 @@ async def change_current_run_experiment_type() -> JSONDict:
             iter(
                 x
                 for x in await db.instance.retrieve_experiment_types(conn)
-                if x.name == new_experiment_type
+                if x.id == new_experiment_type
             ),
             None,
         )
         if experiment_type_instance is None:
             raise CustomWebException(
                 code=404,
-                title=f'Couldn\'t find experiment type "{new_experiment_type}"',
+                title=f"Couldn't find experiment type with ID {new_experiment_type}",
                 description="",
             )
         for a in attributi:
             if (
                 a.group == ATTRIBUTO_GROUP_MANUAL
-                and a.name not in experiment_type_instance.attributo_names
+                and a.name not in experiment_type_instance.attributi_names
             ):
                 run.attributi.remove_but_keep_type(a.name)
         await db.instance.update_run_attributi(conn, run_id, run.attributi)
@@ -679,8 +679,9 @@ async def change_current_run_experiment_type() -> JSONDict:
 
 def _encode_experiment_type(a: DBExperimentType) -> JSONDict:
     return {
+        "id": a.id,
         "name": a.name,
-        "attributo-names": a.attributo_names,
+        "attributi-names": a.attributi_names,
     }
 
 
@@ -710,7 +711,7 @@ async def delete_experiment_type() -> JSONDict:
     async with db.instance.begin() as conn:
         await db.instance.delete_experiment_type(
             conn,
-            name=r.retrieve_safe_str("name"),
+            r.retrieve_safe_int("id"),
         )
 
     return {}
@@ -821,13 +822,13 @@ async def create_data_set_from_run() -> JSONDict:
 
     async with db.instance.begin() as conn:
         run_id = r.retrieve_safe_int("run-id")
-        experiment_type = r.retrieve_safe_str("experiment-type")
+        experiment_type_id = r.retrieve_safe_int("experiment-type-id")
 
         experiment_type_resolved = next(
             iter(
                 et
                 for et in await db.instance.retrieve_experiment_types(conn)
-                if et.name == experiment_type
+                if et.id == experiment_type_id
             ),
             None,
         )
@@ -835,7 +836,7 @@ async def create_data_set_from_run() -> JSONDict:
         if experiment_type_resolved is None:
             raise CustomWebException(
                 code=500,
-                title=f"Couldn't find experiment type \"{experiment_type}",
+                title=f"Couldn't find experiment type with ID {experiment_type_id}",
                 description="",
             )
 
@@ -855,11 +856,11 @@ async def create_data_set_from_run() -> JSONDict:
             await db.instance.retrieve_chemical_ids(conn),
             {
                 an: run.attributi.select(an)
-                for an in experiment_type_resolved.attributo_names
+                for an in experiment_type_resolved.attributi_names
             },
         )
 
-        await db.instance.create_data_set(conn, experiment_type, attributi_map)
+        await db.instance.create_data_set(conn, experiment_type_id, attributi_map)
 
         return {}
 
@@ -876,12 +877,12 @@ async def create_data_set() -> JSONDict:
             conn, chemical_ids, attributi
         )
 
-        experiment_type_name = r.retrieve_safe_str("experiment-type")
+        experiment_type_id = r.retrieve_safe_int("experiment-type-id")
         experiment_type = next(
             iter(
                 t
                 for t in await db.instance.retrieve_experiment_types(conn)
-                if t.name == experiment_type_name
+                if t.id == experiment_type_id
             ),
             None,
         )
@@ -890,14 +891,14 @@ async def create_data_set() -> JSONDict:
             raise CustomWebException(
                 code=500,
                 title="Invalid experiment type",
-                description=f'Experiment type "{experiment_type_name}" not found',
+                description=f"Experiment type with ID {experiment_type_id} not found",
             )
 
         data_set_attributi = r.retrieve_safe_object("attributi")
         if any(
             x
             for x in previous_data_sets
-            if x.experiment_type == experiment_type_name
+            if x.experiment_type_id == experiment_type_id
             and x.attributi.to_json() == data_set_attributi
         ):
             raise CustomWebException(
@@ -914,14 +915,14 @@ async def create_data_set() -> JSONDict:
             )
 
         processed_attributi: JsonAttributiMap = {}
-        for attributo_name in experiment_type.attributo_names:
+        for attributo_name in experiment_type.attributi_names:
             if attributo_name in data_set_attributi:
                 processed_attributi[attributo_name] = data_set_attributi[attributo_name]
             else:
                 attributo = attributi_by_name.get(attributo_name, None)
                 assert (
                     attributo is not None
-                ), f"attributo {attributo_name} mentioned in experiment type {experiment_type_name} not found"
+                ), f"attributo {attributo_name} mentioned in experiment type {experiment_type_id} not found"
                 if not isinstance(attributo.attributo_type, AttributoTypeBoolean):
                     raise CustomWebException(
                         code=500,
@@ -932,7 +933,7 @@ async def create_data_set() -> JSONDict:
 
         data_set_id = await db.instance.create_data_set(
             conn,
-            experiment_type=experiment_type_name,
+            experiment_type_id=experiment_type_id,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids,
@@ -946,7 +947,7 @@ async def create_data_set() -> JSONDict:
 def _encode_data_set(a: DBDataSet, summary: DBIndexingFOM | None) -> JSONDict:
     result = {
         "id": a.id,
-        "experiment-type": a.experiment_type,
+        "experiment-type-id": a.experiment_type_id,
         "attributi": a.attributi.to_json(),
     }
     if summary is not None:
@@ -1206,9 +1207,9 @@ async def read_analysis_results() -> JSONDict:
         data_sets = await db.instance.retrieve_data_sets(
             conn, [x.id for x in chemicals], attributi
         )
-        data_sets_by_experiment_type: dict[str, list[DBDataSet]] = group_by(
+        data_sets_by_experiment_type: dict[int, list[DBDataSet]] = group_by(
             data_sets,
-            lambda ds: ds.experiment_type,
+            lambda ds: ds.experiment_type_id,
         )
         runs = await db.instance.retrieve_runs(conn, attributi)
         data_set_to_runs: dict[int, list[DBRun]] = {
@@ -1246,8 +1247,8 @@ async def read_analysis_results() -> JSONDict:
             "attributi": [_encode_attributo(a) for a in attributi],
             "chemical-id-to-name": [[x.id, x.name] for x in chemicals],
             "experiment-types": {
-                experiment_type: [_build_data_set_result(ds) for ds in data_sets]
-                for experiment_type, data_sets in data_sets_by_experiment_type.items()
+                experiment_type_id: [_build_data_set_result(ds) for ds in data_sets]
+                for experiment_type_id, data_sets in data_sets_by_experiment_type.items()
             },
         }
 

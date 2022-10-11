@@ -1,5 +1,7 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
+import Amarcord.API.DataSet exposing (DataSet, DataSetSummary, emptySummary)
+import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
 import Amarcord.API.Requests exposing (Event, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
@@ -9,7 +11,6 @@ import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAle
 import Amarcord.Chemical exposing (Chemical, chemicalIdDict)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
-import Amarcord.DataSet exposing (DataSet, DataSetSummary, emptySummary)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm exposing (Msg(..))
 import Amarcord.File exposing (File)
@@ -27,7 +28,7 @@ import Html.Attributes exposing (checked, class, colspan, disabled, for, href, i
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onEnter)
 import List exposing (head)
-import List.Extra exposing (find)
+import List.Extra as ListExtra exposing (find)
 import Maybe
 import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
@@ -57,9 +58,9 @@ type Msg
     | ChangeOnlineCrystFEL Bool
     | AutoPilotToggled (Result RequestError Bool)
     | OnlineCrystFELToggled (Result RequestError Bool)
-    | CreateDataSetFromRun String Int
+    | CreateDataSetFromRun ExperimentTypeId Int
     | CreateDataSetFromRunFinished (Result RequestError ())
-    | ChangeCurrentExperimentTypeFinished (Maybe String) (Result RequestError ())
+    | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result RequestError ())
     | ResetDate
     | SetRunDateFilter RunEventDate
 
@@ -181,8 +182,8 @@ type alias Model =
     , runEditRequest : RemoteData RequestError ()
     , runFilter : RunFilterInfo
     , submitErrors : List String
-    , currentExperimentType : Maybe String
-    , selectedExperimentType : Maybe String
+    , currentExperimentType : Maybe ExperimentType
+    , selectedExperimentType : Maybe ExperimentType
     , columnChooser : ColumnChooser.Model
     , localStorage : Maybe LocalStorage
     , dataSetFromRunRequest : RemoteData RequestError ()
@@ -318,7 +319,7 @@ viewRunsTable zone chosenColumns { runs, attributi, events, chemicals } =
         ]
 
 
-viewCurrentRun : Zone -> Posix -> Maybe String -> Maybe String -> RemoteData RequestError () -> RemoteData RequestError () -> RunsResponseContent -> List (Html Msg)
+viewCurrentRun : Zone -> Posix -> Maybe ExperimentType -> Maybe ExperimentType -> RemoteData RequestError () -> RemoteData RequestError () -> RunsResponseContent -> List (Html Msg)
 viewCurrentRun zone now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
     case head rrc.runs of
@@ -375,8 +376,9 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                         _ ->
                             []
 
+                viewExperimentTypeOption : ExperimentType -> Html msg
                 viewExperimentTypeOption experimentType =
-                    option [ selected (Just experimentType == currentExperimentType), value experimentType ] [ text experimentType ]
+                    option [ selected (Just experimentType.id == Maybe.map .id currentExperimentType), value (String.fromInt experimentType.id) ] [ text experimentType.name ]
 
                 dataSetSelection =
                     [ form_
@@ -387,7 +389,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                     , Html.Attributes.id "current-experiment-type"
                                     , onInput SelectedExperimentTypeChanged
                                     ]
-                                    (option [ selected (isNothing selectedExperimentType), value "" ] [ text "«no value»" ] :: List.map viewExperimentTypeOption (Dict.keys rrc.experimentTypes))
+                                    (option [ selected (isNothing selectedExperimentType), value "" ] [ text "«no value»" ] :: List.map viewExperimentTypeOption rrc.experimentTypes)
                                 , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
                                 ]
                             , button
@@ -408,7 +410,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                             Nothing
 
                         Just experimentType ->
-                            find (\ds -> ds.experimentType == experimentType && List.member ds.id dataSets) rrc.dataSets
+                            find (\ds -> ds.experimentTypeId == experimentType.id && List.member ds.id dataSets) rrc.dataSets
 
                 smallBox color =
                     span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
@@ -528,8 +530,8 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                     [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
 
                                 Just experimentType ->
-                                    [ p [ class "text-muted" ] [ text <| "Run is not part of any data set in \"" ++ experimentType ++ "\". You can automatically create a data set that matches the current run's attributi." ]
-                                    , button [ type_ "button", class "btn btn-secondary", onClick (CreateDataSetFromRun experimentType id), disabled (isLoading dataSetFromRunRequest) ]
+                                    [ p [ class "text-muted" ] [ text <| "Run is not part of any data set in \"" ++ experimentType.name ++ "\". You can automatically create a data set that matches the current run's attributi." ]
+                                    , button [ type_ "button", class "btn btn-secondary", onClick (CreateDataSetFromRun experimentType.id id), disabled (isLoading dataSetFromRunRequest) ]
                                         [ icon { name = "plus-lg" }, text " Create data set from run" ]
                                     , viewRemoteData "Data set created" dataSetFromRunRequest
                                     ]
@@ -553,7 +555,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
 
 
 viewRunAttributiForm : Maybe (Set String) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Chemical Int a b) -> Maybe RunEditInfo -> List (Html Msg)
-viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditRequest chemicals rei =
+viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList runEditRequest chemicals rei =
     case rei of
         Nothing ->
             []
@@ -582,7 +584,7 @@ viewRunAttributiForm currentExperimentType latestRun submitErrorsList runEditReq
                 attributoFilterFunction a =
                     a.associatedTable
                         == AssociatedTable.Run
-                        && (a.group == manualGlobalAttributiGroup || a.group == manualAttributiGroup && matchesCurrentExperiment a currentExperimentType)
+                        && (a.group == manualGlobalAttributiGroup || a.group == manualAttributiGroup && matchesCurrentExperiment a currentExperimentTypeAttributi)
                         && not (List.member a.name [ "started", "stopped" ])
 
                 filteredAttributi =
@@ -661,7 +663,10 @@ viewInner model rrc =
                         (viewCurrentRun model.myTimeZone model.now model.selectedExperimentType model.currentExperimentType model.changeExperimentTypeRequest model.dataSetFromRunRequest rrc)
                     , div [ class "col-lg-6" ]
                         (viewRunAttributiForm
-                            (Maybe.andThen (\a -> Dict.get a rrc.experimentTypes) model.currentExperimentType)
+                            (model.currentExperimentType
+                                |> Maybe.andThen (\a -> ListExtra.find (\et -> et.id == a.id) rrc.experimentTypes)
+                                |> Maybe.map (\et -> Set.fromList et.attributiNames)
+                            )
                             (head rrc.runs)
                             model.submitErrors
                             model.runEditRequest
@@ -858,6 +863,16 @@ updateRunDateFilter runDateFilterInfo runDate =
     { runDateFilterInfo | runDateFilter = specificRunEventDateFilter runDate }
 
 
+withRunsResponse : Model -> (RunsResponseContent -> ( Model, Cmd Msg )) -> ( Model, Cmd Msg )
+withRunsResponse model f =
+    case model.runs of
+        Success rrc ->
+            f rrc
+
+        _ ->
+            ( model, Cmd.none )
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -907,13 +922,9 @@ update msg model =
                 , currentExperimentType =
                     case ( model.currentExperimentType, response ) of
                         -- We have an experiment type and need to check it
+                        -- Could be that the experiment type disappeared!
                         ( Just currentExperimentType, Ok { experimentTypes } ) ->
-                            -- Could be that the experiment type disappeared!
-                            if Dict.member currentExperimentType experimentTypes then
-                                Just currentExperimentType
-
-                            else
-                                List.head <| Dict.keys experimentTypes
+                            ListExtra.find (\et -> currentExperimentType.id == et.id) experimentTypes
 
                         -- We have an experiment type, but an error now. Just keep it for now.
                         ( currentExperimentType, _ ) ->
@@ -1059,17 +1070,16 @@ update msg model =
         Nop ->
             ( model, Cmd.none )
 
-        SelectedExperimentTypeChanged string ->
-            ( { model
-                | selectedExperimentType =
-                    if string == "" then
-                        Nothing
-
-                    else
-                        Just string
-              }
-            , Cmd.none
-            )
+        SelectedExperimentTypeChanged etIdStr ->
+            withRunsResponse model <|
+                \response ->
+                    ( { model
+                        | selectedExperimentType =
+                            String.toInt etIdStr
+                                |> Maybe.andThen (\etId -> ListExtra.find (\et -> et.id == etId) response.experimentTypes)
+                      }
+                    , Cmd.none
+                    )
 
         ColumnChooserMessage columnChooserMessage ->
             let
@@ -1090,8 +1100,8 @@ update msg model =
         OnlineCrystFELToggled _ ->
             ( model, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
 
-        CreateDataSetFromRun experimentType runId ->
-            ( { model | dataSetFromRunRequest = Loading }, httpCreateDataSetFromRun CreateDataSetFromRunFinished experimentType runId )
+        CreateDataSetFromRun experimentTypeId runId ->
+            ( { model | dataSetFromRunRequest = Loading }, httpCreateDataSetFromRun CreateDataSetFromRunFinished experimentTypeId runId )
 
         CreateDataSetFromRunFinished result ->
             ( { model | dataSetFromRunRequest = fromResult result }, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
@@ -1103,13 +1113,20 @@ update msg model =
 
                 Just ei ->
                     ( { model | changeExperimentTypeRequest = Loading }
-                    , httpChangeCurrentExperimentType (ChangeCurrentExperimentTypeFinished model.selectedExperimentType) model.selectedExperimentType ei.runId
+                    , httpChangeCurrentExperimentType (ChangeCurrentExperimentTypeFinished (Maybe.map .id model.selectedExperimentType))
+                        (Maybe.map .id model.selectedExperimentType)
+                        ei.runId
                     )
 
         ChangeCurrentExperimentTypeFinished selectedExperimentType result ->
-            ( { model | changeExperimentTypeRequest = fromResult result, currentExperimentType = selectedExperimentType }
-            , httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
-            )
+            withRunsResponse model <|
+                \response ->
+                    ( { model
+                        | changeExperimentTypeRequest = fromResult result
+                        , currentExperimentType = ListExtra.find (\et -> Just et.id == selectedExperimentType) response.experimentTypes
+                      }
+                    , httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
+                    )
 
         RunFilterSubMsg runFilterMsg ->
             let

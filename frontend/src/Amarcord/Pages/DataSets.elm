@@ -1,17 +1,19 @@
 module Amarcord.Pages.DataSets exposing (..)
 
-import Amarcord.API.Requests exposing (DataSetResult, ExperimentType, RequestError, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
+import Amarcord.API.DataSet exposing (DataSet)
+import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
+import Amarcord.API.Requests exposing (DataSetResult, RequestError, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, emptyAttributoMap)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, chemicalIdDict)
-import Amarcord.DataSet exposing (DataSet)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Util exposing (HereAndNow)
+import Dict
 import Html exposing (Html, button, div, h4, option, select, table, text)
-import Html.Attributes exposing (class, disabled, selected, type_)
+import Html.Attributes exposing (class, disabled, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List.Extra exposing (find)
 import Maybe.Extra exposing (isNothing)
@@ -20,7 +22,7 @@ import String
 import Time exposing (Zone)
 
 
-type DataSetMsg
+type Msg
     = DataSetCreated (Result RequestError ())
     | DataSetDeleted (Result RequestError ())
     | DataSetsReceived (Result RequestError DataSetResult)
@@ -33,7 +35,7 @@ type DataSetMsg
 
 
 type alias NewDataSet =
-    { experimentType : Maybe String
+    { experimentType : Maybe ExperimentType
     , attributi : EditableAttributiAndOriginal
     }
 
@@ -48,7 +50,7 @@ type alias DataSetModel =
     }
 
 
-initDataSet : HereAndNow -> ( DataSetModel, Cmd DataSetMsg )
+initDataSet : HereAndNow -> ( DataSetModel, Cmd Msg )
 initDataSet hereAndNow =
     ( { createRequest = NotAsked
       , deleteRequest = NotAsked
@@ -61,7 +63,7 @@ initDataSet hereAndNow =
     )
 
 
-updateDataSet : DataSetMsg -> DataSetModel -> ( DataSetModel, Cmd DataSetMsg )
+updateDataSet : Msg -> DataSetModel -> ( DataSetModel, Cmd Msg )
 updateDataSet msg model =
     case msg of
         DataSetCreated result ->
@@ -100,7 +102,7 @@ updateDataSet msg model =
                     ( { model | newDataSet = Just newDataSet }, Cmd.none )
 
         DataSetSubmit ->
-            case model.newDataSet of
+            case (Debug.log "model" model).newDataSet of
                 Nothing ->
                     ( model, Cmd.none )
 
@@ -115,15 +117,16 @@ updateDataSet msg model =
                                     ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
                                 Ok editedAttributi ->
-                                    ( { model | createRequest = Loading }, httpCreateDataSet DataSetCreated experimentType editedAttributi )
+                                    ( { model | createRequest = Loading }, httpCreateDataSet DataSetCreated experimentType.id editedAttributi )
 
-        DataSetExperimentTypeChange newExperimentType ->
+        DataSetExperimentTypeChange newExperimentTypeIdStr ->
             case model.dataSets of
                 Success { attributi, experimentTypes } ->
                     let
                         matchingExperimentType : Maybe ExperimentType
                         matchingExperimentType =
-                            find (\et -> et.name == newExperimentType) experimentTypes
+                            String.toInt newExperimentTypeIdStr
+                                |> Maybe.andThen (\newExperimentTypeId -> find (\et -> et.id == newExperimentTypeId) experimentTypes)
 
                         attributoInExperimentType : Attributo AttributoType -> Bool
                         attributoInExperimentType attributo =
@@ -132,11 +135,12 @@ updateDataSet msg model =
                                     False
 
                                 Just et ->
-                                    List.member attributo.name et.attributeNames
+                                    List.member attributo.name et.attributiNames
 
+                        newDataSet : Maybe NewDataSet
                         newDataSet =
                             Just
-                                { experimentType = Just newExperimentType
+                                { experimentType = matchingExperimentType
                                 , attributi = createEditableAttributi model.zone (List.filter attributoInExperimentType attributi) emptyAttributoMap
                                 }
                     in
@@ -146,10 +150,10 @@ updateDataSet msg model =
                     ( model, Cmd.none )
 
 
-viewEditForm : List (Chemical Int a b) -> EditableAttributiAndOriginal -> List (Html DataSetMsg)
+viewEditForm : List (Chemical Int a b) -> EditableAttributiAndOriginal -> List (Html Msg)
 viewEditForm chemicals =
     let
-        attributoFormMsgToMsg : AttributoFormMsg -> DataSetMsg
+        attributoFormMsgToMsg : AttributoFormMsg -> Msg
         attributoFormMsgToMsg x =
             case x of
                 AttributoFormValueUpdate vu ->
@@ -161,12 +165,12 @@ viewEditForm chemicals =
     List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm chemicals attributo)) << .editableAttributi
 
 
-view : DataSetModel -> Html DataSetMsg
+view : DataSetModel -> Html Msg
 view model =
     div [ class "container" ] <| viewDataSet model
 
 
-viewDataSet : DataSetModel -> List (Html DataSetMsg)
+viewDataSet : DataSetModel -> List (Html Msg)
 viewDataSet model =
     case model.dataSets of
         NotAsked ->
@@ -180,17 +184,26 @@ viewDataSet model =
 
         Success { chemicals, attributi, dataSets, experimentTypes } ->
             let
-                viewRow : DataSet -> Html DataSetMsg
+                experimentTypesById : Dict.Dict Int String
+                experimentTypesById =
+                    List.foldl (\et -> Dict.insert et.id et.name) Dict.empty experimentTypes
+
+                viewRow : DataSet -> Html Msg
                 viewRow ds =
                     tr_
                         [ td_ [ text (String.fromInt ds.id) ]
-                        , td_ [ text ds.experimentType ]
+                        , td_ [ text (Maybe.withDefault "" <| Dict.get ds.experimentTypeId experimentTypesById) ]
                         , td_ [ viewDataSetTable attributi model.zone (chemicalIdDict chemicals) ds False Nothing ]
                         , td_ [ button [ class "btn btn-sm btn-danger", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 
+                viewExperimentTypeOption : Maybe ExperimentType -> ExperimentType -> Html Msg
                 viewExperimentTypeOption currentEt et =
-                    option [ selected (currentEt == Just et.name) ] [ text et.name ]
+                    option
+                        [ selected (Maybe.map .id currentEt == Just et.id)
+                        , value (String.fromInt et.id)
+                        ]
+                        [ text et.name ]
 
                 newDataSetForm =
                     case model.newDataSet of
@@ -199,7 +212,7 @@ viewDataSet model =
 
                         Just newDataSet ->
                             form_
-                                ([ h5_ [ text "New data set" ]
+                                ([ h5_ [ text "New Data Set" ]
                                  , div [ class "mb-3" ]
                                     [ select [ class "form-select", onInput DataSetExperimentTypeChange ]
                                         (option [ selected (isNothing newDataSet.experimentType) ] [ text "«no value»" ] :: List.map (viewExperimentTypeOption newDataSet.experimentType) experimentTypes)

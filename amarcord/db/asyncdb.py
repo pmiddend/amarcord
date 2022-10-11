@@ -1034,7 +1034,7 @@ class AsyncDB:
 
     async def create_experiment_type(
         self, conn: Connection, name: str, experiment_attributi_names: Iterable[str]
-    ) -> None:
+    ) -> int:
         existing_attributi_names = {
             a.name for a in await self.retrieve_attributi(conn, associated_table=None)
         }
@@ -1049,19 +1049,27 @@ class AsyncDB:
                 + ", ".join(experiment_attributi_names)
             )
 
+        experiment_type_id = (
+            await conn.execute(
+                self.tables.experiment_type.insert().values({"name": name})
+            )
+        ).inserted_primary_key[0]
+
         await conn.execute(
             self.tables.experiment_has_attributo.insert().values(
                 [
-                    {"experiment_type": name, "attributo_name": a}
+                    {"experiment_type_id": experiment_type_id, "attributo_name": a}
                     for a in experiment_attributi_names
                 ]
             )
         )
 
-    async def delete_experiment_type(self, conn: Connection, name: str) -> None:
+        return experiment_type_id  # type: ignore
+
+    async def delete_experiment_type(self, conn: Connection, id_: int) -> None:
         await conn.execute(
-            self.tables.experiment_has_attributo.delete().where(
-                self.tables.experiment_has_attributo.c.experiment_type == name
+            self.tables.experiment_type.delete().where(
+                self.tables.experiment_type.c.id == id_
             )
         )
 
@@ -1070,36 +1078,42 @@ class AsyncDB:
     ) -> list[DBExperimentType]:
         result: list[DBExperimentType] = []
         etc = self.tables.experiment_has_attributo.c
+        et = self.tables.experiment_type
         for key, group in itertools.groupby(
             await conn.execute(
-                sa.select([etc.experiment_type, etc.attributo_name]).order_by(
-                    etc.experiment_type
-                )
+                sa.select([et.c.id, et.c.name, etc.attributo_name])
+                .join(et, et.c.id == etc.experiment_type_id)
+                .order_by(etc.experiment_type_id)
             ),
-            key=lambda row: row["experiment_type"],  # type: ignore
+            key=lambda row: row["id"],  # type: ignore
         ):
+            group_list = list(group)
             result.append(
-                DBExperimentType(key, [row["attributo_name"] for row in group])
+                DBExperimentType(
+                    id=key,
+                    name=group_list[0]["name"],
+                    attributi_names=[row["attributo_name"] for row in group_list],
+                )
             )
         return result
 
     async def create_data_set(
-        self, conn: Connection, experiment_type: str, attributi: AttributiMap
+        self, conn: Connection, experiment_type_id: int, attributi: AttributiMap
     ) -> int:
         matching_experiment_type: DBExperimentType | None = next(
             (
                 x
                 for x in await self.retrieve_experiment_types(conn)
-                if x.name == experiment_type
+                if x.id == experiment_type_id
             ),
             None,
         )
         if matching_experiment_type is None:
             raise Exception(
-                f'couldn\'t find experiment type named "{matching_experiment_type}"'
+                f'couldn\'t find experiment type with ID "{experiment_type_id}"'
             )
 
-        existing_attributo_names = matching_experiment_type.attributo_names
+        existing_attributo_names = matching_experiment_type.attributi_names
 
         superfluous_attributi = attributi.names().difference(existing_attributo_names)
 
@@ -1115,7 +1129,7 @@ class AsyncDB:
         data_set_id: int = (
             await conn.execute(
                 self.tables.data_set.insert().values(
-                    experiment_type=experiment_type,
+                    experiment_type_id=experiment_type_id,
                     attributi=attributi.to_json(),
                 )
             )
@@ -1138,13 +1152,13 @@ class AsyncDB:
         return [
             DBDataSet(
                 id=r["id"],
-                experiment_type=r["experiment_type"],
+                experiment_type_id=r["experiment_type_id"],
                 attributi=AttributiMap.from_types_and_json(
                     attributi, chemical_ids=chemical_ids, raw_attributi=r["attributi"]
                 ),
             )
             for r in await conn.execute(
-                sa.select([dc.id, dc.experiment_type, dc.attributi])
+                sa.select([dc.id, dc.experiment_type_id, dc.attributi])
             )
         ]
 

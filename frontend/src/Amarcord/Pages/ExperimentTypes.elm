@@ -1,6 +1,7 @@
 module Amarcord.Pages.ExperimentTypes exposing (..)
 
-import Amarcord.API.Requests exposing (ExperimentType, ExperimentTypesResponse, RequestError, httpCreateExperimentType, httpDeleteExperimentType, httpGetExperimentTypes)
+import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
+import Amarcord.API.Requests exposing (ExperimentTypesResponse, RequestError, httpCreateExperimentType, httpDeleteExperimentType, httpGetExperimentTypes)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewRemoteData)
 import Amarcord.Html exposing (form_, h1_, h5_, input_, tbody_, td_, th_, thead_, tr_)
@@ -16,7 +17,7 @@ type ExperimentTypeMsg
     | ExperimentTypeDeleted (Result RequestError ())
     | ExperimentTypesReceived (Result RequestError ExperimentTypesResponse)
     | ExperimentTypeNameChange String
-    | ExperimentTypeDeleteSubmit String
+    | ExperimentTypeDeleteSubmit ExperimentTypeId
     | ExperimentTypeSubmit
     | AddOrRemoveAttributo String Bool
     | AddExperimentType
@@ -76,8 +77,8 @@ updateExperimentType msg model =
         ExperimentTypeNameChange newName ->
             updateNewExperimentType model (\newExperimentType -> ( { newExperimentType | name = newName }, Cmd.none ))
 
-        ExperimentTypeDeleteSubmit experimentTypeName ->
-            ( { model | deleteRequest = Loading }, httpDeleteExperimentType ExperimentTypeDeleted experimentTypeName )
+        ExperimentTypeDeleteSubmit experimentTypeId ->
+            ( { model | deleteRequest = Loading }, httpDeleteExperimentType ExperimentTypeDeleted experimentTypeId )
 
         ExperimentTypeSubmit ->
             updateNewExperimentType model (\newExperimentType -> ( { newExperimentType | createRequest = Loading }, httpCreateExperimentType ExperimentTypeCreated newExperimentType.name newExperimentType.attributi ))
@@ -115,9 +116,10 @@ viewExperimentType model =
         viewRow : ExperimentType -> Html ExperimentTypeMsg
         viewRow et =
             tr_
-                [ td_ [ text et.name ]
-                , td_ [ text (join "," et.attributeNames) ]
-                , td_ [ button [ class "btn btn-danger btn-sm", onClick (ExperimentTypeDeleteSubmit et.name) ] [ icon { name = "trash" } ] ]
+                [ td_ [ text (String.fromInt et.id) ]
+                , td_ [ text et.name ]
+                , td_ [ text (join "," et.attributiNames) ]
+                , td_ [ button [ class "btn btn-danger btn-sm", onClick (ExperimentTypeDeleteSubmit et.id) ] [ icon { name = "trash" } ] ]
                 ]
 
         viewAttributoCheckbox attributi { name } =
@@ -170,7 +172,17 @@ viewExperimentType model =
             makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ] ] ++ [ showRequestError e ]
 
         Success experimentTypesResponse ->
-            table [ class "table table-striped" ] [ thead_ [ tr_ [ th_ [ text "Name" ], th_ [ text "Attributi" ], th_ [ text "Actions" ] ] ], tbody_ (List.map viewRow experimentTypesResponse.experimentTypes) ]
+            table [ class "table table-striped" ]
+                [ thead_
+                    [ tr_
+                        [ th_ [ text "ID" ]
+                        , th_ [ text "Name" ]
+                        , th_ [ text "Attributi" ]
+                        , th_ [ text "Actions" ]
+                        ]
+                    ]
+                , tbody_ (List.map viewRow experimentTypesResponse.experimentTypes)
+                ]
 
         _ ->
             text ""

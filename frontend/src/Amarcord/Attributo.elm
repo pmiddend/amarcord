@@ -8,10 +8,12 @@ module Amarcord.Attributo exposing
     , attributoExposureTime
     , attributoIsNumber
     , attributoIsString
+    , attributoMapDecoder
     , attributoMapNames
     , attributoStarted
     , attributoStopped
     , attributoTypeDecoder
+    , attributoValueDecoder
     , createAnnotatedAttributoMap
     , emptyAttributoMap
     , extractDateTime
@@ -47,6 +49,18 @@ type AttributoValue
     | ValueNumber Float
     | ValueBoolean Bool
     | ValueNone
+
+
+attributoValueDecoder : Decode.Decoder AttributoValue
+attributoValueDecoder =
+    Decode.oneOf
+        [ Decode.map ValueString Decode.string
+        , Decode.map ValueInt Decode.int
+        , Decode.map ValueNumber Decode.float
+        , Decode.map ValueBoolean Decode.bool
+        , Decode.null ValueNone
+        , Decode.map ValueList (Decode.list (Decode.lazy (\_ -> attributoValueDecoder)))
+        ]
 
 
 type AttributoType
@@ -105,6 +119,11 @@ type alias Attributo a =
 
 type alias AttributoMap a =
     Dict String a
+
+
+attributoMapDecoder : Decode.Decoder (AttributoMap AttributoValue)
+attributoMapDecoder =
+    Decode.dict attributoValueDecoder
 
 
 attributoMapNames : AttributoMap a -> List String

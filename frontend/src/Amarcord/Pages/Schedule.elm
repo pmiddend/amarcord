@@ -1,6 +1,6 @@
 module Amarcord.Pages.Schedule exposing (..)
 
-import Amarcord.API.Requests exposing (ChemicalsResponse, ExperimentType, ExperimentTypesResponse, RequestError, ScheduleEntry, ScheduleResponse, httpGetChemicals, httpGetSchedule, httpUpdateSchedule)
+import Amarcord.API.Requests exposing (ChemicalsResponse, ExperimentTypesResponse, RequestError, ScheduleEntry, ScheduleResponse, httpGetChemicals, httpGetSchedule, httpUpdateSchedule)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon)
 import Amarcord.Chemical exposing (Chemical, ChemicalId)
@@ -9,7 +9,7 @@ import Amarcord.Html exposing (input_)
 import Date
 import Dict exposing (Dict)
 import Html exposing (Html, button, div, em, h3, option, select, span, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (class, disabled, id, placeholder, selected, style, title, type_, value)
+import Html.Attributes exposing (class, disabled, id, placeholder, selected, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List.Extra
 import Maybe.Extra

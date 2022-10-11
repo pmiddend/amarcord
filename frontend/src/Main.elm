@@ -60,7 +60,7 @@ type Msg
     | ChemicalsPageMsg Chemicals.Msg
     | RunOverviewPageMsg RunOverview.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
-    | DataSetsMsg DataSets.DataSetMsg
+    | DataSetsMsg DataSets.Msg
     | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
     | AnalysisPageMsg Analysis.Msg
     | ScheduleMsg Schedule.ScheduleMsg

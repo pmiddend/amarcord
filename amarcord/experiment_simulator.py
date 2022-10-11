@@ -223,8 +223,10 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
         chemical_names: list[str] = []
 
-        await db.create_experiment_type(conn, CHEMICAL_BASED, [ATTRIBUTO_CHEMICAL])
-        await db.create_experiment_type(
+        chemical_based_id = await db.create_experiment_type(
+            conn, CHEMICAL_BASED, [ATTRIBUTO_CHEMICAL]
+        )
+        time_resolved_id = await db.create_experiment_type(
             conn, TIME_RESOLVED, [ATTRIBUTO_CHEMICAL, ATTRIBUTO_FLOW_RATE]
         )
 
@@ -248,7 +250,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             )
             await db.create_data_set(
                 conn,
-                CHEMICAL_BASED,
+                chemical_based_id,
                 AttributiMap.from_types_and_json(
                     attributi, [chemical_id], {ATTRIBUTO_CHEMICAL: chemical_id}
                 ),
@@ -256,7 +258,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             for current_flow_rate in range(0, 4):
                 await db.create_data_set(
                     conn,
-                    TIME_RESOLVED,
+                    time_resolved_id,
                     AttributiMap.from_types_and_json(
                         attributi,
                         [chemical_id],

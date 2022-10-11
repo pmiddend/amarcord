@@ -136,11 +136,14 @@ async def test_data_sets() -> None:
     )
 
     assert result.status_code == 200
-    assert (await result.json) == {}
+    result_json = await result.json
+    assert result_json == {"id": 1}
+
+    et_id = result_json["id"]
 
     result = await client.post(
         "/api/data-sets",
-        json={"experiment-type": experiment_type, "attributi": {attributo_name: "3"}},
+        json={"experiment-type-id": et_id, "attributi": {attributo_name: "3"}},
     )
 
     assert result.status_code == 200
@@ -148,7 +151,7 @@ async def test_data_sets() -> None:
 
     result = await client.post(
         "/api/data-sets",
-        json={"experiment-type": experiment_type, "attributi": {}},
+        json={"experiment-type-id": et_id, "attributi": {}},
     )
 
     assert result.status_code == 200
@@ -329,13 +332,17 @@ async def test_create_data_set_with_unspecified_boolean() -> None:
         },
     )
 
+    result_json = await result.json
+
     assert result.status_code == 200
-    assert (await result.json) == {}
+    assert (await result.json) == {"id": 1}
+
+    et_id = result_json["id"]
 
     result = await client.post(
         "/api/data-sets",
         # Only set string attributo here
-        json={"experiment-type": experiment_type, "attributi": {attributo_name2: "3"}},
+        json={"experiment-type-id": et_id, "attributi": {attributo_name2: "3"}},
     )
 
     assert result.status_code == 200
@@ -393,13 +400,17 @@ async def test_create_data_set_with_unspecified_string() -> None:
         },
     )
 
+    result_json = await result.json
+
     assert result.status_code == 200
-    assert (await result.json) == {}
+    assert (await result.json) == {"id": 1}
+
+    et_id = result_json["id"]
 
     result = await client.post(
         "/api/data-sets",
         # Only set the boolean attributo here, leave string out - that's not possible!
-        json={"experiment-type": experiment_type, "attributi": {attributo_name: False}},
+        json={"experiment-type-id": et_id, "attributi": {attributo_name: False}},
     )
 
     assert result.status_code == 200

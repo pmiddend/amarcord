@@ -5,5 +5,6 @@ from amarcord.db.attributo_id import AttributoId
 
 @dataclass(frozen=True)
 class DBExperimentType:
+    id: int
     name: str
-    attributo_names: list[AttributoId]
+    attributi_names: list[AttributoId]

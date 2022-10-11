@@ -1,9 +1,9 @@
 module Amarcord.DataSetHtml exposing (..)
 
+import Amarcord.API.DataSet exposing (DataSet)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoMapNames)
 import Amarcord.AttributoHtml exposing (viewAttributoCell)
-import Amarcord.DataSet exposing (DataSet)
-import Amarcord.Html exposing (tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (tbody_, th_, thead_, tr_)
 import Dict
 import Html exposing (Html, table, td, text)
 import Html.Attributes exposing (class, style)

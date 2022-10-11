@@ -84,13 +84,27 @@ def _table_beamtime_schedule(metadata: sa.MetaData, chemical: sa.Table) -> sa.Ta
     )
 
 
+def _table_experiment_type(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "ExperimentType",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("name", sa.String(length=255), nullable=False, unique=True),
+    )
+
+
 def _table_experiment_has_attributo(
-    metadata: sa.MetaData, attributo: sa.Table
+    metadata: sa.MetaData, attributo: sa.Table, experiment_type: sa.Table
 ) -> sa.Table:
     return sa.Table(
         "ExperimentHasAttributo",
         metadata,
-        sa.Column("experiment_type", sa.String(length=255), nullable=False),
+        sa.Column(
+            "experiment_type_id",
+            sa.Integer,
+            ForeignKey(_fk_identifier(experiment_type.c.id)),
+            nullable=False,
+        ),
         sa.Column(
             "attributo_name",
             sa.String(length=255),
@@ -103,12 +117,17 @@ def _table_experiment_has_attributo(
     )
 
 
-def _table_data_set(metadata: sa.MetaData) -> sa.Table:
+def _table_data_set(metadata: sa.MetaData, experiment_type: sa.Table) -> sa.Table:
     return sa.Table(
         "DataSet",
         metadata,
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("experiment_type", sa.String(length=255), nullable=False),
+        sa.Column(
+            "experiment_type_id",
+            sa.Integer,
+            ForeignKey(_fk_identifier(experiment_type.c.id)),
+            nullable=False,
+        ),
         sa.Column("attributi", sa.JSON, nullable=False),
     )
 
@@ -245,6 +264,7 @@ class DBTables:
         run: sa.Table,
         attributo: sa.Table,
         event_log: sa.Table,
+        experiment_type: sa.Table,
         experiment_has_attributo: sa.Table,
         file: sa.Table,
         data_set: sa.Table,
@@ -257,6 +277,7 @@ class DBTables:
         self.configuration = configuration
         self.event_has_file = event_has_file
         self.data_set = data_set
+        self.experiment_type = experiment_type
         self.experiment_has_attributo = experiment_has_attributo
         self.run_has_file = run_has_file
         self.event_log = event_log
@@ -274,7 +295,8 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     run = _table_run(metadata)
     file = _table_file(metadata)
     table_attributo = _table_attributo(metadata)
-    data_set = _table_data_set(metadata)
+    experiment_type = _table_experiment_type(metadata)
+    data_set = _table_data_set(metadata, experiment_type)
     event_log = _table_event_log(metadata)
     indexing_result = _table_indexing_result(metadata, run)
     return DBTables(
@@ -284,8 +306,9 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         attributo=table_attributo,
         event_log=event_log,
         data_set=data_set,
+        experiment_type=experiment_type,
         experiment_has_attributo=_table_experiment_has_attributo(
-            metadata, table_attributo
+            metadata, table_attributo, experiment_type
         ),
         file=file,
         chemical_has_file=_table_chemical_has_file(metadata, chemical, file),
