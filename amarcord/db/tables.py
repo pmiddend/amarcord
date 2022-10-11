@@ -9,6 +9,7 @@ from sqlalchemy.sql import ColumnElement
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.merge_negative_handling import MergeNegativeHandling
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +233,115 @@ def _table_chemical(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_indexing_result(metadata: sa.MetaData, run: sa.Table) -> sa.Table:
+def _table_merge_result_shell_fom(
+    metadata: sa.MetaData, merge_result: sa.Table
+) -> sa.Table:
+    return sa.Table(
+        "MergeResultShellFom",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "merge_result_id",
+            sa.Integer,
+            ForeignKey(merge_result.c.id, ondelete="cascade"),
+            nullable=False,
+        ),
+        sa.Column("one_over_d_centre", sa.Float, nullable=False),
+        sa.Column("nref", sa.Integer, nullable=False),
+        sa.Column("d_over_a", sa.Float, nullable=False),
+        sa.Column("min_res", sa.Float, nullable=False),
+        sa.Column("max_res", sa.Float, nullable=False),
+        sa.Column("cc", sa.Float, nullable=False),
+        sa.Column("ccstar", sa.Float, nullable=False),
+        sa.Column("r_split", sa.Float, nullable=False),
+        sa.Column("reflections_possible", sa.Integer, nullable=False),
+        sa.Column("completeness", sa.Float, nullable=False),
+        sa.Column("measurements", sa.Integer, nullable=False),
+        sa.Column("redundancy", sa.Float, nullable=False),
+        sa.Column("snr", sa.Float, nullable=False),
+        sa.Column("mean_i", sa.Float, nullable=False),
+    )
+
+
+def _table_merge_result_has_indexing_result(
+    metadata: sa.MetaData, merge_result: sa.Table, indexing_result: sa.Table
+) -> sa.Table:
+    return sa.Table(
+        "MergeResultHasIndexingResult",
+        metadata,
+        sa.Column(
+            "merge_result_id",
+            sa.Integer,
+            ForeignKey(_fk_identifier(merge_result.c.id), ondelete="cascade"),
+        ),
+        sa.Column(
+            "indexing_result_id",
+            sa.Integer,
+            ForeignKey(_fk_identifier(indexing_result.c.id), ondelete="cascade"),
+        ),
+    )
+
+
+def _table_merge_result(metadata: sa.MetaData, file: sa.Table) -> sa.Table:
+    return sa.Table(
+        "MergeResult",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("created", sa.DateTime, nullable=False),
+        sa.Column("partialator_additional", sa.Text, nullable=False),
+        sa.Column("recent_log", sa.Text, nullable=False),
+        sa.Column("negative_handling", sa.Enum(MergeNegativeHandling), nullable=True),
+        sa.Column("job_status", sa.Enum(DBJobStatus), nullable=False),
+        sa.Column("started", sa.DateTime, nullable=True),
+        sa.Column("stopped", sa.DateTime, nullable=True),
+        sa.Column("point_group", sa.String(length=32), nullable=True),
+        sa.Column("cell_description", sa.String(length=255), nullable=True),
+        sa.Column("job_id", sa.Integer, nullable=True),
+        sa.Column("job_error", sa.Text, nullable=True),
+        sa.Column(
+            "mtz_file_id",
+            sa.Integer,
+            ForeignKey(_fk_identifier(file.c.id), ondelete="cascade"),
+            nullable=True,
+        ),
+        sa.Column("fom_snr", sa.Float, nullable=True),
+        sa.Column("fom_wilson", sa.Float, nullable=True),
+        sa.Column("fom_ln_k", sa.Float, nullable=True),
+        sa.Column("fom_discarded_reflections", sa.Integer, nullable=True),
+        sa.Column("fom_one_over_d_from", sa.Float, nullable=True),
+        sa.Column("fom_one_over_d_to", sa.Float, nullable=True),
+        sa.Column("fom_redundancy", sa.Float, nullable=True),
+        sa.Column("fom_completeness", sa.Float, nullable=True),
+        sa.Column("fom_measurements_total", sa.Integer, nullable=True),
+        sa.Column("fom_reflections_total", sa.Integer, nullable=True),
+        sa.Column("fom_reflections_possible", sa.Integer, nullable=True),
+        sa.Column("fom_r_split", sa.Float, nullable=True),
+        sa.Column("fom_r1i", sa.Float, nullable=True),
+        sa.Column("fom_2", sa.Float, nullable=True),
+        sa.Column("fom_cc", sa.Float, nullable=True),
+        sa.Column("fom_ccstar", sa.Float, nullable=True),
+        sa.Column("fom_ccano", sa.Float, nullable=True),
+        sa.Column("fom_crdano", sa.Float, nullable=True),
+        sa.Column("fom_rano", sa.Float, nullable=True),
+        sa.Column("fom_rano_over_r_split", sa.Float, nullable=True),
+        sa.Column("fom_d1sig", sa.Float, nullable=True),
+        sa.Column("fom_d2sig", sa.Float, nullable=True),
+        sa.Column("fom_outer_resolution", sa.Float, nullable=True),
+        sa.Column("fom_outer_ccstar", sa.Float, nullable=True),
+        sa.Column("fom_outer_r_split", sa.Float, nullable=True),
+        sa.Column("fom_outer_cc", sa.Float, nullable=True),
+        sa.Column("fom_outer_unique_reflections", sa.Integer, nullable=True),
+        sa.Column("fom_outer_completeness", sa.Float, nullable=True),
+        sa.Column("fom_outer_redundancy", sa.Float, nullable=True),
+        sa.Column("fom_outer_snr", sa.Float, nullable=True),
+        sa.Column("fom_outer_min_res", sa.Float, nullable=True),
+        sa.Column("fom_outer_max_res", sa.Float, nullable=True),
+    )
+
+
+def _table_indexing_result(
+    metadata: sa.MetaData, run: sa.Table, chemical: sa.Table
+) -> sa.Table:
     return sa.Table(
         "IndexingResult",
         metadata,
@@ -244,6 +353,18 @@ def _table_indexing_result(metadata: sa.MetaData, run: sa.Table) -> sa.Table:
             ForeignKey(_fk_identifier(run.c.id), ondelete="cascade"),
         ),
         sa.Column("stream_file", sa.Text(), nullable=True),
+        sa.Column("cell_description", sa.String(length=255), nullable=False),
+        sa.Column("point_group", sa.String(length=32), nullable=False),
+        sa.Column(
+            "chemical_id",
+            sa.Integer,
+            ForeignKey(
+                _fk_identifier(chemical.c.id),
+                ondelete="cascade",
+                name="indexing_result_has_chemical_fk",
+            ),
+            nullable=True,
+        ),
         sa.Column("frames", sa.Integer(), nullable=True),
         sa.Column("hits", sa.Integer(), nullable=True),
         sa.Column("not_indexed_frames", sa.Integer(), nullable=True),
@@ -300,6 +421,9 @@ class DBTables:
         beamtime_schedule: sa.Table,
         beamtime_schedule_has_chemical: sa.Table,
         indexing_result: sa.Table,
+        merge_result: sa.Table,
+        merge_result_has_indexing_result: sa.Table,
+        merge_result_shell_fom: sa.Table,
     ) -> None:
         self.configuration = configuration
         self.event_has_file = event_has_file
@@ -316,6 +440,9 @@ class DBTables:
         self.beamtime_schedule = beamtime_schedule
         self.beamtime_schedule_has_chemical = beamtime_schedule_has_chemical
         self.indexing_result = indexing_result
+        self.merge_result = merge_result
+        self.merge_result_shell_fom = merge_result_shell_fom
+        self.merge_result_has_indexing_result = merge_result_has_indexing_result
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
@@ -327,7 +454,9 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     experiment_type = _table_experiment_type(metadata)
     data_set = _table_data_set(metadata, experiment_type)
     event_log = _table_event_log(metadata)
-    indexing_result = _table_indexing_result(metadata, run)
+    indexing_result = _table_indexing_result(metadata, run, chemical)
+    merge_result = _table_merge_result(metadata, file)
+    merge_result_shell_fom = _table_merge_result_shell_fom(metadata, merge_result)
     return DBTables(
         configuration=_table_configuration(metadata, experiment_type),
         chemical=chemical,
@@ -348,4 +477,9 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
             metadata, beamtime_schedule, chemical
         ),
         indexing_result=indexing_result,
+        merge_result=merge_result,
+        merge_result_shell_fom=merge_result_shell_fom,
+        merge_result_has_indexing_result=_table_merge_result_has_indexing_result(
+            metadata, merge_result, indexing_result
+        ),
     )

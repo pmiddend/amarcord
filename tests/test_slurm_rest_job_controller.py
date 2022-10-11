@@ -158,7 +158,7 @@ async def test_dynamic_token_retriever_wrong_output(fake_process: FakeProcess) -
 
 async def test_dynamic_token_retriever_jwt_output(fake_process: FakeProcess) -> None:
     fake_process.register_subprocess(
-        slurm_token_command(24 * 60), stdout=b"SLURM_TOKEN=lol"
+        slurm_token_command(86400), stdout=b"SLURM_TOKEN=lol"
     )
 
     tr = DynamicTokenRetriever(retrieve_jwt_token)

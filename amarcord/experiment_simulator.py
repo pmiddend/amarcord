@@ -10,6 +10,7 @@ from randomname import generate
 from structlog.stdlib import BoundLogger
 from tap import Tap
 
+from amarcord.amici.crystfel.util import parse_cell_description
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.asyncdb import AsyncDB
@@ -317,6 +318,11 @@ async def _start_run(
                 hits=int(random.uniform(1, 10000)),
                 not_indexed_frames=int(random.uniform(1, 10000)),
                 frames=int(random.uniform(1, 10000)),
+                cell_description=parse_cell_description(
+                    "tetragonal P c (79.2 79.2 38.0) (90 90 90)"
+                ),
+                point_group="4/mmm",
+                chemical_id=1,
                 runtime_status=DBIndexingResultRunning(
                     stream_file=Path("/home/homeless-shelter/dont-use.stream"),
                     job_id=1,

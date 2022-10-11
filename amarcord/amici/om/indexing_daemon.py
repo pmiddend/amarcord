@@ -12,6 +12,7 @@ from typing import TypeAlias
 import structlog
 from structlog.stdlib import BoundLogger
 
+from amarcord.amici.crystfel.util import ATTRIBUTO_PROTEIN
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
@@ -47,6 +48,17 @@ async def _update_run(
     current_ir = await db.retrieve_indexing_result_for_run(conn, run_id)
     if current_ir is None:
         run_logger.info("run doesn't have indexing result, creating one")
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+        run = await db.retrieve_run(conn, run_id, attributi)
+        if run is None:
+            run_logger.error(f"cannot create indexing result, run {run_id} not found")
+            return
+        protein_chemical_id = run.attributi.select_chemical_id(ATTRIBUTO_PROTEIN)
+        if protein_chemical_id is None:
+            run_logger.error(
+                f"cannot create indexing result, run has no attribute {ATTRIBUTO_PROTEIN}"
+            )
+            return
         await db.create_indexing_result(
             conn,
             DBIndexingResultInput(
@@ -55,6 +67,9 @@ async def _update_run(
                 frames=0,
                 hits=0,
                 not_indexed_frames=indexing_data.not_indexed_frames,
+                chemical_id=protein_chemical_id,
+                cell_description=None,
+                point_group=None,
                 runtime_status=DBIndexingResultRunning(
                     stream_file=Path("dummy.stream"),
                     job_id=0,
@@ -97,6 +112,9 @@ async def _update_run(
                 frames=current_ir.frames,
                 hits=current_ir.hits,
                 not_indexed_frames=total_not_indexed_frames,
+                cell_description=None,
+                point_group=None,
+                chemical_id=current_ir.chemical_id,
                 runtime_status=DBIndexingResultRunning(
                     stream_file=Path("dummy.stream"),
                     job_id=0,

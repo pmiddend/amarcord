@@ -1,11 +1,15 @@
 from datetime import datetime
 
+from amarcord.amici.crystfel.util import ATTRIBUTO_PROTEIN
 from amarcord.amici.om.client import ATTRIBUTO_STOPPED
 from amarcord.amici.om.client import OmZMQProcessor
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import AttributoTypeChemical
+from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.tables import create_tables_from_metadata
 
 
@@ -45,15 +49,53 @@ async def test_process_data_latest_run() -> None:
     processor = OmZMQProcessor(db)
 
     async with db.begin() as conn:
-        attributi = await db.retrieve_attributi(
-            conn, associated_table=AssociatedTable.RUN
+        await db.create_attributo(
+            conn,
+            name=ATTRIBUTO_PROTEIN,
+            description="",
+            group="",
+            associated_table=AssociatedTable.RUN,
+            type_=AttributoTypeChemical(),
+        )
+        await db.create_attributo(
+            conn,
+            name="point group",
+            description="",
+            group="",
+            associated_table=AssociatedTable.CHEMICAL,
+            type_=AttributoTypeString(),
+        )
+        await db.create_attributo(
+            conn,
+            name="cell description",
+            description="",
+            group="",
+            associated_table=AssociatedTable.CHEMICAL,
+            type_=AttributoTypeString(),
+        )
+        attributi = await db.retrieve_attributi(conn, associated_table=None)
+        chemical_id = await db.create_chemical(
+            conn,
+            name="nsp3",
+            attributi=AttributiMap.from_types_and_raw(
+                types=attributi,
+                chemical_ids=[],
+                raw_attributi={
+                    AttributoId("point group"): "4/mmm",
+                    AttributoId(
+                        "cell description"
+                    ): "tetragonal P c (79.2 79.2 38.0) (90 90 90)",
+                },
+            ),
         )
         await db.create_run(
             conn,
             1,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_json(
-                types=attributi, chemical_ids=[], raw_attributi={}
+                types=attributi,
+                chemical_ids=[chemical_id],
+                raw_attributi={ATTRIBUTO_PROTEIN: chemical_id},
             ),
             keep_manual_attributes_from_previous_run=False,
         )

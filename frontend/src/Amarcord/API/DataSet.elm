@@ -5,6 +5,10 @@ import Amarcord.Attributo exposing (AttributoMap, AttributoValue, attributoMapDe
 import Json.Decode as Decode
 
 
+type alias DataSetId =
+    Int
+
+
 type alias DataSetSummary =
     { hitRate : Maybe Float
     , indexingRate : Maybe Float
@@ -18,7 +22,7 @@ emptySummary =
 
 
 type alias DataSet =
-    { id : Int
+    { id : DataSetId
     , experimentTypeId : ExperimentTypeId
     , attributi : AttributoMap AttributoValue
     , summary : Maybe DataSetSummary

@@ -5,7 +5,7 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, Attr
 import Amarcord.AttributoHtml exposing (viewAttributoCell)
 import Amarcord.Html exposing (tbody_, th_, thead_, tr_)
 import Dict
-import Html exposing (Html, table, td, text)
+import Html exposing (Html, table, td, text, tr)
 import Html.Attributes exposing (class, style)
 import List.Extra exposing (find)
 import Time exposing (Zone)
@@ -14,26 +14,34 @@ import Time exposing (Zone)
 viewDataSetTable : List (Attributo AttributoType) -> Zone -> Dict.Dict Int String -> DataSet -> Bool -> Maybe (Html msg) -> Html msg
 viewDataSetTable attributi zone chemicalIdToName ds withHeader footer =
     let
-        viewAttributiValueRow : AttributoMap AttributoValue -> String -> Html msg
-        viewAttributiValueRow attributoValues name =
+        viewAttributiValueRow : Int -> AttributoMap AttributoValue -> Int -> String -> Html msg
+        viewAttributiValueRow maxIdx attributoValues idx name =
             case find (\a -> a.name == name) attributi of
                 Nothing ->
                     tr_ []
 
                 Just attributo ->
-                    tr_
+                    tr
+                        [ style "border-bottom"
+                            (if idx == maxIdx then
+                                "1px solid white"
+
+                             else
+                                ""
+                            )
+                        ]
                         [ td [ style "width" "50%" ] [ text attributo.name ]
                         , td [ style "width" "50%" ] [ viewAttributoCell { shortDateTime = False, colorize = False } zone chemicalIdToName attributoValues attributo ]
                         ]
     in
     table
-        [ class "table table-sm" ]
+        [ class "table table-sm", style "margin-bottom" "0" ]
         [ if withHeader then
             thead_ [ tr_ [ th_ [ text "Attributo" ], th_ [ text "Value" ] ] ]
 
           else
             text ""
-        , tbody_ (List.map (viewAttributiValueRow ds.attributi) (attributoMapNames ds.attributi))
+        , tbody_ (List.indexedMap (viewAttributiValueRow (Dict.size ds.attributi - 1) ds.attributi) (attributoMapNames ds.attributi))
         , case footer of
             Nothing ->
                 text ""

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 cp ./*.css ./*.png output/
+
 PATH="$PWD:${PATH}" npx elm-go src/Main.elm\
     --start-page=src/index.html\
     --pushstate\

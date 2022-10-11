@@ -443,6 +443,7 @@ view model =
                             , body = Just (span_ [ text "Really delete chemical ", strongText chemicalName, text "?" ])
                             , closeMessage = Just CancelDelete
                             , containerClass = Nothing
+                            , modalDialogClass = Nothing
                             , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete chemicalId) ] [ text "Really delete!" ])
                             }
                         )

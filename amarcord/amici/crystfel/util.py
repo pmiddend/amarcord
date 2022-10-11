@@ -1,0 +1,71 @@
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from time import time
+from typing import Final
+
+from amarcord.db.attributo_id import AttributoId
+
+ATTRIBUTO_PROTEIN: Final = AttributoId("protein")
+
+
+@dataclass(frozen=True, eq=True)
+class CrystFELCellFile:
+    lattice_type: str
+    centering: str
+    unique_axis: None | str
+
+    a: float
+    b: float
+    c: float
+    alpha: float
+    beta: float
+    gamma: float
+
+
+_cell_description_regex = re.compile(
+    r"(triclinic|monoclinic|orthorhombic|tetragonal|rhombohedral|hexagonal|cubic)\s+([PABCIFRH])\s+([abc?*])\s+\(([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\)\s+\(([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\s+([0-9]*(?:\.[0-9]*)?)\)"
+)
+
+
+def coparse_cell_description(s: CrystFELCellFile) -> str:
+    ua = s.unique_axis if s.unique_axis is not None else "?"
+    return f"{s.lattice_type} {s.centering} {ua} ({s.a} {s.b} {s.c}) ({s.alpha} {s.beta} {s.gamma})"
+
+
+def parse_cell_description(s: str) -> None | CrystFELCellFile:
+    match = _cell_description_regex.fullmatch(s)
+    if match is None:
+        return None
+    unique_axis = match.group(3)
+    return CrystFELCellFile(
+        lattice_type=match.group(1),
+        centering=match.group(2),
+        unique_axis=None if unique_axis == "?" else unique_axis,
+        a=float(match.group(4)),
+        b=float(match.group(5)),
+        c=float(match.group(6)),
+        alpha=float(match.group(7)),
+        beta=float(match.group(8)),
+        gamma=float(match.group(9)),
+    )
+
+
+def write_cell_file(c: CrystFELCellFile, p: Path) -> None:
+    with p.open("w") as f:
+        f.write("CrystFEL unit cell file version 1.0\n\n")
+        f.write(f"lattice_type = {c.lattice_type}\n")
+        f.write(f"centering = {c.centering}\n")
+        if c.unique_axis is not None:
+            f.write(f"unique_axis = {c.unique_axis}\n\n")
+        f.write(f"a = {c.a} A\n")
+        f.write(f"b = {c.b} A\n")
+        f.write(f"c = {c.c} A\n")
+        f.write(f"al = {c.alpha} deg\n")
+        f.write(f"be = {c.beta} deg\n")
+        f.write(f"ga = {c.gamma} deg\n")
+
+
+def make_cell_file_name(c: CrystFELCellFile) -> str:
+    ua = c.unique_axis if c.unique_axis else "noaxis"
+    return f"chemical_{c.lattice_type}_{c.centering}_{ua}_{c.a}_{c.b}_{c.c}_{c.alpha}_{c.beta}_{c.gamma}_{int(time())}.cell"

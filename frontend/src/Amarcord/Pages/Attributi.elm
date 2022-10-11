@@ -1096,6 +1096,7 @@ view model =
                             { header = Nothing
                             , body = Just (span_ [ text "Really delete attributo ", strongText attributoName, text "?" ])
                             , closeMessage = Just CancelDelete
+                            , modalDialogClass = Nothing
                             , containerClass = Nothing
                             , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete attributoName) ] [ text "Really delete!" ])
                             }

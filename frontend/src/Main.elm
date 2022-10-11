@@ -337,6 +337,15 @@ updateInner hereAndNow msg model =
             , Cmd.map AnalysisPageMsg updatedCmd
             )
 
+        ( RefreshMsg t, AnalysisPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Analysis.update (Analysis.Refresh t) pageModel
+            in
+            ( { model | page = AnalysisPage updatedPageModel }
+            , Cmd.map AnalysisPageMsg updatedCmd
+            )
+
         ( RefreshMsg t, RunOverviewPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =

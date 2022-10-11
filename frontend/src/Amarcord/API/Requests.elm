@@ -8,6 +8,10 @@ module Amarcord.API.Requests exposing
     , Event
     , ExperimentTypesResponse
     , IncludeLiveStream(..)
+    , MergeFom
+    , MergeResult
+    , MergeResultState(..)
+    , MergeShellFom
     , RequestError(..)
     , Run
     , RunEventDate
@@ -46,6 +50,7 @@ module Amarcord.API.Requests exposing
     , httpGetRunsBulk
     , httpGetRunsFilter
     , httpGetSchedule
+    , httpStartMergeJobForDataSet
     , httpStartRun
     , httpStopRun
     , httpUpdateChemical
@@ -60,7 +65,7 @@ module Amarcord.API.Requests exposing
     , specificRunEventDateFilter
     )
 
-import Amarcord.API.DataSet exposing (DataSet, DataSetSummary, dataSetDecoder, dataSetSummaryDecoder)
+import Amarcord.API.DataSet exposing (DataSet, DataSetId, DataSetSummary, dataSetDecoder, dataSetSummaryDecoder)
 import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId, experimentTypeDecoder)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue(..), attributoDecoder, attributoMapDecoder, attributoTypeDecoder, attributoValueDecoder)
@@ -145,6 +150,22 @@ httpGetExperimentTypes f =
         }
 
 
+httpStartMergeJobForDataSet : (Result RequestError () -> msg) -> DataSetId -> String -> Cmd msg
+httpStartMergeJobForDataSet f dataSetId partialatorAdditional =
+    Http.post
+        { url = "api/merging/" ++ String.fromInt dataSetId ++ "/start"
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.succeed ())
+        , body =
+            jsonBody
+                (Encode.object
+                    [ ( "strict-mode", Encode.bool False )
+                    , ( "partialator-additional", Encode.string partialatorAdditional )
+                    ]
+                )
+        }
+
+
 httpCreateDataSet : (Result RequestError () -> msg) -> ExperimentTypeId -> AttributoMap AttributoValue -> Cmd msg
 httpCreateDataSet f experimentTypeId attributi =
     Http.post
@@ -210,14 +231,207 @@ type alias DataSetResult =
     }
 
 
+type alias MergeOuterShell =
+    { resolution : Float
+    , ccStar : Float
+    , rSplit : Float
+    , cc : Float
+    , uniqueReflections : Int
+    , completeness : Float
+    , redundancy : Float
+    , snr : Float
+    , minRes : Float
+    , maxRes : Float
+    }
+
+
+mergeOuterShellDecoder : Decode.Decoder MergeOuterShell
+mergeOuterShellDecoder =
+    Decode.succeed MergeOuterShell
+        |> required "resolution" Decode.float
+        |> required "cc-star" Decode.float
+        |> required "r-split" Decode.float
+        |> required "cc" Decode.float
+        |> required "unique-reflections" Decode.int
+        |> required "completeness" Decode.float
+        |> required "redundancy" Decode.float
+        |> required "snr" Decode.float
+        |> required "min-res" Decode.float
+        |> required "max-res" Decode.float
+
+
+mergeShellFomDecoder : Decode.Decoder MergeShellFom
+mergeShellFomDecoder =
+    Decode.succeed MergeShellFom
+        |> required "one-over-d-centre" Decode.float
+        |> required "nref" Decode.int
+        |> required "d-over-a" Decode.float
+        |> required "min-res" Decode.float
+        |> required "max-res" Decode.float
+        |> required "cc" Decode.float
+        |> required "ccstar" Decode.float
+        |> required "r-split" Decode.float
+        |> required "reflections-possible" Decode.int
+        |> required "completeness" Decode.float
+        |> required "measurements" Decode.int
+        |> required "redundancy" Decode.float
+        |> required "snr" Decode.float
+        |> required "mean-i" Decode.float
+
+
+type alias MergeShellFom =
+    { oneOverDCentre : Float
+    , nRef : Int
+    , dOverA : Float
+    , minRes : Float
+    , maxRes : Float
+    , cc : Float
+    , ccStar : Float
+    , rSplit : Float
+    , reflectionsPossible : Int
+    , completeness : Float
+    , measurements : Int
+    , redundancy : Float
+    , snr : Float
+    , meanI : Float
+    }
+
+
+type alias MergeFom =
+    { snr : Float
+    , wilson : Float
+    , lnK : Float
+    , discardedReflections : Int
+    , oneOverDFrom : Float
+    , oneOverDTo : Float
+    , redundancy : Float
+    , completeness : Float
+    , measurementsTotal : Int
+    , reflectionsTotal : Int
+    , reflectionsPossible : Int
+    , rSplit : Float
+    , r1i : Float
+    , r2 : Float
+    , cc : Float
+    , ccStar : Float
+    , ccAno : Maybe Float
+    , ccRdAno : Maybe Float
+    , rAno : Maybe Float
+    , rAnoOverRSplit : Maybe Float
+    , d1sig : Float
+    , d2sig : Float
+    , outerShell : MergeOuterShell
+    }
+
+
+mergeFomDecoder : Decode.Decoder MergeFom
+mergeFomDecoder =
+    Decode.succeed MergeFom
+        |> required "snr" Decode.float
+        |> required "wilson" Decode.float
+        |> required "ln-k" Decode.float
+        |> required "discarded-reflections" Decode.int
+        |> required "one-over-d-from" Decode.float
+        |> required "one-over-d-to" Decode.float
+        |> required "redundancy" Decode.float
+        |> required "completeness" Decode.float
+        |> required "measurements-total" Decode.int
+        |> required "reflections-total" Decode.int
+        |> required "reflections-possible" Decode.int
+        |> required "r-split" Decode.float
+        |> required "r1i" Decode.float
+        |> required "r2" Decode.float
+        |> required "cc" Decode.float
+        |> required "cc-star" Decode.float
+        |> required "cc-ano" (Decode.maybe Decode.float)
+        |> required "crd-ano" (Decode.maybe Decode.float)
+        |> required "r-ano" (Decode.maybe Decode.float)
+        |> required "r-ano-over-r-split" (Decode.maybe Decode.float)
+        |> required "d1sig" Decode.float
+        |> required "d2sig" Decode.float
+        |> required "outer-shell" mergeOuterShellDecoder
+
+
+type MergeResultState
+    = MergeResultQueued
+    | MergeResultRunning Posix Int String
+    | MergeResultError Posix Posix String String
+    | MergeResultDone Posix Posix Int MergeFom (List MergeShellFom)
+
+
+decodeMergeResultState : Decode.Decoder MergeResultState
+decodeMergeResultState =
+    let
+        decodeRunning : Decode.Decoder MergeResultState
+        decodeRunning =
+            Decode.field "state-running" <|
+                Decode.map3 MergeResultRunning
+                    (Decode.field "started" decodePosix)
+                    (Decode.field "job-id" Decode.int)
+                    (Decode.field "latest-log" Decode.string)
+
+        decodeQueued : Decode.Decoder MergeResultState
+        decodeQueued =
+            Decode.field "state-queued" <| Decode.succeed MergeResultQueued
+
+        decodeDone : Decode.Decoder MergeResultState
+        decodeDone =
+            Decode.field "state-done" <|
+                Decode.map5 MergeResultDone
+                    (Decode.field "started" decodePosix)
+                    (Decode.field "stopped" decodePosix)
+                    (Decode.field "result" <| Decode.field "mtz-file-id" Decode.int)
+                    (Decode.field "result" <| Decode.field "fom" <| mergeFomDecoder)
+                    (Decode.field "result" <| Decode.field "detailed-foms" <| Decode.list <| mergeShellFomDecoder)
+
+        decodeError : Decode.Decoder MergeResultState
+        decodeError =
+            Decode.field "state-error" <|
+                Decode.map4 MergeResultError
+                    (Decode.field "started" decodePosix)
+                    (Decode.field "stopped" decodePosix)
+                    (Decode.field "error" Decode.string)
+                    (Decode.field "latest-log" Decode.string)
+    in
+    Decode.oneOf [ decodeRunning, decodeDone, decodeError, decodeQueued ]
+
+
+type alias MergeResult =
+    { id : Int
+    , created : Posix
+    , runs : List String
+    , pointGroup : String
+    , cellDescription : String
+    , partialatorAdditional : String
+    , negativeHandling : Maybe String
+    , state : MergeResultState
+    }
+
+
+mergeResultDecoder : Decode.Decoder MergeResult
+mergeResultDecoder =
+    Decode.map8 MergeResult
+        (Decode.field "id" Decode.int)
+        (Decode.field "created" decodePosix)
+        (Decode.field "runs" (Decode.list Decode.string))
+        (Decode.field "point-group" Decode.string)
+        (Decode.field "cell-description" Decode.string)
+        (Decode.field "partialator-additional" Decode.string)
+        (Decode.field "negative-handling" (Decode.maybe Decode.string))
+        decodeMergeResultState
+
+
 type alias AnalysisResultsExperimentType =
     { dataSet : DataSet
     , runs : List String
+    , mergeResults : List MergeResult
+    , numberOfIndexingResults : Int
     }
 
 
 type alias AnalysisResultsRoot =
-    { experimentTypes : Dict String (List AnalysisResultsExperimentType)
+    { experimentTypes : List ExperimentType
+    , dataSets : Dict ExperimentTypeId (List AnalysisResultsExperimentType)
     , attributi : List (Attributo AttributoType)
     , chemicalIdToName : Dict Int String
     }
@@ -225,16 +439,29 @@ type alias AnalysisResultsRoot =
 
 analysisResultsExperimentTypeDecoder : Decode.Decoder AnalysisResultsExperimentType
 analysisResultsExperimentTypeDecoder =
-    Decode.map2
+    Decode.map4
         AnalysisResultsExperimentType
         (Decode.field "data-set" dataSetDecoder)
         (Decode.field "runs" (Decode.list Decode.string))
+        (Decode.field "merge-results" (Decode.list mergeResultDecoder))
+        (Decode.field "number-of-indexing-results" Decode.int)
 
 
 analysisResultsRootDecoder : Decode.Decoder AnalysisResultsRoot
 analysisResultsRootDecoder =
-    Decode.map3 AnalysisResultsRoot
-        (Decode.field "experiment-types" <| Decode.dict (Decode.list analysisResultsExperimentTypeDecoder))
+    Decode.map4 AnalysisResultsRoot
+        (Decode.field "experiment-types" <| Decode.list experimentTypeDecoder)
+        (Decode.field "data-sets" <|
+            Decode.map
+                Dict.fromList
+                (Decode.list
+                    (Decode.map2
+                        (\et ds -> ( et, ds ))
+                        (Decode.field "experiment-type" Decode.int)
+                        (Decode.field "data-sets" (Decode.list analysisResultsExperimentTypeDecoder))
+                    )
+                )
+        )
         (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
         (Decode.field "chemical-id-to-name" <|
             Decode.map Dict.fromList <|

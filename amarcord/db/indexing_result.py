@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Final
 from typing import TypeAlias
 
+from amarcord.amici.crystfel.util import CrystFELCellFile
+
 
 @dataclass(frozen=True, eq=True)
 class DBIndexingFOM:
@@ -47,6 +49,9 @@ class DBIndexingResultInput:
     frames: None | int
     hits: None | int
     not_indexed_frames: None | int
+    cell_description: None | CrystFELCellFile
+    point_group: None | str
+    chemical_id: int
     runtime_status: DBIndexingResultRuntimeStatus
 
 
@@ -58,4 +63,7 @@ class DBIndexingResultOutput:
     frames: None | int
     hits: None | int
     not_indexed_frames: None | int
+    cell_description: None | CrystFELCellFile
+    point_group: None | str
+    chemical_id: int
     runtime_status: DBIndexingResultRuntimeStatus

@@ -41,7 +41,7 @@ async def retrieve_jwt_token(lifespan_seconds: int) -> str | TokenRetrievalError
     try:
         result = await (
             asyncio.create_subprocess_shell(
-                " ".join(slurm_token_command(lifespan_seconds // 60)),
+                " ".join(slurm_token_command(lifespan_seconds)),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )

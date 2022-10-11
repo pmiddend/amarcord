@@ -83,7 +83,17 @@ view maybeConfig =
                     "none"
                 )
             ]
-            [ div [ class "modal-dialog" ]
+            [ div
+                (case
+                    maybeConfig
+                        |> Maybe.andThen .modalDialogClass
+                 of
+                    Nothing ->
+                        [ class "modal-dialog" ]
+
+                    Just mdc ->
+                        [ class mdc ]
+                )
                 [ div [ class "modal-content" ]
                     (case maybeConfig of
                         Nothing ->
@@ -108,9 +118,7 @@ wrapHeader closeMessage header =
 
     else
         div [ class "modal-header" ]
-            [ unwrap empty closeButton closeMessage
-            , Maybe.withDefault empty header
-            ]
+            [ Maybe.withDefault empty header, unwrap empty closeButton closeMessage ]
 
 
 closeButton : msg -> Html msg
@@ -150,6 +158,7 @@ type alias Config msg =
     { closeMessage : Maybe msg
     , containerClass : Maybe String
     , header : Maybe (Html msg)
+    , modalDialogClass : Maybe String
     , body : Maybe (Html msg)
     , footer : Maybe (Html msg)
     }

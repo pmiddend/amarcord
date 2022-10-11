@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from structlog.stdlib import BoundLogger
 from zmq.asyncio import Context
 
+from amarcord.amici.crystfel.util import ATTRIBUTO_PROTEIN
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
 from amarcord.db.indexing_result import DBIndexingFOM
@@ -160,11 +161,22 @@ class OmZMQProcessor:
                     indexed_frames=latest_runtime_status.fom.indexed_frames,
                 ),
             )
+            protein_chemical_id = latest_run.attributi.select_chemical_id(
+                ATTRIBUTO_PROTEIN
+            )
+            if protein_chemical_id is None:
+                logger.error(
+                    f"cannot create indexing result, run has no attribute {ATTRIBUTO_PROTEIN}"
+                )
+                return
             if latest_indexing_result is None:
                 await self._db.create_indexing_result(
                     conn,
                     DBIndexingResultInput(
                         created=datetime.datetime.utcnow(),
+                        cell_description=None,
+                        point_group=None,
+                        chemical_id=protein_chemical_id,
                         run_id=latest_run.id,
                         frames=final_om_frames,
                         hits=final_om_hits,
@@ -180,6 +192,9 @@ class OmZMQProcessor:
                     latest_indexing_result.id,
                     DBIndexingResultInput(
                         created=datetime.datetime.utcnow(),
+                        cell_description=None,
+                        point_group=None,
+                        chemical_id=protein_chemical_id,
                         run_id=latest_run.id,
                         frames=final_om_frames,
                         hits=final_om_hits,

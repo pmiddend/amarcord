@@ -7,8 +7,10 @@ from typing import Optional
 from tap import Tap
 from zmq.asyncio import Context
 
-from amarcord.amici.crystfel.daemon import CrystFELOnlineConfig
-from amarcord.amici.crystfel.daemon import indexing_loop
+from amarcord.amici.crystfel.indexing_daemon import CrystFELOnlineConfig
+from amarcord.amici.crystfel.indexing_daemon import indexing_loop
+from amarcord.amici.crystfel.merge_daemon import MergeConfig
+from amarcord.amici.crystfel.merge_daemon import merging_loop
 from amarcord.amici.kamzik.kamzik_zmq_client import kamzik_main_loop
 from amarcord.amici.om.client import OmZMQProcessor
 from amarcord.amici.om.indexing_daemon import om_indexing_loop
@@ -60,6 +62,15 @@ class Arguments(Tap):
     online_crystfel_chemical_attributo: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
     online_crystfel_workload_manager_uri: Optional[str] = None
+    merge_daemon_delay_seconds: float = 5.0
+    # pylint: disable=consider-alternative-union-syntax
+    merge_daemon_workload_manager_uri: Optional[str] = None
+    # pylint: disable=consider-alternative-union-syntax
+    merge_daemon_output_base_directory: Optional[Path] = None
+    # pylint: disable=consider-alternative-union-syntax
+    merge_daemon_merge_script_path: Optional[Path] = None
+    # pylint: disable=consider-alternative-union-syntax
+    merge_daemon_crystfel_path: Optional[Path] = None
 
 
 async def _main_loop(args: Arguments) -> None:
@@ -69,6 +80,31 @@ async def _main_loop(args: Arguments) -> None:
     await db.migrate()
 
     awaitables: list[Task[None]] = []
+
+    if (
+        args.merge_daemon_workload_manager_uri is not None
+        and args.merge_daemon_merge_script_path is not None
+        and args.merge_daemon_crystfel_path is not None
+        and args.merge_daemon_output_base_directory is not None
+    ):
+        awaitables.append(
+            asyncio.create_task(
+                merging_loop(
+                    db,
+                    config=MergeConfig(
+                        args.merge_daemon_output_base_directory,
+                        args.merge_daemon_merge_script_path,
+                        args.merge_daemon_crystfel_path,
+                    ),
+                    workload_manager=create_workload_manager(
+                        parse_workload_manager_config(
+                            args.merge_daemon_workload_manager_uri
+                        )
+                    ),
+                    sleep_seconds=args.merge_daemon_delay_seconds,
+                )
+            )
+        )
 
     if (
         args.online_crystfel_delay_seconds is not None

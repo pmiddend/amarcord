@@ -1308,7 +1308,7 @@ async def test_retrieve_and_update_configuration() -> None:
         assert not (await db.retrieve_configuration(conn)).auto_pilot
 
 
-async def test_create_analysis_result() -> None:
+async def test_create_indexing_result() -> None:
     db = await _get_db()
 
     async with db.begin() as conn:
@@ -1324,6 +1324,14 @@ async def test_create_analysis_result() -> None:
             keep_manual_attributes_from_previous_run=False,
         )
 
+        chemical_id = await db.create_chemical(
+            conn,
+            "test",
+            AttributiMap.from_types_and_raw(
+                attributi, chemical_ids=[], raw_attributi={}
+            ),
+        )
+
         indexing_result_id = await db.create_indexing_result(
             conn,
             DBIndexingResultInput(
@@ -1332,6 +1340,9 @@ async def test_create_analysis_result() -> None:
                 frames=0,
                 hits=0,
                 not_indexed_frames=0,
+                chemical_id=chemical_id,
+                cell_description=None,
+                point_group=None,
                 runtime_status=None,
             ),
         )

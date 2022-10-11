@@ -10,6 +10,7 @@ from statistics import mean
 from tempfile import NamedTemporaryFile
 from typing import Any
 from typing import Final
+from typing import Iterable
 from typing import Set
 from typing import cast
 from zipfile import ZipFile
@@ -27,9 +28,12 @@ from tap import Tap
 from werkzeug import Response
 from werkzeug.exceptions import HTTPException
 
+from amarcord.amici.crystfel.util import CrystFELCellFile
+from amarcord.amici.crystfel.util import coparse_cell_description
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.asyncdb import LIVE_STREAM_IMAGE
+from amarcord.db.asyncdb import MergeResultError
 from amarcord.db.asyncdb import create_workbook
 from amarcord.db.attributi import ATTRIBUTO_STARTED
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
@@ -45,6 +49,11 @@ from amarcord.db.attributi_map import run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.data_set import DBDataSet
+from amarcord.db.db_merge_result import DBMergeResultInput
+from amarcord.db.db_merge_result import DBMergeResultOutput
+from amarcord.db.db_merge_result import DBMergeRuntimeStatusDone
+from amarcord.db.db_merge_result import DBMergeRuntimeStatusError
+from amarcord.db.db_merge_result import DBMergeRuntimeStatusRunning
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
@@ -53,6 +62,7 @@ from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.merge_negative_handling import MergeNegativeHandling
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBChemical
 from amarcord.db.table_classes import DBEvent
@@ -94,6 +104,13 @@ db = QuartDatabases(app)
 @app.errorhandler(HTTPException)
 def error_handler_for_exceptions(e: Any) -> Any:
     return handle_exception(e)
+
+
+def format_run_id_intervals(run_ids: Iterable[int]) -> list[str]:
+    return [
+        str(t[0]) if t[0] == t[1] else f"{t[0]}-{t[1]}"
+        for t in create_intervals(list(run_ids))
+    ]
 
 
 @app.post("/api/events")
@@ -253,6 +270,110 @@ def _encode_chemical(a: DBChemical) -> JSONDict:
     }
 
 
+def _encode_merge_result(mr: DBMergeResultOutput) -> JSONDict:
+    additional_dict: JSONDict = {}
+    match mr.runtime_status:
+        case None:
+            additional_dict = {"state-queued": {}}
+        case DBMergeRuntimeStatusRunning(job_id, started, recent_log):
+            additional_dict = {
+                "state-running": {
+                    "started": datetime_to_attributo_int(started),
+                    "job-id": job_id,
+                    "latest-log": recent_log,
+                }
+            }
+        case DBMergeRuntimeStatusError(error, started, stopped, recent_log):
+            additional_dict = {
+                "state-error": {
+                    "started": datetime_to_attributo_int(started),
+                    "stopped": datetime_to_attributo_int(stopped),
+                    "error": error,
+                    "latest-log": recent_log,
+                }
+            }
+        case DBMergeRuntimeStatusDone(started, stopped, result):
+            assert isinstance(
+                result.mtz_file, int
+            ), f"mtz file in result is not an integer but {result.mtz_file}"
+            additional_dict = {
+                "state-done": {
+                    "started": datetime_to_attributo_int(started),
+                    "stopped": datetime_to_attributo_int(stopped),
+                    "result": {
+                        "mtz-file-id": result.mtz_file,
+                        "detailed-foms": [
+                            {
+                                "one-over-d-centre": i.one_over_d_centre,
+                                "nref": i.nref,
+                                "d-over-a": i.d_over_a,
+                                "min-res": i.min_res,
+                                "max-res": i.max_res,
+                                "cc": i.cc,
+                                "ccstar": i.ccstar,
+                                "r-split": i.r_split,
+                                "reflections-possible": i.reflections_possible,
+                                "completeness": i.completeness,
+                                "measurements": i.measurements,
+                                "redundancy": i.redundancy,
+                                "snr": i.snr,
+                                "mean-i": i.mean_i,
+                            }
+                            for i in result.detailed_foms
+                        ],
+                        "fom": {
+                            "snr": result.fom.snr,
+                            "wilson": result.fom.wilson,
+                            "ln-k": result.fom.ln_k,
+                            "discarded-reflections": result.fom.discarded_reflections,
+                            "one-over-d-from": result.fom.one_over_d_from,
+                            "one-over-d-to": result.fom.one_over_d_to,
+                            "redundancy": result.fom.redundancy,
+                            "completeness": result.fom.completeness,
+                            "measurements-total": result.fom.measurements_total,
+                            "reflections-total": result.fom.reflections_total,
+                            "reflections-possible": result.fom.reflections_possible,
+                            "r-split": result.fom.r_split,
+                            "r1i": result.fom.r1i,
+                            "r2": result.fom.r2,
+                            "cc": result.fom.cc,
+                            "cc-star": result.fom.ccstar,
+                            "cc-ano": result.fom.ccano,
+                            "crd-ano": result.fom.crdano,
+                            "r-ano": result.fom.rano,
+                            "r-ano-over-r-split": result.fom.rano_over_r_split,
+                            "d1sig": result.fom.d1sig,
+                            "d2sig": result.fom.d2sig,
+                            "outer-shell": {
+                                "resolution": result.fom.outer_shell.resolution,
+                                "cc-star": result.fom.outer_shell.ccstar,
+                                "r-split": result.fom.outer_shell.r_split,
+                                "cc": result.fom.outer_shell.cc,
+                                "unique-reflections": result.fom.outer_shell.unique_reflections,
+                                "completeness": result.fom.outer_shell.completeness,
+                                "redundancy": result.fom.outer_shell.redundancy,
+                                "snr": result.fom.outer_shell.snr,
+                                "min-res": result.fom.outer_shell.min_res,
+                                "max-res": result.fom.outer_shell.max_res,
+                            },
+                        },
+                    },
+                }
+            }
+    return {
+        "id": mr.id,
+        "created": datetime_to_attributo_int(mr.created),
+        # We don't export the indexing results here yet. No clear reason other than laziness
+        "runs": format_run_id_intervals(ir.run_id for ir in mr.indexing_results),
+        "point-group": mr.point_group,
+        "cell-description": coparse_cell_description(mr.cell_description),
+        "partialator-additional": mr.partialator_additional,
+        "negative-handling": mr.negative_handling.value
+        if mr.negative_handling is not None
+        else None,
+    } | additional_dict
+
+
 @app.get("/api/chemicals")
 async def read_chemicals() -> JSONDict:
     async with db.instance.begin() as conn:
@@ -284,6 +405,143 @@ def _encode_event(e: DBEvent) -> JSONDict:
 
 def _has_artificial_delay() -> bool:
     return bool(app.config.get("ARTIFICIAL_DELAY", False))
+
+
+@app.post("/api/merging/<int:data_set_id>/start")
+async def start_merge_job_for_data_set(data_set_id: int) -> JSONDict:
+    request_content = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        strict_mode = request_content.retrieve_safe_boolean("strict-mode")
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        chemical_ids = await db.instance.retrieve_chemical_ids(conn)
+        data_set = await db.instance.retrieve_data_set(
+            conn, data_set_id, chemical_ids, attributi
+        )
+        if data_set is None:
+            raise CustomWebException(
+                code=404,
+                title=f'Data set with ID "{data_set_id}" not found',
+                description="",
+            )
+        runs = [
+            run
+            for run in await db.instance.retrieve_runs(
+                conn,
+                attributi,
+            )
+            if run_matches_dataset(run.attributi, data_set.attributi)
+        ]
+        if not runs:
+            raise CustomWebException(
+                code=500,
+                title=f"Data set with ID {data_set_id} has no runs!",
+                description="",
+            )
+        indexing_results_by_run_id: dict[int, list[DBIndexingResultOutput]] = group_by(
+            (
+                ir
+                for ir in await db.instance.retrieve_indexing_results(conn)
+                if isinstance(ir.runtime_status, DBIndexingResultDone)
+            ),
+            lambda ir: ir.run_id,
+        )
+        chosen_indexing_results: list[DBIndexingResultOutput] = []
+        cell_descriptions: set[CrystFELCellFile] = set()
+        point_groups: set[str] = set()
+        for run in runs:
+            irs = sorted(
+                indexing_results_by_run_id.get(run.id, []),
+                key=lambda ir: ir.id,
+                reverse=True,
+            )
+            if not irs:
+                if strict_mode:
+                    raise CustomWebException(
+                        code=404,
+                        title=f"Run {run.id} has no indexing results and strict mode is on; cannot merge",
+                        description="",
+                    )
+                continue
+            chosen_result = irs[0]
+            if chosen_result.cell_description is not None:
+                cell_descriptions.add(chosen_result.cell_description)
+            if chosen_result.point_group is not None:
+                point_groups.add(chosen_result.point_group)
+            chosen_indexing_results.append(chosen_result)
+        if not chosen_indexing_results:
+            raise CustomWebException(
+                code=500,
+                title="Found no indexing results for the runs "
+                + ",".join(str(r.id) for r in runs),
+                description="",
+            )
+        # Shouldn't happen, since for each indexing result we automatically have a cell description and point group, but
+        # the type system is too clunky to express that easily.
+        if not cell_descriptions:
+            raise CustomWebException(
+                code=500,
+                title="Found no cell descriptions for the runs "
+                + ",".join(str(r.id) for r in runs),
+                description="",
+            )
+        if not point_groups:
+            raise CustomWebException(
+                code=500,
+                title="Found no cell descriptions for the runs "
+                + ",".join(str(r.id) for r in runs),
+                description="",
+            )
+        if len(cell_descriptions) > 1:
+            raise CustomWebException(
+                code=500,
+                title="Conflicting cell descriptions",
+                description="We have more than one cell description and cannot merge: "
+                + ", ".join(
+                    coparse_cell_description(c)
+                    for c in cell_descriptions
+                    if c is not None
+                ),
+            )
+        if len(point_groups) > 1:
+            raise CustomWebException(
+                code=500,
+                title="Conflicting point groups",
+                description="We have more than one point group and cannot merge: "
+                + ", ".join(f for f in point_groups if f is not None),
+            )
+        negative_handling_str = request_content.optional_str("negative-handling")
+        try:
+            negative_handling = (
+                MergeNegativeHandling(negative_handling_str)
+                if negative_handling_str is not None
+                else None
+            )
+        except:
+            raise CustomWebException(
+                code=500,
+                title="Invalid value for negative-handling",
+                description=f'Value "{negative_handling_str}" for negative-handling is not known',
+            )
+        merge_result_id = await db.instance.create_merge_result(
+            conn,
+            DBMergeResultInput(
+                created=datetime.datetime.utcnow(),
+                indexing_results=chosen_indexing_results,
+                point_group=next(iter(point_groups)),
+                cell_description=next(iter(cell_descriptions)),
+                partialator_additional=request_content.retrieve_safe_str(
+                    "partialator-additional"
+                ),
+                negative_handling=negative_handling,
+                runtime_status=None,
+            ),
+        )
+        if isinstance(merge_result_id, MergeResultError):
+            raise CustomWebException(
+                code=500, title=str(merge_result_id), description=""
+            )
+        return {"merge-result-id": merge_result_id}
 
 
 @app.get("/api/runs/<int:run_id>/start")
@@ -1233,20 +1491,51 @@ async def read_analysis_results() -> JSONDict:
             data_sets,
             lambda ds: ds.experiment_type_id,
         )
-        runs = await db.instance.retrieve_runs(conn, attributi)
+        runs = {r.id: r for r in await db.instance.retrieve_runs(conn, attributi)}
         data_set_to_runs: dict[int, list[DBRun]] = {
-            ds.id: [r for r in runs if run_matches_dataset(r.attributi, ds.attributi)]
+            ds.id: [
+                r
+                for r in runs.values()
+                if run_matches_dataset(r.attributi, ds.attributi)
+            ]
             for ds in data_sets
         }
         # This is horrible, one SQL query could do the trick here. But efficiency comes second.
         indexing_results_for_runs: dict[int, list[DBIndexingResultOutput]] = group_by(
             await db.instance.retrieve_indexing_results(conn), lambda ir: ir.run_id
         )
+        merge_results_per_data_set: dict[int, list[DBMergeResultOutput]] = {
+            ds.id: [] for ds in data_sets
+        }
+        data_set_to_run_ids: dict[int, set[int]] = {
+            ds_id: set(r.id for r in runs) for ds_id, runs in data_set_to_runs.items()
+        }
+        # Super hard to wrap your head around this, so let me explain:
+        #
+        # A merge result has a list of indexing results. Each indexing result belongs to exactly one run.
+        # Thus, for each merge result, we can get a list of runs.
+        #
+        # A data set has a list of runs matching it.
+        #
+        # We now define: A merge result matches a data set if the data set's runs are a strict superset of the merge
+        # result's runs.
+        #
+        # This is what's tested here.
+        for merge_result in await db.instance.retrieve_merge_results(conn):
+            runs_in_merge_result: set[int] = set(
+                ir.run_id for ir in merge_result.indexing_results
+            )
+            for ds_id, run_ids in data_set_to_run_ids.items():
+                if run_ids.issuperset(runs_in_merge_result):
+                    merge_results_per_data_set[ds_id].append(merge_result)
         run_foms: dict[int, DBIndexingFOM] = {
-            r.id: _indexing_fom_for_run(indexing_results_for_runs, r) for r in runs
+            r.id: _indexing_fom_for_run(indexing_results_for_runs, r)
+            for r in runs.values()
         }
 
-        def _build_data_set_result(ds: DBDataSet) -> JSONDict:
+        def _build_data_set_result(
+            ds: DBDataSet, merge_results: list[DBMergeResultOutput]
+        ) -> JSONDict:
             runs_in_ds = data_set_to_runs.get(ds.id, [])
             return {
                 "data-set": _encode_data_set(
@@ -1254,24 +1543,37 @@ async def read_analysis_results() -> JSONDict:
                     _summary_from_foms(
                         [
                             run_foms.get(r.id, empty_indexing_fom)
-                            for r in runs
+                            for r in runs.values()
                             if run_matches_dataset(r.attributi, ds.attributi)
                         ]
                     ),
                 ),
-                "runs": [
-                    str(t[0]) if t[0] == t[1] else f"{t[0]}-{t[1]}"
-                    for t in create_intervals([r.id for r in runs_in_ds])
-                ],
+                "runs": format_run_id_intervals(r.id for r in runs_in_ds),
+                "number-of-indexing-results": sum(
+                    len(indexing_results_for_runs.get(run.id, [])) for run in runs_in_ds
+                ),
+                "merge-results": [_encode_merge_result(mr) for mr in merge_results],
             }
 
         return {
             "attributi": [_encode_attributo(a) for a in attributi],
             "chemical-id-to-name": [[x.id, x.name] for x in chemicals],
-            "experiment-types": {
-                experiment_type_id: [_build_data_set_result(ds) for ds in data_sets]
-                for experiment_type_id, data_sets in data_sets_by_experiment_type.items()
-            },
+            "experiment-types": [
+                _encode_experiment_type(et)
+                for et in await db.instance.retrieve_experiment_types(conn)
+            ],
+            "data-sets": [
+                {
+                    "experiment-type": et_id,
+                    "data-sets": [
+                        _build_data_set_result(
+                            ds, merge_results_per_data_set.get(ds.id, [])
+                        )
+                        for ds in data_sets
+                    ],
+                }
+                for et_id, data_sets in data_sets_by_experiment_type.items()
+            ],
         }
 
 

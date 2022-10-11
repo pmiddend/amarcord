@@ -16,12 +16,16 @@ from pint import UnitRegistry
 from structlog.stdlib import BoundLogger
 from zmq.utils.monitor import parse_monitor_message
 
+from amarcord.amici.crystfel.util import ATTRIBUTO_PROTEIN
+from amarcord.amici.crystfel.util import CrystFELCellFile
+from amarcord.amici.crystfel.util import parse_cell_description
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import attributo_types_semantically_equivalent
 from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.indexing_result import DBIndexingResultInput
@@ -126,6 +130,8 @@ async def ingest_kamzik_metadata(
         run_id, int
     ), f"Run ID is not int, but {run_id} in metadata dict {metadata}"
 
+    run_logger = parent_log.bind(run_id=run_id)
+
     attributi_schema = metadata.get("attributi-schema", None)
     assert (
         attributi_schema is not None
@@ -183,7 +189,7 @@ async def ingest_kamzik_metadata(
         await db.update_run_attributi(conn, run_id, attributi_map)
     else:
         config = await db.retrieve_configuration(conn)
-        logger.info(f"creating run {run_id}")
+        run_logger.info("creating run in DB")
         await db.create_run(
             conn,
             run_id,
@@ -192,7 +198,35 @@ async def ingest_kamzik_metadata(
             keep_manual_attributes_from_previous_run=config.auto_pilot,
         )
         if config.use_online_crystfel:
-            logger.info(f"queueing CrystFEL online indexing job for run {run_id}")
+            run_logger.info("queueing CrystFEL online indexing job")
+            protein_chemical_id = attributi_values.get(ATTRIBUTO_PROTEIN, None)
+            if protein_chemical_id is None:
+                logger.error("cannot start indexing job, no protein chemical ID found")
+                return
+            assert isinstance(
+                protein_chemical_id, int
+            ), f'"protein" value is not int but {protein_chemical_id}'
+            chemical = await db.retrieve_chemical(conn, protein_chemical_id, attributi)
+            if chemical is None:
+                logger.error(
+                    f"cannot start indexing job, chemical ID {protein_chemical_id} invalid"
+                )
+                return
+            point_group = chemical.attributi.select_string(AttributoId("point group"))
+            cell_description_str = chemical.attributi.select_string(
+                AttributoId("cell description")
+            )
+            cell_description: None | CrystFELCellFile
+            if cell_description_str is not None:
+                cell_description = parse_cell_description(cell_description_str)
+                if cell_description is None:
+                    logger.error(
+                        f"cannot start indexing job, cell description is invalid: {cell_description_str}"
+                    )
+                    return
+            else:
+                cell_description = None
+
             await db.create_indexing_result(
                 conn,
                 DBIndexingResultInput(
@@ -202,6 +236,11 @@ async def ingest_kamzik_metadata(
                     hits=0,
                     not_indexed_frames=0,
                     runtime_status=None,
+                    point_group=point_group
+                    if point_group is not None and point_group.strip()
+                    else None,
+                    cell_description=cell_description,
+                    chemical_id=protein_chemical_id,
                 ),
             )
 

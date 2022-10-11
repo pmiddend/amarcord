@@ -17,6 +17,9 @@ import structlog.stdlib
 from openpyxl import Workbook
 from PIL import Image
 
+from amarcord.amici.crystfel.util import CrystFELCellFile
+from amarcord.amici.crystfel.util import coparse_cell_description
+from amarcord.amici.crystfel.util import parse_cell_description
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.async_dbcontext import Connection
@@ -35,6 +38,12 @@ from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.db_job_status import DBJobStatus
+from amarcord.db.db_merge_result import DBMergeResultInput
+from amarcord.db.db_merge_result import DBMergeResultOutput
+from amarcord.db.db_merge_result import DBMergeRuntimeStatus
+from amarcord.db.db_merge_result import DBMergeRuntimeStatusDone
+from amarcord.db.db_merge_result import DBMergeRuntimeStatusError
+from amarcord.db.db_merge_result import DBMergeRuntimeStatusRunning
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
@@ -44,6 +53,10 @@ from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
+from amarcord.db.merge_result import MergeResult
+from amarcord.db.merge_result import MergeResultFom
+from amarcord.db.merge_result import MergeResultOuterShell
+from amarcord.db.merge_result import MergeResultShell
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBChemical
@@ -56,11 +69,16 @@ from amarcord.db.user_configuration import initial_user_configuration
 from amarcord.json_schema import coparse_schema_type
 from amarcord.pint_util import valid_pint_unit
 from amarcord.util import datetime_to_local
+from amarcord.util import group_by
 from amarcord.util import sha256_file
 
 LIVE_STREAM_IMAGE: Final = "live-stream-image"
 
 logger = structlog.stdlib.get_logger(__name__)
+
+
+class MergeResultError(str):
+    pass
 
 
 @dataclass(frozen=True)
@@ -99,6 +117,93 @@ def _evaluate_indexing_result_runtime_status(
         if db_row["job_status"] == DBJobStatus.RUNNING
         else None
     )
+
+
+def _values_from_shell_foms(
+    mrd: MergeResultShell, merge_result_id: int
+) -> dict[str, float | int]:
+    return {
+        "merge_result_id": merge_result_id,
+        "one_over_d_centre": mrd.one_over_d_centre,
+        "nref": mrd.nref,
+        "d_over_a": mrd.d_over_a,
+        "min_res": mrd.min_res,
+        "max_res": mrd.max_res,
+        "cc": mrd.cc,
+        "ccstar": mrd.ccstar,
+        "r_split": mrd.r_split,
+        "reflections_possible": mrd.reflections_possible,
+        "completeness": mrd.completeness,
+        "measurements": mrd.measurements,
+        "redundancy": mrd.redundancy,
+        "snr": mrd.snr,
+        "mean_i": mrd.mean_i,
+    }
+
+
+def _runtime_status_sql_values(rs: DBMergeRuntimeStatus) -> dict[str, Any]:
+    match rs:
+        case None:
+            return {"recent_log": "", "job_status": DBJobStatus.QUEUED}
+        case DBMergeRuntimeStatusRunning(job_id, started, recent_log):
+            return {
+                "started": started,
+                "job_id": job_id,
+                "recent_log": recent_log,
+                "job_status": DBJobStatus.RUNNING,
+            }
+        case DBMergeRuntimeStatusError(error, started, stopped, recent_log):
+            return {
+                "job_error": error,
+                "started": started,
+                "stopped": stopped,
+                "recent_log": recent_log,
+                "job_status": DBJobStatus.DONE,
+            }
+        case DBMergeRuntimeStatusDone(started, stopped, result, recent_log):
+            if isinstance(result.mtz_file, Path):
+                raise Exception(
+                    f"the mtz file in the status is a path: {result.mtz_file}; has to be an integer!"
+                )
+            return {
+                "job_status": DBJobStatus.DONE,
+                "recent_log": recent_log,
+                "started": started,
+                "stopped": stopped,
+                "mtz_file_id": result.mtz_file,
+                "fom_snr": result.fom.snr,
+                "fom_wilson": result.fom.wilson,
+                "fom_ln_k": result.fom.ln_k,
+                "fom_discarded_reflections": result.fom.discarded_reflections,
+                "fom_one_over_d_from": result.fom.one_over_d_from,
+                "fom_one_over_d_to": result.fom.one_over_d_to,
+                "fom_redundancy": result.fom.redundancy,
+                "fom_completeness": result.fom.completeness,
+                "fom_measurements_total": result.fom.measurements_total,
+                "fom_reflections_total": result.fom.reflections_total,
+                "fom_reflections_possible": result.fom.reflections_possible,
+                "fom_r_split": result.fom.r_split,
+                "fom_r1i": result.fom.r1i,
+                "fom_2": result.fom.r2,
+                "fom_cc": result.fom.cc,
+                "fom_ccstar": result.fom.ccstar,
+                "fom_ccano": result.fom.ccano,
+                "fom_crdano": result.fom.crdano,
+                "fom_rano": result.fom.rano,
+                "fom_rano_over_r_split": result.fom.rano_over_r_split,
+                "fom_d1sig": result.fom.d1sig,
+                "fom_d2sig": result.fom.d2sig,
+                "fom_outer_resolution": result.fom.outer_shell.resolution,
+                "fom_outer_ccstar": result.fom.outer_shell.ccstar,
+                "fom_outer_r_split": result.fom.outer_shell.r_split,
+                "fom_outer_cc": result.fom.outer_shell.cc,
+                "fom_outer_unique_reflections": result.fom.outer_shell.unique_reflections,
+                "fom_outer_completeness": result.fom.outer_shell.completeness,
+                "fom_outer_redundancy": result.fom.outer_shell.redundancy,
+                "fom_outer_snr": result.fom.outer_shell.snr,
+                "fom_outer_min_res": result.fom.outer_shell.min_res,
+                "fom_outer_max_res": result.fom.outer_shell.max_res,
+            }
 
 
 class AsyncDB:
@@ -914,12 +1019,10 @@ class AsyncDB:
         )
 
     async def retrieve_run_ids(self, conn: Connection) -> list[int]:
-        return [
-            row[0]
-            for row in conn.execute(
-                sa.select([self.tables.run.c.id]).order_by(self.tables.run.c.id)
-            ).fetchall()
-        ]
+        sel = await conn.execute(
+            sa.select([self.tables.run.c.id]).order_by(self.tables.run.c.id)
+        )
+        return [s[0] for s in sel.fetchall()]
 
     async def create_indexing_result(
         self, conn: Connection, r: DBIndexingResultInput
@@ -949,6 +1052,11 @@ class AsyncDB:
                     hit_rate=fom.hit_rate if fom is not None else 0.0,
                     indexing_rate=fom.indexing_rate if fom is not None else 0.0,
                     indexed_frames=fom.indexed_frames if fom is not None else 0.0,
+                    cell_description=coparse_cell_description(r.cell_description)
+                    if r.cell_description is not None
+                    else None,
+                    point_group=r.point_group,
+                    chemical_id=r.chemical_id,
                     job_id=r.runtime_status.job_id
                     if isinstance(r.runtime_status, DBIndexingResultRunning)
                     else None,
@@ -1021,6 +1129,7 @@ class AsyncDB:
         )
         if r is None:
             return None
+
         return DBChemical(
             id=id_,
             name=r["name"],
@@ -1176,6 +1285,31 @@ class AsyncDB:
             self.tables.data_set.delete().where(self.tables.data_set.c.id == id_)
         )
 
+    async def retrieve_data_set(
+        self,
+        conn: Connection,
+        data_set_id: int,
+        chemical_ids: list[int],
+        attributi: list[DBAttributo],
+    ) -> None | DBDataSet:
+        dc = self.tables.data_set.c
+        r = (
+            await conn.execute(
+                sa.select([dc.experiment_type_id, dc.attributi]).where(
+                    dc.id == data_set_id
+                )
+            )
+        ).fetchone()
+        if r is None:
+            return None
+        return DBDataSet(
+            id=data_set_id,
+            experiment_type_id=r["experiment_type_id"],
+            attributi=AttributiMap.from_types_and_json(
+                attributi, chemical_ids=chemical_ids, raw_attributi=r["attributi"]
+            ),
+        )
+
     async def retrieve_data_sets(
         self,
         conn: Connection,
@@ -1253,6 +1387,11 @@ class AsyncDB:
                 frames=r["frames"],
                 hits=r["hits"],
                 not_indexed_frames=r["not_indexed_frames"],
+                cell_description=parse_cell_description(r["cell_description"])
+                if r["cell_description"] is not None
+                else None,
+                point_group=r["point_group"],
+                chemical_id=r["chemical_id"],
                 runtime_status=_evaluate_indexing_result_runtime_status(r),
             )
             for r in await conn.execute(
@@ -1265,6 +1404,9 @@ class AsyncDB:
                         ir.c.frames,
                         ir.c.hits,
                         ir.c.not_indexed_frames,
+                        ir.c.cell_description,
+                        ir.c.point_group,
+                        ir.c.chemical_id,
                         ir.c.hit_rate,
                         ir.c.indexing_rate,
                         ir.c.indexed_frames,
@@ -1288,6 +1430,13 @@ class AsyncDB:
             .values(
                 {
                     "stream_file": None,
+                    "cell_description": coparse_cell_description(
+                        new_result.cell_description
+                    )
+                    if new_result.cell_description is not None
+                    else None,
+                    "point_group": new_result.point_group,
+                    "chemical_id": new_result.chemical_id,
                     "frames": new_result.frames,
                     "hits": new_result.hits,
                     "not_indexed_frames": new_result.not_indexed_frames,
@@ -1298,6 +1447,13 @@ class AsyncDB:
                 if runtime_status is None
                 else {
                     "stream_file": str(runtime_status.stream_file),
+                    "cell_description": coparse_cell_description(
+                        new_result.cell_description
+                    )
+                    if new_result.cell_description is not None
+                    else None,
+                    "point_group": new_result.point_group,
+                    "chemical_id": new_result.chemical_id,
                     "frames": new_result.frames,
                     "hits": new_result.hits,
                     "not_indexed_frames": new_result.not_indexed_frames,
@@ -1311,6 +1467,13 @@ class AsyncDB:
                 if isinstance(runtime_status, DBIndexingResultRunning)
                 else {
                     "stream_file": str(runtime_status.stream_file),
+                    "cell_description": coparse_cell_description(
+                        new_result.cell_description
+                    )
+                    if new_result.cell_description is not None
+                    else None,
+                    "point_group": new_result.point_group,
+                    "chemical_id": new_result.chemical_id,
                     "frames": new_result.frames,
                     "hits": new_result.hits,
                     "not_indexed_frames": new_result.not_indexed_frames,
@@ -1383,6 +1546,9 @@ class AsyncDB:
                         ir.c.hit_rate,
                         ir.c.indexing_rate,
                         ir.c.indexed_frames,
+                        ir.c.cell_description,
+                        ir.c.point_group,
+                        ir.c.chemical_id,
                         ir.c.job_id,
                         ir.c.job_status,
                         ir.c.job_error,
@@ -1401,8 +1567,308 @@ class AsyncDB:
             frames=r["frames"],
             hits=r["hits"],
             not_indexed_frames=r["not_indexed_frames"],
+            cell_description=parse_cell_description(r["cell_description"])
+            if r["cell_description"] is not None
+            else None,
+            point_group=r["point_group"],
+            chemical_id=r["chemical_id"],
             runtime_status=_evaluate_indexing_result_runtime_status(r),
         )
+
+    async def create_merge_result(
+        self, conn: Connection, merge_result: DBMergeResultInput
+    ) -> MergeResultError | int:
+        if not merge_result.indexing_results:
+            return MergeResultError("list of indexing results was empty")
+
+        point_groups = set(
+            ir.point_group
+            for ir in merge_result.indexing_results
+            if ir.point_group is not None
+        )
+        cell_descriptions = set(
+            ir.cell_description
+            for ir in merge_result.indexing_results
+            if ir.cell_description is not None
+        )
+
+        if len(point_groups) > 1:
+            return MergeResultError(
+                "we have more than one possible point group, namely: "
+                + ", ".join(point_groups)
+            )
+
+        if len(cell_descriptions) > 1:
+            return MergeResultError(
+                "we have more than one possible cell description, namely: "
+                + ", ".join(coparse_cell_description(cd) for cd in cell_descriptions)
+            )
+
+        if not cell_descriptions:
+            return MergeResultError(
+                "we need a cell description for merging, but found none"
+            )
+
+        # Explicit type necessary here, mypy will try to be too intelligent with type inference.
+        merge_result_dict: dict[str, Any] = {
+            "created": merge_result.created,
+            "point_group": next(iter(point_groups), None),
+            "cell_description": next(
+                (coparse_cell_description(c) for c in cell_descriptions), None
+            ),
+            "partialator_additional": merge_result.partialator_additional,
+            "negative_handling": merge_result.negative_handling,
+        } | _runtime_status_sql_values(merge_result.runtime_status)
+
+        mr_id = (
+            await conn.execute(
+                self.tables.merge_result.insert().values(merge_result_dict)
+            )
+        ).inserted_primary_key[0]
+        for ir in merge_result.indexing_results:
+            await conn.execute(
+                self.tables.merge_result_has_indexing_result.insert().values(
+                    merge_result_id=mr_id, indexing_result_id=ir.id
+                )
+            )
+        return mr_id  # type: ignore
+
+    async def retrieve_merge_results(
+        self, conn: Connection
+    ) -> list[DBMergeResultOutput]:
+        indexing_results_by_id: dict[int, DBIndexingResultOutput] = {
+            ir.id: ir for ir in await self.retrieve_indexing_results(conn)
+        }
+        merge_result_to_indexing_result: dict[int, list[int]] = {
+            merge_result_id: [row["indexing_result_id"] for row in indexing_results]
+            for merge_result_id, indexing_results in group_by(
+                await conn.execute(
+                    sa.select(
+                        [
+                            self.tables.merge_result_has_indexing_result.c.merge_result_id,
+                            self.tables.merge_result_has_indexing_result.c.indexing_result_id,
+                        ]
+                    )
+                ),
+                lambda row: row["merge_result_id"],  # type: ignore
+            ).items()
+        }
+
+        def convert_merge_result_row(
+            row: Any, detailed_foms: list[Any]
+        ) -> DBMergeResultOutput:
+            runtime_status: DBMergeRuntimeStatus
+            match row["job_status"]:
+                case DBJobStatus.QUEUED:
+                    runtime_status = None
+                case DBJobStatus.RUNNING:
+                    runtime_status = DBMergeRuntimeStatusRunning(
+                        job_id=row["job_id"],
+                        started=row["started"],
+                        recent_log=row["recent_log"],
+                    )
+                case _:
+                    if row["job_error"]:
+                        # pylint: disable=redefined-variable-type
+                        runtime_status = DBMergeRuntimeStatusError(
+                            error=row["job_error"],
+                            started=row["started"],
+                            stopped=row["stopped"],
+                            recent_log=row["recent_log"],
+                        )
+                    else:
+                        runtime_status = DBMergeRuntimeStatusDone(
+                            started=row["started"],
+                            stopped=row["stopped"],
+                            recent_log=row["recent_log"],
+                            result=MergeResult(
+                                detailed_foms=detailed_foms,
+                                mtz_file=row["mtz_file_id"],
+                                fom=MergeResultFom(
+                                    snr=row["fom_snr"],
+                                    wilson=row["fom_wilson"],
+                                    ln_k=row["fom_ln_k"],
+                                    discarded_reflections=row[
+                                        "fom_discarded_reflections"
+                                    ],
+                                    one_over_d_from=row["fom_one_over_d_from"],
+                                    one_over_d_to=row["fom_one_over_d_to"],
+                                    redundancy=row["fom_redundancy"],
+                                    completeness=row["fom_completeness"],
+                                    measurements_total=row["fom_measurements_total"],
+                                    reflections_total=row["fom_reflections_total"],
+                                    reflections_possible=row[
+                                        "fom_reflections_possible"
+                                    ],
+                                    r_split=row["fom_r_split"],
+                                    r1i=row["fom_r1i"],
+                                    r2=row["fom_2"],
+                                    cc=row["fom_cc"],
+                                    ccstar=row["fom_ccstar"],
+                                    ccano=row["fom_ccano"],
+                                    crdano=row["fom_crdano"],
+                                    rano=row["fom_rano"],
+                                    rano_over_r_split=row["fom_rano_over_r_split"],
+                                    d1sig=row["fom_d1sig"],
+                                    d2sig=row["fom_d2sig"],
+                                    outer_shell=MergeResultOuterShell(
+                                        resolution=row["fom_outer_resolution"],
+                                        ccstar=row["fom_outer_ccstar"],
+                                        r_split=row["fom_outer_r_split"],
+                                        cc=row["fom_outer_cc"],
+                                        unique_reflections=row[
+                                            "fom_outer_unique_reflections"
+                                        ],
+                                        completeness=row["fom_outer_completeness"],
+                                        redundancy=row["fom_outer_redundancy"],
+                                        snr=row["fom_outer_snr"],
+                                        min_res=row["fom_outer_min_res"],
+                                        max_res=row["fom_outer_max_res"],
+                                    ),
+                                ),
+                            ),
+                        )
+
+            return DBMergeResultOutput(
+                id=row["id"],
+                created=row["created"],
+                point_group=row["point_group"],
+                cell_description=cast(
+                    CrystFELCellFile, parse_cell_description(row["cell_description"])
+                ),
+                partialator_additional=row["partialator_additional"],
+                negative_handling=row["negative_handling"],
+                indexing_results=[
+                    indexing_results_by_id[ir_id]
+                    for ir_id in merge_result_to_indexing_result.get(row["id"], [])
+                ],
+                runtime_status=runtime_status,
+            )
+
+        mr = self.tables.merge_result.c
+        mdfoms = self.tables.merge_result_shell_fom.c
+
+        merge_results = await conn.execute(
+            sa.select(
+                [
+                    mr.id,
+                    mr.created,
+                    mr.partialator_additional,
+                    mr.recent_log,
+                    mr.negative_handling,
+                    mr.job_status,
+                    mr.started,
+                    mr.stopped,
+                    mr.point_group,
+                    mr.cell_description,
+                    mr.job_id,
+                    mr.job_error,
+                    mr.mtz_file_id,
+                    mr.fom_snr,
+                    mr.fom_wilson,
+                    mr.fom_ln_k,
+                    mr.fom_discarded_reflections,
+                    mr.fom_one_over_d_from,
+                    mr.fom_one_over_d_to,
+                    mr.fom_redundancy,
+                    mr.fom_completeness,
+                    mr.fom_measurements_total,
+                    mr.fom_reflections_total,
+                    mr.fom_reflections_possible,
+                    mr.fom_r_split,
+                    mr.fom_r1i,
+                    mr.fom_2,
+                    mr.fom_cc,
+                    mr.fom_ccstar,
+                    mr.fom_ccano,
+                    mr.fom_crdano,
+                    mr.fom_rano,
+                    mr.fom_rano_over_r_split,
+                    mr.fom_d1sig,
+                    mr.fom_d2sig,
+                    mr.fom_outer_resolution,
+                    mr.fom_outer_ccstar,
+                    mr.fom_outer_r_split,
+                    mr.fom_outer_cc,
+                    mr.fom_outer_unique_reflections,
+                    mr.fom_outer_completeness,
+                    mr.fom_outer_redundancy,
+                    mr.fom_outer_snr,
+                    mr.fom_outer_min_res,
+                    mr.fom_outer_max_res,
+                ]
+            )
+        )
+
+        async def fetch_shell_foms(merge_result_id: int) -> list[MergeResultShell]:
+            merge_result_shells = await conn.execute(
+                sa.select(
+                    [
+                        mdfoms.one_over_d_centre,
+                        mdfoms.nref,
+                        mdfoms.d_over_a,
+                        mdfoms.min_res,
+                        mdfoms.max_res,
+                        mdfoms.cc,
+                        mdfoms.ccstar,
+                        mdfoms.r_split,
+                        mdfoms.reflections_possible,
+                        mdfoms.completeness,
+                        mdfoms.measurements,
+                        mdfoms.redundancy,
+                        mdfoms.snr,
+                        mdfoms.mean_i,
+                    ]
+                ).where(mdfoms.merge_result_id == merge_result_id)
+            )
+            return [
+                MergeResultShell(
+                    one_over_d_centre=s["one_over_d_centre"],
+                    nref=s["nref"],
+                    d_over_a=s["d_over_a"],
+                    min_res=s["min_res"],
+                    max_res=s["max_res"],
+                    cc=s["cc"],
+                    ccstar=s["ccstar"],
+                    r_split=s["r_split"],
+                    reflections_possible=s["reflections_possible"],
+                    completeness=s["completeness"],
+                    measurements=s["measurements"],
+                    redundancy=s["redundancy"],
+                    snr=s["snr"],
+                    mean_i=s["mean_i"],
+                )
+                for s in merge_result_shells
+            ]
+
+        return [
+            convert_merge_result_row(
+                row=row, detailed_foms=await fetch_shell_foms(row["id"])
+            )
+            for row in merge_results
+        ]
+
+    async def update_merge_result_status(
+        self,
+        conn: Connection,
+        merge_result_id: int,
+        runtime_status: DBMergeRuntimeStatus,
+    ) -> None:
+        await conn.execute(
+            sa.update(self.tables.merge_result)
+            .values(_runtime_status_sql_values(runtime_status))
+            .where(self.tables.merge_result.c.id == merge_result_id)
+        )
+
+        if isinstance(runtime_status, DBMergeRuntimeStatusDone):
+            detailed_forms = runtime_status.result.detailed_foms
+            assert detailed_forms is not None
+            for shell in detailed_forms:
+                await conn.execute(
+                    sa.insert(self.tables.merge_result_shell_fom).values(
+                        _values_from_shell_foms(shell, merge_result_id=merge_result_id)
+                    )
+                )
 
 
 # Any until openpyxl has official types
