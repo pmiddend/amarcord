@@ -9,6 +9,7 @@ import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.JsonSchema exposing (JsonSchema(..))
+import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange(..), NumericRangeValue(..), coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
@@ -478,7 +479,7 @@ viewAttributoRow { name, description, group, associatedTable, type_ } =
     tr_
         [ th [ scope "row", style "white-space" "nowrap" ] [ text (associatedTableToString associatedTable ++ "." ++ name) ]
         , td [ style "white-space" "nowrap" ] [ text group ]
-        , td_ [ text description ]
+        , td_ [ markupWithoutErrors description ]
         , td [ style "white-space" "nowrap" ] (attributoTypeToHtml type_)
         , td [ style "white-space" "nowrap" ]
             [ button [ class "btn btn-sm btn-danger me-3", onClick (AskDelete name) ] [ icon { name = "trash" } ]

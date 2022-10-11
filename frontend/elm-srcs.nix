@@ -15,6 +15,11 @@
         version = "9.0.1";
       };
 
+      "dillonkearns/elm-markdown" = {
+        sha256 = "05chrkn14b3yyv3sq3466ys4bhwdxva853fzbyc1dyjpk3vslqsc";
+        version = "7.0.0";
+      };
+
       "elm-community/html-extra" = {
         sha256 = "0nysjwhlvcc3rsc6mq9g9j81xq4jdyx92m5y02mwsnlyblfd773k";
         version = "3.4.0";
@@ -123,5 +128,10 @@
       "myrho/elm-round" = {
         sha256 = "1ghw75fq2p316gw95b3mknfhkq7196fc6ziy6c5ic34gxfb03zvg";
         version = "1.0.4";
+      };
+
+      "rtfeldman/elm-hex" = {
+        sha256 = "1y0aa16asvwdqmgbskh5iba6psp43lkcjjw9mgzj3gsrg33lp00d";
+        version = "1.0.0";
       };
 }

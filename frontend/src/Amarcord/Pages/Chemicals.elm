@@ -16,6 +16,7 @@ import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, c
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (br_, em_, form_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
 import Dict exposing (Dict)
@@ -105,7 +106,7 @@ viewFiles fileUploadError newFile files =
                 [ td_ [ text (String.fromInt file.id) ]
                 , td_ [ text file.fileName ]
                 , td_ [ text file.type_ ]
-                , td_ [ text file.description ]
+                , td_ [ markupWithoutErrors file.description ]
                 , td_ [ button [ class "btn btn-danger btn-sm", type_ "button", onClick (EditFileDelete file.id) ] [ icon { name = "trash" } ] ]
                 ]
 

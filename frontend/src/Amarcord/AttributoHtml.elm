@@ -3,6 +3,7 @@ module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Chemical exposing (Chemical)
 import Amarcord.Html exposing (br_, input_, span_, strongText)
+import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
 import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, localDateTimeParser)
 import Dict exposing (Dict, get)
@@ -242,7 +243,7 @@ viewAttributoForm chemicals a =
                     ]
                 ]
                     ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ text a.description ]
+                            div [ class "form-text" ] [ markupWithoutErrors a.description ]
 
                          else
                             text ""

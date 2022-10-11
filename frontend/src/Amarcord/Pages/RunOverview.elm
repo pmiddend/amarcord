@@ -16,8 +16,9 @@ import Amarcord.File exposing (File)
 import Amarcord.Gauge exposing (gauge, thisFillColor, totalFillColor)
 import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_)
 import Amarcord.LocalStorage exposing (LocalStorage)
+import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, posixDiffMinutes, scrollToTop, secondsDiffHumanFriendly)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
 import Char exposing (fromCode)
 import Date exposing (Date)
 import Dict exposing (Dict)
@@ -258,7 +259,7 @@ viewEventRow zone attributoColumnCount e =
         mainContent =
             [ button [ class "btn btn-sm btn-link amarcord-small-link-button", type_ "button", onClick (EventDelete e.id) ] [ icon { name = "trash" } ]
             , strongText <| " " ++ e.source ++ " "
-            , text <| e.text ++ " "
+            , markupWithoutErrors e.text
             ]
                 ++ maybeFiles
     in
