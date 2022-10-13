@@ -58,6 +58,7 @@ from amarcord.db.table_classes import DBChemical
 from amarcord.db.table_classes import DBEvent
 from amarcord.db.table_classes import DBFile
 from amarcord.db.table_classes import DBRun
+from amarcord.db.user_configuration import UserConfiguration
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
@@ -232,6 +233,14 @@ def _encode_file(f: DBFile) -> JSONDict:
         "fileName": f.file_name,
         "sizeInBytes": f.size_in_bytes,
         "originalPath": f.original_path,
+    }
+
+
+def _encode_user_configuration(c: UserConfiguration) -> JSONDict:
+    return {
+        ONLINE_CRYSTFEL: c.use_online_crystfel,
+        AUTO_PILOT: c.auto_pilot,
+        "current-experiment-type-id": c.current_experiment_type_id,
     }
 
 
@@ -517,8 +526,7 @@ async def read_runs() -> JSONDict:
             ],
             "events": [_encode_event(e) for e in events],
             "chemicals": [_encode_chemical(a) for a in chemicals],
-            AUTO_PILOT: user_configuration.auto_pilot,
-            ONLINE_CRYSTFEL: user_configuration.use_online_crystfel,
+            "user-config": _encode_user_configuration(user_configuration),
         }
         if _has_artificial_delay():
             await asyncio.sleep(3)
@@ -674,6 +682,13 @@ async def change_current_run_experiment_type() -> JSONDict:
             ):
                 run.attributi.remove_but_keep_type(a.name)
         await db.instance.update_run_attributi(conn, run_id, run.attributi)
+        await db.instance.update_configuration(
+            conn,
+            replace(
+                await db.instance.retrieve_configuration(conn),
+                current_experiment_type_id=new_experiment_type,
+            ),
+        )
         return {}
 
 

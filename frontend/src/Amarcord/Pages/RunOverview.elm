@@ -342,7 +342,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
 
                 autoPilot =
                     [ div [ class "form-check form-switch mb-3" ]
-                        [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.autoPilot, onInput (always (ChangeAutoPilot (not rrc.autoPilot))) ]
+                        [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.userConfig.autoPilot, onInput (always (ChangeAutoPilot (not rrc.userConfig.autoPilot))) ]
                         , label [ class "form-check-label", for "auto-pilot" ] [ text "Auto pilot" ]
                         , div [ class "form-text" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
                         ]
@@ -350,7 +350,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
 
                 onlineCrystFEL =
                     [ div [ class "form-check form-switch mb-3" ]
-                        [ input_ [ type_ "checkbox", Html.Attributes.id "crystfel-online", class "form-check-input", checked rrc.onlineCrystFEL, onInput (always (ChangeOnlineCrystFEL (not rrc.onlineCrystFEL))) ]
+                        [ input_ [ type_ "checkbox", Html.Attributes.id "crystfel-online", class "form-check-input", checked rrc.userConfig.onlineCrystFEL, onInput (always (ChangeOnlineCrystFEL (not rrc.userConfig.onlineCrystFEL))) ]
                         , label [ class "form-check-label", for "crystfel-online" ] [ text "Use CrystFEL Online" ]
 
                         -- , div [ class "form-text" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
@@ -906,6 +906,15 @@ update msg model =
 
                 newEventForm =
                     EventForm.updateLiveStream model.eventForm hasLiveStream
+
+                newCurrentExperimentType : Maybe ExperimentType
+                newCurrentExperimentType =
+                    case response of
+                        Ok { experimentTypes, userConfig } ->
+                            userConfig.currentExperimentTypeId |> Maybe.andThen (\cet -> ListExtra.find (\et -> et.id == cet) experimentTypes)
+
+                        _ ->
+                            model.currentExperimentType
             in
             ( { model
                 | runs = fromResult response
@@ -919,16 +928,35 @@ update msg model =
 
                     else
                         model.refreshRequest
-                , currentExperimentType =
-                    case ( model.currentExperimentType, response ) of
-                        -- We have an experiment type and need to check it
-                        -- Could be that the experiment type disappeared!
-                        ( Just currentExperimentType, Ok { experimentTypes } ) ->
-                            ListExtra.find (\et -> currentExperimentType.id == et.id) experimentTypes
 
-                        -- We have an experiment type, but an error now. Just keep it for now.
-                        ( currentExperimentType, _ ) ->
-                            currentExperimentType
+                -- These two are a bit tricky. First, an intro:
+                --
+                -- + "currentExperimentType" is the currently activated experiment type. Only attributi from that type
+                --   are being displayed to be edited.
+                -- + "selectedExperimentType" is the experiment type selected in the dropdown. This can be changed
+                --   in your browser. As long as you don't press the "Change" button, nothing happens for other users.
+                --
+                -- We assume multiple people look at the same UI, changing things from time to time. This means the
+                -- current experiment type (which is shared by all users inside the user configuration  SQL table) can
+                -- change.
+                --
+                -- What we do with these two statements is:
+                --
+                -- 1. Make sure the shared current experiment type (from the SQL table) is the one being activated in
+                --    the UI.
+                -- 2. Keep the selected experiment type only while the current experiment type stays unchanged.
+                --
+                -- For example, let's say the user Alice opens the dropdown, changes the experiment type from
+                -- "A" to "B", but doesn't press the "Change" button. User Bob does the same, changing "A" to "X", but
+                -- Bob actually presses change. Alice will then have her selection overridden and will see "X" activated
+                -- and in the dropdown.
+                , currentExperimentType = newCurrentExperimentType
+                , selectedExperimentType =
+                    if newCurrentExperimentType == model.currentExperimentType then
+                        model.selectedExperimentType
+
+                    else
+                        newCurrentExperimentType
               }
             , Cmd.none
             )

@@ -1298,7 +1298,12 @@ async def test_retrieve_and_update_configuration() -> None:
     async with db.begin() as conn:
         assert (await db.retrieve_configuration(conn)).auto_pilot
         await db.update_configuration(
-            conn, UserConfiguration(auto_pilot=False, use_online_crystfel=False)
+            conn,
+            UserConfiguration(
+                auto_pilot=False,
+                use_online_crystfel=False,
+                current_experiment_type_id=None,
+            ),
         )
         assert not (await db.retrieve_configuration(conn)).auto_pilot
 

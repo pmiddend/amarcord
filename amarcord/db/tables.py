@@ -19,7 +19,7 @@ def _fk_identifier(c: ColumnElement) -> str:
     return f"{c.table.name}.{c.name}"
 
 
-def _table_configuration(metadata: sa.MetaData) -> sa.Table:
+def _table_configuration(metadata: sa.MetaData, experiment_type: sa.Table) -> sa.Table:
     return sa.Table(
         "UserConfiguration",
         metadata,
@@ -27,6 +27,12 @@ def _table_configuration(metadata: sa.MetaData) -> sa.Table:
         sa.Column("created", sa.DateTime, nullable=False),
         sa.Column("auto_pilot", sa.Boolean, nullable=False),
         sa.Column("use_online_crystfel", sa.Boolean, nullable=False),
+        sa.Column(
+            "current_experiment_type_id",
+            sa.Integer,
+            ForeignKey(_fk_identifier(experiment_type.c.id), ondelete="set null"),
+            nullable=True,
+        ),
     )
 
 
@@ -300,7 +306,7 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     event_log = _table_event_log(metadata)
     indexing_result = _table_indexing_result(metadata, run)
     return DBTables(
-        configuration=_table_configuration(metadata),
+        configuration=_table_configuration(metadata, experiment_type),
         chemical=chemical,
         run=run,
         attributo=table_attributo,

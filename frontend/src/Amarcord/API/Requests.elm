@@ -314,8 +314,7 @@ type alias RunsResponseContent =
     , chemicals : List (Chemical Int (AttributoMap AttributoValue) File)
     , dataSets : List DataSet
     , experimentTypes : List ExperimentType
-    , autoPilot : Bool
-    , onlineCrystFEL : Bool
+    , userConfig : UserConfig
     , jetStreamFileId : Maybe Int
     }
 
@@ -421,8 +420,7 @@ getRuns path f =
                         |> required "chemicals" (Decode.list chemicalDecoder)
                         |> required "data-sets" (Decode.list dataSetDecoder)
                         |> required "experiment-types" (Decode.list experimentTypeDecoder)
-                        |> required "auto-pilot" Decode.bool
-                        |> required "online-crystfel" Decode.bool
+                        |> required "user-config" userConfigDecoder
                         |> required "live-stream-file-id" (Decode.maybe Decode.int)
                     )
         }
@@ -670,21 +668,36 @@ httpCheckStandardUnit f unit =
         }
 
 
+type alias UserConfig =
+    { autoPilot : Bool
+    , onlineCrystFEL : Bool
+    , currentExperimentTypeId : Maybe ExperimentTypeId
+    }
+
+
 type alias AppConfig =
     { title : String
     }
 
 
-configDecoder : Decode.Decoder AppConfig
-configDecoder =
+appConfigDecoder : Decode.Decoder AppConfig
+appConfigDecoder =
     Decode.map AppConfig (Decode.field "title" Decode.string)
+
+
+userConfigDecoder : Decode.Decoder UserConfig
+userConfigDecoder =
+    Decode.map3 UserConfig
+        (Decode.field "auto-pilot" Decode.bool)
+        (Decode.field "online-crystfel" Decode.bool)
+        (Decode.field "current-experiment-type-id" (Decode.maybe Decode.int))
 
 
 httpGetConfig : (Result RequestError AppConfig -> msg) -> Cmd msg
 httpGetConfig f =
     Http.get
         { url = "api/config"
-        , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| configDecoder)
+        , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| appConfigDecoder)
         }
 
 

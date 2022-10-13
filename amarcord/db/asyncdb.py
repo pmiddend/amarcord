@@ -200,6 +200,7 @@ class AsyncDB:
                     [
                         self.tables.configuration.c.auto_pilot,
                         self.tables.configuration.c.use_online_crystfel,
+                        self.tables.configuration.c.current_experiment_type_id,
                     ]
                 ).order_by(self.tables.configuration.c.id.desc())
             )
@@ -209,6 +210,7 @@ class AsyncDB:
             UserConfiguration(
                 auto_pilot=result[0],
                 use_online_crystfel=result[1] if result[1] is not None else False,
+                current_experiment_type_id=result[2],
             )
             if result is not None
             else initial_user_configuration()
@@ -221,6 +223,7 @@ class AsyncDB:
             self.tables.configuration.insert().values(
                 auto_pilot=configuration.auto_pilot,
                 use_online_crystfel=configuration.use_online_crystfel,
+                current_experiment_type_id=configuration.current_experiment_type_id,
                 created=datetime.datetime.utcnow(),
             )
         )
