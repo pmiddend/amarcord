@@ -81,7 +81,7 @@ updateExperimentType msg model =
             ( { model | deleteRequest = Loading }, httpDeleteExperimentType ExperimentTypeDeleted experimentTypeId )
 
         ExperimentTypeSubmit ->
-            updateNewExperimentType model (\newExperimentType -> ( { newExperimentType | createRequest = Loading }, httpCreateExperimentType ExperimentTypeCreated newExperimentType.name newExperimentType.attributi ))
+            updateNewExperimentType model (\newExperimentType -> ( { newExperimentType | createRequest = Loading , name = "" }, httpCreateExperimentType ExperimentTypeCreated newExperimentType.name newExperimentType.attributi ))
 
         AddOrRemoveAttributo attributoName add ->
             updateNewExperimentType model
