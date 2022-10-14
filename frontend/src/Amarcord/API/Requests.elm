@@ -293,6 +293,7 @@ type alias Run =
     , summary : DataSetSummary
     , files : List File
     , dataSets : List Int
+    , runningIndexingJobs : List Int
     }
 
 
@@ -464,13 +465,14 @@ encodeAttributoValue x =
 
 runDecoder : Decode.Decoder Run
 runDecoder =
-    Decode.map5
+    Decode.map6
         Run
         (Decode.field "id" Decode.int)
         (Decode.field "attributi" attributoMapDecoder)
         (Decode.field "summary" dataSetSummaryDecoder)
         (Decode.field "files" (Decode.list fileDecoder))
         (Decode.field "data-sets" (Decode.list Decode.int))
+        (Decode.field "running-indexing-jobs" (Decode.list Decode.int))
 
 
 decodePosix : Decode.Decoder Posix

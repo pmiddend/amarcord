@@ -352,16 +352,55 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                     [ div [ class "form-check form-switch mb-3" ]
                         [ input_ [ type_ "checkbox", Html.Attributes.id "crystfel-online", class "form-check-input", checked rrc.userConfig.onlineCrystFEL, onInput (always (ChangeOnlineCrystFEL (not rrc.userConfig.onlineCrystFEL))) ]
                         , label [ class "form-check-label", for "crystfel-online" ] [ text "Use CrystFEL Online" ]
-
-                        -- , div [ class "form-text" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
                         ]
+                    , runningIndexingJobsIndicator
                     ]
+
+                runIdsWithRunningIndexingJobs =
+                    List.filterMap identity
+                        (List.map
+                            (\r ->
+                                if List.isEmpty r.runningIndexingJobs then
+                                    Nothing
+
+                                else if r.id == id then
+                                    case runStopped of
+                                        Just _ ->
+                                            Just id
+
+                                        Nothing ->
+                                            Nothing
+
+                                else if r.id < id then
+                                    Just r.id
+
+                                else
+                                    Nothing
+                            )
+                            rrc.runs
+                        )
+
+                runningIndexingJobsIndicator =
+                    if List.isEmpty runIdsWithRunningIndexingJobs then
+                        div [] []
+
+                    else
+                        div [ class "pb-3 pt-1", style "display" "flex" ]
+                            [ div [ class "text-secondary ", style "flex" "0 0 5%" ]
+                                [ spinner 50 ]
+                            , div [ class "text-secondary align-bottom", style "flex" "1" ]
+                                [ text
+                                    (String.join ", " (List.map String.fromInt runIdsWithRunningIndexingJobs)
+                                        |> (++) " CrystFEL online indexing jobs still running for following runs: "
+                                    )
+                                ]
+                            ]
 
                 header =
                     case ( runStarted, runStopped ) of
                         ( Just started, Nothing ) ->
                             [ h1_
-                                [ span [ class "text-success" ] [ spinner ]
+                                [ span [ class "text-success" ] [ spinner 100 ]
                                 , text <| " Run " ++ fromInt id
                                 ]
                             , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now started ]
@@ -1035,6 +1074,7 @@ update msg model =
                                     , summary = emptySummary
                                     , files = []
                                     , dataSets = []
+                                    , runningIndexingJobs = []
                                     }
                             in
                             ( { model | runEditRequest = Loading }, httpUpdateRun RunEditFinished run )

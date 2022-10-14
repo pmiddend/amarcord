@@ -481,8 +481,9 @@ async def read_runs() -> JSONDict:
             else all_events
         )
 
+        indexing_results = await db.instance.retrieve_indexing_results(conn)
         indexing_results_for_runs: dict[int, list[DBIndexingResultOutput]] = group_by(
-            await db.instance.retrieve_indexing_results(conn), lambda ir: ir.run_id
+            indexing_results, lambda ir: ir.run_id
         )
         run_foms: dict[int, DBIndexingFOM] = {
             r.id: _indexing_fom_for_run(indexing_results_for_runs, r) for r in runs
@@ -514,6 +515,12 @@ async def read_runs() -> JSONDict:
                         ds.id
                         for ds in data_sets
                         if run_matches_dataset(r.attributi, ds.attributi)
+                    ],
+                    "running-indexing-jobs": [
+                        ir.id
+                        for ir in indexing_results
+                        if ir.run_id == r.id
+                        and isinstance(ir.runtime_status, DBIndexingResultRunning)
                     ],
                 }
                 for r in runs
