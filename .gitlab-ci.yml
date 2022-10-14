@@ -18,6 +18,10 @@ check-shell-scripts:
    script:
      - nix-shell -p shellcheck --run "shellcheck ci/*.sh"
 
+elm-review:
+  script:
+    - ci/elm-review.sh
+
 build-docker-image:
   script:
     - ci/nix-build-docker-image.sh
