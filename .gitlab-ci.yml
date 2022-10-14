@@ -4,19 +4,19 @@ default:
 
 mypy:
   script:
-    - nix-shell default.nix -A pythonPackage --run "mypy amarcord tests"
+    - nix develop --command mypy amarcord tests
 
 pylint:
   script:
-    - nix-shell default.nix -A pythonPackage --run "pylint amarcord tests"
+    - nix develop --command pylint amarcord tests
 
 isort:
   script:
-    - nix-shell default.nix -A pythonPackage --run "isort --check amarcord tests"
+    - nix develop --command isort --check amarcord tests
 
 check-shell-scripts:
    script:
-     - nix-shell -p shellcheck --run "shellcheck ci/*.sh"
+     - nix develop --command shellcheck ci/*.sh
 
 elm-review:
   script:
@@ -28,23 +28,21 @@ build-docker-image:
 
 nix-pin-latest:
   script:
-    - nix-build default.nix -A pythonPackage --out-link ~/pipeline-pins/amarcord-python-package
-    - nix-build default.nix -A frontend --out-link ~/pipeline-pins/amarcord-elm-package
+    - nix build --out-link ~/pipeline-pins/amarcord-python-package .#amarcord-python-package
   only:
     - master
 
 nix-pin-latest-manual:
   script:
-    - nix-build default.nix -A pythonPackage --out-link ~/pipeline-pins/amarcord-python-package
-    - nix-build default.nix -A frontend --out-link ~/pipeline-pins/amarcord-elm-package
+    - nix build --out-link ~/pipeline-pins/amarcord-python-package .#amarcord-python-package
   when: manual
 
 check-requirements:
    script:
-     - nix-shell --run ./ci/check-requirements.sh
+     - nix develop --command ./ci/check-requirements.sh
 tests:
   script:
-    - nix-shell default.nix -A pythonPackage --run ci/run-tests.sh
+    - nix develop --command ci/run-tests.sh
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     reports:

@@ -72,6 +72,8 @@ structlog = "22.1.0"
 
 [tool.poetry.dev-dependencies]
 black = '22.3.0'
+# Temporary fix for wrong version of hatchling (required by black)
+pathspec = "0.10.1"
 mypy = '0.971'
 types-pytz = "2021.3.6"
 pylint = '2.15.4'
