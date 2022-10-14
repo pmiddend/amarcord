@@ -191,7 +191,7 @@ jsonSchemaToAttributoType x =
                     Err <| "unknown array format \"" ++ unknown ++ "\""
 
                 Nothing ->
-                    jsonSchemaToAttributoType items |> Result.andThen (\subType -> Ok (List { minLength = minItems, maxLength = maxItems, subType = subType }))
+                    jsonSchemaToAttributoType items |> Result.map (\subType -> List { minLength = minItems, maxLength = maxItems, subType = subType })
 
         JsonSchemaString { enum } ->
             case enum of

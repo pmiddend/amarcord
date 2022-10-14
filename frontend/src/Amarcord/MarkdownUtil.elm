@@ -3,8 +3,11 @@ module Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Html exposing (Html, div, text)
 import Markdown.Parser as Markdown
 import Markdown.Renderer
+import Parser exposing (Problem)
+import Parser.Advanced exposing (DeadEnd)
 
 
+deadEndsToString : List (DeadEnd String Problem) -> String
 deadEndsToString deadEnds =
     deadEnds
         |> List.map Markdown.deadEndToString

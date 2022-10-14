@@ -81,7 +81,7 @@ updateExperimentType msg model =
             ( { model | deleteRequest = Loading }, httpDeleteExperimentType ExperimentTypeDeleted experimentTypeId )
 
         ExperimentTypeSubmit ->
-            updateNewExperimentType model (\newExperimentType -> ( { newExperimentType | createRequest = Loading , name = "" }, httpCreateExperimentType ExperimentTypeCreated newExperimentType.name newExperimentType.attributi ))
+            updateNewExperimentType model (\newExperimentType -> ( { newExperimentType | createRequest = Loading, name = "" }, httpCreateExperimentType ExperimentTypeCreated newExperimentType.name newExperimentType.attributi ))
 
         AddOrRemoveAttributo attributoName add ->
             updateNewExperimentType model
@@ -169,7 +169,7 @@ viewExperimentType model =
     , viewRemoteData "Deletion successful!" model.deleteRequest
     , case model.experimentTypes of
         Failure e ->
-            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ] ] ++ [ showRequestError e ]
+            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ], showRequestError e ]
 
         Success experimentTypesResponse ->
             table [ class "table table-striped" ]

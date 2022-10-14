@@ -48,6 +48,7 @@ parseUrl url =
             Root
 
 
+routePrefix : String
 routePrefix =
     "index.html#"
 

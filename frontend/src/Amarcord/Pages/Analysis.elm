@@ -115,7 +115,7 @@ view model =
                 List.singleton <| loadingBar "Loading analysis results..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ [ showRequestError e ]
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showRequestError e ]
 
             Success r ->
                 viewInner model.hereAndNow.zone r

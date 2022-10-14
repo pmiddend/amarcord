@@ -49,6 +49,7 @@ viewMenuNode modelRoute x =
                 ]
 
 
+menu : List MenuNode
 menu =
     [ Leaf { route = Route.RunOverview, description = "Overview", iconName = "card-list" }
     , Dropdown "Library"

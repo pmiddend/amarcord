@@ -123,7 +123,7 @@ viewAttributoValue props zone chemicalIds type_ value =
                 List { subType } ->
                     case subType of
                         Number _ ->
-                            span_ <| [ text "(" ] ++ intersperse (text ", ") (List.map (viewAttributoValue props zone chemicalIds subType) attributoValues) ++ [ text ")" ]
+                            span_ <| text "(" :: intersperse (text ", ") (List.map (viewAttributoValue props zone chemicalIds subType) attributoValues) ++ [ text ")" ]
 
                         String ->
                             span_ <| intersperse (text ",") <| List.map (viewAttributoValue props zone chemicalIds subType) attributoValues
@@ -241,13 +241,12 @@ viewAttributoForm chemicals a =
                     , onEnter AttributoFormSubmit
                     , onInput (EditValueString >> SetValue >> AttributoNameWithValueUpdate a.name >> AttributoFormValueUpdate)
                     ]
-                ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ markupWithoutErrors a.description ]
+                , if a.description /= "" then
+                    div [ class "form-text" ] [ markupWithoutErrors a.description ]
 
-                         else
-                            text ""
-                       ]
+                  else
+                    text ""
+                ]
 
         EditValueInt s ->
             div [ class "mb-3" ] <|
@@ -262,13 +261,12 @@ viewAttributoForm chemicals a =
                         , onInput (AttributoFormValueUpdate << AttributoNameWithValueUpdate a.name << SetValue << EditValueInt)
                         ]
                     ]
-                ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ text a.description ]
+                , if a.description /= "" then
+                    div [ class "form-text" ] [ text a.description ]
 
-                         else
-                            text ""
-                       ]
+                  else
+                    text ""
+                ]
 
         EditValueList l ->
             div [ class "mb-3" ] <|
@@ -281,14 +279,13 @@ viewAttributoForm chemicals a =
                     , onEnter AttributoFormSubmit
                     , onInput (\newInput -> AttributoFormValueUpdate <| AttributoNameWithValueUpdate a.name <| SetValue <| EditValueList { l | editValue = newInput })
                     ]
-                ]
-                    ++ [ div [ class "form-text text-muted" ] [ strongText "Note on editing", text ": This is a list, but you can just insert the list elements, comma-separated in the text field." ] ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ strongText "Description: ", text a.description ]
+                , div [ class "form-text text-muted" ] [ strongText "Note on editing", text ": This is a list, but you can just insert the list elements, comma-separated in the text field." ]
+                , if a.description /= "" then
+                    div [ class "form-text" ] [ strongText "Description: ", text a.description ]
 
-                         else
-                            text ""
-                       ]
+                  else
+                    text ""
+                ]
 
         EditValueChoice { choiceValues, editValue } ->
             let
@@ -345,13 +342,12 @@ viewAttributoForm chemicals a =
                       else
                         span [ class "input-group-text" ] [ text inputGroupText ]
                     ]
-                ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ text a.description ]
+                , if a.description /= "" then
+                    div [ class "form-text" ] [ text a.description ]
 
-                         else
-                            text ""
-                       ]
+                  else
+                    text ""
+                ]
 
         EditValueDateTime x ->
             div [ class "mb-3" ] <|
@@ -366,13 +362,12 @@ viewAttributoForm chemicals a =
                         , onInput (AttributoFormValueUpdate << AttributoNameWithValueUpdate a.name << SetValue << EditValueDateTime)
                         ]
                     ]
-                ]
-                    ++ [ if a.description /= "" then
-                            div [ class "form-text" ] [ text a.description ]
+                , if a.description /= "" then
+                    div [ class "form-text" ] [ text a.description ]
 
-                         else
-                            text ""
-                       ]
+                  else
+                    text ""
+                ]
 
         EditValueBoolean x ->
             div [ class "mb-3" ] <|
@@ -385,13 +380,12 @@ viewAttributoForm chemicals a =
                         , onInput (always <| AttributoFormValueUpdate <| AttributoNameWithValueUpdate a.name <| SetValue <| EditValueBoolean (not x))
                         ]
                     , label [ for ("attributo-" ++ a.name), class "form-check-label" ] [ text a.name ]
-                    ]
-                        ++ [ if a.description /= "" then
-                                div [ class "form-text" ] [ text a.description ]
+                    , if a.description /= "" then
+                        div [ class "form-text" ] [ text a.description ]
 
-                             else
-                                text ""
-                           ]
+                      else
+                        text ""
+                    ]
                 ]
 
         EditValueChemicalId selectedId ->

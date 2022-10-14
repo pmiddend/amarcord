@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "elm-go": "^5.0.13",
-    "elm-review": "^2.7.0",
+    "elm-review": "^2.7.6",
     "http-server": "^14.1.0",
     "uglify-js": "^3.14.5"
   }

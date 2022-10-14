@@ -110,22 +110,6 @@ viewFiles fileUploadError newFile files =
                 , td_ [ button [ class "btn btn-danger btn-sm", type_ "button", onClick (EditFileDelete file.id) ] [ icon { name = "trash" } ] ]
                 ]
 
-        filesTable =
-            [ h5_ [ text "Attached files" ]
-            , table [ class "table table-striped table-sm" ]
-                [ thead_
-                    [ tr_
-                        [ th_ [ text "ID" ]
-                        , th_ [ text "File name" ]
-                        , th_ [ text "Type" ]
-                        , th_ [ text "Description" ]
-                        , th_ [ text "Actions" ]
-                        ]
-                    ]
-                , tbody_ (List.map viewFileRow files)
-                ]
-            ]
-
         uploadForm =
             [ div [ class "card mb-3" ]
                 [ div [ class "card-header" ]
@@ -175,6 +159,23 @@ viewFiles fileUploadError newFile files =
         uploadForm
 
     else
+        let
+            filesTable =
+                [ h5_ [ text "Attached files" ]
+                , table [ class "table table-striped table-sm" ]
+                    [ thead_
+                        [ tr_
+                            [ th_ [ text "ID" ]
+                            , th_ [ text "File name" ]
+                            , th_ [ text "Type" ]
+                            , th_ [ text "Description" ]
+                            , th_ [ text "Actions" ]
+                            ]
+                        ]
+                    , tbody_ (List.map viewFileRow files)
+                    ]
+                ]
+        in
         filesTable ++ uploadForm
 
 
@@ -323,12 +324,11 @@ viewChemicalRow zone attributi chemical =
                     ul [ class "list-group list-group-flush" ] (List.map viewFile chemical.files)
     in
     tr_ <|
-        [ td_ [ text <| String.fromInt chemical.id ] ]
-            ++ [ td_ [ text chemical.name ] ]
-            ++ List.map (viewAttributoCell { shortDateTime = False, colorize = False } zone Dict.empty chemical.attributi) attributi
+        td_ [ text <| String.fromInt chemical.id ]
+            :: td_ [ text chemical.name ]
+            :: List.map (viewAttributoCell { shortDateTime = False, colorize = False } zone Dict.empty chemical.attributi) attributi
             ++ [ td_ [ files ]
-               ]
-            ++ [ td [ class "text-nowrap" ]
+               , td [ class "text-nowrap" ]
                     [ button [ class "btn btn-sm btn-danger me-3", onClick (AskDelete chemical.name chemical.id) ] [ icon { name = "trash" } ]
                     , button [ class "btn btn-sm btn-info", onClick (InitiateEdit chemical) ] [ icon { name = "pencil-square" } ]
                     ]
@@ -345,11 +345,11 @@ viewChemicalTable zone chemicals attributi =
     table [ class "table" ]
         [ thead_
             [ tr [ class "align-top" ] <|
-                [ th_ [ text "ID" ] ]
-                    ++ [ th_ [ text "Name" ] ]
-                    ++ attributiColumns
-                    ++ [ th_ [ text "Files", br_, mutedSubheader "Hover to see description, click to download" ] ]
-                    ++ [ th_ [ text "Actions" ]
+                th_ [ text "ID" ]
+                    :: th_ [ text "Name" ]
+                    :: attributiColumns
+                    ++ [ th_ [ text "Files", br_, mutedSubheader "Hover to see description, click to download" ]
+                       , th_ [ text "Actions" ]
                        ]
             ]
         , tbody_
@@ -367,7 +367,7 @@ viewInner model =
             singleton <| loadingBar "Loading chemicals..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ] ] ++ [ showRequestError e ]
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ], showRequestError e ]
 
         Success { chemicals, attributi } ->
             let
@@ -411,11 +411,7 @@ viewInner model =
                                 [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
                                 ]
             in
-            prefix
-                :: modifyRequestResult
-                :: deleteRequestResult
-                :: viewChemicalTable model.myTimeZone (List.sortBy .id chemicals) attributi
-                :: []
+            [ prefix, modifyRequestResult, deleteRequestResult, viewChemicalTable model.myTimeZone (List.sortBy .id chemicals) attributi ]
 
 
 view : Model -> Html Msg
@@ -451,6 +447,7 @@ emptyChemical =
     { id = Nothing, name = "", attributi = emptyAttributoMap, files = [] }
 
 
+emptyNewFileUpload : { description : String, file : Maybe a }
 emptyNewFileUpload =
     { description = "", file = Nothing }
 
@@ -503,11 +500,6 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just editChemical ->
-                    let
-                        -- either edit or create, depending on the ID
-                        operation =
-                            Maybe.unwrap httpCreateChemical (always httpUpdateChemical) editChemical.id
-                    in
                     if model.newFileUpload.description /= "" || isJust model.newFileUpload.file then
                         ( { model | submitErrors = [ "There is still a file in the upload form. Submit or clear the form!" ] }, Cmd.none )
 
@@ -518,6 +510,9 @@ update msg model =
 
                             Ok editedAttributi ->
                                 let
+                                    operation =
+                                        Maybe.unwrap httpCreateChemical (always httpUpdateChemical) editChemical.id
+
                                     chemicalToSend =
                                         { id = editChemical.id
                                         , name = editChemical.name

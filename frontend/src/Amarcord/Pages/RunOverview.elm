@@ -101,6 +101,7 @@ type RunFilterMsg
     | RunFilterSubmitFinished RunsResponse
 
 
+initRunFilter : RunFilterInfo
 initRunFilter =
     { runFilter = emptyRunFilter
     , nextRunFilter = ""
@@ -108,6 +109,7 @@ initRunFilter =
     }
 
 
+initRunDateFilter : RunDateFilterInfo
 initRunDateFilter =
     { runDateFilter = emptyRunEventDateFilter
     }
@@ -336,10 +338,6 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                 runStopped =
                     retrieveDateTimeAttributoValue attributoStopped attributi
 
-                runExposureTime : Maybe Float
-                runExposureTime =
-                    retrieveFloatAttributoValue attributoExposureTime attributi
-
                 autoPilot =
                     [ div [ class "form-check form-switch mb-3" ]
                         [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.userConfig.autoPilot, onInput (always (ChangeAutoPilot (not rrc.userConfig.autoPilot))) ]
@@ -357,28 +355,26 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                     ]
 
                 runIdsWithRunningIndexingJobs =
-                    List.filterMap identity
-                        (List.map
-                            (\r ->
-                                if List.isEmpty r.runningIndexingJobs then
-                                    Nothing
+                    List.filterMap
+                        (\r ->
+                            if List.isEmpty r.runningIndexingJobs then
+                                Nothing
 
-                                else if r.id == id then
-                                    case runStopped of
-                                        Just _ ->
-                                            Just id
+                            else if r.id == id then
+                                case runStopped of
+                                    Just _ ->
+                                        Just id
 
-                                        Nothing ->
-                                            Nothing
+                                    Nothing ->
+                                        Nothing
 
-                                else if r.id < id then
-                                    Just r.id
+                            else if r.id < id then
+                                Just r.id
 
-                                else
-                                    Nothing
-                            )
-                            rrc.runs
+                            else
+                                Nothing
                         )
+                        rrc.runs
 
                 runningIndexingJobsIndicator =
                     if List.isEmpty runIdsWithRunningIndexingJobs then
@@ -454,113 +450,6 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                 smallBox color =
                     span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
 
-                indexingProgress =
-                    let
-                        progressSummary =
-                            case Maybe.andThen .summary currentRunDataSet of
-                                Nothing ->
-                                    summary
-
-                                Just dsSummary ->
-                                    dsSummary
-
-                        etaFor10kFrames =
-                            case summary.indexingRate of
-                                Nothing ->
-                                    Nothing
-
-                                Just ir ->
-                                    case summary.hitRate of
-                                        Nothing ->
-                                            Nothing
-
-                                        Just hr ->
-                                            if ir > 0.01 && hr > 0.01 then
-                                                case runExposureTime of
-                                                    Nothing ->
-                                                        Nothing
-
-                                                    Just realExposureTime ->
-                                                        let
-                                                            framesPerSecond =
-                                                                1000 / (2 * realExposureTime)
-
-                                                            indexedFramesPerSecond =
-                                                                framesPerSecond * ir / 100.0 * hr / 100.0
-
-                                                            remainingFrames =
-                                                                10000 - progressSummary.indexedFrames
-
-                                                            remainingTimeStr =
-                                                                secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
-
-                                                            remainingFramesToCapture =
-                                                                round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
-                                                        in
-                                                        if remainingFrames > 0 then
-                                                            Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
-
-                                                        else
-                                                            Nothing
-
-                                            else
-                                                Nothing
-                    in
-                    [ div [ class "d-flex justify-content-center" ]
-                        [ div [ class "progress", style "width" "80%" ]
-                            [ div
-                                [ class
-                                    ("progress-bar"
-                                        ++ (if MaybeExtra.isJust runStopped then
-                                                ""
-
-                                            else
-                                                " progress-bar-striped progress-bar-animated"
-                                           )
-                                    )
-                                , style "width" ((String.fromInt <| min 100 <| round <| toFloat progressSummary.indexedFrames / 10000 * 100.0) ++ "%")
-                                ]
-                                []
-                            ]
-                        ]
-                    , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ formatIntHumanFriendly progressSummary.indexedFrames ++ "/" ++ formatIntHumanFriendly 10000 ] ]
-                    , case etaFor10kFrames of
-                        Nothing ->
-                            text ""
-
-                        Just eta ->
-                            div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ eta ] ]
-                    ]
-
-                twoValueGauge title this total =
-                    case total of
-                        Nothing ->
-                            case this of
-                                Nothing ->
-                                    []
-
-                                Just thisValue ->
-                                    [ gauge this total, div_ [ em [ class "amarcord-small-text" ] [ smallBox thisFillColor, text <| " " ++ title ++ " " ++ formatFloatHumanFriendly thisValue ++ "%" ] ] ]
-
-                        Just totalValue ->
-                            case this of
-                                Nothing ->
-                                    [ gauge this total
-                                    , div_ [ em [ class "amarcord-small-text" ] [ smallBox totalFillColor, text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%" ] ]
-                                    ]
-
-                                Just thisValue ->
-                                    [ gauge this total
-                                    , div_
-                                        [ em [ class "amarcord-small-text" ]
-                                            [ smallBox thisFillColor
-                                            , text (" run: " ++ formatFloatHumanFriendly thisValue ++ "% | ")
-                                            , smallBox totalFillColor
-                                            , text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%"
-                                            ]
-                                        ]
-                                    ]
-
                 dataSetInformation =
                     case currentRunDataSet of
                         Nothing ->
@@ -576,6 +465,120 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                     ]
 
                         Just ds ->
+                            let
+                                indexingProgress =
+                                    let
+                                        progressSummary =
+                                            case Maybe.andThen .summary currentRunDataSet of
+                                                Nothing ->
+                                                    summary
+
+                                                Just dsSummary ->
+                                                    dsSummary
+
+                                        etaFor10kFrames =
+                                            case summary.indexingRate of
+                                                Nothing ->
+                                                    Nothing
+
+                                                Just ir ->
+                                                    case summary.hitRate of
+                                                        Nothing ->
+                                                            Nothing
+
+                                                        Just hr ->
+                                                            if ir > 0.01 && hr > 0.01 then
+                                                                let
+                                                                    runExposureTime : Maybe Float
+                                                                    runExposureTime =
+                                                                        retrieveFloatAttributoValue attributoExposureTime attributi
+                                                                in
+                                                                case runExposureTime of
+                                                                    Nothing ->
+                                                                        Nothing
+
+                                                                    Just realExposureTime ->
+                                                                        let
+                                                                            remainingFrames =
+                                                                                10000 - progressSummary.indexedFrames
+                                                                        in
+                                                                        if remainingFrames > 0 then
+                                                                            let
+                                                                                remainingFramesToCapture =
+                                                                                    round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
+
+                                                                                framesPerSecond =
+                                                                                    1000 / (2 * realExposureTime)
+
+                                                                                indexedFramesPerSecond =
+                                                                                    framesPerSecond * ir / 100.0 * hr / 100.0
+
+                                                                                remainingTimeStr =
+                                                                                    secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
+                                                                            in
+                                                                            Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
+
+                                                                        else
+                                                                            Nothing
+
+                                                            else
+                                                                Nothing
+                                    in
+                                    [ div [ class "d-flex justify-content-center" ]
+                                        [ div [ class "progress", style "width" "80%" ]
+                                            [ div
+                                                [ class
+                                                    ("progress-bar"
+                                                        ++ (if MaybeExtra.isJust runStopped then
+                                                                ""
+
+                                                            else
+                                                                " progress-bar-striped progress-bar-animated"
+                                                           )
+                                                    )
+                                                , style "width" ((String.fromInt <| min 100 <| round <| toFloat progressSummary.indexedFrames / 10000 * 100.0) ++ "%")
+                                                ]
+                                                []
+                                            ]
+                                        ]
+                                    , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ formatIntHumanFriendly progressSummary.indexedFrames ++ "/" ++ formatIntHumanFriendly 10000 ] ]
+                                    , case etaFor10kFrames of
+                                        Nothing ->
+                                            text ""
+
+                                        Just eta ->
+                                            div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ eta ] ]
+                                    ]
+
+                                twoValueGauge title this total =
+                                    case total of
+                                        Nothing ->
+                                            case this of
+                                                Nothing ->
+                                                    []
+
+                                                Just thisValue ->
+                                                    [ gauge this total, div_ [ em [ class "amarcord-small-text" ] [ smallBox thisFillColor, text <| " " ++ title ++ " " ++ formatFloatHumanFriendly thisValue ++ "%" ] ] ]
+
+                                        Just totalValue ->
+                                            case this of
+                                                Nothing ->
+                                                    [ gauge this total
+                                                    , div_ [ em [ class "amarcord-small-text" ] [ smallBox totalFillColor, text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%" ] ]
+                                                    ]
+
+                                                Just thisValue ->
+                                                    [ gauge this total
+                                                    , div_
+                                                        [ em [ class "amarcord-small-text" ]
+                                                            [ smallBox thisFillColor
+                                                            , text (" run: " ++ formatFloatHumanFriendly thisValue ++ "% | ")
+                                                            , smallBox totalFillColor
+                                                            , text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%"
+                                                            ]
+                                                        ]
+                                                    ]
+                            in
                             [ div [ class "d-flex flex-row justify-content-evenly" ]
                                 [ div [ class "text-center" ] (twoValueGauge "Indexing rate" summary.indexingRate Nothing)
                                 , div [ class "text-center" ] (twoValueGauge "Hit rate" summary.hitRate Nothing)
@@ -674,7 +677,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                         AttributoFormSubmit ->
                             RunEditSubmit
             in
-            h2_
+            [ h2_
                 [ text <|
                     if isLatestRun then
                         "Edit run"
@@ -682,14 +685,14 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                     else
                         "Edit run " ++ fromInt runId
                 ]
-                :: [ if not isLatestRun then
-                        p [ class "text-warning" ] [ text "You are currently editing an older run!" ]
+            , if not isLatestRun then
+                p [ class "text-warning" ] [ text "You are currently editing an older run!" ]
 
-                     else
-                        text ""
-                   , form [ class "mb-3" ]
-                        (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
-                   ]
+              else
+                text ""
+            , form [ class "mb-3" ]
+                (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
+            ]
 
 
 viewInner : Model -> RunsResponseContent -> List (Html Msg)
@@ -824,7 +827,7 @@ view model =
                 List.singleton <| loadingBar "Loading runs..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ] ] ++ [ showRequestError e ]
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ], showRequestError e ]
 
             Success a ->
                 case model.refreshRequest of
@@ -1018,15 +1021,14 @@ update msg model =
             in
             ( { model | eventForm = newEventForm }
             , Cmd.batch
-                ((case eventFormMsg of
+                [ case eventFormMsg of
                     EventForm.SubmitFinished _ ->
                         httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
 
                     _ ->
                         Cmd.none
-                 )
-                    :: [ Cmd.map EventFormMsg cmds ]
-                )
+                , Cmd.map EventFormMsg cmds
+                ]
             )
 
         EventDelete eventId ->

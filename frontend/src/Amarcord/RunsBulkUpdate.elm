@@ -137,7 +137,7 @@ parseIntOrRange =
     Parser.andThen
         (\beginning ->
             Parser.map
-                (\end -> IntRange beginning end)
+                (IntRange beginning)
             <|
                 Parser.oneOf [ Parser.succeed identity |. Parser.symbol "-" |= Parser.int, Parser.succeed beginning ]
         )

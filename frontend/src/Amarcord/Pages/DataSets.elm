@@ -180,7 +180,7 @@ viewDataSet model =
             List.singleton <| loadingBar "Loading data set..."
 
         Failure e ->
-            List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ] ] ++ [ showRequestError e ]
+            List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ], showRequestError e ]
 
         Success { chemicals, attributi, dataSets, experimentTypes } ->
             let

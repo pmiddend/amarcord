@@ -19,15 +19,13 @@ type NumericRange
 
 
 isEmptyNumericRange : NumericRange -> Bool
-isEmptyNumericRange x =
-    case x of
-        NumericRange { minimum, maximum } ->
-            case ( minimum, maximum ) of
-                ( Missing, Missing ) ->
-                    True
+isEmptyNumericRange (NumericRange { minimum, maximum }) =
+    case ( minimum, maximum ) of
+        ( Missing, Missing ) ->
+            True
 
-                _ ->
-                    False
+        _ ->
+            False
 
 
 emptyNumericRange : NumericRange
@@ -36,33 +34,31 @@ emptyNumericRange =
 
 
 numericRangeToString : NumericRange -> String
-numericRangeToString n =
-    case n of
-        NumericRange { minimum, maximum } ->
-            let
-                prefix =
-                    case minimum of
-                        Missing ->
-                            "(∞"
+numericRangeToString (NumericRange { minimum, maximum }) =
+    let
+        prefix =
+            case minimum of
+                Missing ->
+                    "(∞"
 
-                        Inclusive x ->
-                            "[" ++ fromFloat x
+                Inclusive x ->
+                    "[" ++ fromFloat x
 
-                        Exclusive x ->
-                            "(" ++ fromFloat x
+                Exclusive x ->
+                    "(" ++ fromFloat x
 
-                suffix =
-                    case maximum of
-                        Missing ->
-                            "∞)"
+        suffix =
+            case maximum of
+                Missing ->
+                    "∞)"
 
-                        Inclusive x ->
-                            fromFloat x ++ "]"
+                Inclusive x ->
+                    fromFloat x ++ "]"
 
-                        Exclusive x ->
-                            fromFloat x ++ ")"
-            in
-            prefix ++ "," ++ suffix
+                Exclusive x ->
+                    fromFloat x ++ ")"
+    in
+    prefix ++ "," ++ suffix
 
 
 fromMinAndMax : NumericRangeValue -> NumericRangeValue -> NumericRange
@@ -72,30 +68,30 @@ fromMinAndMax x y =
 
 parseRange : String -> Result (List DeadEnd) NumericRange
 parseRange x =
-    let
-        beginParser : Parser NumericRangeValue
-        beginParser =
-            oneOf
-                [ map (\_ -> Missing) (succeed () |. symbol "(oo" |. spaces)
-                , succeed Exclusive |. symbol "(" |. spaces |= float
-                , succeed Inclusive |. symbol "[" |. spaces |= float
-                ]
-
-        endParser : Parser NumericRangeValue
-        endParser =
-            oneOf
-                [ map (\_ -> Missing) (succeed () |. symbol "oo)")
-                , map Exclusive (backtrackable (float |. spaces |. symbol ")"))
-                , map Inclusive (float |. spaces |. symbol "]")
-                ]
-
-        totalParser =
-            succeed fromMinAndMax |= beginParser |. symbol "," |. spaces |= endParser |. end
-    in
     if x == "" then
         Ok emptyNumericRange
 
     else
+        let
+            endParser : Parser NumericRangeValue
+            endParser =
+                oneOf
+                    [ map (\_ -> Missing) (succeed () |. symbol "oo)")
+                    , map Exclusive (backtrackable (float |. spaces |. symbol ")"))
+                    , map Inclusive (float |. spaces |. symbol "]")
+                    ]
+
+            beginParser : Parser NumericRangeValue
+            beginParser =
+                oneOf
+                    [ map (\_ -> Missing) (succeed () |. symbol "(oo" |. spaces)
+                    , succeed Exclusive |. symbol "(" |. spaces |= float
+                    , succeed Inclusive |. symbol "[" |. spaces |= float
+                    ]
+
+            totalParser =
+                succeed fromMinAndMax |= beginParser |. symbol "," |. spaces |= endParser |. end
+        in
         run totalParser x
 
 
@@ -152,37 +148,35 @@ numericRangeExclusiveMaximum (NumericRange { maximum }) =
 
 
 coparseRange : NumericRange -> String
-coparseRange n =
+coparseRange ((NumericRange { minimum, maximum }) as n) =
     if n == emptyNumericRange then
         ""
 
     else
-        case n of
-            NumericRange { minimum, maximum } ->
-                let
-                    prefix =
-                        case minimum of
-                            Missing ->
-                                "(oo"
+        let
+            prefix =
+                case minimum of
+                    Missing ->
+                        "(oo"
 
-                            Inclusive x ->
-                                "[" ++ fromFloat x
+                    Inclusive x ->
+                        "[" ++ fromFloat x
 
-                            Exclusive x ->
-                                "(" ++ fromFloat x
+                    Exclusive x ->
+                        "(" ++ fromFloat x
 
-                    suffix =
-                        case maximum of
-                            Missing ->
-                                "oo)"
+            suffix =
+                case maximum of
+                    Missing ->
+                        "oo)"
 
-                            Inclusive x ->
-                                fromFloat x ++ "]"
+                    Inclusive x ->
+                        fromFloat x ++ "]"
 
-                            Exclusive x ->
-                                fromFloat x ++ ")"
-                in
-                prefix ++ "," ++ suffix
+                    Exclusive x ->
+                        fromFloat x ++ ")"
+        in
+        prefix ++ "," ++ suffix
 
 
 rangeFromJsonSchema : Maybe Float -> Maybe Float -> Maybe Float -> Maybe Float -> NumericRange

@@ -995,7 +995,7 @@ viewInner model =
             singleton <| loadingBar "Loading attributi..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ] ] ++ [ showRequestError e ]
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showRequestError e ]
 
         Success attributiListReal ->
             let
@@ -1062,24 +1062,24 @@ viewInner model =
                                 [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
                                 ]
             in
-            help
-                :: prefix
-                :: modifyRequestResult
-                :: deleteRequestResult
-                :: [ table [ class "table table-striped" ]
-                        [ thead_
-                            [ tr_
-                                [ th_ [ text "Name" ]
-                                , th_ [ text "Group" ]
-                                , th [ style "width" "100%" ] [ text "Description" ]
-                                , th_ [ text "Type" ]
-                                , th_ [ text "Actions" ]
-                                ]
-                            ]
-                        , tbody_
-                            (List.map viewAttributoRow attributiListReal)
+            [ help
+            , prefix
+            , modifyRequestResult
+            , deleteRequestResult
+            , table [ class "table table-striped" ]
+                [ thead_
+                    [ tr_
+                        [ th_ [ text "Name" ]
+                        , th_ [ text "Group" ]
+                        , th [ style "width" "100%" ] [ text "Description" ]
+                        , th_ [ text "Type" ]
+                        , th_ [ text "Actions" ]
                         ]
-                   ]
+                    ]
+                , tbody_
+                    (List.map viewAttributoRow attributiListReal)
+                ]
+            ]
 
 
 view : Model -> Html Msg
@@ -1381,7 +1381,7 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just editAttributo ->
-                    case mapAttributoMaybe (\y -> andThen (\z -> Just (attributoTypeToJsonSchema z)) (attributoAugTypeToType y)) editAttributo of
+                    case mapAttributoMaybe (\y -> Maybe.map attributoTypeToJsonSchema (attributoAugTypeToType y)) editAttributo of
                         Nothing ->
                             ( model, Cmd.none )
 

@@ -181,12 +181,13 @@ scheduleEntryView model shiftIdValue =
     let
         modifiedScheduleId =
             model.editingScheduleEntry.id
-
-        deletingScheduleId =
-            model.deletingScheduleEntry.id
     in
     case modifiedScheduleId of
         Nothing ->
+            let
+                deletingScheduleId =
+                    model.deletingScheduleEntry.id
+            in
             case deletingScheduleId of
                 Nothing ->
                     let
@@ -200,36 +201,40 @@ scheduleEntryView model shiftIdValue =
 
                 Just idShiftToDelete ->
                     let
-                        entry =
-                            Tuple.second shiftIdValue
-
                         shiftId =
                             Tuple.first shiftIdValue
-
-                        entryToDelete =
-                            model.deletingScheduleEntry.scheduleEntry
                     in
                     if idShiftToDelete == shiftId then
+                        let
+                            entryToDelete =
+                                model.deletingScheduleEntry.scheduleEntry
+                        in
                         deleteScheduleEntryView model entryToDelete
 
                     else
+                        let
+                            entry =
+                                Tuple.second shiftIdValue
+                        in
                         readOnlyScheduleEntryView model entry shiftId
 
         Just idShiftToModify ->
             let
-                entry =
-                    Tuple.second shiftIdValue
-
                 shiftId =
                     Tuple.first shiftIdValue
-
-                entryToModify =
-                    model.editingScheduleEntry.scheduleEntry
             in
             if idShiftToModify == shiftId then
+                let
+                    entryToModify =
+                        model.editingScheduleEntry.scheduleEntry
+                in
                 editingScheduleEntryView model entryToModify idShiftToModify
 
             else
+                let
+                    entry =
+                        Tuple.second shiftIdValue
+                in
                 readOnlyScheduleEntryView model entry shiftId
 
 

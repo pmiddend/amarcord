@@ -79,14 +79,17 @@ maybeToList f =
     unwrap [] (\x -> [ f x ])
 
 
+encodeString : a -> Maybe String -> List ( a, Encode.Value )
 encodeString title =
     maybeToList (\y -> ( title, Encode.string y ))
 
 
+encodeFloat : a -> Maybe Float -> List ( a, Encode.Value )
 encodeFloat title =
     maybeToList (\y -> ( title, Encode.float y ))
 
 
+encodeInt : a -> Maybe Int -> List ( a, Encode.Value )
 encodeInt title =
     maybeToList (\y -> ( title, Encode.int y ))
 
@@ -119,10 +122,10 @@ encodeJsonSchema x =
                 toleranceList =
                     ( "toleranceIsAbsolute", Encode.bool toleranceIsAbsolute ) :: encodeFloat "tolerance" tolerance
             in
-            Encode.object ([ ( "type", Encode.string "number" ) ] ++ formatList ++ suffixList ++ rangeList ++ toleranceList)
+            Encode.object (( "type", Encode.string "number" ) :: formatList ++ suffixList ++ rangeList ++ toleranceList)
 
         JsonSchemaArray { minItems, maxItems, format, items } ->
-            Encode.object <| [ ( "type", Encode.string "array" ) ] ++ encodeInt "minItems" minItems ++ encodeInt "maxItems" maxItems ++ encodeString "format" format ++ [ ( "items", encodeJsonSchema items ) ]
+            Encode.object <| ( "type", Encode.string "array" ) :: encodeInt "minItems" minItems ++ encodeInt "maxItems" maxItems ++ encodeString "format" format ++ [ ( "items", encodeJsonSchema items ) ]
 
         JsonSchemaString { enum } ->
             let
@@ -137,7 +140,7 @@ encodeJsonSchema x =
                         Just xs ->
                             [ ( "enum", Encode.list Encode.string xs ) ]
             in
-            Encode.object <| [ ( "type", Encode.string "string" ) ] ++ enumList
+            Encode.object <| ( "type", Encode.string "string" ) :: enumList
 
         JsonSchemaBoolean ->
             Encode.object <| [ ( "type", Encode.string "boolean" ) ]

@@ -67,7 +67,7 @@ view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream 
                     p [ class "text-success" ] [ text "Message added!" ]
 
                 Failure e ->
-                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ] ] ++ [ showRequestError e ]
+                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ], showRequestError e ]
 
                 _ ->
                     text ""
@@ -212,7 +212,6 @@ update msg model =
                 Ok _ ->
                     ( { model
                         | eventRequest = Success ()
-                        , userName = model.userName
                         , message = ""
                         , files = []
                         , fileUploadRequest = NotAsked
