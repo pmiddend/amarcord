@@ -1,7 +1,6 @@
 module Amarcord.NumericRange exposing (..)
 
 import Parser exposing ((|.), (|=), DeadEnd, Parser, backtrackable, end, float, map, oneOf, run, spaces, succeed, symbol)
-import Result
 import String exposing (fromFloat)
 
 

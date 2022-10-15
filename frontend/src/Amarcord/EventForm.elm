@@ -1,6 +1,6 @@
 module Amarcord.EventForm exposing (Model, Msg(..), init, update, updateLiveStream, view)
 
-import Amarcord.API.Requests exposing (Event, IncludeLiveStream(..), RequestError, Run, RunsResponse, RunsResponseContent, httpCreateEvent, httpCreateFile)
+import Amarcord.API.Requests exposing (IncludeLiveStream(..), RequestError, httpCreateEvent, httpCreateFile)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert)
 import Amarcord.File exposing (File)
@@ -31,7 +31,6 @@ type Msg
     | Submit IncludeLiveStream
     | SubmitFinished (Result RequestError ())
     | OpenSelector (List String)
-    | SubmitDismiss
     | NewFile ElmFile.File
     | FileUploadFinished (Result RequestError File)
     | FileDelete Int
@@ -218,9 +217,6 @@ update msg model =
                       }
                     , Cmd.none
                     )
-
-        SubmitDismiss ->
-            ( { model | eventRequest = NotAsked }, Cmd.none )
 
         NewFile newFile ->
             ( { model | fileUploadRequest = Loading }, httpCreateFile FileUploadFinished (ElmFile.name newFile) newFile )

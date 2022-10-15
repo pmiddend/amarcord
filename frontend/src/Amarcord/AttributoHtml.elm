@@ -213,7 +213,6 @@ isEditValueChemicalId x =
 
 type ValueUpdate
     = SetValue AttributoEditValue
-    | IgnoreValue
 
 
 type alias AttributoNameWithValueUpdate =
@@ -643,9 +642,6 @@ attributoValueToEditValue zone attributoName attributi value =
 editEditableAttributi : EditableAttributi -> AttributoNameWithValueUpdate -> EditableAttributi
 editEditableAttributi ea { attributoName, valueUpdate } =
     case valueUpdate of
-        IgnoreValue ->
-            ea
-
         SetValue newValue ->
             let
                 -- Update the value if it exists (if it doesn't, this is weird!), and set the state to "edited"
@@ -738,7 +734,7 @@ editValueToValue zone x =
 
 
 convertEditValues : Zone -> EditableAttributiAndOriginal -> Result (List ( AttributoName, String )) (AttributoMap AttributoValue)
-convertEditValues zone { originalAttributi, editableAttributi } =
+convertEditValues zone { editableAttributi } =
     let
         -- first, filter for manually edited values (the other ones we don't care about here)
         manuallyEdited : List ( AttributoName, AttributoEditValue )

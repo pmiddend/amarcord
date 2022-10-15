@@ -2,7 +2,7 @@ module Amarcord.Pages.Analysis exposing (Model, Msg, init, update, view)
 
 import Amarcord.API.Requests exposing (AnalysisResultsExperimentType, AnalysisResultsRoot, RequestError, httpGetAnalysisResults)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoType)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
@@ -11,7 +11,6 @@ import Amarcord.Util exposing (HereAndNow)
 import Dict exposing (Dict)
 import Html exposing (Html, div, h4, table, text)
 import Html.Attributes exposing (class)
-import Maybe
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult)
 import String exposing (join)

@@ -1,19 +1,18 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.DataSet exposing (DataSet, DataSetSummary, emptySummary)
+import Amarcord.API.DataSet exposing (DataSet, emptySummary)
 import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
 import Amarcord.API.Requests exposing (Event, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType(..), AttributoValue, attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoType, attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, chemicalIdDict)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.EventForm as EventForm exposing (Msg(..))
-import Amarcord.File exposing (File)
+import Amarcord.EventForm as EventForm
 import Amarcord.Gauge exposing (gauge, thisFillColor, totalFillColor)
 import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_)
 import Amarcord.LocalStorage exposing (LocalStorage)
@@ -21,10 +20,10 @@ import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
 import Char exposing (fromCode)
-import Date exposing (Date)
+import Date
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tr, ul)
-import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, name, selected, src, style, type_, value)
+import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onEnter)
 import List exposing (head)
@@ -34,7 +33,7 @@ import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import Set exposing (Set)
 import String exposing (fromInt)
-import Time exposing (Posix, Weekday(..), Zone, posixToMillis)
+import Time exposing (Posix, Zone, posixToMillis)
 import Tuple exposing (first, second)
 
 
@@ -63,14 +62,6 @@ type Msg
     | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result RequestError ())
     | ResetDate
     | SetRunDateFilter RunEventDate
-
-
-type alias EventForm =
-    { userName : String
-    , message : String
-    , fileIds : List Int
-    , fileUploadRequest : RemoteData RequestError ()
-    }
 
 
 type alias RunEditInfo =
@@ -304,7 +295,7 @@ viewRunAndEventRows zone chemicalIds attributi runs events =
 
 
 viewRunsTable : Zone -> List (Attributo AttributoType) -> RunsResponseContent -> Html Msg
-viewRunsTable zone chosenColumns { runs, attributi, events, chemicals } =
+viewRunsTable zone chosenColumns { runs, events, chemicals } =
     let
         runRows : List (Html Msg)
         runRows =

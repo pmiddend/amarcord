@@ -24,12 +24,12 @@ import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (version)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
-import Html as Html exposing (..)
+import Html exposing (..)
 import Html.Attributes exposing (..)
 import RemoteData exposing (RemoteData(..))
 import String exposing (contains)
 import Task
-import Time exposing (Posix, Zone)
+import Time exposing (Posix)
 import Url as URL exposing (Url)
 
 
@@ -239,7 +239,7 @@ update msg model =
                             ( newModel, Cmd.none )
 
                         Just hereAndNowUnpacked ->
-                            initCurrentPage model.metadata.localStorage hereAndNowUnpacked appConfigUnpacked ( newModel, Cmd.none )
+                            initCurrentPage model.metadata.localStorage hereAndNowUnpacked ( newModel, Cmd.none )
 
         HereAndNowReceived hereAndNow ->
             let
@@ -247,23 +247,23 @@ update msg model =
                     model.metadata
             in
             case model.metadata.appConfigRequest of
-                Success appConfig ->
-                    initCurrentPage model.metadata.localStorage hereAndNow appConfig ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
+                Success _ ->
+                    initCurrentPage model.metadata.localStorage hereAndNow ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
 
                 _ ->
                     ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
 
         _ ->
             case ( model.metadata.hereAndNow, model.metadata.appConfigRequest ) of
-                ( Just hereAndNow, Success appConfig ) ->
-                    updateInner hereAndNow appConfig msg model
+                ( Just hereAndNow, Success _ ) ->
+                    updateInner hereAndNow msg model
 
-                ( _, _ ) ->
+                _ ->
                     ( model, Cmd.none )
 
 
-updateInner : HereAndNow -> AppConfig -> Msg -> Model -> ( Model, Cmd Msg )
-updateInner hereAndNow appConfig msg model =
+updateInner : HereAndNow -> Msg -> Model -> ( Model, Cmd Msg )
+updateInner hereAndNow msg model =
     case ( msg, model.page ) of
         ( AttributiPageMsg subMsg, AttributiPage pageModel ) ->
             let
@@ -381,14 +381,14 @@ updateInner hereAndNow appConfig msg model =
                     Route.parseUrlFragment url
             in
             ( { model | route = newRoute }, Cmd.none )
-                |> initCurrentPage model.metadata.localStorage hereAndNow appConfig
+                |> initCurrentPage model.metadata.localStorage hereAndNow
 
-        ( _, _ ) ->
+        _ ->
             ( model, Cmd.none )
 
 
-initCurrentPage : Maybe LocalStorage -> HereAndNow -> AppConfig -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-initCurrentPage localStorage hereAndNow appConfig ( model, existingCmds ) =
+initCurrentPage : Maybe LocalStorage -> HereAndNow -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
     let
         oldMetadata =
             model.metadata

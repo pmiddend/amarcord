@@ -1,7 +1,7 @@
 module Amarcord.Route exposing (..)
 
-import Url exposing (Protocol(..))
-import Url.Parser exposing (Parser, fragment, map, oneOf, parse, s, top)
+import Url
+import Url.Parser exposing (Parser, map, oneOf, parse, s, top)
 
 
 type Route

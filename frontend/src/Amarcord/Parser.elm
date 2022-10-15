@@ -1,7 +1,7 @@
 module Amarcord.Parser exposing (deadEndsToHtml)
 
 import Html exposing (Html, div, li, p, span, text, ul)
-import List exposing (head, map)
+import List exposing (map)
 import List.Extra exposing (uncons)
 import Parser exposing (DeadEnd, Problem(..))
 import String exposing (fromInt)

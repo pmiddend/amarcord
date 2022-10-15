@@ -1,10 +1,10 @@
 module Amarcord.Pages.DataSets exposing (..)
 
 import Amarcord.API.DataSet exposing (DataSet)
-import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
+import Amarcord.API.ExperimentType exposing (ExperimentType)
 import Amarcord.API.Requests exposing (DataSetResult, RequestError, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, emptyAttributoMap)
+import Amarcord.Attributo exposing (Attributo, AttributoType, emptyAttributoMap)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, chemicalIdDict)

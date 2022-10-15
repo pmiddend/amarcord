@@ -1,8 +1,8 @@
-module Amarcord.Dialog exposing (Config, view, map)
+module Amarcord.Dialog exposing (Config, view)
 
 {-| Elm Modal Dialogs.
 
-@docs Config, view, map, mapMaybe
+@docs Config, view, mapMaybe
 
 -}
 
@@ -152,20 +152,6 @@ type alias Config msg =
     , header : Maybe (Html msg)
     , body : Maybe (Html msg)
     , footer : Maybe (Html msg)
-    }
-
-
-{-| This function is useful when nesting components with the Elm
-Architecture. It lets you transform the messages produced by a
-subtree.
--}
-map : (a -> b) -> Config a -> Config b
-map f config =
-    { closeMessage = Maybe.map f config.closeMessage
-    , containerClass = config.containerClass
-    , header = Maybe.map (Html.map f) config.header
-    , body = Maybe.map (Html.map f) config.body
-    , footer = Maybe.map (Html.map f) config.footer
     }
 
 

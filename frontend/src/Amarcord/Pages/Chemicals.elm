@@ -6,11 +6,11 @@ import Amarcord.Attributo
     exposing
         ( Attributo
         , AttributoMap
-        , AttributoType(..)
-        , AttributoValue(..)
+        , AttributoType
+        , AttributoValue
         , emptyAttributoMap
         )
-import Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId)
 import Amarcord.Dialog as Dialog
@@ -19,18 +19,17 @@ import Amarcord.Html exposing (br_, em_, form_, h4_, h5_, img_, input_, li_, p_,
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
-import Dict exposing (Dict)
+import Dict
 import File as ElmFile
 import File.Select
 import Html exposing (..)
 import Html.Attributes exposing (attribute, class, disabled, for, href, id, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (length, singleton)
-import Maybe
 import Maybe.Extra as Maybe exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
 import String
-import Time exposing (Month(..), Posix, Zone)
+import Time exposing (Zone)
 
 
 type alias ChemicalsAndAttributi =

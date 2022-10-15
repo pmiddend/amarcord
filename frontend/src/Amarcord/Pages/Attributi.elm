@@ -10,7 +10,7 @@ import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.JsonSchema exposing (JsonSchema(..))
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
-import Amarcord.NumericRange exposing (NumericRange(..), NumericRangeValue(..), coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum, numericRangeToString, parseRange)
+import Amarcord.NumericRange exposing (NumericRange, coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
 import Html exposing (..)
@@ -18,7 +18,7 @@ import Html.Attributes exposing (checked, class, disabled, for, id, placeholder,
 import Html.Events exposing (onClick, onInput)
 import List exposing (singleton)
 import List.Extra exposing (find)
-import Maybe as Maybe exposing (andThen, withDefault)
+import Maybe exposing (withDefault)
 import Maybe.Extra exposing (isJust, isNothing, unwrap)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Result exposing (mapError)
@@ -1251,7 +1251,7 @@ update msg model =
                         newAttributoType : AttributoTypeAug
                         newAttributoType =
                             case attributoTypeAug of
-                                AugNumber { rangeInput, suffixInput, suffixNormalized, standardUnit, toleranceInput, toleranceIsAbsolute } ->
+                                AugNumber { rangeInput, suffixInput, standardUnit, toleranceInput, toleranceIsAbsolute } ->
                                     case changeResult of
                                         ResetNormalizedStatus ->
                                             AugNumber

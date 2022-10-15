@@ -17,14 +17,11 @@ module Amarcord.Attributo exposing
     , createAnnotatedAttributoMap
     , emptyAttributoMap
     , extractDateTime
-    , extractFloat
-    , jsonSchemaToAttributoType
     , mapAttributo
     , mapAttributoMaybe
     , retrieveAttributoValue
     , retrieveDateTimeAttributoValue
     , retrieveFloatAttributoValue
-    , retrieveIntAttributoValue
     , updateAttributoMap
     )
 
@@ -38,8 +35,7 @@ import List
 import Maybe
 import Maybe.Extra as MaybeExtra
 import Result
-import String
-import Time exposing (Posix, Zone, millisToPosix)
+import Time exposing (Posix, millisToPosix)
 
 
 type AttributoValue
@@ -218,11 +214,6 @@ emptyAttributoMap =
 retrieveAttributoValue : AttributoName -> AttributoMap a -> Maybe a
 retrieveAttributoValue name m =
     Dict.get name m
-
-
-retrieveIntAttributoValue : AttributoName -> AttributoMap AttributoValue -> Maybe Int
-retrieveIntAttributoValue name m =
-    Maybe.andThen extractInt <| retrieveAttributoValue name m
 
 
 retrieveFloatAttributoValue : AttributoName -> AttributoMap AttributoValue -> Maybe Float

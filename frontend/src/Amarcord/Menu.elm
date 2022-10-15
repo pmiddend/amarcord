@@ -19,10 +19,6 @@ type MenuNode
     | Leaf MenuLeaf
 
 
-type alias Menu =
-    List MenuNode
-
-
 viewMenuNode : Route -> MenuNode -> Html msg
 viewMenuNode modelRoute x =
     case x of

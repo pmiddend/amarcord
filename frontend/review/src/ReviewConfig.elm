@@ -15,11 +15,14 @@ import NoDeprecated
 import NoEtaReducibleLambdas
 import NoMissingTypeAnnotation
 import NoPrematureLetComputation
-import NoRedundantConcat
-import NoRedundantCons
 import NoSinglePatternCase
+import NoUnused.CustomTypeConstructors
 import NoUnused.Dependencies
-import Review.Rule exposing (Rule)
+import NoUnused.Exports
+import NoUnused.Parameters
+import NoUnused.Patterns
+import NoUnused.Variables
+import Review.Rule as Rule exposing (Rule)
 import Simplify
 
 
@@ -28,10 +31,13 @@ config =
     [ NoMissingTypeAnnotation.rule
     , NoDeprecated.rule NoDeprecated.defaults
     , NoPrematureLetComputation.rule
-    --, NoRedundantConcat.rule
-    --, NoRedundantCons.rule
     , NoSinglePatternCase.rule NoSinglePatternCase.fixInArgument
     , NoUnused.Dependencies.rule
+    , NoUnused.Variables.rule |> Rule.ignoreErrorsForDirectories [ "third-party" ]
+    , NoUnused.CustomTypeConstructors.rule [] |> Rule.ignoreErrorsForDirectories [ "third-party" ]
+    , NoUnused.Exports.rule |> Rule.ignoreErrorsForDirectories [ "third-party" ]
+    , NoUnused.Parameters.rule
+    , NoUnused.Patterns.rule
     , NoEtaReducibleLambdas.rule {
           lambdaReduceStrategy = NoEtaReducibleLambdas.AlwaysRemoveLambdaWhenPossible
         , argumentNamePredicate = always True

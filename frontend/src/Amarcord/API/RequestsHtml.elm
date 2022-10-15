@@ -29,7 +29,7 @@ showHttpError x =
 
 
 showUserError : CustomError -> Html msg
-showUserError { title, code, description } =
+showUserError { title, description } =
     div_
         [ h5 [ class "alert-heading" ] [ text title ]
         , MaybeExtra.unwrap (text "") (\descriptionReal -> pre [] [ text descriptionReal ]) description

@@ -1,6 +1,6 @@
 module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (RequestError, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpGetRunsFilter, httpStartRun, httpStopRun)
+import Amarcord.API.Requests exposing (RequestError, RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpGetRunsFilter, httpStartRun, httpStopRun)
 import Amarcord.Attributo exposing (attributoStopped, retrieveAttributoValue)
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (h2_, hr_, input_)

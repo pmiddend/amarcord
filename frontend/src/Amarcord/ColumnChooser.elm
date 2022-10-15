@@ -1,12 +1,12 @@
 module Amarcord.ColumnChooser exposing (Model, Msg(..), init, resolveChosen, subscriptions, update, updateAttributi, view)
 
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon)
+import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType)
+import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (br_, em_, input_, p_)
 import Amarcord.LocalStorage exposing (LocalStorage, LocalStorageColumn, encodeLocalStorage)
 import DnDList exposing (Listen(..), Movement(..), Operation(..))
-import Html exposing (Html, a, button, div, h2, i, label, li, p, span, text, ul)
+import Html exposing (Html, button, div, h2, i, label, li, p, span, text, ul)
 import Html.Attributes exposing (checked, class, id, type_)
 import Html.Events exposing (onClick, onInput)
 import List
@@ -14,14 +14,6 @@ import List.Extra as ListExtra
 import Ports exposing (storeLocalStorage)
 import Set exposing (Set)
 import String
-
-
-type alias DragId =
-    Int
-
-
-type alias DropId =
-    Int
 
 
 type Msg

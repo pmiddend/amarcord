@@ -1,8 +1,8 @@
 module Amarcord.Pages.Schedule exposing (..)
 
-import Amarcord.API.Requests exposing (ChemicalsResponse, ExperimentTypesResponse, RequestError, ScheduleEntry, ScheduleResponse, httpGetChemicals, httpGetSchedule, httpUpdateSchedule)
+import Amarcord.API.Requests exposing (ChemicalsResponse, RequestError, ScheduleEntry, ScheduleResponse, httpGetChemicals, httpGetSchedule, httpUpdateSchedule)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon)
+import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Chemical exposing (Chemical, ChemicalId)
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (input_)

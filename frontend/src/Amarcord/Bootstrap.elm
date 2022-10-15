@@ -30,50 +30,18 @@ icon { name } =
 
 
 type AlertProperty
-    = AlertPrimary
-    | AlertSecondary
-    | AlertSuccess
+    = AlertSuccess
     | AlertDanger
-    | AlertWarning
-    | AlertInfo
-    | AlertLight
-    | AlertDark
-    | AlertSmall
-    | AlertDismissible
 
 
 alertPropToCss : AlertProperty -> String
 alertPropToCss x =
     case x of
-        AlertSmall ->
-            "amarcord-alert-small"
-
-        AlertDismissible ->
-            "alert-dismissible"
-
-        AlertPrimary ->
-            "alert-primary"
-
-        AlertSecondary ->
-            "alert-secondary"
-
         AlertSuccess ->
             "alert-success"
 
         AlertDanger ->
             "alert-danger"
-
-        AlertWarning ->
-            "alert-warning"
-
-        AlertInfo ->
-            "alert-info"
-
-        AlertLight ->
-            "alert-light"
-
-        AlertDark ->
-            "alert-dark"
 
 
 makeAlert : List AlertProperty -> List (Html msg) -> Html msg

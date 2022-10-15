@@ -203,7 +203,7 @@ update model msg =
                             , httpUpdateRunsBulk RunsBulkUpdateResponseReceived { runIds = runIds, attributi = editedAttributi }
                             )
 
-                ( _, _ ) ->
+                _ ->
                     ( model, Cmd.none )
 
         SubmitRunRange ->
