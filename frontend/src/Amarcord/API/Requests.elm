@@ -858,7 +858,7 @@ type alias ScheduleResponse =
 
 type alias ScheduleEntry =
     { users : String
-    , chemicalId : Maybe Int
+    , chemicals : List Int
     , date : String
     , shift : String
     , comment : String
@@ -871,7 +871,7 @@ scheduleEntryDecoder =
     Decode.map6
         ScheduleEntry
         (Decode.field "users" Decode.string)
-        (Decode.maybe (Decode.field "chemical_id" Decode.int))
+        (Decode.field "chemicals" <| Decode.list Decode.int)
         (Decode.field "date" Decode.string)
         (Decode.field "shift" Decode.string)
         (Decode.field "comment" Decode.string)
@@ -907,7 +907,7 @@ encodeScheduleList se =
         [ ( "users", Encode.string se.users )
         , ( "shift", Encode.string se.shift )
         , ( "date", Encode.string se.date )
-        , ( "chemical_id", MaybeExtra.unwrap Encode.null Encode.int se.chemicalId )
+        , ( "chemicals", Encode.list Encode.int se.chemicals )
         , ( "comment", Encode.string se.comment )
         , ( "td_support", Encode.string se.tdSupport )
         ]

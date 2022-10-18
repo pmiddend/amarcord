@@ -759,7 +759,7 @@ async def update_beamtime_schedule() -> JSONDict:
                     shift=shift_dict.get("shift", None),
                     comment=shift_dict.get("comment", ""),
                     td_support=shift_dict.get("td_support", ""),
-                    chemical_id=shift_dict.get("chemical_id", None),
+                    chemicals=shift_dict.get("chemicals", []),
                 )
                 for shift_dict in request_json.retrieve_safe_list("schedule")
             ],

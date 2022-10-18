@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class BeamtimeScheduleEntry:
     users: str
     td_support: str
-    chemical_id: None | int
     date: str
     shift: str
     comment: str
+    chemicals: list[int]

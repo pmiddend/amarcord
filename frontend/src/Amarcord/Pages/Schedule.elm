@@ -5,14 +5,13 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, Attr
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Chemical exposing (Chemical, ChemicalId)
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (input_)
+import Amarcord.Html exposing (input_, li_)
 import Date
 import Dict exposing (Dict)
-import Html exposing (Html, button, div, em, h3, option, select, span, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (class, disabled, id, placeholder, selected, style, type_, value)
+import Html exposing (Html, button, div, em, h3, input, label, span, table, tbody, td, text, th, thead, tr, ul)
+import Html.Attributes exposing (attribute, checked, class, disabled, for, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List.Extra
-import Maybe.Extra
 import Regex
 import RemoteData exposing (RemoteData(..), fromResult)
 
@@ -32,6 +31,11 @@ type ScheduleMsg
     | ResetToModifyShift
     | ResetToDeleteShift
     | ChemicalsReceived ChemicalsResponse
+
+
+type ChemicalDropdownMode
+    = Edit
+    | New
 
 
 type alias ChemicalsAndAttributi =
@@ -59,7 +63,7 @@ type alias ScheduleModel =
 
 emptyScheduleEntry : ScheduleEntry
 emptyScheduleEntry =
-    { users = "", date = "", shift = "", chemicalId = Nothing, comment = "", tdSupport = "" }
+    { users = "", date = "", shift = "", chemicals = [], comment = "", tdSupport = "" }
 
 
 emptyScheduleEntryToModify : ScheduleEntryToModify
@@ -163,17 +167,17 @@ unscheduledChemicalsNames model =
                 _ ->
                     []
 
-        chemicalIsNotScheduled s =
-            List.member s.id (Maybe.Extra.values (List.map .chemicalId (Dict.values model.schedule))) == False
+        scheduled_chemical_ids =
+            List.concatMap .chemicals (Dict.values model.schedule)
 
-        unscheduledChemicals =
-            List.filter chemicalIsNotScheduled chemicals
+        not_scheduled_chemical =
+            List.filter (\cid -> False == List.member cid.id scheduled_chemical_ids) chemicals
     in
-    if List.isEmpty unscheduledChemicals then
+    if List.isEmpty not_scheduled_chemical then
         Nothing
 
     else
-        Just (String.join ", " (List.map .name unscheduledChemicals))
+        Just <| String.join ", " <| List.map .name not_scheduled_chemical
 
 
 scheduleEntryView : ScheduleModel -> ( ShiftId, ScheduleEntry ) -> Html ScheduleMsg
@@ -280,7 +284,7 @@ editingScheduleEntryView model entryToModify idShiftToModify =
                 ]
             ]
         , td [ styleColumn Chemical ]
-            [ chemicalDropdownEdit entryToModify.chemicalId model
+            [ chemicalDropdown model Edit
             ]
         , td [ styleColumn Comment ]
             [ input_
@@ -355,25 +359,27 @@ shiftSubview model entry =
     , td [ styleColumn Users ] [ text entry.users ]
     , td [ styleColumn TdSupport ] [ text entry.tdSupport ]
     , td [ styleColumn Chemical ]
-        [ case entry.chemicalId of
-            Nothing ->
-                text ""
-
-            Just chemicalId ->
+        [ let
+            nameOfChemical chemicalId =
                 case model.chemicals of
                     Success chemicals ->
-                        case List.Extra.find (\chemical -> chemicalId == chemical.id) chemicals.chemicals of
+                        case List.Extra.find (\chemical -> chemical.id == chemicalId) chemicals.chemicals of
                             Nothing ->
-                                text ("Chemical ID " ++ String.fromInt chemicalId ++ " is unknown")
+                                "Chemical ID " ++ String.fromInt chemicalId ++ " is unknown"
 
-                            Just s ->
-                                text s.name
+                            Just chem ->
+                                chem.name
+
+                    NotAsked ->
+                        "Not retrieved"
 
                     Loading ->
-                        text ""
+                        "Loading the chemicals..."
 
-                    _ ->
-                        text ("Chemical ID " ++ String.fromInt chemicalId ++ " is unknown")
+                    Failure _ ->
+                        "Failed to load the chemicals"
+          in
+          text <| String.join ", " <| List.map nameOfChemical entry.chemicals
         ]
     , td [ styleColumn Comment ]
         [ text entry.comment ]
@@ -418,7 +424,7 @@ newScheduleEntryView model =
                 ]
             ]
         , td [ styleColumn Chemical ]
-            [ chemicalDropdown model
+            [ chemicalDropdown model New
             ]
         , td [ styleColumn Comment ]
             [ input_
@@ -436,76 +442,68 @@ newScheduleEntryView model =
         ]
 
 
-chemicalDropdown : ScheduleModel -> Html ScheduleMsg
-chemicalDropdown model =
+chemicalDropdown : ScheduleModel -> ChemicalDropdownMode -> Html ScheduleMsg
+chemicalDropdown model mode =
     let
-        optionEntry chemical =
-            option [ value <| String.fromInt chemical.id ] [ text chemical.name ]
+        chemicals =
+            case model.chemicals of
+                Success cc ->
+                    cc.chemicals
 
-        listChemicalsOptions =
-            List.map optionEntry <|
-                case model.chemicals of
-                    Success chemicals ->
-                        chemicals.chemicals
+                _ ->
+                    []
 
-                    _ ->
-                        []
+        chemicalsAlreadySelected =
+            model.editingScheduleEntry.scheduleEntry.chemicals
+
+        editInput chemical =
+            input
+                [ class "form-check-input"
+                , type_ "checkbox"
+                , value <| String.fromInt chemical.id
+                , checked <| List.member chemical.id chemicalsAlreadySelected
+                , for chemical.name
+                , onInput UpdateToModifyShiftChemical
+                ]
+                []
+
+        newInput chemical =
+            input
+                [ class "form-check-input"
+                , type_ "checkbox"
+                , value <| String.fromInt chemical.id
+                , for chemical.name
+                , onInput UpdateNewShiftChemical
+                ]
+                []
+
+        checkboxForOneChemical chemical =
+            li_
+                [ div [ class "dropdown-item " ]
+                    [ div [ class "form-check" ]
+                        [ case mode of
+                            Edit ->
+                                editInput chemical
+
+                            New ->
+                                newInput chemical
+                        , label [ class "form-check-label", for chemical.name ] [ text chemical.name ]
+                        ]
+                    ]
+                ]
     in
-    select [ class "form-select", onInput UpdateNewShiftChemical ] <|
-        (option [ selected True ] [ text "«none selected»" ]
-            :: listChemicalsOptions
-        )
-
-
-chemicalDropdownEdit : Maybe Int -> ScheduleModel -> Html ScheduleMsg
-chemicalDropdownEdit modifiableChemicalId model =
-    let
-        isNothingSelected =
-            case modifiableChemicalId of
-                Nothing ->
-                    False
-
-                Just _ ->
-                    True
-
-        isChemicalSelected chemicalId =
-            case modifiableChemicalId of
-                Nothing ->
-                    False
-
-                Just i ->
-                    chemicalId == i
-
-        optionEntry chemical =
-            option [ selected (isChemicalSelected chemical.id), value <| String.fromInt chemical.id ] [ text chemical.name ]
-
-        listChemicalsOptions =
-            List.map optionEntry <|
-                case model.chemicals of
-                    Success chemicals ->
-                        chemicals.chemicals
-
-                    _ ->
-                        []
-    in
-    select [ class "form-select", onInput UpdateToModifyShiftChemical ] <|
-        (option [ selected isNothingSelected ] [ text "«none selected»" ]
-            :: listChemicalsOptions
-        )
-
-
-
--- To check input format YYYY-MM-DD
+    div [ class "dropdown" ]
+        [ button [ class "btn dropdown-toggle", attribute "data-bs-toggle" "dropdown" ]
+            [ text "Choose chemical(s)" ]
+        , ul [ class "dropdown-menu" ] <|
+            List.map checkboxForOneChemical chemicals
+        ]
 
 
 dateFormatRegex : Regex.Regex
 dateFormatRegex =
     Maybe.withDefault Regex.never <|
         Regex.fromString "^\\d{4}\\-(0[1-9]|1[012])\\-(0[1-9]|[12][0-9]|3[01])$"
-
-
-
--- To check input format HH24:mm
 
 
 shiftFormatRegex : Regex.Regex
@@ -535,25 +533,7 @@ sortScheduleEntry a b =
                     LT
 
                 EQ ->
-                    case a.chemicalId of
-                        Nothing ->
-                            EQ
-
-                        Just sa ->
-                            case b.chemicalId of
-                                Nothing ->
-                                    EQ
-
-                                Just sb ->
-                                    case compare sa sb of
-                                        LT ->
-                                            LT
-
-                                        EQ ->
-                                            EQ
-
-                                        GT ->
-                                            GT
+                    EQ
 
                 GT ->
                     GT
@@ -601,15 +581,71 @@ updateSchedule msg model =
             , Cmd.none
             )
 
-        UpdateNewShiftChemical chemicalId ->
-            let
-                nse =
-                    model.newScheduleEntry
+        UpdateToModifyShiftByColumn tableColumn value ->
+            ( let
+                mse =
+                    model.editingScheduleEntry
 
-                ns =
-                    { nse | chemicalId = String.toInt chemicalId }
-            in
-            ( { model | newScheduleEntry = ns }, Cmd.none )
+                mid =
+                    { id = mse.id
+                    , scheduleEntry = updateScheduleEntryByColumn mse.scheduleEntry tableColumn value
+                    }
+              in
+              { model | editingScheduleEntry = mid }
+            , Cmd.none
+            )
+
+        UpdateNewShiftChemical chemicalIdAsString ->
+            case String.toInt chemicalIdAsString of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just chemicalId ->
+                    let
+                        nse =
+                            model.newScheduleEntry
+
+                        selectedChemicals =
+                            nse.chemicals
+
+                        newSelectedChemicals =
+                            if List.member chemicalId selectedChemicals then
+                                { nse | chemicals = List.Extra.remove chemicalId selectedChemicals }
+
+                            else
+                                { nse | chemicals = chemicalId :: selectedChemicals }
+                    in
+                    ( { model | newScheduleEntry = newSelectedChemicals }, Cmd.none )
+
+        UpdateToModifyShiftChemical chemicalIds ->
+            case String.toInt chemicalIds of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just chemicalId ->
+                    let
+                        ese =
+                            model.editingScheduleEntry
+
+                        currentEditScheduleEntry =
+                            ese.scheduleEntry
+
+                        alreadySelectedChemicals =
+                            currentEditScheduleEntry.chemicals
+
+                        updatedSelectedChemicals =
+                            if List.member chemicalId alreadySelectedChemicals then
+                                { currentEditScheduleEntry | chemicals = List.Extra.remove chemicalId alreadySelectedChemicals }
+
+                            else
+                                { currentEditScheduleEntry | chemicals = chemicalId :: alreadySelectedChemicals }
+
+                        newEditEntry =
+                            { ese
+                                | scheduleEntry = updatedSelectedChemicals
+                            }
+                    in
+                    ( { model | editingScheduleEntry = newEditEntry }, Cmd.none )
 
         SubmitDeleteShift scheduleEntry ->
             let
@@ -691,36 +727,6 @@ updateSchedule msg model =
             , httpUpdateSchedule ScheduleUpdated allShifts
             )
 
-        UpdateToModifyShiftByColumn tableColumn value ->
-            ( let
-                mse =
-                    model.editingScheduleEntry
-
-                mid =
-                    { id = mse.id
-                    , scheduleEntry = updateScheduleEntryByColumn mse.scheduleEntry tableColumn value
-                    }
-              in
-              { model | editingScheduleEntry = mid }
-            , Cmd.none
-            )
-
-        UpdateToModifyShiftChemical chemicalId ->
-            let
-                modScheduleEntry =
-                    model.editingScheduleEntry
-
-                mid =
-                    modScheduleEntry.scheduleEntry
-
-                fig =
-                    { mid | chemicalId = String.toInt chemicalId }
-
-                nse2 =
-                    { modScheduleEntry | scheduleEntry = fig }
-            in
-            ( { model | editingScheduleEntry = nse2 }, Cmd.none )
-
         ResetToModifyShift ->
             ( { model | editingScheduleEntry = emptyScheduleEntryToModify }, httpGetSchedule ScheduleReceived )
 
@@ -765,7 +771,7 @@ updateScheduleEntryByColumn se column data =
 
             _ ->
                 se.comment
-    , chemicalId = se.chemicalId
+    , chemicals = se.chemicals
     }
 
 

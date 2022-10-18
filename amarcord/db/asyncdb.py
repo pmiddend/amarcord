@@ -123,21 +123,52 @@ class AsyncDB:
         self, conn: Connection, schedule: list[BeamtimeScheduleEntry]
     ) -> None:
         await conn.execute(self.tables.beamtime_schedule.delete())
+        await conn.execute(self.tables.beamtime_schedule_has_chemical.delete())
         for entry in schedule:
-            await conn.execute(
-                self.tables.beamtime_schedule.insert().values(
-                    users=entry.users,
-                    date=entry.date,
-                    shift=entry.shift,
-                    chemical_id=entry.chemical_id,
-                    td_support=entry.td_support,
-                    comment=entry.comment,
+            chemical_ids = entry.chemicals
+            inserted_schedule_id = (
+                await conn.execute(
+                    self.tables.beamtime_schedule.insert().values(
+                        users=entry.users,
+                        date=entry.date,
+                        shift=entry.shift,
+                        td_support=entry.td_support,
+                        comment=entry.comment,
+                    )
                 )
-            )
+            ).inserted_primary_key[0]
+
+            for chemical_id in chemical_ids:
+                await conn.execute(
+                    self.tables.beamtime_schedule_has_chemical.insert().values(
+                        beamtime_schedule_id=inserted_schedule_id,
+                        chemical_id=chemical_id,
+                    )
+                )
 
     async def retrieve_beamtime_schedule(
         self, conn: Connection
     ) -> list[BeamtimeScheduleEntry]:
+        schedule_chemicals_select = await conn.execute(
+            sa.select(
+                [
+                    self.tables.beamtime_schedule_has_chemical.c.beamtime_schedule_id,
+                    self.tables.beamtime_schedule_has_chemical.c.chemical_id,
+                ]
+            )
+        )
+
+        schedule_chemicals_fetched: list[
+            tuple[int, int]
+        ] = schedule_chemicals_select.fetchall()
+        schedule_chemicals_by_chemical: dict[int, list[int]] = {
+            k: [*map(lambda v: v[1], values)]
+            for k, values in itertools.groupby(
+                sorted(schedule_chemicals_fetched, key=lambda x: x[0]),
+                lambda x: x[0],
+            )
+        }
+
         schedule = await conn.execute(self.tables.beamtime_schedule.select())
         return [
             BeamtimeScheduleEntry(
@@ -146,7 +177,7 @@ class AsyncDB:
                 date=se.date,
                 shift=se.shift,
                 td_support=se.td_support,
-                chemical_id=se.chemical_id,
+                chemicals=schedule_chemicals_by_chemical.get(se.id, []),
             )
             for se in schedule.fetchall()
         ]

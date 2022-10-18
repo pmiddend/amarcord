@@ -71,17 +71,37 @@ def _table_file(metadata: sa.MetaData) -> sa.Table:
     )
 
 
-def _table_beamtime_schedule(metadata: sa.MetaData, chemical: sa.Table) -> sa.Table:
+def _table_beamtime_schedule_has_chemical(
+    metadata: sa.MetaData,
+    beamtime_schedule: sa.Table,
+    chemical: sa.Table,
+) -> sa.Table:
     return sa.Table(
-        "BeamtimeSchedule",
+        "BeamtimeScheduleHasChemical",
         metadata,
-        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column(
+            "beamtime_schedule_id",
+            sa.Integer(),
+            # If the beam time shift vanishes, delete this entry as well
+            ForeignKey(_fk_identifier(beamtime_schedule.c.id), ondelete="cascade"),
+        ),
         sa.Column(
             "chemical_id",
             sa.Integer(),
             # If the chemical vanishes, delete this entry as well
             ForeignKey(_fk_identifier(chemical.c.id), ondelete="cascade"),
         ),
+        sa.PrimaryKeyConstraint(
+            "beamtime_schedule_id", "chemical_id", name="BeamtimeScheduleHasChemical_pk"
+        ),
+    )
+
+
+def _table_beamtime_schedule(metadata: sa.MetaData) -> sa.Table:
+    return sa.Table(
+        "BeamtimeSchedule",
+        metadata,
+        sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("users", sa.String(length=255), nullable=False),
         sa.Column("td_support", sa.String(length=255), nullable=False),
         sa.Column("comment", sa.Text(), nullable=False),
@@ -278,6 +298,7 @@ class DBTables:
         run_has_file: sa.Table,
         event_has_file: sa.Table,
         beamtime_schedule: sa.Table,
+        beamtime_schedule_has_chemical: sa.Table,
         indexing_result: sa.Table,
     ) -> None:
         self.configuration = configuration
@@ -293,11 +314,13 @@ class DBTables:
         self.file = file
         self.chemical_has_file = chemical_has_file
         self.beamtime_schedule = beamtime_schedule
+        self.beamtime_schedule_has_chemical = beamtime_schedule_has_chemical
         self.indexing_result = indexing_result
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     chemical = _table_chemical(metadata)
+    beamtime_schedule = _table_beamtime_schedule(metadata)
     run = _table_run(metadata)
     file = _table_file(metadata)
     table_attributo = _table_attributo(metadata)
@@ -320,6 +343,9 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         chemical_has_file=_table_chemical_has_file(metadata, chemical, file),
         run_has_file=_table_run_has_file(metadata, run, file),
         event_has_file=_table_event_has_file(metadata, event_log, file),
-        beamtime_schedule=_table_beamtime_schedule(metadata, chemical),
+        beamtime_schedule=beamtime_schedule,
+        beamtime_schedule_has_chemical=_table_beamtime_schedule_has_chemical(
+            metadata, beamtime_schedule, chemical
+        ),
         indexing_result=indexing_result,
     )
