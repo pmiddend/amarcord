@@ -1,9 +1,9 @@
-module Amarcord.Parser exposing (deadEndsToHtml)
+module Amarcord.Parser exposing (deadEndsToHtml, signedNumber, spaces1)
 
 import Html exposing (Html, div, li, p, span, text, ul)
 import List exposing (map)
 import List.Extra exposing (uncons)
-import Parser exposing (DeadEnd, Problem(..))
+import Parser exposing ((|.), (|=), DeadEnd, Parser, Problem(..))
 import String exposing (fromInt)
 
 
@@ -83,3 +83,29 @@ deadEndsToHtml singleRow deadEnds =
                         , ul []
                             (map (\x -> li [] [ deadEndToHtml singleRow x ]) deadEnds)
                         ]
+
+
+number : Parser Float
+number =
+    Parser.number
+        { int = Just toFloat
+        , hex = Nothing
+        , octal = Nothing
+        , binary = Nothing
+        , float = Just identity
+        }
+
+
+signedNumber : Parser Float
+signedNumber =
+    Parser.oneOf
+        [ Parser.succeed negate
+            |. Parser.symbol "-"
+            |= number
+        , number
+        ]
+
+
+spaces1 : Parser ()
+spaces1 =
+    Parser.chompIf (\c -> c == ' ') |. Parser.chompWhile (\c -> c == '\t' || c == ' ')

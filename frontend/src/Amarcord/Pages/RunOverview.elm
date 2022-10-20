@@ -606,7 +606,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                 -- For ergonomic reasons, we want chemical attributi to be on top - everything else should be
                 -- sorted alphabetically
                 attributoSortKey a =
-                    ( if isEditValueChemicalId (second a.type_) then
+                    ( if isEditValueChemicalId a.type_.editValue then
                         0
 
                       else

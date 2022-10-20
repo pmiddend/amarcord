@@ -1,8 +1,8 @@
-module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, mutedSubheader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Chemical exposing (Chemical)
-import Amarcord.Html exposing (br_, input_, span_, strongText)
+import Amarcord.Html exposing (br_, em_, input_, span_, strongText)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
 import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, localDateTimeParser)
@@ -22,7 +22,7 @@ import Set
 import String exposing (fromInt, join, split, toInt, trim)
 import Time exposing (Zone, millisToPosix, posixToMillis)
 import Time.Extra exposing (partsToPosix)
-import Tuple exposing (first, mapFirst, second)
+import Tuple exposing (second)
 
 
 mutedSubheader : String.String -> Html.Html msg
@@ -228,7 +228,7 @@ type AttributoFormMsg
 
 viewAttributoForm : List (Chemical Int a b) -> EditableAttributo -> Html AttributoFormMsg
 viewAttributoForm chemicals a =
-    case second a.type_ of
+    case a.type_.editValue of
         EditValueString s ->
             div [ class "mb-3" ] <|
                 [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
@@ -403,17 +403,44 @@ viewAttributoForm chemicals a =
                 ]
 
 
+type alias AttributoEditValueWithStatus =
+    { editStatus : EditStatus
+    , editValue : AttributoEditValue
+    }
+
+
+attributoEditValueWithStatusReset : AttributoEditValueWithStatus -> AttributoEditValueWithStatus
+attributoEditValueWithStatusReset { editValue } =
+    { editStatus = Unchanged, editValue = editValue }
+
+
 type alias EditableAttributo =
-    Attributo ( EditStatus, AttributoEditValue )
+    Attributo AttributoEditValueWithStatus
 
 
 type alias EditableAttributi =
     List EditableAttributo
 
 
+findEditableAttributo : EditableAttributi -> String -> Result (Html msg) EditableAttributo
+findEditableAttributo editableAttributi name =
+    Result.fromMaybe (span_ [ text <| "attributo ", em_ [ text name ], text " not found" ]) <|
+        List.find (\ea -> ea.name == name) editableAttributi
+
+
+extractStringAttributo : EditableAttributo -> Result (Html msg) String
+extractStringAttributo x =
+    case x.type_.editValue of
+        EditValueString pointGroup ->
+            Ok pointGroup
+
+        _ ->
+            Err <| text <| "attributo " ++ x.name ++ " has wrong type, is not a string"
+
+
 resetEditableAttributo : EditableAttributo -> EditableAttributo
 resetEditableAttributo =
-    mapAttributo (mapFirst (always Unchanged))
+    mapAttributo attributoEditValueWithStatusReset
 
 
 type alias EditableAttributiAndOriginal =
@@ -429,7 +456,7 @@ emptyEditableAttributiAndOriginal =
 
 unsavedAttributoChanges : EditableAttributi -> Bool
 unsavedAttributoChanges =
-    List.any (\a -> first a.type_ == Edited)
+    List.any (\a -> a.type_.editStatus == Edited)
 
 
 createEditableAttributi : Zone -> List (Attributo AttributoType) -> AttributoMap AttributoValue -> EditableAttributiAndOriginal
@@ -439,14 +466,23 @@ createEditableAttributi zone attributi m =
         -- 1. convert existing values into "best" manual values
         -- 2. add missing attributo and add as empty attributi, too
         -- Convert attributo metadata, as well as an attributo value, into an "editable attributo"
-        convertToEditValues : String -> Attributo ( AttributoType, AttributoValue ) -> Dict String (Attributo ( EditStatus, AttributoEditValue )) -> Dict String (Attributo ( EditStatus, AttributoEditValue ))
+        convertToEditValues : String -> Attributo ( AttributoType, AttributoValue ) -> Dict String (Attributo AttributoEditValueWithStatus) -> Dict String (Attributo AttributoEditValueWithStatus)
         convertToEditValues attributoName a prev =
             case attributoValueToEditValue zone attributoName attributi (second a.type_) of
                 Nothing ->
                     prev
 
                 Just finishedEditValue ->
-                    Dict.insert attributoName (mapAttributo (always ( Unchanged, finishedEditValue )) a) prev
+                    Dict.insert attributoName
+                        (mapAttributo
+                            (always
+                                { editStatus = Unchanged
+                                , editValue = finishedEditValue
+                                }
+                            )
+                            a
+                        )
+                        prev
 
         existingAttributiMap : Dict String EditableAttributo
         existingAttributiMap =
@@ -466,7 +502,11 @@ createEditableAttributi zone attributi m =
 
         missingAttributiMap : Dict String EditableAttributo
         missingAttributiMap =
-            Dict.fromList <| List.map (\a -> ( a.name, mapAttributo (\type_ -> ( Unchanged, emptyEditValue type_ )) a )) <| missingAttributi
+            Dict.fromList <|
+                List.map
+                    (\a -> ( a.name, mapAttributo (\type_ -> { editStatus = Unchanged, editValue = emptyEditValue type_ }) a ))
+                <|
+                    missingAttributi
     in
     { originalAttributi = m, editableAttributi = Dict.values <| Dict.union existingAttributiMap missingAttributiMap }
 
@@ -646,10 +686,10 @@ editEditableAttributi ea { attributoName, valueUpdate } =
             let
                 -- Update the value if it exists (if it doesn't, this is weird!), and set the state to "edited"
                 -- so when the object is stored, it's added to the manually edited attributes list
-                updateValue : Attributo ( EditStatus, AttributoEditValue ) -> Attributo ( EditStatus, AttributoEditValue )
+                updateValue : Attributo AttributoEditValueWithStatus -> Attributo AttributoEditValueWithStatus
                 updateValue x =
                     if x.name == attributoName then
-                        mapAttributo (always ( Edited, newValue )) x
+                        mapAttributo (always { editStatus = Edited, editValue = newValue }) x
 
                     else
                         x
@@ -741,8 +781,8 @@ convertEditValues zone { editableAttributi } =
         manuallyEdited =
             List.foldr
                 (\attributo prev ->
-                    if first attributo.type_ == Edited then
-                        ( attributo.name, second attributo.type_ ) :: prev
+                    if attributo.type_.editStatus == Edited then
+                        ( attributo.name, attributo.type_.editValue ) :: prev
 
                     else
                         prev

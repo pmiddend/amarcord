@@ -10,12 +10,13 @@ import Amarcord.Attributo
         , AttributoValue
         , emptyAttributoMap
         )
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, makeAttributoHeader, mutedSubheader, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId)
+import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, em_, form_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, form_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
@@ -52,7 +53,7 @@ type alias Model =
     , editChemical : Maybe (Chemical (Maybe Int) EditableAttributiAndOriginal File)
     , modifyRequest : RemoteData RequestError ()
     , myTimeZone : Zone
-    , submitErrors : List String
+    , submitErrors : List (Html Msg)
     , newFileUpload : NewFileUpload
     }
 
@@ -178,7 +179,7 @@ viewFiles fileUploadError newFile files =
         filesTable ++ uploadForm
 
 
-viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) File) -> RemoteData RequestError () -> List String -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
+viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) File) -> RemoteData RequestError () -> List (Html Msg) -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
 viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingChemical =
     let
         attributoFormMsgToMsg : AttributoFormMsg -> Msg
@@ -211,7 +212,7 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
 
                 errors ->
                     [ p_ [ strongText "There were submission errors:" ]
-                    , ul [ class "text-danger" ] <| List.map (\e -> li_ [ text e ]) errors
+                    , ul [ class "text-danger" ] <| List.map (\e -> li_ [ e ]) errors
                     ]
 
         isDuplicateName =
@@ -232,22 +233,25 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
     in
     form_ <|
         [ h4_
-            [ text
+            [ icon { name = "plus-square" }
+            , text
                 (if isNothing editingChemical.id then
-                    "Add new chemical"
+                    " Add new chemical"
 
                  else
-                    "Edit chemical"
+                    " Edit chemical"
                 )
             ]
-        , p [ class "lead" ] [ text "Note: If you prepared your crystals in multiple batches, please create one chemical per batch. This helps during analysis." ]
-        , p [ class "lead" ]
-            [ text "For the "
-            , em_ [ text "space group" ]
-            , text " and "
-            , em_ [ text "point group" ]
-            , text ", refer to "
-            , a [ href "https://www.desy.de/~twhite/crystfel/twin-calculator.pdf" ] [ text "this PDF" ]
+        , p [ class "lead text-muted" ] [ text "Note: If you prepared your crystals in multiple batches, please create one chemical per batch. This helps during analysis." ]
+        , p [ class "lead text-muted" ]
+            [ text "For the details on the "
+            , strong [ style "font-weight" "bold" ] [ text "cell description" ]
+            , text " please refer to the "
+            , a [ href "https://www.desy.de/~twhite/crystfel/tutorial-0.9.1.html#index" ] [ text "CrystFEL tutorial, section 10" ]
+            , text ". For the "
+            , strong [ style "font-weight" "bold" ] [ text "point group" ]
+            , text " please refer to the "
+            , a [ href "https://www.desy.de/~twhite/crystfel/tutorial-0.9.1.html#merge" ] [ text "CrystFEL tutorial, section 13" ]
             , text "."
             ]
         , div [ class "mb-3" ]
@@ -451,6 +455,16 @@ emptyNewFileUpload =
     { description = "", file = Nothing }
 
 
+validatePointGroupAndCellDescription : Chemical a EditableAttributiAndOriginal b -> Result (Html msg) ()
+validatePointGroupAndCellDescription { attributi } =
+    findEditableAttributo attributi.editableAttributi "point group"
+        |> Result.andThen extractStringAttributo
+        |> Result.andThen validatePointGroup
+        |> Result.andThen (\_ -> findEditableAttributo attributi.editableAttributi "cell description")
+        |> Result.andThen extractStringAttributo
+        |> Result.andThen validateCellDescription
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -500,26 +514,31 @@ update msg model =
 
                 Just editChemical ->
                     if model.newFileUpload.description /= "" || isJust model.newFileUpload.file then
-                        ( { model | submitErrors = [ "There is still a file in the upload form. Submit or clear the form!" ] }, Cmd.none )
+                        ( { model | submitErrors = [ text "There is still a file in the upload form. Submit or clear the form!" ] }, Cmd.none )
 
                     else
-                        case convertEditValues model.myTimeZone editChemical.attributi of
-                            Err errorList ->
-                                ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+                        case validatePointGroupAndCellDescription editChemical of
+                            Err errorMessage ->
+                                ( { model | submitErrors = [ errorMessage ] }, Cmd.none )
 
-                            Ok editedAttributi ->
-                                let
-                                    operation =
-                                        Maybe.unwrap httpCreateChemical (always httpUpdateChemical) editChemical.id
+                            Ok _ ->
+                                case convertEditValues model.myTimeZone editChemical.attributi of
+                                    Err errorList ->
+                                        ( { model | submitErrors = List.map (\( name, errorMessage ) -> text <| name ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
-                                    chemicalToSend =
-                                        { id = editChemical.id
-                                        , name = editChemical.name
-                                        , attributi = editedAttributi
-                                        , files = List.map .id editChemical.files
-                                        }
-                                in
-                                ( { model | modifyRequest = Loading }, operation EditChemicalFinished chemicalToSend )
+                                    Ok editedAttributi ->
+                                        let
+                                            operation =
+                                                Maybe.unwrap httpCreateChemical (always httpUpdateChemical) editChemical.id
+
+                                            chemicalToSend =
+                                                { id = editChemical.id
+                                                , name = editChemical.name
+                                                , attributi = editedAttributi
+                                                , files = List.map .id editChemical.files
+                                                }
+                                        in
+                                        ( { model | modifyRequest = Loading }, operation EditChemicalFinished chemicalToSend )
 
         EditChemicalCancel ->
             ( { model | editChemical = Nothing, newFileUpload = emptyNewFileUpload, fileUploadRequest = NotAsked, modifyRequest = NotAsked, chemicalDeleteRequest = NotAsked, submitErrors = [] }, Cmd.none )
