@@ -4,11 +4,11 @@
 }
 
 a:hover {
-  cursor:pointer;
+    cursor: pointer;
 }
 
 .modal-backdrop {
-  opacity:0.7 !important;
+    opacity: 0.7 !important;
 }
 
 [data-tooltip]:before {
@@ -22,7 +22,7 @@ a:hover {
     padding: 10px;
     color: #333;
     /* box-shadow: 2px 2px 1px silver; */
-    box-shadow:  0 .125rem .25rem rgba(0,0,0,.075);
+    box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075);
 }
 
 [data-tooltip]:hover:before {
@@ -44,8 +44,17 @@ a:hover {
 }
 
 /* see https://stackoverflow.com/questions/21168521/table-fixed-header-and-scrollable-body */
-.amarcord-table-fix-head          { overflow: auto; height: 100px; }
-.amarcord-table-fix-head thead th { position: sticky; top: 0; z-index: 1; background: white; }
+.amarcord-table-fix-head {
+    overflow: auto;
+    height: 100px;
+}
+
+.amarcord-table-fix-head thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: white;
+}
 
 .amarcord-alert-small {
     padding: 0.5rem !important;

@@ -12,6 +12,7 @@ module Amarcord.API.Requests exposing
     , MergeResult
     , MergeResultState(..)
     , MergeShellFom
+    , RefinementResult
     , RequestError(..)
     , Run
     , RunEventDate
@@ -78,7 +79,7 @@ import Dict exposing (Dict)
 import File as ElmFile
 import Http exposing (emptyBody, filePart, jsonBody, multipartBody, stringPart)
 import Json.Decode as Decode
-import Json.Decode.Pipeline exposing (required)
+import Json.Decode.Pipeline exposing (custom, required)
 import Json.Encode as Encode
 import Maybe.Extra as MaybeExtra exposing (unwrap)
 import Time exposing (Posix, millisToPosix)
@@ -396,6 +397,29 @@ decodeMergeResultState =
     Decode.oneOf [ decodeRunning, decodeDone, decodeError, decodeQueued ]
 
 
+type alias RefinementResult =
+    { id : Int
+    , pdbFileId : Int
+    , mtzFileId : Int
+    , rFree : Float
+    , rWork : Float
+    , rmsBondAngle : Float
+    , rmsBondLength : Float
+    }
+
+
+refinementResultDecoder : Decode.Decoder RefinementResult
+refinementResultDecoder =
+    Decode.map7 RefinementResult
+        (Decode.field "id" Decode.int)
+        (Decode.field "pdb-file-id" Decode.int)
+        (Decode.field "mtz-file-id" Decode.int)
+        (Decode.field "r-free" Decode.float)
+        (Decode.field "r-work" Decode.float)
+        (Decode.field "rms-bond-angle" Decode.float)
+        (Decode.field "rms-bond-length" Decode.float)
+
+
 type alias MergeResult =
     { id : Int
     , created : Posix
@@ -404,21 +428,23 @@ type alias MergeResult =
     , cellDescription : String
     , partialatorAdditional : String
     , negativeHandling : Maybe String
+    , refinementResults : List RefinementResult
     , state : MergeResultState
     }
 
 
 mergeResultDecoder : Decode.Decoder MergeResult
 mergeResultDecoder =
-    Decode.map8 MergeResult
-        (Decode.field "id" Decode.int)
-        (Decode.field "created" decodePosix)
-        (Decode.field "runs" (Decode.list Decode.string))
-        (Decode.field "point-group" Decode.string)
-        (Decode.field "cell-description" Decode.string)
-        (Decode.field "partialator-additional" Decode.string)
-        (Decode.field "negative-handling" (Decode.maybe Decode.string))
-        decodeMergeResultState
+    Decode.succeed MergeResult
+        |> required "id" Decode.int
+        |> required "created" decodePosix
+        |> required "runs" (Decode.list Decode.string)
+        |> required "point-group" Decode.string
+        |> required "cell-description" Decode.string
+        |> required "partialator-additional" Decode.string
+        |> required "negative-handling" (Decode.maybe Decode.string)
+        |> required "refinement-results" (Decode.list refinementResultDecoder)
+        |> custom decodeMergeResultState
 
 
 type alias AnalysisResultsExperimentType =

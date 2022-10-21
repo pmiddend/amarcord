@@ -57,7 +57,9 @@ from amarcord.db.merge_result import MergeResult
 from amarcord.db.merge_result import MergeResultFom
 from amarcord.db.merge_result import MergeResultOuterShell
 from amarcord.db.merge_result import MergeResultShell
+from amarcord.db.merge_result import RefinementResult
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
+from amarcord.db.refinement_result import DBRefinementResultOutput
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBChemical
 from amarcord.db.table_classes import DBEvent
@@ -392,6 +394,63 @@ class AsyncDB:
             )
             for a in result
         ]
+
+    async def retrieve_refinement_results(
+        self, conn: Connection
+    ) -> list[DBRefinementResultOutput]:
+        rr = self.tables.refinement_result.c
+        return [
+            DBRefinementResultOutput(
+                id=row["id"],
+                merge_result_id=row["merge_result_id"],
+                pdb_file_id=row["pdb_file_id"],
+                mtz_file_id=row["mtz_file_id"],
+                r_free=row["r_free"],
+                r_work=row["r_work"],
+                rms_bond_angle=row["rms_bond_angle"],
+                rms_bond_length=row["rms_bond_length"],
+            )
+            for row in await conn.execute(
+                sa.select(
+                    [
+                        rr.id,
+                        rr.merge_result_id,
+                        rr.pdb_file_id,
+                        rr.mtz_file_id,
+                        rr.r_free,
+                        rr.r_work,
+                        rr.rms_bond_angle,
+                        rr.rms_bond_length,
+                    ]
+                )
+            )
+        ]
+
+    async def create_refinement_result(
+        self,
+        conn: Connection,
+        merge_result_id: int,
+        pdb_file_id: int,
+        mtz_file_id: int,
+        rfree: float,
+        rwork: float,
+        rms_bond_angle: float,
+        rms_bond_length: float,
+    ) -> int:
+        result: int = (
+            await conn.execute(
+                self.tables.refinement_result.insert().values(
+                    merge_result_id=merge_result_id,
+                    pdb_file_id=pdb_file_id,
+                    mtz_file_id=mtz_file_id,
+                    r_free=rfree,
+                    r_work=rwork,
+                    rms_bond_angle=rms_bond_angle,
+                    rms_bond_length=rms_bond_length,
+                )
+            )
+        ).inserted_primary_key[0]
+        return result
 
     async def create_chemical(
         self,
@@ -1643,6 +1702,12 @@ class AsyncDB:
         indexing_results_by_id: dict[int, DBIndexingResultOutput] = {
             ir.id: ir for ir in await self.retrieve_indexing_results(conn)
         }
+        refinement_results_by_merge_id: dict[
+            int, list[DBRefinementResultOutput]
+        ] = group_by(
+            await self.retrieve_refinement_results(conn),
+            lambda rr: rr.merge_result_id,
+        )
         merge_result_to_indexing_result: dict[int, list[int]] = {
             merge_result_id: [row["indexing_result_id"] for row in indexing_results]
             for merge_result_id, indexing_results in group_by(
@@ -1687,6 +1752,19 @@ class AsyncDB:
                             recent_log=row["recent_log"],
                             result=MergeResult(
                                 detailed_foms=detailed_foms,
+                                refinement_results=[
+                                    RefinementResult(
+                                        pdb=rr.pdb_file_id,
+                                        mtz=rr.mtz_file_id,
+                                        r_free=rr.r_free,
+                                        r_work=rr.r_work,
+                                        rms_bond_angle=rr.rms_bond_angle,
+                                        rms_bond_length=rr.rms_bond_length,
+                                    )
+                                    for rr in refinement_results_by_merge_id.get(
+                                        row["id"], []
+                                    )
+                                ],
                                 mtz_file=row["mtz_file_id"],
                                 fom=MergeResultFom(
                                     snr=row["fom_snr"],

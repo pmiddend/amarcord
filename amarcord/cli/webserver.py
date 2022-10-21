@@ -63,6 +63,7 @@ from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
+from amarcord.db.refinement_result import DBRefinementResultOutput
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBChemical
 from amarcord.db.table_classes import DBEvent
@@ -272,7 +273,9 @@ def _encode_chemical(a: DBChemical) -> JSONDict:
     }
 
 
-def _encode_merge_result(mr: DBMergeResultOutput) -> JSONDict:
+def _encode_merge_result(
+    mr: DBMergeResultOutput, refinement_results: list[DBRefinementResultOutput]
+) -> JSONDict:
     additional_dict: JSONDict = {}
     match mr.runtime_status:
         case None:
@@ -373,6 +376,18 @@ def _encode_merge_result(mr: DBMergeResultOutput) -> JSONDict:
         "negative-handling": mr.negative_handling.value
         if mr.negative_handling is not None
         else None,
+        "refinement-results": [
+            {
+                "id": rr.id,
+                "pdb-file-id": rr.pdb_file_id,
+                "mtz-file-id": rr.mtz_file_id,
+                "r-free": rr.r_free,
+                "r-work": rr.r_work,
+                "rms-bond-angle": rr.rms_bond_angle,
+                "rms-bond-length": rr.rms_bond_length,
+            }
+            for rr in refinement_results
+        ],
     } | additional_dict
 
 
@@ -1535,6 +1550,13 @@ async def read_analysis_results() -> JSONDict:
             for r in runs.values()
         }
 
+        refinement_results_per_merge_result_id: dict[
+            int, list[DBRefinementResultOutput]
+        ] = group_by(
+            await db.instance.retrieve_refinement_results(conn),
+            lambda rr: rr.merge_result_id,
+        )
+
         def _build_data_set_result(
             ds: DBDataSet, merge_results: list[DBMergeResultOutput]
         ) -> JSONDict:
@@ -1554,7 +1576,12 @@ async def read_analysis_results() -> JSONDict:
                 "number-of-indexing-results": sum(
                     len(indexing_results_for_runs.get(run.id, [])) for run in runs_in_ds
                 ),
-                "merge-results": [_encode_merge_result(mr) for mr in merge_results],
+                "merge-results": [
+                    _encode_merge_result(
+                        mr, refinement_results_per_merge_result_id.get(mr.id, [])
+                    )
+                    for mr in merge_results
+                ],
             }
 
         return {

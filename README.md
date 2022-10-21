@@ -90,7 +90,7 @@ npm install
 To install the dependencies (you can also use [Yarn](https://yarnpkg.com/), which might be more performant). Then, start a development server via:
 
 ```
-./run-live-dev-env
+./run-live-dev-env.sh
 ```
 
 And point your browser to http://localhost:8000.
@@ -109,14 +109,35 @@ in your browser.
 
 ## Nix
 
-To speed up CI builds and unify dependencies, AMARCORD uses the [Nix package manager](https://nixos.org/). If you have Nix installed, building the AMARCORD Python package is as simple as
+To speed up CI builds and unify dependencies, AMARCORD uses the [Nix package manager](https://nixos.org/). It also uses flakes, so enable those in your `~/.config/nix/nix.conf`:
 
-``` shell
-nix-build -A pythonPackage
+```
+experimental-features = nix-command flakes
 ```
 
-The `default.nix` file defines a set with a few possible outputs, such as `dockerImage` and `frontend`. You also have a `shell.nix` that you can use for quickly getting a Python development environment with `nix-shell`. The `frontend` directory also has a `shell.nix` with just the Elm compiler in it, right now.
+If you have Nix installed, building the AMARCORD Python package is as simple as
 
-To manage the (pinned) dependency on nixpkgs, we use [niv](https://github.com/nmattia/niv) (and plan to use [flakes](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-flake.html) ASAP). Currently, we’re tracking nixpkgs’s `master`, and updating should be as simple as `niv update nixpkgs`.
+```shell
+nix build '.#amarcord-python-package'
+```
+
+To build a Docker container:
+
+```shell
+nix build '.#amarcord-docker-image
+```
+
+To get a development shell with the Python dependencies:
+
+```shell
+nix develop
+```
+
+To get a development shell with the Elm dependencies:
+
+```shell
+cd frontend
+nix develop '..#frontend'
+```
 
 For the CI build, we have an instance of gitlab-runner on `cfeld-vm04` using the shell executor right now.

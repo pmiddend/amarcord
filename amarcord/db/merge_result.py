@@ -59,7 +59,17 @@ class MergeResultShell(BaseModel):
     mean_i: float
 
 
+class RefinementResult(BaseModel):
+    pdb: Path | int
+    mtz: Path | int
+    r_free: float
+    r_work: float
+    rms_bond_angle: float
+    rms_bond_length: float
+
+
 class MergeResult(BaseModel):
     mtz_file: int | Path
     fom: MergeResultFom
     detailed_foms: list[MergeResultShell]
+    refinement_results: list[RefinementResult]

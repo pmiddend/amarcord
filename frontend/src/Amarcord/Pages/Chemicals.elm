@@ -10,7 +10,7 @@ import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, c
 import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, form_, h2_, h3_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, em_, form_, h2_, h3_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
@@ -237,7 +237,20 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
                     " Edit chemical"
                 )
             ]
-        , p [ class "lead text-muted" ] [ text "Note: If you prepared your crystals in multiple batches, please create one chemical per batch. This helps during analysis." ]
+        , p [ class "lead text-muted" ]
+            [ text "If you prepared your crystals in "
+            , em_ [ text "multiple batches" ]
+            , text ", please create "
+            , em_ [ text "one chemical per batch" ]
+            , text ". This helps during analysis."
+            ]
+        , p [ class "lead text-muted" ]
+            [ text "If you want a quick "
+            , em_ [ text "refinement step" ]
+            , text " at the end of the merging (see the Analysis view), upload a "
+            , em_ [ text "PDB file" ]
+            , text " with a base model for the protein."
+            ]
         , p [ class "lead text-muted" ]
             [ text "For the details on the "
             , strong [ style "font-weight" "bold" ] [ text "cell description" ]

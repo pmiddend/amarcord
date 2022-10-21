@@ -5,8 +5,10 @@ import json
 import logging
 import math
 import multiprocessing
+import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -27,6 +29,319 @@ CHECK_HKL_SHELL_FILE = Path("check.dat")
 CC_COMPARE_SHELL_FILE = Path("cc_shells.dat")
 OUTPUT_JSON_PATH = Path("output.json")
 
+EXCLUSION_MTZ = "input-mtz-after-rflag-exclusion.mtz"
+POINTLESS_MTZ = "input-pointless.mtz"
+UNIQUE_MTZ = "input-mtz-after-unique.mtz"
+CAD_MTZ = "input-mtz-after-cad.mtz"
+FREER_MTZ = "input-mtz-after-freerflag.mtz"
+UNIQIFIED_MTZ = "input-mtz-uniqified.mtz"
+RESCUT_MTZ = "input-mtz-rescut.mtz"
+DIMPLE_OUT_MTZ = "output-dimple.mtz"
+DIMPLE_OUT_PDB = "output-dimple.pdb"
+
+CCP4_PATH = "/opt/xray/ccp4-7.1"
+
+
+def ccp4_run(args: list[str], input_: None | str = None) -> str:
+    current_path = os.environ["PATH"]
+    ccp4_env = {
+        "CLIBD": f"{CCP4_PATH}/lib/data",
+        "CLIBD_MON": f"{CCP4_PATH}/lib/data/monomers/",
+        "CINCL": f"{CCP4_PATH}/include",
+        "CCP4_SCR": "/tmp",
+        "CCP4": CCP4_PATH,
+        "PATH": f"{CCP4_PATH}/bin:{current_path}",
+    }
+    logger.info(f"running {args}")
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            input=input_,
+            encoding="utf-8",
+            env=ccp4_env,
+        )
+        if result.returncode != 0:
+            logger.exception(
+                f"calling {args} didn't work: {result.stderr}, stderr: {result.stdout}"
+            )
+            raise Exception()
+        return result.stdout
+    except:
+        logger.exception(f"calling {args} didn't work")
+        raise Exception()
+
+
+def extract_labels_from_mtzinfo(mtzinfo_output: str) -> list[str]:
+    input_mtz_labels_lines = [
+        line for line in mtzinfo_output.split("\n") if line.startswith("LABELS ")
+    ]
+    if not input_mtz_labels_lines:
+        raise Exception("couldn't parse mtzinfo output, no line starting with LABELS!")
+    return input_mtz_labels_lines[0].split(" ")[1:]
+
+
+def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
+    ccp4_run(
+        [
+            f"{CCP4_PATH}/bin/pointless",
+            "hklref",
+            str(rfree_mtz),
+            "hklin",
+            str(input_mtz),
+            "hklout",
+            POINTLESS_MTZ,
+        ]
+    )
+
+    mtzinfo_input_mtz = ccp4_run([f"{CCP4_PATH}/bin/mtzinfo", POINTLESS_MTZ])
+
+    input_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_input_mtz)
+
+    input_mtz_rfree_labels = [
+        label for label in input_mtz_labels if "free" in label.lower()
+    ]
+    if len(input_mtz_rfree_labels) > 1:
+        raise Exception(
+            f'couldn\'t do refinement, there is more than one "free" in "{POINTLESS_MTZ}": '
+            + ", ".join(input_mtz_rfree_labels)
+        )
+    if input_mtz_rfree_labels:
+        logger.info(
+            f'Input MTZ contains rfree flags in column "{input_mtz_rfree_labels[0]}", excluding those using mtzutils call'
+        )
+        ccp4_run(
+            [
+                f"{CCP4_PATH}/bin/mtzutils",
+                "hklin",
+                POINTLESS_MTZ,
+                "hklout",
+                EXCLUSION_MTZ,
+            ],
+            input_=f"exclude {input_mtz_rfree_labels[0]}",
+        )
+    else:
+        logger.info(
+            f"Input MTZ doesn't contain RFree flags column (columns are {input_mtz_labels}), just copying"
+        )
+        shutil.copyfile(POINTLESS_MTZ, EXCLUSION_MTZ)
+    xdata_lines = [
+        line for line in mtzinfo_input_mtz.split("\n") if line.startswith("XDATA ")
+    ]
+    if not xdata_lines:
+        raise Exception("couldn't parse mtzinfo output, no line starting with XDATA!")
+    xdata_line = re.split(r" +", xdata_lines[0])
+    logger.info(f"xdata line is {xdata_lines[0]} ({len(xdata_line)} component(s))")
+
+    mtzinfo_rfree_mtz = ccp4_run([f"{CCP4_PATH}/bin/mtzinfo", str(rfree_mtz)])
+    rfree_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_rfree_mtz)
+    rfree_mtz_rfree_labels = [
+        label for label in rfree_mtz_labels if "free" in label.lower()
+    ]
+    if not rfree_mtz_rfree_labels:
+        raise Exception(
+            f'couldn\'t find a "free" column in "{rfree_mtz}", columns are: '
+            + ",".join(rfree_mtz_labels)
+        )
+    rfree_mtz_column = rfree_mtz_rfree_labels[0]
+    logger.info(f"using column {rfree_mtz_column} as free flag in {rfree_mtz}")
+
+    unique_cell_information = f"CELL {xdata_line[1]} {xdata_line[2]} {xdata_line[3]} {xdata_line[4]} {xdata_line[5]} {xdata_line[6]} {xdata_line[7]} SYMMETRY {xdata_line[9]}"
+    logger.info(f"unique cell information: {unique_cell_information}")
+    ccp4_run(
+        [
+            f"{CCP4_PATH}/bin/unique",
+            "HKLOUT",
+            UNIQUE_MTZ,
+        ],
+        input_=f"""{unique_cell_information}
+    LABOUT F=FUNI SIGF=SIGFUNI
+    RESOLUTION {xdata_line[8]}
+    SYMM {xdata_line[9]}""",
+    )
+
+    cad_input = f"""
+    LABIN FILE 1  ALLIN
+    LABIN FILE 2  ALLIN
+    LABIN FILE 3 E1 = {rfree_mtz_column}
+    """
+    ccp4_run(
+        [
+            f"{CCP4_PATH}/bin/cad",
+            "HKLIN1",
+            EXCLUSION_MTZ,
+            "HKLIN2",
+            UNIQUE_MTZ,
+            "HKLIN3",
+            str(rfree_mtz),
+            "HKLOUT",
+            CAD_MTZ,
+        ],
+        input_=cad_input,
+    )
+
+    ccp4_run(
+        [
+            f"{CCP4_PATH}/bin/freerflag",
+            "HKLIN",
+            CAD_MTZ,
+            "HKLOUT",
+            FREER_MTZ,
+        ],
+        input_=f"""
+    COMPLETE FREE={rfree_mtz_column}
+            """,
+    )
+
+    ccp4_run(
+        [
+            f"{CCP4_PATH}/bin/mtzutils",
+            "hklin",
+            FREER_MTZ,
+            "hklout",
+            UNIQIFIED_MTZ,
+        ],
+        input_=f"""
+    EXCLUDE FUNI SIGFUNI
+    SYMM {xdata_line[9]}
+            """,
+    )
+
+    ccp4_run(
+        [
+            f"{CCP4_PATH}/bin/mtzutils",
+            "hklin",
+            UNIQIFIED_MTZ,
+            "hklout",
+            RESCUT_MTZ,
+        ],
+        input_=f"""
+    resolution {resolution_cut}
+            """,
+    )
+
+    return Path(UNIQIFIED_MTZ)
+
+
+@dataclass(frozen=True)
+class RefinementFom:
+    r_free: float
+    r_work: float
+    rms_bond_angle: float
+    rms_bond_length: float
+
+
+@dataclass(frozen=True)
+class RefinementResult:
+    pdb_path: Path
+    mtz_path: Path
+    fom: RefinementFom
+
+
+def parse_refmac_log(p: Path) -> RefinementFom:
+    r_work: None | float = None
+    r_free: None | float = None
+    rms_bond_length: None | float = None
+    rms_bond_angle: None | float = None
+    R_WORK_REGEX = re.compile(r"R factor\s+(\S+)\s+(\S+)")
+    R_FREE_REGEX = re.compile(r"R free\s+(\S+)\s+(\S+)")
+    RMS_BOND_ANGLE_REGEX = re.compile(r"Rms BondAngle\s+(\S+)\s+(\S+)")
+    RMS_BOND_LENGTH_REGEX = re.compile(r"Rms BondLength\s+(\S+)\s+(\S+)")
+
+    def extract_final_result(
+        regex: re.Pattern[str], this_line: str, previous_result: None | float
+    ) -> None | float:
+        regex_result = regex.search(this_line)
+        if regex_result is not None:
+            try:
+                return float(regex_result.group(2))
+            except:
+                return previous_result
+        return previous_result
+
+    with p.open("r") as f:
+        for line in f:
+            r_work = extract_final_result(R_WORK_REGEX, line, r_work)
+            r_free = extract_final_result(R_FREE_REGEX, line, r_free)
+            rms_bond_angle = extract_final_result(
+                RMS_BOND_ANGLE_REGEX, line, rms_bond_angle
+            )
+            rms_bond_length = extract_final_result(
+                RMS_BOND_LENGTH_REGEX, line, rms_bond_length
+            )
+
+    if (
+        r_work is not None
+        and r_free is not None
+        and rms_bond_length is not None
+        and rms_bond_angle is not None
+    ):
+        return RefinementFom(
+            r_work=r_work,
+            r_free=r_free,
+            rms_bond_angle=rms_bond_angle,
+            rms_bond_length=rms_bond_length,
+        )
+
+    raise Exception(
+        f"not all of the figures of merit are given: Rwork={r_work}, Rfree={r_free}, RMS bond length={rms_bond_length}, RMS bond angle={rms_bond_angle}"
+    )
+
+
+def quick_refine(
+    input_mtz: Path,
+    resolution_cut: float,
+    input_pdb: Path,
+) -> RefinementResult:
+    logger.info("cutting resolution...")
+
+    ccp4_run(
+        [
+            f"{CCP4_PATH}/bin/mtzutils",
+            "hklin",
+            str(input_mtz),
+            "hklout",
+            RESCUT_MTZ,
+        ],
+        input_=f"""
+    resolution {resolution_cut}
+            """,
+    )
+
+    logging.info("running dimple now")
+
+    ccp4_run(
+        [
+            f"{CCP4_PATH}/bin/dimple",
+            "-f",
+            "png",
+            "--jelly",
+            "0",
+            "--restr-cycles",
+            "15",
+            "--hklout",
+            DIMPLE_OUT_MTZ,
+            "--xyzout",
+            DIMPLE_OUT_PDB,
+            RESCUT_MTZ,
+            str(input_pdb),
+            ".",
+        ],
+    )
+
+    REFMAC_LOG_FILE = Path("08-refmac5_restr.log")
+
+    if not REFMAC_LOG_FILE.is_file():
+        error = f"dimple ran successfully, but didn't produce file {REFMAC_LOG_FILE}, please check the output"
+        raise Exception(error)
+
+    return RefinementResult(
+        pdb_path=Path(DIMPLE_OUT_PDB),
+        mtz_path=Path(DIMPLE_OUT_MTZ),
+        fom=parse_refmac_log(REFMAC_LOG_FILE),
+    )
+
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
@@ -42,6 +357,8 @@ class ParsedArgs:
     nshells: None | int
     partialator_additional: None | str
     crystfel_path: Path
+    rfree_mtz: None | Path
+    pdb: None | Path
 
 
 def write_output_json(error: None | str, result: None | dict) -> None:
@@ -66,6 +383,12 @@ def parse_command_line_args() -> ParsedArgs:
     )
     parser.add_argument("--cell-file", help="Path to the .cell file for check_hkl")
     parser.add_argument("--crystfel-path", help="Path to the CrystFEL installation")
+    parser.add_argument(
+        "--rfree-mtz", help="Path to an optional RFree mtz file for refinement"
+    )
+    parser.add_argument(
+        "--pdb", help="Path to an optional PDB file with the base model for refinement"
+    )
     parser.add_argument(
         "--point-group", help="Point group for partialator's -y argument"
     )
@@ -112,6 +435,8 @@ def parse_command_line_args() -> ParsedArgs:
         if args.partialator_additional
         else None,
         crystfel_path=Path(args.crystfel_path),
+        rfree_mtz=Path(args.rfree_mtz) if args.rfree_mtz else None,
+        pdb=Path(args.pdb) if args.pdb else None,
     )
 
 
@@ -516,9 +841,32 @@ def generate_output(args: ParsedArgs) -> None:
             f"cannot proceed, check file {CHECK_HKL_SHELL_FILE} has no lines"
         )
 
+    refinement_result: None | RefinementResult = None
+    if args.pdb is not None:
+        try:
+            refinement_result = quick_refine(
+                mtz_path,
+                highres_cut,
+                args.pdb,
+            )
+        except:
+            logger.exception("couldn't complete refinement")
+
     output_json = {
         "mtz_file": str(mtz_path),
         "detailed_foms": extract_shell_resolutions(),
+        "refinement_results": [
+            {
+                "pdb": str(refinement_result.pdb_path),
+                "mtz": str(refinement_result.mtz_path),
+                "r_free": refinement_result.fom.r_free,
+                "r_work": refinement_result.fom.r_work,
+                "rms_bond_angle": refinement_result.fom.rms_bond_angle,
+                "rms_bond_length": refinement_result.fom.rms_bond_length,
+            }
+        ]
+        if refinement_result is not None
+        else [],
         "fom": {
             "snr": snr,
             "wilson": None

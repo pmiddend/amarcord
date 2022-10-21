@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from typing import Final
+from typing import cast
 
 import structlog
 from pydantic import BaseModel
@@ -16,6 +17,7 @@ from amarcord.amici.crystfel.util import write_cell_file
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
+from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.db_merge_result import DBMergeResultOutput
@@ -26,11 +28,14 @@ from amarcord.db.db_merge_result import DBMergeRuntimeStatusRunning
 from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
 from amarcord.db.merge_result import MergeResult
+from amarcord.db.merge_result import RefinementResult
+from amarcord.db.table_classes import DBFile
 
 _RECENT_LOG_LINES: Final = -5
 
 _STDOUT_NAME: Final = "stdout.txt"
 _STDERR_NAME: Final = "stderr.txt"
+_MAXIMUM_RECENT_LOG_LENGTH: Final = 4096
 
 logger = structlog.stdlib.get_logger(__name__)
 
@@ -48,7 +53,16 @@ def _merge_job_directory(
     return config.output_base_directory / f"merging_{merge_result.id}"
 
 
+def _find_file_id_by_extension(files: list[DBFile], extension: str) -> None | int:
+    for f in files:
+        if f.file_name.endswith(f".{extension}"):
+            return f.id
+    return None
+
+
 async def start_merge_job(
+    db: AsyncDB,
+    conn: Connection,
     parent_logger: BoundLogger,
     workload_manager: WorkloadManager,
     config: MergeConfig,
@@ -59,6 +73,9 @@ async def start_merge_job(
     )
 
     finished_results: list[DBIndexingResultDone] = []
+    pdb_file_id: None | int = None
+    mtz_file_id: None | int = None
+    attributi = await db.retrieve_attributi(conn, associated_table=None)
     for ir in merge_result.indexing_results:
         if not isinstance(ir.runtime_status, DBIndexingResultDone):
             parent_logger.error(
@@ -70,6 +87,20 @@ async def start_merge_job(
                 stopped=datetime.datetime.utcnow(),
                 recent_log="",
             )
+        chemical = await db.retrieve_chemical(conn, ir.chemical_id, attributi)
+        if chemical is None:
+            return DBMergeRuntimeStatusError(
+                error=f"chemical {ir.chemical_id} not found",
+                started=datetime.datetime.utcnow(),
+                stopped=datetime.datetime.utcnow(),
+                recent_log="",
+            )
+        this_pdb_file_id = _find_file_id_by_extension(chemical.files, "pdb")
+        this_mtz_file_id = _find_file_id_by_extension(chemical.files, "mtz")
+        if this_pdb_file_id is not None:
+            pdb_file_id = this_pdb_file_id
+        if this_mtz_file_id is not None:
+            mtz_file_id = this_mtz_file_id
         finished_results.append(ir.runtime_status)
     parent_logger.info("All indexing results have finished, we can start merging")
 
@@ -113,6 +144,18 @@ async def start_merge_job(
         f'--partialator-additional="{merge_result.partialator_additional}"',
         f"--hkl-file={job_base_directory / 'partialator.hkl'}",
     ]
+    if pdb_file_id is not None:
+        pdb_file = await db.retrieve_file(conn, pdb_file_id, with_contents=True)
+        pdb_path = job_base_directory / "base-model.pdb"
+        with pdb_path.open("wb") as pdb_file_object:
+            pdb_file_object.write(cast(bytes, pdb_file.contents))
+        command_line_args.append(f"--pdb={pdb_path}")
+        if mtz_file_id is not None:
+            mtz_file = await db.retrieve_file(conn, mtz_file_id, with_contents=True)
+            mtz_path = job_base_directory / "rfree.mtz"
+            with mtz_path.open("wb") as mtz_file_object:
+                mtz_file_object.write(cast(bytes, mtz_file.contents))
+            command_line_args.append(f"--rfree-mtz={mtz_path}")
     if merge_result.negative_handling == MergeNegativeHandling.IGNORE:
         command_line_args.append("--ignore-negs")
     elif merge_result.negative_handling == MergeNegativeHandling.ZERO:
@@ -154,7 +197,9 @@ def _recent_log(config: MergeConfig, merge_result: DBMergeResultOutput) -> None 
     stdout_file = _merge_job_directory(config, merge_result) / _STDERR_NAME
     try:
         with stdout_file.open("r", encoding="utf-8") as f:
-            return "".join(f.readlines()[_RECENT_LOG_LINES:])
+            return "".join(f.readlines()[_RECENT_LOG_LINES:])[
+                0:_MAXIMUM_RECENT_LOG_LENGTH
+            ]
     except:
         return None
 
@@ -236,11 +281,10 @@ async def _start_new_jobs(
             result_logger = logger.bind(merge_result_id=merge_result.id)
             result_logger.info("starting merge job")
 
-            new_status = await start_merge_job(
-                result_logger, workload_manager, config, merge_result
-            )
-
             async with db.begin() as conn:
+                new_status = await start_merge_job(
+                    db, conn, result_logger, workload_manager, config, merge_result
+                )
                 await db.update_merge_result_status(conn, merge_result.id, new_status)
 
             logger.info("new merge job submitted, taking a long break")
@@ -291,6 +335,17 @@ async def _update_jobs(
             continue
 
         async with db.begin() as conn:
+            if isinstance(new_status, DBMergeRuntimeStatusDone):
+                for rr in new_status.result.refinement_results:
+                    await upload_refinement_result(
+                        conn,
+                        db,
+                        config,
+                        merge_result,
+                        new_status,
+                        result_logger,
+                        rr,
+                    )
             if isinstance(new_status, DBMergeRuntimeStatusDone) and isinstance(
                 new_status.result.mtz_file, Path
             ):
@@ -326,6 +381,7 @@ async def _update_jobs(
                         result=MergeResult(
                             mtz_file=file_result.id,
                             fom=new_status.result.fom,
+                            refinement_results=new_status.result.refinement_results,
                             detailed_foms=new_status.result.detailed_foms,
                         ),
                         recent_log=new_status.recent_log,
@@ -336,6 +392,80 @@ async def _update_jobs(
 
     logger.info("merge jobs stati updated, take a (longer) break")
     await asyncio.sleep(20)
+
+
+async def upload_refinement_result(
+    conn: Connection,
+    db: AsyncDB,
+    config: MergeConfig,
+    merge_result: DBMergeResultOutput,
+    new_status: DBMergeRuntimeStatusDone,
+    result_logger: BoundLogger,
+    rr: RefinementResult,
+) -> None | int:
+    job_directory = _merge_job_directory(config, merge_result)
+    if not isinstance(rr.mtz, Path) or not isinstance(rr.pdb, Path):
+        return None
+    mtz_path = job_directory / rr.mtz
+    pdb_path = job_directory / rr.pdb
+    try:
+        refinement_mtz_result = (
+            await db.create_file(
+                conn,
+                mtz_path.name,
+                description="MTZ output",
+                original_path=mtz_path,
+                contents_location=mtz_path,
+                deduplicate=False,
+            )
+        ).id
+    except:
+        result_logger.exception("error uploading refinement MTZ file to DB")
+        await db.update_merge_result_status(
+            conn,
+            merge_result.id,
+            DBMergeRuntimeStatusError(
+                "Error uploading refinement MTZ file to DB",
+                new_status.started,
+                new_status.stopped,
+                new_status.recent_log,
+            ),
+        )
+        return None
+    try:
+        refinement_pdb_result = (
+            await db.create_file(
+                conn,
+                pdb_path.name,
+                description="PDB output",
+                original_path=pdb_path,
+                contents_location=pdb_path,
+                deduplicate=False,
+            )
+        ).id
+    except:
+        result_logger.exception("error uploading refinement PDB file to DB")
+        await db.update_merge_result_status(
+            conn,
+            merge_result.id,
+            DBMergeRuntimeStatusError(
+                "Error uploading refinement PDB file to DB",
+                new_status.started,
+                new_status.stopped,
+                new_status.recent_log,
+            ),
+        )
+        return None
+    return await db.create_refinement_result(
+        conn,
+        merge_result.id,
+        refinement_pdb_result,
+        refinement_mtz_result,
+        rr.r_free,
+        rr.r_work,
+        rr.rms_bond_angle,
+        rr.rms_bond_length,
+    )
 
 
 async def _merging_loop_iteration(

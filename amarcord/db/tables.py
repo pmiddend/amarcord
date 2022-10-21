@@ -233,6 +233,35 @@ def _table_chemical(metadata: sa.MetaData) -> sa.Table:
     )
 
 
+def _table_refinement_result(
+    metadata: sa.MetaData, merge_result: sa.Table, file: sa.Table
+) -> sa.Table:
+    return sa.Table(
+        "RefinementResult",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "merge_result_id",
+            sa.Integer,
+            sa.ForeignKey(_fk_identifier(merge_result.c.id), ondelete="cascade"),
+        ),
+        sa.Column(
+            "pdb_file_id",
+            sa.Integer,
+            sa.ForeignKey(_fk_identifier(file.c.id), ondelete="cascade"),
+        ),
+        sa.Column(
+            "mtz_file_id",
+            sa.Integer,
+            sa.ForeignKey(_fk_identifier(file.c.id), ondelete="cascade"),
+        ),
+        sa.Column("r_free", sa.Float, nullable=False),
+        sa.Column("r_work", sa.Float, nullable=False),
+        sa.Column("rms_bond_angle", sa.Float, nullable=False),
+        sa.Column("rms_bond_length", sa.Float, nullable=False),
+    )
+
+
 def _table_merge_result_shell_fom(
     metadata: sa.MetaData, merge_result: sa.Table
 ) -> sa.Table:
@@ -424,6 +453,7 @@ class DBTables:
         merge_result: sa.Table,
         merge_result_has_indexing_result: sa.Table,
         merge_result_shell_fom: sa.Table,
+        refinement_result: sa.Table,
     ) -> None:
         self.configuration = configuration
         self.event_has_file = event_has_file
@@ -443,6 +473,7 @@ class DBTables:
         self.merge_result = merge_result
         self.merge_result_shell_fom = merge_result_shell_fom
         self.merge_result_has_indexing_result = merge_result_has_indexing_result
+        self.refinement_result = refinement_result
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
@@ -482,4 +513,5 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
         merge_result_has_indexing_result=_table_merge_result_has_indexing_result(
             metadata, merge_result, indexing_result
         ),
+        refinement_result=_table_refinement_result(metadata, merge_result, file),
     )

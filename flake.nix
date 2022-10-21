@@ -6,8 +6,9 @@
     url = "github:nix-community/poetry2nix";
     inputs.nixpkgs.follows = "nixpkgs";
   };
+  inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
 
-  outputs = { self, nixpkgs, poetry2nix }:
+  outputs = { self, nixpkgs, poetry2nix, uglymol }:
     let
       system = "x86_64-linux";
     in
@@ -69,7 +70,7 @@
               };
             };
 
-            amarcord-frontend = prev.pkgs.callPackage ./frontend/default.nix { };
+            amarcord-frontend = prev.pkgs.callPackage ./frontend/default.nix { uglymol = uglymol.packages.${system}.default; };
           })
       ];
 

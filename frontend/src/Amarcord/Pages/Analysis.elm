@@ -2,7 +2,7 @@ module Amarcord.Pages.Analysis exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.ExperimentType exposing (ExperimentType)
-import Amarcord.API.Requests exposing (AnalysisResultsExperimentType, AnalysisResultsRoot, MergeFom, MergeResult, MergeResultState(..), MergeShellFom, RequestError, httpGetAnalysisResults, httpStartMergeJobForDataSet)
+import Amarcord.API.Requests exposing (AnalysisResultsExperimentType, AnalysisResultsRoot, MergeFom, MergeResult, MergeResultState(..), MergeShellFom, RefinementResult, RequestError, httpGetAnalysisResults, httpStartMergeJobForDataSet)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoType)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
@@ -13,8 +13,8 @@ import Amarcord.Html exposing (br_, div_, form_, h2_, h5_, input_, span_, tbody_
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
 import Dict exposing (Dict)
-import Html exposing (Html, a, abbr, button, div, em, h4, span, sup, table, td, text, tr)
-import Html.Attributes exposing (class, colspan, disabled, href, placeholder, style, title, type_, value)
+import Html exposing (Html, a, abbr, button, div, em, h4, node, p, span, sup, table, td, text, tr)
+import Html.Attributes exposing (attribute, class, colspan, disabled, href, placeholder, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe
 import Maybe.Extra as MaybeExtra
@@ -52,7 +52,7 @@ type alias PartialatorAdditional =
 
 
 type alias DetailMerge =
-    { id : Int, fom : MergeFom, shell_foms : List MergeShellFom }
+    { id : Int, fom : MergeFom, shell_foms : List MergeShellFom, refinementResults : List RefinementResult }
 
 
 type alias MergeRequest =
@@ -209,7 +209,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                     ]
 
                 viewMergeResultRow : MergeResult -> Html Msg
-                viewMergeResultRow { id, runs, partialatorAdditional, state } =
+                viewMergeResultRow { id, runs, partialatorAdditional, state, refinementResults } =
                     let
                         remainingHeaders =
                             List.length mergeRowHeaders - 1
@@ -271,7 +271,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                             [ icon { name = "card-list" }
                                             , a
                                                 [ class "link-primary"
-                                                , onClick (OpenMergeResultDetail { id = id, fom = fom, shell_foms = shells })
+                                                , onClick (OpenMergeResultDetail { id = id, fom = fom, shell_foms = shells, refinementResults = refinementResults })
                                                 ]
                                                 [ text "Details" ]
                                             ]
@@ -369,7 +369,7 @@ modalMergeResultDetail m =
             Dialog.view
                 (Just <|
                     { header = Just (span_ [ text "Merge results overview - ID: ", text <| String.fromInt mr.id ])
-                    , body = Just <| span_ [ modalBodyShells mr.fom mr.shell_foms ]
+                    , body = Just <| span_ [ modalBodyShells mr.fom mr.shell_foms mr.refinementResults ]
                     , closeMessage = Just CloseMergeResultDetail
                     , containerClass = Nothing
                     , modalDialogClass = Just "modal-dialog modal-xl"
@@ -381,8 +381,8 @@ modalMergeResultDetail m =
             text ""
 
 
-modalBodyShells : MergeFom -> List MergeShellFom -> Html Msg
-modalBodyShells fom shells =
+modalBodyShells : MergeFom -> List MergeShellFom -> List RefinementResult -> Html Msg
+modalBodyShells fom shells refinementResults =
     let
         singleShellRow : MergeShellFom -> Html Msg
         singleShellRow shellRow =
@@ -410,8 +410,42 @@ modalBodyShells fom shells =
                 , td_ [ text <| formatFloatHumanFriendly fom.cc ]
                 , td_ [ text <| formatFloatHumanFriendly fom.ccStar ]
                 ]
+
+        uglymol : Int -> Int -> String -> Html msg
+        uglymol pdbId mtzId prefix =
+            node "uglymol-viewer" [ attribute "pdbid" (String.fromInt pdbId), attribute "mtzid" (String.fromInt mtzId), attribute "idprefix" prefix ] []
+
+        viewRefinementResult : RefinementResult -> Html msg
+        viewRefinementResult { id, pdbFileId, mtzFileId, rFree, rWork, rmsBondAngle, rmsBondLength } =
+            div_
+                [ uglymol pdbFileId mtzFileId ("refinement-" ++ String.fromInt id)
+                , div [ class "d-flex" ]
+                    [ span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId) ] [ text "PDB" ] ]
+                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink mtzFileId) ] [ text "MTZ" ] ]
+                    ]
+                , div_
+                    [ table [ class "table table-sm" ]
+                        [ thead_
+                            [ tr_
+                                [ th_ [ text "R", Html.sub [] [ text "free" ] ]
+                                , th_ [ text "R", Html.sub [] [ text "work" ] ]
+                                , th_ [ text "RMS Bond Angle" ]
+                                , th_ [ text "RMS Bond Length" ]
+                                ]
+                            ]
+                        , tbody_
+                            [ tr_
+                                [ td_ [ text (formatFloatHumanFriendly rFree) ]
+                                , td_ [ text (formatFloatHumanFriendly rWork) ]
+                                , td_ [ text (formatFloatHumanFriendly rmsBondAngle) ]
+                                , td_ [ text (formatFloatHumanFriendly rmsBondLength) ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
     in
-    div_
+    div_ <|
         [ h5_ [ text "Figures of merit" ]
         , table [ class "table table-striped table-sm" ]
             [ thead_
@@ -430,6 +464,15 @@ modalBodyShells fom shells =
             , tbody_ (List.append (List.map singleShellRow (List.sortBy .oneOverDCentre shells)) [ overallRow ])
             ]
         ]
+            ++ (if List.isEmpty refinementResults then
+                    []
+
+                else
+                    [ h5_ [ text "Refinement results" ]
+                    , p [ class "text-muted" ] [ text "The view below controls just like Coot! However, sulphur is more green, and here we also have colors for Mg, P, Cl, Ca, Mn, Fe, Ni." ]
+                    ]
+                        ++ List.map viewRefinementResult refinementResults
+               )
 
 
 view : Model -> Html Msg
