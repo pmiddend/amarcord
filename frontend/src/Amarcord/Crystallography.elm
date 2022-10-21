@@ -156,13 +156,17 @@ cellDescriptionParser =
 
 validateCellDescription : String -> Result (Html msg) ()
 validateCellDescription input =
-    case Parser.run cellDescriptionParser input of
-        Err deadEnds ->
-            Err <|
-                div_
-                    [ p_ [ text "Invalid cell description “", em_ [ text input ], text "”." ]
-                    , deadEndsToHtml True deadEnds
-                    ]
+    if String.isEmpty input then
+        Ok ()
 
-        Ok _ ->
-            Ok ()
+    else
+        case Parser.run cellDescriptionParser input of
+            Err deadEnds ->
+                Err <|
+                    div_
+                        [ p_ [ text "Invalid cell description “", em_ [ text input ], text "”." ]
+                        , deadEndsToHtml True deadEnds
+                        ]
+
+            Ok _ ->
+                Ok ()
