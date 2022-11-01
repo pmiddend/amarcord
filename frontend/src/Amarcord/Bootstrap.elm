@@ -4,7 +4,7 @@ import Amarcord.API.Requests exposing (RequestError)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Html exposing (div_, h4_, p_)
 import Html exposing (Html, div, i, span, text)
-import Html.Attributes exposing (attribute, class, classList, style)
+import Html.Attributes exposing (attribute, class, classList)
 import List
 import RemoteData exposing (RemoteData(..))
 import String
@@ -14,14 +14,18 @@ type alias Icon =
     { name : String }
 
 
-spinner : Int -> Html msg
-spinner scaleFactor =
-    div [ class "spinner-border", attribute "role" "status", style "scale" (String.fromInt scaleFactor ++ "%") ] [ span [ class "visually-hidden" ] [] ]
+spinner : Bool -> Html msg
+spinner small =
+    div
+        [ classList [ ( "spinner-border", True ), ( "spinner-border-sm", small ) ]
+        , attribute "role" "status"
+        ]
+        [ span [ class "visually-hidden" ] [] ]
 
 
 loadingBar : String.String -> Html msg
 loadingBar message =
-    div [ class "d-flex align-items-center justify-content-center" ] [ div [ class "text-end me-3" ] [ spinner 100 ], div [] [ h4_ [ text message ] ] ]
+    div [ class "d-flex align-items-center justify-content-center" ] [ div [ class "text-end me-3" ] [ spinner False ], div [] [ h4_ [ text message ] ] ]
 
 
 icon : Icon -> Html msg

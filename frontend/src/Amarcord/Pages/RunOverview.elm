@@ -374,7 +374,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                     else
                         div [ class "pb-3 pt-1", style "display" "flex" ]
                             [ div [ class "text-secondary ", style "flex" "0 0 5%" ]
-                                [ spinner 50 ]
+                                [ spinner True ]
                             , div [ class "text-secondary align-bottom", style "flex" "1" ]
                                 [ text
                                     (String.join ", " (List.map String.fromInt runIdsWithRunningIndexingJobs)
@@ -387,7 +387,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                     case ( runStarted, runStopped ) of
                         ( Just started, Nothing ) ->
                             [ h1_
-                                [ span [ class "text-success" ] [ spinner 100 ]
+                                [ span [ class "text-success" ] [ spinner False ]
                                 , text <| " Run " ++ fromInt id
                                 ]
                             , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now started ]
