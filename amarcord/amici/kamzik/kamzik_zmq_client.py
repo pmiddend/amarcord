@@ -172,7 +172,7 @@ async def ingest_kamzik_metadata(
                     f"we have a type change, type before: {existing_attributo.attributo_type}, type after: {attributo_type}"
                 )
 
-    attributi = await db.retrieve_attributi(conn, associated_table=AssociatedTable.RUN)
+    attributi = await db.retrieve_attributi(conn, associated_table=None)
     existing_run = await db.retrieve_run(conn, run_id, attributi)
     kamzik_attributi_map = AttributiMap.from_types_and_json(
         attributi,
