@@ -220,10 +220,17 @@ async def _update_indexing_fom(
 
 async def _process_finished_indexing_job(
     log: BoundLogger,
+    indexing_result_id: int,
+    run_id: int,
+    config: CrystFELOnlineConfig,
     runtime_status: DBIndexingResultRunning,
 ) -> DBIndexingResultRuntimeStatus:
     log.info("finished, calculating final FoM")
-    fom = calculate_indexing_fom_fast(log, runtime_status.stream_file)
+    fom = calculate_indexing_fom_fast(
+        log,
+        config.output_base_directory
+        / f"run_{run_id}_indexing_{indexing_result_id}_stderr.txt",
+    )
     if fom is None:
         log.info("final FoM calculation failed")
         return DBIndexingResultDone(
@@ -265,7 +272,13 @@ async def _indexing_loop_single_iteration(
                 log, config, indexing_result, indexing_result.runtime_status
             )
         # Job has finished somehow (could be erroneous)
-        return await _process_finished_indexing_job(log, indexing_result.runtime_status)
+        return await _process_finished_indexing_job(
+            log,
+            indexing_result_id=indexing_result.id,
+            run_id=indexing_result.run_id,
+            config=config,
+            runtime_status=indexing_result.runtime_status,
+        )
     # Nothing to do for jobs that are done (we could filter them via SQL beforehand if it's too much to handle).
     assert isinstance(indexing_result.runtime_status, DBIndexingResultDone)
     return None
