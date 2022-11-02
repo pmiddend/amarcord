@@ -55,11 +55,27 @@ type alias DetailMerge =
     { id : Int, fom : MergeFom, shell_foms : List MergeShellFom }
 
 
+type alias MergeRequest =
+    { dataSetId : Int
+    , request : RemoteData RequestError ()
+    }
+
+
+mergeRequestIsLoading : Maybe MergeRequest -> Bool
+mergeRequestIsLoading x =
+    case x of
+        Nothing ->
+            False
+
+        Just { request } ->
+            isLoading request
+
+
 type alias Model =
     { hereAndNow : HereAndNow
     , analysisRequest : RemoteData RequestError AnalysisResultsRoot
     , activatedMergeForm : Maybe ActivatedMergeForm
-    , mergeRequest : RemoteData RequestError ()
+    , mergeRequest : Maybe MergeRequest
     , selectedMergeResult : SelectedMergeResult
     }
 
@@ -69,14 +85,14 @@ init hereAndNow =
     ( { hereAndNow = hereAndNow
       , analysisRequest = Loading
       , activatedMergeForm = Nothing
-      , mergeRequest = NotAsked
+      , mergeRequest = Nothing
       , selectedMergeResult = NoMergeResultSelected
       }
     , httpGetAnalysisResults AnalysisResultsReceived
     )
 
 
-viewInner : HereAndNow -> RemoteData RequestError () -> Maybe ActivatedMergeForm -> AnalysisResultsRoot -> List (Html Msg)
+viewInner : HereAndNow -> Maybe MergeRequest -> Maybe ActivatedMergeForm -> AnalysisResultsRoot -> List (Html Msg)
 viewInner hereAndNow mergeRequest activatedMergeForm { experimentTypes, attributi, chemicalIdToName, dataSets } =
     List.map
         (\experimentType ->
@@ -95,7 +111,7 @@ viewInner hereAndNow mergeRequest activatedMergeForm { experimentTypes, attribut
 viewResultsTableForSingleExperimentType :
     List (Attributo AttributoType)
     -> HereAndNow
-    -> RemoteData RequestError ()
+    -> Maybe MergeRequest
     -> Maybe ActivatedMergeForm
     -> Dict Int String
     -> ExperimentType
@@ -128,14 +144,14 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                 [ type_ "button"
                                 , class "btn btn-sm btn-outline-primary"
                                 , onClick (QuickStartMerge dataSet.id)
-                                , disabled (isLoading mergeRequest)
+                                , disabled (mergeRequestIsLoading mergeRequest)
                                 ]
                                 [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
                             , button
                                 [ type_ "button"
                                 , class "btn btn-sm btn-outline-secondary"
                                 , onClick (StartMerge dataSet.id)
-                                , disabled (isLoading mergeRequest)
+                                , disabled (mergeRequestIsLoading mergeRequest)
                                 ]
                                 [ icon { name = "send" }, text <| " Merge" ]
                             ]
@@ -157,14 +173,14 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                             [ type_ "button"
                                             , class "btn btn-sm btn-success"
                                             , onClick (SubmitMerge dataSet.id partialatorAdditional)
-                                            , disabled (isLoading mergeRequest)
+                                            , disabled (mergeRequestIsLoading mergeRequest)
                                             ]
                                             [ icon { name = "send" } ]
                                         , button
                                             [ type_ "button"
                                             , class "btn btn-sm btn-warning"
                                             , onClick CancelMerge
-                                            , disabled (isLoading mergeRequest)
+                                            , disabled (mergeRequestIsLoading mergeRequest)
                                             ]
                                             [ icon { name = "x" } ]
                                         ]
@@ -307,6 +323,17 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                 tr [ style "border-bottom" "1pt solid black" ]
                     [ td [ colspan 7, style "padding-left" "2em", class "text-muted" ]
                         [ h5_ [ icon { name = "diagram-2" }, text "Merge results" ]
+                        , case mergeRequest of
+                            Nothing ->
+                                text ""
+
+                            Just { request } ->
+                                case request of
+                                    Failure e ->
+                                        div_ [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
+
+                                    _ ->
+                                        text ""
                         , table
                             [ class "table table-sm text-muted", style "font-size" "0.8rem", style "margin-bottom" "4rem" ]
                             [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) mergeRowHeaders) ]
@@ -432,7 +459,7 @@ update msg model =
             ( { model | activatedMergeForm = Just { dataSetId = dataSetId, partialatorAdditional = "" } }, Cmd.none )
 
         QuickStartMerge dataSetId ->
-            ( { model | activatedMergeForm = Nothing, mergeRequest = Loading }, httpStartMergeJobForDataSet MergeFinished dataSetId "" )
+            ( { model | activatedMergeForm = Nothing, mergeRequest = Just { dataSetId = dataSetId, request = Loading } }, httpStartMergeJobForDataSet MergeFinished dataSetId "" )
 
         CancelMerge ->
             ( { model | activatedMergeForm = Nothing }, Cmd.none )
@@ -443,10 +470,15 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just _ ->
-                    ( { model | mergeRequest = Loading }, httpStartMergeJobForDataSet MergeFinished dataSetId partialatorAdditional )
+                    ( { model | mergeRequest = Just { dataSetId = dataSetId, request = Loading } }, httpStartMergeJobForDataSet MergeFinished dataSetId partialatorAdditional )
 
-        MergeFinished _ ->
-            ( { model | mergeRequest = Success (), activatedMergeForm = Nothing }, httpGetAnalysisResults AnalysisResultsReceived )
+        MergeFinished result ->
+            case model.mergeRequest of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just { dataSetId } ->
+                    ( { model | mergeRequest = Just { dataSetId = dataSetId, request = RemoteData.fromResult result } }, httpGetAnalysisResults AnalysisResultsReceived )
 
         Refresh posix ->
             let
