@@ -299,8 +299,8 @@ type alias MergeShellFom =
 
 type alias MergeFom =
     { snr : Float
-    , wilson : Float
-    , lnK : Float
+    , wilson : Maybe Float
+    , lnK : Maybe Float
     , discardedReflections : Int
     , oneOverDFrom : Float
     , oneOverDTo : Float
@@ -328,8 +328,8 @@ mergeFomDecoder : Decode.Decoder MergeFom
 mergeFomDecoder =
     Decode.succeed MergeFom
         |> required "snr" Decode.float
-        |> required "wilson" Decode.float
-        |> required "ln-k" Decode.float
+        |> required "wilson" (Decode.maybe Decode.float)
+        |> required "ln-k" (Decode.maybe Decode.float)
         |> required "discarded-reflections" Decode.int
         |> required "one-over-d-from" Decode.float
         |> required "one-over-d-to" Decode.float

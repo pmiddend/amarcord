@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import math
 import multiprocessing
 import re
 import shlex
@@ -516,8 +517,8 @@ def generate_output(args: ParsedArgs) -> None:
         "detailed_foms": extract_shell_resolutions(),
         "fom": {
             "snr": snr,
-            "wilson": wilson,
-            "ln_k": ln_k,
+            "wilson": None if math.isnan(wilson) else wilson,
+            "ln_k": None if math.isnan(ln_k) else ln_k,
             "discarded_reflections": discarded_reflections,
             "one_over_d_from": one_over_d_from,
             "one_over_d_to": one_over_d_to,

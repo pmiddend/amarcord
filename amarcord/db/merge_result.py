@@ -18,8 +18,8 @@ class MergeResultOuterShell(BaseModel):
 
 class MergeResultFom(BaseModel):
     snr: float
-    wilson: float
-    ln_k: float
+    wilson: None | float
+    ln_k: None | float
     discarded_reflections: int
     one_over_d_from: float
     one_over_d_to: float

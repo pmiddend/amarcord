@@ -262,7 +262,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                         , floatWithShell fom.redundancy fom.outerShell.redundancy
                                         , floatWithShell fom.cc fom.outerShell.cc
                                         , floatWithShell fom.ccStar fom.outerShell.ccStar
-                                        , td_ [ text <| formatFloatHumanFriendly fom.wilson ]
+                                        , td_ [ text <| Maybe.withDefault "" <| Maybe.map formatFloatHumanFriendly fom.wilson ]
                                         , td_
                                             [ icon { name = "file-binary" }
                                             , a [ href (makeFilesLink mtzFileId) ] [ text "MTZ" ]
