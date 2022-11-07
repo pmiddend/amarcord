@@ -284,25 +284,7 @@ async def _indexing_loop_single_iteration(
     return None
 
 
-async def _start_queued_indexing_jobs(
-    db: AsyncDB, workload_manager: WorkloadManager, config: CrystFELOnlineConfig
-) -> None:
-    async with db.read_only_connection() as conn:
-        for indexing_result in await db.retrieve_indexing_results(conn):
-            if indexing_result.runtime_status is None:
-                new_status = await start_indexing_job(
-                    workload_manager, config, indexing_result
-                )
-                if new_status is not None:
-                    async with db.begin() as conn:
-                        await db.update_indexing_result_status(
-                            conn,
-                            indexing_result_id=indexing_result.id,
-                            runtime_status=new_status,
-                        )
-
-
-async def _update_running_indexing_jobs(
+async def _indexing_loop_iteration(
     db: AsyncDB, workload_manager: WorkloadManager, config: CrystFELOnlineConfig
 ) -> None:
     async with db.read_only_connection() as conn:
@@ -322,35 +304,18 @@ async def _update_running_indexing_jobs(
                 )
 
 
-async def indexing_start_new_job_loop(
+async def indexing_loop(
     db: AsyncDB,
     workload_manager: WorkloadManager,
     config: CrystFELOnlineConfig,
     sleep_seconds: float,
 ) -> None:
-    logger.info("starting Online CrystFEL indexing start new job loop")
+    logger.info("starting Online CrystFEL indexing loop")
     while True:
         async with db.read_only_connection() as conn:
             user_config = await db.retrieve_configuration(conn)
 
         if user_config.use_online_crystfel:
-            await _start_queued_indexing_jobs(db, workload_manager, config)
-
-        await asyncio.sleep(sleep_seconds)
-
-
-async def indexing_update_loop(
-    db: AsyncDB,
-    workload_manager: WorkloadManager,
-    config: CrystFELOnlineConfig,
-    sleep_seconds: float,
-) -> None:
-    logger.info("starting Online CrystFEL indexing update jobs loop")
-    while True:
-        async with db.read_only_connection() as conn:
-            user_config = await db.retrieve_configuration(conn)
-
-        if user_config.use_online_crystfel:
-            await _update_running_indexing_jobs(db, workload_manager, config)
+            await _indexing_loop_iteration(db, workload_manager, config)
 
         await asyncio.sleep(sleep_seconds)
