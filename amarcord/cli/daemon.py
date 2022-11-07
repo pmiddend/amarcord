@@ -8,7 +8,8 @@ from tap import Tap
 from zmq.asyncio import Context
 
 from amarcord.amici.crystfel.indexing_daemon import CrystFELOnlineConfig
-from amarcord.amici.crystfel.indexing_daemon import indexing_loop
+from amarcord.amici.crystfel.indexing_daemon import indexing_start_new_job_loop
+from amarcord.amici.crystfel.indexing_daemon import indexing_update_loop
 from amarcord.amici.crystfel.merge_daemon import MergeConfig
 from amarcord.amici.crystfel.merge_daemon import merging_loop
 from amarcord.amici.kamzik.kamzik_zmq_client import kamzik_main_loop
@@ -51,7 +52,9 @@ class Arguments(Tap):
     mjpeg_stream_url: Optional[str] = None
     mjpeg_stream_delay_seconds: float = 5.0
     # pylint: disable=consider-alternative-union-syntax
-    online_crystfel_delay_seconds: Optional[float] = None
+    online_crystfel_update_delay_seconds: Optional[float] = None
+    # pylint: disable=consider-alternative-union-syntax
+    online_crystfel_start_new_delay_seconds: Optional[float] = None
     # pylint: disable=consider-alternative-union-syntax
     online_crystfel_output_base_directory: Optional[Path] = None
     # pylint: disable=consider-alternative-union-syntax
@@ -107,29 +110,40 @@ async def _main_loop(args: Arguments) -> None:
         )
 
     if (
-        args.online_crystfel_delay_seconds is not None
+        args.online_crystfel_update_delay_seconds is not None
+        and args.online_crystfel_start_new_delay_seconds is not None
         and args.online_crystfel_output_base_directory is not None
         and args.online_crystfel_indexing_script_path is not None
         and args.online_crystfel_workload_manager_uri is not None
         and args.online_crystfel_chemical_attributo is not None
         and args.online_crystfel_cell_file_path is not None
     ):
+        workload_manager = create_workload_manager(
+            parse_workload_manager_config(args.online_crystfel_workload_manager_uri)
+        )
+        crystfel_config = CrystFELOnlineConfig(
+            args.online_crystfel_output_base_directory,
+            args.online_crystfel_cell_file_path,
+            args.online_crystfel_indexing_script_path,
+            AttributoId(args.online_crystfel_chemical_attributo),
+        )
         awaitables.append(
             asyncio.create_task(
-                indexing_loop(
+                indexing_update_loop(
                     db,
-                    create_workload_manager(
-                        parse_workload_manager_config(
-                            args.online_crystfel_workload_manager_uri
-                        )
-                    ),
-                    CrystFELOnlineConfig(
-                        args.online_crystfel_output_base_directory,
-                        args.online_crystfel_cell_file_path,
-                        args.online_crystfel_indexing_script_path,
-                        AttributoId(args.online_crystfel_chemical_attributo),
-                    ),
-                    args.online_crystfel_delay_seconds,
+                    workload_manager,
+                    crystfel_config,
+                    args.online_crystfel_update_delay_seconds,
+                )
+            )
+        )
+        awaitables.append(
+            asyncio.create_task(
+                indexing_start_new_job_loop(
+                    db,
+                    workload_manager,
+                    crystfel_config,
+                    args.online_crystfel_start_new_delay_seconds,
                 )
             )
         )
