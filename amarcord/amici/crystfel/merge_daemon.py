@@ -313,6 +313,14 @@ async def _merging_loop_single_result(
         JobStatus.FAILED,
         JobStatus.SUCCESSFUL,
     ):
+        if workload_job is None:
+            result_logger.info(
+                f"finished because not in SLURM REST job list anymore (available jobs: {jobs_on_workload_manager.keys()})"
+            )
+        else:
+            result_logger.info(
+                f"finished because SLURM REST job status is {workload_job.status}"
+            )
         # Job has finished somehow (could be erroneous)
         return await _process_finished_job(
             job_logger, config, merge_result, merge_result.runtime_status
