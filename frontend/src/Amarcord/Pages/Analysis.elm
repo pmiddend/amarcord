@@ -459,7 +459,7 @@ update msg model =
             ( { model | activatedMergeForm = Just { dataSetId = dataSetId, partialatorAdditional = "" } }, Cmd.none )
 
         QuickStartMerge dataSetId ->
-            ( { model | activatedMergeForm = Nothing, mergeRequest = Just { dataSetId = dataSetId, request = Loading } }, httpStartMergeJobForDataSet MergeFinished dataSetId "" )
+            ( { model | activatedMergeForm = Nothing, mergeRequest = Just { dataSetId = dataSetId, request = Loading } }, httpStartMergeJobForDataSet MergeFinished dataSetId "--iterations=3" )
 
         CancelMerge ->
             ( { model | activatedMergeForm = Nothing }, Cmd.none )
