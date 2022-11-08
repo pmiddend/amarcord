@@ -88,11 +88,13 @@ AUTO_PILOT: Final = "auto-pilot"
 ONLINE_CRYSTFEL: Final = "online-crystfel"
 DATE_FORMAT: Final = "%Y-%m-%d"
 
+hardcoded_static_folder: None | str = None
+
 app = Quart(
     __name__,
-    static_folder=os.environ.get(
-        "AMARCORD_STATIC_FOLDER", os.getcwd() + "/frontend/output"
-    ),
+    static_folder=hardcoded_static_folder
+    if hardcoded_static_folder is not None
+    else os.getcwd() + "/frontend/output",
     static_url_path="/",
 )
 

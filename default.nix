@@ -31,8 +31,8 @@ let
     });
   pythonPackage = poetry2nix.mkPoetryApplication {
     projectDir = ./.;
-    postInstall = ''
-      wrapProgram $out/bin/amarcord-webserver --set AMARCORD_STATIC_FOLDER ${frontend}/
+    postPatch = ''
+      sed -e 's#^hardcoded_static_folder.*#hardcoded_static_folder = "${frontend}"#' -i amarcord/cli/webserver.py
     '';
     overrides = poetryOverrides;
   };
@@ -53,12 +53,8 @@ in
 
     copyToRoot = pkgs.buildEnv {
       name = "image-root";
-      paths = [ pythonPackage frontend ];
+      paths = [ pythonPackage ];
       pathsToLink = [ "/bin" ];
-    };
-
-    config = {
-      Env = [ "AMARCORD_STATIC_FOLDER=${frontend}" ];
     };
   };
   skopeoShell = pkgs.mkShell {
