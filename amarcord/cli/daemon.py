@@ -51,8 +51,6 @@ class Arguments(Tap):
     mjpeg_stream_url: Optional[str] = None
     mjpeg_stream_delay_seconds: float = 5.0
     # pylint: disable=consider-alternative-union-syntax
-    online_crystfel_delay_seconds: Optional[float] = None
-    # pylint: disable=consider-alternative-union-syntax
     online_crystfel_output_base_directory: Optional[Path] = None
     # pylint: disable=consider-alternative-union-syntax
     online_crystfel_cell_file_path: Optional[Path] = None
@@ -62,7 +60,6 @@ class Arguments(Tap):
     online_crystfel_chemical_attributo: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
     online_crystfel_workload_manager_uri: Optional[str] = None
-    merge_daemon_delay_seconds: float = 5.0
     # pylint: disable=consider-alternative-union-syntax
     merge_daemon_workload_manager_uri: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
@@ -90,7 +87,7 @@ async def _main_loop(args: Arguments) -> None:
         awaitables.append(
             asyncio.create_task(
                 merging_loop(
-                    db,
+                    db=db,
                     config=MergeConfig(
                         args.merge_daemon_output_base_directory,
                         args.merge_daemon_merge_script_path,
@@ -101,14 +98,12 @@ async def _main_loop(args: Arguments) -> None:
                             args.merge_daemon_workload_manager_uri
                         )
                     ),
-                    sleep_seconds=args.merge_daemon_delay_seconds,
                 )
             )
         )
 
     if (
-        args.online_crystfel_delay_seconds is not None
-        and args.online_crystfel_output_base_directory is not None
+        args.online_crystfel_output_base_directory is not None
         and args.online_crystfel_indexing_script_path is not None
         and args.online_crystfel_workload_manager_uri is not None
         and args.online_crystfel_chemical_attributo is not None
@@ -117,19 +112,18 @@ async def _main_loop(args: Arguments) -> None:
         awaitables.append(
             asyncio.create_task(
                 indexing_loop(
-                    db,
-                    create_workload_manager(
+                    db=db,
+                    workload_manager=create_workload_manager(
                         parse_workload_manager_config(
                             args.online_crystfel_workload_manager_uri
                         )
                     ),
-                    CrystFELOnlineConfig(
+                    config=CrystFELOnlineConfig(
                         args.online_crystfel_output_base_directory,
                         args.online_crystfel_cell_file_path,
                         args.online_crystfel_indexing_script_path,
                         AttributoId(args.online_crystfel_chemical_attributo),
                     ),
-                    args.online_crystfel_delay_seconds,
                 )
             )
         )

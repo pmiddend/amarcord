@@ -11,13 +11,13 @@ from structlog.stdlib import BoundLogger
 from amarcord.amici.crystfel.util import make_cell_file_name
 from amarcord.amici.crystfel.util import parse_cell_description
 from amarcord.amici.crystfel.util import write_cell_file
-from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import DBIndexingResultDone
@@ -247,55 +247,22 @@ async def _process_finished_indexing_job(
     )
 
 
-async def _indexing_loop_single_iteration(
-    indexing_result: DBIndexingResultOutput,
-    workload_manager: WorkloadManager,
-    config: CrystFELOnlineConfig,
-    jobs_on_workload_manager: dict[int, Job],
-) -> None | DBIndexingResultRuntimeStatus:
-    if indexing_result.runtime_status is None:
-        return await start_indexing_job(workload_manager, config, indexing_result)
-    if isinstance(indexing_result.runtime_status, DBIndexingResultRunning):
-        log = logger.bind(job_id=indexing_result.runtime_status.job_id)
-        # This is reserved for Om indexing
-        if indexing_result.runtime_status.job_id == 0:
-            return None
-        workload_job = jobs_on_workload_manager.get(
-            indexing_result.runtime_status.job_id
-        )
-        # Job is still running, also on SLURM.
-        if workload_job is not None and workload_job.status not in (
-            JobStatus.FAILED,
-            JobStatus.SUCCESSFUL,
-        ):
-            return await _update_indexing_fom(
-                log, config, indexing_result, indexing_result.runtime_status
-            )
-        # Job has finished somehow (could be erroneous)
-        return await _process_finished_indexing_job(
-            log,
-            indexing_result_id=indexing_result.id,
-            run_id=indexing_result.run_id,
-            config=config,
-            runtime_status=indexing_result.runtime_status,
-        )
-    # Nothing to do for jobs that are done (we could filter them via SQL beforehand if it's too much to handle).
-    assert isinstance(indexing_result.runtime_status, DBIndexingResultDone)
-    return None
-
-
-async def _indexing_loop_iteration(
+async def _start_new_jobs(
     db: AsyncDB, workload_manager: WorkloadManager, config: CrystFELOnlineConfig
 ) -> None:
-    async with db.read_only_connection() as conn:
-        indexing_results = await db.retrieve_indexing_results(conn)
 
-    jobs_on_workload_manager = {j.id: j for j in await workload_manager.list_jobs()}
-    for indexing_result in indexing_results:
-        new_status = await _indexing_loop_single_iteration(
-            indexing_result, workload_manager, config, jobs_on_workload_manager
+    async with db.read_only_connection() as conn:
+        queued_indexing_results = await db.retrieve_indexing_results(
+            conn, DBJobStatus.QUEUED
         )
-        if new_status is not None:
+
+    if queued_indexing_results:
+        for indexing_result in queued_indexing_results:
+            logger.info(f"starting indexing job for run {indexing_result.run_id}")
+            new_status = await start_indexing_job(
+                workload_manager, config, indexing_result
+            )
+
             async with db.begin() as conn:
                 await db.update_indexing_result_status(
                     conn,
@@ -303,19 +270,91 @@ async def _indexing_loop_iteration(
                     runtime_status=new_status,
                 )
 
+            logger.info("new indexing job submitted, taking a long break")
+            await asyncio.sleep(20)
+    else:
+        logger.info("no new indexing jobs to submit, take a break")
+        await asyncio.sleep(1)
 
-async def indexing_loop(
+
+async def _update_jobs(
+    db: AsyncDB, workload_manager: WorkloadManager, config: CrystFELOnlineConfig
+) -> None:
+
+    jobs_on_workload_manager = {j.id: j for j in await workload_manager.list_jobs()}
+
+    async with db.read_only_connection() as conn:
+        db_jobs = await db.retrieve_indexing_results(conn, DBJobStatus.RUNNING)
+
+    for indexing_result in db_jobs:
+        if isinstance(indexing_result.runtime_status, DBIndexingResultRunning):
+            log = logger.bind(job_id=indexing_result.runtime_status.job_id)
+
+            log.info(f"update job status, run id {indexing_result.run_id}")
+            workload_job = jobs_on_workload_manager.get(
+                indexing_result.runtime_status.job_id
+            )
+            # Job is still running, also on SLURM.
+            if workload_job is not None and workload_job.status not in (
+                JobStatus.FAILED,
+                JobStatus.SUCCESSFUL,
+            ):
+                log.info(f"job for run id {indexing_result.run_id} still running")
+                new_status = await _update_indexing_fom(
+                    log, config, indexing_result, indexing_result.runtime_status
+                )
+
+            # Job has finished somehow (could be erroneous)
+            else:
+                log.info(f"job for run id {indexing_result.run_id} done")
+                new_status = await _process_finished_indexing_job(
+                    log,
+                    indexing_result_id=indexing_result.id,
+                    run_id=indexing_result.run_id,
+                    config=config,
+                    runtime_status=indexing_result.runtime_status,
+                )
+
+            async with db.begin() as conn:
+                await db.update_indexing_result_status(
+                    conn,
+                    indexing_result_id=indexing_result.id,
+                    runtime_status=new_status,
+                )
+
+    logger.info("indexing jobs stati updated, take a (longer) break")
+    await asyncio.sleep(20)
+
+
+async def _indexing_loop_iteration(
     db: AsyncDB,
     workload_manager: WorkloadManager,
     config: CrystFELOnlineConfig,
-    sleep_seconds: float,
+    start_new_jobs: bool,
+) -> None:
+
+    if start_new_jobs:
+        logger.info("starting new indexing jobs")
+        await _start_new_jobs(db, workload_manager, config)
+
+    else:
+        logger.info("updating indexing jobs status")
+        await _update_jobs(db, workload_manager, config)
+
+
+async def indexing_loop(
+    db: AsyncDB, workload_manager: WorkloadManager, config: CrystFELOnlineConfig
 ) -> None:
     logger.info("starting Online CrystFEL indexing loop")
+
+    counter = 0
     while True:
         async with db.read_only_connection() as conn:
             user_config = await db.retrieve_configuration(conn)
 
         if user_config.use_online_crystfel:
-            await _indexing_loop_iteration(db, workload_manager, config)
+            await _indexing_loop_iteration(
+                db, workload_manager, config, counter % 30 != 0
+            )
 
-        await asyncio.sleep(sleep_seconds)
+        counter += 1

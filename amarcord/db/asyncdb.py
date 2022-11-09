@@ -1375,7 +1375,7 @@ class AsyncDB:
             await self.update_run_attributi(conn, run.id, run.attributi)
 
     async def retrieve_indexing_results(
-        self, conn: Connection
+        self, conn: Connection, job_status_filter: None | DBJobStatus = None
     ) -> list[DBIndexingResultOutput]:
         ir = self.tables.indexing_result
 
@@ -1414,6 +1414,10 @@ class AsyncDB:
                         ir.c.job_status,
                         ir.c.job_error,
                     ]
+                ).where(
+                    ir.c.job_status == job_status_filter
+                    if job_status_filter is not None
+                    else True
                 )
             )
         ]
@@ -1634,7 +1638,7 @@ class AsyncDB:
         return mr_id  # type: ignore
 
     async def retrieve_merge_results(
-        self, conn: Connection
+        self, conn: Connection, job_status_filter: None | DBJobStatus = None
     ) -> list[DBMergeResultOutput]:
         indexing_results_by_id: dict[int, DBIndexingResultOutput] = {
             ir.id: ir for ir in await self.retrieve_indexing_results(conn)
@@ -1797,6 +1801,10 @@ class AsyncDB:
                     mr.fom_outer_min_res,
                     mr.fom_outer_max_res,
                 ]
+            ).where(
+                mr.job_status == job_status_filter
+                if job_status_filter is not None
+                else True
             )
         )
 

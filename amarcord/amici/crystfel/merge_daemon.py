@@ -13,11 +13,11 @@ from structlog.stdlib import BoundLogger
 
 from amarcord.amici.crystfel.util import make_cell_file_name
 from amarcord.amici.crystfel.util import write_cell_file
-from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.db_merge_result import DBMergeResultOutput
 from amarcord.db.db_merge_result import DBMergeRuntimeStatus
 from amarcord.db.db_merge_result import DBMergeRuntimeStatusDone
@@ -225,118 +225,140 @@ async def _process_finished_job(
     )
 
 
-async def _merging_loop_iteration(
+async def _start_new_jobs(
     db: AsyncDB, workload_manager: WorkloadManager, config: MergeConfig
 ) -> None:
     async with db.read_only_connection() as conn:
-        merge_results = await db.retrieve_merge_results(conn)
+        merge_results = await db.retrieve_merge_results(conn, DBJobStatus.QUEUED)
 
-    jobs_on_workload_manager = {j.id: j for j in await workload_manager.list_jobs()}
-    for merge_result in merge_results:
-        result_logger = logger.bind(merge_result_id=merge_result.id)
-        new_status = await _merging_loop_single_result(
-            config,
-            jobs_on_workload_manager,
-            merge_result,
-            result_logger,
-            workload_manager,
-        )
-        if new_status is not None:
+    if merge_results:
+        for merge_result in merge_results:
+            result_logger = logger.bind(merge_result_id=merge_result.id)
+            result_logger.info("starting merge job")
+
+            new_status = await start_merge_job(
+                result_logger, workload_manager, config, merge_result
+            )
+
             async with db.begin() as conn:
-                if isinstance(new_status, DBMergeRuntimeStatusDone) and isinstance(
-                    new_status.result.mtz_file, Path
-                ):
-                    job_directory = _merge_job_directory(config, merge_result)
-                    real_mtz_path = job_directory / new_status.result.mtz_file
-                    try:
-                        file_result = await db.create_file(
-                            conn,
-                            real_mtz_path.name,
-                            description="MTZ output",
-                            original_path=real_mtz_path,
-                            contents_location=real_mtz_path,
-                            deduplicate=False,
-                        )
-                    except:
-                        result_logger.exception("error uploading MTZ file to DB")
-                        await db.update_merge_result_status(
-                            conn,
-                            merge_result.id,
-                            DBMergeRuntimeStatusError(
-                                "Error uploading MTZ file to DB",
-                                new_status.started,
-                                new_status.stopped,
-                                new_status.recent_log,
-                            ),
-                        )
+                await db.update_merge_result_status(conn, merge_result.id, new_status)
+
+            logger.info("new merge job submitted, taking a long break")
+            await asyncio.sleep(20)
+    else:
+        logger.info("no new merge jobs to submit, take a break")
+        await asyncio.sleep(1)
+
+
+async def _update_jobs(
+    db: AsyncDB, workload_manager: WorkloadManager, config: MergeConfig
+) -> None:
+    jobs_on_workload_manager = {j.id: j for j in await workload_manager.list_jobs()}
+
+    async with db.read_only_connection() as conn:
+        db_jobs = await db.retrieve_merge_results(conn, DBJobStatus.RUNNING)
+
+    for merge_result in db_jobs:
+        result_logger = logger.bind(merge_result_id=merge_result.id)
+
+        if not isinstance(merge_result.runtime_status, DBMergeRuntimeStatusRunning):
+            continue
+
+        job_logger = result_logger.bind(job_id=merge_result.runtime_status.job_id)
+        workload_job = jobs_on_workload_manager.get(merge_result.runtime_status.job_id)
+        if workload_job is None or workload_job.status in (
+            JobStatus.FAILED,
+            JobStatus.SUCCESSFUL,
+        ):
+            if workload_job is None:
+                result_logger.info(
+                    f"finished because not in SLURM REST job list anymore (available jobs: {jobs_on_workload_manager.keys()})"
+                )
+            else:
+                result_logger.info(
+                    f"finished because SLURM REST job status is {workload_job.status}"
+                )
+            # Job has finished somehow (could be erroneous)
+            new_status = await _process_finished_job(
+                job_logger, config, merge_result, merge_result.runtime_status
+            )
+        else:
+            new_status = _process_running_job(
+                job_logger, config, merge_result, merge_result.runtime_status
+            )
+
+        if new_status is None:
+            continue
+
+        async with db.begin() as conn:
+            if isinstance(new_status, DBMergeRuntimeStatusDone) and isinstance(
+                new_status.result.mtz_file, Path
+            ):
+                job_directory = _merge_job_directory(config, merge_result)
+                real_mtz_path = job_directory / new_status.result.mtz_file
+                try:
+                    file_result = await db.create_file(
+                        conn,
+                        real_mtz_path.name,
+                        description="MTZ output",
+                        original_path=real_mtz_path,
+                        contents_location=real_mtz_path,
+                        deduplicate=False,
+                    )
+                except:
+                    result_logger.exception("error uploading MTZ file to DB")
                     await db.update_merge_result_status(
                         conn,
                         merge_result.id,
-                        DBMergeRuntimeStatusDone(
-                            started=new_status.started,
-                            stopped=new_status.stopped,
-                            result=MergeResult(
-                                mtz_file=file_result.id,
-                                fom=new_status.result.fom,
-                                detailed_foms=new_status.result.detailed_foms,
-                            ),
-                            recent_log=new_status.recent_log,
+                        DBMergeRuntimeStatusError(
+                            "Error uploading MTZ file to DB",
+                            new_status.started,
+                            new_status.stopped,
+                            new_status.recent_log,
                         ),
                     )
-                else:
-                    await db.update_merge_result_status(
-                        conn, merge_result.id, new_status
-                    )
+                await db.update_merge_result_status(
+                    conn,
+                    merge_result.id,
+                    DBMergeRuntimeStatusDone(
+                        started=new_status.started,
+                        stopped=new_status.stopped,
+                        result=MergeResult(
+                            mtz_file=file_result.id,
+                            fom=new_status.result.fom,
+                            detailed_foms=new_status.result.detailed_foms,
+                        ),
+                        recent_log=new_status.recent_log,
+                    ),
+                )
+            else:
+                await db.update_merge_result_status(conn, merge_result.id, new_status)
+
+    logger.info("merge jobs stati updated, take a (longer) break")
+    await asyncio.sleep(20)
 
 
-async def _merging_loop_single_result(
-    config: MergeConfig,
-    jobs_on_workload_manager: dict[int, Job],
-    merge_result: DBMergeResultOutput,
-    result_logger: BoundLogger,
+async def _merging_loop_iteration(
+    db: AsyncDB,
     workload_manager: WorkloadManager,
-) -> DBMergeRuntimeStatus:
-    # Nothing to do for jobs that are done (we could filter them via SQL beforehand if it's too much to handle).
-    if isinstance(
-        merge_result.runtime_status,
-        (DBMergeRuntimeStatusDone, DBMergeRuntimeStatusError),
-    ):
-        return None
-    if merge_result.runtime_status is None:
-        return await start_merge_job(
-            result_logger, workload_manager, config, merge_result
-        )
-    assert isinstance(merge_result.runtime_status, DBMergeRuntimeStatusRunning)
-    job_logger = result_logger.bind(job_id=merge_result.runtime_status.job_id)
-    workload_job = jobs_on_workload_manager.get(merge_result.runtime_status.job_id)
-    if workload_job is None or workload_job.status in (
-        JobStatus.FAILED,
-        JobStatus.SUCCESSFUL,
-    ):
-        if workload_job is None:
-            result_logger.info(
-                f"finished because not in SLURM REST job list anymore (available jobs: {jobs_on_workload_manager.keys()})"
-            )
-        else:
-            result_logger.info(
-                f"finished because SLURM REST job status is {workload_job.status}"
-            )
-        # Job has finished somehow (could be erroneous)
-        return await _process_finished_job(
-            job_logger, config, merge_result, merge_result.runtime_status
-        )
-    return _process_running_job(
-        job_logger, config, merge_result, merge_result.runtime_status
-    )
+    config: MergeConfig,
+    start_new_jobs: bool,
+) -> None:
+    if start_new_jobs:
+        logger.info("starting new merging jobs")
+        await _start_new_jobs(db, workload_manager, config)
+    else:
+        logger.info("updating merging jobs status")
+        await _update_jobs(db, workload_manager, config)
 
 
 async def merging_loop(
     db: AsyncDB,
     config: MergeConfig,
     workload_manager: WorkloadManager,
-    sleep_seconds: float,
 ) -> None:
     logger.info("starting CrystFEL merging loop")
+    counter = 0
     while True:
-        await _merging_loop_iteration(db, workload_manager, config)
-        await asyncio.sleep(sleep_seconds)
+        await _merging_loop_iteration(db, workload_manager, config, counter % 30 != 0)
+        counter += 1
