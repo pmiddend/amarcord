@@ -482,11 +482,12 @@ def generate_output(args: ParsedArgs) -> None:
             nshells=args.nshells,
         )
     )
-    wilson_raw = first_group_as_float(wilson_out, r"B = ([^ ]+)")
-    # There is a weird bug in CrystFEL that sometimes leads to these insanely large (1e160) wilson/ln_k numbers
-    wilson = None if wilson_raw > 100000.0 else wilson_raw
-    ln_k_raw = first_group_as_float(wilson_out, r"ln k = ([^\n]+)")
-    ln_k = None if ln_k_raw > 1000000.0 else ln_k_raw
+    try:
+        wilson = first_group_as_float(wilson_out, r"B = ([^ ]+)")
+        ln_k = first_group_as_float(wilson_out, r"ln k = ([^\n]+)")
+    except:
+        wilson = None
+        ln_k = None
 
     rsplit = run_compare_hkl_single_fom(
         args,
@@ -520,8 +521,12 @@ def generate_output(args: ParsedArgs) -> None:
         "detailed_foms": extract_shell_resolutions(),
         "fom": {
             "snr": snr,
-            "wilson": None if math.isnan(wilson) else wilson,
-            "ln_k": None if math.isnan(ln_k) else ln_k,
+            "wilson": None
+            if wilson is None
+            else None
+            if math.isnan(wilson)
+            else wilson,
+            "ln_k": None if ln_k is None else None if math.isnan(ln_k) else ln_k,
             "discarded_reflections": discarded_reflections,
             "one_over_d_from": one_over_d_from,
             "one_over_d_to": one_over_d_to,
