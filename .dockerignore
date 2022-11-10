@@ -1,7 +1,0 @@
-purescript-frontend/.cache/
-purescript-frontend/.spago/
-purescript-frontend/dist/
-purescript-frontend/node_modules/
-purescript-frontend/output/
-venv/
-data/
