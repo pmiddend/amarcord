@@ -82,15 +82,11 @@
         in
         {
           amarcord-python-package = pkgs.amarcord-python-package;
-          amarcord-docker-image = pkgs.dockerTools.buildImage {
+          amarcord-docker-image = pkgs.dockerTools.streamLayeredImage {
             name = "amarcord";
             tag = "latest";
 
-            copyToRoot = pkgs.buildEnv {
-              name = "image-root";
-              paths = [ pkgs.amarcord-python-package ];
-              pathsToLink = [ "/bin" ];
-            };
+            contents = [ pkgs.amarcord-python-package ];
           };
         };
 
