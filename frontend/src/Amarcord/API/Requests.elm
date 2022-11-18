@@ -72,8 +72,10 @@ import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId, e
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue(..), attributoDecoder, attributoMapDecoder, attributoTypeDecoder, attributoValueDecoder)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalTypeDecoder, encodeChemicalType)
+import Amarcord.CrystFELMerge exposing (MergeModel(..), MergeParametersInput, Polarisation, ScaleIntensities(..), mergeModelSubtitleFromString)
 import Amarcord.File exposing (File)
 import Amarcord.JsonSchema exposing (JsonSchema, encodeJsonSchema)
+import Amarcord.PointGroupChooser exposing (PointGroup(..), pointGroupToString)
 import Amarcord.UserError exposing (CustomError, customErrorDecoder)
 import Amarcord.Util exposing (httpDelete, httpPatch)
 import Dict exposing (Dict)
@@ -152,8 +154,54 @@ httpGetExperimentTypes f =
         }
 
 
-httpStartMergeJobForDataSet : (Result RequestError () -> msg) -> DataSetId -> String -> Cmd msg
-httpStartMergeJobForDataSet f dataSetId partialatorAdditional =
+encodeMergeModel : MergeModel -> Encode.Value
+encodeMergeModel mm =
+    Encode.string <|
+        case mm of
+            Offset ->
+                "offset"
+
+            Unity ->
+                "unity"
+
+            XSphere ->
+                "xsphere"
+
+            Ggpm ->
+                "ggpm"
+
+
+encodeScaleIntensities : ScaleIntensities -> Encode.Value
+encodeScaleIntensities si =
+    Encode.string <|
+        case si of
+            Off ->
+                "off"
+
+            Normal ->
+                "normal"
+
+            DebyeWaller ->
+                "debyewaller"
+
+
+encodePolarisation : Polarisation -> Encode.Value
+encodePolarisation p =
+    Encode.object [ ( "angle", Encode.int p.angle ), ( "percent", Encode.int p.percent ) ]
+
+
+encodePointGroup : PointGroup -> Encode.Value
+encodePointGroup =
+    Encode.string << pointGroupToString
+
+
+encodeOptional : (a -> Encode.Value) -> Maybe a -> Encode.Value
+encodeOptional f =
+    Maybe.withDefault Encode.null << Maybe.map f
+
+
+httpStartMergeJobForDataSet : (Result RequestError () -> msg) -> DataSetId -> MergeParametersInput -> Cmd msg
+httpStartMergeJobForDataSet f dataSetId merge =
     Http.post
         { url = "api/merging/" ++ String.fromInt dataSetId ++ "/start"
         , expect =
@@ -162,7 +210,25 @@ httpStartMergeJobForDataSet f dataSetId partialatorAdditional =
             jsonBody
                 (Encode.object
                     [ ( "strict-mode", Encode.bool False )
-                    , ( "partialator-additional", Encode.string partialatorAdditional )
+                    , ( "merge-model", encodeMergeModel merge.model )
+                    , ( "scale-intensities", encodeScaleIntensities merge.scaleIntensities )
+                    , ( "post-refinement", Encode.bool merge.postRefinement )
+                    , ( "iterations", Encode.int merge.iterations )
+                    , ( "polarisation", encodeOptional encodePolarisation merge.polarisation )
+                    , ( "start-after", encodeOptional Encode.int merge.startAfter )
+                    , ( "stop-after", encodeOptional Encode.int merge.stopAfter )
+                    , ( "rel-b", Encode.float merge.relB )
+                    , ( "no-pr", Encode.bool merge.noPr )
+                    , ( "force-bandwidth", encodeOptional Encode.float merge.forceBandwidth )
+                    , ( "force-radius", encodeOptional Encode.float merge.forceRadius )
+                    , ( "force-lambda", encodeOptional Encode.float merge.forceLambda )
+                    , ( "no-delta-cc-half", Encode.bool merge.noDeltaCcHalf )
+                    , ( "max-adu", encodeOptional Encode.float merge.maxAdu )
+                    , ( "min-measurements", Encode.int merge.minMeasurements )
+                    , ( "logs", Encode.bool merge.logs )
+                    , ( "min-res", encodeOptional Encode.float merge.minRes )
+                    , ( "push-res", encodeOptional Encode.float merge.pushRes )
+                    , ( "w", encodeOptional encodePointGroup merge.w )
                     ]
                 )
         }
@@ -330,8 +396,8 @@ mergeFomDecoder : Decode.Decoder MergeFom
 mergeFomDecoder =
     Decode.succeed MergeFom
         |> required "snr" Decode.float
-        |> required "wilson" (Decode.maybe Decode.float)
-        |> required "ln-k" (Decode.maybe Decode.float)
+        |> optional "wilson" Decode.float
+        |> optional "ln-k" Decode.float
         |> required "discarded-reflections" Decode.int
         |> required "one-over-d-from" Decode.float
         |> required "one-over-d-to" Decode.float
@@ -345,10 +411,10 @@ mergeFomDecoder =
         |> required "r2" Decode.float
         |> required "cc" Decode.float
         |> required "cc-star" Decode.float
-        |> required "cc-ano" (Decode.maybe Decode.float)
-        |> required "crd-ano" (Decode.maybe Decode.float)
-        |> required "r-ano" (Decode.maybe Decode.float)
-        |> required "r-ano-over-r-split" (Decode.maybe Decode.float)
+        |> optional "cc-ano" Decode.float
+        |> optional "crd-ano" Decode.float
+        |> optional "r-ano" Decode.float
+        |> optional "r-ano-over-r-split" Decode.float
         |> required "d1sig" Decode.float
         |> required "d2sig" Decode.float
         |> required "outer-shell" mergeOuterShellDecoder
@@ -427,11 +493,90 @@ type alias MergeResult =
     , runs : List String
     , pointGroup : String
     , cellDescription : String
-    , partialatorAdditional : String
-    , negativeHandling : Maybe String
+    , parameters : MergeParametersInput
     , refinementResults : List RefinementResult
     , state : MergeResultState
     }
+
+
+decodeFromResult : Result String v -> Decode.Decoder v
+decodeFromResult x =
+    case x of
+        Err message ->
+            Decode.fail message
+
+        Ok v ->
+            Decode.succeed v
+
+
+mergeModelDecoder : Decode.Decoder MergeModel
+mergeModelDecoder =
+    Decode.string
+        |> Decode.andThen
+            (decodeFromResult << Result.fromMaybe "invalid merge model" << mergeModelSubtitleFromString)
+
+
+polarisationDecoder : Decode.Decoder Polarisation
+polarisationDecoder =
+    Decode.succeed Polarisation |> required "angle" Decode.int |> required "percent" Decode.int
+
+
+scaleIntensitiesDecoder : Decode.Decoder ScaleIntensities
+scaleIntensitiesDecoder =
+    let
+        scaleIntensitiesFromString : String -> Result String ScaleIntensities
+        scaleIntensitiesFromString x =
+            case x of
+                "off" ->
+                    Ok Off
+
+                "debyewaller" ->
+                    Ok DebyeWaller
+
+                "normal" ->
+                    Ok Normal
+
+                _ ->
+                    Err ("invalid scaling intensities " ++ x)
+    in
+    Decode.string
+        |> Decode.andThen
+            (decodeFromResult << scaleIntensitiesFromString)
+
+
+pointGroupDecoder : Decode.Decoder PointGroup
+pointGroupDecoder =
+    Decode.map PointGroup Decode.string
+
+
+optional : String -> Decode.Decoder a -> Decode.Decoder (Maybe a -> b) -> Decode.Decoder b
+optional name x =
+    required name (Decode.maybe x)
+
+
+mergeParametersDecoder : Decode.Decoder MergeParametersInput
+mergeParametersDecoder =
+    Decode.succeed MergeParametersInput
+        |> required "merge-model" mergeModelDecoder
+        |> required "scale-intensities" scaleIntensitiesDecoder
+        |> required "post-refinement" Decode.bool
+        |> required "iterations" Decode.int
+        |> optional "polarisation" polarisationDecoder
+        |> optional "start-after" Decode.int
+        |> optional "stop-after" Decode.int
+        |> required "rel-b" Decode.float
+        |> required "no-pr" Decode.bool
+        |> optional "force-bandwidth" Decode.float
+        |> optional "force-radius" Decode.float
+        |> optional "force-lambda" Decode.float
+        |> required "no-delta-cc-half" Decode.bool
+        |> required "max-adu" (Decode.maybe Decode.float)
+        |> required "min-measurements" Decode.int
+        |> required "logs" Decode.bool
+        |> optional "min-res" Decode.float
+        |> optional "push-res" Decode.float
+        |> required "w" (Decode.maybe pointGroupDecoder)
+        |> optional "negative-handling" Decode.string
 
 
 mergeResultDecoder : Decode.Decoder MergeResult
@@ -442,8 +587,7 @@ mergeResultDecoder =
         |> required "runs" (Decode.list Decode.string)
         |> required "point-group" Decode.string
         |> required "cell-description" Decode.string
-        |> required "partialator-additional" Decode.string
-        |> required "negative-handling" (Decode.maybe Decode.string)
+        |> required "parameters" mergeParametersDecoder
         |> required "refinement-results" (Decode.list refinementResultDecoder)
         |> custom decodeMergeResultState
 
@@ -676,7 +820,7 @@ getRuns path f =
                         |> required "data-sets" (Decode.list dataSetDecoder)
                         |> required "experiment-types" (Decode.list experimentTypeDecoder)
                         |> required "user-config" userConfigDecoder
-                        |> required "live-stream-file-id" (Decode.maybe Decode.int)
+                        |> optional "live-stream-file-id" Decode.int
                     )
         }
 

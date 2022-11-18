@@ -7,15 +7,17 @@ import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoType)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
+import Amarcord.CrystFELMerge as CrystFELMerge exposing (MergeParametersInput, Polarisation, ScaleIntensities(..), mergeModelToString, modelToMergeParameters)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (br_, div_, form_, h2_, h5_, input_, span_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, h2_, h5_, span_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.PointGroupChooser exposing (pointGroupToString)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
 import Dict exposing (Dict)
-import Html exposing (Html, a, abbr, button, div, em, h4, node, p, span, sup, table, td, text, tr)
-import Html.Attributes exposing (attribute, class, colspan, disabled, href, placeholder, style, title, type_, value)
-import Html.Events exposing (onClick, onInput)
+import Html exposing (Html, a, abbr, button, dd, div, dl, dt, em, h4, node, p, span, sup, table, td, text, tr)
+import Html.Attributes exposing (attribute, class, colspan, disabled, href, style, title, type_)
+import Html.Events exposing (onClick)
 import Maybe
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
@@ -28,12 +30,12 @@ type Msg
     | StartMerge DataSetId
     | QuickStartMerge DataSetId
     | CancelMerge
-    | SubmitMerge DataSetId PartialatorAdditional
+    | SubmitMerge DataSetId CrystFELMerge.Model
     | MergeFinished (Result RequestError ())
     | Refresh Posix
-    | MergePartialatorAdditionalChange String
     | OpenMergeResultDetail DetailMerge
     | CloseMergeResultDetail
+    | CrystFELMergeMessage CrystFELMerge.Msg
 
 
 type SelectedMergeResult
@@ -43,12 +45,8 @@ type SelectedMergeResult
 
 type alias ActivatedMergeForm =
     { dataSetId : Int
-    , partialatorAdditional : PartialatorAdditional
+    , mergeParameters : CrystFELMerge.Model
     }
-
-
-type alias PartialatorAdditional =
-    String
 
 
 type alias DetailMerge =
@@ -131,66 +129,46 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                 mergeResults =
                     experimentTypeResults.mergeResults
 
-                mergeNotPossible =
-                    experimentTypeResults.numberOfIndexingResults == 0
-
-                mergeButtons =
-                    if mergeNotPossible then
-                        div_ []
-
-                    else
-                        div [ class "btn-group" ]
-                            [ button
-                                [ type_ "button"
-                                , class "btn btn-sm btn-outline-primary"
-                                , onClick (QuickStartMerge dataSet.id)
-                                , disabled (mergeRequestIsLoading mergeRequest)
-                                ]
-                                [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
-                            , button
-                                [ type_ "button"
-                                , class "btn btn-sm btn-outline-secondary"
-                                , onClick (StartMerge dataSet.id)
-                                , disabled (mergeRequestIsLoading mergeRequest)
-                                ]
-                                [ icon { name = "send" }, text <| " Merge" ]
-                            ]
-
-                actions =
+                currentRowIsMerging =
                     case activatedMergeForm of
-                        Just { dataSetId, partialatorAdditional } ->
-                            if dataSetId == dataSet.id then
-                                form_
-                                    [ div [ class "input-group" ]
-                                        [ input_
-                                            [ type_ "text"
-                                            , class "form-control"
-                                            , placeholder "Parameters"
-                                            , value partialatorAdditional
-                                            , onInput MergePartialatorAdditionalChange
-                                            ]
-                                        , button
-                                            [ type_ "button"
-                                            , class "btn btn-sm btn-success"
-                                            , onClick (SubmitMerge dataSet.id partialatorAdditional)
-                                            , disabled (mergeRequestIsLoading mergeRequest)
-                                            ]
-                                            [ icon { name = "send" } ]
-                                        , button
-                                            [ type_ "button"
-                                            , class "btn btn-sm btn-warning"
-                                            , onClick CancelMerge
-                                            , disabled (mergeRequestIsLoading mergeRequest)
-                                            ]
-                                            [ icon { name = "x" } ]
-                                        ]
-                                    ]
-
-                            else
-                                mergeButtons
+                        Just { dataSetId } ->
+                            dataSetId == dataSet.id
 
                         _ ->
-                            mergeButtons
+                            False
+
+                actions =
+                    if currentRowIsMerging then
+                        em [ class "text-muted" ] [ text "Enter merging parameters..." ]
+
+                    else
+                        let
+                            mergeNotPossible =
+                                experimentTypeResults.numberOfIndexingResults == 0
+
+                            mergeButtons =
+                                if mergeNotPossible then
+                                    div_ []
+
+                                else
+                                    div [ class "btn-group" ]
+                                        [ button
+                                            [ type_ "button"
+                                            , class "btn btn-sm btn-outline-primary"
+                                            , onClick (QuickStartMerge dataSet.id)
+                                            , disabled (mergeRequestIsLoading mergeRequest)
+                                            ]
+                                            [ icon { name = "send-exclamation" }, text <| " Quick Merge" ]
+                                        , button
+                                            [ type_ "button"
+                                            , class "btn btn-sm btn-outline-secondary"
+                                            , onClick (StartMerge dataSet.id)
+                                            , disabled (mergeRequestIsLoading mergeRequest)
+                                            ]
+                                            [ icon { name = "send" }, text <| " Merge" ]
+                                        ]
+                        in
+                        mergeButtons
 
                 mergeRowHeaders : List (Html msg)
                 mergeRowHeaders =
@@ -208,15 +186,100 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                     , div_ []
                     ]
 
+                scaleIntensitiesToString : ScaleIntensities -> String
+                scaleIntensitiesToString x =
+                    case x of
+                        Off ->
+                            "off"
+
+                        DebyeWaller ->
+                            "Debye-Waller"
+
+                        Normal ->
+                            "Scale intensities"
+
+                viewMergeParameters : MergeParametersInput -> Html msg
+                viewMergeParameters { model, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
+                    let
+                        dtClass =
+                            []
+
+                        ddClass =
+                            []
+
+                        boolDtDl header b =
+                            if b then
+                                [ dt dtClass [ text header ] ]
+
+                            else
+                                []
+
+                        dtDl dtContent dlContent =
+                            [ dt dtClass [ text dtContent ]
+                            , dd ddClass [ dlContent ]
+                            ]
+
+                        polarisationToDescription : Polarisation -> String
+                        polarisationToDescription { angle, percent } =
+                            if angle == 0 then
+                                "Horizontal "
+                                    ++ (if percent == 100 then
+                                            "e-field"
+
+                                        else
+                                            String.fromInt percent ++ "%"
+                                       )
+
+                            else if angle == 90 then
+                                "Vertical "
+                                    ++ (if percent == 100 then
+                                            "e-field"
+
+                                        else
+                                            String.fromInt percent ++ "%"
+                                       )
+
+                            else
+                                String.fromInt angle ++ "° " ++ String.fromInt percent ++ "%"
+
+                        maybeDtDl header value =
+                            case value of
+                                Nothing ->
+                                    []
+
+                                Just realValue ->
+                                    dtDl header realValue
+                    in
+                    div_
+                        [ dl []
+                            (dtDl "Model" (text <| mergeModelToString model)
+                                ++ dtDl "Scale intensities" (text <| scaleIntensitiesToString scaleIntensities)
+                                ++ boolDtDl "Post refinement" postRefinement
+                                ++ dtDl "Iterations" (text <| String.fromInt iterations)
+                                ++ maybeDtDl "Polarisation" (Maybe.map (text << polarisationToDescription) polarisation)
+                                ++ boolDtDl "Reject bad patterns according to ΔCC½" noDeltaCcHalf
+                                ++ maybeDtDl "Detector saturation cutoff" (Maybe.map (text << formatFloatHumanFriendly) maxAdu)
+                                ++ dtDl "Minimum number of measurements per merged reflection" (text <| String.fromInt minMeasurements)
+                                ++ boolDtDl "Write partiality model diagnostics" logs
+                                ++ maybeDtDl "Require minimum estimated pattern resolution" (Maybe.map (text << formatFloatHumanFriendly) minRes)
+                                ++ maybeDtDl "Exclude measurements above resolution limit" (Maybe.map (text << formatFloatHumanFriendly) pushRes)
+                                ++ maybeDtDl "Indexing assignment refinement" (Maybe.map (text << pointGroupToString) w)
+                                ++ dtDl "Reject crystals with absolute B factors ≥ Å²" (text <| String.fromFloat <| relB)
+                                ++ boolDtDl "Disable the orientation/physics model part of the refinement calculation" noPr
+                                ++ maybeDtDl "Start after crystals" (Maybe.map (text << String.fromInt) startAfter)
+                                ++ maybeDtDl "Stop after crystals" (Maybe.map (text << String.fromInt) stopAfter)
+                            )
+                        ]
+
                 viewMergeResultRow : MergeResult -> Html Msg
-                viewMergeResultRow { id, runs, partialatorAdditional, state, refinementResults } =
+                viewMergeResultRow { id, runs, parameters, state, refinementResults } =
                     let
                         remainingHeaders =
                             List.length mergeRowHeaders - 1
                     in
                     tr_ <|
                         [ td_ [ text (String.fromInt id) ]
-                        , td_ [ span [ class "font-monospace text-nowrap" ] [ text partialatorAdditional ] ]
+                        , td_ [ span [ class "text-nowrap" ] [ viewMergeParameters parameters ] ]
                         , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
                         ]
                             ++ (case state of
@@ -279,7 +342,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                )
             in
             [ tr
-                (if List.isEmpty mergeResults then
+                (if List.isEmpty mergeResults && not currentRowIsMerging then
                     [ style "border-bottom" "1pt solid black" ]
 
                  else
@@ -316,6 +379,25 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                     [ actions
                     ]
                 ]
+            , case activatedMergeForm of
+                Just { dataSetId, mergeParameters } ->
+                    if dataSetId == dataSet.id then
+                        tr
+                            [ style "border-bottom" "1pt solid black" ]
+                            [ td [ colspan 7, style "padding-left" "2em", class "text-muted" ]
+                                [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
+                                , div_
+                                    [ button [ type_ "button", class "btn btn-primary me-3", onClick (SubmitMerge dataSetId mergeParameters) ] [ icon { name = "send" }, text " Start Merge" ]
+                                    , button [ type_ "button", class "btn btn-secondary", onClick CancelMerge ] [ icon { name = "x-lg" }, text " Cancel" ]
+                                    ]
+                                ]
+                            ]
+
+                    else
+                        text ""
+
+                _ ->
+                    text ""
             , if List.isEmpty mergeResults then
                 text ""
 
@@ -499,21 +581,23 @@ update msg model =
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
 
         StartMerge dataSetId ->
-            ( { model | activatedMergeForm = Just { dataSetId = dataSetId, partialatorAdditional = "" } }, Cmd.none )
+            ( { model | activatedMergeForm = Just { dataSetId = dataSetId, mergeParameters = CrystFELMerge.init } }, Cmd.none )
 
         QuickStartMerge dataSetId ->
-            ( { model | activatedMergeForm = Nothing, mergeRequest = Just { dataSetId = dataSetId, request = Loading } }, httpStartMergeJobForDataSet MergeFinished dataSetId "--iterations=3" )
+            ( { model | activatedMergeForm = Nothing, mergeRequest = Just { dataSetId = dataSetId, request = Loading } }, httpStartMergeJobForDataSet MergeFinished dataSetId CrystFELMerge.quickMergeParameters )
 
         CancelMerge ->
             ( { model | activatedMergeForm = Nothing }, Cmd.none )
 
-        SubmitMerge dataSetId partialatorAdditional ->
+        SubmitMerge dataSetId mergeParameters ->
             case model.activatedMergeForm of
                 Nothing ->
                     ( model, Cmd.none )
 
                 Just _ ->
-                    ( { model | mergeRequest = Just { dataSetId = dataSetId, request = Loading } }, httpStartMergeJobForDataSet MergeFinished dataSetId partialatorAdditional )
+                    ( { model | mergeRequest = Just { dataSetId = dataSetId, request = Loading }, activatedMergeForm = Nothing }
+                    , httpStartMergeJobForDataSet MergeFinished dataSetId (modelToMergeParameters mergeParameters)
+                    )
 
         MergeFinished result ->
             case model.mergeRequest of
@@ -530,18 +614,28 @@ update msg model =
             in
             ( { model | hereAndNow = newHereAndNow }, httpGetAnalysisResults AnalysisResultsReceived )
 
-        MergePartialatorAdditionalChange newPartialatorAdditional ->
-            ( case model.activatedMergeForm of
-                Nothing ->
-                    model
-
-                Just { dataSetId } ->
-                    { model | activatedMergeForm = Just { dataSetId = dataSetId, partialatorAdditional = newPartialatorAdditional } }
-            , Cmd.none
-            )
-
         OpenMergeResultDetail mr ->
             ( { model | selectedMergeResult = MergeResultSelected mr }, Cmd.none )
 
         CloseMergeResultDetail ->
             ( { model | selectedMergeResult = NoMergeResultSelected }, Cmd.none )
+
+        CrystFELMergeMessage cfMsg ->
+            case model.activatedMergeForm of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just { dataSetId, mergeParameters } ->
+                    let
+                        ( cfModel, cfCmd ) =
+                            CrystFELMerge.update cfMsg mergeParameters
+                    in
+                    ( { model
+                        | activatedMergeForm =
+                            Just
+                                { dataSetId = dataSetId
+                                , mergeParameters = cfModel
+                                }
+                      }
+                    , Cmd.map CrystFELMergeMessage cfCmd
+                    )

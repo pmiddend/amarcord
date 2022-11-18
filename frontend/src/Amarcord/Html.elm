@@ -1,6 +1,7 @@
 module Amarcord.Html exposing (..)
 
-import Html exposing (Attribute, Html, div, em, form, h1, h2, h3, h4, h5, hr, img, input, li, nav, p, span, strong, sup, tbody, td, text, th, thead, tr, ul)
+import Html exposing (Attribute, Html, div, em, form, h1, h2, h3, h4, h5, hr, img, input, li, nav, option, p, select, span, strong, sup, tbody, td, text, th, thead, tr, ul)
+import Html.Attributes exposing (selected, value)
 import Html.Events exposing (stopPropagationOn, targetValue)
 import Html.Events.Extra exposing (targetValueIntParse)
 import Json.Decode as Decode
@@ -126,9 +127,32 @@ em_ =
     em []
 
 
+alwaysStop : a -> ( a, Bool )
+alwaysStop a =
+    ( a, True )
+
+
 onIntInput : (Int -> msg) -> Attribute msg
 onIntInput f =
     stopPropagationOn "input" (Decode.map (\x -> ( x, True )) <| Decode.map f targetValueIntParse)
+
+
+onFloatInput : (Float -> msg) -> Html.Attribute msg
+onFloatInput f =
+    stopPropagationOn "input"
+        (Decode.map alwaysStop
+            (Decode.andThen
+                (\v ->
+                    case String.toFloat v of
+                        Nothing ->
+                            Decode.fail <| "invalid integer " ++ v
+
+                        Just ov ->
+                            Decode.succeed (f ov)
+                )
+                targetValue
+            )
+        )
 
 
 customDecoder : Decode.Decoder a -> (a -> Maybe b) -> Decode.Decoder b
@@ -178,3 +202,35 @@ onDecoderInput decoder =
 onMaybeInput : (String -> Maybe a) -> Attribute a
 onMaybeInput converter =
     stopPropagationOn "input" (Decode.map (\x -> ( x, True )) <| customDecoder targetValue converter)
+
+
+enumSelect : List (Html.Attribute msg) -> List e -> (e -> String) -> (e -> String) -> (String -> Maybe msg) -> e -> Html msg
+enumSelect additionalAttributes options toValue toDescription fromString selectedValue =
+    let
+        makeOption o =
+            option
+                [ value (toValue o)
+                , selected (o == selectedValue)
+                ]
+                [ text (toDescription o) ]
+    in
+    select
+        (additionalAttributes
+            ++ [ stopPropagationOn "input"
+                    (Decode.map alwaysStop
+                        (Decode.andThen
+                            (\v ->
+                                case fromString v of
+                                    Nothing ->
+                                        Decode.fail <| "invalid option " ++ v
+
+                                    Just ov ->
+                                        Decode.succeed ov
+                            )
+                            targetValue
+                        )
+                    )
+               ]
+        )
+    <|
+        List.map makeOption options

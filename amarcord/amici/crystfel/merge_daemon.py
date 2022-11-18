@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import inspect
 import json
+import shlex
 from base64 import b64encode
 from dataclasses import dataclass
 from datetime import timedelta
@@ -29,7 +30,9 @@ from amarcord.db.db_merge_result import DBMergeRuntimeStatus
 from amarcord.db.db_merge_result import DBMergeRuntimeStatusError
 from amarcord.db.db_merge_result import DBMergeRuntimeStatusRunning
 from amarcord.db.indexing_result import DBIndexingResultDone
+from amarcord.db.merge_parameters import DBMergeParameters
 from amarcord.db.merge_result import MergeResult
+from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.db.table_classes import DBFile
 
 _RECENT_LOG_LINES: Final = -5
@@ -61,6 +64,50 @@ def _find_file_id_by_extension(files: list[DBFile], extension: str) -> None | in
     return None
 
 
+def merge_parameters_to_crystfel_parameters(p: DBMergeParameters) -> list[str]:
+    result = [
+        f"--symmetry={p.point_group}",
+        f"--iterations={p.iterations}",
+        f"--max-rel-B={p.rel_b}",
+    ]
+    if p.no_pr:
+        result.append("--no-pr")
+    if p.force_bandwidth is not None:
+        result.append(f"--force-bandwidth={p.force_bandwidth}")
+    if p.force_radius is not None:
+        result.append(f"--force-radius={p.force_radius}")
+    if p.force_lambda is not None:
+        result.append(f"--force-lambda={p.force_lambda}")
+    match p.scale_intensities:
+        case ScaleIntensities.OFF:
+            result.append("--no-scale")
+        case ScaleIntensities.NORMAL:
+            result.append("--no-Bscale")
+    if p.no_delta_cc_half:
+        result.append("--no-deltacchalf")
+    if p.start_after is not None:
+        result.append(f"--start-after={p.start_after}")
+    if p.stop_after is not None:
+        result.append(f"--stop-after={p.stop_after}")
+    result.append(f"--model={p.merge_model.value}")
+    if p.polarisation is not None:
+        result.append(
+            f"--polarisation={p.polarisation.angle}deg{p.polarisation.percentage}"
+        )
+    if p.max_adu is not None:
+        result.append(f"--max-adu={p.max_adu}")
+    if p.min_res is not None:
+        result.append(f"--min-res={p.min_res}")
+    result.append(f"--min-measurements={p.min_measurements}")
+    if p.push_res is not None:
+        result.append(f"--push-res={p.push_res}")
+    if not p.logs:
+        result.append("--no-logs")
+    if p.w is not None:
+        result.extend(["-w", p.w])
+    return result
+
+
 async def start_merge_job(
     db: AsyncDB,
     conn: Connection,
@@ -70,7 +117,7 @@ async def start_merge_job(
     merge_result: DBMergeResultOutput,
 ) -> DBMergeRuntimeStatus:
     parent_logger.info(
-        f"starting merge job, indexing results {[ir.id for ir in merge_result.indexing_results]}, point group {merge_result.point_group}"
+        f"starting merge job, indexing results {[ir.id for ir in merge_result.indexing_results]}, parameters {merge_result.parameters}"
     )
 
     finished_results: list[DBIndexingResultDone] = []
@@ -102,11 +149,11 @@ async def start_merge_job(
     parent_logger.info("All indexing results have finished, we can start merging")
 
     cell_file_contents = StringIO()
-    coparse_cell_file(merge_result.cell_description, cell_file_contents)
+    coparse_cell_file(merge_result.parameters.cell_description, cell_file_contents)
     cell_file_id = (
         await db.create_file_from_bytes(
             conn,
-            file_name=make_cell_file_name(merge_result.cell_description),
+            file_name=make_cell_file_name(merge_result.parameters.cell_description),
             description="",
             original_path=Path("/tmp/cell-file.cell"),
             contents=cell_file_contents.getvalue().encode("utf-8"),
@@ -123,9 +170,11 @@ async def start_merge_job(
                 "api-url": config.api_url,
                 "merge-result-id": merge_result.id,
                 "cell-file-id": cell_file_id,
-                "point-group": merge_result.point_group,
+                "point-group": merge_result.parameters.point_group,
                 "nshells": None,
-                "partialator-additional": merge_result.partialator_additional,
+                "partialator-additional": shlex.join(
+                    merge_parameters_to_crystfel_parameters(merge_result.parameters)
+                ),
                 "crystfel-path": str(config.crystfel_path),
                 "pdb-file-id": pdb_file_id,
             }

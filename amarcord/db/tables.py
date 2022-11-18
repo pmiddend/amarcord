@@ -10,7 +10,9 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.merge_model import MergeModel
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
+from amarcord.db.scale_intensities import ScaleIntensities
 
 logger = logging.getLogger(__name__)
 
@@ -320,7 +322,6 @@ def _table_merge_result(metadata: sa.MetaData, file: sa.Table) -> sa.Table:
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("created", sa.DateTime, nullable=False),
-        sa.Column("partialator_additional", sa.Text, nullable=False),
         sa.Column("recent_log", sa.Text, nullable=False),
         sa.Column("negative_handling", sa.Enum(MergeNegativeHandling), nullable=True),
         sa.Column("job_status", sa.Enum(DBJobStatus), nullable=False),
@@ -336,6 +337,26 @@ def _table_merge_result(metadata: sa.MetaData, file: sa.Table) -> sa.Table:
             ForeignKey(_fk_identifier(file.c.id), ondelete="cascade"),
             nullable=True,
         ),
+        sa.Column("input_merge_model", sa.Enum(MergeModel), nullable=False),
+        sa.Column("input_scale_intensities", sa.Enum(ScaleIntensities), nullable=False),
+        sa.Column("input_post_refinement", sa.Boolean, nullable=False),
+        sa.Column("input_iterations", sa.Integer, nullable=False),
+        sa.Column("input_polarisation_angle", sa.Integer, nullable=True),
+        sa.Column("input_polarisation_percent", sa.Integer, nullable=True),
+        sa.Column("input_start_after", sa.Integer, nullable=True),
+        sa.Column("input_stop_after", sa.Integer, nullable=True),
+        sa.Column("input_rel_b", sa.Float, nullable=False),
+        sa.Column("input_no_pr", sa.Boolean, nullable=False),
+        sa.Column("input_force_bandwidth", sa.Float, nullable=True),
+        sa.Column("input_force_radius", sa.Float, nullable=True),
+        sa.Column("input_force_lambda", sa.Float, nullable=True),
+        sa.Column("input_no_delta_cc_half", sa.Boolean, nullable=False),
+        sa.Column("input_max_adu", sa.Float, nullable=True),
+        sa.Column("input_min_measurements", sa.Integer, nullable=False),
+        sa.Column("input_logs", sa.Boolean, nullable=False),
+        sa.Column("input_min_res", sa.Float, nullable=True),
+        sa.Column("input_push_res", sa.Float, nullable=True),
+        sa.Column("input_w", sa.String(length=255), nullable=True),
         sa.Column("fom_snr", sa.Float, nullable=True),
         sa.Column("fom_wilson", sa.Float, nullable=True),
         sa.Column("fom_ln_k", sa.Float, nullable=True),

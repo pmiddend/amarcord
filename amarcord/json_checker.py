@@ -29,6 +29,16 @@ class JSONChecker:
             )
         return result
 
+    def optional_dict(self, key: str) -> JSONDict | None:
+        result = self.d.get(key)
+        if result is None:
+            return None
+        if not isinstance(result, dict):
+            raise Exception(
+                f'{self.description} result: value "{key}" not a dict but {result}'
+            )
+        return result
+
     def optional_path(self, key: str) -> Path | None:
         result = self.optional_str(key)
         return Path(result) if result is not None else None

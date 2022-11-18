@@ -103,7 +103,7 @@
         });
 
         frontend = pkgs.mkShell {
-          buildInputs = [ pkgs.elmPackages.elm pkgs.elmPackages.elm-review pkgs.nodejs pkgs.elm2nix ];
+          buildInputs = [ pkgs.elmPackages.elm pkgs.elmPackages.elm-review pkgs.elmPackages.elm-format pkgs.nodejs pkgs.elm2nix ];
         };
       };
     };

@@ -67,8 +67,12 @@ from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.merge_model import MergeModel
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
+from amarcord.db.merge_parameters import DBMergeParameters
+from amarcord.db.polarisation import Polarisation
 from amarcord.db.refinement_result import DBRefinementResultOutput
+from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBChemical
 from amarcord.db.table_classes import DBEvent
@@ -377,12 +381,39 @@ def _encode_merge_result(
         "created": datetime_to_attributo_int(mr.created),
         # We don't export the indexing results here yet. No clear reason other than laziness
         "runs": format_run_id_intervals(ir.run_id for ir in mr.indexing_results),
-        "point-group": mr.point_group,
-        "cell-description": coparse_cell_description(mr.cell_description),
-        "partialator-additional": mr.partialator_additional,
-        "negative-handling": mr.negative_handling.value
-        if mr.negative_handling is not None
-        else None,
+        "cell-description": coparse_cell_description(mr.parameters.cell_description),
+        "point-group": mr.parameters.point_group,
+        "parameters": {
+            "negative-handling": mr.parameters.negative_handling.value
+            if mr.parameters.negative_handling is not None
+            else None,
+            "merge-model": mr.parameters.merge_model.value,
+            "scale-intensities": mr.parameters.scale_intensities.value,
+            "post-refinement": mr.parameters.post_refinement,
+            "iterations": mr.parameters.iterations,
+            "polarisation": None
+            if mr.parameters.polarisation is None
+            else {
+                "angle": int(
+                    mr.parameters.polarisation.angle.to(UnitRegistry().degrees).m
+                ),
+                "percent": mr.parameters.polarisation.percentage,
+            },
+            "start-after": mr.parameters.start_after,
+            "stop-after": mr.parameters.stop_after,
+            "rel-b": mr.parameters.rel_b,
+            "no-pr": mr.parameters.no_pr,
+            "force-bandwidth": mr.parameters.force_bandwidth,
+            "force-radius": mr.parameters.force_radius,
+            "force-lambda": mr.parameters.force_lambda,
+            "no-delta-cc-half": mr.parameters.no_delta_cc_half,
+            "max-adu": mr.parameters.max_adu,
+            "min-measurements": mr.parameters.min_measurements,
+            "logs": mr.parameters.logs,
+            "min-res": mr.parameters.min_res,
+            "push-res": mr.parameters.push_res,
+            "w": mr.parameters.w,
+        },
         "refinement-results": [
             {
                 "id": rr.id,
@@ -641,17 +672,52 @@ async def start_merge_job_for_data_set(data_set_id: int) -> JSONDict:
                 title="Invalid value for negative-handling",
                 description=f'Value "{negative_handling_str}" for negative-handling is not known',
             )
+        polarisation = request_content.optional_dict("polarisation")
         merge_result_id = await db.instance.create_merge_result(
             conn,
             DBMergeResultInput(
                 created=datetime.datetime.utcnow(),
                 indexing_results=chosen_indexing_results,
-                point_group=next(iter(point_groups)),
-                cell_description=next(iter(cell_descriptions)),
-                partialator_additional=request_content.retrieve_safe_str(
-                    "partialator-additional"
+                parameters=DBMergeParameters(
+                    point_group=next(iter(point_groups)),
+                    cell_description=next(iter(cell_descriptions)),
+                    negative_handling=negative_handling,
+                    merge_model=MergeModel(
+                        request_content.retrieve_safe_str("merge-model")
+                    ),
+                    scale_intensities=ScaleIntensities(
+                        request_content.retrieve_safe_str("scale-intensities")
+                    ),
+                    post_refinement=request_content.retrieve_safe_boolean(
+                        "post-refinement"
+                    ),
+                    iterations=request_content.retrieve_safe_int("iterations"),
+                    polarisation=Polarisation(
+                        angle=cast(int, polarisation.get("angle", 0))
+                        * UnitRegistry().degrees,
+                        percentage=cast(int, polarisation.get("percent", 100)),
+                    )
+                    if polarisation is not None
+                    else None,
+                    start_after=request_content.optional_int("start-after"),
+                    stop_after=request_content.optional_int("stop-after"),
+                    rel_b=request_content.retrieve_safe_float("rel-b"),
+                    no_pr=request_content.retrieve_safe_boolean("no-pr"),
+                    force_bandwidth=request_content.optional_float("force-bandwidth"),
+                    force_radius=request_content.optional_float("force-radius"),
+                    force_lambda=request_content.optional_float("force-lambda"),
+                    no_delta_cc_half=request_content.retrieve_safe_boolean(
+                        "no-delta-cc-half"
+                    ),
+                    max_adu=request_content.optional_float("max-adu"),
+                    min_measurements=request_content.retrieve_safe_int(
+                        "min-measurements"
+                    ),
+                    logs=request_content.retrieve_safe_boolean("logs"),
+                    min_res=request_content.optional_float("min-res"),
+                    push_res=request_content.optional_float("push-res"),
+                    w=request_content.optional_str("w"),
                 ),
-                negative_handling=negative_handling,
                 runtime_status=None,
             ),
         )
@@ -1773,7 +1839,7 @@ async def read_analysis_results() -> JSONDict:
 
 
 class Arguments(Tap):
-    port: int = 5000
+    port: int = 5001
     host: str = "localhost"
     db_connection_url: str = "sqlite+aiosqlite://"
     db_echo: bool = False
@@ -1793,7 +1859,7 @@ def parse_args_from_env_vars() -> Arguments:
     if port is not None:
         args.port = int(port)
     else:
-        args.port = 5000
+        args.port = 5001
     url = os.environ.get("AMARCORD_DB_CONNECTION_URL", None)
     if url is not None:
         args.db_connection_url = url

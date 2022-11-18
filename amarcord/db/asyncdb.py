@@ -15,6 +15,7 @@ import sqlalchemy as sa
 import structlog.stdlib
 from openpyxl import Workbook
 from PIL import Image
+from pint import UnitRegistry
 
 from amarcord import magic
 from amarcord.amici.crystfel.util import CrystFELCellFile
@@ -55,13 +56,17 @@ from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
+from amarcord.db.merge_model import MergeModel
+from amarcord.db.merge_parameters import DBMergeParameters
 from amarcord.db.merge_result import MergeResult
 from amarcord.db.merge_result import MergeResultFom
 from amarcord.db.merge_result import MergeResultOuterShell
 from amarcord.db.merge_result import MergeResultShell
 from amarcord.db.merge_result import RefinementResult
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
+from amarcord.db.polarisation import Polarisation
 from amarcord.db.refinement_result import DBRefinementResultOutput
+from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.db.schedule_entry import BeamtimeScheduleEntry
 from amarcord.db.table_classes import DBChemical
 from amarcord.db.table_classes import DBEvent
@@ -1708,14 +1713,40 @@ class AsyncDB:
             )
 
         # Explicit type necessary here, mypy will try to be too intelligent with type inference.
+        mrp = merge_result.parameters
         merge_result_dict: dict[str, Any] = {
             "created": merge_result.created,
             "point_group": next(iter(point_groups), None),
             "cell_description": next(
                 (coparse_cell_description(c) for c in cell_descriptions), None
             ),
-            "partialator_additional": merge_result.partialator_additional,
-            "negative_handling": merge_result.negative_handling,
+            "input_merge_model": mrp.merge_model,
+            "input_scale_intensities": mrp.scale_intensities,
+            "input_post_refinement": mrp.post_refinement,
+            "input_iterations": mrp.iterations,
+            "input_polarisation_angle": int(
+                mrp.polarisation.angle.to(UnitRegistry().degrees).m
+            )
+            if mrp.polarisation is not None
+            else None,
+            "input_polarisation_percent": mrp.polarisation.percentage
+            if mrp.polarisation is not None
+            else None,
+            "input_start_after": mrp.start_after,
+            "input_stop_after": mrp.stop_after,
+            "input_rel_b": mrp.rel_b,
+            "input_no_pr": mrp.no_pr,
+            "input_force_bandwidth": mrp.force_bandwidth,
+            "input_force_radius": mrp.force_radius,
+            "input_force_lambda": mrp.force_lambda,
+            "input_no_delta_cc_half": mrp.no_delta_cc_half,
+            "input_max_adu": mrp.max_adu,
+            "input_min_measurements": mrp.min_measurements,
+            "input_logs": mrp.logs,
+            "input_min_res": mrp.min_res,
+            "input_push_res": mrp.push_res,
+            "input_w": mrp.w,
+            "negative_handling": mrp.negative_handling,
         } | _runtime_status_sql_values(merge_result.runtime_status)
 
         mr_id = (
@@ -1852,16 +1883,43 @@ class AsyncDB:
             return DBMergeResultOutput(
                 id=row["id"],
                 created=row["created"],
-                point_group=row["point_group"],
-                cell_description=cast(
-                    CrystFELCellFile, parse_cell_description(row["cell_description"])
-                ),
-                partialator_additional=row["partialator_additional"],
-                negative_handling=row["negative_handling"],
                 indexing_results=[
                     indexing_results_by_id[ir_id]
                     for ir_id in merge_result_to_indexing_result.get(row["id"], [])
                 ],
+                parameters=DBMergeParameters(
+                    point_group=row["point_group"],
+                    cell_description=cast(
+                        CrystFELCellFile,
+                        parse_cell_description(row["cell_description"]),
+                    ),
+                    negative_handling=row["negative_handling"],
+                    merge_model=MergeModel(row["input_merge_model"]),
+                    scale_intensities=ScaleIntensities(row["input_scale_intensities"]),
+                    post_refinement=row["input_post_refinement"],
+                    iterations=row["input_iterations"],
+                    polarisation=Polarisation(
+                        angle=row["input_polarisation_angle"] * UnitRegistry().degrees,
+                        percentage=row["input_polarisation_percent"],
+                    )
+                    if row["input_polarisation_angle"] is not None
+                    and row["input_polarisation_percent"] is not None
+                    else None,
+                    start_after=row["input_start_after"],
+                    stop_after=row["input_stop_after"],
+                    rel_b=row["input_rel_b"],
+                    no_pr=row["input_no_pr"],
+                    force_bandwidth=row["input_force_bandwidth"],
+                    force_radius=row["input_force_radius"],
+                    force_lambda=row["input_force_lambda"],
+                    no_delta_cc_half=row["input_no_delta_cc_half"],
+                    max_adu=row["input_max_adu"],
+                    min_measurements=row["input_min_measurements"],
+                    logs=row["input_logs"],
+                    min_res=row["input_min_res"],
+                    push_res=row["input_push_res"],
+                    w=row["input_w"],
+                ),
                 runtime_status=runtime_status,
             )
 
@@ -1873,7 +1931,6 @@ class AsyncDB:
                 [
                     mr.id,
                     mr.created,
-                    mr.partialator_additional,
                     mr.recent_log,
                     mr.negative_handling,
                     mr.job_status,
@@ -1884,6 +1941,26 @@ class AsyncDB:
                     mr.job_id,
                     mr.job_error,
                     mr.mtz_file_id,
+                    mr.input_merge_model,
+                    mr.input_scale_intensities,
+                    mr.input_post_refinement,
+                    mr.input_iterations,
+                    mr.input_polarisation_angle,
+                    mr.input_polarisation_percent,
+                    mr.input_start_after,
+                    mr.input_stop_after,
+                    mr.input_rel_b,
+                    mr.input_no_pr,
+                    mr.input_force_bandwidth,
+                    mr.input_force_radius,
+                    mr.input_force_lambda,
+                    mr.input_no_delta_cc_half,
+                    mr.input_max_adu,
+                    mr.input_min_measurements,
+                    mr.input_logs,
+                    mr.input_min_res,
+                    mr.input_push_res,
+                    mr.input_w,
                     mr.fom_snr,
                     mr.fom_wilson,
                     mr.fom_ln_k,

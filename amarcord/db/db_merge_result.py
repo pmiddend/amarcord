@@ -2,9 +2,8 @@ import datetime
 from dataclasses import dataclass
 from typing import TypeAlias
 
-from amarcord.amici.crystfel.util import CrystFELCellFile
 from amarcord.db.indexing_result import DBIndexingResultOutput
-from amarcord.db.merge_negative_handling import MergeNegativeHandling
+from amarcord.db.merge_parameters import DBMergeParameters
 from amarcord.db.merge_result import MergeResult
 
 
@@ -43,10 +42,7 @@ DBMergeRuntimeStatus: TypeAlias = (
 class DBMergeResultInput:
     created: datetime.datetime
     indexing_results: list[DBIndexingResultOutput]
-    point_group: str
-    cell_description: CrystFELCellFile
-    partialator_additional: str
-    negative_handling: None | MergeNegativeHandling
+    parameters: DBMergeParameters
     runtime_status: DBMergeRuntimeStatus
 
 
@@ -55,8 +51,5 @@ class DBMergeResultOutput:
     id: int
     created: datetime.datetime
     indexing_results: list[DBIndexingResultOutput]
-    point_group: str
-    cell_description: CrystFELCellFile
-    partialator_additional: str
-    negative_handling: None | MergeNegativeHandling
+    parameters: DBMergeParameters
     runtime_status: DBMergeRuntimeStatus
