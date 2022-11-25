@@ -1,5 +1,6 @@
 import datetime
 from dataclasses import dataclass
+from functools import partial
 from getpass import getuser
 from pathlib import Path
 
@@ -22,7 +23,10 @@ from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import TokenRetriever
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    retrieve_jwt_token,  # NOQA
+    retrieve_jwt_token_externally,
+)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    retrieve_jwt_token_on_maxwell_node,  # NOQA
 )
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.simple_uri import parse_simple_uri
@@ -38,6 +42,7 @@ class SlurmRestWorkloadManagerConfig:
     partition: str
     reservation: None | str
     token: None | str
+    portal_token: None | str
     user: str
     url: str
 
@@ -88,6 +93,7 @@ def parse_workload_manager_config(
                 partition=partition,
                 reservation=jcc.string_parameter("reservation"),
                 token=jcc.string_parameter("token"),
+                portal_token=jcc.string_parameter("portal-token"),
                 user=user if user is not None else getuser(),
                 url=MAXWELL_SLURM_URL,
             )
@@ -108,6 +114,7 @@ def parse_workload_manager_config(
                 partition=partition,
                 reservation=jcc.string_parameter("reservation"),
                 token=jcc.string_parameter("token"),
+                portal_token=None,
                 user=user if user is not None else getuser(),
                 url=f"{output_scheme}://{host}"
                 + (f":{port}" if port is not None else "")
@@ -155,8 +162,16 @@ def create_workload_manager(
             token_retriever: TokenRetriever
             if config.token is not None:
                 token_retriever = ConstantTokenRetriever(config.token)
+            elif config.portal_token is not None:
+                token_retriever = DynamicTokenRetriever(
+                    partial(
+                        retrieve_jwt_token_externally, config.portal_token, config.user
+                    )
+                )
             else:
-                token_retriever = DynamicTokenRetriever(retrieve_jwt_token)
+                token_retriever = DynamicTokenRetriever(
+                    retrieve_jwt_token_on_maxwell_node
+                )
             return SlurmRestWorkloadManager(
                 partition=partition,
                 reservation=reservation,

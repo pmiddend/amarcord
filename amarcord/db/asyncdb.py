@@ -163,16 +163,12 @@ def _runtime_status_sql_values(rs: DBMergeRuntimeStatus) -> dict[str, Any]:
                 "job_status": DBJobStatus.DONE,
             }
         case DBMergeRuntimeStatusDone(started, stopped, result, recent_log):
-            if isinstance(result.mtz_file, Path):
-                raise Exception(
-                    f"the mtz file in the status is a path: {result.mtz_file}; has to be an integer!"
-                )
             return {
                 "job_status": DBJobStatus.DONE,
                 "recent_log": recent_log,
                 "started": started,
                 "stopped": stopped,
-                "mtz_file_id": result.mtz_file,
+                "mtz_file_id": result.mtz_file_id,
                 "fom_snr": result.fom.snr,
                 "fom_wilson": result.fom.wilson,
                 "fom_ln_k": result.fom.ln_k,
@@ -818,13 +814,19 @@ class AsyncDB:
         description: str,
         contents: np.ndarray,
         format_: str,
+        deduplicate: bool,
     ) -> CreateFileResult:
         img_byte_arr_io = io.BytesIO()
         Image.fromarray(contents).save(img_byte_arr_io, format=format_)
         img_byte_arr = img_byte_arr_io.getvalue()
 
         return await self.create_file_from_bytes(
-            conn, file_name, description, original_path=None, contents=img_byte_arr
+            conn,
+            file_name,
+            description,
+            original_path=None,
+            contents=img_byte_arr,
+            deduplicate=deduplicate,
         )
 
     async def duplicate_file(
@@ -841,6 +843,7 @@ class AsyncDB:
             if original_file.original_path is not None
             else None,
             contents=cast(bytes, original_file.contents),
+            deduplicate=False,
         )
 
     async def update_file_from_bytes(
@@ -878,10 +881,33 @@ class AsyncDB:
         description: str,
         original_path: Path | None,
         contents: bytes,
+        deduplicate: bool,
     ) -> CreateFileResult:
         mime = magic.from_buffer(contents, mime=True)  # type: ignore
 
         sha256 = hashlib.sha256(contents).hexdigest()
+
+        if deduplicate:
+            existing_file = (
+                await conn.execute(
+                    sa.select(
+                        self.tables.file.c.id,
+                        self.tables.file.c.type,
+                        self.tables.file.c.size_in_bytes,
+                    ).where(
+                        (self.tables.file.c.sha256 == sha256)
+                        & (self.tables.file.c.file_name == file_name)
+                    )
+                )
+            ).fetchone()
+
+            if existing_file is not None:
+                logger.info(f"file {file_name} already found, not creating another one")
+                return CreateFileResult(
+                    existing_file["id"],
+                    existing_file["type"],
+                    existing_file["size_in_bytes"],
+                )
 
         return CreateFileResult(
             id=(
@@ -1697,7 +1723,10 @@ class AsyncDB:
         return mr_id  # type: ignore
 
     async def retrieve_merge_results(
-        self, conn: Connection, job_status_filter: None | DBJobStatus = None
+        self,
+        conn: Connection,
+        job_status_filter: None | DBJobStatus = None,
+        merge_result_id_filter: None | int = None,
     ) -> list[DBMergeResultOutput]:
         indexing_results_by_id: dict[int, DBIndexingResultOutput] = {
             ir.id: ir for ir in await self.retrieve_indexing_results(conn)
@@ -1754,8 +1783,8 @@ class AsyncDB:
                                 detailed_foms=detailed_foms,
                                 refinement_results=[
                                     RefinementResult(
-                                        pdb=rr.pdb_file_id,
-                                        mtz=rr.mtz_file_id,
+                                        pdb_file_id=rr.pdb_file_id,
+                                        mtz_file_id=rr.mtz_file_id,
                                         r_free=rr.r_free,
                                         r_work=rr.r_work,
                                         rms_bond_angle=rr.rms_bond_angle,
@@ -1765,7 +1794,7 @@ class AsyncDB:
                                         row["id"], []
                                     )
                                 ],
-                                mtz_file=row["mtz_file_id"],
+                                mtz_file_id=row["mtz_file_id"],
                                 fom=MergeResultFom(
                                     snr=row["fom_snr"],
                                     wilson=row["fom_wilson"],
@@ -1880,9 +1909,14 @@ class AsyncDB:
                     mr.fom_outer_max_res,
                 ]
             ).where(
-                mr.job_status == job_status_filter
-                if job_status_filter is not None
-                else True
+                sa.and_(
+                    mr.job_status == job_status_filter
+                    if job_status_filter is not None
+                    else True,
+                    mr.id == merge_result_id_filter
+                    if merge_result_id_filter is not None
+                    else True,
+                )
             )
         )
 

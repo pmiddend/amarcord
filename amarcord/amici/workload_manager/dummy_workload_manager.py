@@ -12,8 +12,7 @@ from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 @dataclass(frozen=True)
 class JobStart:
     working_directory: Path
-    executable: Path
-    command_line: str
+    script: str
     time_limit: datetime.timedelta
     extra_files: list[Path]
 
@@ -28,15 +27,12 @@ class DummyWorkloadManager(WorkloadManager):
     async def start_job(
         self,
         working_directory: Path,
-        executable: Path,
-        command_line: str,
+        script: str,
         time_limit: datetime.timedelta,
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
-        self.job_starts.append(
-            JobStart(working_directory, executable, command_line, time_limit, [])
-        )
+        self.job_starts.append(JobStart(working_directory, script, time_limit, []))
         assert (
             self.job_start_results
         ), "No job start results left, so there was one more job start than anticipated"

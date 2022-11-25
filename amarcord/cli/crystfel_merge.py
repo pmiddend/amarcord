@@ -1,6 +1,4 @@
 #!/software/python/3.10/bin/python3
-
-import argparse
 import json
 import logging
 import math
@@ -11,11 +9,13 @@ import shlex
 import shutil
 import subprocess
 import sys
+from base64 import b64decode
 from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
 from typing import Final
 from typing import NoReturn
+from urllib import request
 
 _NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE: Final = 6
 _NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE: Final = 11
@@ -351,93 +351,124 @@ logging.basicConfig(
 @dataclass(frozen=True)
 class ParsedArgs:
     stream_files: list[Path]
-    cell_file: Path
+    api_url: str
+    merge_result_id: int
+    cell_file_id: int
     point_group: str
     hkl_file: Path
     nshells: None | int
     partialator_additional: None | str
     crystfel_path: Path
-    rfree_mtz: None | Path
-    pdb: None | Path
+    pdb_file_id: None | int
 
 
-def write_output_json(error: None | str, result: None | dict) -> None:
-    with OUTPUT_JSON_PATH.open("w", encoding="utf-8") as f:
-        json.dump({"error": error, "result": result}, f, allow_nan=False, indent=2)
+def parse_predefined(s: bytes) -> ParsedArgs:
+    j = json.loads(b64decode(s))
+    assert isinstance(j, dict)
+    crystfel_path_str = j.get("crystfel-path")
+    if crystfel_path_str is None:
+        exit_with_error(None, "crystfel-path missing in input")
+    if not isinstance(crystfel_path_str, str):
+        exit_with_error(None, f"crystfel-path not a string but {crystfel_path_str}")
+    crystfel_path = Path(crystfel_path_str)
+    if not crystfel_path.is_dir():
+        exit_with_error(
+            None, f"CrystFEL path {crystfel_path} must be a valid directory"
+        )
 
+    stream_files_raw = j.get("stream-files")
+    if stream_files_raw is None:
+        exit_with_error(None, "stream-files missing in input")
+    if not isinstance(stream_files_raw, list):
+        exit_with_error(None, f"stream-files not a list but {stream_files_raw}")
+    for idx, sf in enumerate(stream_files_raw):
+        if not isinstance(sf, str):
+            exit_with_error(None, f"stream-files[{idx}] not a string but {sf}")
+    stream_files = [Path(p) for p in stream_files_raw]
+    if not stream_files:
+        exit_with_error(None, "no input stream files given")
 
-def exit_with_error(message: str) -> NoReturn:
-    logger.error(message)
-    write_output_json(error=message, result=None)
-    sys.exit(1)
-
-
-def parse_command_line_args() -> ParsedArgs:
-    parser = argparse.ArgumentParser(
-        description="Run partialator and generate figures of merit for AMARCORD"
-    )
-    parser.add_argument(
-        "--stream-file",
-        action="append",
-        help="Path to the .stream file for partialator",
-    )
-    parser.add_argument("--cell-file", help="Path to the .cell file for check_hkl")
-    parser.add_argument("--crystfel-path", help="Path to the CrystFEL installation")
-    parser.add_argument(
-        "--rfree-mtz", help="Path to an optional RFree mtz file for refinement"
-    )
-    parser.add_argument(
-        "--pdb", help="Path to an optional PDB file with the base model for refinement"
-    )
-    parser.add_argument(
-        "--point-group", help="Point group for partialator's -y argument"
-    )
-    parser.add_argument(
-        "--nshells",
-        type=int,
-        help="Number of shells (nshells) for check_hkl and compare_hkl",
-    )
-    parser.add_argument(
-        "--partialator-additional",
-        help="Specify some optional additional arguments to partialator",
-    )
-    parser.add_argument(
-        "--hkl-file",
-        default="partialator.hkl",
-        help="HKL file to write (can be relative to the current working directory)",
-    )
-    args = parser.parse_args()
-
-    if not Path(args.crystfel_path).is_dir():
-        exit_with_error(f"CrystFEL path {args.crystfel_path} must be a valid directory")
-
-    path_list = [Path(f) for f in args.stream_file]
-    invalid_paths = set(f for f in path_list if not f.is_file())
+    invalid_paths = set(f for f in stream_files if not f.is_file())
     if invalid_paths:
         logger.warning(
             "the following file(s) are not valid stream files: "
-            + ", ".join(f for f in args.stream_file if not Path(f).is_file())
+            + ", ".join(str(f) for f in stream_files if not f.is_file())
         )
-        if invalid_paths == set(path_list):
-            exit_with_error("none of the input stream files is a valid file")
-    valid_paths = [f for f in path_list if f.is_file()]
-
-    if not Path(args.cell_file).is_file():
-        exit_with_error(f"Input stream file {args.cell_file} is not a valid file")
-
+        if invalid_paths == set(stream_files):
+            exit_with_error(None, "none of the input stream files is a valid file")
+    valid_paths = [f for f in stream_files if f.is_file()]
     return ParsedArgs(
         stream_files=valid_paths,
-        cell_file=Path(args.cell_file),
-        point_group=args.point_group,
-        hkl_file=Path(args.hkl_file),
-        nshells=args.nshells if args.nshells else None,
-        partialator_additional=args.partialator_additional
-        if args.partialator_additional
-        else None,
-        crystfel_path=Path(args.crystfel_path),
-        rfree_mtz=Path(args.rfree_mtz) if args.rfree_mtz else None,
-        pdb=Path(args.pdb) if args.pdb else None,
+        api_url=j.get("api-url"),  # type: ignore
+        merge_result_id=j.get("merge-result-id"),  # type: ignore
+        cell_file_id=j.get("cell-file-id"),  # type: ignore
+        point_group=j.get("point-group"),  # type: ignore
+        hkl_file=Path(j.get("hkl-file", "partialator.hkl")),
+        nshells=j.get("nshells"),
+        partialator_additional=j.get("partialator-additional"),
+        crystfel_path=crystfel_path,
+        pdb_file_id=j.get("pdb-file-id"),
     )
+
+
+predefined_args: None | bytes = None
+
+
+def retrieve_file(args: ParsedArgs, file_id: int, name: str) -> Path:
+    req = request.Request(f"{args.api_url}/api/files/{file_id}", method="GET")
+    with request.urlopen(req) as response:
+        with Path(name).open("wb") as output_file:
+            output_file.write(response.read())
+    return Path(name)
+
+
+def upload_file(args: ParsedArgs, file_path: Path) -> int:
+    with file_path.open("rb") as file_obj:
+        req = request.Request(
+            f"{args.api_url}/api/files/simple/{file_path.suffix.replace('.', '')}",
+            method="POST",
+            data=file_obj,
+        )
+
+        try:
+            with request.urlopen(req) as response:
+                response_content = response.read().decode("utf-8")
+                try:
+                    parsed_response = json.loads(response_content)
+                except:
+                    exit_with_error(
+                        args,
+                        f"Couldn't parse output from file upload: {response_content}",
+                    )
+                file_id = parsed_response.get("id", None)
+                if file_id is None or not isinstance(file_id, int):
+                    exit_with_error(
+                        args,
+                        f"JSON response from file upload didn't contain the file ID: {response_content}",
+                    )
+                return file_id
+        except:
+            exit_with_error(args, f"error uploading file {file_path}")
+
+
+def write_output_json(args: ParsedArgs, error: None | str, result: None | dict) -> None:
+    req = request.Request(
+        f"{args.api_url}/api/merging/{args.merge_result_id}",
+        data=json.dumps(
+            {"error": error, "result": result}, allow_nan=False, indent=2
+        ).encode("utf-8"),
+        method="POST",
+    )
+    req.add_header("Content-Type", "application/json")
+    with request.urlopen(req) as response:
+        logger.info(f"received the following response from server: {response.read()}")
+
+
+def exit_with_error(args: None | ParsedArgs, message: str) -> NoReturn:
+    logger.error(message)
+    if args is not None:
+        write_output_json(args, error=message, result=None)
+    sys.exit(1)
 
 
 def first_group(output: str, regex: str) -> str:
@@ -577,7 +608,7 @@ def run_compare_hkl_single_fom(
         CompareHklArgs(
             crystfel_path=args.crystfel_path,
             point_group=args.point_group,
-            unit_cell=args.cell_file,
+            unit_cell=retrieve_file(args, args.cell_file_id, "cell"),
             hkl1=args.hkl_file.with_suffix(".hkl1"),
             hkl2=args.hkl_file.with_suffix(".hkl2"),
             fom=fom,
@@ -599,7 +630,8 @@ def run_compare_hkl_single_fom(
 
         if compare_hkl_result.returncode != 0:
             exit_with_error(
-                f"error running compare_hkl, error code is {compare_hkl_result.returncode}, output:\n\n{compare_hkl_result.stdout}"
+                args,
+                f"error running compare_hkl, error code is {compare_hkl_result.returncode}, output:\n\n{compare_hkl_result.stdout}",
             )
 
         return first_group_as_float(
@@ -609,7 +641,7 @@ def run_compare_hkl_single_fom(
     except:
         if may_fail:
             return None
-        exit_with_error("error running compare_hkl")
+        exit_with_error(args, "error running compare_hkl")
 
 
 @dataclass(frozen=True)
@@ -627,7 +659,7 @@ class CheckShellLine:
     max_1_nm: float
 
 
-def read_shells_file(file_path: Path) -> list[CheckShellLine]:
+def read_shells_file(args: ParsedArgs, file_path: Path) -> list[CheckShellLine]:
     with file_path.open("r", encoding="utf-8") as shells_file:
         result: list[CheckShellLine] = []
         # Ignore header line (we cannot separate by whitespace here)
@@ -636,7 +668,8 @@ def read_shells_file(file_path: Path) -> list[CheckShellLine]:
             split_line = line.split()
             if len(split_line) != _NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE:
                 exit_with_error(
-                    f"couldn't read file {file_path}, line {line_no} has invalid format (number of columns not {_NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE}): {line}"
+                    args,
+                    f"couldn't read file {file_path}, line {line_no} has invalid format (number of columns not {_NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE}): {line}",
                 )
             try:
                 result.append(
@@ -656,7 +689,8 @@ def read_shells_file(file_path: Path) -> list[CheckShellLine]:
                 )
             except:
                 exit_with_error(
-                    f"couldn't read file {file_path}, line {line_no} has invalid format: {line}"
+                    args,
+                    f"couldn't read file {file_path}, line {line_no} has invalid format: {line}",
                 )
         return result
 
@@ -671,7 +705,9 @@ class CompareShellLine:
     max_1_nm: float
 
 
-def read_compare_shells_file(file_path: Path) -> list[CompareShellLine]:
+def read_compare_shells_file(
+    args: ParsedArgs, file_path: Path
+) -> list[CompareShellLine]:
     with file_path.open("r", encoding="utf-8") as shells_file:
         result: list[CompareShellLine] = []
         # Ignore header line (we cannot separate by whitespace here)
@@ -680,7 +716,8 @@ def read_compare_shells_file(file_path: Path) -> list[CompareShellLine]:
             split_line = line.split()
             if len(split_line) != _NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE:
                 exit_with_error(
-                    f"couldn't read file {file_path}, line {line_no} has invalid format (number of columns not {_NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE}): {line}"
+                    args,
+                    f"couldn't read file {file_path}, line {line_no} has invalid format (number of columns not {_NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE}): {line}",
                 )
             try:
                 result.append(
@@ -695,13 +732,14 @@ def read_compare_shells_file(file_path: Path) -> list[CompareShellLine]:
                 )
             except:
                 exit_with_error(
-                    f"couldn't read file {file_path}, line {line_no} has invalid format: {line}"
+                    args,
+                    f"couldn't read file {file_path}, line {line_no} has invalid format: {line}",
                 )
         return result
 
 
-def run_check_hkl(args: CheckHklArgs) -> str:
-    check_hkl_command_line_args = check_hkl_args_to_list(args)
+def run_check_hkl(args: ParsedArgs, check_hkl_args: CheckHklArgs) -> str:
+    check_hkl_command_line_args = check_hkl_args_to_list(check_hkl_args)
     logging.info(f"starting check_hkl with command line: {check_hkl_command_line_args}")
     try:
         check_hkl_result = subprocess.run(
@@ -713,22 +751,23 @@ def run_check_hkl(args: CheckHklArgs) -> str:
 
         if check_hkl_result.returncode != 0:
             exit_with_error(
-                f"error running check_hkl, error code is {check_hkl_result.returncode}"
+                args,
+                f"error running check_hkl, error code is {check_hkl_result.returncode}",
             )
 
         return check_hkl_result.stdout
     except:
-        exit_with_error("error running check_hkl")
+        exit_with_error(args, "error running check_hkl")
 
 
-def create_mtz(args: ParsedArgs, output_path: Path) -> None:
+def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
     try:
         cli_args = [
             f"{args.crystfel_path}/bin/get_hkl",
             "-i",
             str(args.hkl_file),
             "-p",
-            str(args.cell_file),
+            str(cell_file),
             "-o",
             str(output_path),
             "--output-format=mtz",
@@ -742,31 +781,41 @@ def create_mtz(args: ParsedArgs, output_path: Path) -> None:
         )
 
         if result.returncode != 0:
-            exit_with_error(f"error running get_hkl, error code is {result.returncode}")
+            exit_with_error(
+                args, f"error running get_hkl, error code is {result.returncode}"
+            )
     except:
-        exit_with_error("error running get_hkl")
+        exit_with_error(args, "error running get_hkl")
 
 
 def generate_output(args: ParsedArgs) -> None:
+    merge_subdirectory = Path(f"./merging-{args.merge_result_id}")
+
+    merge_subdirectory.mkdir(parents=True)
+    os.chdir(merge_subdirectory)
+
     run_partialator(args)
 
+    cell_file = retrieve_file(args, args.cell_file_id, "cell")
+
     mtz_path = Path("output.mtz")
-    create_mtz(args, mtz_path)
+    create_mtz(args, mtz_path, cell_file)
 
     highres_cut = calculate_highres_cut(args)
 
     logger.info(f"highres cut is {highres_cut}")
 
     check_out = run_check_hkl(
+        args,
         CheckHklArgs(
             crystfel_path=args.crystfel_path,
             hkl_file=args.hkl_file,
             point_group=args.point_group,
-            unit_cell=args.cell_file,
+            unit_cell=cell_file,
             highres=highres_cut,
             shell_file=CHECK_HKL_SHELL_FILE,
             nshells=args.nshells,
-        )
+        ),
     )
     snr = first_group_as_float(check_out, r"Overall <snr> = ([^\n]+)")
     redundancy = first_group_as_float(
@@ -797,15 +846,16 @@ def generate_output(args: ParsedArgs) -> None:
     one_over_d_to = 10.0 / float(one_over_d.group(2))
 
     wilson_out = run_check_hkl(
+        args,
         CheckHklArgs(
             hkl_file=args.hkl_file,
             crystfel_path=args.crystfel_path,
             point_group=args.point_group,
-            unit_cell=args.cell_file,
+            unit_cell=cell_file,
             highres=highres_cut,
             wilson=True,
             nshells=args.nshells,
-        )
+        ),
     )
     try:
         wilson = first_group_as_float(wilson_out, r"B = ([^ ]+)")
@@ -835,30 +885,31 @@ def generate_output(args: ParsedArgs) -> None:
         highres_cut,
         output_file=CC_COMPARE_SHELL_FILE,
     )
-    check_file = read_shells_file(CHECK_HKL_SHELL_FILE)
+    check_file = read_shells_file(args, CHECK_HKL_SHELL_FILE)
     if not check_file:
         exit_with_error(
-            f"cannot proceed, check file {CHECK_HKL_SHELL_FILE} has no lines"
+            args, f"cannot proceed, check file {CHECK_HKL_SHELL_FILE} has no lines"
         )
 
     refinement_result: None | RefinementResult = None
-    if args.pdb is not None:
+    if args.pdb_file_id is not None:
         try:
+            pdb_file = retrieve_file(args, args.pdb_file_id, "base-model.pdb")
             refinement_result = quick_refine(
                 mtz_path,
                 highres_cut,
-                args.pdb,
+                pdb_file,
             )
         except:
             logger.exception("couldn't complete refinement")
 
     output_json = {
-        "mtz_file": str(mtz_path),
-        "detailed_foms": extract_shell_resolutions(),
+        "mtz_file_id": upload_file(args, mtz_path),
+        "detailed_foms": extract_shell_resolutions(args),
         "refinement_results": [
             {
-                "pdb": str(refinement_result.pdb_path),
-                "mtz": str(refinement_result.mtz_path),
+                "pdb_file_id": upload_file(args, refinement_result.pdb_path),
+                "mtz_file_id": upload_file(args, refinement_result.mtz_path),
                 "r_free": refinement_result.fom.r_free,
                 "r_work": refinement_result.fom.r_work,
                 "rms_bond_angle": refinement_result.fom.rms_bond_angle,
@@ -940,15 +991,17 @@ def generate_output(args: ParsedArgs) -> None:
             ),
             "outer_shell": {
                 "resolution": read_compare_shells_file(
-                    CCSTAR_COMPARE_SHELL_FILE_FIRST_PASS
+                    args, CCSTAR_COMPARE_SHELL_FILE_FIRST_PASS
                 )[-1].d_over_a,
-                "ccstar": read_compare_shells_file(CCSTAR_COMPARE_SHELL_FILE)[
+                "ccstar": read_compare_shells_file(args, CCSTAR_COMPARE_SHELL_FILE)[
                     -1
                 ].fom_value,
-                "r_split": read_compare_shells_file(RSPLIT_COMPARE_SHELL_FILE)[
+                "r_split": read_compare_shells_file(args, RSPLIT_COMPARE_SHELL_FILE)[
                     -1
                 ].fom_value,
-                "cc": read_compare_shells_file(CC_COMPARE_SHELL_FILE)[-1].fom_value,
+                "cc": read_compare_shells_file(args, CC_COMPARE_SHELL_FILE)[
+                    -1
+                ].fom_value,
                 "unique_reflections": check_file[-1].nref,
                 "completeness": check_file[-1].compl,
                 "redundancy": check_file[-1].red,
@@ -959,10 +1012,10 @@ def generate_output(args: ParsedArgs) -> None:
         },
     }
 
-    write_output_json(error=None, result=output_json)
+    write_output_json(args, error=None, result=output_json)
 
 
-def extract_shell_resolutions() -> list[dict[str, float | int]]:
+def extract_shell_resolutions(args: ParsedArgs) -> list[dict[str, float | int]]:
     return [
         {
             "one_over_d_centre": ccstar.one_over_d_centre,
@@ -981,10 +1034,10 @@ def extract_shell_resolutions() -> list[dict[str, float | int]]:
             "mean_i": checkhkl.mean_i,
         }
         for ccstar, cc, rsplit, checkhkl in zip(
-            read_compare_shells_file(CCSTAR_COMPARE_SHELL_FILE),
-            read_compare_shells_file(CC_COMPARE_SHELL_FILE),
-            read_compare_shells_file(RSPLIT_COMPARE_SHELL_FILE),
-            read_shells_file(CHECK_HKL_SHELL_FILE),
+            read_compare_shells_file(args, CCSTAR_COMPARE_SHELL_FILE),
+            read_compare_shells_file(args, CC_COMPARE_SHELL_FILE),
+            read_compare_shells_file(args, RSPLIT_COMPARE_SHELL_FILE),
+            read_shells_file(args, CHECK_HKL_SHELL_FILE),
         )
     ]
 
@@ -998,11 +1051,11 @@ def calculate_highres_cut(args: ParsedArgs) -> float:
         highres=None,
     )
     first_pass_ccstar_file = read_compare_shells_file(
-        CCSTAR_COMPARE_SHELL_FILE_FIRST_PASS
+        args, CCSTAR_COMPARE_SHELL_FILE_FIRST_PASS
     )
     if not first_pass_ccstar_file:
         exit_with_error(
-            "Error in data: CC* shells file is empty, cannot calculate cutoff"
+            args, "Error in data: CC* shells file is empty, cannot calculate cutoff"
         )
     highres_cut_line: None | CompareShellLine = None
     for line in first_pass_ccstar_file:
@@ -1043,10 +1096,14 @@ def run_partialator(args: ParsedArgs) -> None:
 
             if partialator.returncode != 0:
                 exit_with_error(
-                    f"error running partialator, error code is {partialator.returncode}"
+                    args,
+                    f"error running partialator, error code is {partialator.returncode}",
                 )
     except:
-        exit_with_error("error running partialator")
+        exit_with_error(args, "error running partialator")
 
 
-generate_output(parse_command_line_args())
+if __name__ == "__main__":
+    if predefined_args is None:
+        exit_with_error(None, "No predefined_args given")
+    generate_output(parse_predefined(predefined_args))

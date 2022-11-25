@@ -1,5 +1,6 @@
 import asyncio
 import json
+import shlex
 from datetime import timedelta
 from pathlib import Path
 from typing import Optional
@@ -39,11 +40,16 @@ async def _main_loop(args: Arguments) -> None:
 
     start_result = await workload_manager.start_job(
         args.working_directory,
-        args.executable,
-        args.command_line,
-        timedelta(minutes=args.time_limit_minutes),
-        args.stdout,
-        args.stderr,
+        script=f"""#!/bin/sh
+        
+        set -eu
+        set -o pipefail
+        
+        {args.executable} {shlex.join(args.command_line)}
+        """,
+        time_limit=timedelta(minutes=args.time_limit_minutes),
+        stdout=args.stdout,
+        stderr=args.stderr,
     )
 
     logger.info(

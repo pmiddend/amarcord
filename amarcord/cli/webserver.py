@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import sys
+import uuid
 from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
@@ -16,6 +17,7 @@ from typing import cast
 from zipfile import ZipFile
 
 import quart
+import structlog
 from hypercorn import Config
 from hypercorn.asyncio import serve
 from pint import UnitRegistry
@@ -28,6 +30,7 @@ from tap import Tap
 from werkzeug import Response
 from werkzeug.exceptions import HTTPException
 
+from amarcord.amici.crystfel.merge_daemon import MergeResultRootJson
 from amarcord.amici.crystfel.util import CrystFELCellFile
 from amarcord.amici.crystfel.util import coparse_cell_description
 from amarcord.db.associated_table import AssociatedTable
@@ -102,6 +105,8 @@ app = Quart(
 app.json_encoder = CustomJSONEncoder
 app = cors(app)
 db = QuartDatabases(app)
+
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @app.errorhandler(HTTPException)
@@ -298,15 +303,12 @@ def _encode_merge_result(
                 }
             }
         case DBMergeRuntimeStatusDone(started, stopped, result):
-            assert isinstance(
-                result.mtz_file, int
-            ), f"mtz file in result is not an integer but {result.mtz_file}"
             additional_dict = {
                 "state-done": {
                     "started": datetime_to_attributo_int(started),
                     "stopped": datetime_to_attributo_int(stopped),
                     "result": {
-                        "mtz-file-id": result.mtz_file,
+                        "mtz-file-id": result.mtz_file_id,
                         "detailed-foms": [
                             {
                                 "one-over-d-centre": i.one_over_d_centre,
@@ -422,6 +424,100 @@ def _encode_event(e: DBEvent) -> JSONDict:
 
 def _has_artificial_delay() -> bool:
     return bool(app.config.get("ARTIFICIAL_DELAY", False))
+
+
+@app.post("/api/merging/<int:merge_result_id>")
+async def merge_job_finished(merge_result_id: int) -> JSONDict:
+    job_logger = logger.bind(merge_result_id=merge_result_id)
+
+    job_logger.info("merge job has finished")
+
+    async with db.instance.begin() as conn:
+        current_merge_result_status = next(
+            iter(
+                await db.instance.retrieve_merge_results(
+                    conn, merge_result_id_filter=merge_result_id
+                )
+            ),
+            None,
+        )
+
+        if current_merge_result_status is None:
+            logger.error("merge job not found in DB")
+            return {}
+
+        runtime_status = current_merge_result_status.runtime_status
+        if not isinstance(runtime_status, DBMergeRuntimeStatusRunning):
+            logger.warning(
+                f"merge result status is {runtime_status}, not running; this might be fine though"
+            )
+            started = datetime.datetime.utcnow()
+            recent_log = ""
+        else:
+            started = runtime_status.started
+            recent_log = runtime_status.recent_log
+
+        json_content = await request.get_json(force=True)
+        try:
+            json_result = MergeResultRootJson(**json_content)
+
+            stopped_time = datetime.datetime.utcnow()
+
+            job_logger.info("json request content is valid")
+
+            if json_result.error is not None:
+                job_logger.error(f"semantic error in json content: {json_result.error}")
+                await db.instance.update_merge_result_status(
+                    conn,
+                    merge_result_id,
+                    DBMergeRuntimeStatusError(
+                        error=json_result.error,
+                        started=started,
+                        stopped=stopped_time,
+                        recent_log=recent_log,
+                    ),
+                )
+                return {}
+
+            assert (
+                json_result.result is not None
+            ), f"both error and result are none in output: {json_content}"
+
+            await db.instance.update_merge_result_status(
+                conn,
+                merge_result_id,
+                DBMergeRuntimeStatusDone(
+                    started=started,
+                    stopped=stopped_time,
+                    result=json_result.result,
+                    recent_log=recent_log,
+                ),
+            )
+
+            for rr in json_result.result.refinement_results:
+                await db.instance.create_refinement_result(
+                    conn,
+                    merge_result_id,
+                    rr.pdb_file_id,
+                    rr.mtz_file_id,
+                    rfree=rr.r_free,
+                    rwork=rr.r_work,
+                    rms_bond_angle=rr.rms_bond_angle,
+                    rms_bond_length=rr.rms_bond_length,
+                )
+        except:
+            job_logger.exception(f"error parsing json content\n\n{json_content}")
+            await db.instance.update_merge_result_status(
+                conn,
+                merge_result_id,
+                DBMergeRuntimeStatusError(
+                    error="Invalid job JSON response",
+                    started=started,
+                    stopped=datetime.datetime.utcnow(),
+                    recent_log=recent_log,
+                ),
+            )
+        return {}
 
 
 @app.post("/api/merging/<int:data_set_id>/start")
@@ -858,6 +954,37 @@ async def create_file() -> JSONDict:
     }
 
 
+@app.post("/api/files/simple/<extension>")
+async def create_file_simple(extension: str) -> JSONDict:
+    async with db.instance.begin() as conn:
+        # Since we potentially need to seek around in the file, and we don't know if it's a seekable
+        # stream (I think?) we store it in a named temp file first.
+        with NamedTemporaryFile(mode="w+b") as temp_file:
+            temp_file.write(await request.get_data())
+            temp_file.flush()
+            temp_file.seek(0, os.SEEK_SET)
+
+            file_name = f"{uuid.uuid4()}.{extension}"
+            create_result = await db.instance.create_file(
+                conn,
+                file_name=file_name,
+                description="",
+                original_path=None,
+                contents_location=Path(temp_file.name),
+                deduplicate=False,
+            )
+
+    return {
+        "id": create_result.id,
+        "fileName": file_name,
+        "description": "",
+        "type_": create_result.type_,
+        "sizeInBytes": create_result.size_in_bytes,
+        # Doesn't really make sense here
+        "originalPath": None,
+    }
+
+
 @app.get("/api/user-config/<key>")
 async def read_user_configuration_single(key: str) -> JSONDict:
     async with db.instance.read_only_connection() as conn:
@@ -1160,6 +1287,24 @@ async def create_data_set_from_run() -> JSONDict:
         await db.instance.create_data_set(conn, experiment_type_id, attributi_map)
 
         return {}
+
+
+@app.post("/api/refinement-results")
+async def create_refinement_result() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        refinement_result_id = await db.instance.create_refinement_result(
+            conn,
+            merge_result_id=r.retrieve_safe_int("merge-result-id"),
+            pdb_file_id=r.retrieve_safe_int("pdb-file-id"),
+            mtz_file_id=r.retrieve_safe_int("mtz-file-id"),
+            rfree=r.retrieve_safe_float("r-free"),
+            rwork=r.retrieve_safe_float("r-work"),
+            rms_bond_angle=r.retrieve_safe_float("rms-bond-angle"),
+            rms_bond_length=r.retrieve_safe_float("rms-bond-length"),
+        )
+        return {"id": refinement_result_id}
 
 
 @app.post("/api/data-sets")

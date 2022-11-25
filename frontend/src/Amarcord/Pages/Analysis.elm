@@ -239,7 +239,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                         ]
 
                                     MergeResultError _ _ error _ ->
-                                        [ td [ colspan remainingHeaders ] [ span_ [ text <| "Error: " ++ error ++ ". Latest log: " ] ] ]
+                                        [ td [ colspan remainingHeaders ] [ span_ [ text <| "Error: " ++ error ++ "." ] ] ]
 
                                     MergeResultDone started stopped mtzFileId fom shells ->
                                         let

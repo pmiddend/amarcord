@@ -107,6 +107,7 @@ async def mjpeg_stream_loop(db: AsyncDB, mjpeg_stream_url: str, delay: float) ->
                     description="",
                     original_path=None,
                     contents=image,
+                    deduplicate=False,
                 )
             else:
                 await db.update_file_from_bytes(

@@ -9,13 +9,15 @@ from pathlib import Path
 from typing import Any
 from typing import Awaitable
 from typing import Callable
+from typing import Final
 from typing import TypedDict
 
 import aiohttp
+from aiohttp import BasicAuth
+from aiohttp import ContentTypeError
 
 from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job import JobMetadata
-from amarcord.amici.workload_manager.slurm_util import build_sbatch
 from amarcord.amici.workload_manager.slurm_util import parse_job_state
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
@@ -23,7 +25,9 @@ from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.json_types import JSONDict
 from amarcord.util import last_line_of_file
 
-MAXWELL_SLURM_URL = "https://max-portal.desy.de/sapi/slurm/v0.0.36"
+MAXWELL_PREFIX: Final = "https://max-portal.desy.de"
+MAXWELL_SLURM_URL: Final = f"{MAXWELL_PREFIX}/sapi/slurm/v0.0.36"
+MAXWELL_SLURM_TOOLS_VERSION: Final = "4.6.0"
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +41,39 @@ def slurm_token_command(lifespan_minutes: int | float) -> list[str]:
     return ["slurm_token", "-l", str(int(lifespan_minutes))]
 
 
-async def retrieve_jwt_token(lifespan_seconds: int) -> str | TokenRetrievalError:
+async def retrieve_jwt_token_externally(
+    portal_token: str, user_name: str, lifespan_seconds: int
+) -> str | TokenRetrievalError:
+    try:
+        async with aiohttp.ClientSession(
+            auth=BasicAuth(user_name, portal_token)
+        ) as session:
+            async with session.get(
+                f"{MAXWELL_PREFIX}/reservation/get_new_slurm_token?cli_api={MAXWELL_SLURM_TOOLS_VERSION}&lifespan={lifespan_seconds}&stu={user_name}"
+            ) as response:
+                try:
+                    # Maxwell says "text/html", which makes the "json" function fail. But the content
+                    # really is JSON, so we can ignore Content-Type.
+                    json_content = await response.json(content_type=None)
+                except ContentTypeError as e:
+                    return TokenRetrievalError(f"response did not contain JSON: {e}")
+                if json_content is None:
+                    return TokenRetrievalError("response was empty")
+                token = json_content.get("token")
+                if token is None:
+                    return TokenRetrievalError(
+                        f'got no "token" in JSON response: {json_content}'
+                    )
+                if not isinstance(token, str):
+                    return TokenRetrievalError(f"auth token is not string but: {token}")
+                return token
+    except Exception as e:
+        return TokenRetrievalError(f"a very unexpected error occurred: {e}")
+
+
+async def retrieve_jwt_token_on_maxwell_node(
+    lifespan_seconds: int,
+) -> str | TokenRetrievalError:
     try:
         result = await (
             asyncio.create_subprocess_shell(
@@ -185,29 +221,17 @@ class SlurmRestWorkloadManager(WorkloadManager):
     async def start_job(
         self,
         working_directory: Path,
-        executable: Path,
-        command_line: str,
+        script: str,
         time_limit: datetime.timedelta,
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
-        if not executable.is_absolute():
-            raise JobStartError(
-                f"couldn't run executable {executable} with SLURM: has to be an absolute path"
-            )
-        lines = (f"{executable} {command_line}",)
-
-        # See the comment for mkdir above. Either we create the file in the script, or here.
-        # copy_string += f"mkdir -p {chdir}\n"
-        # copy_string += f"cd {chdir}\n"
-
-        sbatch_content = build_sbatch(content="\n".join(lines))
         url = f"{self._rest_url}/job/submit"
         logger.info(
-            "sending the following sbatch script to %s (headers %s): %s",
+            "sending the following script to %s (headers %s): %s",
             url,
             json.dumps(await self._headers()),
-            sbatch_content,
+            script,
         )
         job_dict = {
             "nodes": 1,
@@ -230,7 +254,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         if self._reservation is not None:
             job_dict["reservation"] = self._reservation
         json_request: JSONDict = {
-            "script": sbatch_content,
+            "script": script,
             "job": job_dict,
         }
         logger.info(

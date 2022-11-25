@@ -65,7 +65,7 @@ class Arguments(Tap):
     # pylint: disable=consider-alternative-union-syntax
     merge_daemon_output_base_directory: Optional[Path] = None
     # pylint: disable=consider-alternative-union-syntax
-    merge_daemon_merge_script_path: Optional[Path] = None
+    merge_daemon_api_url: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
     merge_daemon_crystfel_path: Optional[Path] = None
 
@@ -80,18 +80,18 @@ async def _main_loop(args: Arguments) -> None:
 
     if (
         args.merge_daemon_workload_manager_uri is not None
-        and args.merge_daemon_merge_script_path is not None
         and args.merge_daemon_crystfel_path is not None
         and args.merge_daemon_output_base_directory is not None
+        and args.merge_daemon_api_url is not None
     ):
         awaitables.append(
             asyncio.create_task(
                 merging_loop(
                     db=db,
                     config=MergeConfig(
-                        args.merge_daemon_output_base_directory,
-                        args.merge_daemon_merge_script_path,
-                        args.merge_daemon_crystfel_path,
+                        output_base_directory=args.merge_daemon_output_base_directory,
+                        api_url=args.merge_daemon_api_url,
+                        crystfel_path=args.merge_daemon_crystfel_path,
                     ),
                     workload_manager=create_workload_manager(
                         parse_workload_manager_config(

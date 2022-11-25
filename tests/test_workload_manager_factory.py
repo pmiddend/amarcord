@@ -33,6 +33,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 token=None,
                 user="user",
                 url=MAXWELL_SLURM_URL,
+                portal_token=None,
             ),
         ),
         (
@@ -43,6 +44,18 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 token="blub",
                 user="user",
                 url=MAXWELL_SLURM_URL,
+                portal_token=None,
+            ),
+        ),
+        (
+            "maxwell-rest:partition=foo|reservation=bar|user=user|portal-token=blub",
+            SlurmRestWorkloadManagerConfig(
+                partition="foo",
+                reservation="bar",
+                token=None,
+                user="user",
+                url=MAXWELL_SLURM_URL,
+                portal_token="blub",
             ),
         ),
         (
@@ -53,6 +66,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
                 token="blub",
                 user="user",
                 url="https://myhost:80/foo",
+                portal_token=None,
             ),
         ),
         (

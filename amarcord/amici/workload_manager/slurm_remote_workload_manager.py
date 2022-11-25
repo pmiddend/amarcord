@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import re
-import shlex
 from pathlib import Path
 from typing import Iterable
 
@@ -160,7 +159,7 @@ async def run_remote_sbatch(
     explicit_node: None | str,
     stdout: None | Path,
     stderr: None | Path,
-    remote_command_args: list[str],
+    script: str,
     additional_ssh_options: bool,
 ) -> int:
     ssh_command_arg_list = _ssh_command(
@@ -174,7 +173,6 @@ async def run_remote_sbatch(
         stdout=stdout,
         stderr=stderr,
     )
-    sbatch_command_arg_list.extend(remote_command_args)
     ssh_command_arg_list.extend(sbatch_command_arg_list)
     parent_logger.info("Executing " + str(ssh_command_arg_list))
 
@@ -185,7 +183,8 @@ async def run_remote_sbatch(
         stderr=asyncio.subprocess.PIPE,
     )
 
-    stdout_stream, stderr_stream = await proc.communicate()
+    # Here we send the script via stdin, which works even over ssh
+    stdout_stream, stderr_stream = await proc.communicate(script.encode("utf-8"))
 
     # completed = subprocess.run(ssh_command_arg_list, check=True, capture_output=True)
     parent_logger.info("completed")
@@ -225,8 +224,7 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
     async def start_job(
         self,
         working_directory: Path,
-        executable: Path,
-        command_line: str,
+        script: str,
         time_limit: datetime.timedelta,
         stdout: None | Path = None,
         stderr: None | Path = None,
@@ -237,7 +235,7 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
                 beamline_metadata=self._metadata,
                 working_directory=working_directory,
                 explicit_node=self._explicit_node,
-                remote_command_args=[str(executable)] + shlex.split(command_line),
+                script=script,
                 stdout=stdout,
                 stderr=stderr,
                 additional_ssh_options=self._additional_ssh_options,

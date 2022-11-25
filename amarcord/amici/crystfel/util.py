@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from time import time
+from typing import IO
 from typing import Final
 
 from amarcord.db.attributo_id import AttributoId
@@ -51,19 +52,23 @@ def parse_cell_description(s: str) -> None | CrystFELCellFile:
     )
 
 
+def coparse_cell_file(c: CrystFELCellFile, f: IO) -> None:
+    f.write("CrystFEL unit cell file version 1.0\n\n")
+    f.write(f"lattice_type = {c.lattice_type}\n")
+    f.write(f"centering = {c.centering}\n")
+    if c.unique_axis is not None:
+        f.write(f"unique_axis = {c.unique_axis}\n\n")
+    f.write(f"a = {c.a} A\n")
+    f.write(f"b = {c.b} A\n")
+    f.write(f"c = {c.c} A\n")
+    f.write(f"al = {c.alpha} deg\n")
+    f.write(f"be = {c.beta} deg\n")
+    f.write(f"ga = {c.gamma} deg\n")
+
+
 def write_cell_file(c: CrystFELCellFile, p: Path) -> None:
     with p.open("w") as f:
-        f.write("CrystFEL unit cell file version 1.0\n\n")
-        f.write(f"lattice_type = {c.lattice_type}\n")
-        f.write(f"centering = {c.centering}\n")
-        if c.unique_axis is not None:
-            f.write(f"unique_axis = {c.unique_axis}\n\n")
-        f.write(f"a = {c.a} A\n")
-        f.write(f"b = {c.b} A\n")
-        f.write(f"c = {c.c} A\n")
-        f.write(f"al = {c.alpha} deg\n")
-        f.write(f"be = {c.beta} deg\n")
-        f.write(f"ga = {c.gamma} deg\n")
+        coparse_cell_file(c, f)
 
 
 def make_cell_file_name(c: CrystFELCellFile) -> str:

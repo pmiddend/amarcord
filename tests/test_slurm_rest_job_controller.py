@@ -18,7 +18,7 @@ from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     SlurmRestWorkloadManager,  # NOQA
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
-    retrieve_jwt_token,  # NOQA
+    retrieve_jwt_token_on_maxwell_node,  # NOQA
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     slurm_token_command,  # NOQA
@@ -80,8 +80,7 @@ async def test_slurm_rest_job_controller_start_job() -> None:
     http_wrapper.responses.append({"job_id": 1})
     await controller.start_job(
         working_directory=Path("test"),
-        executable=Path("/tmp/executable"),
-        command_line="",
+        script='#!/bin/sh\n\necho "Done"',
         time_limit=_TIME_LIMIT,
     )
 
@@ -152,7 +151,7 @@ async def test_dynamic_token_retriever_wrong_output(fake_process: FakeProcess) -
     fake_process.register_subprocess(slurm_token_command(24 * 60), stdout=b"lol")
 
     with pytest.raises(Exception):
-        tr = DynamicTokenRetriever(retrieve_jwt_token)
+        tr = DynamicTokenRetriever(retrieve_jwt_token_on_maxwell_node)
         await tr()
 
 
@@ -161,6 +160,6 @@ async def test_dynamic_token_retriever_jwt_output(fake_process: FakeProcess) -> 
         slurm_token_command(86400), stdout=b"SLURM_TOKEN=lol"
     )
 
-    tr = DynamicTokenRetriever(retrieve_jwt_token)
+    tr = DynamicTokenRetriever(retrieve_jwt_token_on_maxwell_node)
 
     assert await tr() == "lol"

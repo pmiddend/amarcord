@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import logging
 import shutil
+import stat
 import subprocess
 from asyncio.subprocess import Process
 from dataclasses import dataclass
@@ -51,12 +52,17 @@ class WrappedProcess:
 
 async def start_process_locally(
     output_base_dir_str: str,
-    executable_path_str: str,
-    command_line: str,
+    script: str,
     extra_file_paths_str: list[str],
 ) -> tuple[Process, Path]:
     output_base_dir = Path(output_base_dir_str)
-    executable_path = Path(executable_path_str)
+
+    script_path = output_base_dir / "script"
+    with script_path.open("w", encoding="utf-8") as f:
+        f.write(script)
+
+    script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
+
     extra_file_paths = [Path(s) for s in extra_file_paths_str]
 
     process_dir = output_base_dir
@@ -70,21 +76,8 @@ async def start_process_locally(
         )
         shutil.copyfile(extra_file, process_dir / extra_file.name)
 
-    logger.info(
-        "Copying main executable %s to output directory as %s",
-        executable_path,
-        executable_path.name,
-    )
-    relative_executable = process_dir / executable_path.name
-    # Important to use copy2 here because it copies file permissions as well:
-    # https://stackoverflow.com/questions/123198/how-can-a-file-be-copied
-    shutil.copy2(executable_path, relative_executable)
-
-    subprocess_command = f"{relative_executable} {command_line}"
-    logger.info("Running the following command line: %s", subprocess_command)
-
     proc = await asyncio.create_subprocess_shell(
-        subprocess_command,
+        str(script_path),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -100,16 +93,14 @@ class LocalWorkloadManager(WorkloadManager):
     async def start_job(
         self,
         working_directory: Path,
-        executable: Path,
-        command_line: str,
+        script: str,
         time_limit: datetime.timedelta,
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
         process, _ = await start_process_locally(
             str(working_directory),
-            str(executable),
-            command_line,
+            script,
             [],
         )
         self._processes.append(WrappedProcess(process, datetime.datetime.utcnow()))

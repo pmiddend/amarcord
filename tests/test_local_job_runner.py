@@ -11,8 +11,7 @@ async def test_main_loop(tmp_path: Path) -> None:
 
     await jc.start_job(
         working_directory=tmp_path,
-        executable=Path(__file__).parent / "test-script.sh",
-        command_line="",
+        script='#!/bin/sh\n\necho "Done"',
         time_limit=timedelta(),
     )
 

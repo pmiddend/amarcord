@@ -110,8 +110,14 @@ async def start_indexing_job(
         )
         job_start_result = await workload_manager.start_job(
             working_directory=job_base_directory,
-            executable=config.indexing_script_path,
-            command_line=f"{indexing_result.run_id} {stream_file} {output_cell_file}",
+            script=f"""#!/bin/sh
+
+            set -eu
+            set -o pipefail
+
+            module load maxwell python/3.10
+            {config.indexing_script_path} {indexing_result.run_id} {stream_file} {output_cell_file}
+            """,
             time_limit=timedelta(days=1),
             stdout=job_base_directory / f"{output_base_name}_stdout.txt",
             stderr=job_base_directory / f"{output_base_name}_stderr.txt",

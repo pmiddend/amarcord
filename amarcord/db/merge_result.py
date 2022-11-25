@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from pydantic import BaseModel
 
 
@@ -60,8 +58,8 @@ class MergeResultShell(BaseModel):
 
 
 class RefinementResult(BaseModel):
-    pdb: Path | int
-    mtz: Path | int
+    pdb_file_id: int
+    mtz_file_id: int
     r_free: float
     r_work: float
     rms_bond_angle: float
@@ -69,7 +67,7 @@ class RefinementResult(BaseModel):
 
 
 class MergeResult(BaseModel):
-    mtz_file: int | Path
+    mtz_file_id: int
     fom: MergeResultFom
     detailed_foms: list[MergeResultShell]
     refinement_results: list[RefinementResult]

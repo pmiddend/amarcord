@@ -26,8 +26,7 @@ class WorkloadManager(ABC):
     async def start_job(
         self,
         working_directory: Path,
-        executable: Path,
-        command_line: str,
+        script: str,
         time_limit: datetime.timedelta,
         stdout: None | Path = None,
         stderr: None | Path = None,

@@ -212,11 +212,13 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
     assert len(workload_manager.job_starts) == 1
     # Do we _actually_ have a cell file?
     assert [x for x in cell_file_dir.iterdir() if x.name.endswith(".cell")]
-    assert workload_manager.job_starts[0].executable == indexing_script
-    assert workload_manager.job_starts[0].working_directory == base_dir
-    assert workload_manager.job_starts[0].command_line.startswith(
-        f"1 {base_dir}/run_1_indexing_1.stream {cell_file_dir}/chemical_"
+    assert (
+        workload_manager.job_starts[0].script.index(
+            f"1 {base_dir}/run_1_indexing_1.stream {cell_file_dir}/chemical_"
+        )
+        >= 0
     )
+    assert workload_manager.job_starts[0].working_directory == base_dir
 
 
 async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
@@ -265,12 +267,13 @@ async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
     assert isinstance(ir, DBIndexingResultRunning)
     assert not [x for x in cell_file_dir.iterdir() if x.name.endswith(".cell")]
     assert len(workload_manager.job_starts) == 1
-    assert workload_manager.job_starts[0].executable == indexing_script
-    assert workload_manager.job_starts[0].working_directory == base_dir
     assert (
-        workload_manager.job_starts[0].command_line
-        == f"1 {base_dir}/run_1_indexing_1.stream None"
+        workload_manager.job_starts[0].script.index(
+            f"1 {base_dir}/run_1_indexing_1.stream None"
+        )
+        >= 0
     )
+    assert workload_manager.job_starts[0].working_directory == base_dir
 
 
 async def test_start_indexing_job_start_error(tmp_path: Path) -> None:
