@@ -1,14 +1,15 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
+import Amarcord.API.AttributoWithRole exposing (AttributoWithRole)
 import Amarcord.API.DataSet exposing (DataSet, emptySummary)
 import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
 import Amarcord.API.Requests exposing (Event, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoType, attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
-import Amarcord.Chemical exposing (Chemical, chemicalIdDict)
+import Amarcord.Chemical exposing (Chemical, ChemicalType(..), chemicalIdDict)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
@@ -18,7 +19,7 @@ import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
 import Char exposing (fromCode)
 import Date
 import Dict exposing (Dict)
@@ -31,7 +32,6 @@ import List.Extra as ListExtra exposing (find)
 import Maybe
 import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
-import Set exposing (Set)
 import String exposing (fromInt)
 import Time exposing (Posix, Zone, posixToMillis)
 import Tuple exposing (first, second)
@@ -587,7 +587,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
             header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation
 
 
-viewRunAttributiForm : Maybe (Set String) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Chemical Int a b) -> Maybe RunEditInfo -> List (Html Msg)
+viewRunAttributiForm : Maybe (List AttributoWithRole) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Chemical Int a b) -> Maybe RunEditInfo -> List (Html Msg)
 viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList runEditRequest chemicals rei =
     case rei of
         Nothing ->
@@ -600,8 +600,8 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                         Nothing ->
                             True
 
-                        Just attributiNames ->
-                            Set.member a.name attributiNames
+                        Just attributi ->
+                            listContainsBy (\otherAttributo -> otherAttributo.name == a.name) attributi
 
                 -- For ergonomic reasons, we want chemical attributi to be on top - everything else should be
                 -- sorted alphabetically
@@ -620,8 +620,19 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                         && (a.group == manualGlobalAttributiGroup || a.group == manualAttributiGroup && matchesCurrentExperiment a currentExperimentTypeAttributi)
                         && not (List.member a.name [ "started", "stopped" ])
 
+                filteredAttributi : List EditableAttributo
                 filteredAttributi =
                     List.sortBy attributoSortKey <| List.filter attributoFilterFunction editableAttributi.editableAttributi
+
+                viewAttributoFormWithRole : EditableAttributo -> Html AttributoFormMsg
+                viewAttributoFormWithRole e =
+                    viewAttributoForm chemicals
+                        (Maybe.withDefault Solution <|
+                            Maybe.map .role <|
+                                ListExtra.find (\awr -> awr.name == e.name) <|
+                                    Maybe.withDefault [] currentExperimentTypeAttributi
+                        )
+                        e
 
                 submitErrors =
                     case submitErrorsList of
@@ -682,7 +693,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
               else
                 text ""
             , form [ class "mb-3" ]
-                (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
+                (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
             ]
 
 
@@ -698,7 +709,7 @@ viewInner model rrc =
                         (viewRunAttributiForm
                             (model.currentExperimentType
                                 |> Maybe.andThen (\a -> ListExtra.find (\et -> et.id == a.id) rrc.experimentTypes)
-                                |> Maybe.map (\et -> Set.fromList et.attributiNames)
+                                |> Maybe.map .attributi
                             )
                             (head rrc.runs)
                             model.submitErrors

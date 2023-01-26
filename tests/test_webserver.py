@@ -5,6 +5,7 @@ from amarcord.cli.webserver import db
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.attributi import ATTRIBUTO_STARTED
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.json_checker import JSONChecker
 from amarcord.json_types import JSONDict
 
@@ -69,6 +70,7 @@ async def test_update_chemicals() -> None:
         json={
             "name": TEST_chemical_NAME,
             "attributi": {TEST_ATTRIBUTO_NAME: "foo", TEST_ATTRIBUTO_NAME2: "bar"},
+            "type": ChemicalType.CRYSTAL.value,
             "fileIds": [],
         },
     )
@@ -81,6 +83,7 @@ async def test_update_chemicals() -> None:
         json={
             "id": chemical_id,
             "name": TEST_chemical_NAME,
+            "type": ChemicalType.CRYSTAL.value,
             # Only update hte second attributo. The first should stay the same.
             "attributi": {TEST_ATTRIBUTO_NAME2: "baz"},
             "fileIds": [],
@@ -92,7 +95,7 @@ async def test_update_chemicals() -> None:
     result = await client.get("/api/chemicals")
     json = JSONChecker(await result.json, "response")
 
-    chemicals: list[JSONDict] = json.retrieve_array("chemicals")
+    chemicals: list[JSONDict] = json.retrieve_safe_array("chemicals")
     assert len(chemicals) == 1
 
     assert chemicals[0]["id"] == chemical_id
@@ -131,7 +134,7 @@ async def test_data_sets() -> None:
         "/api/experiment-types",
         json={
             "name": experiment_type,
-            "attributi-names": [attributo_name],
+            "attributi": [{"name": attributo_name, "role": ChemicalType.CRYSTAL.value}],
         },
     )
 
@@ -328,7 +331,10 @@ async def test_create_data_set_with_unspecified_boolean() -> None:
         "/api/experiment-types",
         json={
             "name": experiment_type,
-            "attributi-names": [attributo_name, attributo_name2],
+            "attributi": [
+                {"name": attributo_name, "role": ChemicalType.CRYSTAL.value},
+                {"name": attributo_name2, "role": ChemicalType.CRYSTAL.value},
+            ],
         },
     )
 
@@ -396,7 +402,10 @@ async def test_create_data_set_with_unspecified_string() -> None:
         "/api/experiment-types",
         json={
             "name": experiment_type,
-            "attributi-names": [attributo_name, attributo_name2],
+            "attributi": [
+                {"name": attributo_name, "role": ChemicalType.CRYSTAL.value},
+                {"name": attributo_name2, "role": ChemicalType.CRYSTAL.value},
+            ],
         },
     )
 

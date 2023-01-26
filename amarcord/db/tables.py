@@ -7,6 +7,7 @@ from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.sql import ColumnElement
 
 from amarcord.db.associated_table import AssociatedTable
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
@@ -141,6 +142,7 @@ def _table_experiment_has_attributo(
             ),
             nullable=False,
         ),
+        sa.Column("chemical_role", sa.Enum(ChemicalType), nullable=False)
     )
 
 
@@ -230,6 +232,7 @@ def _table_chemical(metadata: sa.MetaData) -> sa.Table:
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("attributi", sa.JSON, nullable=False),
+        sa.Column("type", sa.Enum(ChemicalType), nullable=False)
     )
 
 

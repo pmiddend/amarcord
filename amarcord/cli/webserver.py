@@ -50,7 +50,9 @@ from amarcord.db.attributi_map import JsonAttributiMap
 from amarcord.db.attributi_map import convert_single_attributo_value_to_json
 from amarcord.db.attributi_map import run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_name_and_role import AttributoNameAndRole
 from amarcord.db.attributo_type import AttributoTypeBoolean
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.data_set import DBDataSet
 from amarcord.db.db_merge_result import DBMergeResultInput
 from amarcord.db.db_merge_result import DBMergeResultOutput
@@ -194,13 +196,14 @@ async def create_chemical() -> JSONDict:
         chemical_id = await db.instance.create_chemical(
             conn,
             name=r.retrieve_safe_str("name"),
+            type_=ChemicalType(r.retrieve_safe_str("type")),
             attributi=AttributiMap.from_types_and_json(
                 await db.instance.retrieve_attributi(conn, AssociatedTable.CHEMICAL),
                 chemical_ids=[],
                 raw_attributi=r.retrieve_safe_object("attributi"),
             ),
         )
-        file_ids = r.retrieve_int_array("fileIds")
+        file_ids = r.retrieve_safe_int_array("fileIds")
         for file_id in file_ids:
             await db.instance.add_file_to_chemical(conn, file_id, chemical_id)
 
@@ -227,11 +230,12 @@ async def update_chemical() -> JSONDict:
         await db.instance.update_chemical(
             conn,
             id_=chemical_id,
+            type_=ChemicalType(r.retrieve_safe_str("type")),
             name=r.retrieve_safe_str("name"),
             attributi=chemical_attributi,
         )
         await db.instance.remove_files_from_chemical(conn, chemical_id)
-        file_ids = r.retrieve_int_array("fileIds")
+        file_ids = r.retrieve_safe_int_array("fileIds")
         for file_id in file_ids:
             await db.instance.add_file_to_chemical(conn, file_id, chemical_id)
 
@@ -273,6 +277,7 @@ def _encode_chemical(a: DBChemical) -> JSONDict:
     return {
         "id": a.id,
         "name": a.name,
+        "type": a.type_.value,
         "attributi": a.attributi.to_json(),
         "files": [_encode_file(f) for f in a.files],
     }
@@ -762,7 +767,7 @@ async def read_runs_bulk() -> JSONDict:
                     await db.instance.retrieve_bulk_run_attributi(
                         conn,
                         attributi,
-                        r.retrieve_int_array("run-ids"),
+                        r.retrieve_safe_int_array("run-ids"),
                     )
                 ).items()
             },
@@ -778,7 +783,7 @@ async def update_runs_bulk() -> JSONDict:
         await db.instance.update_bulk_run_attributi(
             conn,
             attributi,
-            set(r.retrieve_int_array("run-ids")),
+            set(r.retrieve_safe_int_array("run-ids")),
             AttributiMap.from_types_and_json(
                 attributi,
                 await db.instance.retrieve_chemical_ids(conn),
@@ -1043,7 +1048,12 @@ async def create_experiment_type() -> JSONDict:
         et_id = await db.instance.create_experiment_type(
             conn,
             name=r.retrieve_safe_str("name"),
-            experiment_attributi_names=r.retrieve_string_array("attributi-names"),
+            experiment_attributi=[  # type: ignore
+                AttributoNameAndRole(
+                    attributo_name=a["name"], chemical_role=ChemicalType(a["role"])
+                )
+                for a in r.retrieve_safe_array("attributi")
+            ],
         )
 
     return {"id": et_id}
@@ -1084,10 +1094,13 @@ async def change_current_run_experiment_type() -> JSONDict:
                 title=f"Couldn't find experiment type with ID {new_experiment_type}",
                 description="",
             )
+        experiment_type_attributo_names = {
+            a.attributo_name for a in experiment_type_instance.attributi
+        }
         for a in attributi:
             if (
                 a.group == ATTRIBUTO_GROUP_MANUAL
-                and a.name not in experiment_type_instance.attributi_names
+                and a.name not in experiment_type_attributo_names
             ):
                 run.attributi.remove_but_keep_type(a.name)
         await db.instance.update_run_attributi(conn, run_id, run.attributi)
@@ -1105,7 +1118,10 @@ def _encode_experiment_type(a: DBExperimentType) -> JSONDict:
     return {
         "id": a.id,
         "name": a.name,
-        "attributi-names": a.attributi_names,
+        "attributi": [
+            {"name": ea.attributo_name, "role": ea.chemical_role.value}
+            for ea in a.attributi
+        ],
     }
 
 
@@ -1275,13 +1291,13 @@ async def create_data_set_from_run() -> JSONDict:
                 description="",
             )
 
+        experiment_type_attributo_names = {
+            a.attributo_name for a in experiment_type_resolved.attributi
+        }
         attributi_map = AttributiMap(
             {a.name: a for a in attributi},
             await db.instance.retrieve_chemical_ids(conn),
-            {
-                an: run.attributi.select(an)
-                for an in experiment_type_resolved.attributi_names
-            },
+            {an: run.attributi.select(an) for an in experiment_type_attributo_names},
         )
 
         await db.instance.create_data_set(conn, experiment_type_id, attributi_map)
@@ -1357,7 +1373,10 @@ async def create_data_set() -> JSONDict:
             )
 
         processed_attributi: JsonAttributiMap = {}
-        for attributo_name in experiment_type.attributi_names:
+        experiment_type_attributo_names = {
+            a.attributo_name for a in experiment_type.attributi
+        }
+        for attributo_name in experiment_type_attributo_names:
             if attributo_name in data_set_attributi:
                 processed_attributi[attributo_name] = data_set_attributi[attributo_name]
             else:
@@ -1550,7 +1569,9 @@ async def delete_attributo() -> JSONDict:
         if found_attributo.associated_table == AssociatedTable.CHEMICAL:
             for s in await db.instance.retrieve_chemicals(conn, attributi):
                 s.attributi.remove_with_type(AttributoId(attributo_name))
-                await db.instance.update_chemical(conn, s.id, s.name, s.attributi)
+                await db.instance.update_chemical(
+                    conn, id_=s.id, type_=s.type_, name=s.name, attributi=s.attributi
+                )
         else:
             for run in await db.instance.retrieve_runs(conn, attributi):
                 run.attributi.remove_with_type(AttributoId(attributo_name))

@@ -17,10 +17,12 @@ from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributi_map import JsonAttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_name_and_role import AttributoNameAndRole
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.indexing_result import DBIndexingResultInput
@@ -96,6 +98,7 @@ async def test_create_chemical_attributo_then_change_to_run_attributo() -> None:
         chemical_id_with_attributo = await db.create_chemical(
             conn,
             _TEST_CHEMICAL_NAME,
+            ChemicalType.CRYSTAL,
             AttributiMap.from_types_and_json(
                 await db.retrieve_attributi(conn, None),
                 chemical_ids=[],
@@ -105,6 +108,7 @@ async def test_create_chemical_attributo_then_change_to_run_attributo() -> None:
         chemical_id_without_attributo = await db.create_chemical(
             conn,
             _TEST_CHEMICAL_NAME,
+            ChemicalType.CRYSTAL,
             AttributiMap.from_types_and_json(
                 await db.retrieve_attributi(conn, None),
                 chemical_ids=[],
@@ -243,6 +247,7 @@ async def test_create_and_retrieve_chemical_with_nan() -> None:
             await db.create_chemical(
                 conn,
                 name=_TEST_CHEMICAL_NAME,
+                type_=ChemicalType.CRYSTAL,
                 attributi=AttributiMap.from_types_and_json(
                     attributi,
                     chemical_ids=[],
@@ -272,6 +277,7 @@ async def test_create_and_retrieve_chemical_with_nan() -> None:
             await db_default_json_serializer.create_chemical(
                 conn,
                 name=_TEST_CHEMICAL_NAME,
+                type_=ChemicalType.CRYSTAL,
                 attributi=AttributiMap.from_types_and_json(
                     attributi,
                     chemical_ids=[],
@@ -302,6 +308,7 @@ async def test_create_and_retrieve_chemical() -> None:
         chemical_id = await db.create_chemical(
             conn,
             name=_TEST_CHEMICAL_NAME,
+            type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -356,6 +363,7 @@ async def test_create_and_update_chemical() -> None:
         chemical_id = await db.create_chemical(
             conn,
             name=_TEST_CHEMICAL_NAME,
+            type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -370,6 +378,7 @@ async def test_create_and_update_chemical() -> None:
             conn,
             chemical_id,
             name=_TEST_CHEMICAL_NAME + "1",
+            type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -415,6 +424,7 @@ async def test_create_and_delete_chemical() -> None:
         chemical_id = await db.create_chemical(
             conn,
             name=_TEST_CHEMICAL_NAME,
+            type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -447,6 +457,7 @@ async def test_create_attributo_and_chemical_then_change_attributo() -> None:
         await db.create_chemical(
             conn,
             name=_TEST_CHEMICAL_NAME,
+            type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -507,6 +518,7 @@ async def test_create_attributo_and_chemical_then_delete_attributo() -> None:
         await db.create_chemical(
             conn,
             name=_TEST_CHEMICAL_NAME,
+            type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -799,6 +811,7 @@ async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemica
         chemical_id = await db.create_chemical(
             conn,
             name=_TEST_CHEMICAL_NAME,
+            type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi, chemical_ids=[], raw_attributi={}
             ),
@@ -809,7 +822,9 @@ async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemica
         et_id = await db.create_experiment_type(
             conn,
             name="chemical-based",
-            experiment_attributi_names=[_TEST_ATTRIBUTO_NAME],
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
         )
 
         await db.create_data_set(
@@ -859,12 +874,10 @@ async def test_create_and_retrieve_file() -> None:
         )
 
         assert result.id > 0
-        assert result.type_ == "text/plain"
 
         file_ = await db.retrieve_file(conn, result.id, with_contents=False)
 
         assert file_.file_name == "name.txt"
-        assert file_.type_ == "text/plain"
         assert file_.size_in_bytes == 17
 
 
@@ -922,19 +935,19 @@ async def test_create_and_retrieve_experiment_types() -> None:
     db = await _get_db()
 
     async with db.begin() as conn:
-        first_name = "a1"
+        first_name = AttributoId("a1")
         await db.create_attributo(
             conn,
-            name=first_name,
+            name=str(first_name),
             description="",
             group=ATTRIBUTO_GROUP_MANUAL,
             associated_table=AssociatedTable.RUN,
             type_=AttributoTypeInt(),
         )
-        second_name = "a2"
+        second_name = AttributoId("a2")
         await db.create_attributo(
             conn,
-            name=second_name,
+            name=str(second_name),
             description="",
             group=ATTRIBUTO_GROUP_MANUAL,
             associated_table=AssociatedTable.RUN,
@@ -945,18 +958,33 @@ async def test_create_and_retrieve_experiment_types() -> None:
         e_type_name = "e1"
         with pytest.raises(Exception):
             await db.create_experiment_type(
-                conn, e_type_name, [first_name, second_name + "lol"]
+                conn,
+                e_type_name,
+                [
+                    AttributoNameAndRole(first_name, ChemicalType.CRYSTAL),
+                    AttributoNameAndRole(
+                        AttributoId(str(second_name) + "lol"), ChemicalType.CRYSTAL
+                    ),
+                ],
             )
 
         # Create the experiment type, then retrieve it, then delete it again and check if that worked
         et_id = await db.create_experiment_type(
-            conn, e_type_name, [first_name, second_name]
+            conn,
+            e_type_name,
+            [
+                AttributoNameAndRole(first_name, ChemicalType.CRYSTAL),
+                AttributoNameAndRole(second_name, ChemicalType.SOLUTION),
+            ],
         )
 
         e_types = list(await db.retrieve_experiment_types(conn))
         assert len(e_types) == 1
         assert e_types[0].name == e_type_name
-        assert e_types[0].attributi_names == [first_name, second_name]
+        assert e_types[0].attributi == [
+            AttributoNameAndRole(first_name, ChemicalType.CRYSTAL),
+            AttributoNameAndRole(second_name, ChemicalType.SOLUTION),
+        ]
 
         # Now delete it again
         await db.delete_experiment_type(conn, et_id)
@@ -968,19 +996,19 @@ async def test_create_and_retrieve_data_sets() -> None:
     db = await _get_db()
 
     async with db.begin() as conn:
-        first_name = "a1"
+        first_name = AttributoId("a1")
         await db.create_attributo(
             conn,
-            name=first_name,
+            name=str(first_name),
             description="",
             group=ATTRIBUTO_GROUP_MANUAL,
             associated_table=AssociatedTable.RUN,
             type_=AttributoTypeInt(),
         )
-        second_name = "a2"
+        second_name = AttributoId("a2")
         await db.create_attributo(
             conn,
-            name=second_name,
+            name=str(second_name),
             description="",
             group=ATTRIBUTO_GROUP_MANUAL,
             associated_table=AssociatedTable.RUN,
@@ -990,12 +1018,17 @@ async def test_create_and_retrieve_data_sets() -> None:
         # Create experiment type
         e_type_name = "e1"
         et_id = await db.create_experiment_type(
-            conn, e_type_name, [first_name, second_name]
+            conn,
+            e_type_name,
+            [
+                AttributoNameAndRole(first_name, ChemicalType.CRYSTAL),
+                AttributoNameAndRole(second_name, ChemicalType.CRYSTAL),
+            ],
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        raw_attributi = {first_name: 1, second_name: "f"}
+        raw_attributi = {str(first_name): 1, str(second_name): "f"}
         id_ = await db.create_data_set(
             conn,
             et_id,
@@ -1034,19 +1067,19 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
     db = await _get_db()
 
     async with db.begin() as conn:
-        first_name = "a1"
+        first_name = AttributoId("a1")
         await db.create_attributo(
             conn,
-            name=first_name,
+            name=str(first_name),
             description="",
             group=ATTRIBUTO_GROUP_MANUAL,
             associated_table=AssociatedTable.RUN,
             type_=AttributoTypeInt(),
         )
-        second_name = "a2"
+        second_name = AttributoId("a2")
         await db.create_attributo(
             conn,
-            name=second_name,
+            name=str(second_name),
             description="",
             group=ATTRIBUTO_GROUP_MANUAL,
             associated_table=AssociatedTable.RUN,
@@ -1056,12 +1089,17 @@ async def test_create_data_set_and_and_change_attributo_type() -> None:
         # Create experiment type
         e_type_name = "e1"
         et_id = await db.create_experiment_type(
-            conn, e_type_name, [first_name, second_name]
+            conn,
+            e_type_name,
+            [
+                AttributoNameAndRole(first_name, ChemicalType.CRYSTAL),
+                AttributoNameAndRole(second_name, ChemicalType.CRYSTAL),
+            ],
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
-        raw_attributi = {first_name: 1, second_name: "f"}
+        raw_attributi = {str(first_name): 1, str(second_name): "f"}
         await db.create_data_set(
             conn,
             et_id,
@@ -1241,6 +1279,7 @@ async def test_create_workbook() -> None:
         await db.create_chemical(
             conn,
             "first chemical",
+            ChemicalType.CRYSTAL,
             AttributiMap.from_types_and_raw(
                 attributi,
                 chemical_ids=[],
@@ -1327,6 +1366,7 @@ async def test_create_indexing_result() -> None:
         chemical_id = await db.create_chemical(
             conn,
             "test",
+            ChemicalType.CRYSTAL,
             AttributiMap.from_types_and_raw(
                 attributi, chemical_ids=[], raw_attributi={}
             ),

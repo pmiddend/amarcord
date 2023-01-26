@@ -1,6 +1,9 @@
 module Amarcord.Html exposing (..)
 
-import Html exposing (Html, div, em, form, h1, h2, h3, h4, h5, hr, img, input, li, nav, p, span, strong, sup, tbody, td, text, th, thead, tr, ul)
+import Html exposing (Attribute, Html, div, em, form, h1, h2, h3, h4, h5, hr, img, input, li, nav, p, span, strong, sup, tbody, td, text, th, thead, tr, ul)
+import Html.Events exposing (stopPropagationOn, targetValue)
+import Html.Events.Extra exposing (targetValueIntParse)
+import Json.Decode as Decode
 
 
 br_ : Html msg
@@ -121,3 +124,57 @@ input_ x =
 em_ : List (Html msg) -> Html msg
 em_ =
     em []
+
+
+onIntInput : (Int -> msg) -> Attribute msg
+onIntInput f =
+    stopPropagationOn "input" (Decode.map (\x -> ( x, True )) <| Decode.map f targetValueIntParse)
+
+
+customDecoder : Decode.Decoder a -> (a -> Maybe b) -> Decode.Decoder b
+customDecoder d f =
+    let
+        resultDecoder x =
+            case x of
+                Just a ->
+                    Decode.succeed a
+
+                Nothing ->
+                    Decode.fail "error parsing"
+    in
+    Decode.map f d |> Decode.andThen resultDecoder
+
+
+onDecoderInput : Decode.Decoder msg -> Attribute msg
+onDecoderInput decoder =
+    stopPropagationOn
+        "input"
+    <|
+        Decode.map (\x -> ( x, True )) <|
+            (targetValue
+                |> Decode.andThen
+                    (\decodedString ->
+                        -- Bit of an oddity here, just to explain what's happening:
+                        -- First, "targetValue" will be a JSON decoder into a string. This will be, for example, the
+                        -- value of an <option> tag.
+                        --
+                        -- Here, we take this string, parse it as a JSON value and then use "decoder" to decode this
+                        -- JSON value.
+                        --
+                        -- However, the string itself is not a valid JSON value. JSON strings are surrounded by '"'
+                        -- chars, which we have to add here.
+                        --
+                        -- The parsing might fail if it has quotation marks in it, but that you hopefully notice.
+                        case Decode.decodeString decoder ("\"" ++ decodedString ++ "\"") of
+                            Err _ ->
+                                Decode.fail ("error parsing " ++ decodedString)
+
+                            Ok v ->
+                                Decode.succeed v
+                    )
+            )
+
+
+onMaybeInput : (String -> Maybe a) -> Attribute a
+onMaybeInput converter =
+    stopPropagationOn "input" (Decode.map (\x -> ( x, True )) <| customDecoder targetValue converter)

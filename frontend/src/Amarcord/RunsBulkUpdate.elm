@@ -4,7 +4,7 @@ import Amarcord.API.Requests exposing (RequestError, RunsBulkGetResponse, httpGe
 import Amarcord.Attributo exposing (AttributoMap, AttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, viewAttributoForm)
 import Amarcord.Bootstrap exposing (icon, viewRemoteData)
-import Amarcord.Chemical exposing (Chemical, ChemicalId)
+import Amarcord.Chemical exposing (Chemical, ChemicalId, ChemicalType(..))
 import Amarcord.File exposing (File)
 import Amarcord.Html exposing (form_, input_, li_, p_, strongText)
 import Amarcord.Util exposing (HereAndNow)
@@ -80,7 +80,7 @@ viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAt
                 AttributoFormSubmit ->
                     SubmitBulkChange
     in
-    form_ (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals) actualEditableAttributi.editableAttributi ++ submitErrors ++ submitSuccess ++ okButton)
+    form_ (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals Crystal) actualEditableAttributi.editableAttributi ++ submitErrors ++ submitSuccess ++ okButton)
 
 
 view : Model -> Html Msg

@@ -4,6 +4,8 @@ import Browser.Dom
 import Http
 import Json.Decode as Decode
 import List exposing (foldr)
+import List.Extra as ListExtra
+import Maybe.Extra exposing (isJust)
 import Parser exposing ((|.), (|=))
 import String exposing (fromInt, padLeft)
 import Task
@@ -320,3 +322,8 @@ localDateTimeParser =
         |= parserZeroPaddedInt
         |. Parser.symbol ":"
         |= parserZeroPaddedInt
+
+
+listContainsBy : (a -> Bool) -> List a -> Bool
+listContainsBy f =
+    isJust << ListExtra.find f

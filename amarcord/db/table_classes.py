@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.event_log_level import EventLogLevel
 
 
@@ -38,6 +39,7 @@ class DBChemical:
     id: int
     name: str
     attributi: AttributiMap
+    type_: ChemicalType
     files: list[DBFile]
 
 

@@ -7,7 +7,7 @@ PATH="$PWD:${PATH}" npx elm-go src/Main.elm\
     --pushstate\
     --hot\
     --proxy-prefix "/api"\
-    --proxy-host 'http://localhost:5000/api'\
+    --proxy-host 'http://0.0.0.0:5000/api'\
     --dir=output/\
     --\
     --output=output/main.js

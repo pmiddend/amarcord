@@ -10,6 +10,7 @@ from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.tables import create_tables_from_metadata
 
 
@@ -77,6 +78,7 @@ async def test_process_data_latest_run() -> None:
         chemical_id = await db.create_chemical(
             conn,
             name="nsp3",
+            type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_raw(
                 types=attributi,
                 chemical_ids=[],

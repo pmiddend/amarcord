@@ -19,6 +19,7 @@ from amarcord.db.attributi import ATTRIBUTO_STOPPED
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributi_map import UntypedAttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_name_and_role import AttributoNameAndRole
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -29,6 +30,7 @@ from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.indexing_result import DBIndexingFOM
@@ -225,10 +227,10 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         chemical_names: list[str] = []
 
         chemical_based_id = await db.create_experiment_type(
-            conn, CHEMICAL_BASED, [ATTRIBUTO_CHEMICAL]
+            conn, CHEMICAL_BASED, [AttributoNameAndRole(ATTRIBUTO_CHEMICAL, ChemicalType.CRYSTAL)]
         )
         time_resolved_id = await db.create_experiment_type(
-            conn, TIME_RESOLVED, [ATTRIBUTO_CHEMICAL, ATTRIBUTO_FLOW_RATE]
+            conn, TIME_RESOLVED, [AttributoNameAndRole(ATTRIBUTO_CHEMICAL, ChemicalType.CRYSTAL), AttributoNameAndRole(ATTRIBUTO_FLOW_RATE, ChemicalType.SOLUTION)]
         )
 
         for _ in range(random.randrange(3, 10)):
@@ -240,6 +242,7 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             chemical_id = await db.create_chemical(
                 conn,
                 chemical_name,
+                ChemicalType.CRYSTAL,
                 AttributiMap.from_types_and_json(
                     attributi,
                     chemical_ids=[],

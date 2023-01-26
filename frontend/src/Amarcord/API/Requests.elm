@@ -66,11 +66,12 @@ module Amarcord.API.Requests exposing
     , specificRunEventDateFilter
     )
 
+import Amarcord.API.AttributoWithRole exposing (AttributoWithRole, encodeAttributoWithRole)
 import Amarcord.API.DataSet exposing (DataSet, DataSetId, DataSetSummary, dataSetDecoder, dataSetSummaryDecoder)
 import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId, experimentTypeDecoder)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType, AttributoValue(..), attributoDecoder, attributoMapDecoder, attributoTypeDecoder, attributoValueDecoder)
-import Amarcord.Chemical exposing (Chemical, ChemicalId)
+import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalTypeDecoder, encodeChemicalType)
 import Amarcord.File exposing (File)
 import Amarcord.JsonSchema exposing (JsonSchema, encodeJsonSchema)
 import Amarcord.UserError exposing (CustomError, customErrorDecoder)
@@ -105,8 +106,8 @@ valueOrError valueDecoder =
     Decode.oneOf [ Decode.map Err errorDecoder, Decode.map Ok valueDecoder ]
 
 
-httpCreateExperimentType : (Result RequestError () -> msg) -> String -> List String -> Cmd msg
-httpCreateExperimentType f name attributiNames =
+httpCreateExperimentType : (Result RequestError () -> msg) -> String -> List AttributoWithRole -> Cmd msg
+httpCreateExperimentType f name attributiWithRoles =
     Http.post
         { url = "api/experiment-types"
         , expect =
@@ -115,7 +116,7 @@ httpCreateExperimentType f name attributiNames =
             jsonBody
                 (Encode.object
                     [ ( "name", Encode.string name )
-                    , ( "attributi-names", Encode.list Encode.string attributiNames )
+                    , ( "attributi", Encode.list encodeAttributoWithRole attributiWithRoles )
                     ]
                 )
         }
@@ -995,10 +996,11 @@ encodeAssociatedTable x =
 
 chemicalDecoder : Decode.Decoder (Chemical ChemicalId (AttributoMap AttributoValue) File)
 chemicalDecoder =
-    Decode.map4
+    Decode.map5
         Chemical
         (Decode.field "id" Decode.int)
         (Decode.field "name" Decode.string)
+        (Decode.field "type" chemicalTypeDecoder)
         (Decode.field "attributi" attributoMapDecoder)
         (Decode.field "files" (Decode.list fileDecoder))
 
@@ -1008,6 +1010,7 @@ encodeChemical s =
     Encode.object <|
         [ ( "name", Encode.string s.name )
         , ( "attributi", encodeAttributoMap s.attributi )
+        , ( "type", encodeChemicalType s.type_ )
         , ( "fileIds", Encode.list Encode.int s.files )
         ]
             ++ unwrap [] (\id -> [ ( "id", Encode.int id ) ]) s.id

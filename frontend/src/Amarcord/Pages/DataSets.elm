@@ -5,17 +5,17 @@ import Amarcord.API.ExperimentType exposing (ExperimentType)
 import Amarcord.API.Requests exposing (DataSetResult, RequestError, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoType, emptyAttributoMap)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
-import Amarcord.Chemical exposing (Chemical, chemicalIdDict)
+import Amarcord.Chemical exposing (Chemical, ChemicalType(..), chemicalIdDict)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
-import Amarcord.Util exposing (HereAndNow)
+import Amarcord.Util exposing (HereAndNow, listContainsBy)
 import Dict
 import Html exposing (Html, button, div, h4, option, select, table, text)
 import Html.Attributes exposing (class, disabled, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
-import List.Extra exposing (find)
+import List.Extra as ListExtra exposing (find)
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
 import String
@@ -135,7 +135,7 @@ updateDataSet msg model =
                                     False
 
                                 Just et ->
-                                    List.member attributo.name et.attributiNames
+                                    listContainsBy (\a -> a.name == attributo.name) et.attributi
 
                         newDataSet : Maybe NewDataSet
                         newDataSet =
@@ -150,8 +150,8 @@ updateDataSet msg model =
                     ( model, Cmd.none )
 
 
-viewEditForm : List (Chemical Int a b) -> EditableAttributiAndOriginal -> List (Html Msg)
-viewEditForm chemicals =
+viewEditForm : ExperimentType -> List (Chemical Int a b) -> EditableAttributiAndOriginal -> List (Html Msg)
+viewEditForm et chemicals =
     let
         attributoFormMsgToMsg : AttributoFormMsg -> Msg
         attributoFormMsgToMsg x =
@@ -161,8 +161,18 @@ viewEditForm chemicals =
 
                 AttributoFormSubmit ->
                     DataSetSubmit
+
+        viewAttributoFormWithRole : EditableAttributo -> Html AttributoFormMsg
+        viewAttributoFormWithRole e =
+            viewAttributoForm chemicals
+                (Maybe.withDefault Solution <|
+                    Maybe.map .role <|
+                        ListExtra.find (\awr -> awr.name == e.name) <|
+                            et.attributi
+                )
+                e
     in
-    List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm chemicals attributo)) << .editableAttributi
+    List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoFormWithRole attributo)) << .editableAttributi
 
 
 view : DataSetModel -> Html Msg
@@ -211,6 +221,15 @@ viewDataSet model =
                             button [ type_ "button", onClick AddDataSet, class "btn btn-primary mb-3" ] [ icon { name = "plus-lg" }, text " Add Data Set" ]
 
                         Just newDataSet ->
+                            let
+                                editForm =
+                                    case newDataSet.experimentType of
+                                        Nothing ->
+                                            []
+
+                                        Just et ->
+                                            viewEditForm et chemicals newDataSet.attributi
+                            in
                             form_
                                 ([ h5_ [ text "New Data Set" ]
                                  , div [ class "mb-3" ]
@@ -218,7 +237,7 @@ viewDataSet model =
                                         (option [ selected (isNothing newDataSet.experimentType) ] [ text "«no value»" ] :: List.map (viewExperimentTypeOption newDataSet.experimentType) experimentTypes)
                                     ]
                                  ]
-                                    ++ viewEditForm chemicals newDataSet.attributi
+                                    ++ editForm
                                     ++ [ button
                                             [ type_ "button"
                                             , class "btn btn-primary mb-3 me-3"

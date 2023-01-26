@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
-from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_name_and_role import AttributoNameAndRole
 
 
 @dataclass(frozen=True)
 class DBExperimentType:
     id: int
     name: str
-    attributi_names: list[AttributoId]
+    attributi: list[AttributoNameAndRole]

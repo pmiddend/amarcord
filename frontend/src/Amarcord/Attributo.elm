@@ -6,6 +6,7 @@ module Amarcord.Attributo exposing
     , AttributoValue(..)
     , attributoDecoder
     , attributoExposureTime
+    , attributoIsChemicalId
     , attributoIsNumber
     , attributoIsString
     , attributoMapDecoder
@@ -84,6 +85,16 @@ attributoIsNumber : AttributoType -> Bool
 attributoIsNumber x =
     case x of
         Number _ ->
+            True
+
+        _ ->
+            False
+
+
+attributoIsChemicalId : AttributoType -> Bool
+attributoIsChemicalId x =
+    case x of
+        ChemicalId ->
             True
 
         _ ->

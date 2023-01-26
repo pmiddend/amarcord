@@ -24,6 +24,7 @@ from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultRunning
@@ -143,6 +144,7 @@ async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -
         chemical_id = await db.create_chemical(
             conn,
             "lyso",
+            ChemicalType.CRYSTAL,
             AttributiMap.from_types_and_raw(
                 attributi,
                 [],

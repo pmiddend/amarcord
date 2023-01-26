@@ -1,7 +1,7 @@
 module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
-import Amarcord.Chemical exposing (Chemical)
+import Amarcord.Chemical exposing (Chemical, ChemicalType)
 import Amarcord.Html exposing (br_, em_, input_, span_, strongText)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
@@ -226,8 +226,8 @@ type AttributoFormMsg
     | AttributoFormSubmit
 
 
-viewAttributoForm : List (Chemical Int a b) -> EditableAttributo -> Html AttributoFormMsg
-viewAttributoForm chemicals a =
+viewAttributoForm : List (Chemical Int a b) -> ChemicalType -> EditableAttributo -> Html AttributoFormMsg
+viewAttributoForm chemicals chemicalType a =
     case a.type_.editValue of
         EditValueString s ->
             div [ class "mb-3" ] <|
@@ -391,6 +391,10 @@ viewAttributoForm chemicals a =
             let
                 makeOption { id, name } =
                     option [ selected (Just id == selectedId), value (fromInt id) ] [ text name ]
+
+                filterChemical : Chemical Int a b -> Bool
+                filterChemical { type_ } =
+                    type_ == chemicalType
             in
             div [ class "mb-3" ] <|
                 [ label [ for ("attributo-" ++ a.name), class "form-label" ] [ text a.name ]
@@ -399,7 +403,7 @@ viewAttributoForm chemicals a =
                     , class "form-select"
                     , onInput (AttributoFormValueUpdate << AttributoNameWithValueUpdate a.name << SetValue << EditValueChemicalId << String.toInt)
                     ]
-                    (option [ selected (isNothing selectedId), value "0" ] [ text "«no value»" ] :: List.map makeOption chemicals)
+                    (option [ selected (isNothing selectedId), value "0" ] [ text "«no value»" ] :: List.map makeOption (List.filter filterChemical chemicals))
                 ]
 
 
