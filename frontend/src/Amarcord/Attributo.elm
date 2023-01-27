@@ -18,6 +18,7 @@ module Amarcord.Attributo exposing
     , createAnnotatedAttributoMap
     , emptyAttributoMap
     , extractDateTime
+    , extractInt
     , mapAttributo
     , mapAttributoMaybe
     , retrieveAttributoValue

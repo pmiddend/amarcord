@@ -1,16 +1,16 @@
 module Amarcord.Pages.Chemicals exposing (Model, Msg, init, update, view)
 
-import Amarcord.API.Requests exposing (ChemicalsResponse, RequestError, httpCreateChemical, httpCreateFile, httpDeleteChemical, httpGetChemicals, httpUpdateChemical)
+import Amarcord.API.Requests exposing (ChemicalsResponse, RequestError, Run, RunsResponse, emptyRunEventDateFilter, emptyRunFilter, httpCreateChemical, httpCreateFile, httpDeleteChemical, httpGetChemicals, httpGetRunsFilter, httpUpdateChemical)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo as Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, emptyAttributoMap)
+import Amarcord.Attributo as Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue, emptyAttributoMap, extractInt)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, ChemicalType(..), chemicalMapAttributi, chemicalMapId, chemicalTypeToPrettyString, chemicalTypeToString)
 import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, em_, form_, h2_, h3_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
@@ -18,12 +18,13 @@ import Dict
 import File as ElmFile
 import File.Select
 import Html exposing (..)
-import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, type_, value)
+import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (isEmpty, length, singleton)
 import List.Extra as ListExtra
 import Maybe.Extra as Maybe exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
+import Set exposing (Set)
 import String
 import Time exposing (Zone)
 
@@ -42,6 +43,7 @@ type alias NewFileUpload =
 
 type alias Model =
     { chemicals : RemoteData RequestError ChemicalsAndAttributi
+    , chemicalsUsedInRuns : Set ChemicalId
     , deleteModalOpen : Maybe ( String, ChemicalId )
     , chemicalDeleteRequest : RemoteData RequestError ()
     , fileUploadRequest : RemoteData RequestError ()
@@ -55,6 +57,7 @@ type alias Model =
 
 type Msg
     = ChemicalsReceived ChemicalsResponse
+    | RunsReceived RunsResponse
     | CancelDelete
     | AskDelete String ChemicalId
     | InitiateEdit (Chemical Int (AttributoMap AttributoValue) File)
@@ -80,6 +83,7 @@ type Msg
 init : HereAndNow -> ( Model, Cmd Msg )
 init { zone } =
     ( { chemicals = Loading
+      , chemicalsUsedInRuns = Set.empty
       , deleteModalOpen = Nothing
       , chemicalDeleteRequest = NotAsked
       , modifyRequest = NotAsked
@@ -89,8 +93,16 @@ init { zone } =
       , submitErrors = []
       , newFileUpload = { file = Nothing, description = "" }
       }
-    , httpGetChemicals ChemicalsReceived
+    , getChemicalsAndRuns
     )
+
+
+getChemicalsAndRuns : Cmd Msg
+getChemicalsAndRuns =
+    Cmd.batch
+        [ httpGetChemicals ChemicalsReceived
+        , httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived
+        ]
 
 
 viewFiles : RemoteData RequestError () -> NewFileUpload -> List File -> List (Html Msg)
@@ -320,8 +332,8 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
                ]
 
 
-viewChemicalRow : Zone -> List (Attributo AttributoType) -> Chemical ChemicalId (AttributoMap AttributoValue) File -> List (Html Msg)
-viewChemicalRow zone attributi chemical =
+viewChemicalRow : Zone -> List (Attributo AttributoType) -> Set ChemicalId -> Chemical ChemicalId (AttributoMap AttributoValue) File -> List (Html Msg)
+viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
     let
         viewFile { id, type_, fileName, description } =
             li [ class "list-group-item" ] <|
@@ -393,9 +405,26 @@ viewChemicalRow zone attributi chemical =
     in
     [ div [ style "margin-bottom" "4rem" ]
         [ h3_
-            [ text chemical.name
-            , button [ class "btn btn-link", onClick (InitiateEdit chemical) ] [ icon { name = "pencil-square" } ]
-            , button [ class "btn text-danger btn-link", onClick (AskDelete chemical.name chemical.id) ] [ icon { name = "trash" } ]
+            [ div_
+                [ text chemical.name
+                , button [ class "btn btn-link", onClick (InitiateEdit chemical) ] [ icon { name = "pencil-square" } ]
+                , if Set.member chemical.id chemicalIsUsedInRun then
+                    button
+                        [ class "btn text-secondary btn-link"
+                        , style "pointer-events" "all"
+                        , style "cursor" "not-allowed"
+                        , disabled True
+                        , title "Chemical associated to one or more runs, can only be edited."
+                        ]
+                        [ icon { name = "trash" } ]
+
+                  else
+                    button
+                        [ class "btn text-danger btn-link"
+                        , onClick (AskDelete chemical.name chemical.id)
+                        ]
+                        [ icon { name = "trash" } ]
+                ]
             ]
         , table [ class "table table-sm" ]
             [ tbody_ (List.map viewAttributiGroup <| ListExtra.greedyGroupsOf noAttributoColumns (virtualIdAttributo :: virtualTypeAttributo :: attributi))
@@ -405,13 +434,13 @@ viewChemicalRow zone attributi chemical =
     ]
 
 
-viewChemicalTable : Zone -> List (Chemical ChemicalId (AttributoMap AttributoValue) File) -> List (Attributo AttributoType) -> Html Msg
-viewChemicalTable zone chemicals attributi =
+viewChemicalTable : Set ChemicalId -> Zone -> List (Chemical ChemicalId (AttributoMap AttributoValue) File) -> List (Attributo AttributoType) -> Html Msg
+viewChemicalTable usedChemicalIds zone chemicals attributi =
     if isEmpty chemicals then
         div [ class "mt-3" ] [ h2 [ class "text-muted" ] [ text "No chemicals entered yet." ] ]
 
     else
-        div [ class "mt-3" ] (h2_ [ text "Available chemicals" ] :: List.concatMap (viewChemicalRow zone attributi) chemicals)
+        div [ class "mt-3" ] (h2_ [ text "Available chemicals" ] :: List.concatMap (viewChemicalRow zone attributi usedChemicalIds) chemicals)
 
 
 viewInner : Model -> List (Html Msg)
@@ -468,7 +497,7 @@ viewInner model =
                                 [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
                                 ]
             in
-            [ prefix, modifyRequestResult, deleteRequestResult, viewChemicalTable model.myTimeZone (List.sortBy .id chemicals) attributi ]
+            [ prefix, modifyRequestResult, deleteRequestResult, viewChemicalTable model.chemicalsUsedInRuns model.myTimeZone (List.sortBy .id chemicals) attributi ]
 
 
 view : Model -> Html Msg
@@ -541,7 +570,9 @@ update msg model =
                     ( { model | chemicalDeleteRequest = Failure e }, Cmd.none )
 
                 Ok _ ->
-                    ( { model | chemicalDeleteRequest = Success () }, httpGetChemicals ChemicalsReceived )
+                    ( { model | chemicalDeleteRequest = Success () }
+                    , getChemicalsAndRuns
+                    )
 
         -- The user pressed the "Add new object" button
         AddChemical ->
@@ -628,7 +659,9 @@ update msg model =
                     ( { model | modifyRequest = Failure e }, Cmd.none )
 
                 Ok _ ->
-                    ( { model | modifyRequest = Success (), editChemical = Nothing, fileUploadRequest = NotAsked, chemicalDeleteRequest = NotAsked, submitErrors = [] }, httpGetChemicals ChemicalsReceived )
+                    ( { model | modifyRequest = Success (), editChemical = Nothing, fileUploadRequest = NotAsked, chemicalDeleteRequest = NotAsked, submitErrors = [] }
+                    , getChemicalsAndRuns
+                    )
 
         EditChemicalAttributo v ->
             case model.editChemical of
@@ -722,3 +755,31 @@ update msg model =
 
         Nop ->
             ( model, Cmd.none )
+
+        RunsReceived runsResponse ->
+            let
+                chemicalAttributoName : Attributo AttributoType -> Maybe AttributoName
+                chemicalAttributoName aa =
+                    case aa.type_ of
+                        ChemicalId ->
+                            Just aa.name
+
+                        _ ->
+                            Nothing
+
+                valuesFromAttributo : List Run -> AttributoName -> List AttributoValue
+                valuesFromAttributo rrs mattrname =
+                    List.filterMap (Dict.get mattrname) (List.map .attributi rrs)
+
+                chemicalsUsedInRuns =
+                    case runsResponse of
+                        Ok rr ->
+                            Set.fromList <|
+                                List.filterMap extractInt <|
+                                    List.concatMap (valuesFromAttributo rr.runs) <|
+                                        List.filterMap chemicalAttributoName rr.attributi
+
+                        _ ->
+                            Set.empty
+            in
+            ( { model | chemicalsUsedInRuns = chemicalsUsedInRuns }, Cmd.none )
