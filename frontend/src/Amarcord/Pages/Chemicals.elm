@@ -65,6 +65,7 @@ type Msg
     | AddChemical
     | EditChemicalType ChemicalType
     | EditChemicalName String
+    | EditChemicalResponsiblePerson String
     | ChemicalDeleteFinished (Result RequestError ())
     | EditChemicalSubmit
     | EditChemicalCancel
@@ -304,6 +305,25 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
               else
                 div [ class "invalid-feedback" ] [ text "Name is mandatory" ]
             ]
+        , div [ class "mb-3" ]
+            [ label [ for "responsible_person", class "form-label" ] [ text "Responsible person", sup_ [ text "*" ] ]
+            , input_
+                [ type_ "text"
+                , if String.trim editingChemical.responsiblePerson == "" then
+                    class "form-control is-invalid"
+
+                  else
+                    class "form-control"
+                , id "responsible_person"
+                , value editingChemical.responsiblePerson
+                , onInput EditChemicalResponsiblePerson
+                ]
+            , if String.trim editingChemical.responsiblePerson == "" then
+                div [ class "invalid-feedback" ] [ text "Responsible person is mandatory" ]
+
+              else
+                text ""
+            ]
         ]
             ++ attributiFormEntries
             ++ viewFiles fileUploadRequest newFileUpload editingChemical.files
@@ -367,6 +387,9 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
                     if attributo.name == "ID" then
                         text (String.fromInt chemical.id)
 
+                    else if attributo.name == "Responsible person" then
+                        text chemical.responsiblePerson
+
                     else if attributo.name == "Type" then
                         text <|
                             case chemical.type_ of
@@ -385,23 +408,26 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
         viewAttributiGroup groupItems =
             tr_ <| List.map viewAttributoGroupItem groupItems
 
-        virtualIdAttributo : Attributo AttributoType
-        virtualIdAttributo =
-            { name = "ID"
+        virtualChemicalTableAttributo : String -> AttributoType -> Attributo AttributoType
+        virtualChemicalTableAttributo name aType =
+            { name = name
             , description = ""
             , group = ""
+            , type_ = aType
             , associatedTable = AssociatedTable.Chemical
-            , type_ = Attributo.Int
             }
+
+        virtualIdAttributo : Attributo AttributoType
+        virtualIdAttributo =
+            virtualChemicalTableAttributo "ID" Attributo.Int
 
         virtualTypeAttributo : Attributo AttributoType
         virtualTypeAttributo =
-            { name = "Type"
-            , description = ""
-            , group = ""
-            , associatedTable = AssociatedTable.Chemical
-            , type_ = Attributo.String
-            }
+            virtualChemicalTableAttributo "Type" Attributo.String
+
+        virtualResponsiblePersonAttributo : Attributo AttributoType
+        virtualResponsiblePersonAttributo =
+            virtualChemicalTableAttributo "Responsible person" Attributo.String
     in
     [ div [ style "margin-bottom" "4rem" ]
         [ h3_
@@ -427,7 +453,7 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
                 ]
             ]
         , table [ class "table table-sm" ]
-            [ tbody_ (List.map viewAttributiGroup <| ListExtra.greedyGroupsOf noAttributoColumns (virtualIdAttributo :: virtualTypeAttributo :: attributi))
+            [ tbody_ (List.map viewAttributiGroup <| ListExtra.greedyGroupsOf noAttributoColumns (virtualIdAttributo :: virtualTypeAttributo :: virtualResponsiblePersonAttributo :: attributi))
             ]
         , files
         ]
@@ -531,7 +557,7 @@ editChemicalFromAttributiAndValues zone attributi =
 
 emptyChemical : Chemical (Maybe Int) (AttributoMap a) b
 emptyChemical =
-    { id = Nothing, name = "", type_ = Crystal, attributi = emptyAttributoMap, files = [] }
+    { id = Nothing, name = "", responsiblePerson = "", type_ = Crystal, attributi = emptyAttributoMap, files = [] }
 
 
 emptyNewFileUpload : { description : String, file : Maybe a }
@@ -598,6 +624,14 @@ update msg model =
                 Just editChemical ->
                     ( { model | editChemical = Just { editChemical | name = newName } }, Cmd.none )
 
+        EditChemicalResponsiblePerson newRP ->
+            case model.editChemical of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just editChemical ->
+                    ( { model | editChemical = Just { editChemical | responsiblePerson = newRP } }, Cmd.none )
+
         EditChemicalType newType ->
             case model.editChemical of
                 Nothing ->
@@ -634,6 +668,7 @@ update msg model =
                                             chemicalToSend =
                                                 { id = editChemical.id
                                                 , name = editChemical.name
+                                                , responsiblePerson = editChemical.responsiblePerson
                                                 , type_ = editChemical.type_
                                                 , attributi = editedAttributi
                                                 , files = List.map .id editChemical.files

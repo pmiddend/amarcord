@@ -55,6 +55,7 @@ encodeChemicalType =
 type alias Chemical idType attributiType fileType =
     { id : idType
     , name : String
+    , responsiblePerson : String
     , type_ : ChemicalType
     , attributi : attributiType
     , files : List fileType
@@ -66,13 +67,13 @@ type alias ChemicalId =
 
 
 chemicalMapAttributi : (b -> c) -> Chemical a b x -> Chemical a c x
-chemicalMapAttributi f { id, name, type_, attributi, files } =
-    { id = id, name = name, type_ = type_, attributi = f attributi, files = files }
+chemicalMapAttributi f { id, name, responsiblePerson, type_, attributi, files } =
+    { id = id, name = name, responsiblePerson = responsiblePerson, type_ = type_, attributi = f attributi, files = files }
 
 
 chemicalMapId : (a -> b) -> Chemical a c x -> Chemical b c x
-chemicalMapId f { id, name, type_, attributi, files } =
-    { id = f id, name = name, type_ = type_, attributi = attributi, files = files }
+chemicalMapId f { id, name, responsiblePerson, type_, attributi, files } =
+    { id = f id, name = name, responsiblePerson = responsiblePerson, type_ = type_, attributi = attributi, files = files }
 
 
 chemicalIdDict : List (Chemical Int b c) -> Dict.Dict Int String

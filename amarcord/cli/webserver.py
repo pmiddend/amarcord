@@ -200,6 +200,7 @@ async def create_chemical() -> JSONDict:
         chemical_id = await db.instance.create_chemical(
             conn,
             name=r.retrieve_safe_str("name"),
+            responsible_person=r.retrieve_safe_str("responsiblePerson"),
             type_=ChemicalType(r.retrieve_safe_str("type")),
             attributi=AttributiMap.from_types_and_json(
                 await db.instance.retrieve_attributi(conn, AssociatedTable.CHEMICAL),
@@ -232,10 +233,11 @@ async def update_chemical() -> JSONDict:
             )
         )
         await db.instance.update_chemical(
-            conn,
+            conn=conn,
             id_=chemical_id,
             type_=ChemicalType(r.retrieve_safe_str("type")),
             name=r.retrieve_safe_str("name"),
+            responsible_person=r.retrieve_safe_str("responsiblePerson"),
             attributi=chemical_attributi,
         )
         await db.instance.remove_files_from_chemical(conn, chemical_id)
@@ -281,6 +283,7 @@ def _encode_chemical(a: DBChemical) -> JSONDict:
     return {
         "id": a.id,
         "name": a.name,
+        "responsible_person": a.responsible_person,
         "type": a.type_.value,
         "attributi": a.attributi.to_json(),
         "files": [_encode_file(f) for f in a.files],
@@ -1636,7 +1639,12 @@ async def delete_attributo() -> JSONDict:
             for s in await db.instance.retrieve_chemicals(conn, attributi):
                 s.attributi.remove_with_type(AttributoId(attributo_name))
                 await db.instance.update_chemical(
-                    conn, id_=s.id, type_=s.type_, name=s.name, attributi=s.attributi
+                    conn=conn,
+                    id_=s.id,
+                    type_=s.type_,
+                    name=s.name,
+                    responsible_person=s.responsible_person,
+                    attributi=s.attributi,
                 )
         else:
             for run in await db.instance.retrieve_runs(conn, attributi):

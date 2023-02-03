@@ -34,6 +34,7 @@ _TEST_DB_URL: Final = "sqlite+aiosqlite://"
 _TEST_ATTRIBUTO_VALUE: Final = 3
 _TEST_SECOND_ATTRIBUTO_VALUE: Final = 4
 _TEST_CHEMICAL_NAME: Final = "chemicalname"
+_TEST_CHEMICAL_RESPONSIBLE_PERSON: Final = "Rosalind Franklin"
 _TEST_RUN_ID: Final = 1
 _TEST_ATTRIBUTO_GROUP: Final = "testgroup"
 _TEST_ATTRIBUTO_DESCRIPTION: Final = "testdescription"
@@ -96,20 +97,22 @@ async def test_create_chemical_attributo_then_change_to_run_attributo() -> None:
 
         # Add the attributo to a test chemical
         chemical_id_with_attributo = await db.create_chemical(
-            conn,
-            _TEST_CHEMICAL_NAME,
-            ChemicalType.CRYSTAL,
-            AttributiMap.from_types_and_json(
+            conn=conn,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
+            name=_TEST_CHEMICAL_NAME,
+            type_=ChemicalType.CRYSTAL,
+            attributi=AttributiMap.from_types_and_json(
                 await db.retrieve_attributi(conn, None),
                 chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: 3},
             ),
         )
         chemical_id_without_attributo = await db.create_chemical(
-            conn,
-            _TEST_CHEMICAL_NAME,
-            ChemicalType.CRYSTAL,
-            AttributiMap.from_types_and_json(
+            conn=conn,
+            name=_TEST_CHEMICAL_NAME,
+            type_=ChemicalType.CRYSTAL,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
+            attributi=AttributiMap.from_types_and_json(
                 await db.retrieve_attributi(conn, None),
                 chemical_ids=[],
                 raw_attributi={},
@@ -245,8 +248,9 @@ async def test_create_and_retrieve_chemical_with_nan() -> None:
 
         with pytest.raises(StatementError):
             await db.create_chemical(
-                conn,
+                conn=conn,
                 name=_TEST_CHEMICAL_NAME,
+                responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
                 type_=ChemicalType.CRYSTAL,
                 attributi=AttributiMap.from_types_and_json(
                     attributi,
@@ -275,8 +279,9 @@ async def test_create_and_retrieve_chemical_with_nan() -> None:
 
         try:
             await db_default_json_serializer.create_chemical(
-                conn,
+                conn=conn,
                 name=_TEST_CHEMICAL_NAME,
+                responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
                 type_=ChemicalType.CRYSTAL,
                 attributi=AttributiMap.from_types_and_json(
                     attributi,
@@ -306,8 +311,9 @@ async def test_create_and_retrieve_chemical() -> None:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         chemical_id = await db.create_chemical(
-            conn,
+            conn=conn,
             name=_TEST_CHEMICAL_NAME,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
             type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
@@ -361,9 +367,10 @@ async def test_create_and_update_chemical() -> None:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         chemical_id = await db.create_chemical(
-            conn,
+            conn=conn,
             name=_TEST_CHEMICAL_NAME,
             type_=ChemicalType.CRYSTAL,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -375,10 +382,11 @@ async def test_create_and_update_chemical() -> None:
         )
 
         await db.update_chemical(
-            conn,
-            chemical_id,
+            conn=conn,
+            id_=chemical_id,
             name=_TEST_CHEMICAL_NAME + "1",
             type_=ChemicalType.CRYSTAL,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -422,8 +430,9 @@ async def test_create_and_delete_chemical() -> None:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         chemical_id = await db.create_chemical(
-            conn,
+            conn=conn,
             name=_TEST_CHEMICAL_NAME,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
             type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
@@ -455,9 +464,10 @@ async def test_create_attributo_and_chemical_then_change_attributo() -> None:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         await db.create_chemical(
-            conn,
+            conn=conn,
             name=_TEST_CHEMICAL_NAME,
             type_=ChemicalType.CRYSTAL,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -516,9 +526,10 @@ async def test_create_attributo_and_chemical_then_delete_attributo() -> None:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         await db.create_chemical(
-            conn,
+            conn=conn,
             name=_TEST_CHEMICAL_NAME,
             type_=ChemicalType.CRYSTAL,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
             attributi=AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
@@ -809,8 +820,9 @@ async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemica
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
         chemical_id = await db.create_chemical(
-            conn,
+            conn=conn,
             name=_TEST_CHEMICAL_NAME,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
             type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_json(
                 attributi, chemical_ids=[], raw_attributi={}
@@ -1277,10 +1289,11 @@ async def test_create_workbook() -> None:
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
         await db.create_chemical(
-            conn,
-            "first chemical",
-            ChemicalType.CRYSTAL,
-            AttributiMap.from_types_and_raw(
+            conn=conn,
+            name="first chemical",
+            type_=ChemicalType.CRYSTAL,
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
+            attributi=AttributiMap.from_types_and_raw(
                 attributi,
                 chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: "foo"},
@@ -1364,10 +1377,11 @@ async def test_create_indexing_result() -> None:
         )
 
         chemical_id = await db.create_chemical(
-            conn,
-            "test",
-            ChemicalType.CRYSTAL,
-            AttributiMap.from_types_and_raw(
+            conn=conn,
+            name="test",
+            responsible_person=_TEST_CHEMICAL_RESPONSIBLE_PERSON,
+            type_=ChemicalType.CRYSTAL,
+            attributi=AttributiMap.from_types_and_raw(
                 attributi, chemical_ids=[], raw_attributi={}
             ),
         )

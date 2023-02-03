@@ -76,8 +76,9 @@ async def test_process_data_latest_run() -> None:
         )
         attributi = await db.retrieve_attributi(conn, associated_table=None)
         chemical_id = await db.create_chemical(
-            conn,
+            conn=conn,
             name="nsp3",
+            responsible_person="Rosalind Franklin",
             type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_raw(
                 types=attributi,

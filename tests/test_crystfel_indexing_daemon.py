@@ -142,10 +142,11 @@ async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -
         )
         attributi = await db.retrieve_attributi(conn, None)
         chemical_id = await db.create_chemical(
-            conn,
-            "lyso",
-            ChemicalType.CRYSTAL,
-            AttributiMap.from_types_and_raw(
+            conn=conn,
+            name="lyso",
+            responsible_person="Rosalind Franklin",
+            type_=ChemicalType.CRYSTAL,
+            attributi=AttributiMap.from_types_and_raw(
                 attributi,
                 [],
                 {AttributoId("cell description"): cell_description}

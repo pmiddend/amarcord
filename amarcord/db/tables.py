@@ -232,6 +232,7 @@ def _table_chemical(metadata: sa.MetaData) -> sa.Table:
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("responsible_person", sa.String(length=255), nullable=False),
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("attributi", sa.JSON, nullable=False),
         sa.Column("type", sa.Enum(ChemicalType), nullable=False)

@@ -14,6 +14,7 @@ IN_MEMORY_DB_URL = "sqlite+aiosqlite://"
 TEST_ATTRIBUTO_NAME = "testattributo"
 TEST_ATTRIBUTO_NAME2 = "testattributo2"
 TEST_chemical_NAME = "chemicalname"
+TEST_chemical_RESPONSIBLE_PERSON = "Rosalind Franklin"
 
 
 async def test_read_chemicals() -> None:
@@ -69,6 +70,7 @@ async def test_update_chemicals() -> None:
         "/api/chemicals",
         json={
             "name": TEST_chemical_NAME,
+            "responsiblePerson": TEST_chemical_RESPONSIBLE_PERSON,
             "attributi": {TEST_ATTRIBUTO_NAME: "foo", TEST_ATTRIBUTO_NAME2: "bar"},
             "type": ChemicalType.CRYSTAL.value,
             "fileIds": [],
@@ -83,6 +85,7 @@ async def test_update_chemicals() -> None:
         json={
             "id": chemical_id,
             "name": TEST_chemical_NAME,
+            "responsiblePerson": TEST_chemical_RESPONSIBLE_PERSON,
             "type": ChemicalType.CRYSTAL.value,
             # Only update hte second attributo. The first should stay the same.
             "attributi": {TEST_ATTRIBUTO_NAME2: "baz"},
@@ -99,6 +102,7 @@ async def test_update_chemicals() -> None:
     assert len(chemicals) == 1
 
     assert chemicals[0]["id"] == chemical_id
+    assert chemicals[0]["responsible_person"] == TEST_chemical_RESPONSIBLE_PERSON
     assert chemicals[0]["attributi"][TEST_ATTRIBUTO_NAME] == "foo"  # type: ignore
     assert chemicals[0]["attributi"][TEST_ATTRIBUTO_NAME2] == "baz"  # type: ignore
 

@@ -227,10 +227,17 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
         chemical_names: list[str] = []
 
         chemical_based_id = await db.create_experiment_type(
-            conn, CHEMICAL_BASED, [AttributoNameAndRole(ATTRIBUTO_CHEMICAL, ChemicalType.CRYSTAL)]
+            conn,
+            CHEMICAL_BASED,
+            [AttributoNameAndRole(ATTRIBUTO_CHEMICAL, ChemicalType.CRYSTAL)],
         )
         time_resolved_id = await db.create_experiment_type(
-            conn, TIME_RESOLVED, [AttributoNameAndRole(ATTRIBUTO_CHEMICAL, ChemicalType.CRYSTAL), AttributoNameAndRole(ATTRIBUTO_FLOW_RATE, ChemicalType.SOLUTION)]
+            conn,
+            TIME_RESOLVED,
+            [
+                AttributoNameAndRole(ATTRIBUTO_CHEMICAL, ChemicalType.CRYSTAL),
+                AttributoNameAndRole(ATTRIBUTO_FLOW_RATE, ChemicalType.SOLUTION),
+            ],
         )
 
         for _ in range(random.randrange(3, 10)):
@@ -240,10 +247,11 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             while chemical_name in chemical_names:
                 chemical_name = generate("n/plants")
             chemical_id = await db.create_chemical(
-                conn,
-                chemical_name,
-                ChemicalType.CRYSTAL,
-                AttributiMap.from_types_and_json(
+                conn=conn,
+                name=chemical_name,
+                type_=ChemicalType.CRYSTAL,
+                responsible_person="Rosalind Franklin",
+                attributi=AttributiMap.from_types_and_json(
                     attributi,
                     chemical_ids=[],
                     raw_attributi={

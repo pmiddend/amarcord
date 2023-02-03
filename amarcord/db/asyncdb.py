@@ -459,6 +459,7 @@ class AsyncDB:
         self,
         conn: Connection,
         name: str,
+        responsible_person: str,
         type_: ChemicalType,
         attributi: AttributiMap,
     ) -> int:
@@ -469,6 +470,7 @@ class AsyncDB:
                     modified=datetime.datetime.utcnow(),
                     attributi=attributi.to_json(),
                     type=type_,
+                    responsible_person=responsible_person,
                 )
             )
         ).inserted_primary_key[0]
@@ -479,6 +481,7 @@ class AsyncDB:
         conn: Connection,
         id_: int,
         name: str,
+        responsible_person: str,
         type_: ChemicalType,
         attributi: AttributiMap,
     ) -> None:
@@ -486,6 +489,7 @@ class AsyncDB:
             sa.update(self.tables.chemical)
             .values(
                 name=name,
+                responsible_person=responsible_person,
                 modified=datetime.datetime.utcnow(),
                 attributi=attributi.to_json(),
                 type=type_,
@@ -553,6 +557,7 @@ class AsyncDB:
             [
                 self.tables.chemical.c.id,
                 self.tables.chemical.c.name,
+                self.tables.chemical.c.responsible_person,
                 self.tables.chemical.c.type,
                 self.tables.chemical.c.attributi,
             ]
@@ -564,6 +569,7 @@ class AsyncDB:
             DBChemical(
                 id=a["id"],
                 name=a["name"],
+                responsible_person=a["responsible_person"],
                 type_=a["type"],
                 attributi=AttributiMap.from_types_and_json(
                     types=attributi,
@@ -767,7 +773,14 @@ class AsyncDB:
             for s in await self.retrieve_chemicals(conn, attributi):
                 # Then remove the attributo from the chemical and the accompanying types, and update.
                 s.attributi.remove_with_type(name)
-                await self.update_chemical(conn, id_=s.id, name=s.name, type_=s.type_, attributi=s.attributi)
+                await self.update_chemical(
+                    conn=conn,
+                    id_=s.id,
+                    name=s.name,
+                    responsible_person=s.responsible_person,
+                    type_=s.type_,
+                    attributi=s.attributi,
+                )
         elif found_attributo.associated_table == AssociatedTable.RUN:
             # Explanation, see above for chemicals
             for r in await self.retrieve_runs(conn, attributi):
@@ -1058,13 +1071,27 @@ class AsyncDB:
                         new_name=new_attributo.name,
                         after_type=new_attributo.attributo_type,
                     )
-                    await self.update_chemical(conn, id_=s.id, type_=s.type_, name=s.name, attributi=s.attributi)
+                    await self.update_chemical(
+                        conn=conn,
+                        id_=s.id,
+                        type_=s.type_,
+                        name=s.name,
+                        responsible_person=s.responsible_person,
+                        attributi=s.attributi,
+                    )
         elif new_attributo.associated_table == AssociatedTable.RUN:
             # If we're changing the table from chemical to run, we have to remove the attributo from chemicals
             if current_attributo.associated_table != AssociatedTable.RUN:
                 for s in await self.retrieve_chemicals(conn, current_attributi):
                     s.attributi.remove_with_type(current_attributo.name)
-                    await self.update_chemical(conn, id_=s.id, type_=s.type_,name=s.name, attributi=s.attributi)
+                    await self.update_chemical(
+                        conn=conn,
+                        id_=s.id,
+                        type_=s.type_,
+                        name=s.name,
+                        responsible_person=s.responsible_person,
+                        attributi=s.attributi,
+                    )
             else:
                 for r in await self.retrieve_runs(conn, current_attributi):
                     r.attributi.convert_attributo(
@@ -1217,7 +1244,9 @@ class AsyncDB:
         rc = self.tables.chemical.c
         r = (
             await conn.execute(
-                sa.select([rc.id, rc.name, rc.type, rc.attributi]).where(rc.id == id_)
+                sa.select(
+                    [rc.id, rc.name, rc.type, rc.responsible_person, rc.attributi]
+                ).where(rc.id == id_)
             )
         ).fetchone()
         files = await self._retrieve_files(
@@ -1231,6 +1260,7 @@ class AsyncDB:
         return DBChemical(
             id=id_,
             name=r["name"],
+            responsible_person=r["responsible_person"],
             type_=r["type"],
             attributi=AttributiMap.from_types_and_json(
                 attributi, chemical_ids=[], raw_attributi=r["attributi"]
@@ -1275,20 +1305,24 @@ class AsyncDB:
         ]
 
     async def create_experiment_type(
-        self, conn: Connection, name: str, experiment_attributi: Iterable[AttributoNameAndRole]
+        self,
+        conn: Connection,
+        name: str,
+        experiment_attributi: Iterable[AttributoNameAndRole],
     ) -> int:
         existing_attributi_names = {
             a.name for a in await self.retrieve_attributi(conn, associated_table=None)
         }
 
         not_found = [
-            a.attributo_name for a in experiment_attributi if a.attributo_name not in existing_attributi_names
+            a.attributo_name
+            for a in experiment_attributi
+            if a.attributo_name not in existing_attributi_names
         ]
 
         if not_found:
             raise Exception(
-                "couldn't find the following attributi: "
-                + ", ".join(not_found)
+                "couldn't find the following attributi: " + ", ".join(not_found)
             )
 
         experiment_type_id = (
@@ -1300,7 +1334,11 @@ class AsyncDB:
         await conn.execute(
             self.tables.experiment_has_attributo.insert().values(
                 [
-                    {"experiment_type_id": experiment_type_id, "attributo_name": a.attributo_name, "chemical_role": a.chemical_role}
+                    {
+                        "experiment_type_id": experiment_type_id,
+                        "attributo_name": a.attributo_name,
+                        "chemical_role": a.chemical_role,
+                    }
                     for a in experiment_attributi
                 ]
             )
@@ -1334,7 +1372,13 @@ class AsyncDB:
                 DBExperimentType(
                     id=key,
                     name=group_list[0]["name"],
-                    attributi=[AttributoNameAndRole(attributo_name=row["attributo_name"], chemical_role=row["chemical_role"]) for row in group_list],
+                    attributi=[
+                        AttributoNameAndRole(
+                            attributo_name=row["attributo_name"],
+                            chemical_role=row["chemical_role"],
+                        )
+                        for row in group_list
+                    ],
                 )
             )
         return result
@@ -1355,7 +1399,9 @@ class AsyncDB:
                 f'couldn\'t find experiment type with ID "{experiment_type_id}"'
             )
 
-        existing_attributo_names = [a.attributo_name for a in matching_experiment_type.attributi]
+        existing_attributo_names = [
+            a.attributo_name for a in matching_experiment_type.attributi
+        ]
 
         superfluous_attributi = attributi.names().difference(existing_attributo_names)
 

@@ -38,6 +38,7 @@ class DBFileBlueprint:
 class DBChemical:
     id: int
     name: str
+    responsible_person: str
     attributi: AttributiMap
     type_: ChemicalType
     files: list[DBFile]

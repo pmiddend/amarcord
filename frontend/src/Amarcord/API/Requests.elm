@@ -1140,10 +1140,11 @@ encodeAssociatedTable x =
 
 chemicalDecoder : Decode.Decoder (Chemical ChemicalId (AttributoMap AttributoValue) File)
 chemicalDecoder =
-    Decode.map5
+    Decode.map6
         Chemical
         (Decode.field "id" Decode.int)
         (Decode.field "name" Decode.string)
+        (Decode.field "responsible_person" Decode.string)
         (Decode.field "type" chemicalTypeDecoder)
         (Decode.field "attributi" attributoMapDecoder)
         (Decode.field "files" (Decode.list fileDecoder))
@@ -1153,6 +1154,7 @@ encodeChemical : Chemical (Maybe Int) (AttributoMap AttributoValue) Int -> Encod
 encodeChemical s =
     Encode.object <|
         [ ( "name", Encode.string s.name )
+        , ( "responsible_person", Encode.string s.responsiblePerson )
         , ( "attributi", encodeAttributoMap s.attributi )
         , ( "type", encodeChemicalType s.type_ )
         , ( "fileIds", Encode.list Encode.int s.files )
