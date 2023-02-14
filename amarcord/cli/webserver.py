@@ -283,7 +283,7 @@ def _encode_chemical(a: DBChemical) -> JSONDict:
     return {
         "id": a.id,
         "name": a.name,
-        "responsible_person": a.responsible_person,
+        "responsiblePerson": a.responsible_person,
         "type": a.type_.value,
         "attributi": a.attributi.to_json(),
         "files": [_encode_file(f) for f in a.files],

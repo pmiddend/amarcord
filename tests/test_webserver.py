@@ -102,7 +102,7 @@ async def test_update_chemicals() -> None:
     assert len(chemicals) == 1
 
     assert chemicals[0]["id"] == chemical_id
-    assert chemicals[0]["responsible_person"] == TEST_chemical_RESPONSIBLE_PERSON
+    assert chemicals[0]["responsiblePerson"] == TEST_chemical_RESPONSIBLE_PERSON
     assert chemicals[0]["attributi"][TEST_ATTRIBUTO_NAME] == "foo"  # type: ignore
     assert chemicals[0]["attributi"][TEST_ATTRIBUTO_NAME2] == "baz"  # type: ignore
 
