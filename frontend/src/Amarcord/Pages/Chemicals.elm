@@ -6,7 +6,7 @@ import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo as Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue, emptyAttributoMap, extractInt)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
-import Amarcord.Chemical exposing (Chemical, ChemicalId, ChemicalType(..), chemicalMapAttributi, chemicalMapId, chemicalTypeToPrettyString, chemicalTypeToString)
+import Amarcord.Chemical exposing (Chemical, ChemicalId, ChemicalType(..), chemicalMapAttributi, chemicalMapId)
 import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
@@ -18,7 +18,7 @@ import Dict
 import File as ElmFile
 import File.Select
 import Html exposing (..)
-import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, title, type_, value)
+import Html.Attributes exposing (attribute, class, disabled, for, href, id, src, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (isEmpty, length, singleton)
 import List.Extra as ListExtra
@@ -62,8 +62,7 @@ type Msg
     | AskDelete String ChemicalId
     | InitiateEdit (Chemical Int (AttributoMap AttributoValue) File)
     | ConfirmDelete ChemicalId
-    | AddChemical
-    | EditChemicalType ChemicalType
+    | AddChemical ChemicalType
     | EditChemicalName String
     | EditChemicalResponsiblePerson String
     | ChemicalDeleteFinished (Result RequestError ())
@@ -240,23 +239,28 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
             else
                 ""
 
-        makeChemicalTypeRadio : ChemicalType -> List (Html Msg)
-        makeChemicalTypeRadio ct =
-            [ input_ [ type_ "checkbox", class "btn-check", id ("chemical-type-" ++ chemicalTypeToString ct), checked (editingChemical.type_ == ct), onClick (EditChemicalType ct) ]
-            , label [ for ("chemical-type-" ++ chemicalTypeToString ct), class "btn btn-outline-primary" ] [ text (chemicalTypeToPrettyString ct) ]
-            ]
+        chemicalTypeToPretty ct =
+            case ct of
+                Crystal ->
+                    "crystals"
+
+                Solution ->
+                    "solution"
+
+        addOrEditHeadline =
+            h4_
+                [ viewChemicalTypeIcon editingChemical.type_
+                , text
+                    (if isNothing editingChemical.id then
+                        " Add new " ++ chemicalTypeToPretty editingChemical.type_
+
+                     else
+                        " Edit " ++ chemicalTypeToPretty editingChemical.type_
+                    )
+                ]
     in
     form_ <|
-        [ h4_
-            [ icon { name = "plus-square" }
-            , text
-                (if isNothing editingChemical.id then
-                    " Add new chemical"
-
-                 else
-                    " Edit chemical"
-                )
-            ]
+        [ addOrEditHeadline
         , p [ class "lead text-muted" ]
             [ text "If you prepared your crystals in "
             , em_ [ text "multiple batches" ]
@@ -282,7 +286,6 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
             , a [ href "https://www.desy.de/~twhite/crystfel/tutorial-0.9.1.html#merge" ] [ text "CrystFEL tutorial, section 13" ]
             , text "."
             ]
-        , div [ class "mb-3" ] [ div [ class "btn-group" ] (makeChemicalTypeRadio Crystal ++ makeChemicalTypeRadio Solution) ]
         , div [ class "mb-3" ]
             [ label [ for "name", class "form-label" ] [ text "Name", sup_ [ text "*" ] ]
             , input_
@@ -337,7 +340,7 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
                     [ icon { name = "plus-lg" }
                     , text
                         (if isNothing editingChemical.id then
-                            " Add new chemical"
+                            " Save"
 
                          else
                             " Confirm edit"
@@ -469,6 +472,16 @@ viewChemicalTable usedChemicalIds zone chemicals attributi =
         div [ class "mt-3" ] (h2_ [ text "Available chemicals" ] :: List.concatMap (viewChemicalRow zone attributi usedChemicalIds) chemicals)
 
 
+viewChemicalTypeIcon : ChemicalType -> Html msg
+viewChemicalTypeIcon ct =
+    case ct of
+        Crystal ->
+            icon { name = "gem" }
+
+        Solution ->
+            icon { name = "droplet-fill" }
+
+
 viewInner : Model -> List (Html Msg)
 viewInner model =
     case model.chemicals of
@@ -486,7 +499,11 @@ viewInner model =
                 prefix =
                     case model.editChemical of
                         Nothing ->
-                            button [ class "btn btn-primary", onClick AddChemical ] [ icon { name = "plus-lg" }, text " Add chemical" ]
+                            div [ class "hstack gap-3" ]
+                                [ button [ class "btn btn-primary", onClick (AddChemical Crystal) ] [ viewChemicalTypeIcon Crystal, text " Add crystals" ]
+                                , div [ class "vr" ] []
+                                , button [ class "btn btn-primary", onClick (AddChemical Solution) ] [ viewChemicalTypeIcon Solution, text " Add solution" ]
+                                ]
 
                         Just editChemical ->
                             viewEditForm chemicals model.fileUploadRequest model.submitErrors model.newFileUpload editChemical
@@ -555,9 +572,9 @@ editChemicalFromAttributiAndValues zone attributi =
     chemicalMapAttributi (createEditableAttributi zone attributi)
 
 
-emptyChemical : Chemical (Maybe Int) (AttributoMap a) b
-emptyChemical =
-    { id = Nothing, name = "", responsiblePerson = "", type_ = Crystal, attributi = emptyAttributoMap, files = [] }
+emptyChemical : ChemicalType -> Chemical (Maybe Int) (AttributoMap a) b
+emptyChemical type_ =
+    { id = Nothing, name = "", responsiblePerson = "", type_ = type_, attributi = emptyAttributoMap, files = [] }
 
 
 emptyNewFileUpload : { description : String, file : Maybe a }
@@ -600,14 +617,13 @@ update msg model =
                     , getChemicalsAndRuns
                     )
 
-        -- The user pressed the "Add new object" button
-        AddChemical ->
+        AddChemical type_ ->
             case model.chemicals of
                 Success { attributi } ->
                     ( { model
                         | modifyRequest = NotAsked
                         , chemicalDeleteRequest = NotAsked
-                        , editChemical = Just (editChemicalFromAttributiAndValues model.myTimeZone attributi emptyChemical)
+                        , editChemical = Just (editChemicalFromAttributiAndValues model.myTimeZone attributi (emptyChemical type_))
                       }
                     , Cmd.none
                     )
@@ -631,14 +647,6 @@ update msg model =
 
                 Just editChemical ->
                     ( { model | editChemical = Just { editChemical | responsiblePerson = newRP } }, Cmd.none )
-
-        EditChemicalType newType ->
-            case model.editChemical of
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just editChemical ->
-                    ( { model | editChemical = Just { editChemical | type_ = newType } }, Cmd.none )
 
         -- The user pressed the submit change button (either creating or editing an object)
         EditChemicalSubmit ->
