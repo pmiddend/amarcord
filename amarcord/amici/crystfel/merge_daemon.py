@@ -118,6 +118,7 @@ async def start_merge_job(
 
     finished_results: list[DBIndexingResultDone] = []
     pdb_file_id: None | int = None
+    restraints_cif_file_id: None | int = None
     attributi = await db.retrieve_attributi(conn, associated_table=None)
     for ir in merge_result.indexing_results:
         if not isinstance(ir.runtime_status, DBIndexingResultDone):
@@ -141,6 +142,9 @@ async def start_merge_job(
         this_pdb_file_id = _find_file_id_by_extension(chemical.files, "pdb")
         if this_pdb_file_id is not None:
             pdb_file_id = this_pdb_file_id
+        this_restraints_cif_file_id = _find_file_id_by_extension(chemical.files, "cif")
+        if this_restraints_cif_file_id is not None:
+            restraints_cif_file_id = this_restraints_cif_file_id
         finished_results.append(ir.runtime_status)
     parent_logger.info("All indexing results have finished, we can start merging")
 
@@ -173,6 +177,7 @@ async def start_merge_job(
                 ),
                 "crystfel-path": str(config.crystfel_path),
                 "pdb-file-id": pdb_file_id,
+                "restraints-cif-file-id": restraints_cif_file_id,
             }
             parent_logger.info(
                 "command line for this job is " + " ".join(predefined_args)

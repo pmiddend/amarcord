@@ -294,6 +294,7 @@ def quick_refine(
     input_mtz: Path,
     resolution_cut: float,
     input_pdb: Path,
+    input_restraints_cif: None | Path,
 ) -> RefinementResult:
     logger.info("cutting resolution...")
 
@@ -325,6 +326,13 @@ def quick_refine(
             DIMPLE_OUT_MTZ,
             "--xyzout",
             DIMPLE_OUT_PDB,
+        ]
+        + (
+            ["--libin", str(input_restraints_cif)]
+            if input_restraints_cif is not None
+            else []
+        )
+        + [
             RESCUT_MTZ,
             str(input_pdb),
             ".",
@@ -362,6 +370,7 @@ class ParsedArgs:
     partialator_additional: None | str
     crystfel_path: Path
     pdb_file_id: None | int
+    restraints_cif_file_id: None | int
 
 
 def parse_predefined(s: bytes) -> ParsedArgs:
@@ -420,6 +429,9 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         ),  # pyright: ignore [reportUnknownArgumentType]
         crystfel_path=crystfel_path,
         pdb_file_id=j.get("pdb-file-id"),  # pyright: ignore [reportUnknownArgumentType]
+        restraints_cif_file_id=j.get(
+            "restraints-cif-file-id"
+        ),  # pyright: ignore [reportUnknownArgumentType]
     )
 
 
@@ -909,10 +921,13 @@ def generate_output(args: ParsedArgs) -> None:
     if args.pdb_file_id is not None:
         try:
             pdb_file = retrieve_file(args, args.pdb_file_id, "base-model.pdb")
+            restraints_cif_file = (
+                retrieve_file(args, args.restraints_cif_file_id, "restraints.cif")
+                if args.restraints_cif_file_id is not None
+                else None
+            )
             refinement_result = quick_refine(
-                mtz_path,
-                highres_cut,
-                pdb_file,
+                mtz_path, highres_cut, pdb_file, restraints_cif_file
             )
         except:
             logger.exception("couldn't complete refinement")
