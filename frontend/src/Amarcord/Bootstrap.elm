@@ -82,6 +82,9 @@ mimeTypeToIcon type_ =
                 "application" :: "pdf" :: [] ->
                     "file-pdf"
 
+                "application" :: "vnd.openxmlformats-officedocument.wordprocessingml.document" :: [] ->
+                    "file-richtext"
+
                 prefix :: _ ->
                     case prefix of
                         "image" ->

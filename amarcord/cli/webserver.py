@@ -1663,6 +1663,11 @@ def _encode_attributo(a: DBAttributo) -> JSONDict:
         "type": coparse_schema_type(attributo_type_to_schema(a.attributo_type)),
     }
 
+def _do_content_disposition(mime_type: str, extension: str) -> bool:
+    if mime_type == "text/plain":
+        return extension in ("pdb", "cif")
+    return all(not mime_type.startswith(x) for x in ("image", "application/pdf", "text/plain"))
+
 
 @app.get("/api/files/<int:file_id>")
 async def read_file(file_id: int) -> Any:
@@ -1675,8 +1680,7 @@ async def read_file(file_id: int) -> Any:
     headers = {"Content-Type": file_.type_}
     # Content-Disposition makes it so the browser opens a "Save file as" dialog. For images, PDFs, ..., we can just
     # display them in the browser instead.
-    dont_do_disposition = ("image", "application/pdf", "text/plain")
-    if all(not file_.type_.startswith(x) for x in dont_do_disposition):
+    if _do_content_disposition(file_.type_, Path(file_.file_name).suffix[1:]):
         headers["Content-Disposition"] = f'attachment; filename="{file_.file_name}"'
     return async_generator(), 200, headers
 
