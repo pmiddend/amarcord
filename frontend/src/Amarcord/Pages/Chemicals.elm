@@ -10,7 +10,7 @@ import Amarcord.Chemical exposing (Chemical, ChemicalId, ChemicalType(..), chemi
 import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.File exposing (File)
-import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
@@ -18,11 +18,11 @@ import Dict
 import File as ElmFile
 import File.Select
 import Html exposing (..)
-import Html.Attributes exposing (attribute, class, disabled, for, href, id, src, style, title, type_, value)
+import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List exposing (isEmpty, length, singleton)
 import List.Extra as ListExtra
-import Maybe.Extra as Maybe exposing (isJust, isNothing)
+import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Set exposing (Set)
 import String
@@ -52,6 +52,8 @@ type alias Model =
     , myTimeZone : Zone
     , submitErrors : List (Html Msg)
     , newFileUpload : NewFileUpload
+    , responsiblePersonFilter : Maybe String
+    , typeFilter : Maybe ChemicalType
     }
 
 
@@ -78,6 +80,8 @@ type Msg
     | EditResetNewFileUpload
     | EditNewFileOpenSelector
     | Nop
+    | ChangeResponsiblePersonFilter (Maybe String)
+    | ChangeTypeFilter (Maybe ChemicalType)
 
 
 init : HereAndNow -> ( Model, Cmd Msg )
@@ -92,6 +96,8 @@ init { zone } =
       , myTimeZone = zone
       , submitErrors = []
       , newFileUpload = { file = Nothing, description = "" }
+      , responsiblePersonFilter = Nothing
+      , typeFilter = Nothing
       }
     , getChemicalsAndRuns
     )
@@ -126,7 +132,7 @@ viewFiles fileUploadError newFile files =
                     [ viewRemoteData "Upload successful!" fileUploadError
                     , div [ class "input-group mb-3" ]
                         [ button [ type_ "button", class "btn btn-outline-secondary", onClick EditNewFileOpenSelector ] [ text "Choose file..." ]
-                        , input [ type_ "text", disabled True, value (Maybe.unwrap "No file selected" ElmFile.name newFile.file), class "form-control" ] []
+                        , input [ type_ "text", disabled True, value (MaybeExtra.unwrap "No file selected" ElmFile.name newFile.file), class "form-control" ] []
                         ]
                     , div [ class "mb-3" ]
                         [ label [ for "file-description", class "form-label" ] [ text "File Description", sup_ [ text "*" ] ]
@@ -463,13 +469,77 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
     ]
 
 
-viewChemicalTable : Set ChemicalId -> Zone -> List (Chemical ChemicalId (AttributoMap AttributoValue) File) -> List (Attributo AttributoType) -> Html Msg
-viewChemicalTable usedChemicalIds zone chemicals attributi =
+viewChemicalTable :
+    Set ChemicalId
+    -> Zone
+    -> List (Chemical ChemicalId (AttributoMap AttributoValue) File)
+    -> List (Attributo AttributoType)
+    -> Maybe String
+    -> Maybe ChemicalType
+    -> Html Msg
+viewChemicalTable usedChemicalIds zone chemicals attributi responsiblePersonFilter typeFilter =
     if isEmpty chemicals then
         div [ class "mt-3" ] [ h2 [ class "text-muted" ] [ text "No chemicals entered yet." ] ]
 
     else
-        div [ class "mt-3" ] (h2_ [ text "Available chemicals" ] :: List.concatMap (viewChemicalRow zone attributi usedChemicalIds) chemicals)
+        let
+            viewResponsiblePersonFilterOption : String -> List (Html Msg)
+            viewResponsiblePersonFilterOption responsiblePerson =
+                [ input_ [ type_ "radio", class "btn-check", id ("filter" ++ responsiblePerson), checked (responsiblePersonFilter == Just responsiblePerson), onClick (ChangeResponsiblePersonFilter (Just responsiblePerson)) ]
+                , label [ class "btn btn-outline-primary", for ("filter" ++ responsiblePerson) ] [ small [] [ text responsiblePerson ] ]
+                ]
+
+            viewTypeFilter =
+                div [ class "btn-group mb-1" ]
+                    [ input_
+                        [ type_ "radio"
+                        , class "btn-check"
+                        , id "type-filter"
+                        , checked (typeFilter == Nothing)
+                        , onClick (ChangeTypeFilter Nothing)
+                        ]
+                    , label [ class "btn btn-outline-primary", for "type-filter" ] [ text "All" ]
+                    , input_
+                        [ type_ "radio"
+                        , class "btn-check"
+                        , id "type-filter-crystals"
+                        , checked (typeFilter == Just Crystal)
+                        , onClick (ChangeTypeFilter (Just Crystal))
+                        ]
+                    , label [ class "btn btn-outline-primary", for "type-filter-crystals" ] [ viewChemicalTypeIcon Crystal, text " Crystals" ]
+                    , input_
+                        [ type_ "radio"
+                        , class "btn-check"
+                        , id "type-filter-solution"
+                        , checked (typeFilter == Just Solution)
+                        , onClick (ChangeTypeFilter (Just Solution))
+                        ]
+                    , label [ class "btn btn-outline-primary", for "type-filter-solution" ] [ viewChemicalTypeIcon Solution, text " Solution" ]
+                    ]
+
+            viewResponsiblePersonFilter =
+                div [ class "btn-group mb-3" ] <|
+                    List.concat
+                        [ [ input_
+                                [ type_ "radio"
+                                , class "btn-check"
+                                , id "responsible-person-filter"
+                                , checked (responsiblePersonFilter == Nothing)
+                                , onClick (ChangeResponsiblePersonFilter Nothing)
+                                ]
+                          , label [ class "btn btn-outline-primary", for "responsible-person-filter" ] [ small [] [ text "All" ] ]
+                          ]
+                        , List.concatMap viewResponsiblePersonFilterOption (Set.toList (List.foldr (\e -> Set.insert e.responsiblePerson) Set.empty chemicals))
+                        ]
+
+            chemicalFilter c =
+                MaybeExtra.unwrap True (\rpf -> c.responsiblePerson == rpf) responsiblePersonFilter && MaybeExtra.unwrap True (\tf -> c.type_ == tf) typeFilter
+
+            filteredChemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
+            filteredChemicals =
+                List.filter chemicalFilter chemicals
+        in
+        div [ class "mt-3" ] (h2_ [ text "Available chemicals" ] :: viewTypeFilter :: viewResponsiblePersonFilter :: hr_ :: List.concatMap (viewChemicalRow zone attributi usedChemicalIds) filteredChemicals)
 
 
 viewChemicalTypeIcon : ChemicalType -> Html msg
@@ -540,7 +610,17 @@ viewInner model =
                                 [ makeAlert [ AlertSuccess ] [ text "Deletion successful!" ]
                                 ]
             in
-            [ prefix, modifyRequestResult, deleteRequestResult, viewChemicalTable model.chemicalsUsedInRuns model.myTimeZone (List.sortBy .id chemicals) attributi ]
+            [ prefix
+            , modifyRequestResult
+            , deleteRequestResult
+            , viewChemicalTable
+                model.chemicalsUsedInRuns
+                model.myTimeZone
+                (List.sortBy .id chemicals)
+                attributi
+                model.responsiblePersonFilter
+                model.typeFilter
+            ]
 
 
 view : Model -> Html Msg
@@ -671,7 +751,7 @@ update msg model =
                                     Ok editedAttributi ->
                                         let
                                             operation =
-                                                Maybe.unwrap httpCreateChemical (always httpUpdateChemical) editChemical.id
+                                                MaybeExtra.unwrap httpCreateChemical (always httpUpdateChemical) editChemical.id
 
                                             chemicalToSend =
                                                 { id = editChemical.id
@@ -826,3 +906,9 @@ update msg model =
                             Set.empty
             in
             ( { model | chemicalsUsedInRuns = chemicalsUsedInRuns }, Cmd.none )
+
+        ChangeResponsiblePersonFilter newFilter ->
+            ( { model | responsiblePersonFilter = newFilter }, Cmd.none )
+
+        ChangeTypeFilter newFilter ->
+            ( { model | typeFilter = newFilter }, Cmd.none )
