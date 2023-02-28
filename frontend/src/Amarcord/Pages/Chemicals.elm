@@ -490,47 +490,51 @@ viewChemicalTable usedChemicalIds zone chemicals attributi responsiblePersonFilt
                 ]
 
             viewTypeFilter =
-                div [ class "btn-group mb-1" ]
-                    [ input_
-                        [ type_ "radio"
-                        , class "btn-check"
-                        , id "type-filter"
-                        , checked (typeFilter == Nothing)
-                        , onClick (ChangeTypeFilter Nothing)
+                div_
+                    [ div [ class "btn-group mb-1" ]
+                        [ input_
+                            [ type_ "radio"
+                            , class "btn-check"
+                            , id "type-filter"
+                            , checked (typeFilter == Nothing)
+                            , onClick (ChangeTypeFilter Nothing)
+                            ]
+                        , label [ class "btn btn-outline-primary", for "type-filter" ] [ text "All" ]
+                        , input_
+                            [ type_ "radio"
+                            , class "btn-check"
+                            , id "type-filter-crystals"
+                            , checked (typeFilter == Just Crystal)
+                            , onClick (ChangeTypeFilter (Just Crystal))
+                            ]
+                        , label [ class "btn btn-outline-primary", for "type-filter-crystals" ] [ viewChemicalTypeIcon Crystal, text " Crystals" ]
+                        , input_
+                            [ type_ "radio"
+                            , class "btn-check"
+                            , id "type-filter-solution"
+                            , checked (typeFilter == Just Solution)
+                            , onClick (ChangeTypeFilter (Just Solution))
+                            ]
+                        , label [ class "btn btn-outline-primary", for "type-filter-solution" ] [ viewChemicalTypeIcon Solution, text " Solution" ]
                         ]
-                    , label [ class "btn btn-outline-primary", for "type-filter" ] [ text "All" ]
-                    , input_
-                        [ type_ "radio"
-                        , class "btn-check"
-                        , id "type-filter-crystals"
-                        , checked (typeFilter == Just Crystal)
-                        , onClick (ChangeTypeFilter (Just Crystal))
-                        ]
-                    , label [ class "btn btn-outline-primary", for "type-filter-crystals" ] [ viewChemicalTypeIcon Crystal, text " Crystals" ]
-                    , input_
-                        [ type_ "radio"
-                        , class "btn-check"
-                        , id "type-filter-solution"
-                        , checked (typeFilter == Just Solution)
-                        , onClick (ChangeTypeFilter (Just Solution))
-                        ]
-                    , label [ class "btn btn-outline-primary", for "type-filter-solution" ] [ viewChemicalTypeIcon Solution, text " Solution" ]
                     ]
 
             viewResponsiblePersonFilter =
-                div [ class "btn-group mb-3" ] <|
-                    List.concat
-                        [ [ input_
-                                [ type_ "radio"
-                                , class "btn-check"
-                                , id "responsible-person-filter"
-                                , checked (responsiblePersonFilter == Nothing)
-                                , onClick (ChangeResponsiblePersonFilter Nothing)
-                                ]
-                          , label [ class "btn btn-outline-primary", for "responsible-person-filter" ] [ small [] [ text "All" ] ]
-                          ]
-                        , List.concatMap viewResponsiblePersonFilterOption (Set.toList (List.foldr (\e -> Set.insert e.responsiblePerson) Set.empty chemicals))
-                        ]
+                div_
+                    [ div [ class "btn-group mb-3" ] <|
+                        List.concat
+                            [ [ input_
+                                    [ type_ "radio"
+                                    , class "btn-check"
+                                    , id "responsible-person-filter"
+                                    , checked (responsiblePersonFilter == Nothing)
+                                    , onClick (ChangeResponsiblePersonFilter Nothing)
+                                    ]
+                              , label [ class "btn btn-outline-primary", for "responsible-person-filter" ] [ small [] [ text "All" ] ]
+                              ]
+                            , List.concatMap viewResponsiblePersonFilterOption (Set.toList (List.foldr (\e -> Set.insert e.responsiblePerson) Set.empty chemicals))
+                            ]
+                    ]
 
             chemicalFilter c =
                 MaybeExtra.unwrap True (\rpf -> c.responsiblePerson == rpf) responsiblePersonFilter && MaybeExtra.unwrap True (\tf -> c.type_ == tf) typeFilter
