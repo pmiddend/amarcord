@@ -102,7 +102,7 @@ updateDataSet msg model =
                     ( { model | newDataSet = Just newDataSet }, Cmd.none )
 
         DataSetSubmit ->
-            case (Debug.log "model" model).newDataSet of
+            case model.newDataSet of
                 Nothing ->
                     ( model, Cmd.none )
 

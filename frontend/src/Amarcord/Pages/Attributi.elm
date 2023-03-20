@@ -594,7 +594,7 @@ viewTypeSpecificForm toleranceChecker x =
                         abs (run - ds) <= tolerance
 
                     else
-                        abs (run - ds) <= Debug.log "tolerance / 100.0" (tolerance / 100.0) * max (abs run) (abs ds)
+                        abs (run - ds) <= (tolerance / 100.0) * max (abs run) (abs ds)
 
                 toleranceMaybeMatches =
                     Maybe.withDefault True <| Maybe.map3 toleranceMatches (String.toFloat toleranceInput) (String.toFloat toleranceChecker.runValue) (String.toFloat toleranceChecker.dsValue)
