@@ -7,8 +7,12 @@
     inputs.nixpkgs.follows = "nixpkgs";
   };
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
+  inputs.mkElmDerivation = {
+    url = "github:jeslie0/mkElmDerivation";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
 
-  outputs = { self, nixpkgs, poetry2nix, uglymol }:
+  outputs = { self, nixpkgs, poetry2nix, uglymol, mkElmDerivation }:
     let
       system = "x86_64-linux";
     in
@@ -54,11 +58,11 @@
           in
           rec {
             # The application
-            amarcord-python-package =
+            amarcord-python-package = frontend:
               prev.poetry2nix.mkPoetryApplication {
                 projectDir = ./.;
                 postPatch = ''
-                  sed -e 's#^hardcoded_static_folder.*#hardcoded_static_folder = "${amarcord-frontend}"#' -i   amarcord/cli/webserver.py
+                  sed -e 's#^hardcoded_static_folder.*#hardcoded_static_folder = "${frontend}"#' -i   amarcord/cli/webserver.py
                 '';
                 overrides = poetryOverrides;
               };
@@ -69,8 +73,6 @@
                 amarcord = ./amarcord;
               };
             };
-
-            amarcord-frontend = prev.pkgs.callPackage ./frontend/default.nix { uglymol = uglymol.packages.${system}.default; };
           })
       ];
 
@@ -78,16 +80,55 @@
         let
           pkgs = import nixpkgs {
             inherit system;
-            overlays = [ overlay ];
+            overlays = [
+              overlay
+              mkElmDerivation.overlay.${system}
+            ];
           };
+
+          amarcord-frontend =
+            let
+              corePackage = pkgs.mkElmDerivation {
+                pname = "amarcord-frontend-core";
+                version = "1.0.0";
+                src = frontend/.;
+                outputJavaScript = true;
+              };
+              mtzJs = pkgs.fetchurl {
+                url = "https://raw.githubusercontent.com/uglymol/uglymol.github.io/master/wasm/mtz.js";
+                hash = "sha256-Ut9ZJnGu+hbJBWD+XW14mosJ1Lr3tcRx+pHOP+q+awo=";
+              };
+              mtzWasm = pkgs.fetchurl {
+                url = "https://raw.githubusercontent.com/uglymol/uglymol.github.io/master/wasm/mtz.wasm";
+                hash = "sha256-B71/bdEMs/yLMbHzmDiWeQNeoR80pUgNJmnzR/7Pabk=";
+              };
+
+            in
+            pkgs.stdenv.mkDerivation {
+              src = frontend/.;
+              pname = "amarcord-frontend";
+              version = "1.0.0";
+              phases = "unpackPhase installPhase";
+
+              installPhase = ''
+                mkdir -p $out
+                cp ${corePackage}/Main.min.js $out/main.js
+                cp ${mtzJs} $out/mtz.js
+                cp ${mtzWasm} $out/mtz.wasm
+                cp uglymol-custom-element.js $out/
+                echo ${uglymol}
+                cp src/index.html ${uglymol.packages.${system}.default}/uglymol.min.js ./*.svg ./*.css ./*.png ./*.jpg $out/
+              '';
+            };
+
         in
         {
-          amarcord-python-package = pkgs.amarcord-python-package;
+          amarcord-python-package = pkgs.amarcord-python-package amarcord-frontend;
           amarcord-docker-image = pkgs.dockerTools.streamLayeredImage {
             name = "amarcord";
             tag = "latest";
 
-            contents = [ pkgs.amarcord-python-package ];
+            contents = [ (pkgs.amarcord-python-package amarcord-frontend) ];
           };
         };
 
@@ -97,15 +138,16 @@
             inherit system;
             overlays = [ overlay ];
           };
-        in {
-        default = pkgs.amarcord-python-env.env.overrideAttrs (oldAttrs: {
-          buildInputs = [ pkgs.poetry pkgs.skopeo pkgs.shellcheck ];
-        });
+        in
+        {
+          default = pkgs.amarcord-python-env.env.overrideAttrs (oldAttrs: {
+            buildInputs = [ pkgs.poetry pkgs.skopeo pkgs.shellcheck ];
+          });
 
-        frontend = pkgs.mkShell {
-          buildInputs = [ pkgs.elmPackages.elm pkgs.elmPackages.elm-review pkgs.elmPackages.elm-format pkgs.nodejs pkgs.elm2nix ];
+          frontend = pkgs.mkShell {
+            buildInputs = [ pkgs.elmPackages.elm pkgs.elmPackages.elm-review pkgs.elmPackages.elm-format pkgs.nodejs pkgs.elm2nix ];
+          };
         };
-      };
     };
 
 }
