@@ -70,7 +70,12 @@ async def _handle_readout(
         if attribute_path[-2] == _METADATA and attribute_path[-1] == "Value":
             assert isinstance(data, dict)
             parent_logger.info("ingesting new metadata...")
-            await ingest_kamzik_metadata(parent_logger, db, conn, data)
+            await ingest_kamzik_metadata(
+                parent_logger,
+                db,
+                conn,
+                data,  # pyright: ignore [reportUnknownArgumentType]
+            )
 
 
 def _get_token(device_id_: str, topic: str) -> str:
@@ -245,12 +250,12 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
 
     log.info("connected")
 
-    await socket.send_multipart(
+    await socket.send_multipart(  # pyright: ignore[reportGeneralTypeIssues]
         [INSTRUCTION_INIT, device_id.encode(encoding="utf-8")], copy=False
     )
 
     log.info("waiting for initial package")
-    message = await socket.recv_multipart()
+    message = await socket.recv_multipart()  # pyright: ignore[reportGeneralTypeIssues]
     log.info("initial package received")
 
     status, token, msg_type = message[:3]
@@ -280,7 +285,10 @@ async def kamzik_main_loop(db: AsyncDB, socket_url: str, device_id: str) -> None
         _qualified_name,
         device_proxy,
         device_publisher,
-    ) = json.loads(response, object_hook=JsonKamzikHook)
+    ) = json.loads(
+        response,  # pyright: ignore [reportUnknownArgumentType]
+        object_hook=JsonKamzikHook,
+    )
 
     if device_proxy is not None and device_proxy:
         new_host, new_port = device_proxy

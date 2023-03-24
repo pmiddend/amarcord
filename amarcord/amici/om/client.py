@@ -40,7 +40,7 @@ def validate_om_zmq_entry(log: BoundLogger, d: Any) -> str | OmZMQData:
         return f"We expected a dictionary, but got a {type(d)}"
 
     try:
-        return OmZMQData(**d)
+        return OmZMQData(**d)  # pyright: ignore [reportUnknownArgumentType]
     except ValidationError as e:
         return str(e)
 

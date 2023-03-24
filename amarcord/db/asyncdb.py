@@ -2,7 +2,6 @@ import datetime
 import hashlib
 import io
 import itertools
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,7 +9,7 @@ from typing import Final
 from typing import Iterable
 from typing import cast
 
-import numpy as np
+import numpy.typing as npt
 import sqlalchemy as sa
 import structlog.stdlib
 from openpyxl import Workbook
@@ -500,7 +499,7 @@ class AsyncDB:
     async def _retrieve_files(
         self,
         conn: Connection,
-        association_column: sa.Column,
+        association_column: sa.Column[Any],
         where_clause: Any | None = None,
     ) -> dict[int, list[DBFile]]:
         select_stmt = (
@@ -798,12 +797,8 @@ class AsyncDB:
 
         sha256 = sha256_file(contents_location)
 
+        size_in_bytes = contents_location.stat().st_size
         with contents_location.open("rb") as f:
-            old_file_position = f.tell()
-            f.seek(0, os.SEEK_END)
-            size_in_bytes = f.tell()
-            f.seek(old_file_position, os.SEEK_SET)
-
             await conn.execute(
                 sa.update(self.tables.file)
                 .values(
@@ -822,7 +817,7 @@ class AsyncDB:
         id_: int,
         file_name: str,
         description: str,
-        contents: np.ndarray,
+        contents: npt.ArrayLike,  # pyright: ignore [reportUnknownParameterType]
         format_: str,
     ) -> None:
         img_byte_arr_io = io.BytesIO()
@@ -838,7 +833,7 @@ class AsyncDB:
         conn: Connection,
         file_name: str,
         description: str,
-        contents: np.ndarray,
+        contents: npt.ArrayLike,  # pyright: ignore [reportUnknownParameterType]
         format_: str,
         deduplicate: bool,
     ) -> CreateFileResult:
@@ -989,12 +984,8 @@ class AsyncDB:
                     existing_file["size_in_bytes"],
                 )
 
+        size_in_bytes = contents_location.stat().st_size
         with contents_location.open("rb") as f:
-            old_file_position = f.tell()
-            f.seek(0, os.SEEK_END)
-            size_in_bytes = f.tell()
-            f.seek(old_file_position, os.SEEK_SET)
-
             return CreateFileResult(
                 id=(
                     await conn.execute(
@@ -1037,7 +1028,7 @@ class AsyncDB:
         )
         if new_attributo.name != name and existing_attributo is not None:
             raise Exception(
-                f"cannot rename {name} to {new_attributo.name} because we already have an attributo of that "
+                f"cannot rename {name} to {new_attributo.name} because we already have an attributo of that " +
                 "name"
             )
 
@@ -1771,7 +1762,7 @@ class AsyncDB:
             "input_post_refinement": mrp.post_refinement,
             "input_iterations": mrp.iterations,
             "input_polarisation_angle": int(
-                mrp.polarisation.angle.to(UnitRegistry().degrees).m
+                mrp.polarisation.angle.to(UnitRegistry().degrees).m  # pyright: ignore [reportUnknownArgumentType]
             )
             if mrp.polarisation is not None
             else None,
@@ -1945,7 +1936,7 @@ class AsyncDB:
                     post_refinement=row["input_post_refinement"],
                     iterations=row["input_iterations"],
                     polarisation=Polarisation(
-                        angle=row["input_polarisation_angle"] * UnitRegistry().degrees,
+                        angle=row["input_polarisation_angle"] * UnitRegistry().degrees,  # pyright: ignore [reportUnknownArgumentType]
                         percentage=row["input_polarisation_percent"],
                     )
                     if row["input_polarisation_angle"] is not None
@@ -2042,10 +2033,10 @@ class AsyncDB:
                 ]
             ).where(
                 sa.and_(
-                    mr.job_status == job_status_filter
+                    mr.job_status == job_status_filter  # pyright: ignore
                     if job_status_filter is not None
                     else True,
-                    mr.id == merge_result_id_filter
+                    mr.id == merge_result_id_filter  # pyright: ignore
                     if merge_result_id_filter is not None
                     else True,
                 )
@@ -2146,11 +2137,8 @@ def attributo_value_to_spreadsheet_cell(
         (str, int, float, bool),
     ):
         return attributo_value
-    if isinstance(attributo_value, list):
-        return str(attributo_value)
-    raise TypeError(
-        f"invalid attributo type {type(attributo_value)}: {attributo_value}"
-    )
+    assert isinstance(attributo_value, list)
+    return str(attributo_value)
 
 
 @dataclass(frozen=True)
@@ -2182,23 +2170,24 @@ async def create_workbook(
         ),
         start=1,
     ):
-        cell = attributi_sheet.cell(
+        # pyright thinks I cannot access .cell on the worksheet
+        cell = attributi_sheet.cell(  # pyright: ignore
             row=1, column=attributo_column, value=attributo_header_name
         )
-        cell.font = cell.font.copy(bold=True)
+        cell.font = cell.font.copy(bold=True)  # pyright: ignore
 
     for attributo_row_idx, attributo in enumerate(attributi, start=2):
-        attributi_sheet.cell(
+        attributi_sheet.cell(  # pyright: ignore
             row=attributo_row_idx,
             column=1,
             value=attributo.associated_table.value.capitalize(),
         )
-        attributi_sheet.cell(row=attributo_row_idx, column=2, value=attributo.name)
-        attributi_sheet.cell(row=attributo_row_idx, column=3, value=attributo.group)
-        attributi_sheet.cell(
+        attributi_sheet.cell(row=attributo_row_idx, column=2, value=attributo.name)  # pyright: ignore
+        attributi_sheet.cell(row=attributo_row_idx, column=3, value=attributo.group)  # pyright: ignore
+        attributi_sheet.cell(  # pyright: ignore
             row=attributo_row_idx, column=4, value=attributo.description
         )
-        attributi_sheet.cell(
+        attributi_sheet.cell(  # pyright: ignore
             row=attributo_row_idx,
             column=5,
             value=attributo_type_to_string(attributo.attributo_type),
@@ -2213,15 +2202,15 @@ async def create_workbook(
         + [AttributoId("File IDs")],
         start=1,
     ):
-        cell = chemicals_sheet.cell(
+        cell = chemicals_sheet.cell(  # pyright: ignore
             row=1, column=chemical_column, value=str(chemical_header_name)
         )
-        cell.font = cell.font.copy(bold=True)
+        cell.font = cell.font.copy(bold=True)  # pyright: ignore
 
     files_to_include: set[int] = set()
     chemicals = await db.retrieve_chemicals(conn, attributi)
     for chemical_row_idx, chemical in enumerate(chemicals, start=2):
-        chemicals_sheet.cell(
+        chemicals_sheet.cell(  # pyright: ignore
             row=chemical_row_idx,
             column=1,
             value=chemical.name,
@@ -2230,7 +2219,7 @@ async def create_workbook(
             chemical_attributi,
             start=2,
         ):
-            chemicals_sheet.cell(
+            chemicals_sheet.cell(  # pyright: ignore
                 row=chemical_row_idx,
                 column=chemical_column_idx,
                 value=attributo_value_to_spreadsheet_cell(
@@ -2240,7 +2229,7 @@ async def create_workbook(
                 ),
             )
         if chemical.files:
-            chemicals_sheet.cell(
+            chemicals_sheet.cell(  # pyright: ignore
                 row=chemical_row_idx,
                 column=2 + len(chemical_attributi),
                 value=", ".join(str(f.id) for f in chemical.files),
@@ -2252,8 +2241,8 @@ async def create_workbook(
         [AttributoId("ID")] + [a.name for a in run_attributi],
         start=1,
     ):
-        cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))
-        cell.font = cell.font.copy(bold=True)
+        cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))  # pyright: ignore
+        cell.font = cell.font.copy(bold=True)  # pyright: ignore
 
     chemical_id_to_name: dict[int, str] = {s.id: s.name for s in chemicals}
     events = await db.retrieve_events(conn)

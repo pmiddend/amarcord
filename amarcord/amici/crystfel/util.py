@@ -52,7 +52,7 @@ def parse_cell_description(s: str) -> None | CrystFELCellFile:
     )
 
 
-def coparse_cell_file(c: CrystFELCellFile, f: IO) -> None:
+def coparse_cell_file(c: CrystFELCellFile, f: IO[str]) -> None:
     f.write("CrystFEL unit cell file version 1.0\n\n")
     f.write(f"lattice_type = {c.lattice_type}\n")
     f.write(f"centering = {c.centering}\n")

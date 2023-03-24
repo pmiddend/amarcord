@@ -17,6 +17,8 @@ from typing import Final
 from typing import NoReturn
 from urllib import request
 
+from amarcord.json_types import JSONDict
+
 _NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE: Final = 6
 _NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE: Final = 11
 _HIGHRES_CUT_CCSTAR_THRESHOLD: Final = 0.5
@@ -381,10 +383,14 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         exit_with_error(None, "stream-files missing in input")
     if not isinstance(stream_files_raw, list):
         exit_with_error(None, f"stream-files not a list but {stream_files_raw}")
-    for idx, sf in enumerate(stream_files_raw):
+    for idx, sf in enumerate(
+        stream_files_raw  # pyright: ignore [reportUnknownArgumentType]
+    ):
         if not isinstance(sf, str):
             exit_with_error(None, f"stream-files[{idx}] not a string but {sf}")
-    stream_files = [Path(p) for p in stream_files_raw]
+    stream_files = [
+        Path(p) for p in stream_files_raw  # pyright: ignore [reportUnknownArgumentType]
+    ]
     if not stream_files:
         exit_with_error(None, "no input stream files given")
 
@@ -403,11 +409,17 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         merge_result_id=j.get("merge-result-id"),  # type: ignore
         cell_file_id=j.get("cell-file-id"),  # type: ignore
         point_group=j.get("point-group"),  # type: ignore
-        hkl_file=Path(j.get("hkl-file", "partialator.hkl")),
-        nshells=j.get("nshells"),
-        partialator_additional=j.get("partialator-additional"),
+        hkl_file=Path(
+            j.get(
+                "hkl-file", "partialator.hkl"
+            )  # pyright: ignore [reportUnknownArgumentType]
+        ),
+        nshells=j.get("nshells"),  # pyright: ignore [reportUnknownArgumentType]
+        partialator_additional=j.get(
+            "partialator-additional"
+        ),  # pyright: ignore [reportUnknownArgumentType]
         crystfel_path=crystfel_path,
-        pdb_file_id=j.get("pdb-file-id"),
+        pdb_file_id=j.get("pdb-file-id"),  # pyright: ignore [reportUnknownArgumentType]
     )
 
 
@@ -451,7 +463,9 @@ def upload_file(args: ParsedArgs, file_path: Path) -> int:
             exit_with_error(args, f"error uploading file {file_path}")
 
 
-def write_output_json(args: ParsedArgs, error: None | str, result: None | dict) -> None:
+def write_output_json(
+    args: ParsedArgs, error: None | str, result: None | JSONDict
+) -> None:
     req = request.Request(
         f"{args.api_url}/api/merging/{args.merge_result_id}",
         data=json.dumps(

@@ -6,7 +6,7 @@ from sqlalchemy.engine import Dialect
 
 
 # pylint: disable=abstract-method
-class Path(types.TypeDecorator):
+class Path(types.TypeDecorator[pathlib.Path]):
     impl = types.Text
 
     cache_ok = True

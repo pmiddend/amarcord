@@ -51,12 +51,6 @@ class MergeConfig:
     api_url: str
 
 
-def _merge_job_directory(
-    config: MergeConfig, merge_result: DBMergeResultOutput
-) -> Path:
-    return config.output_base_directory / f"merging_{merge_result.id}"
-
-
 def _find_file_id_by_extension(files: list[DBFile], extension: str) -> None | int:
     for f in files:
         if f.file_name.endswith(f".{extension}"):
@@ -83,6 +77,8 @@ def merge_parameters_to_crystfel_parameters(p: DBMergeParameters) -> list[str]:
             result.append("--no-scale")
         case ScaleIntensities.NORMAL:
             result.append("--no-Bscale")
+        case ScaleIntensities.DEBYE_WALLER:
+            pass
     if p.no_delta_cc_half:
         result.append("--no-deltacchalf")
     if p.start_after is not None:
@@ -218,17 +214,6 @@ async def start_merge_job(
 class MergeResultRootJson(BaseModel):
     error: None | str
     result: None | MergeResult
-
-
-def _recent_log(config: MergeConfig, merge_result: DBMergeResultOutput) -> None | str:
-    stdout_file = _merge_job_directory(config, merge_result) / _STDERR_NAME
-    try:
-        with stdout_file.open("r", encoding="utf-8") as f:
-            return "".join(f.readlines()[_RECENT_LOG_LINES:])[
-                0:_MAXIMUM_RECENT_LOG_LENGTH
-            ]
-    except:
-        return None
 
 
 def _process_premature_finish(

@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey
@@ -17,7 +18,7 @@ from amarcord.db.scale_intensities import ScaleIntensities
 logger = logging.getLogger(__name__)
 
 
-def _fk_identifier(c: ColumnElement) -> str:
+def _fk_identifier(c: ColumnElement[Any]) -> str:
     if c.table.schema is not None:
         return f"{c.table.schema}.{c.table.name}.{c.name}"
     return f"{c.table.name}.{c.name}"

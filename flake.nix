@@ -138,10 +138,29 @@
             inherit system;
             overlays = [ overlay ];
           };
+
+          # External as in "not provided by poetry"
+          externalDependencies = [
+            pkgs.poetry
+            pkgs.skopeo
+            pkgs.shellcheck
+            # for pyright
+            pkgs.nodePackages.pyright
+          ];
+
         in
         {
-          default = pkgs.amarcord-python-env.env.overrideAttrs (oldAttrs: {
-            buildInputs = [ pkgs.poetry pkgs.skopeo pkgs.shellcheck ];
+          # The default behavior for "nix develop" with this setup is to give you all dependencies except the ones
+          # poetry would provide (oh, and you get poetry also).
+          default = pkgs.mkShell {
+            buildInputs = externalDependencies;
+          };
+
+          # With "nix develop .#with-build-tools" you also get all the dev build tools like isort and pylint. This is
+          # useful for setups where you want these from the cache and not use poetry to install dependencies, like in
+          # CI jobs.
+          with-build-tools = pkgs.amarcord-python-env.env.overrideAttrs (oldAttrs: {
+            buildInputs = externalDependencies;
           });
 
           frontend = pkgs.mkShell {

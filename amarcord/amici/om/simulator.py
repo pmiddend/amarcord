@@ -20,8 +20,10 @@ async def om_simulator_loop(zmq_ctx: Context, delay_seconds: float, port: int) -
 
     logger.info("starting om simulator loop...")
     while True:
-        await publisher.send_string("view:omdata", zmq.SNDMORE)
-        await publisher.send_pyobj(
+        await publisher.send_string(  # pyright: ignore[reportGeneralTypeIssues]
+            "view:omdata", zmq.SNDMORE
+        )
+        await publisher.send_pyobj(  # pyright: ignore[reportGeneralTypeIssues]
             {
                 "num_hits": total_hits,
                 "num_events": total_frames,

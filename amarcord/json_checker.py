@@ -4,6 +4,7 @@ from typing import TypeVar
 
 from amarcord.json_types import JSONArray
 from amarcord.json_types import JSONDict
+from amarcord.json_types import JSONValue
 
 T = TypeVar("T")
 
@@ -71,7 +72,7 @@ class JSONChecker:
             )
         return Path(result)
 
-    def retrieve_safe(self, key: str) -> Any:
+    def retrieve_safe(self, key: str) -> JSONValue:
         result = self.d.get(key, None)
         if result is None:
             raise Exception(
@@ -121,7 +122,7 @@ class JSONChecker:
             )
         return v
 
-    def retrieve_safe_array(self, key: str) -> list[T]:
+    def retrieve_safe_array(self, key: str) -> list[JSONValue]:
         json_array = self.d.get(key, None)
         if json_array is None:
             raise Exception(f"{self.description}: {key} not found")
@@ -130,7 +131,7 @@ class JSONChecker:
         return json_array
 
     def retrieve_safe_int_array(self, key: str) -> list[int]:
-        json_array: list[Any] = self.retrieve_safe_array(key)
+        json_array: list[JSONValue] = self.retrieve_safe_array(key)  # pyright: ignore
         result: list[int] = []
         for i, number in enumerate(json_array):
             if not isinstance(number, int):

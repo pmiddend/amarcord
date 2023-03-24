@@ -67,11 +67,14 @@ W = TypeVar("W")
 X = TypeVar("X")
 
 
-def retupled_keys(d: dict[K, dict[V, W]], f: Callable[[K, V], X]) -> list[X]:
+def retupled_keys(
+    d: dict[K, dict[V, W]],  # pyright: ignore[reportInvalidTypeVarUse]
+    f: Callable[[K, V], X],  # pyright: ignore[reportInvalidTypeVarUse]
+) -> list[X]:
     return [
         f(table, attributo_id)
         for table, attributi in d.items()
-        for attributo_id, values in attributi.items()
+        for attributo_id in attributi
     ]
 
 
@@ -188,7 +191,9 @@ def last_line_of_file(p: Path) -> str:
         return ""
 
 
-def safe_max(xs: Iterable[T], key: Callable[[T], U]) -> T | None:
+def safe_max(
+    xs: Iterable[T], key: Callable[[T], U]  # pyright: ignore[reportInvalidTypeVarUse]
+) -> T | None:
     try:
         # mypy wants Callable[[T], Union[SupportsDunderLT, SupportsDunderGT]] but that's internal
         return max(xs, key=key)  # type: ignore

@@ -34,7 +34,8 @@ def parse_simple_uri(s: str) -> str | SimpleURI:
                 return SimpleURI(scheme.strip(), {})
             rest_parts: dict[str, str] = {}
             for rest_part_idx, rest_part in enumerate(rest.split("|")):
-                match rest_part.split("=", maxsplit=1):
+                # pyright says list[str] wasn't handled, but maxsplit prevents this case from happening
+                match rest_part.split("=", maxsplit=1): #  pyright: ignore
                     case [_]:
                         return f'argument {rest_part_idx}: cannot find \'=\' character, expected something like "key=value", but got "{rest_part}"'
                     case [key, value]:

@@ -19,6 +19,9 @@ from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     DynamicTokenRetriever,  # NOQA
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    SlurmRequestsHttpWrapper,
+)
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
     SlurmRestWorkloadManager,  # NOQA
 )
 from amarcord.amici.workload_manager.slurm_rest_workload_manager import TokenRetriever
@@ -176,6 +179,7 @@ def create_workload_manager(
                 partition=partition,
                 reservation=reservation,
                 token_retriever=token_retriever,
+                request_wrapper=SlurmRequestsHttpWrapper(),
                 rest_url=rest_url,
                 rest_user=user,
             )

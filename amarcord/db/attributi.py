@@ -1,6 +1,7 @@
 import datetime
 import logging
 from dataclasses import dataclass
+from typing import Any
 from typing import Callable
 from typing import Final
 from typing import Type
@@ -107,11 +108,10 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
             min_length=parsed_schema.min_items,
             max_length=parsed_schema.max_items,
         )
-    if isinstance(parsed_schema, JSONSchemaString):
-        if parsed_schema.enum_ is not None:
-            return AttributoTypeChoice(parsed_schema.enum_)
-        return AttributoTypeString()
-    raise Exception(f'invalid schema type "{type(parsed_schema)}"')
+    assert isinstance(parsed_schema, JSONSchemaString)
+    if parsed_schema.enum_ is not None:
+        return AttributoTypeChoice(parsed_schema.enum_)
+    return AttributoTypeString()
 
 
 def datetime_to_attributo_int(d: datetime.datetime) -> int:
@@ -169,9 +169,8 @@ def attributo_type_to_string(pt: AttributoType) -> str:
         )
     if isinstance(pt, AttributoTypeDateTime):
         return "date-time"
-    if isinstance(pt, AttributoTypeList):
-        return "list of " + attributo_type_to_string(pt.sub_type)
-    raise Exception(f"invalid property type {type(pt)}")
+    assert isinstance(pt, AttributoTypeList)
+    return "list of " + attributo_type_to_string(pt.sub_type)
 
 
 def attributo_type_to_schema(rp: AttributoType) -> JSONSchemaType:
@@ -228,13 +227,12 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONSchemaType:
         return JSONSchemaString(enum_=rp.values)
     if isinstance(rp, AttributoTypeDateTime):
         return JSONSchemaInteger(format_=JSONSchemaIntegerFormat.DATE_TIME)
-    if isinstance(rp, AttributoTypeList):
-        return JSONSchemaArray(
-            value_type=attributo_type_to_schema(rp.sub_type),
-            min_items=rp.min_length,
-            max_items=rp.max_length,
-        )
-    raise Exception(f"invalid property type {type(rp)}")
+    assert isinstance(rp, AttributoTypeList)
+    return JSONSchemaArray(
+        value_type=attributo_type_to_schema(rp.sub_type),
+        min_items=rp.min_length,
+        max_items=rp.max_length,
+    )
 
 
 @dataclass(frozen=True)
@@ -247,7 +245,7 @@ _AttributoTypeConverter = Callable[
     AttributoValue,
 ]
 
-_conversion_matrix: dict[tuple[Type, Type], _AttributoTypeConverter] = {}
+_conversion_matrix: dict[tuple[Type[Any], Type[Any]], _AttributoTypeConverter] = {}
 
 
 def convert_attributo_value(
@@ -279,7 +277,7 @@ def _convert_int_to_int_list(
     if not isinstance(after_type.sub_type, AttributoTypeInt):
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            "first, and then to list?)"
+            + "first, and then to list?)"
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
@@ -299,7 +297,7 @@ def _convert_double_to_double_list(
     if not isinstance(after_type.sub_type, AttributoTypeDecimal):
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            "first, and then to list?)"
+            + "first, and then to list?)"
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
@@ -319,7 +317,7 @@ def _convert_string_to_string_list(
     if not isinstance(after_type.sub_type, AttributoTypeString):
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
-            "first, and then to list?)"
+            + "first, and then to list?)"
         )
     if after_type.min_length is not None and after_type.min_length > 1:
         raise Exception(
@@ -501,11 +499,11 @@ def _convert_double_to_double(
             UnitRegistry().Quantity(v, before_type.suffix).to(after_type.suffix).m
         )
         if after_type.range is not None and not after_type.range.value_is_inside(
-            magnitude_after
+            magnitude_after  # pyright: ignore [reportUnknownArgumentType]
         ):
             raise Exception(
                 f"cannot convert decimal number {v} because after unit conversion, the value {magnitude_after} it's "
-                f"not in the range {after_type.range} "
+                + f"not in the range {after_type.range} "
             )
         return UnitRegistry().Quantity(v, before_type.suffix).to(after_type.suffix).m  # type: ignore
 

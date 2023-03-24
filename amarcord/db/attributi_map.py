@@ -21,6 +21,7 @@ from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
+from amarcord.json_types import JSONDict
 from amarcord.json_types import JSONValue
 
 SPECIAL_VALUE_CHOICE_NONE = ""
@@ -66,7 +67,7 @@ def _check_type(
         if type_.range is not None and not type_.range.value_is_inside(value):
             raise ValueError(
                 f'attributo "{name}": value is out of range; range is {type_.range}, '
-                f"value is {value}"
+                + f"value is {value}"
             )
     elif isinstance(type_, AttributoTypeChoice):
         assert isinstance(
@@ -88,7 +89,8 @@ def _check_type(
 
         for i, v in enumerate(value):
             _check_type(name + f"[{i}]", chemical_ids, type_.sub_type, v)  # type: ignore
-    elif isinstance(type_, AttributoTypeDateTime):
+    else:
+        assert isinstance(type_, AttributoTypeDateTime)
         assert isinstance(
             value, datetime.datetime
         ), f'attributo "{name}": expected type datetime but got value {value}'
@@ -162,7 +164,7 @@ def _convert_single_attributo_value_from_json_with_type(
         ):
             raise ValueError(
                 f'value for attributo "{i}" is out of range; range is {attributo_type.range}, '
-                f"value is {v}"
+                + f"value is {v}"
             )
         return float(v)
     if isinstance(attributo_type, AttributoTypeDateTime):
@@ -186,31 +188,30 @@ def _convert_single_attributo_value_from_json_with_type(
                 f'value for attributo "{i}" has to be one of {choices_str}, is "{v}"'
             )
         return v
-    if isinstance(attributo_type, AttributoTypeList):
-        assert isinstance(
-            v, list
-        ), f'expected type list for list attributo "{i}", got {type(v)}'
-        assert not v or isinstance(
-            v[0], (float, str, int)
-        ), f"got a non-empty list of {type(v[0])}, we only support float, int for now"
-        lv = len(v)
-        min_len = attributo_type.min_length
-        max_len = attributo_type.max_length
-        if min_len is not None and lv < min_len:
-            raise ValueError(
-                f"attributo {i}: the list needs at least {min_len} element(s), got {lv} element(s)"
-            )
-        if max_len is not None and lv > max_len:
-            raise ValueError(
-                f"attributo {i}: the list needs at least {max_len} element(s), got {lv} element(s)"
-            )
-        return [  # type: ignore
-            _convert_single_attributo_value_from_json_with_type(
-                i, sub_value, attributo_type.sub_type, chemical_ids
-            )
-            for sub_value in v
-        ]
-    raise Exception(f'invalid property type for attributo "{i}": {attributo_type}')
+    assert isinstance(attributo_type, AttributoTypeList)
+    assert isinstance(
+        v, list
+    ), f'expected type list for list attributo "{i}", got {type(v)}'
+    assert not v or isinstance(
+        v[0], (float, str, int)
+    ), f"got a non-empty list of {type(v[0])}, we only support float, int for now"
+    lv = len(v)
+    min_len = attributo_type.min_length
+    max_len = attributo_type.max_length
+    if min_len is not None and lv < min_len:
+        raise ValueError(
+            f"attributo {i}: the list needs at least {min_len} element(s), got {lv} element(s)"
+        )
+    if max_len is not None and lv > max_len:
+        raise ValueError(
+            f"attributo {i}: the list needs at least {max_len} element(s), got {lv} element(s)"
+        )
+    return [  # type: ignore
+        _convert_single_attributo_value_from_json_with_type(
+            i, sub_value, attributo_type.sub_type, chemical_ids
+        )
+        for sub_value in v
+    ]
 
 
 def convert_single_attributo_value_to_json(value: AttributoValue) -> JSONValue:
@@ -218,18 +219,16 @@ def convert_single_attributo_value_to_json(value: AttributoValue) -> JSONValue:
         return value
     if isinstance(value, datetime.datetime):
         return datetime_to_attributo_int(value)
-    if isinstance(value, list):
-        if not value:
-            return cast(list[str], [])
-        if value[0] is None:
-            # Why should this be unreachable? [None] != []
-            return None  # type: ignore
-        if isinstance(value[0], (str, int, float)):
-            return value
-        raise Exception(
-            f"invalid attributo value type: list of type {type(value[0])} (value {value[0]}); can only handle str, int, float right now"
-        )
-    raise Exception(f"invalid attributo value type: {type(value)}: {value}")
+    assert isinstance(value, list)
+    if not value:
+        # pyright complains that JSONValue and list[str] are not compatible
+        return cast(list[str], [])  # pyright: ignore
+    if value[0] is None:
+        # Why should this be unreachable? [None] != []
+        return None  # type: ignore
+    assert isinstance(value[0], (str, int, float))
+    # pyright complains that JSONValue and list[int] are not compatible
+    return value  # pyright: ignore
 
 
 class AttributiMap:
@@ -257,7 +256,7 @@ class AttributiMap:
     def from_types_and_json(
         types: Iterable[DBAttributo],
         chemical_ids: list[int],
-        raw_attributi: JsonAttributiMap,
+        raw_attributi: JSONDict,
     ) -> "AttributiMap":
         attributi: UntypedAttributiMap = {}
         types_dict = {a.name: a for a in types}
@@ -386,7 +385,7 @@ class AttributiMap:
             self._types.pop(attributo, None)
         return previous is not None
 
-    def to_json(self) -> JsonAttributiMap:
+    def to_json(self) -> JSONDict:
         return {
             attributo_id: convert_single_attributo_value_to_json(value)
             for attributo_id, value in self._attributi.items()

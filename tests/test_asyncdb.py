@@ -1259,11 +1259,15 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
 
         assert (  # type: ignore
             await db.retrieve_run(conn, _TEST_RUN_ID, attributi)
-        ).attributi.select_string(_TEST_ATTRIBUTO_NAME) == new_test_attributo
+        ).attributi.select_string(  # pyright: ignore
+            _TEST_ATTRIBUTO_NAME
+        ) == new_test_attributo
 
         assert (  # type: ignore
             await db.retrieve_run(conn, _TEST_RUN_ID + 1, attributi)
-        ).attributi.select_string(_TEST_ATTRIBUTO_NAME) == new_test_attributo
+        ).attributi.select_string(  # pyright: ignore
+            _TEST_ATTRIBUTO_NAME
+        ) == new_test_attributo
 
 
 async def test_create_workbook() -> None:
@@ -1318,30 +1322,30 @@ async def test_create_workbook() -> None:
         assert attributi_wb is not None
 
         # Man am I tired of example-based testing
-        assert attributi_wb["A1"].value == "Table"
-        assert attributi_wb["B1"].value == "Name"
+        assert attributi_wb["A1"].value == "Table"  # pyright: ignore
+        assert attributi_wb["B1"].value == "Name"  # pyright: ignore
 
-        assert attributi_wb["A2"].value == "Run"
-        assert attributi_wb["B2"].value == "started"
+        assert attributi_wb["A2"].value == "Run"  # pyright: ignore
+        assert attributi_wb["B2"].value == "started"  # pyright: ignore
 
         runs_wb = wb["Runs"]
         assert runs_wb is not None
 
-        assert runs_wb["A1"].value == "ID"
-        assert runs_wb["B1"].value == ATTRIBUTO_STARTED
-        assert runs_wb["C1"].value == ATTRIBUTO_STOPPED
-        assert runs_wb["D1"].value == _TEST_SECOND_ATTRIBUTO_NAME
+        assert runs_wb["A1"].value == "ID"  # pyright: ignore
+        assert runs_wb["B1"].value == ATTRIBUTO_STARTED  # pyright: ignore
+        assert runs_wb["C1"].value == ATTRIBUTO_STOPPED  # pyright: ignore
+        assert runs_wb["D1"].value == _TEST_SECOND_ATTRIBUTO_NAME  # pyright: ignore
 
-        assert runs_wb["D2"].value == "foo"
+        assert runs_wb["D2"].value == "foo"  # pyright: ignore
 
         chemical_wb = wb["chemicals"]
         assert chemical_wb is not None
 
-        assert chemical_wb["A1"].value == "Name"
-        assert chemical_wb["B1"].value == _TEST_ATTRIBUTO_NAME
+        assert chemical_wb["A1"].value == "Name"  # pyright: ignore
+        assert chemical_wb["B1"].value == _TEST_ATTRIBUTO_NAME  # pyright: ignore
 
-        assert chemical_wb["A2"].value == "first chemical"
-        assert chemical_wb["B2"].value == "foo"
+        assert chemical_wb["A2"].value == "first chemical"  # pyright: ignore
+        assert chemical_wb["B2"].value == "foo"  # pyright: ignore
 
 
 async def test_retrieve_and_update_configuration() -> None:

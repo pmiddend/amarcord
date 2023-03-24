@@ -44,7 +44,7 @@ async def test_process_kamzik_metadata(
                 "attributi-schema": {
                     name: coparse_schema_type(attributo_type_to_schema(input_type))
                 },
-                "attributi-values": {name: input_value},
+                "attributi-values": {name: input_value},  # pyright: ignore
             },
         )
 

@@ -7,10 +7,12 @@ from amarcord.db.attributo_type import AttributoTypeDecimal
 registry = UnitRegistry()
 
 
-def pint_quantity_to_attributo_type(x: Quantity) -> AttributoType | None:
+def pint_quantity_to_attributo_type(
+    x: Quantity,  # pyright: ignore [reportUnknownParameterType]
+) -> AttributoType | None:
     # see https://stackoverflow.com/questions/65681490/format-pint-unit-as-short-form-symbol
     # for an explanation
-    suffix = format(x.units, "~")
+    suffix = format(x.units, "~")  # pyright: ignore [reportUnknownArgumentType]
     if suffix == "dimensionless":
         return AttributoTypeDecimal()
     return AttributoTypeDecimal(standard_unit=True, suffix=suffix)

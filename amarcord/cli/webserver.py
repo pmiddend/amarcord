@@ -381,6 +381,8 @@ def _encode_merge_result(
                     },
                 }
             }
+    # pyright complains that float cannot be assigned to JSONValue because it's incompatible with int/str, which is
+    # crap
     return {
         "id": mr.id,
         "created": datetime_to_attributo_int(mr.created),
@@ -400,7 +402,7 @@ def _encode_merge_result(
             if mr.parameters.polarisation is None
             else {
                 "angle": int(
-                    mr.parameters.polarisation.angle.to(UnitRegistry().degrees).m
+                    mr.parameters.polarisation.angle.to(UnitRegistry().degrees).m  # pyright: ignore [reportUnknownArgumentType]
                 ),
                 "percent": mr.parameters.polarisation.percentage,
             },
@@ -464,7 +466,7 @@ def _encode_event(e: DBEvent) -> JSONDict:
 
 
 def _has_artificial_delay() -> bool:
-    return bool(app.config.get("ARTIFICIAL_DELAY", False))
+    return bool(app.config.get("ARTIFICIAL_DELAY", False))  # pyright: ignore [reportUnknownArgumentType]
 
 
 @app.post("/api/merging/<int:merge_result_id>")
@@ -698,7 +700,7 @@ async def start_merge_job_for_data_set(data_set_id: int) -> JSONDict:
                     ),
                     iterations=request_content.retrieve_safe_int("iterations"),
                     polarisation=Polarisation(
-                        angle=cast(int, polarisation.get("angle", 0))
+                        angle=cast(int, polarisation.get("angle", 0))  # pyright: ignore [reportUnknownArgumentType]
                         * UnitRegistry().degrees,
                         percentage=cast(int, polarisation.get("percent", 100)),
                     )
@@ -737,10 +739,6 @@ async def start_merge_job_for_data_set(data_set_id: int) -> JSONDict:
 async def start_run(run_id: int) -> JSONDict:
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
-
-        json_attributi: JSONDict = {}
-        if any(a.name == ATTRIBUTO_STARTED for a in attributi):
-            json_attributi[ATTRIBUTO_STARTED] = datetime.datetime.utcnow()
 
         await db.instance.create_run(
             conn,
@@ -789,7 +787,7 @@ async def create_or_update_run(run_id: int) -> JSONDict:
                 db.instance,
                 conn,
                 await db.instance.retrieve_attributi(conn, AssociatedTable.RUN),
-                attributi_schema,
+                attributi_schema,  # type: ignore
                 group=AUTOMATIC_ATTRIBUTI_GROUP,
             )
         # Important to retrieve this here, after ingesting new attributi before!
@@ -1051,23 +1049,23 @@ async def create_file() -> JSONDict:
     assert files, "Koalas in the rain, no files given"
 
     # We expect a request with two parts: one with just a JSON key-value pair and one file
-    r = JSONChecker(json.loads(next(f.values())), "request")
+    r = JSONChecker(json.loads(next(f.values())), "request")  # pyright: ignore [reportUnknownArgumentType]
     description = r.retrieve_safe_str("description")
 
     async with db.instance.begin() as conn:
-        file = next(files.values())
+        file = next(files.values())  # pyright: ignore [reportUnknownArgumentType]
         file_name = file.filename
 
         # Since we potentially need to seek around in the file, and we don't know if it's a seekable
         # stream (I think?) we store it in a named temp file first.
         with NamedTemporaryFile(mode="w+b") as temp_file:
-            temp_file.write(file.read())
+            temp_file.write(file.read())  # pyright: ignore [reportUnknownArgumentType]
             temp_file.flush()
             temp_file.seek(0, os.SEEK_SET)
 
             create_result = await db.instance.create_file(
                 conn,
-                file_name=file_name,
+                file_name=file_name,  # pyright: ignore [reportUnknownArgumentType]
                 description=description,
                 original_path=None,
                 contents_location=Path(temp_file.name),
@@ -1174,9 +1172,11 @@ async def create_experiment_type() -> JSONDict:
         et_id = await db.instance.create_experiment_type(
             conn,
             name=r.retrieve_safe_str("name"),
-            experiment_attributi=[  # type: ignore
+            experiment_attributi=[
+                # pyright/mypy complain because "a" doesn't have to be a dict, which is true; but I'm too lazy to add a
+                # proper fix for that
                 AttributoNameAndRole(
-                    attributo_name=a["name"], chemical_role=ChemicalType(a["role"])
+                    attributo_name=a["name"], chemical_role=ChemicalType(a["role"])  # type: ignore
                 )
                 for a in r.retrieve_safe_array("attributi")
             ],
@@ -1287,7 +1287,9 @@ async def delete_experiment_type() -> JSONDict:
 async def get_beamtime_schedule() -> JSONDict:
     async with db.instance.read_only_connection() as conn:
         schedule = await db.instance.retrieve_beamtime_schedule(conn)
-        return {"schedule": schedule}
+        # pyright validly criticises that list[BeamtimeScheduleEntry] is not compatible with JSONValue.
+        # Which is right, I'm not sure why this even works.
+        return {"schedule": schedule}  # pyright: ignore
 
 
 @app.post("/api/schedule")
@@ -1311,7 +1313,9 @@ async def update_beamtime_schedule() -> JSONDict:
 
     async with db.instance.begin() as conn:
         schedule = await db.instance.retrieve_beamtime_schedule(conn)
-        return {"schedule": schedule}
+        # pyright validly criticises that list[BeamtimeScheduleEntry] is not compatible with JSONValue.
+        # Which is right, I'm not sure why this even works.
+        return {"schedule": schedule}  # pyright: ignore
 
 
 @app.get("/api/live-stream/snapshot")
@@ -1348,12 +1352,12 @@ async def update_live_stream() -> JSONDict:
     assert files, "Koalas in the rain, no files given"
 
     async with db.instance.begin() as conn:
-        file = next(files.values())
+        file = next(files.values())  # pyright: ignore [reportUnknownArgumentType]
 
         # Since we potentially need to seek around in the file, and we don't know if it's a seekable
         # stream (I think?) we store it in a named temp file first.
         with NamedTemporaryFile(mode="w+b") as temp_file:
-            temp_file.write(file.read())
+            temp_file.write(file.read())   # pyright: ignore [reportUnknownArgumentType]
             temp_file.flush()
             temp_file.seek(0, os.SEEK_SET)
 
@@ -1619,7 +1623,7 @@ async def create_attributo() -> JSONDict:
             description=r.retrieve_safe_str("description"),
             group=r.retrieve_safe_str("group"),
             associated_table=AssociatedTable(r.retrieve_safe_str("associatedTable")),
-            type_=schema_to_attributo_type(parse_schema_type(r.retrieve_safe("type"))),
+            type_=schema_to_attributo_type(parse_schema_type(r.retrieve_safe_dict("type"))),
         )
 
     return {}
@@ -1631,10 +1635,10 @@ async def update_attributo() -> JSONDict:
 
     async with db.instance.begin() as conn:
         new_attributo_json = JSONChecker(
-            r.retrieve_safe("newAttributo"), "newAttributo"
+            r.retrieve_safe_dict("newAttributo"), "newAttributo"
         )
         conversion_flags = JSONChecker(
-            r.retrieve_safe("conversionFlags"), "conversionFlags"
+            r.retrieve_safe_dict("conversionFlags"), "conversionFlags"
         )
         new_attributo = DBAttributo(
             name=AttributoId(new_attributo_json.retrieve_safe_str("name")),
@@ -1644,7 +1648,7 @@ async def update_attributo() -> JSONDict:
                 new_attributo_json.retrieve_safe_str("associatedTable")
             ),
             attributo_type=schema_to_attributo_type(
-                parse_schema_type(new_attributo_json.retrieve_safe("type"))
+                parse_schema_type(new_attributo_json.retrieve_safe_dict("type"))
             ),
         )
         await db.instance.update_attributo(
@@ -1763,21 +1767,6 @@ async def read_attributi() -> JSONDict:
 @app.get("/api/config")
 async def read_config() -> JSONDict:
     return {"title": app.config["TITLE"]}
-
-
-def _build_summary_for_runs(
-    run_list: list[DBRun],
-    indexing_results_for_runs: dict[int, list[DBIndexingResultOutput]],
-) -> DBIndexingFOM:
-    indexing_results: list[DBIndexingFOM] = []
-    for run in run_list:
-        fom_for_run = _indexing_fom_for_run(indexing_results_for_runs, run)
-        if fom_for_run is not None:
-            indexing_results.append(fom_for_run)
-
-    if indexing_results:
-        return _summary_from_foms(indexing_results)
-    return empty_indexing_fom
 
 
 def _indexing_fom_for_run(

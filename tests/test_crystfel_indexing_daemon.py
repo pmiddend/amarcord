@@ -6,7 +6,7 @@ import pytest
 import structlog
 
 from amarcord.amici.crystfel.indexing_daemon import CrystFELOnlineConfig
-from amarcord.amici.crystfel.indexing_daemon import _IndexingFom
+from amarcord.amici.crystfel.indexing_daemon import IndexingFom
 from amarcord.amici.crystfel.indexing_daemon import calculate_indexing_fom_fast
 from amarcord.amici.crystfel.indexing_daemon import start_indexing_job
 from amarcord.amici.crystfel.util import ATTRIBUTO_PROTEIN
@@ -332,6 +332,6 @@ def test_update_indexing_fom_fast() -> None:
     fom = calculate_indexing_fom_fast(
         logger, Path(__file__).parent / "crystfel" / "test.stream"
     )
-    assert fom == _IndexingFom(
+    assert fom == IndexingFom(
         frames=4999, hits=2523, indexed_frames=1263, indexed_crystals=1263
     )

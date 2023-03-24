@@ -101,7 +101,7 @@ async def test_update_chemicals() -> None:
     result = await client.get("/api/chemicals")
     json = JSONChecker(await result.json, "response")
 
-    chemicals: list[JSONDict] = json.retrieve_safe_array("chemicals")
+    chemicals: list[JSONDict] = json.retrieve_safe_array("chemicals")  # type: ignore
     assert len(chemicals) == 1
 
     assert chemicals[0]["id"] == chemical_id
@@ -415,7 +415,12 @@ async def test_create_data_set_with_unspecified_boolean() -> None:
     assert len(json.retrieve_safe_list("data-sets")) == 1
     # Here, we expect the boolean attribute to be filled with false implicitly
     # noinspection PyTypeChecker
-    assert json.retrieve_safe_list("data-sets")[0]["attributi"][attributo_name] is False
+    assert (
+        json.retrieve_safe_list("data-sets")[0]["attributi"][  # pyright: ignore
+            attributo_name
+        ]
+        is False
+    )
 
 
 async def test_create_data_set_with_unspecified_string() -> None:

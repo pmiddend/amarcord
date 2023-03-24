@@ -58,9 +58,11 @@ class AsyncDBContext:
 
     async def create_all(self, creation_mode: CreationMode) -> None:
         async with self.read_only_connection() as conn:
+            # Not sure what to do in order to convince pyright we actually know the lambda type
             await conn.run_sync(
-                lambda myengine: self.metadata.create_all(
-                    myengine, checkfirst=creation_mode == CreationMode.CHECK_FIRST
+                lambda myengine: self.metadata.create_all(  # pyright: ignore[reportUnknownLambdaType]
+                    myengine,  # pyright: ignore [reportUnknownArgumentType]
+                    checkfirst=creation_mode == CreationMode.CHECK_FIRST,
                 )
             )
 

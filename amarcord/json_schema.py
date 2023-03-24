@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from typing import Final
+from typing import Mapping
 
 from amarcord.json_types import JSONDict
 from amarcord.json_types import JSONValue
@@ -100,7 +101,8 @@ JSONSchemaType = (
 
 
 def coparse_schema_type(schema: JSONSchemaType) -> JSONDict:
-    match schema:
+    # pyright complains that JSONSchemaInteger isn't handled (wtf)
+    match schema:  # pyright: ignore
         case JSONSchemaInteger(format_=None):
             return {_JSON_SCHEMA_TYPE: _JSON_SCHEMA_TYPE_INTEGER}
         case JSONSchemaInteger(
@@ -170,7 +172,7 @@ def coparse_schema_type(schema: JSONSchemaType) -> JSONDict:
     raise Exception(f"invalid schema type {schema}")
 
 
-def parse_schema_type(s: dict[str, Any]) -> JSONSchemaType:
+def parse_schema_type(s: Mapping[str, Any]) -> JSONSchemaType:
     type_ = s.get(_JSON_SCHEMA_TYPE, None)
     if type_ is None:
         raise Exception("json schema has no type attribute")
@@ -221,7 +223,8 @@ def parse_schema_type(s: dict[str, Any]) -> JSONSchemaType:
         assert enum_ is None or isinstance(
             enum_, list
         ), f"{_JSON_SCHEMA_STRING_ENUM} has wrong type {type(enum_)}"
-        return JSONSchemaString(enum_=enum_)
+        # pyright cannot know that it's really a list of strings
+        return JSONSchemaString(enum_=enum_)  # pyright: ignore
 
     if type_ == _JSON_SCHEMA_TYPE_ARRAY:
         items = s.get(_JSON_SCHEMA_ARRAY_ITEMS, None)
@@ -230,7 +233,7 @@ def parse_schema_type(s: dict[str, Any]) -> JSONSchemaType:
             items, dict
         ), f"array {_JSON_SCHEMA_ARRAY_ITEMS} type is {type(items)}"
         return JSONSchemaArray(
-            parse_schema_type(items),
+            parse_schema_type(items),  # pyright: ignore
             s.get(_JSON_SCHEMA_ARRAY_MIN_ITEMS, None),
             s.get(_JSON_SCHEMA_ARRAY_MAX_ITEMS, None),
         )

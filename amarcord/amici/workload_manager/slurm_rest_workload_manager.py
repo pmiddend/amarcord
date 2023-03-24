@@ -200,9 +200,9 @@ class SlurmRestWorkloadManager(WorkloadManager):
         partition: str,
         reservation: None | str,
         token_retriever: TokenRetriever,
+        request_wrapper: SlurmHttpWrapper,
         rest_url: str,
         rest_user: None | str = None,
-        request_wrapper: SlurmHttpWrapper = SlurmRequestsHttpWrapper(),
     ) -> None:
         self._partition = partition
         self._reservation = reservation
@@ -296,7 +296,9 @@ class SlurmRestWorkloadManager(WorkloadManager):
         errors = response.get("errors", None)
         assert errors is None or isinstance(errors, list)
         if errors is not None and errors:
-            raise Exception("list job request contained errors: " + ",".join(errors))
+            raise Exception(
+                "list job request contained errors: " + ",".join(str(e) for e in errors)
+            )
         if "jobs" not in response:
             raise Exception(
                 "didn't get any jobs in the response: " + json.dumps(response)
@@ -309,4 +311,9 @@ class SlurmRestWorkloadManager(WorkloadManager):
                 json.dumps(response),
             )
             raise Exception("jobs array empty, token expired?")
-        return [j for j in (_convert_job(job) for job in jobs) if j is not None]
+        # pyright rightfully complains that this doesn't have to be a JSONDict
+        return [
+            j
+            for j in (_convert_job(job) for job in jobs)  # pyright: ignore
+            if j is not None
+        ]

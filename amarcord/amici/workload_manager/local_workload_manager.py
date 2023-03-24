@@ -3,7 +3,6 @@ import datetime
 import logging
 import shutil
 import stat
-import subprocess
 from asyncio.subprocess import Process
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,26 +21,6 @@ logger = logging.getLogger(__name__)
 class JobResult(TypedDict):
     failed: bool
     reason: None | str
-
-
-def _command_subprocess(subprocess_command: str, process_dir_str: str) -> None:
-    process_dir = Path(process_dir_str)
-
-    stdout_file = (process_dir / "stdout.txt").open("w")
-    stderr_file = (process_dir / "stderr.txt").open("w")
-
-    with subprocess.Popen(
-        subprocess_command,
-        shell=True,
-        cwd=process_dir,
-        stdout=stdout_file,
-        stderr=stderr_file,
-    ) as waiting_process:
-        logger.info("subprocess wait...")
-
-        waiting_process.wait()
-
-        logger.info("subprocess done: %s...", waiting_process.returncode)
 
 
 @dataclass(frozen=True)

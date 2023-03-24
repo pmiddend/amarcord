@@ -17,7 +17,6 @@ from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import ATTRIBUTO_STARTED
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
 from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.attributi_map import UntypedAttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_name_and_role import AttributoNameAndRole
 from amarcord.db.attributo_type import AttributoType
@@ -90,7 +89,7 @@ def _generate_attributo_value(
     if isinstance(a, AttributoTypeChemical):
         return random.choice(chemical_ids)
     if isinstance(a, AttributoTypeString):
-        return generate("n/*")  # type: ignore
+        return generate("n/*")  # type: ignore[no-any-return]
     if isinstance(a, AttributoTypeBoolean):
         return random.random() >= 0.5
     if isinstance(a, AttributoTypeDecimal):
@@ -107,30 +106,11 @@ def _generate_attributo_value(
         return random_date(
             datetime.datetime(2022, 1, 1, 15, 0, 0, 0), datetime.datetime.now()
         )
-    if isinstance(a, AttributoTypeList):
-        elements_min = a.min_length if a.min_length is not None else 0
-        elements_max = a.max_length if a.max_length is not None else 10
-        elements_no = random.randrange(elements_min, elements_max + 1)
-        return [_generate_attributo_value(a.sub_type, chemical_ids) for _ in range(elements_no)]  # type: ignore
-    raise Exception(f"invalid attributo type {a}")
-
-
-def _generate_attributi_map(
-    attributi: list[DBAttributo], chemical_ids: list[int]
-) -> AttributiMap:
-    values: UntypedAttributiMap = {}
-    for a in attributi:
-        # in 20% of cases, leave attributo out of the equation
-        if random.random() < 0.2:
-            continue
-
-        values[a.name] = _generate_attributo_value(a.attributo_type, [])
-
-    return AttributiMap(
-        types_dict={a.name: a for a in attributi},
-        chemical_ids=chemical_ids,
-        impl=values,
-    )
+    assert isinstance(a, AttributoTypeList)
+    elements_min = a.min_length if a.min_length is not None else 0
+    elements_max = a.max_length if a.max_length is not None else 10
+    elements_no = random.randrange(elements_min, elements_max + 1)
+    return [_generate_attributo_value(a.sub_type, chemical_ids) for _ in range(elements_no)]  # type: ignore
 
 
 def random_person_name() -> str:

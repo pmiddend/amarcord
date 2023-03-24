@@ -6,9 +6,9 @@ from typing import Dict
 from typing import Final
 from typing import TypeAlias
 
-from lark import Lark
-from lark import Token
-from lark import Transformer
+from lark.lark import Lark
+from lark.lexer import Token
+from lark.visitors import Transformer
 
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
@@ -138,7 +138,7 @@ def _comparison_filter(
 
 
 # noinspection PyMethodMayBeStatic
-class MyTransformer(Transformer):
+class MyTransformer(Transformer[Any, Any]):
     def number(self, items: list[Token]) -> float:
         return float(items[0].value)
 

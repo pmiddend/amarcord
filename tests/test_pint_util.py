@@ -6,7 +6,9 @@ from amarcord.pint_util import valid_pint_unit
 
 
 def test_pint_quantity_to_attributo_type() -> None:
-    result = pint_quantity_to_attributo_type(3 * UnitRegistry().meter)
+    result = pint_quantity_to_attributo_type(
+        3 * UnitRegistry().meter  # pyright: ignore
+    )
     assert result is not None
     assert isinstance(result, AttributoTypeDecimal)
     assert result.standard_unit

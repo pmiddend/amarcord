@@ -138,7 +138,7 @@ async def start_indexing_job(
 
 
 @dataclass(frozen=True)
-class _IndexingFom:
+class IndexingFom:
     frames: int
     hits: int
     indexed_frames: int
@@ -152,7 +152,7 @@ _INDEXING_RE = re.compile(
 
 def calculate_indexing_fom_fast(
     this_logger: BoundLogger, stderr_file: Path
-) -> None | _IndexingFom:
+) -> None | IndexingFom:
     if not stderr_file.is_file():
         return None
     with stderr_file.open("r") as f:
@@ -177,7 +177,7 @@ def calculate_indexing_fom_fast(
             and indexable is not None
             and crystals is not None
         ):
-            return _IndexingFom(
+            return IndexingFom(
                 frames=images,
                 hits=hits,
                 indexed_frames=indexable,
@@ -186,7 +186,7 @@ def calculate_indexing_fom_fast(
         return None
 
 
-def _db_fom_from_raw_fom(fom: _IndexingFom) -> DBIndexingFOM:
+def _db_fom_from_raw_fom(fom: IndexingFom) -> DBIndexingFOM:
     return DBIndexingFOM(
         hit_rate=fom.hits / fom.frames * 100.0 if fom.frames > 0 else 0.0,
         indexing_rate=fom.indexed_frames / fom.hits * 100.0 if fom.hits > 0 else 0.0,

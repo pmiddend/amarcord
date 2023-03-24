@@ -19,7 +19,8 @@ async def quart_safe_json_dict() -> JSONDict:
     assert isinstance(
         json_content, dict
     ), f"expected a dictionary for the request input, got {json_content}"
-    return json_content
+    # pyright cannot infer JSONDict
+    return json_content  # pyright: ignore
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -95,9 +96,11 @@ class QuartDatabases:
         self._instance: AsyncDB | None = None
 
     async def initialize_db(self) -> None:
-        context = AsyncDBContext(
-            self._app.config["DB_URL"], self._app.config["DB_ECHO"]
-        )
+        db_url: Any = self._app.config["DB_URL"]
+        assert isinstance(db_url, str)
+        echo: Any = self._app.config["DB_ECHO"]
+        assert isinstance(echo, bool)
+        context = AsyncDBContext(connection_url=db_url, echo=echo)
         # pylint: disable=assigning-non-slot
         self._instance = AsyncDB(context, create_tables_from_metadata(context.metadata))
         await self._instance.migrate()
