@@ -93,12 +93,6 @@ class JSONChecker:
             raise Exception(f'{self.description} result: value "{key}" not an int: {v}')
         return v
 
-    def retrieve_safe_dict(self, key: str) -> JSONDict:
-        v = self.retrieve_safe(key)
-        if not isinstance(v, dict):
-            raise Exception(f'{self.description} result: value "{key}" not a dict: {v}')
-        return v
-
     def retrieve_safe_list(self, key: str) -> JSONArray:
         v = self.retrieve_safe(key)
         if not isinstance(v, list):
@@ -119,7 +113,7 @@ class JSONChecker:
             raise Exception(f'{self.description} result: value "{key}" not a bool: {v}')
         return v
 
-    def retrieve_safe_object(self, key: str) -> JSONDict:
+    def retrieve_safe_dict(self, key: str) -> JSONDict:
         v = self.retrieve_safe(key)
         if not isinstance(v, dict):
             raise Exception(

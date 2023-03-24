@@ -67,6 +67,7 @@ from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.ingest_attributi_from_json import ingest_run_attributi_schema
 from amarcord.db.merge_model import MergeModel
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
 from amarcord.db.merge_parameters import DBMergeParameters
@@ -97,6 +98,7 @@ from amarcord.util import group_by
 AUTO_PILOT: Final = "auto-pilot"
 ONLINE_CRYSTFEL: Final = "online-crystfel"
 DATE_FORMAT: Final = "%Y-%m-%d"
+AUTOMATIC_ATTRIBUTI_GROUP: Final = "automatic"
 
 hardcoded_static_folder: None | str = None
 
@@ -132,7 +134,7 @@ async def create_event() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
-        event = r.retrieve_safe_object("event")
+        event = r.retrieve_safe_dict("event")
 
         event_id = await db.instance.create_event(
             conn,
@@ -205,7 +207,7 @@ async def create_chemical() -> JSONDict:
             attributi=AttributiMap.from_types_and_json(
                 await db.instance.retrieve_attributi(conn, AssociatedTable.CHEMICAL),
                 chemical_ids=[],
-                raw_attributi=r.retrieve_safe_object("attributi"),
+                raw_attributi=r.retrieve_safe_dict("attributi"),
             ),
         )
         file_ids = r.retrieve_safe_int_array("fileIds")
@@ -229,7 +231,7 @@ async def update_chemical() -> JSONDict:
             AttributiMap.from_types_and_json(
                 attributi,
                 chemical_ids=[],
-                raw_attributi=r.retrieve_safe_object("attributi"),
+                raw_attributi=r.retrieve_safe_dict("attributi"),
             )
         )
         await db.instance.update_chemical(
@@ -775,6 +777,61 @@ async def stop_latest_run() -> JSONDict:
         return {}
 
 
+@app.post("/api/runs/<int:run_id>")
+async def create_or_update_run(run_id: int) -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+
+    async with db.instance.begin() as conn:
+        attributi_schema = r.optional_dict("attributi-schema")
+        raw_attributi = r.retrieve_safe_dict("attributi")
+        if attributi_schema is not None:
+            await ingest_run_attributi_schema(
+                db.instance,
+                conn,
+                await db.instance.retrieve_attributi(conn, AssociatedTable.RUN),
+                attributi_schema,
+                group=AUTOMATIC_ATTRIBUTI_GROUP,
+            )
+        # Important to retrieve this here, after ingesting new attributi before!
+        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
+        run_in_db = await db.instance.retrieve_run(conn, run_id, attributi)
+        chemical_ids = await db.instance.retrieve_chemical_ids(conn)
+        current_run = (
+            run_in_db
+            if run_in_db is not None
+            else DBRun(
+                id=run_id,
+                attributi=AttributiMap.from_types_and_json(attributi, chemical_ids, {}),
+                files=[],
+            )
+        )
+        current_run.attributi.extend_with_attributi_map(
+            AttributiMap.from_types_and_json(attributi, chemical_ids, raw_attributi)
+        )
+        if run_in_db is not None:
+            await db.instance.update_run_attributi(
+                conn,
+                id_=run_id,
+                attributi=current_run.attributi,
+            )
+        else:
+            if current_run.attributi.select_datetime(ATTRIBUTO_STARTED) is None:
+                raise CustomWebException(
+                    code=500,
+                    title=f"Cannot start run {run_id} without started time stamp",
+                    description=""
+                )
+            await db.instance.create_run(
+                conn,
+                run_id=run_id,
+                attributi=attributi,
+                attributi_map=current_run.attributi,
+                keep_manual_attributes_from_previous_run=False,
+            )
+
+    return {}
+
+
 @app.patch("/api/runs")
 async def update_run() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
@@ -790,7 +847,7 @@ async def update_run() -> JSONDict:
                 description="",
             )
         chemical_ids = await db.instance.retrieve_chemical_ids(conn)
-        raw_attributi = r.retrieve_safe_object("attributi")
+        raw_attributi = r.retrieve_safe_dict("attributi")
         current_run.attributi.extend_with_attributi_map(
             AttributiMap.from_types_and_json(attributi, chemical_ids, raw_attributi)
         )
@@ -856,7 +913,7 @@ async def update_runs_bulk() -> JSONDict:
             AttributiMap.from_types_and_json(
                 attributi,
                 await db.instance.retrieve_chemical_ids(conn),
-                r.retrieve_safe_object("attributi"),
+                r.retrieve_safe_dict("attributi"),
             ),
         )
         return {}
@@ -1421,7 +1478,7 @@ async def create_data_set() -> JSONDict:
                 description=f"Experiment type with ID {experiment_type_id} not found",
             )
 
-        data_set_attributi = r.retrieve_safe_object("attributi")
+        data_set_attributi = r.retrieve_safe_dict("attributi")
         if any(
             x
             for x in previous_data_sets
@@ -1663,10 +1720,13 @@ def _encode_attributo(a: DBAttributo) -> JSONDict:
         "type": coparse_schema_type(attributo_type_to_schema(a.attributo_type)),
     }
 
+
 def _do_content_disposition(mime_type: str, extension: str) -> bool:
     if mime_type == "text/plain":
         return extension in ("pdb", "cif")
-    return all(not mime_type.startswith(x) for x in ("image", "application/pdf", "text/plain"))
+    return all(
+        not mime_type.startswith(x) for x in ("image", "application/pdf", "text/plain")
+    )
 
 
 @app.get("/api/files/<int:file_id>")

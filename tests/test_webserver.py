@@ -7,7 +7,10 @@ from amarcord.db.attributi import ATTRIBUTO_STARTED
 from amarcord.db.attributi import ATTRIBUTO_STOPPED
 from amarcord.db.chemical_type import ChemicalType
 from amarcord.json_checker import JSONChecker
+from amarcord.json_schema import JSONSchemaInteger
+from amarcord.json_schema import coparse_schema_type
 from amarcord.json_types import JSONDict
+from amarcord.util import now_utc_unix_integer_millis
 
 IN_MEMORY_DB_URL = "sqlite+aiosqlite://"
 
@@ -163,6 +166,54 @@ async def test_data_sets() -> None:
 
     assert result.status_code == 200
     assert "error" in (await result.json)
+
+
+async def test_create_or_update_runs_create() -> None:
+    app.config.update(
+        {
+            "DB_URL": "sqlite+aiosqlite://",
+            "DB_ECHO": False,
+            "HAS_ARTIFICIAL_DELAY": False,
+        },
+    )
+    await db.initialize_db()
+    client = app.test_client()
+
+    await client.post(
+        "/api/runs/1",
+        json={
+            # The simplest of test cases: we just add another attributo that has type "integer" and try it out
+            "attributi": {ATTRIBUTO_STARTED: now_utc_unix_integer_millis(), "test": 3},
+            "attributi-schema": {
+                "test": coparse_schema_type(JSONSchemaInteger(format_=None))
+            },
+        },
+    )
+
+    runs_response = await client.get("/api/runs")
+    runs_response_json = await runs_response.json
+
+    assert "runs" in runs_response_json
+    assert len(runs_response_json["runs"]) == 1
+    assert runs_response_json["runs"][0]["attributi"][ATTRIBUTO_STARTED] is not None
+    assert runs_response_json["runs"][0]["attributi"]["test"] == 3
+    assert ATTRIBUTO_STOPPED not in runs_response_json["runs"][0]["attributi"]
+
+    # Now try the request again - should work again, since now it's updated, and should retain the test attribute
+    await client.post(
+        "/api/runs/1",
+        json={
+            "attributi": {ATTRIBUTO_STARTED: now_utc_unix_integer_millis()},
+        },
+    )
+
+    runs_response = await client.get("/api/runs")
+    runs_response_json = await runs_response.json
+
+    assert "runs" in runs_response_json
+    assert len(runs_response_json["runs"]) == 1
+    assert runs_response_json["runs"][0]["attributi"][ATTRIBUTO_STARTED] is not None
+    assert ATTRIBUTO_STOPPED not in runs_response_json["runs"][0]["attributi"]
 
 
 async def test_start_and_stop_runs() -> None:

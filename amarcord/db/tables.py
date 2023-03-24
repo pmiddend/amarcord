@@ -144,7 +144,7 @@ def _table_experiment_has_attributo(
             ),
             nullable=False,
         ),
-        sa.Column("chemical_role", sa.Enum(ChemicalType), nullable=False)
+        sa.Column("chemical_role", sa.Enum(ChemicalType), nullable=False),
     )
 
 
@@ -235,7 +235,7 @@ def _table_chemical(metadata: sa.MetaData) -> sa.Table:
         sa.Column("responsible_person", sa.String(length=255), nullable=False),
         sa.Column("modified", sa.DateTime, nullable=False),
         sa.Column("attributi", sa.JSON, nullable=False),
-        sa.Column("type", sa.Enum(ChemicalType), nullable=False)
+        sa.Column("type", sa.Enum(ChemicalType), nullable=False),
     )
 
 

@@ -19,17 +19,13 @@ from zmq.utils.monitor import parse_monitor_message
 from amarcord.amici.crystfel.util import ATTRIBUTO_PROTEIN
 from amarcord.amici.crystfel.util import CrystFELCellFile
 from amarcord.amici.crystfel.util import parse_cell_description
-from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import attributo_types_semantically_equivalent
-from amarcord.db.attributi import schema_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
-from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.indexing_result import DBIndexingResultInput
-from amarcord.json_schema import parse_schema_type
+from amarcord.db.ingest_attributi_from_json import ingest_run_attributi_schema
 from amarcord.json_types import JSONDict
 
 _METADATA: Final = "Metadata"
@@ -145,34 +141,16 @@ async def ingest_kamzik_metadata(
         attributi_values, dict
     ), f"got no attributi-values in metadata dict {metadata}"
 
-    preexisting_attributi: dict[str, DBAttributo] = {
-        t.name: t
-        for t in await db.retrieve_attributi(conn, associated_table=AssociatedTable.RUN)
-    }
-
-    for attributo_name, attributo_schema in attributi_schema.items():
-        decoded_schema = parse_schema_type(attributo_schema)
-        attributo_type = schema_to_attributo_type(decoded_schema)
-
-        existing_attributo = preexisting_attributi.get(attributo_name, None)
-        if existing_attributo is None:
-            await db.create_attributo(
-                conn,
-                name=attributo_name,
-                description="",
-                group=KAMZIK_ATTRIBUTO_GROUP,
-                type_=attributo_type,
-                associated_table=AssociatedTable.RUN,
-            )
-        else:
-            if not attributo_types_semantically_equivalent(
-                existing_attributo.attributo_type, attributo_type
-            ):
-                raise Exception(
-                    f"we have a type change, type before: {existing_attributo.attributo_type}, type after: {attributo_type}"
-                )
-
+    await ingest_run_attributi_schema(
+        db,
+        conn,
+        await db.retrieve_attributi(conn, associated_table=None),
+        attributi_schema,
+        KAMZIK_ATTRIBUTO_GROUP,
+    )
+    # Important to (re)-retrieve this here, after adding attributi
     attributi = await db.retrieve_attributi(conn, associated_table=None)
+
     existing_run = await db.retrieve_run(conn, run_id, attributi)
     kamzik_attributi_map = AttributiMap.from_types_and_json(
         attributi,

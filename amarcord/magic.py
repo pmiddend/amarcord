@@ -11,7 +11,6 @@ try:
     def from_buffer(b: bytes, mime: bool) -> str:
         return magic.from_buffer(b, mime=mime)  # type: ignore
 
-
 except ImportError:
 
     # pylint: disable=unused-argument

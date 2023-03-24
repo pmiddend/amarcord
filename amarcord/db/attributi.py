@@ -34,6 +34,8 @@ from amarcord.numeric_range import NumericRange
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int
 
+# Little registry for semantic comparisons (see below)
+_UNIT_REGISTRY = UnitRegistry()
 _ATTRIBUTO_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 _JSON_SCHEMA_INTEGER_CHEMICAL_ID: Final = JSONSchemaCustomIntegerFormat("chemical-id")
@@ -702,7 +704,7 @@ def attributo_sort_key(r: DBAttributo) -> tuple[int, str]:
 def attributo_types_semantically_equivalent(a: AttributoType, b: AttributoType) -> bool:
     if isinstance(a, AttributoTypeDecimal) and isinstance(b, AttributoTypeDecimal):
         if a.standard_unit and b.standard_unit:
-            if UnitRegistry()(a.suffix) != UnitRegistry()(b.suffix):
+            if _UNIT_REGISTRY(a.suffix) != _UNIT_REGISTRY(b.suffix):
                 return False
             return a.range == b.range
         return a.range == b.range and a.suffix == b.suffix
