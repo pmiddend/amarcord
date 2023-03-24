@@ -7,30 +7,22 @@ license = "GPL-3.0-or-later"
 
 [tool.poetry.dependencies]
 python = ">=3.8, <3.11"
+
+h5py = "3.7.0"
 # for general DB access
 SQLAlchemy = { version = "1.4.31", extras = ["asyncio"] }
-# for mysql
-pymysql = '1.0.2'
 # for caching_sha2_password access in MySQL
 cryptography = '3.4.8'
-# for attributi: parsing/printing a delta
-isodate = '0.6.1'
-# for the config file
-PyYAML = '5.4.1'
-# for accessing XDG_CONFIG_HOME in the config file for example
-xdg = '5.1.1'
 # For parsing the arguments for programs (always required basically)
 typed-argument-parser = '1.7.2'
 # For the config file
-pydantic = '1.10.2'
+pydantic = '1.10.7'
 # numpy for processing results
 numpy = { version = '1.21.4' }
 # for zmq access in the daemon
 pyzmq = '22.3.0'
 # For validating units
 pint = '0.16.1'
-# for the daemon
-msgpack = "1.0.2"
 
 # For the Excel spreadsheet export
 openpyxl = "3.0.9"
@@ -40,11 +32,12 @@ openpyxl = "3.0.9"
 
 # for correcting UTC timezone for dates
 python-dateutil = "2.8.2"
-tqdm = "4.62.3"
 # for the webserver
 quart = "0.17.0"
 # for the webserver
 Quart-CORS = "0.5.0"
+# for the webserver
+werkzeug = "2.1.2"
 # asynchronous db client
 aiosqlite = "0.17.0"
 # asynchronous db client
@@ -53,8 +46,6 @@ asyncmy = "0.2.3"
 pytz = "2021.3"
 # to test incoming files for their mime types
 python-magic = "0.4.24"
-# to parse/coparse toml files for xwiz
-toml = "0.10.2"
 # For the experiment simulator
 randomname = "0.1.5"
 # For http requests
@@ -77,14 +68,10 @@ pathspec = "0.10.1"
 mypy = '0.971'
 types-pytz = "2021.3.6"
 pylint = '2.15.4'
-perflint = '0.7.3'
 pyfakefs = '4.7.0'
 openpyxl-stubs = "0.1.21"
-# for the daemon
-msgpack-types = "0.1.0"
 pytest = '6.2.5'
 hypothesis = '6.27.1'
-h5py = '3.7.0'
 pytest-cov = '2.12.1'
 types-python-dateutil = "2.8.3"
 # slurm
@@ -92,10 +79,11 @@ types-requests = "2.26.0"
 # config file
 types-PyYAML = '5.4.12'
 pytest-asyncio = "0.17.2"
-isort = "5.10.1"
+isort = "5.12.0"
 pytest-subprocess = "1.4.1"
 cfel-pylint-checkers = "1.0.2"
 sqlalchemy2-stubs = "0.0.2-alpha.24"
+fawltydeps = "0.7.1"
 
 [tool.poetry.scripts]
 # These are not all files in cli/, but the ones we definitely intend to keep.
@@ -138,6 +126,15 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = ["PIL", "pint", "randomname", "h5py"]
 ignore_missing_imports = true
+
+[tool.fawltydeps]
+code = ["amarcord", "tests"]
+deps = ["pyproject.toml"]
+ignore_undeclared = ["amarcord", "hypothesis", "pytest", "pytest_asyncio", "pytest_subprocess"]
+# aiosqlite/asyncmy/pymysql is used while _running_ AMARCORD
+# cryptography is for a Nix fix
+# python-magic is imported a little weirdly
+ignore_unused = ["aiosqlite", "asyncmy", "cryptography", "fawltydeps", "python-magic"]
 
 [tool.pyright]
 include = ["amarcord", "tests"]

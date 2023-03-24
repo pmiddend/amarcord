@@ -29,6 +29,8 @@
 
               quart = super.quart.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
 
+              fawltydeps = super.fawltydeps.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
+
               openpyxl-stubs = super.openpyxl-stubs.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
 
               typed-argument-parser = super.typed-argument-parser.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });

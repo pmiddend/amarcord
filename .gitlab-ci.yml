@@ -18,6 +18,10 @@ isort:
   script:
     - nix develop .#with-build-tools --command isort --check amarcord tests
 
+fawltydeps:
+  script:
+    - nix develop .#with-build-tools --command fawltydeps
+
 check-shell-scripts:
    script:
      - nix develop .#with-build-tools --command shellcheck ci/*.sh
