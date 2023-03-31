@@ -95,8 +95,14 @@ from amarcord.quart_utils import quart_safe_json_dict
 from amarcord.util import create_intervals
 from amarcord.util import group_by
 
-AUTO_PILOT: Final = "auto-pilot"
-ONLINE_CRYSTFEL: Final = "online-crystfel"
+USER_CONFIGURATION_AUTO_PILOT: Final = "auto-pilot"
+USER_CONFIGURATION_ONLINE_CRYSTFEL: Final = "online-crystfel"
+USER_CONFIGURATION_CURRENT_EXPERIMENT_TYPE_ID: Final = "current-experiment-type-id"
+KNOWN_USER_CONFIGURATION_VALUES: Final = [
+    USER_CONFIGURATION_AUTO_PILOT,
+    USER_CONFIGURATION_ONLINE_CRYSTFEL,
+    USER_CONFIGURATION_CURRENT_EXPERIMENT_TYPE_ID,
+]
 DATE_FORMAT: Final = "%Y-%m-%d"
 AUTOMATIC_ATTRIBUTI_GROUP: Final = "automatic"
 
@@ -275,9 +281,9 @@ def _encode_file(f: DBFile) -> JSONDict:
 
 def _encode_user_configuration(c: UserConfiguration) -> JSONDict:
     return {
-        ONLINE_CRYSTFEL: c.use_online_crystfel,
-        AUTO_PILOT: c.auto_pilot,
-        "current-experiment-type-id": c.current_experiment_type_id,
+        USER_CONFIGURATION_ONLINE_CRYSTFEL: c.use_online_crystfel,
+        USER_CONFIGURATION_AUTO_PILOT: c.auto_pilot,
+        USER_CONFIGURATION_CURRENT_EXPERIMENT_TYPE_ID: c.current_experiment_type_id,
     }
 
 
@@ -402,7 +408,9 @@ def _encode_merge_result(
             if mr.parameters.polarisation is None
             else {
                 "angle": int(
-                    mr.parameters.polarisation.angle.to(UnitRegistry().degrees).m  # pyright: ignore [reportUnknownArgumentType]
+                    mr.parameters.polarisation.angle.to(
+                        UnitRegistry().degrees
+                    ).m  # pyright: ignore [reportUnknownArgumentType]
                 ),
                 "percent": mr.parameters.polarisation.percentage,
             },
@@ -466,7 +474,11 @@ def _encode_event(e: DBEvent) -> JSONDict:
 
 
 def _has_artificial_delay() -> bool:
-    return bool(app.config.get("ARTIFICIAL_DELAY", False))  # pyright: ignore [reportUnknownArgumentType]
+    return bool(
+        app.config.get(
+            "ARTIFICIAL_DELAY", False
+        )  # pyright: ignore [reportUnknownArgumentType]
+    )
 
 
 @app.post("/api/merging/<int:merge_result_id>")
@@ -700,7 +712,9 @@ async def start_merge_job_for_data_set(data_set_id: int) -> JSONDict:
                     ),
                     iterations=request_content.retrieve_safe_int("iterations"),
                     polarisation=Polarisation(
-                        angle=cast(int, polarisation.get("angle", 0))  # pyright: ignore [reportUnknownArgumentType]
+                        angle=cast(
+                            int, polarisation.get("angle", 0)
+                        )  # pyright: ignore [reportUnknownArgumentType]
                         * UnitRegistry().degrees,
                         percentage=cast(int, polarisation.get("percent", 100)),
                     )
@@ -817,7 +831,7 @@ async def create_or_update_run(run_id: int) -> JSONDict:
                 raise CustomWebException(
                     code=500,
                     title=f"Cannot start run {run_id} without started time stamp",
-                    description=""
+                    description="",
                 )
             await db.instance.create_run(
                 conn,
@@ -1049,7 +1063,10 @@ async def create_file() -> JSONDict:
     assert files, "Koalas in the rain, no files given"
 
     # We expect a request with two parts: one with just a JSON key-value pair and one file
-    r = JSONChecker(json.loads(next(f.values())), "request")  # pyright: ignore [reportUnknownArgumentType]
+    r = JSONChecker(
+        json.loads(next(f.values())),  # pyright: ignore [reportUnknownArgumentType]
+        "request",
+    )
     description = r.retrieve_safe_str("description")
 
     async with db.instance.begin() as conn:
@@ -1118,14 +1135,17 @@ async def create_file_simple(extension: str) -> JSONDict:
 async def read_user_configuration_single(key: str) -> JSONDict:
     async with db.instance.read_only_connection() as conn:
         user_configuration = await db.instance.retrieve_configuration(conn)
-        if key == AUTO_PILOT:
+        if key == USER_CONFIGURATION_AUTO_PILOT:
             return {"value": user_configuration.auto_pilot}
-        if key == ONLINE_CRYSTFEL:
+        if key == USER_CONFIGURATION_ONLINE_CRYSTFEL:
             return {"value": user_configuration.use_online_crystfel}
+        if key == USER_CONFIGURATION_CURRENT_EXPERIMENT_TYPE_ID:
+            return {"value": user_configuration.current_experiment_type_id}
         raise CustomWebException(
             code=400,
             title=f'Invalid key "{key}"',
-            description=f'Couldn\'t find config key {key}, only know "{AUTO_PILOT}", "{ONLINE_CRYSTFEL}"!',
+            description=f"Couldn't find config key {key}, only know "
+            + ", ".join(f'"{x}"' for x in KNOWN_USER_CONFIGURATION_VALUES),
         )
 
 
@@ -1133,7 +1153,7 @@ async def read_user_configuration_single(key: str) -> JSONDict:
 async def update_user_configuration_single(key: str, value: str) -> JSONDict:
     async with db.instance.begin() as conn:
         user_configuration = await db.instance.retrieve_configuration(conn)
-        if key == AUTO_PILOT:
+        if key == USER_CONFIGURATION_AUTO_PILOT:
             new_value = value == "True"
 
             new_configuration = replace(
@@ -1145,7 +1165,7 @@ async def update_user_configuration_single(key: str, value: str) -> JSONDict:
                 new_configuration,
             )
             return {"value": new_value}
-        if key == ONLINE_CRYSTFEL:
+        if key == USER_CONFIGURATION_ONLINE_CRYSTFEL:
             new_value = value == "True"
 
             new_configuration = replace(
@@ -1157,10 +1177,21 @@ async def update_user_configuration_single(key: str, value: str) -> JSONDict:
                 new_configuration,
             )
             return {"value": new_value}
+        if key == USER_CONFIGURATION_CURRENT_EXPERIMENT_TYPE_ID:
+            new_configuration = replace(
+                user_configuration,
+                current_experiment_type_id=int(value),
+            )
+            await db.instance.update_configuration(
+                conn,
+                new_configuration,
+            )
+            return {"value": int(value)}
         raise CustomWebException(
             code=400,
             title=f'Invalid key "{key}"',
-            description=f'Couldn\'t find config key {key}, only know "{AUTO_PILOT}"!',
+            description=f"Couldn't find config key {key}, only know "
+            + ", ".join(f'"{x}"' for x in KNOWN_USER_CONFIGURATION_VALUES),
         )
 
 
@@ -1357,7 +1388,7 @@ async def update_live_stream() -> JSONDict:
         # Since we potentially need to seek around in the file, and we don't know if it's a seekable
         # stream (I think?) we store it in a named temp file first.
         with NamedTemporaryFile(mode="w+b") as temp_file:
-            temp_file.write(file.read())   # pyright: ignore [reportUnknownArgumentType]
+            temp_file.write(file.read())  # pyright: ignore [reportUnknownArgumentType]
             temp_file.flush()
             temp_file.seek(0, os.SEEK_SET)
 
@@ -1623,7 +1654,9 @@ async def create_attributo() -> JSONDict:
             description=r.retrieve_safe_str("description"),
             group=r.retrieve_safe_str("group"),
             associated_table=AssociatedTable(r.retrieve_safe_str("associatedTable")),
-            type_=schema_to_attributo_type(parse_schema_type(r.retrieve_safe_dict("type"))),
+            type_=schema_to_attributo_type(
+                parse_schema_type(r.retrieve_safe_dict("type"))
+            ),
         )
 
     return {}

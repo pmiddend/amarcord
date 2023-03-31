@@ -1028,8 +1028,8 @@ class AsyncDB:
         )
         if new_attributo.name != name and existing_attributo is not None:
             raise Exception(
-                f"cannot rename {name} to {new_attributo.name} because we already have an attributo of that " +
-                "name"
+                f"cannot rename {name} to {new_attributo.name} because we already have an attributo of that "
+                + "name"
             )
 
         # first, change the attributo itself, then its actual values (if possible)
@@ -1762,7 +1762,9 @@ class AsyncDB:
             "input_post_refinement": mrp.post_refinement,
             "input_iterations": mrp.iterations,
             "input_polarisation_angle": int(
-                mrp.polarisation.angle.to(UnitRegistry().degrees).m  # pyright: ignore [reportUnknownArgumentType]
+                mrp.polarisation.angle.to(
+                    UnitRegistry().degrees
+                ).m  # pyright: ignore [reportUnknownArgumentType]
             )
             if mrp.polarisation is not None
             else None,
@@ -1936,7 +1938,8 @@ class AsyncDB:
                     post_refinement=row["input_post_refinement"],
                     iterations=row["input_iterations"],
                     polarisation=Polarisation(
-                        angle=row["input_polarisation_angle"] * UnitRegistry().degrees,  # pyright: ignore [reportUnknownArgumentType]
+                        angle=row["input_polarisation_angle"]
+                        * UnitRegistry().degrees,  # pyright: ignore [reportUnknownArgumentType]
                         percentage=row["input_polarisation_percent"],
                     )
                     if row["input_polarisation_angle"] is not None
@@ -2182,9 +2185,13 @@ async def create_workbook(
             column=1,
             value=attributo.associated_table.value.capitalize(),
         )
-        attributi_sheet.cell(row=attributo_row_idx, column=2, value=attributo.name)  # pyright: ignore
-        attributi_sheet.cell(row=attributo_row_idx, column=3, value=attributo.group)  # pyright: ignore
-        attributi_sheet.cell(  # pyright: ignore
+        attributi_sheet.cell(  # pyright: ignore[reportGeneralTypeIssues]
+            row=attributo_row_idx, column=2, value=attributo.name
+        )
+        attributi_sheet.cell(  # pyright: ignore[reportGeneralTypeIssues]
+            row=attributo_row_idx, column=3, value=attributo.group
+        )
+        attributi_sheet.cell(  # pyright: ignore[reportGeneralTypeIssues]
             row=attributo_row_idx, column=4, value=attributo.description
         )
         attributi_sheet.cell(  # pyright: ignore
@@ -2241,7 +2248,9 @@ async def create_workbook(
         [AttributoId("ID")] + [a.name for a in run_attributi],
         start=1,
     ):
-        cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))  # pyright: ignore
+        cell = runs_sheet.cell(
+            row=1, column=run_column, value=str(run_header_name)
+        )  # pyright: ignore
         cell.font = cell.font.copy(bold=True)  # pyright: ignore
 
     chemical_id_to_name: dict[int, str] = {s.id: s.name for s in chemicals}
