@@ -41,7 +41,8 @@ werkzeug = "2.1.2"
 # asynchronous db client
 aiosqlite = "0.17.0"
 # asynchronous db client
-asyncmy = "0.2.3"
+asyncmy = "0.2.7"
+
 # for time zone detection and conversion of timestamps in attributi
 pytz = "2021.3"
 # to test incoming files for their mime types
