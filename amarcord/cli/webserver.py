@@ -33,6 +33,7 @@ from werkzeug.exceptions import HTTPException
 from amarcord.amici.crystfel.merge_daemon import MergeResultRootJson
 from amarcord.amici.crystfel.util import CrystFELCellFile
 from amarcord.amici.crystfel.util import coparse_cell_description
+from amarcord.amici.crystfel.util import parse_cell_description
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.asyncdb import LIVE_STREAM_IMAGE
@@ -64,6 +65,7 @@ from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.experiment_type import DBExperimentType
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import DBIndexingResultDone
+from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import empty_indexing_fom
@@ -95,6 +97,7 @@ from amarcord.quart_utils import quart_safe_json_dict
 from amarcord.util import create_intervals
 from amarcord.util import group_by
 
+ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS: Final = 4
 USER_CONFIGURATION_AUTO_PILOT: Final = "auto-pilot"
 USER_CONFIGURATION_ONLINE_CRYSTFEL: Final = "online-crystfel"
 USER_CONFIGURATION_CURRENT_EXPERIMENT_TYPE_ID: Final = "current-experiment-type-id"
@@ -807,7 +810,8 @@ async def create_or_update_run(run_id: int) -> JSONDict:
         # Important to retrieve this here, after ingesting new attributi before!
         attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
         run_in_db = await db.instance.retrieve_run(conn, run_id, attributi)
-        chemical_ids = await db.instance.retrieve_chemical_ids(conn)
+        chemicals = await db.instance.retrieve_chemicals(conn, attributi)
+        chemical_ids = [c.id for c in chemicals]
         current_run = (
             run_in_db
             if run_in_db is not None
@@ -840,6 +844,66 @@ async def create_or_update_run(run_id: int) -> JSONDict:
                 attributi_map=current_run.attributi,
                 keep_manual_attributes_from_previous_run=False,
             )
+
+    run_logger = logger.bind(run_id=run_id)
+    config = await db.instance.retrieve_configuration(conn)
+    if config.use_online_crystfel:
+        point_group: None | str = None
+        cell_description_str: None | str = None
+        channel_chemical_id: None | int = None
+        for channel in range(1, ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS+1):
+            this_channel_chemical_id = current_run.attributi.select_chemical_id(
+                AttributoId(f"channel_{channel}_chemical_id")
+            )
+            chemical = next(iter(c for c in chemicals if c.id == this_channel_chemical_id), None)
+            if chemical is None:
+                run_logger.warning(
+                    f"chemical in channel {channel} with ID {this_channel_chemical_id} not found"
+                )
+                continue
+            this_point_group = chemical.attributi.select_string(
+                AttributoId("point group")
+            )
+            this_cell_description = chemical.attributi.select_string(
+                AttributoId("cell description")
+            )
+            if this_point_group is not None and this_cell_description is not None:
+                point_group = this_point_group
+                cell_description_str = this_cell_description
+                channel_chemical_id = this_channel_chemical_id
+                break
+
+        if channel_chemical_id is None:
+            run_logger.warning("cannot start CrystFEL online, no compatible chemicals detected")
+            return {}
+
+        cell_description: None | CrystFELCellFile
+        if cell_description_str is not None:
+            cell_description = parse_cell_description(cell_description_str)
+            if cell_description is None:
+                logger.error(
+                    f"cannot start indexing job, cell description is invalid: {cell_description_str}"
+                )
+                return {}
+        else:
+            cell_description = None
+
+        await db.instance.create_indexing_result(
+            conn,
+            DBIndexingResultInput(
+                created=datetime.datetime.utcnow(),
+                run_id=run_id,
+                frames=0,
+                hits=0,
+                not_indexed_frames=0,
+                runtime_status=None,
+                point_group=point_group
+                if point_group is not None and point_group.strip()
+                else None,
+                cell_description=cell_description,
+                chemical_id=channel_chemical_id,
+            ),
+        )
 
     return {}
 
