@@ -61,6 +61,7 @@ Pillow = "9.1.0"
 # For parsing the filter expressions
 lark = "1.1.2"
 structlog = "22.1.0"
+structlog-overtime = "1.0.1"
 
 [tool.poetry.dev-dependencies]
 black = '22.3.0'
@@ -109,7 +110,7 @@ load-plugins=["pylint.extensions.typing","pylint.extensions.redefined_variable_t
 extension-pkg-allow-list=["pydantic"]
 
 [tool.pylint."MESSAGES CONTROL"]
-disable=["invalid-name", "missing-module-docstring", "too-many-instance-attributes", "too-many-branches", "missing-class-docstring", "missing-function-docstring", "line-too-long", "missing-final-newline", "logging-not-lazy", "broad-except", "too-many-arguments", "bare-except", "too-few-public-methods", "too-many-locals", "too-many-nested-blocks", "too-many-statements", "too-many-public-methods", "too-many-return-statements", "blacklisted-name", "duplicate-code", "logging-fstring-interpolation", "too-many-lines", "too-many-boolean-expressions", "logging-format-interpolation", "raise-missing-from", "deprecated-typing-alias", "subprocess-run-check"]
+disable=["invalid-name", "missing-module-docstring", "too-many-instance-attributes", "too-many-branches", "missing-class-docstring", "missing-function-docstring", "line-too-long", "missing-final-newline", "logging-not-lazy", "broad-except", "too-many-arguments", "bare-except", "too-few-public-methods", "too-many-locals", "too-many-nested-blocks", "too-many-statements", "too-many-public-methods", "too-many-return-statements", "blacklisted-name", "duplicate-code", "logging-fstring-interpolation", "too-many-lines", "too-many-boolean-expressions", "logging-format-interpolation", "raise-missing-from", "deprecated-typing-alias", "subprocess-run-check", "import-outside-toplevel"]
 
 [tool.mypy]
 strict_equality = true

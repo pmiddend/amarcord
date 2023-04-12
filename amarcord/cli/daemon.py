@@ -28,7 +28,9 @@ from amarcord.db.attributo_id import AttributoId
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.experiment_simulator import experiment_simulator_initialize_db
 from amarcord.experiment_simulator import experiment_simulator_main_loop
+from amarcord.logging_util import setup_structlog
 
+setup_structlog()
 
 class Arguments(Tap):
     db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)

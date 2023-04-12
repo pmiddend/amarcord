@@ -89,6 +89,7 @@ from amarcord.json_checker import JSONChecker
 from amarcord.json_schema import coparse_schema_type
 from amarcord.json_schema import parse_schema_type
 from amarcord.json_types import JSONDict
+from amarcord.logging_util import setup_structlog
 from amarcord.quart_utils import CustomJSONEncoder
 from amarcord.quart_utils import CustomWebException
 from amarcord.quart_utils import QuartDatabases
@@ -96,6 +97,8 @@ from amarcord.quart_utils import handle_exception
 from amarcord.quart_utils import quart_safe_json_dict
 from amarcord.util import create_intervals
 from amarcord.util import group_by
+
+setup_structlog()
 
 ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS: Final = 4
 USER_CONFIGURATION_AUTO_PILOT: Final = "auto-pilot"
@@ -2042,10 +2045,12 @@ def main() -> int:
         },
     )
     if args.debug:
+        logger.info(f"starting web server on host {args.host}, port {args.port} in debug mode")
         app.run(
             host=args.host, port=args.port, debug=args.debug, use_reloader=args.debug
         )
     else:
+        logger.info(f"starting web server on host {args.host}, port {args.port} in production mode")
         config = Config()
         config.bind = [f"{args.host}:{args.port}"]
         asyncio.run(serve(app, config))

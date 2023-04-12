@@ -56,6 +56,8 @@
               perflint = super.perflint.overrideAttrs (old: {
                 buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core ];
               });
+
+              structlog-overtime = super.structlog-overtime.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
             });
           in
           rec {

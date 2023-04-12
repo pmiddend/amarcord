@@ -2010,6 +2010,24 @@ docs = ["furo", "myst-parser", "sphinx", "sphinx-notfound-page", "sphinxcontrib-
 tests = ["coverage[toml]", "freezegun (>=0.2.8)", "pretend", "pytest (>=6.0)", "pytest-asyncio (>=0.17)", "simplejson"]
 
 [[package]]
+name = "structlog-overtime"
+version = "1.0.1"
+description = "Miscellaneous utilities for structlog"
+category = "main"
+optional = false
+python-versions = ">= 3.6"
+files = [
+    {file = "structlog-overtime-1.0.1.tar.gz", hash = "sha256:ebcee7557152a9a3ef3e2ad662d10d556341ae82fb2d6e9ac45c50f760a4c43f"},
+    {file = "structlog_overtime-1.0.1-py3-none-any.whl", hash = "sha256:0dcf38551a288123b9c1d5f7a0ae95a9dec944792c09e9f8a764d350978bb2aa"},
+]
+
+[package.dependencies]
+structlog = ">=20.2.0"
+
+[package.extras]
+dev = ["black", "carthorse", "flake8", "isort", "mypy", "pytest", "pytest-cov", "setuptools (>=38.6.0)", "testfixtures", "twine", "wheel"]
+
+[[package]]
 name = "termcolor"
 version = "1.1.0"
 description = "ANSII Color formatting for output in terminal."
@@ -2357,4 +2375,4 @@ testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8, <3.11"
-content-hash = "4bf13d44aed534cacedb5004f5e2c9fe54b1baba4d4770eb10e50b538ddf5303"
+content-hash = "f635f0fcd51888400dc24a6f0d39de2397be518f273d5a0cf5ef50e860ecd78b"
