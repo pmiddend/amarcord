@@ -13,11 +13,10 @@ from base64 import b64decode
 from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 from typing import Final
 from typing import NoReturn
 from urllib import request
-
-from amarcord.json_types import JSONDict
 
 _NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE: Final = 6
 _NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE: Final = 11
@@ -476,7 +475,7 @@ def upload_file(args: ParsedArgs, file_path: Path) -> int:
 
 
 def write_output_json(
-    args: ParsedArgs, error: None | str, result: None | JSONDict
+    args: ParsedArgs, error: None | str, result: None | dict[str, Any]
 ) -> None:
     req = request.Request(
         f"{args.api_url}/api/merging/{args.merge_result_id}",
@@ -824,7 +823,7 @@ def generate_output(args: ParsedArgs) -> None:
 
     cell_file = retrieve_file(args, args.cell_file_id, "cell")
 
-    mtz_path = Path("output.mtz")
+    mtz_path = Path(f"output-{args.merge_result_id}.mtz")
     create_mtz(args, mtz_path, cell_file)
 
     highres_cut = calculate_highres_cut(args)
