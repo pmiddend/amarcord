@@ -1,5 +1,30 @@
 {
   "nodes": {
+    "elm-spa": {
+      "inputs": {
+        "flake-utils": [
+          "mkElmDerivation",
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "mkElmDerivation",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1680551213,
+        "narHash": "sha256-Sjrb0dwsEhSBqnylFl/dGThiR16QdrjEw3+bRdRTi5M=",
+        "owner": "jeslie0",
+        "repo": "elm-spa",
+        "rev": "cc3a5921367df5fd2c29397c7c51b559a5b784f2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jeslie0",
+        "repo": "elm-spa",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "locked": {
         "lastModified": 1667395993,
@@ -32,17 +57,18 @@
     },
     "mkElmDerivation": {
       "inputs": {
+        "elm-spa": "elm-spa",
         "flake-utils": "flake-utils",
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1679189167,
-        "narHash": "sha256-ajVzTQXQcR1OTu3PgPyHB37HSjoHCn7uLYlTTor6Lp4=",
+        "lastModified": 1681607804,
+        "narHash": "sha256-JzD8bXZdTL/jZ/R6frKdQx+f+eRegP9HT4hf/AeXOE4=",
         "owner": "jeslie0",
         "repo": "mkElmDerivation",
-        "rev": "35482d70dd80644a626157b1f18aca3ecf975585",
+        "rev": "bd495b8dc99a252797123b8757ca56000f5defdb",
         "type": "github"
       },
       "original": {

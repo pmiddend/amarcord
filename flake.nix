@@ -86,7 +86,7 @@
             inherit system;
             overlays = [
               overlay
-              mkElmDerivation.overlay.${system}
+              mkElmDerivation.overlays.mkElmDerivation
             ];
           };
 
