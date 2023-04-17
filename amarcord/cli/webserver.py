@@ -21,6 +21,7 @@ import structlog
 from hypercorn import Config
 from hypercorn.asyncio import serve
 from pint import UnitRegistry
+from pydantic import BaseModel
 from quart import Quart
 from quart import redirect
 from quart import request
@@ -68,6 +69,7 @@ from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
+from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.ingest_attributi_from_json import ingest_run_attributi_schema
 from amarcord.db.merge_model import MergeModel
@@ -487,6 +489,84 @@ def _has_artificial_delay() -> bool:
     )
 
 
+@app.post("/api/indexing/<int:indexing_result_id>")
+async def indexing_job_update(indexing_result_id: int) -> JSONDict:
+    job_logger = logger.bind(indexing_result_id=indexing_result_id)
+    job_logger.info("update")
+    json_content = await request.get_json(force=True)
+    job_logger.info(f"update json: {json_content}")
+
+    class IndexingResult(BaseModel):
+        frames: int
+        hits: int
+        indexed_frames: int
+        indexed_crystals: int
+        done: bool
+
+    class IndexingResultRootJson(BaseModel):
+        error: None | str
+        result: None | IndexingResult
+
+    try:
+        json_result = IndexingResultRootJson(**json_content)
+    except:
+        job_logger.exception(f"error parsing json content\n\n{json_content}")
+        return {}
+
+    def fom_from_json_result(jr: IndexingResult) -> DBIndexingFOM:
+        return DBIndexingFOM(
+            hit_rate=jr.hits / jr.frames * 100.0 if jr.frames != 0 else 0,
+            indexing_rate=jr.indexed_frames / jr.hits * 100 if jr.hits != 0 else 0.0,
+            indexed_frames=jr.indexed_frames,
+        )
+
+    async with db.instance.begin() as conn:
+        current_indexing_result = await db.instance.retrieve_indexing_result(
+            conn, indexing_result_id
+        )
+        if current_indexing_result is None:
+            job_logger.error(f"indexing result with ID {indexing_result_id} not found")
+            return {}
+        runtime_status = current_indexing_result.runtime_status
+
+        final_status: None | DBIndexingResultRuntimeStatus
+        if json_result.error is not None:
+            final_status = DBIndexingResultDone(
+                job_error=json_result.error,
+                fom=runtime_status.fom,
+                stream_file=runtime_status.stream_file,
+            ) if isinstance(runtime_status, DBIndexingResultRunning) else DBIndexingResultDone(
+                job_error=json_result.error,
+                fom=empty_indexing_fom,
+                # We have the weird case where we might have no stream file beforehand, and have to invent one here.
+                stream_file=Path("dummy"),
+            )
+        elif json_result.result is not None:
+            final_status = DBIndexingResultDone(
+                job_error=None,
+                fom=fom_from_json_result(json_result.result),
+                stream_file=runtime_status.stream_file,
+            ) if isinstance(runtime_status, DBIndexingResultRunning) else DBIndexingResultDone(
+                job_error=None,
+                fom=fom_from_json_result(json_result.result),
+                # We have the weird case where we might have no stream file beforehand, and have to invent one here.
+                stream_file=Path("dummy"),
+            )
+        else:
+            final_status = None
+
+        if final_status is None:
+            job_logger.error("couldn't parse indexing result: both error and result are None")
+            return {}
+
+        await db.instance.update_indexing_result_status(
+            conn,
+            indexing_result_id,
+            final_status,
+        )
+    return {}
+
+
 @app.post("/api/merging/<int:merge_result_id>")
 async def merge_job_finished(merge_result_id: int) -> JSONDict:
     job_logger = logger.bind(merge_result_id=merge_result_id)
@@ -520,7 +600,7 @@ async def merge_job_finished(merge_result_id: int) -> JSONDict:
 
         json_content = await request.get_json(force=True)
         try:
-            json_result = MergeResultRootJson(**json_content)
+            json_result = MergeResultRootJson(**json_content) # pylint: disable=redefined-variable-type
 
             stopped_time = datetime.datetime.utcnow()
 
@@ -797,6 +877,8 @@ async def stop_latest_run() -> JSONDict:
 
 @app.post("/api/runs/<int:run_id>")
 async def create_or_update_run(run_id: int) -> JSONDict:
+    run_logger = logger.bind(run_id=run_id)
+    run_logger.info("creating (or updating) run")
     r = JSONChecker(await quart_safe_json_dict(), "request")
 
     async with db.instance.begin() as conn:
@@ -828,12 +910,14 @@ async def create_or_update_run(run_id: int) -> JSONDict:
             AttributiMap.from_types_and_json(attributi, chemical_ids, raw_attributi)
         )
         if run_in_db is not None:
+            run_logger.info("updating run")
             await db.instance.update_run_attributi(
                 conn,
                 id_=run_id,
                 attributi=current_run.attributi,
             )
         else:
+            run_logger.info("creating run")
             if current_run.attributi.select_datetime(ATTRIBUTO_STARTED) is None:
                 raise CustomWebException(
                     code=500,
@@ -848,22 +932,37 @@ async def create_or_update_run(run_id: int) -> JSONDict:
                 keep_manual_attributes_from_previous_run=False,
             )
 
-        run_logger = logger.bind(run_id=run_id)
         config = await db.instance.retrieve_configuration(conn)
-        if config.use_online_crystfel:
+        if run_in_db is not None:
+            run_logger.info("CrystFEL online not needed, run is updated, not created")
+        elif not config.use_online_crystfel:
+            run_logger.info("CrystFEL online deactivated, not creating indexing job")
+        else:
+            run_logger.info("adding CrystFEL online job")
             point_group: None | str = None
             cell_description_str: None | str = None
             channel_chemical_id: None | int = None
-            for channel in range(1, ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS+1):
+            # For indexing, we need to provide one chemical ID that serves as _the_ chemical ID for the indexing job
+            # (kind of a bug right now). So, if we don't find any chemicals with cell information, we just use the first
+            # one which is of type "crystal". Since it's totally valid to leave out cell information for crystals, for
+            # example in the case where you actually don't know that and want to find out.
+            crystal_chemicals: list[DBChemical] = []
+            for channel in range(1, ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS + 1):
                 this_channel_chemical_id = current_run.attributi.select_chemical_id(
                     AttributoId(f"channel_{channel}_chemical_id")
                 )
-                chemical = next(iter(c for c in chemicals if c.id == this_channel_chemical_id), None)
+                if this_channel_chemical_id is None:
+                    continue
+                chemical = next(
+                    iter(c for c in chemicals if c.id == this_channel_chemical_id), None
+                )
                 if chemical is None:
                     run_logger.warning(
                         f"chemical in channel {channel} with ID {this_channel_chemical_id} not found"
                     )
                     continue
+                if chemical.type_ == ChemicalType.CRYSTAL:
+                    crystal_chemicals.append(chemical)
                 this_point_group = chemical.attributi.select_string(
                     AttributoId("point group")
                 )
@@ -877,8 +976,18 @@ async def create_or_update_run(run_id: int) -> JSONDict:
                     break
 
             if channel_chemical_id is None:
-                run_logger.warning("cannot start CrystFEL online, no compatible chemicals detected")
-                return {}
+                if not crystal_chemicals:
+                    run_logger.warning(
+                        "cannot start CrystFEL online: chemicals with cell information and none "
+                        + 'of type "crystal" detected'
+                    )
+                    return {}
+                chosen_chemical = crystal_chemicals[0]
+                channel_chemical_id = chosen_chemical.id
+                run_logger.info(
+                    "no chemicals with cell information found, taking the first chemical of type "
+                    + f' "crystal": {chosen_chemical.name} (id {chosen_chemical.id})'
+                )
 
             cell_description: None | CrystFELCellFile
             if cell_description_str is not None:
@@ -891,6 +1000,9 @@ async def create_or_update_run(run_id: int) -> JSONDict:
             else:
                 cell_description = None
 
+            run_logger.warning(
+                f"creating CrystFEL online job for chemical {channel_chemical_id}"
+            )
             await db.instance.create_indexing_result(
                 conn,
                 DBIndexingResultInput(
@@ -2045,12 +2157,16 @@ def main() -> int:
         },
     )
     if args.debug:
-        logger.info(f"starting web server on host {args.host}, port {args.port} in debug mode")
+        logger.info(
+            f"starting web server on host {args.host}, port {args.port} in debug mode"
+        )
         app.run(
             host=args.host, port=args.port, debug=args.debug, use_reloader=args.debug
         )
     else:
-        logger.info(f"starting web server on host {args.host}, port {args.port} in production mode")
+        logger.info(
+            f"starting web server on host {args.host}, port {args.port} in production mode"
+        )
         config = Config()
         config.bind = [f"{args.host}:{args.port}"]
         asyncio.run(serve(app, config))

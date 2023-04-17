@@ -6,8 +6,6 @@ import pytest
 import structlog
 
 from amarcord.amici.crystfel.indexing_daemon import CrystFELOnlineConfig
-from amarcord.amici.crystfel.indexing_daemon import IndexingFom
-from amarcord.amici.crystfel.indexing_daemon import calculate_indexing_fom_fast
 from amarcord.amici.crystfel.indexing_daemon import start_indexing_job
 from amarcord.amici.crystfel.util import ATTRIBUTO_PROTEIN
 from amarcord.amici.crystfel.util import CrystFELCellFile
@@ -196,7 +194,7 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
     base_dir.mkdir(parents=True)
     cell_file_dir = base_dir / "cell-files"
     cell_file_dir.mkdir(parents=True)
-    indexing_script = base_dir / "indexing.sh"
+    crystfel_path = base_dir / "crystfel"
     workload_manager = DummyWorkloadManager()
     workload_manager.job_start_results.append(
         JobStartResult(job_id=1, metadata=JobMetadata({}))
@@ -205,22 +203,13 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
         workload_manager,
         CrystFELOnlineConfig(
             output_base_directory=base_dir,
-            cell_file_directory=cell_file_dir,
-            indexing_script_path=indexing_script,
-            chemical_attributo=AttributoId("chemical"),
+            crystfel_path=crystfel_path,
+            api_url="http://localhost",
         ),
         indexing_result,
     )
     assert isinstance(ir, DBIndexingResultRunning)
     assert len(workload_manager.job_starts) == 1
-    # Do we _actually_ have a cell file?
-    assert [x for x in cell_file_dir.iterdir() if x.name.endswith(".cell")]
-    assert (
-        workload_manager.job_starts[0].script.index(
-            f"1 {base_dir}/run_1_indexing_1.stream {cell_file_dir}/chemical_"
-        )
-        >= 0
-    )
     assert workload_manager.job_starts[0].working_directory == base_dir
 
 
@@ -252,7 +241,7 @@ async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
     base_dir.mkdir(parents=True)
     cell_file_dir = base_dir / "cell-files"
     cell_file_dir.mkdir(parents=True)
-    indexing_script = base_dir / "indexing.sh"
+    crystfel_path = base_dir / "crystfel"
     workload_manager = DummyWorkloadManager()
     workload_manager.job_start_results.append(
         JobStartResult(job_id=1, metadata=JobMetadata({}))
@@ -261,21 +250,14 @@ async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
         workload_manager,
         CrystFELOnlineConfig(
             output_base_directory=base_dir,
-            cell_file_directory=cell_file_dir,
-            indexing_script_path=indexing_script,
-            chemical_attributo=ATTRIBUTO_PROTEIN,
+            crystfel_path=crystfel_path,
+            api_url="http://localhost",
         ),
         indexing_result,
     )
     assert isinstance(ir, DBIndexingResultRunning)
     assert not [x for x in cell_file_dir.iterdir() if x.name.endswith(".cell")]
     assert len(workload_manager.job_starts) == 1
-    assert (
-        workload_manager.job_starts[0].script.index(
-            f"1 {base_dir}/run_1_indexing_1.stream None"
-        )
-        >= 0
-    )
     assert workload_manager.job_starts[0].working_directory == base_dir
 
 
@@ -309,7 +291,7 @@ async def test_start_indexing_job_start_error(tmp_path: Path) -> None:
     base_dir.mkdir(parents=True)
     cell_file_dir = base_dir / "cell-files"
     cell_file_dir.mkdir(parents=True)
-    indexing_script = base_dir / "indexing.sh"
+    crystfel_path = base_dir / "crystfel"
     workload_manager = DummyWorkloadManager()
     # None her signifies a job start error
     workload_manager.job_start_results.append(None)
@@ -317,21 +299,11 @@ async def test_start_indexing_job_start_error(tmp_path: Path) -> None:
         workload_manager,
         CrystFELOnlineConfig(
             output_base_directory=base_dir,
-            cell_file_directory=cell_file_dir,
-            indexing_script_path=indexing_script,
-            chemical_attributo=ATTRIBUTO_PROTEIN,
+            crystfel_path=crystfel_path,
+            api_url="http://localhost",
         ),
         indexing_result,
     )
     assert workload_manager.job_starts
     assert isinstance(ir, DBIndexingResultDone)
     assert ir.job_error is not None
-
-
-def test_update_indexing_fom_fast() -> None:
-    fom = calculate_indexing_fom_fast(
-        logger, Path(__file__).parent / "crystfel" / "test.stream"
-    )
-    assert fom == IndexingFom(
-        frames=4999, hits=2523, indexed_frames=1263, indexed_crystals=1263
-    )

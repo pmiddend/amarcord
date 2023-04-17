@@ -1667,6 +1667,54 @@ class AsyncDB:
             .where(self.tables.indexing_result.c.id == indexing_result_id)
         )
 
+    async def retrieve_indexing_result(
+        self, conn: Connection, result_id: int
+    ) -> None | DBIndexingResultOutput:
+        ir = self.tables.indexing_result
+
+        r = (
+            await conn.execute(
+                sa.select(
+                    [
+                        ir.c.id,
+                        ir.c.created,
+                        ir.c.run_id,
+                        ir.c.stream_file,
+                        ir.c.frames,
+                        ir.c.hits,
+                        ir.c.not_indexed_frames,
+                        ir.c.hit_rate,
+                        ir.c.indexing_rate,
+                        ir.c.indexed_frames,
+                        ir.c.cell_description,
+                        ir.c.point_group,
+                        ir.c.chemical_id,
+                        ir.c.job_id,
+                        ir.c.job_status,
+                        ir.c.job_error,
+                    ]
+                ).where(ir.c.id == result_id)
+            )
+        ).fetchone()
+
+        if r is None:
+            return None
+
+        return DBIndexingResultOutput(
+            id=r["id"],
+            created=r["created"],
+            run_id=r["run_id"],
+            frames=r["frames"],
+            hits=r["hits"],
+            not_indexed_frames=r["not_indexed_frames"],
+            cell_description=parse_cell_description(r["cell_description"])
+            if r["cell_description"] is not None
+            else None,
+            point_group=r["point_group"],
+            chemical_id=r["chemical_id"],
+            runtime_status=_evaluate_indexing_result_runtime_status(r),
+        )
+
     async def retrieve_indexing_result_for_run(
         self, conn: Connection, run_id: int
     ) -> None | DBIndexingResultOutput:
