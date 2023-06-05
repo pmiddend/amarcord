@@ -42,7 +42,7 @@ nix-pin-latest:
 
 nix-pin-latest-manual:
   script:
-    - nix build --out-link ~/pipeline-pins/amarcord-python-package .#amarcord-python-package
+    - nix build --out-link ~/pipeline-pins/amarcord-python-package-$CI_COMMIT_REF_SLUG .#amarcord-python-package
   when: manual
 
 check-requirements:

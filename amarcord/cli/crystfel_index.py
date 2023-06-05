@@ -1,12 +1,14 @@
 #!/software/python/3.10/bin/python3
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
 from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from time import time
 from typing import IO
 from typing import Any
@@ -106,6 +108,7 @@ class ParsedArgs:
     stream_file: Path
     crystfel_path: Path
     cell_description: None | str
+    dummy_h5_input: None | str
 
 
 def read_path(j: dict[str, Any], key: str) -> Path:
@@ -168,6 +171,9 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         stream_file=stream_file_path,
         cell_description=cell_description,  # pyright: ignore[reportUnknownArgumentType]
         crystfel_path=crystfel_path,
+        dummy_h5_input=j.get(  # pyright: ignore[reportUnknownArgumentType]
+            "dummy-h5-input"
+        ),
     )
 
 
@@ -250,7 +256,7 @@ def determine_beamtime_json(args: ParsedArgs, p: Path) -> dict[str, Any]:
 
 
 def generate_output(args: ParsedArgs) -> None:
-    cell_file_directory = Path("./cells")
+    cell_file_directory = Path("./processed/cells")
     try:
         cell_file_directory.mkdir(parents=True, exist_ok=True)
     except Exception as e:
@@ -326,17 +332,11 @@ def run_indexamajig(
 ) -> None:
     with asapo_token.open("r", encoding="utf-8") as f:
         asapo_token_content = f.read().strip()
+
     command_line_args = [
         f"{args.crystfel_path}/bin/indexamajig",
-        "--data-format=seedee",
-        f"--asapo-endpoint={asapo_endpoint}",
-        f"--asapo-token={asapo_token_content}",
-        f"--asapo-beamtime={beamtime_id}",
-        "--asapo-source=eiger",
-        f"--asapo-stream={args.run_id}",
-        "--asapo-wait-for-stream",
-        "--asapo-group=online",
         "--peaks=peakfinder8",
+        "--temp-dir=/scratch",
         "--min-snr=5",
         "--min-res=50",
         "--threshold=4",
@@ -346,15 +346,39 @@ def run_indexamajig(
         "--min-peaks=10",
         "--local-bg-radius=3",
         "--int-radius=4,5,7",
-        "" if cell_file is None else f"-p {cell_file}",
         "--indexing=asdf",
+        "--cpu-pin",
         "--asdf-fast",
+        f"-j{os.cpu_count()}",
         "--no-retry",
-        f"-g {core_path}/shared/geometry.geom",
+        "-g",
+        f"{core_path}/shared/geometry.geom",
         "--profile",
         "-o",
         str(args.stream_file),
     ]
+    if cell_file is not None:
+        command_line_args.extend(["-p", str(cell_file)])
+    # pylint: disable=consider-using-with
+    input_tmpfile = NamedTemporaryFile() if args.dummy_h5_input is not None else None
+    if args.dummy_h5_input:
+        assert input_tmpfile is not None
+        input_tmpfile.write(args.dummy_h5_input.encode("utf-8"))
+        input_tmpfile.flush()
+        command_line_args.append(f"--input={input_tmpfile.name}")
+    else:
+        command_line_args.extend(
+            [
+                "--data-format=seedee",
+                f"--asapo-endpoint={asapo_endpoint}",
+                f"--asapo-token={asapo_token_content}",
+                f"--asapo-beamtime={beamtime_id}",
+                "--asapo-source=haspp11e16m-100g",
+                f"--asapo-stream={args.run_id}",
+                "--asapo-wait-for-stream",
+                "--asapo-group=online",
+            ]
+        )
     logging.info(f"starting indexamajig with command line: {command_line_args}")
     try:
         profile_directory = core_path / "processed" / "profiles"
@@ -366,21 +390,22 @@ def run_indexamajig(
                 command_line_args,
                 stdout=profile_file,
                 stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE,
                 encoding="utf-8",
                 bufsize=1,
             ) as proc:
+                if args.dummy_h5_input is not None:
+                    assert proc.stdin is not None
+                    proc.stdin.write(args.dummy_h5_input)
+                    proc.stdin.close()
                 last_fom: None | IndexingFom = None
                 assert proc.stderr is not None
                 while True:
                     logger.info("reading line")
                     err_line = proc.stderr.readline()
-                    logger.info("reading line finished")
+                    logger.info(f"reading line finished: {err_line.rstrip()}")
                     if not err_line:
                         break
-                    images: None | int = None
-                    hits: None | int = None
-                    indexable: None | int = None
-                    crystals: None | int = None
                     match = _INDEXING_RE.search(err_line)
                     if match is None:
                         continue
@@ -416,6 +441,8 @@ def run_indexamajig(
                     ),
                     done=True,
                 )
+                if input_tmpfile is not None:
+                    input_tmpfile.close()
     except Exception as e:
         exit_with_error(args, f"error running indexamajig: {e}")
 

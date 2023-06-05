@@ -88,7 +88,7 @@ def merge_parameters_to_crystfel_parameters(p: DBMergeParameters) -> list[str]:
     result.append(f"--model={p.merge_model.value}")
     if p.polarisation is not None:
         result.append(
-            f"--polarisation={p.polarisation.angle}deg{p.polarisation.percentage}"
+            f"--polarisation={p.polarisation.angle.m}deg{p.polarisation.percentage}"
         )
     if p.max_adu is not None:
         result.append(f"--max-adu={p.max_adu}")

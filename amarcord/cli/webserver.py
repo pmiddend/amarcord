@@ -102,6 +102,7 @@ from amarcord.util import group_by
 
 setup_structlog()
 
+_UNIT_REGISTRY = UnitRegistry()
 ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS: Final = 4
 USER_CONFIGURATION_AUTO_PILOT: Final = "auto-pilot"
 USER_CONFIGURATION_ONLINE_CRYSTFEL: Final = "online-crystfel"
@@ -417,7 +418,7 @@ def _encode_merge_result(
             else {
                 "angle": int(
                     mr.parameters.polarisation.angle.to(
-                        UnitRegistry().degrees
+                        _UNIT_REGISTRY.degrees
                     ).m  # pyright: ignore [reportUnknownArgumentType]
                 ),
                 "percent": mr.parameters.polarisation.percentage,
@@ -801,7 +802,7 @@ async def start_merge_job_for_data_set(data_set_id: int) -> JSONDict:
                         angle=cast(
                             int, polarisation.get("angle", 0)
                         )  # pyright: ignore [reportUnknownArgumentType]
-                        * UnitRegistry().degrees,
+                        * _UNIT_REGISTRY.degrees,
                         percentage=cast(int, polarisation.get("percent", 100)),
                     )
                     if polarisation is not None
@@ -1885,7 +1886,7 @@ async def check_standard_unit() -> JSONDict:
         return {"input": unit_input, "error": "Unit empty"}
 
     try:
-        return {"input": unit_input, "normalized": f"{UnitRegistry()(unit_input):P}"}
+        return {"input": unit_input, "normalized": f"{_UNIT_REGISTRY(unit_input):P}"}
     except:
         return {"input": unit_input, "error": "Invalid unit"}
 
@@ -2175,3 +2176,12 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+else:
+    app.config.update(
+        {
+            "DB_URL": os.environ.get("AMARCORD_DB_CONNECTION_URL", None),
+            "DB_ECHO": os.environ.get("AMARCORD_DB_CONNECTION_URL", "false") == "true",
+            "HAS_ARTIFICIAL_DELAY": False,
+            "TITLE": os.environ.get("AMARCORD_TITLE", "Dummy Title please set AMARCORD_TITLE"),
+        },
+    )

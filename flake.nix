@@ -70,6 +70,9 @@
                 '';
                 overrides = poetryOverrides;
               };
+            amarcord-production-webserver = frontend: prev.writeShellScriptBin "amarcord-production-webserver" ''
+                ${(amarcord-python-package frontend).dependencyEnv}/bin/hypercorn amarcord.cli.webserver:app "$@"
+            '';
             amarcord-python-env = prev.poetry2nix.mkPoetryEnv {
               projectDir = ./.;
               overrides = poetryOverrides;
@@ -128,11 +131,13 @@
         in
         {
           amarcord-python-package = pkgs.amarcord-python-package amarcord-frontend;
+          amarcord-production-webserver = pkgs.amarcord-production-webserver amarcord-frontend;
           amarcord-docker-image = pkgs.dockerTools.streamLayeredImage {
             name = "amarcord";
             tag = "latest";
 
-            contents = [ (pkgs.amarcord-python-package amarcord-frontend) ];
+            contents = [ (pkgs.amarcord-production-webserver amarcord-frontend) ];
+
           };
         };
 

@@ -444,6 +444,8 @@ def decimal_attributi_match(
     run_value: AttributoValue,
     data_set_value: AttributoValue,
 ) -> bool:
+    if run_value is None and data_set_value is None:
+        return True
     # They can't be both None at once, and if either is None, we fail our matching criterion
     if run_value is None or data_set_value is None:
         return False

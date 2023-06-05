@@ -59,6 +59,8 @@ class Arguments(Tap):
     # pylint: disable=consider-alternative-union-syntax
     online_crystfel_api_url: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
+    online_crystfel_dummy_h5_input: Optional[str] = None
+    # pylint: disable=consider-alternative-union-syntax
     online_crystfel_workload_manager_uri: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
     merge_daemon_workload_manager_uri: Optional[str] = None
@@ -121,6 +123,7 @@ async def _main_loop(args: Arguments) -> None:
                         args.online_crystfel_output_base_directory,
                         args.online_crystfel_crystfel_path,
                         args.online_crystfel_api_url,
+                        args.online_crystfel_dummy_h5_input,
                     ),
                 )
             )

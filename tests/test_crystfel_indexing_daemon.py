@@ -205,6 +205,7 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
             output_base_directory=base_dir,
             crystfel_path=crystfel_path,
             api_url="http://localhost",
+            dummy_h5_input=None,
         ),
         indexing_result,
     )
@@ -252,6 +253,7 @@ async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
             output_base_directory=base_dir,
             crystfel_path=crystfel_path,
             api_url="http://localhost",
+            dummy_h5_input=None,
         ),
         indexing_result,
     )
@@ -301,6 +303,7 @@ async def test_start_indexing_job_start_error(tmp_path: Path) -> None:
             output_base_directory=base_dir,
             crystfel_path=crystfel_path,
             api_url="http://localhost",
+            dummy_h5_input=None,
         ),
         indexing_result,
     )

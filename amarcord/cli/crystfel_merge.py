@@ -654,6 +654,8 @@ def run_compare_hkl_single_fom(
         )
 
         if compare_hkl_result.returncode != 0:
+            if may_fail:
+                return None
             exit_with_error(
                 args,
                 f"error running compare_hkl, error code is {compare_hkl_result.returncode}, output:\n\n{compare_hkl_result.stdout}",

@@ -34,6 +34,7 @@ class CrystFELOnlineConfig:
     output_base_directory: Path
     crystfel_path: Path
     api_url: str
+    dummy_h5_input: None | str
 
 
 async def start_indexing_job(
@@ -48,7 +49,7 @@ async def start_indexing_job(
 
     job_base_directory = config.output_base_directory
     output_base_name = f"run_{indexing_result.run_id}_indexing_{indexing_result.id}"
-    stream_file = job_base_directory / f"{output_base_name}.stream"
+    stream_file = job_base_directory / "processed" / f"{output_base_name}.stream"
 
     try:
         with Path(inspect.getfile(amarcord.cli.crystfel_index)).open(
@@ -59,6 +60,7 @@ async def start_indexing_job(
                 "job-id": indexing_result.id,
                 "api-url": config.api_url,
                 "stream-file": str(stream_file),
+                "dummy-h5-input": config.dummy_h5_input,
                 "crystfel-path": str(config.crystfel_path),
                 "cell-description": coparse_cell_description(
                     indexing_result.cell_description
@@ -81,8 +83,12 @@ async def start_indexing_job(
                 script=indexing_file_contents,
                 time_limit=timedelta(days=1),
                 stdout=config.output_base_directory
+                / "processed"
+                / "logs"
                 / f"indexing_{indexing_result.id}_stdout.txt",
                 stderr=config.output_base_directory
+                / "processed"
+                / "logs"
                 / f"indexing_{indexing_result.id}_stderr.txt",
             )
             logger.info(f"job start successful, ID {job_start_result.job_id}")

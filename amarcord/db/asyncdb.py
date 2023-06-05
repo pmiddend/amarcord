@@ -80,6 +80,7 @@ from amarcord.util import datetime_to_local
 from amarcord.util import group_by
 from amarcord.util import sha256_file
 
+_UNIT_REGISTRY = UnitRegistry()
 LIVE_STREAM_IMAGE: Final = "live-stream-image"
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -1811,7 +1812,7 @@ class AsyncDB:
             "input_iterations": mrp.iterations,
             "input_polarisation_angle": int(
                 mrp.polarisation.angle.to(
-                    UnitRegistry().degrees
+                    _UNIT_REGISTRY.degrees
                 ).m  # pyright: ignore [reportUnknownArgumentType]
             )
             if mrp.polarisation is not None
@@ -1987,7 +1988,7 @@ class AsyncDB:
                     iterations=row["input_iterations"],
                     polarisation=Polarisation(
                         angle=row["input_polarisation_angle"]
-                        * UnitRegistry().degrees,  # pyright: ignore [reportUnknownArgumentType]
+                        * _UNIT_REGISTRY.degrees,  # pyright: ignore [reportUnknownArgumentType]
                         percentage=row["input_polarisation_percent"],
                     )
                     if row["input_polarisation_angle"] is not None
