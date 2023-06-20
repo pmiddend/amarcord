@@ -539,8 +539,10 @@ async def indexing_job_update(indexing_result_id: int) -> JSONDict:
             ) if isinstance(runtime_status, DBIndexingResultRunning) else DBIndexingResultDone(
                 job_error=json_result.error,
                 fom=empty_indexing_fom,
-                # We have the weird case where we might have no stream file beforehand, and have to invent one here.
-                stream_file=Path("dummy"),
+                # This is confusing, I know. The idea is: if we're in this "if" branch, then we have an error.
+                # This means that in theory, we can only be in state "Running". However, to be absolutely sure not to
+                # lose the "stream file" information, we take it from the runtime status, if that's not None.
+                stream_file=runtime_status.stream_file if runtime_status is not None else Path("dummy-after-error"),
             )
         elif json_result.result is not None:
             final_status = DBIndexingResultDone(
@@ -550,8 +552,10 @@ async def indexing_job_update(indexing_result_id: int) -> JSONDict:
             ) if isinstance(runtime_status, DBIndexingResultRunning) else DBIndexingResultDone(
                 job_error=None,
                 fom=fom_from_json_result(json_result.result),
-                # We have the weird case where we might have no stream file beforehand, and have to invent one here.
-                stream_file=Path("dummy"),
+                # This is confusing, I know. The idea is: if we're in this "if" branch, then we have a final result now.
+                # This means that in theory, we can only be in state "Running". However, to be absolutely sure not to
+                # lose the "stream file" information, we take it from the runtime status, if that's not None.
+                stream_file=runtime_status.stream_file if runtime_status is not None else Path("dummy-after-success"),
             )
         else:
             final_status = None
