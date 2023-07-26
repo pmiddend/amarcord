@@ -1,9 +1,9 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=6dccdc458512abce8d19f74195bb20fdb067df50";
   inputs.poetry2nix = {
-    url = "github:nix-community/poetry2nix";
+    url = "github:nix-community/poetry2nix?rev=de5f713edd6e4070b34178cd1dfea581db7b3834";
     inputs.nixpkgs.follows = "nixpkgs";
   };
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
