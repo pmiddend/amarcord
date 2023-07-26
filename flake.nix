@@ -71,7 +71,7 @@
                 overrides = poetryOverrides;
               };
             amarcord-production-webserver = frontend: prev.writeShellScriptBin "amarcord-production-webserver" ''
-                ${(amarcord-python-package frontend).dependencyEnv}/bin/hypercorn amarcord.cli.webserver:app "$@"
+              ${(amarcord-python-package frontend).dependencyEnv}/bin/hypercorn amarcord.cli.webserver:app "$@"
             '';
             amarcord-python-env = prev.poetry2nix.mkPoetryEnv {
               projectDir = ./.;
@@ -159,17 +159,9 @@
 
         in
         {
-          # The default behavior for "nix develop" with this setup is to give you all dependencies except the ones
-          # poetry would provide (oh, and you get poetry also).
-          default = pkgs.mkShell {
+          default = pkgs.amarcord-python-env.env.overrideAttrs (oldAttrs: {
             buildInputs = externalDependencies;
-          };
-
-          # With "nix develop .#with-build-tools" you also get all the dev build tools like isort and pylint. This is
-          # useful for setups where you want these from the cache and not use poetry to install dependencies, like in
-          # CI jobs.
-          with-build-tools = pkgs.amarcord-python-env.env.overrideAttrs (oldAttrs: {
-            buildInputs = externalDependencies;
+            PYTHONPATH = "./";
           });
 
           frontend = pkgs.mkShell {

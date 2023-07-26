@@ -4,27 +4,27 @@ default:
 
 mypy:
   script:
-    - nix develop .#with-build-tools --command mypy amarcord tests
+    - nix develop --command mypy amarcord tests
 
 pyright:
   script:
-    - nix develop .#with-build-tools --command pyright
+    - nix develop --command pyright
 
 pylint:
   script:
-    - nix develop .#with-build-tools --command pylint amarcord tests
+    - nix develop --command pylint amarcord tests
 
 isort:
   script:
-    - nix develop .#with-build-tools --command isort --check amarcord tests
+    - nix develop --command isort --check amarcord tests
 
 fawltydeps:
   script:
-    - nix develop .#with-build-tools --command fawltydeps
+    - nix develop --command fawltydeps
 
 check-shell-scripts:
    script:
-     - nix develop .#with-build-tools --command shellcheck ci/*.sh
+     - nix develop --command shellcheck ci/*.sh
 
 elm-review:
   script:
@@ -50,7 +50,7 @@ check-requirements:
      - nix develop --command ./ci/check-requirements.sh
 tests:
   script:
-    - nix develop .#with-build-tools --command ci/run-tests.sh
+    - nix develop --command ci/run-tests.sh
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     reports:
