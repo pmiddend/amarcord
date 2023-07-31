@@ -71,9 +71,6 @@ def test_update_runs() -> None:
         ],
     )
     assert run_id in new_runs
-    # pylint: disable=dict-direct-access
     assert new_runs[run_id].indexed_crystals == 1
-    # pylint: disable=dict-direct-access
     assert new_runs[run_id].indexed_frames == 1
-    # pylint: disable=dict-direct-access
     assert new_runs[run_id].not_indexed_frames == 2

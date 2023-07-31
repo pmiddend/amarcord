@@ -82,7 +82,6 @@ class OmZMQProcessor:
         # Special case: if the Om timestamp changed, we cannot rely on the frame difference numbers - ignore this single frame.
         if (
             last_zeromq_data is not None
-            and current_zeromq_data is not None
             and last_zeromq_data.start_timestamp != current_zeromq_data.start_timestamp
         ):
             self._log.info("Detected an Om restart, skipping the initial frame...")

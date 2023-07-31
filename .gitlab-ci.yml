@@ -2,10 +2,6 @@ default:
   tags:
     - nix
 
-mypy:
-  script:
-    - nix develop --command mypy amarcord tests
-
 pyright:
   script:
     - nix develop --command pyright

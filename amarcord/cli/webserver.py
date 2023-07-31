@@ -532,36 +532,50 @@ async def indexing_job_update(indexing_result_id: int) -> JSONDict:
 
         final_status: None | DBIndexingResultRuntimeStatus
         if json_result.error is not None:
-            final_status = DBIndexingResultDone(
-                job_error=json_result.error,
-                fom=runtime_status.fom,
-                stream_file=runtime_status.stream_file,
-            ) if isinstance(runtime_status, DBIndexingResultRunning) else DBIndexingResultDone(
-                job_error=json_result.error,
-                fom=empty_indexing_fom,
-                # This is confusing, I know. The idea is: if we're in this "if" branch, then we have an error.
-                # This means that in theory, we can only be in state "Running". However, to be absolutely sure not to
-                # lose the "stream file" information, we take it from the runtime status, if that's not None.
-                stream_file=runtime_status.stream_file if runtime_status is not None else Path("dummy-after-error"),
+            final_status = (
+                DBIndexingResultDone(
+                    job_error=json_result.error,
+                    fom=runtime_status.fom,
+                    stream_file=runtime_status.stream_file,
+                )
+                if isinstance(runtime_status, DBIndexingResultRunning)
+                else DBIndexingResultDone(
+                    job_error=json_result.error,
+                    fom=empty_indexing_fom,
+                    # This is confusing, I know. The idea is: if we're in this "if" branch, then we have an error.
+                    # This means that in theory, we can only be in state "Running". However, to be absolutely sure not to
+                    # lose the "stream file" information, we take it from the runtime status, if that's not None.
+                    stream_file=runtime_status.stream_file
+                    if runtime_status is not None
+                    else Path("dummy-after-error"),
+                )
             )
         elif json_result.result is not None:
-            final_status = DBIndexingResultDone(
-                job_error=None,
-                fom=fom_from_json_result(json_result.result),
-                stream_file=runtime_status.stream_file,
-            ) if isinstance(runtime_status, DBIndexingResultRunning) else DBIndexingResultDone(
-                job_error=None,
-                fom=fom_from_json_result(json_result.result),
-                # This is confusing, I know. The idea is: if we're in this "if" branch, then we have a final result now.
-                # This means that in theory, we can only be in state "Running". However, to be absolutely sure not to
-                # lose the "stream file" information, we take it from the runtime status, if that's not None.
-                stream_file=runtime_status.stream_file if runtime_status is not None else Path("dummy-after-success"),
+            final_status = (
+                DBIndexingResultDone(
+                    job_error=None,
+                    fom=fom_from_json_result(json_result.result),
+                    stream_file=runtime_status.stream_file,
+                )
+                if isinstance(runtime_status, DBIndexingResultRunning)
+                else DBIndexingResultDone(
+                    job_error=None,
+                    fom=fom_from_json_result(json_result.result),
+                    # This is confusing, I know. The idea is: if we're in this "if" branch, then we have a final result now.
+                    # This means that in theory, we can only be in state "Running". However, to be absolutely sure not to
+                    # lose the "stream file" information, we take it from the runtime status, if that's not None.
+                    stream_file=runtime_status.stream_file
+                    if runtime_status is not None
+                    else Path("dummy-after-success"),
+                )
             )
         else:
             final_status = None
 
         if final_status is None:
-            job_logger.error("couldn't parse indexing result: both error and result are None")
+            job_logger.error(
+                "couldn't parse indexing result: both error and result are None"
+            )
             return {}
 
         await db.instance.update_indexing_result_status(
@@ -605,19 +619,21 @@ async def merge_job_finished(merge_result_id: int) -> JSONDict:
 
         json_content = await request.get_json(force=True)
         try:
-            json_result = MergeResultRootJson(**json_content) # pylint: disable=redefined-variable-type
+            json_merge_result = MergeResultRootJson(**json_content)
 
             stopped_time = datetime.datetime.utcnow()
 
             job_logger.info("json request content is valid")
 
-            if json_result.error is not None:
-                job_logger.error(f"semantic error in json content: {json_result.error}")
+            if json_merge_result.error is not None:
+                job_logger.error(
+                    f"semantic error in json content: {json_merge_result.error}"
+                )
                 await db.instance.update_merge_result_status(
                     conn,
                     merge_result_id,
                     DBMergeRuntimeStatusError(
-                        error=json_result.error,
+                        error=json_merge_result.error,
                         started=started,
                         stopped=stopped_time,
                         recent_log=recent_log,
@@ -626,7 +642,7 @@ async def merge_job_finished(merge_result_id: int) -> JSONDict:
                 return {}
 
             assert (
-                json_result.result is not None
+                json_merge_result.result is not None
             ), f"both error and result are none in output: {json_content}"
 
             await db.instance.update_merge_result_status(
@@ -635,12 +651,12 @@ async def merge_job_finished(merge_result_id: int) -> JSONDict:
                 DBMergeRuntimeStatusDone(
                     started=started,
                     stopped=stopped_time,
-                    result=json_result.result,
+                    result=json_merge_result.result,
                     recent_log=recent_log,
                 ),
             )
 
-            for rr in json_result.result.refinement_results:
+            for rr in json_merge_result.result.refinement_results:
                 await db.instance.create_refinement_result(
                     conn,
                     merge_result_id,
@@ -756,18 +772,14 @@ async def start_merge_job_for_data_set(data_set_id: int) -> JSONDict:
                 code=500,
                 title="Conflicting cell descriptions",
                 description="We have more than one cell description and cannot merge: "
-                + ", ".join(
-                    coparse_cell_description(c)
-                    for c in cell_descriptions
-                    if c is not None
-                ),
+                + ", ".join(coparse_cell_description(c) for c in cell_descriptions),
             )
         if len(point_groups) > 1:
             raise CustomWebException(
                 code=500,
                 title="Conflicting point groups",
                 description="We have more than one point group and cannot merge: "
-                + ", ".join(f for f in point_groups if f is not None),
+                + ", ".join(f for f in point_groups),
             )
         negative_handling_str = request_content.optional_str("negative-handling")
         try:
@@ -1290,7 +1302,9 @@ async def create_file_simple(extension: str) -> JSONDict:
         # Since we potentially need to seek around in the file, and we don't know if it's a seekable
         # stream (I think?) we store it in a named temp file first.
         with NamedTemporaryFile(mode="w+b") as temp_file:
-            temp_file.write(await request.get_data())
+            temp_file.write(
+                await request.get_data()  # pyright: ignore[reportUnknownArgumentType]
+            )
             temp_file.flush()
             temp_file.seek(0, os.SEEK_SET)
 
@@ -2186,6 +2200,8 @@ else:
             "DB_URL": os.environ.get("AMARCORD_DB_CONNECTION_URL", None),
             "DB_ECHO": os.environ.get("AMARCORD_DB_CONNECTION_URL", "false") == "true",
             "HAS_ARTIFICIAL_DELAY": False,
-            "TITLE": os.environ.get("AMARCORD_TITLE", "Dummy Title please set AMARCORD_TITLE"),
+            "TITLE": os.environ.get(
+                "AMARCORD_TITLE", "Dummy Title please set AMARCORD_TITLE"
+            ),
         },
     )

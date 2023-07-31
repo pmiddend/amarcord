@@ -268,7 +268,8 @@ class SlurmRestWorkloadManager(WorkloadManager):
             raise JobStartError(f"error starting job {e}")
         logger.info("response was %s", json.dumps(response))
         response_json = response
-        errors: list[SlurmError] = response_json.get("errors", None)  # type: ignore
+        # We should use pydantic here instead of this "type error"
+        errors: None | list[SlurmError] = response_json.get("errors")  # type: ignore
         if errors is not None and errors:
             raise JobStartError(
                 "there were workload_manager errors: "

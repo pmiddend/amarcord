@@ -223,7 +223,9 @@ def convert_single_attributo_value_to_json(value: AttributoValue) -> JSONValue:
     if not value:
         # pyright complains that JSONValue and list[str] are not compatible
         return cast(list[str], [])  # pyright: ignore
-    if value[0] is None:
+    # I think the pyright: ignore here is wrong and we should ditch this test, but better
+    # safe than sorry.
+    if value[0] is None:  # pyright: ignore[reportUnnecessaryComparison]
         # Why should this be unreachable? [None] != []
         return None  # type: ignore
     assert isinstance(value[0], (str, int, float))
@@ -256,7 +258,7 @@ class AttributiMap:
     def from_types_and_json(
         types: Iterable[DBAttributo],
         chemical_ids: list[int],
-        raw_attributi: JSONDict,
+        raw_attributi: None | JSONDict,
     ) -> "AttributiMap":
         attributi: UntypedAttributiMap = {}
         types_dict = {a.name: a for a in types}

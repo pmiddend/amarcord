@@ -6,19 +6,19 @@ authors = ["Philipp Middendorf <philipp.middendorf@desy.de>", "CFEL-SC <sc@cfel.
 license = "GPL-3.0-or-later"
 
 [tool.poetry.dependencies]
-python = ">=3.8, <3.11"
+python = ">=3.8, <3.12"
 
-h5py = "3.7.0"
+h5py = "3.8.0"
 # for general DB access
 SQLAlchemy = { version = "1.4.31", extras = ["asyncio"] }
 # for caching_sha2_password access in MySQL
-cryptography = '3.4.8'
+cryptography = '40.0.2'
 # For parsing the arguments for programs (always required basically)
 typed-argument-parser = '1.7.2'
 # For the config file
 pydantic = '1.10.7'
 # numpy for processing results
-numpy = { version = '1.21.4' }
+numpy = '1.23.5'
 # for zmq access in the daemon
 pyzmq = '22.3.0'
 # For validating units
@@ -67,11 +67,10 @@ structlog-overtime = "1.0.1"
 black = '22.3.0'
 # Temporary fix for wrong version of hatchling (required by black)
 pathspec = "0.10.1"
-mypy = '0.971'
 types-pytz = "2021.3.6"
 pylint = '2.15.4'
 pyfakefs = '4.7.0'
-openpyxl-stubs = "0.1.21"
+openpyxl-stubs = "0.1.25"
 pytest = '6.2.5'
 hypothesis = '6.27.1'
 pytest-cov = '2.12.1'
@@ -83,7 +82,6 @@ types-PyYAML = '5.4.12'
 pytest-asyncio = "0.17.2"
 isort = "5.12.0"
 pytest-subprocess = "1.4.1"
-cfel-pylint-checkers = "1.0.2"
 sqlalchemy2-stubs = "0.0.2-alpha.24"
 fawltydeps = "0.7.1"
 
@@ -106,28 +104,11 @@ ignored-modules = ["alembic.op","alembic.context"]
 generated-members = ["SUB","SUBSCRIBE","EVENT_DISCONNECTED","EVENT_HANDSHAKE_SUCCEEDED","REQ","RCVTIMEO","EVENT_CONNECTED","PUB"]
 
 [tool.pylint."MASTER"]
-load-plugins=["pylint.extensions.typing","pylint.extensions.redefined_variable_type","cfel_pylint_checkers.no_direct_dict_access"]
+load-plugins=["pylint.extensions.typing","pylint.extensions.redefined_variable_type"]
 extension-pkg-allow-list=["pydantic"]
 
 [tool.pylint."MESSAGES CONTROL"]
 disable=["invalid-name", "missing-module-docstring", "too-many-instance-attributes", "too-many-branches", "missing-class-docstring", "missing-function-docstring", "line-too-long", "missing-final-newline", "logging-not-lazy", "broad-except", "too-many-arguments", "bare-except", "too-few-public-methods", "too-many-locals", "too-many-nested-blocks", "too-many-statements", "too-many-public-methods", "too-many-return-statements", "blacklisted-name", "duplicate-code", "logging-fstring-interpolation", "too-many-lines", "too-many-boolean-expressions", "logging-format-interpolation", "raise-missing-from", "deprecated-typing-alias", "subprocess-run-check", "import-outside-toplevel"]
-
-[tool.mypy]
-strict_equality = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_return_any = true
-warn_unreachable = true
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-plugins = ["sqlalchemy.ext.mypy.plugin", "numpy.typing.mypy_plugin"]
-show_error_codes = true
-
-[[tool.mypy.overrides]]
-module = ["PIL", "pint", "randomname", "h5py"]
-ignore_missing_imports = true
 
 [tool.fawltydeps]
 code = ["amarcord", "tests"]
@@ -192,7 +173,8 @@ reportUntypedFunctionDecorator = false
 reportUntypedNamedTuple = true
 
 reportCallInDefaultInitializer = true
-reportImplicitOverride = true
+# Making this work on older Python versions requires a package. Annoying.
+reportImplicitOverride = false
 reportImplicitStringConcatenation = true
 # In principle, a good message. However, it also forces you to call the object super method, which is pointless
 reportMissingSuperCall = false

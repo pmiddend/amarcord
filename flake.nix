@@ -1,9 +1,9 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=6dccdc458512abce8d19f74195bb20fdb067df50";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=5df4d78d54f7a34e9ea1f84a22b4fd9baebc68d0";
   inputs.poetry2nix = {
-    url = "github:nix-community/poetry2nix?rev=de5f713edd6e4070b34178cd1dfea581db7b3834";
+    url = "github:nix-community/poetry2nix?rev=1d7eda9336f336392d24e9602be5cb9be7ae405c";
     inputs.nixpkgs.follows = "nixpkgs";
   };
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
@@ -15,6 +15,23 @@
   outputs = { self, nixpkgs, poetry2nix, uglymol, mkElmDerivation }:
     let
       system = "x86_64-linux";
+      pypkgs-build-requirements = {
+        structlog-overtime = [ "setuptools" ];
+        openpyxl-stubs = [ "setuptools" ];
+        fawltydeps = [ "poetry" ];
+        randomname = [ "setuptools" ];
+        quart-cors = [ "setuptools" ];
+        quart = [ "poetry" ];
+      };
+      p2n-overrides = final: prev: prev.poetry2nix.defaultPoetryOverrides.extend (self: super:
+        builtins.mapAttrs
+          (package: build-requirements:
+            (builtins.getAttr package super).overridePythonAttrs (old: {
+              buildInputs = (old.buildInputs or [ ]) ++ (builtins.map (pkg: if builtins.isString pkg then builtins.getAttr pkg super else pkg) build-requirements);
+            })
+          )
+          pypkgs-build-requirements
+      );
     in
     rec {
       # Nixpkgs overlay providing the application
@@ -22,43 +39,7 @@
         poetry2nix.overlay
         (final: prev:
           let
-            poetryOverrides = prev.poetry2nix.overrides.withDefaults (self: super: {
-              # ModuleNotFoundError: No module named 'flit_core'
-              # see https://github.com/nix-community/poetry2nix/issues/218
-              pyparsing = super.pyparsing.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core ]; });
-
-              quart = super.quart.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
-
-              fawltydeps = super.fawltydeps.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
-
-              openpyxl-stubs = super.openpyxl-stubs.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
-
-              typed-argument-parser = super.typed-argument-parser.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
-
-              types-python-dateutil = super.types-python-dateutil.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
-
-              quart-cors = super.quart-cors.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
-
-              sqlalchemy2-stubs = super.sqlalchemy2-stubs.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
-
-              randomname = super.randomname.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
-
-              cfel-pylint-checkers = super.cfel-pylint-checkers.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
-
-              # ModuleNotFoundError: No module named 'poetry'
-              msgpack-types = super.msgpack-types.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.poetry ]; });
-
-              # Cannot find hatchling otherwise
-              platformdirs = super.platformdirs.overrideAttrs (old: {
-                buildInputs = (old.buildInputs or [ ]) ++ [ self.hatchling self.hatch-vcs ];
-              });
-
-              perflint = super.perflint.overrideAttrs (old: {
-                buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core ];
-              });
-
-              structlog-overtime = super.structlog-overtime.overrideAttrs (old: { buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ]; });
-            });
+            poetryOverrides = p2n-overrides final prev;
           in
           rec {
             # The application
@@ -153,7 +134,6 @@
             pkgs.poetry
             pkgs.skopeo
             pkgs.shellcheck
-            # for pyright
             pkgs.nodePackages.pyright
           ];
 

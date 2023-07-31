@@ -79,7 +79,7 @@ async def _handle_readout(
 
 
 def _get_token(device_id_: str, topic: str) -> str:
-    return f"{device_id_ if device_id_ is None else device_id_}.{topic}"
+    return f"{device_id_}.{topic}"
 
 
 async def _monitor_loop(parent_log: BoundLogger, monitor_socket: Any) -> None:
