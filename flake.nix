@@ -113,6 +113,7 @@
         {
           amarcord-python-package = pkgs.amarcord-python-package amarcord-frontend;
           amarcord-production-webserver = pkgs.amarcord-production-webserver amarcord-frontend;
+          inherit amarcord-frontend;
           amarcord-docker-image = pkgs.dockerTools.streamLayeredImage {
             name = "amarcord";
             tag = "latest";

@@ -26,6 +26,17 @@ elm-review:
   script:
     - ci/elm-review.sh
 
+frontend:
+  script:
+    - nix build .#amarcord-frontend
+  artifacts:
+    # output because that's the directory the web server will use to find it
+    # (it searches for static files in frontend/output), so you can just download
+    # the zip, extract it into frontend/ and it works.
+    name: output
+    paths:
+      - result/*
+
 build-docker-image:
   script:
     - ci/nix-build-docker-image.sh
