@@ -81,7 +81,7 @@ def upgrade() -> None:
             "attributo_name",
             sa.String(length=255),
             # If the attributo vanishes, delete the experiment type with it
-            ForeignKey("Attributo.name", ondelete="cascade"),
+            ForeignKey("Attributo.name", ondelete="cascade", onupdate="cascade"),
             nullable=False,
         ),
     )
