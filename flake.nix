@@ -105,7 +105,7 @@
                 cp ${mtzWasm} $out/mtz.wasm
                 cp uglymol-custom-element.js $out/
                 echo ${uglymol}
-                cp src/index.html ${uglymol.packages.${system}.default}/uglymol.min.js ./*.svg ./*.css ./*.png ./*.jpg $out/
+                cp -R src/index.html ${uglymol.packages.${system}.default}/uglymol.min.js ./*.js ./*.svg ./*.css ./*.png ./*.jpg fonts/ $out/
               '';
             };
 
