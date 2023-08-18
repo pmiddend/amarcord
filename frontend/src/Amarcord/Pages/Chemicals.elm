@@ -627,30 +627,6 @@ viewInner model =
             ]
 
 
-view : Model -> Html Msg
-view model =
-    let
-        maybeDeleteModal =
-            case model.deleteModalOpen of
-                Nothing ->
-                    []
-
-                Just ( chemicalName, chemicalId ) ->
-                    [ Dialog.view
-                        (Just
-                            { header = Nothing
-                            , body = Just (span_ [ text "Really delete chemical ", strongText chemicalName, text "?" ])
-                            , closeMessage = Just CancelDelete
-                            , containerClass = Nothing
-                            , modalDialogClass = Nothing
-                            , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete chemicalId) ] [ text "Really delete!" ])
-                            }
-                        )
-                    ]
-    in
-    div [ class "container" ] (maybeDeleteModal ++ viewInner model)
-
-
 editChemicalFromAttributiAndValues : Zone -> List (Attributo AttributoType) -> Chemical (Maybe Int) (AttributoMap AttributoValue) a -> Chemical (Maybe Int) EditableAttributiAndOriginal a
 editChemicalFromAttributiAndValues zone attributi =
     chemicalMapAttributi (createEditableAttributi zone attributi)
@@ -674,6 +650,30 @@ validatePointGroupAndCellDescription { attributi } =
         |> Result.andThen (\_ -> findEditableAttributo attributi.editableAttributi "cell description")
         |> Result.andThen extractStringAttributo
         |> Result.andThen validateCellDescription
+
+
+view : Model -> Html Msg
+view model =
+    let
+        maybeDeleteModal =
+            case model.deleteModalOpen of
+                Nothing ->
+                    []
+
+                Just ( chemicalName, chemicalId ) ->
+                    [ Dialog.view
+                        (Just
+                            { header = Nothing
+                            , body = Just (span_ [ text "Really delete chemical ", strongText chemicalName, text "?" ])
+                            , closeMessage = Just CancelDelete
+                            , containerClass = Nothing
+                            , modalDialogClass = Nothing
+                            , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete chemicalId) ] [ text "Really delete!" ])
+                            }
+                        )
+                    ]
+    in
+    div [ class "container" ] (maybeDeleteModal ++ viewInner model)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )

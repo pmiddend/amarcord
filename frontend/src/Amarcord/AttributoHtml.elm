@@ -1,6 +1,6 @@
 module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
 
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
+import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), attributoValueToString, createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Chemical exposing (Chemical, ChemicalType)
 import Amarcord.Html exposing (br_, em_, input_, span_, strongText)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
@@ -556,32 +556,6 @@ attributoValueToEditValue zone attributoName attributi value =
         attributoFound : Maybe (Attributo AttributoType)
         attributoFound =
             List.find (\x -> x.name == attributoName) attributi
-
-        --| This is used for the comma-separated "list of xy" input field
-        attributoValueToString : AttributoValue -> String
-        attributoValueToString x =
-            case x of
-                ValueNone ->
-                    ""
-
-                ValueBoolean bool ->
-                    if bool then
-                        "true"
-
-                    else
-                        "false"
-
-                ValueInt int ->
-                    String.fromInt int
-
-                ValueString string ->
-                    string
-
-                ValueList attributoValues ->
-                    join "," <| List.map attributoValueToString attributoValues
-
-                ValueNumber float ->
-                    String.fromFloat float
 
         convert : Attributo AttributoType -> Maybe AttributoEditValue
         convert a =

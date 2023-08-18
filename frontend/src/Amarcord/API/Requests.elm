@@ -63,6 +63,7 @@ module Amarcord.API.Requests exposing
     , runEventDateFilter
     , runEventDateToString
     , runFilterToString
+    , sortAnalysisResultsExperimentType
     , specificRunEventDateFilter
     )
 
@@ -598,6 +599,11 @@ type alias AnalysisResultsExperimentType =
     , mergeResults : List MergeResult
     , numberOfIndexingResults : Int
     }
+
+
+sortAnalysisResultsExperimentType : AnalysisResultsExperimentType -> AnalysisResultsExperimentType -> Order
+sortAnalysisResultsExperimentType a b =
+    compare a.dataSet.id b.dataSet.id
 
 
 type alias AnalysisResultsRoot =

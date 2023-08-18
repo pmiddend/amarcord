@@ -11,6 +11,18 @@ a:hover {
     opacity: 0.7 !important;
 }
 
+.accordion-merge-parameters-header-button.collapsed, .accordion-merge-parameters-header-button:not(.collapsed) {
+    color: gray;
+    background-color: white;
+    padding-bottom: 0.2rem;
+    padding-top: 0.2rem;
+    font-size: 0.8rem;
+}
+
+.accordion-body {
+    font-size: 0.75rem
+}
+
 [data-tooltip]:before {
     /* needed - do not touch */
     content: attr(data-tooltip);

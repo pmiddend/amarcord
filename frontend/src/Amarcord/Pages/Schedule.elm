@@ -493,7 +493,11 @@ chemicalDropdown model mode =
                 ]
     in
     div [ class "dropdown" ]
-        [ button [ class "btn dropdown-toggle", attribute "data-bs-toggle" "dropdown" ]
+        [ button
+            [ class "btn dropdown-toggle"
+            , attribute "data-bs-toggle" "dropdown"
+            , attribute "data-bs-auto-close" "outside"
+            ]
             [ text "Choose chemical(s)" ]
         , ul [ class "dropdown-menu" ] <|
             List.map checkboxForOneChemical chemicals

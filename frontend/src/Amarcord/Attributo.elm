@@ -15,6 +15,7 @@ module Amarcord.Attributo exposing
     , attributoStopped
     , attributoTypeDecoder
     , attributoValueDecoder
+    , attributoValueToString
     , createAnnotatedAttributoMap
     , emptyAttributoMap
     , extractDateTime
@@ -47,6 +48,34 @@ type AttributoValue
     | ValueNumber Float
     | ValueBoolean Bool
     | ValueNone
+
+
+{-| This is used for the comma-separated "list of xy" input field
+-}
+attributoValueToString : AttributoValue -> String
+attributoValueToString x =
+    case x of
+        ValueNone ->
+            ""
+
+        ValueBoolean bool ->
+            if bool then
+                "true"
+
+            else
+                "false"
+
+        ValueInt int ->
+            String.fromInt int
+
+        ValueString string ->
+            string
+
+        ValueList attributoValues ->
+            String.join "," <| List.map attributoValueToString attributoValues
+
+        ValueNumber float ->
+            String.fromFloat float
 
 
 attributoValueDecoder : Decode.Decoder AttributoValue
