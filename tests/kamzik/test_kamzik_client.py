@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 import structlog.stdlib
 
@@ -5,11 +7,14 @@ from amarcord.amici.kamzik.kamzik_zmq_client import ingest_kamzik_metadata
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.attributi import ATTRIBUTO_STARTED
 from amarcord.db.attributi import attributo_type_to_schema
+from amarcord.db.attributo_name_and_role import AttributoNameAndRole
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
+from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.tables import create_tables_from_metadata
 from amarcord.json_schema import coparse_schema_type
 
@@ -32,6 +37,20 @@ async def test_process_kamzik_metadata(
     db = await _get_db()
 
     async with db.begin() as conn:
+        await db.create_experiment_type(
+            conn,
+            name="et",
+            experiment_attributi=[
+                AttributoNameAndRole(ATTRIBUTO_STARTED, ChemicalType.CRYSTAL)
+            ],
+        )
+        await db.update_configuration(
+            conn,
+            replace(
+                await db.retrieve_configuration(conn), current_experiment_type_id=1
+            ),
+        )
+
         input_type, input_value = input_type_and_value
 
         name = "aname"

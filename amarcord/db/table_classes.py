@@ -48,6 +48,7 @@ class DBChemical:
 class DBRun:
     id: int
     attributi: AttributiMap
+    experiment_type_id: int
     files: list[DBFile]
 
 

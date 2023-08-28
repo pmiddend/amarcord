@@ -162,6 +162,11 @@ async def ingest_kamzik_metadata(
         chemical_ids=await db.retrieve_chemical_ids(conn),
         raw_attributi=attributi_values,
     )
+    experiment_type_id = (
+        await db.retrieve_configuration(conn)
+    ).current_experiment_type_id
+    if experiment_type_id is None:
+        raise Exception("No experiment type set!")
     attributi_map: AttributiMap
     if existing_run is None:
         attributi_map = kamzik_attributi_map
@@ -178,6 +183,7 @@ async def ingest_kamzik_metadata(
             run_id,
             attributi,
             attributi_map,
+            experiment_type_id,
             keep_manual_attributes_from_previous_run=config.auto_pilot,
         )
         if config.use_online_crystfel:

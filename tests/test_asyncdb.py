@@ -32,6 +32,7 @@ from amarcord.db.user_configuration import UserConfiguration
 _EVENT_SOURCE: Final = "P11User"
 _TEST_DB_URL: Final = "sqlite+aiosqlite://"
 _TEST_ATTRIBUTO_VALUE: Final = 3
+_TEST_EXPERIMENT_TYPE_NAME = "name-based"
 _TEST_SECOND_ATTRIBUTO_VALUE: Final = 4
 _TEST_CHEMICAL_NAME: Final = "chemicalname"
 _TEST_CHEMICAL_RESPONSIBLE_PERSON: Final = "Rosalind Franklin"
@@ -158,6 +159,14 @@ async def test_create_run_attributo_then_change_to_chemical_attributo() -> None:
             AttributoTypeInt(),
         )
 
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
+
         # Add the attributo to a test chemical
         await db.create_run(
             conn,
@@ -168,6 +177,7 @@ async def test_create_run_attributo_then_change_to_chemical_attributo() -> None:
                 chemical_ids=[],
                 raw_attributi={_TEST_ATTRIBUTO_NAME: 3},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
         await db.create_run(
@@ -179,6 +189,7 @@ async def test_create_run_attributo_then_change_to_chemical_attributo() -> None:
                 chemical_ids=[],
                 raw_attributi={},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
 
@@ -562,6 +573,14 @@ async def test_create_and_retrieve_runs() -> None:
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
+
         await db.create_run(
             conn,
             run_id=_TEST_RUN_ID,
@@ -571,6 +590,7 @@ async def test_create_and_retrieve_runs() -> None:
                 chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
 
@@ -601,6 +621,13 @@ async def test_create_and_retrieve_run() -> None:
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
 
         await db.create_run(
             conn,
@@ -611,6 +638,7 @@ async def test_create_and_retrieve_run() -> None:
                 chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
 
@@ -662,6 +690,13 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
 
         await db.create_run(
             conn,
@@ -673,6 +708,7 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
                 # Only one of the two attributi here (the manual one)
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
+            experiment_type_id=experiment_type_id,
             # Flag doesn't matter if it's just one run
             keep_manual_attributes_from_previous_run=False,
         )
@@ -691,6 +727,7 @@ async def test_create_run_and_then_next_run_using_previous_attributi() -> None:
                 # The other attributo with a different value
                 raw_attributi={second_test_attribute: second_test_attribute_value},
             ),
+            experiment_type_id=experiment_type_id,
             # Keep previous (manual) attributi
             keep_manual_attributes_from_previous_run=True,
         )
@@ -725,6 +762,13 @@ async def test_create_attributo_and_run_then_change_attributo() -> None:
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
 
         await db.create_run(
             conn,
@@ -735,6 +779,7 @@ async def test_create_attributo_and_run_then_change_attributo() -> None:
                 chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
 
@@ -781,6 +826,13 @@ async def test_create_attributo_and_run_then_delete_attributo() -> None:
         )
 
         attributi = await db.retrieve_attributi(conn, associated_table=None)
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
 
         await db.create_run(
             conn,
@@ -791,6 +843,7 @@ async def test_create_attributo_and_run_then_delete_attributo() -> None:
                 chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: _TEST_ATTRIBUTO_VALUE},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
 
@@ -856,6 +909,7 @@ async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemica
                 chemical_ids=await db.retrieve_chemical_ids(conn),
                 raw_attributi={_TEST_ATTRIBUTO_NAME: chemical_id},
             ),
+            experiment_type_id=et_id,
             keep_manual_attributes_from_previous_run=False,
         )
 
@@ -1206,6 +1260,13 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
         attributi = await db.retrieve_attributi(
             conn, associated_table=AssociatedTable.RUN
         )
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
 
         run_data: dict[int, JsonAttributiMap] = {
             _TEST_RUN_ID: {
@@ -1228,6 +1289,7 @@ async def test_create_and_retrieve_attributo_two_runs() -> None:
                 attributi_map=AttributiMap.from_types_and_json(
                     attributi, chemical_ids=[], raw_attributi=data
                 ),
+                experiment_type_id=experiment_type_id,
                 keep_manual_attributes_from_previous_run=False,
             )
 
@@ -1303,6 +1365,13 @@ async def test_create_workbook() -> None:
                 raw_attributi={_TEST_ATTRIBUTO_NAME: "foo"},
             ),
         )
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
 
         await db.create_run(
             conn,
@@ -1313,6 +1382,7 @@ async def test_create_workbook() -> None:
                 chemical_ids=[],
                 raw_attributi={_TEST_SECOND_ATTRIBUTO_NAME: "foo"},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
 
@@ -1370,6 +1440,21 @@ async def test_create_indexing_result() -> None:
     async with db.begin() as conn:
         attributi = await db.retrieve_attributi(conn, associated_table=None)
 
+        await db.create_attributo(
+            conn,
+            _TEST_ATTRIBUTO_NAME,
+            _TEST_ATTRIBUTO_DESCRIPTION,
+            _TEST_ATTRIBUTO_GROUP,
+            AssociatedTable.CHEMICAL,
+            AttributoTypeString(),
+        )
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name=_TEST_EXPERIMENT_TYPE_NAME,
+            experiment_attributi=[
+                AttributoNameAndRole(_TEST_ATTRIBUTO_NAME, ChemicalType.CRYSTAL)
+            ],
+        )
         await db.create_run(
             conn,
             run_id=1,
@@ -1377,6 +1462,7 @@ async def test_create_indexing_result() -> None:
             attributi_map=AttributiMap.from_types_and_json(
                 attributi, chemical_ids=[], raw_attributi={}
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
 

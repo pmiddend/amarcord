@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import io
 import itertools
+from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -646,6 +647,7 @@ class AsyncDB:
         select_stmt = sa.select(
             [
                 self.tables.run.c.id,
+                self.tables.run.c.experiment_type_id,
                 self.tables.run.c.attributi,
             ]
         ).order_by(self.tables.run.c.id.desc())
@@ -657,6 +659,7 @@ class AsyncDB:
         return [
             DBRun(
                 id=a["id"],
+                experiment_type_id=a["experiment_type_id"],
                 attributi=AttributiMap.from_types_and_json(
                     types=attributi,
                     chemical_ids=chemical_ids,
@@ -1195,6 +1198,7 @@ class AsyncDB:
         run_id: int,
         attributi: list[DBAttributo],
         attributi_map: AttributiMap,
+        experiment_type_id: int,
         keep_manual_attributes_from_previous_run: bool,
     ) -> None:
         final_attributi_map: AttributiMap
@@ -1213,6 +1217,7 @@ class AsyncDB:
         await conn.execute(
             sa.insert(self.tables.run).values(
                 id=run_id,
+                experiment_type_id=experiment_type_id,
                 attributi=final_attributi_map.to_json(),
                 modified=datetime.datetime.utcnow(),
             )
@@ -1265,7 +1270,11 @@ class AsyncDB:
     ) -> DBRun | None:
         rc = self.tables.run.c
         r = (
-            await conn.execute(sa.select([rc.id, rc.attributi]).where(rc.id == id_))
+            await conn.execute(
+                sa.select(rc.id, rc.experiment_type_id, rc.attributi).where(
+                    rc.id == id_
+                )
+            )
         ).fetchone()
         files = await self._retrieve_files(
             conn,
@@ -1276,10 +1285,20 @@ class AsyncDB:
             return None
         return DBRun(
             id=id_,
+            experiment_type_id=r["experiment_type_id"],
             attributi=AttributiMap.from_types_and_json(
                 attributi, await self.retrieve_chemical_ids(conn), r["attributi"]
             ),
             files=files.get(id_, []),
+        )
+
+    async def update_run_experiment_type(
+        self, conn: Connection, id_: int, experiment_type_id: int
+    ) -> None:
+        await conn.execute(
+            sa.update(self.tables.run)
+            .values(experiment_type_id=experiment_type_id)
+            .where(self.tables.run.c.id == id_)
         )
 
     async def update_run_attributi(
@@ -2226,7 +2245,9 @@ async def create_workbook(
         cell = attributi_sheet.cell(  # pyright: ignore
             row=1, column=attributo_column, value=attributo_header_name
         )
-        cell.font = cell.font.copy(bold=True)  # pyright: ignore
+        new_font = copy(cell.font)  # pyright: ignore
+        new_font.bold = True
+        cell.font = new_font  # pyright: ignore
 
     for attributo_row_idx, attributo in enumerate(attributi, start=2):
         attributi_sheet.cell(  # pyright: ignore
@@ -2261,7 +2282,9 @@ async def create_workbook(
         cell = chemicals_sheet.cell(  # pyright: ignore
             row=1, column=chemical_column, value=str(chemical_header_name)
         )
-        cell.font = cell.font.copy(bold=True)  # pyright: ignore
+        new_font = copy(cell.font)  # pyright: ignore
+        new_font.bold = True
+        cell.font = new_font  # pyright: ignore
 
     files_to_include: set[int] = set()
     chemicals = await db.retrieve_chemicals(conn, attributi)
@@ -2300,7 +2323,9 @@ async def create_workbook(
         cell = runs_sheet.cell(
             row=1, column=run_column, value=str(run_header_name)
         )  # pyright: ignore
-        cell.font = cell.font.copy(bold=True)  # pyright: ignore
+        new_font = copy(cell.font)  # pyright: ignore
+        new_font.bold = True
+        cell.font = new_font  # pyright: ignore
 
     chemical_id_to_name: dict[int, str] = {s.id: s.name for s in chemicals}
     events = await db.retrieve_events(conn)

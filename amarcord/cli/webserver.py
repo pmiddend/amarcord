@@ -705,7 +705,8 @@ async def start_merge_job_for_data_set(data_set_id: int) -> JSONDict:
                 conn,
                 attributi,
             )
-            if run_matches_dataset(run.attributi, data_set.attributi)
+            if run.experiment_type_id == data_set.experiment_type_id
+            and run_matches_dataset(run.attributi, data_set.attributi)
         ]
         if not runs:
             raise CustomWebException(
@@ -857,6 +858,13 @@ async def start_run(run_id: int) -> JSONDict:
     async with db.instance.begin() as conn:
         attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
 
+        experiment_type_id = (
+            await db.instance.retrieve_configuration(conn)
+        ).current_experiment_type_id
+        if experiment_type_id is None:
+            raise CustomWebException(
+                code=500, title="No experiment type set!", description=""
+            )
         await db.instance.create_run(
             conn,
             run_id,
@@ -866,6 +874,7 @@ async def start_run(run_id: int) -> JSONDict:
                 chemical_ids=[],
                 raw_attributi={ATTRIBUTO_STARTED: datetime.datetime.utcnow()},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=True,
         )
         return {}
@@ -914,11 +923,19 @@ async def create_or_update_run(run_id: int) -> JSONDict:
         run_in_db = await db.instance.retrieve_run(conn, run_id, attributi)
         chemicals = await db.instance.retrieve_chemicals(conn, attributi)
         chemical_ids = [c.id for c in chemicals]
+        experiment_type_id = (
+            await db.instance.retrieve_configuration(conn)
+        ).current_experiment_type_id
+        if experiment_type_id is None:
+            raise CustomWebException(
+                code=500, title="No experiment type set!", description=""
+            )
         current_run = (
             run_in_db
             if run_in_db is not None
             else DBRun(
                 id=run_id,
+                experiment_type_id=experiment_type_id,
                 attributi=AttributiMap.from_types_and_json(attributi, chemical_ids, {}),
                 files=[],
             )
@@ -946,6 +963,7 @@ async def create_or_update_run(run_id: int) -> JSONDict:
                 run_id=run_id,
                 attributi=attributi,
                 attributi_map=current_run.attributi,
+                experiment_type_id=experiment_type_id,
                 keep_manual_attributes_from_previous_run=False,
             )
 
@@ -1046,6 +1064,7 @@ async def update_run() -> JSONDict:
 
     async with db.instance.begin() as conn:
         run_id = r.retrieve_safe_int("id")
+        experiment_type_id = r.retrieve_safe_int("experiment-type-id")
         attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
         current_run = await db.instance.retrieve_run(conn, run_id, attributi)
         if current_run is None:
@@ -1059,6 +1078,7 @@ async def update_run() -> JSONDict:
         current_run.attributi.extend_with_attributi_map(
             AttributiMap.from_types_and_json(attributi, chemical_ids, raw_attributi)
         )
+        await db.instance.update_run_experiment_type(conn, run_id, experiment_type_id)
         await db.instance.update_run_attributi(
             conn,
             id_=run_id,
@@ -1203,7 +1223,8 @@ async def read_runs() -> JSONDict:
                 [
                     run_foms.get(r.id, empty_indexing_fom)
                     for r in runs
-                    if run_matches_dataset(r.attributi, ds.attributi)
+                    if r.experiment_type_id == ds.experiment_type_id
+                    and run_matches_dataset(r.attributi, ds.attributi)
                 ]
             )
             for ds in data_sets
@@ -1221,10 +1242,12 @@ async def read_runs() -> JSONDict:
                     "attributi": r.attributi.to_json(),
                     "files": [_encode_file(f) for f in r.files],
                     "summary": _encode_summary(run_foms.get(r.id, empty_indexing_fom)),
+                    "experiment-type-id": r.experiment_type_id,
                     "data-sets": [
                         ds.id
                         for ds in data_sets
-                        if run_matches_dataset(r.attributi, ds.attributi)
+                        if r.experiment_type_id == ds.experiment_type_id
+                        and run_matches_dataset(r.attributi, ds.attributi)
                     ],
                     "running-indexing-jobs": [
                         ir.id
@@ -1485,16 +1508,22 @@ async def read_experiment_types() -> JSONDict:
     async with db.instance.read_only_connection() as conn:
         if _has_artificial_delay():
             await asyncio.sleep(3)
+        attributi = await db.instance.retrieve_attributi(
+            conn, associated_table=AssociatedTable.RUN
+        )
+        runs = await db.instance.retrieve_runs(conn, attributi)
+        experiment_type_id_to_runs: dict[int, list[DBRun]] = group_by(
+            runs, lambda r: r.experiment_type_id
+        )
         return {
             "experiment-types": [
                 _encode_experiment_type(a)
                 for a in await db.instance.retrieve_experiment_types(conn)
             ],
-            "attributi": [
-                _encode_attributo(a)
-                for a in await db.instance.retrieve_attributi(
-                    conn, associated_table=AssociatedTable.RUN
-                )
+            "attributi": [_encode_attributo(a) for a in attributi],
+            "experiment-type-id-to-run": [
+                {"id": et_id, "runs": format_run_id_intervals(r.id for r in runs)}
+                for et_id, runs in experiment_type_id_to_runs.items()
             ],
         }
 
@@ -2052,7 +2081,8 @@ async def read_analysis_results() -> JSONDict:
             ds.id: [
                 r
                 for r in runs.values()
-                if run_matches_dataset(r.attributi, ds.attributi)
+                if r.experiment_type_id == ds.experiment_type_id
+                and run_matches_dataset(r.attributi, ds.attributi)
             ]
             for ds in data_sets
         }
@@ -2107,7 +2137,8 @@ async def read_analysis_results() -> JSONDict:
                         [
                             run_foms.get(r.id, empty_indexing_fom)
                             for r in runs.values()
-                            if run_matches_dataset(r.attributi, ds.attributi)
+                            if r.experiment_type_id == ds.experiment_type_id
+                            and run_matches_dataset(r.attributi, ds.attributi)
                         ]
                     ),
                 ),

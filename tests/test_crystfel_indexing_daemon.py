@@ -20,6 +20,7 @@ from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_name_and_role import AttributoNameAndRole
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.chemical_type import ChemicalType
@@ -130,6 +131,13 @@ async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -
             AssociatedTable.RUN,
             AttributoTypeChemical(),
         )
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name="chemical-based",
+            experiment_attributi=[
+                AttributoNameAndRole(ATTRIBUTO_PROTEIN, ChemicalType.CRYSTAL)
+            ],
+        )
         await db.create_attributo(
             conn,
             "cell description",
@@ -159,6 +167,7 @@ async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -
             attributi_map=AttributiMap.from_types_and_raw(
                 attributi, [chemical_id], {ATTRIBUTO_PROTEIN: chemical_id}
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=True,
         )
         return chemical_id

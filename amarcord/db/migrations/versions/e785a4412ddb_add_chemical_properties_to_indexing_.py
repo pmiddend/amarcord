@@ -63,7 +63,7 @@ def upgrade() -> None:
 
     conn = op.get_bind()
     for row in conn.execute(
-        select([_indexing_result.c.id, _run.c.attributi]).join(
+        select(_indexing_result.c.id, _run.c.attributi).join(
             _run, _run.c.id == _indexing_result.c.run_id
         )
     ).fetchall():
@@ -80,7 +80,7 @@ def upgrade() -> None:
         ), f"protein ID is not an integer but {protein_id}"
 
         protein = conn.execute(
-            select([_chemical.c.attributi]).where(_chemical.c.id == protein_id)
+            select(_chemical.c.attributi).where(_chemical.c.id == protein_id)
         ).one_or_none()
 
         if protein is None:

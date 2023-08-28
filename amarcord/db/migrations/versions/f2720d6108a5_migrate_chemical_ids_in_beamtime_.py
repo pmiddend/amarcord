@@ -48,10 +48,8 @@ def upgrade() -> None:
     connection = op.get_bind()
     results = connection.execute(
         sa.select(
-            [
-                bs.c.id,
-                bs.c.sample_id,
-            ]
+            bs.c.id,
+            bs.c.sample_id,
         ).filter(bs.c.sample_id.isnot(None))
     ).fetchall()
     for schedule_id, chemical_id in results:

@@ -54,7 +54,7 @@ def upgrade() -> None:
     existing_experiment_type_names: set[str] = set(
         row[0]
         for row in conn.execute(
-            select([_experiment_has_attributo_old.c.experiment_type])
+            select(_experiment_has_attributo_old.c.experiment_type)
         ).fetchall()
     )
     for experiment_type_name in existing_experiment_type_names:

@@ -89,7 +89,7 @@ def upgrade() -> None:
     # This, we need to change to "chemical-id" as well.
     conn = op.get_bind()
     for row in conn.execute(
-        select([_attributo.c.name, _attributo.c.json_schema])
+        select(_attributo.c.name, _attributo.c.json_schema)
     ).fetchall():
         json_schema = row[1]
         if json_schema["type"] == "integer":

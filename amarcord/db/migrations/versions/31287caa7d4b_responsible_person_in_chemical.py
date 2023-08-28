@@ -47,14 +47,14 @@ def upgrade() -> None:
     conn = op.get_bind()
     if (
         conn.execute(
-            sa.select([_attributo.c.name]).where(
+            sa.select(_attributo.c.name).where(
                 _attributo.c.name == _ATTRIBUTO_RESPONSIBLE_PERSON
             )
         ).fetchone()
         is not None
     ):
         for row in conn.execute(
-            sa.select([_chemical.c.id, _chemical.c.name, _chemical.c.attributi])
+            sa.select(_chemical.c.id, _chemical.c.name, _chemical.c.attributi)
         ).fetchall():
             responsible_person_attributo = row[2].get(_ATTRIBUTO_RESPONSIBLE_PERSON)
             if responsible_person_attributo is not None:

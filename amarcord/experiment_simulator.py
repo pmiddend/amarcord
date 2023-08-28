@@ -2,7 +2,9 @@ import asyncio
 import datetime
 import logging
 import random
+from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import randomname
 import structlog
@@ -220,6 +222,11 @@ async def experiment_simulator_initialize_db(db: AsyncDB) -> None:
             ],
         )
 
+        config = await db.retrieve_configuration(conn)
+        await db.update_configuration(
+            conn, replace(config, current_experiment_type_id=chemical_based_id)
+        )
+
         for _ in range(random.randrange(3, 10)):
             chemical_name = randomname.generate(
                 "a/materials", ("n/plants", "n/food"), sep=" "
@@ -270,7 +277,6 @@ async def _start_run(
     previous_chemical: int | None,
 ) -> None:
     async with db.begin() as conn:
-
         chemical = (
             random.choice(chemical_ids)
             if previous_chemical is None or random.uniform(0, 100) > 80
@@ -296,6 +302,9 @@ async def _start_run(
                     else "",
                     ATTRIBUTO_CHEMICAL: chemical,
                 },
+            ),
+            experiment_type_id=cast(
+                int, (await db.retrieve_configuration(conn)).current_experiment_type_id
             ),
             keep_manual_attributes_from_previous_run=(
                 await db.retrieve_configuration(conn)

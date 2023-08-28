@@ -1,5 +1,7 @@
 import datetime
 
+from quart.typing import TestClientProtocol
+
 from amarcord.cli.webserver import app
 from amarcord.cli.webserver import db
 from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
@@ -168,6 +170,19 @@ async def test_data_sets() -> None:
     assert "error" in (await result.json)
 
 
+async def _create_and_set_dummy_experiment_type(client: TestClientProtocol) -> None:
+    await client.post(
+        "/api/experiment-types",
+        json={
+            "name": "experiment_type",
+            "attributi": [
+                {"name": ATTRIBUTO_STARTED, "role": ChemicalType.CRYSTAL.value},
+            ],
+        },
+    )
+    await client.patch("/api/user-config/current-experiment-type-id/1")
+
+
 async def test_create_or_update_runs_create() -> None:
     app.config.update(
         {
@@ -178,6 +193,8 @@ async def test_create_or_update_runs_create() -> None:
     )
     await db.initialize_db()
     client = app.test_client()
+
+    await _create_and_set_dummy_experiment_type(client)
 
     await client.post(
         "/api/runs/1",
@@ -226,6 +243,7 @@ async def test_start_and_stop_runs() -> None:
     )
     await db.initialize_db()
     client = app.test_client()
+    await _create_and_set_dummy_experiment_type(client)
 
     # Start run 1
     await client.get("/api/runs/1/start")
@@ -260,6 +278,7 @@ async def test_filter_runs_by_started_date() -> None:
     )
     await db.initialize_db()
     client = app.test_client()
+    await _create_and_set_dummy_experiment_type(client)
 
     # Start run 1
     await client.get("/api/runs/1/start")

@@ -2,12 +2,12 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.AttributoWithRole exposing (AttributoWithRole)
 import Amarcord.API.DataSet exposing (DataSet, emptySummary)
-import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
-import Amarcord.API.Requests exposing (Event, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentType, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
+import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId, experimentTypeIdDict)
+import Amarcord.API.Requests exposing (Event, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentTypeForRun, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoType, attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm)
+import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, ChemicalType(..), chemicalIdDict)
 import Amarcord.ColumnChooser as ColumnChooser
@@ -15,7 +15,7 @@ import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiG
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm
 import Amarcord.Gauge exposing (gauge, thisFillColor, totalFillColor)
-import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_)
+import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
@@ -44,6 +44,7 @@ type Msg
     | EventDeleteFinished (Result RequestError ())
     | EventFormMsg EventForm.Msg
     | RunEditInfoValueUpdate AttributoNameWithValueUpdate
+    | RunEditInfoExperimentTypeIdChanged Int
     | RunEditSubmit
     | RunEditFinished (Result RequestError ())
     | RunInitiateEdit Run
@@ -66,6 +67,7 @@ type Msg
 
 type alias RunEditInfo =
     { runId : Int
+    , experimentTypeId : Int
     , editableAttributi : EditableAttributiAndOriginal
 
     -- This is to handle a tricky case: usually we want to stay with the latest run so we can quickly change settings.
@@ -213,16 +215,29 @@ attributiColumnHeaders =
     List.map (th_ << makeAttributoHeader)
 
 
-attributiColumns : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> List (Html Msg)
-attributiColumns zone chemicalIds attributi run =
-    List.map (viewAttributoCell { shortDateTime = True, colorize = True } zone chemicalIds run.attributi) <| List.filter (\a -> a.associatedTable == AssociatedTable.Run) attributi
+attributiColumns : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> Run -> List (Html Msg)
+attributiColumns zone chemicalIds experimentTypeIds attributi run =
+    let
+        viewCell a =
+            if a.associatedTable == AssociatedTable.Run then
+                Just <|
+                    if a.name == virtualExperimentTypeAttributoName then
+                        viewRunExperimentTypeCell (Maybe.withDefault "unknown experiment type" <| Dict.get run.experimentTypeId experimentTypeIds)
+
+                    else
+                        viewAttributoCell { shortDateTime = True, colorize = True } zone chemicalIds run.attributi a
+
+            else
+                Nothing
+    in
+    List.filterMap viewCell attributi
 
 
-viewRunRow : Zone -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
-viewRunRow zone chemicalIds attributi r =
+viewRunRow : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
+viewRunRow zone chemicalIds experimentTypeIds attributi r =
     tr [ style "white-space" "nowrap" ] <|
         td_ [ text (fromInt r.id) ]
-            :: attributiColumns zone chemicalIds attributi r
+            :: attributiColumns zone chemicalIds experimentTypeIds attributi r
             ++ [ td_
                     [ button
                         [ class "btn btn-link amarcord-small-link-button"
@@ -264,8 +279,8 @@ viewEventRow zone attributoColumnCount e =
         ]
 
 
-viewRunAndEventRows : Zone -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
-viewRunAndEventRows zone chemicalIds attributi runs events =
+viewRunAndEventRows : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
+viewRunAndEventRows zone chemicalIds experimentTypeIds attributi runs events =
     case ( head runs, head events ) of
         -- No elements, neither runs nor events, left anymore
         ( Nothing, Nothing ) ->
@@ -273,7 +288,7 @@ viewRunAndEventRows zone chemicalIds attributi runs events =
 
         -- Only runs left
         ( Just _, Nothing ) ->
-            List.map (viewRunRow zone chemicalIds attributi) runs
+            List.map (viewRunRow zone chemicalIds experimentTypeIds attributi) runs
 
         -- Only events left
         ( Nothing, Just _ ) ->
@@ -284,22 +299,22 @@ viewRunAndEventRows zone chemicalIds attributi runs events =
             case Maybe.andThen extractDateTime <| retrieveAttributoValue attributoStarted run.attributi of
                 Just runStarted ->
                     if posixBefore event.created runStarted then
-                        viewRunRow zone chemicalIds attributi run :: viewRunAndEventRows zone chemicalIds attributi (List.drop 1 runs) events
+                        viewRunRow zone chemicalIds experimentTypeIds attributi run :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi (List.drop 1 runs) events
 
                     else
-                        viewEventRow zone (List.length attributi) event :: viewRunAndEventRows zone chemicalIds attributi runs (List.drop 1 events)
+                        viewEventRow zone (List.length attributi) event :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi runs (List.drop 1 events)
 
                 -- We don't have a start time...take the run
                 Nothing ->
-                    viewRunRow zone chemicalIds attributi run :: viewRunAndEventRows zone chemicalIds attributi (List.drop 1 runs) events
+                    viewRunRow zone chemicalIds experimentTypeIds attributi run :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi (List.drop 1 runs) events
 
 
 viewRunsTable : Zone -> List (Attributo AttributoType) -> RunsResponseContent -> Html Msg
-viewRunsTable zone chosenColumns { runs, events, chemicals } =
+viewRunsTable zone chosenColumns { runs, events, chemicals, experimentTypes } =
     let
         runRows : List (Html Msg)
         runRows =
-            viewRunAndEventRows zone (chemicalIdDict chemicals) chosenColumns runs events
+            viewRunAndEventRows zone (chemicalIdDict chemicals) (experimentTypeIdDict experimentTypes) chosenColumns runs events
     in
     table [ class "table amarcord-table-fix-head table-bordered table-hover" ]
         [ thead_
@@ -587,13 +602,21 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
             header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation
 
 
-viewRunAttributiForm : Maybe (List AttributoWithRole) -> Maybe Run -> List String -> RemoteData RequestError () -> List (Chemical Int a b) -> Maybe RunEditInfo -> List (Html Msg)
-viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList runEditRequest chemicals rei =
+viewRunAttributiForm :
+    Maybe (List AttributoWithRole)
+    -> Maybe Run
+    -> List String
+    -> RemoteData RequestError ()
+    -> List (Chemical Int a b)
+    -> Maybe RunEditInfo
+    -> List ExperimentType
+    -> List (Html Msg)
+viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList runEditRequest chemicals rei experimentTypes =
     case rei of
         Nothing ->
             []
 
-        Just { runId, editableAttributi } ->
+        Just { runId, experimentTypeId, editableAttributi } ->
             let
                 matchesCurrentExperiment a x =
                     case x of
@@ -654,7 +677,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                 buttons =
                     [ button
                         [ class "btn btn-secondary me-2"
-                        , disabled (isLoading runEditRequest || not (unsavedAttributoChanges editableAttributi.editableAttributi))
+                        , disabled (isLoading runEditRequest)
                         , type_ "button"
                         , onClick RunEditSubmit
                         ]
@@ -678,6 +701,14 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
 
                         AttributoFormSubmit ->
                             RunEditSubmit
+
+                viewExperimentTypeOption : ExperimentType -> Html msg
+                viewExperimentTypeOption experimentType =
+                    option
+                        [ selected (experimentType.id == experimentTypeId)
+                        , value (String.fromInt experimentType.id)
+                        ]
+                        [ text experimentType.name ]
             in
             [ h2_
                 [ text <|
@@ -692,8 +723,17 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
 
               else
                 text ""
-            , form [ class "mb-3" ]
-                (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
+            , form [ class "mb-3" ] <|
+                div [ class "form-floating" ]
+                    [ select
+                        [ class "form-select"
+                        , Html.Attributes.id "current-experiment-type-for-specific-run"
+                        , onIntInput RunEditInfoExperimentTypeIdChanged
+                        ]
+                        (List.map viewExperimentTypeOption experimentTypes)
+                    , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
+                    ]
+                    :: (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
             ]
 
 
@@ -716,6 +756,7 @@ viewInner model rrc =
                             model.runEditRequest
                             rrc.chemicals
                             model.runEditInfo
+                            rrc.experimentTypes
                         )
                     ]
                 ]
@@ -852,7 +893,12 @@ updateRunEditInfoFromContent zone runEditInfoRaw { runs, attributi } =
 
                 -- We have no edit info, and now we have a run
                 Just latestRun ->
-                    Just { runId = latestRun.id, editableAttributi = createEditableAttributi zone attributi latestRun.attributi, initiatedManually = False }
+                    Just
+                        { runId = latestRun.id
+                        , experimentTypeId = latestRun.experimentTypeId
+                        , editableAttributi = createEditableAttributi zone attributi latestRun.attributi
+                        , initiatedManually = False
+                        }
 
         -- We have previous edit info
         Just runEditInfo ->
@@ -869,7 +915,12 @@ updateRunEditInfoFromContent zone runEditInfoRaw { runs, attributi } =
                         Nothing
 
                     Just latestRun ->
-                        Just { runId = latestRun.id, editableAttributi = createEditableAttributi zone attributi latestRun.attributi, initiatedManually = False }
+                        Just
+                            { runId = latestRun.id
+                            , experimentTypeId = latestRun.experimentTypeId
+                            , editableAttributi = createEditableAttributi zone attributi latestRun.attributi
+                            , initiatedManually = False
+                            }
 
 
 updateRunEditInfo : Zone -> Maybe RunEditInfo -> RunsResponse -> Maybe RunEditInfo
@@ -882,11 +933,26 @@ updateRunEditInfo zone runEditInfoRaw responseRaw =
             runEditInfoRaw
 
 
+virtualExperimentTypeAttributoName : String
+virtualExperimentTypeAttributoName =
+    "experiment_type"
+
+
 updateColumnChooser : Maybe LocalStorage -> ColumnChooser.Model -> RemoteData RequestError RunsResponseContent -> RunsResponse -> ColumnChooser.Model
 updateColumnChooser localStorage ccm currentRuns runsResponse =
     case ( currentRuns, runsResponse ) of
         ( _, Ok currentResponseUnpacked ) ->
-            ColumnChooser.updateAttributi ccm currentResponseUnpacked.attributi
+            -- Inject "virtual" attributo experiment type here
+            let
+                experimentTypeAttributo =
+                    { name = virtualExperimentTypeAttributoName
+                    , description = "Experiment Type"
+                    , group = "manual"
+                    , associatedTable = AssociatedTable.Run
+                    , type_ = String
+                    }
+            in
+            ColumnChooser.updateAttributi ccm (currentResponseUnpacked.attributi ++ [ experimentTypeAttributo ])
 
         ( _, Err _ ) ->
             ColumnChooser.init localStorage []
@@ -1044,6 +1110,19 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        RunEditInfoExperimentTypeIdChanged v ->
+            case model.runEditInfo of
+                -- This is the unlikely case that we have an "attributo was edited" message, but chemical is edited
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just oldRunEditInfo ->
+                    let
+                        newRunEditInfo =
+                            { oldRunEditInfo | experimentTypeId = v }
+                    in
+                    ( { model | runEditInfo = Just newRunEditInfo }, Cmd.none )
+
         RunEditInfoValueUpdate v ->
             case model.runEditInfo of
                 -- This is the unlikely case that we have an "attributo was edited" message, but chemical is edited
@@ -1074,6 +1153,7 @@ update msg model =
                             let
                                 run =
                                     { id = runEditInfo.runId
+                                    , experimentTypeId = runEditInfo.experimentTypeId
                                     , attributi = editedAttributi
                                     , summary = emptySummary
                                     , files = []
@@ -1095,6 +1175,7 @@ update msg model =
                                 resetEditedFlags : RunEditInfo -> RunEditInfo
                                 resetEditedFlags rei =
                                     { runId = rei.runId
+                                    , experimentTypeId = rei.experimentTypeId
                                     , editableAttributi =
                                         { originalAttributi = rei.editableAttributi.originalAttributi
                                         , editableAttributi = List.map resetEditableAttributo rei.editableAttributi.editableAttributi
@@ -1121,9 +1202,11 @@ update msg model =
                         | runEditInfo =
                             Just
                                 { runId = run.id
+                                , experimentTypeId = run.experimentTypeId
                                 , editableAttributi = createEditableAttributi model.myTimeZone rrc.attributi run.attributi
                                 , initiatedManually = True
                                 }
+                        , runEditRequest = NotAsked
                       }
                     , scrollToTop (always Nop)
                     )
@@ -1185,7 +1268,7 @@ update msg model =
 
                 Just ei ->
                     ( { model | changeExperimentTypeRequest = Loading }
-                    , httpChangeCurrentExperimentType (ChangeCurrentExperimentTypeFinished (Maybe.map .id model.selectedExperimentType))
+                    , httpChangeCurrentExperimentTypeForRun (ChangeCurrentExperimentTypeFinished (Maybe.map .id model.selectedExperimentType))
                         (Maybe.map .id model.selectedExperimentType)
                         ei.runId
                     )

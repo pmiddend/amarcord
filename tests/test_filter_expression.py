@@ -156,6 +156,7 @@ def test_compile_run_filter(
         run=DBRun(
             run_id,
             attributi_map,
+            0,
             files=[],
         ),
         chemical_names={"lyso": 1},

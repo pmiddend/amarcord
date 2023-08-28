@@ -432,12 +432,21 @@ def _table_indexing_result(
     )
 
 
-def _table_run(metadata: sa.MetaData) -> sa.Table:
+def _table_run(metadata: sa.MetaData, experiment_type: sa.Table) -> sa.Table:
     return sa.Table(
         "Run",
         metadata,
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("modified", sa.DateTime, nullable=False),
+        sa.Column(
+            "experiment_type_id",
+            sa.Integer,
+            ForeignKey(
+                _fk_identifier(experiment_type.c.id),
+                name="run_has_experiment_type_fk",
+            ),
+            nullable=False,
+        ),
         sa.Column("attributi", sa.JSON, nullable=False),
     )
 
@@ -505,10 +514,10 @@ class DBTables:
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
     chemical = _table_chemical(metadata)
     beamtime_schedule = _table_beamtime_schedule(metadata)
-    run = _table_run(metadata)
+    experiment_type = _table_experiment_type(metadata)
+    run = _table_run(metadata, experiment_type)
     file = _table_file(metadata)
     table_attributo = _table_attributo(metadata)
-    experiment_type = _table_experiment_type(metadata)
     data_set = _table_data_set(metadata, experiment_type)
     event_log = _table_event_log(metadata)
     indexing_result = _table_indexing_result(metadata, run, chemical)

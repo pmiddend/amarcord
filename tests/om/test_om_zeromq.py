@@ -8,6 +8,7 @@ from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_name_and_role import AttributoNameAndRole
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.chemical_type import ChemicalType
@@ -74,6 +75,13 @@ async def test_process_data_latest_run() -> None:
             associated_table=AssociatedTable.CHEMICAL,
             type_=AttributoTypeString(),
         )
+        experiment_type_id = await db.create_experiment_type(
+            conn,
+            name="protein-based",
+            experiment_attributi=[
+                AttributoNameAndRole(ATTRIBUTO_PROTEIN, ChemicalType.CRYSTAL)
+            ],
+        )
         attributi = await db.retrieve_attributi(conn, associated_table=None)
         chemical_id = await db.create_chemical(
             conn=conn,
@@ -100,6 +108,7 @@ async def test_process_data_latest_run() -> None:
                 chemical_ids=[chemical_id],
                 raw_attributi={ATTRIBUTO_PROTEIN: chemical_id},
             ),
+            experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=False,
         )
 

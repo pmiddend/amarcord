@@ -6,6 +6,7 @@ module Amarcord.API.Requests exposing
     , ConversionFlags
     , DataSetResult
     , Event
+    , ExperimentTypeWithRuns
     , ExperimentTypesResponse
     , IncludeLiveStream(..)
     , MergeFom
@@ -27,7 +28,7 @@ module Amarcord.API.Requests exposing
     , StandardUnitCheckResult(..)
     , emptyRunEventDateFilter
     , emptyRunFilter
-    , httpChangeCurrentExperimentType
+    , httpChangeCurrentExperimentTypeForRun
     , httpCheckStandardUnit
     , httpCreateAttributo
     , httpCreateChemical
@@ -59,6 +60,7 @@ module Amarcord.API.Requests exposing
     , httpUpdateRunsBulk
     , httpUpdateSchedule
     , httpUserConfigurationSetAutoPilot
+    , httpUserConfigurationSetInt
     , httpUserConfigurationSetOnlineCrystFEL
     , runEventDateFilter
     , runEventDateToString
@@ -134,8 +136,13 @@ httpDeleteExperimentType f experimentTypeId =
         }
 
 
+type alias ExperimentTypeWithRuns =
+    { experimentTypeId : Int, runs : List String }
+
+
 type alias ExperimentTypesResponse =
     { experimentTypes : List ExperimentType
+    , experimentTypeIdsToRuns : List ExperimentTypeWithRuns
     , attributi : List (Attributo AttributoType)
     }
 
@@ -147,9 +154,16 @@ httpGetExperimentTypes f =
         , expect =
             Http.expectJson (f << httpResultToRequestError)
                 (valueOrError <|
-                    Decode.map2
+                    Decode.map3
                         ExperimentTypesResponse
                         (Decode.field "experiment-types" <| Decode.list experimentTypeDecoder)
+                        (Decode.field "experiment-type-id-to-run" <|
+                            Decode.list
+                                (Decode.map2 ExperimentTypeWithRuns
+                                    (Decode.field "id" Decode.int)
+                                    (Decode.field "runs" (Decode.list Decode.string))
+                                )
+                        )
                         (Decode.field "attributi" (Decode.list (attributoDecoder attributoTypeDecoder)))
                 )
         }
@@ -267,8 +281,8 @@ httpCreateDataSetFromRun f experimentTypeId runId =
         }
 
 
-httpChangeCurrentExperimentType : (Result RequestError () -> msg) -> Maybe ExperimentTypeId -> RunId -> Cmd msg
-httpChangeCurrentExperimentType f experimentTypeId runId =
+httpChangeCurrentExperimentTypeForRun : (Result RequestError () -> msg) -> Maybe ExperimentTypeId -> RunId -> Cmd msg
+httpChangeCurrentExperimentTypeForRun f experimentTypeId runId =
     Http.post
         { url = "api/experiment-types/change-for-run"
         , expect =
@@ -694,6 +708,7 @@ httpGetDataSets f =
 type alias Run =
     { id : Int
     , attributi : AttributoMap AttributoValue
+    , experimentTypeId : Int
     , summary : DataSetSummary
     , files : List File
     , dataSets : List Int
@@ -722,6 +737,20 @@ type alias RunsResponseContent =
     , userConfig : UserConfig
     , jetStreamFileId : Maybe Int
     }
+
+
+httpUserConfigurationSetInt : String -> (Result RequestError Int -> msg) -> Int -> Cmd msg
+httpUserConfigurationSetInt description f newValue =
+    httpPatch
+        { url =
+            "api/user-config/"
+                ++ description
+                ++ "/"
+                ++ String.fromInt newValue
+        , expect =
+            Http.expectJson (f << httpResultToRequestError) (valueOrError <| Decode.field "value" Decode.int)
+        , body = emptyBody
+        }
 
 
 httpUserConfigurationSetBoolean : String -> (Result RequestError Bool -> msg) -> Bool -> Cmd msg
@@ -869,10 +898,11 @@ encodeAttributoValue x =
 
 runDecoder : Decode.Decoder Run
 runDecoder =
-    Decode.map6
+    Decode.map7
         Run
         (Decode.field "id" Decode.int)
         (Decode.field "attributi" attributoMapDecoder)
+        (Decode.field "experiment-type-id" Decode.int)
         (Decode.field "summary" dataSetSummaryDecoder)
         (Decode.field "files" (Decode.list fileDecoder))
         (Decode.field "data-sets" (Decode.list Decode.int))
@@ -908,7 +938,11 @@ encodeEvent source text fileIds =
 
 encodeRun : Run -> Encode.Value
 encodeRun run =
-    Encode.object [ ( "id", Encode.int run.id ), ( "attributi", encodeAttributoMap run.attributi ) ]
+    Encode.object
+        [ ( "id", Encode.int run.id )
+        , ( "attributi", encodeAttributoMap run.attributi )
+        , ( "experiment-type-id", Encode.int run.experimentTypeId )
+        ]
 
 
 type IncludeLiveStream

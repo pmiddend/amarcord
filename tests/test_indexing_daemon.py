@@ -54,6 +54,7 @@ def test_update_runs() -> None:
             DBRun(
                 id=run_id,
                 files=[],
+                experiment_type_id=0,
                 attributi=AttributiMap.from_types_and_raw(
                     [
                         DBAttributo(

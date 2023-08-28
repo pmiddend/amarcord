@@ -1,13 +1,25 @@
 module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.Requests exposing (RequestError, RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpGetRunsFilter, httpStartRun, httpStopRun)
+import Amarcord.API.ExperimentType exposing (ExperimentType)
+import Amarcord.API.Requests
+    exposing
+        ( RequestError
+        , RunsResponse
+        , RunsResponseContent
+        , emptyRunEventDateFilter
+        , emptyRunFilter
+        , httpGetRunsFilter
+        , httpStartRun
+        , httpStopRun
+        , httpUserConfigurationSetInt
+        )
 import Amarcord.Attributo exposing (attributoStopped, retrieveAttributoValue)
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Html exposing (h2_, hr_, input_)
+import Amarcord.Html exposing (form_, h2_, hr_, input_, onIntInput)
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow)
-import Html exposing (Html, a, button, div, form, h2, label, p, text)
-import Html.Attributes exposing (class, disabled, for, href, type_, value)
+import Html exposing (Html, a, button, div, form, h2, label, option, p, select, text)
+import Html.Attributes exposing (class, disabled, for, href, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
@@ -34,6 +46,8 @@ type Msg
     | Refresh Posix
     | RunIdChanged (Maybe Int)
     | RunsBulkUpdateMsg RunsBulkUpdate.Msg
+    | CurrentExperimentTypeChanged Int
+    | ExperimentIdChanged (Result RequestError Int)
 
 
 init : HereAndNow -> ( Model, Cmd Msg )
@@ -87,6 +101,12 @@ calculateNextRunId currentRunId runResponse =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ExperimentIdChanged _ ->
+            ( model, Cmd.none )
+
+        CurrentExperimentTypeChanged newExperimentTypeId ->
+            ( model, httpUserConfigurationSetInt "current-experiment-type-id" ExperimentIdChanged newExperimentTypeId )
+
         RunsReceived response ->
             ( { model
                 | runs = fromResult response
@@ -138,6 +158,40 @@ update msg model =
             ( { model | bulkUpdateModel = newModel }, Cmd.map RunsBulkUpdateMsg newCmds )
 
 
+viewChangeExperimentType : Model -> Html Msg
+viewChangeExperimentType model =
+    let
+        viewOption : Maybe Int -> ExperimentType -> Html Msg
+        viewOption currentExperimentType experimentType =
+            option
+                [ selected (Just experimentType.id == currentExperimentType)
+                , value (String.fromInt experimentType.id)
+                ]
+                [ text experimentType.name ]
+    in
+    case model.runs of
+        Success rrc ->
+            form_
+                [ select
+                    [ class "form-select"
+                    , id "current-experiment-type"
+                    , onIntInput CurrentExperimentTypeChanged
+                    ]
+                    ((case rrc.userConfig.currentExperimentTypeId of
+                        Nothing ->
+                            [ option [ selected True, disabled True ] [ text "«no value»" ] ]
+
+                        Just _ ->
+                            []
+                     )
+                        ++ List.map (viewOption rrc.userConfig.currentExperimentTypeId) rrc.experimentTypes
+                    )
+                ]
+
+        _ ->
+            text "Waiting for runs"
+
+
 view : Model -> Html Msg
 view model =
     div [ class "container" ]
@@ -159,6 +213,9 @@ view model =
             , button [ type_ "button", class "btn btn-secondary", disabled (not model.isRunning || isLoading model.startOrStopRequest), onClick StopRun ]
                 [ icon { name = "stop" }, text " Stop Run" ]
             ]
+        , hr_
+        , h2_ [ icon { name = "alt" }, text " Change current experiment type" ]
+        , viewChangeExperimentType model
         , hr_
         , h2_ [ icon { name = "journals" }, text " Bulk update" ]
         , p [ class "lead" ] [ text "Update the attributi of more than one run at once. First, select the runs you want to change and press \"Retrieve run attributi\". Then change them and press \"Update all runs\"." ]

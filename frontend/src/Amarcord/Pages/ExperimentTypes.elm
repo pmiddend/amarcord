@@ -2,16 +2,17 @@ module Amarcord.Pages.ExperimentTypes exposing (..)
 
 import Amarcord.API.AttributoWithRole exposing (AttributoWithRole)
 import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
-import Amarcord.API.Requests exposing (ExperimentTypesResponse, RequestError, httpCreateExperimentType, httpDeleteExperimentType, httpGetExperimentTypes)
+import Amarcord.API.Requests exposing (ExperimentTypeWithRuns, ExperimentTypesResponse, RequestError, httpCreateExperimentType, httpDeleteExperimentType, httpGetExperimentTypes)
 import Amarcord.API.RequestsHtml exposing (showRequestError)
 import Amarcord.Attributo exposing (Attributo, AttributoType, attributoIsChemicalId)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewRemoteData)
 import Amarcord.Chemical exposing (ChemicalType(..), chemicalTypeToString)
-import Amarcord.Html exposing (div_, form_, h1_, h5_, input_, li_, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Html exposing (br_, div_, form_, h1_, h5_, input_, li_, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.Util exposing (listContainsBy)
-import Html exposing (Html, button, div, h4, input, label, table, text)
+import Html exposing (Html, button, div, h4, input, label, table, td, text)
 import Html.Attributes exposing (checked, class, disabled, for, id, type_, value)
 import Html.Events exposing (onClick, onInput)
+import List.Extra as ListExtra
 import RemoteData exposing (RemoteData(..), fromResult)
 import Set exposing (Set)
 import String
@@ -169,13 +170,28 @@ viewExperimentType model =
             else
                 li_ [ text name ]
 
-        viewRow : List (Attributo AttributoType) -> ExperimentType -> Html ExperimentTypeMsg
-        viewRow attributi et =
+        viewRow : List (Attributo AttributoType) -> List ExperimentTypeWithRuns -> ExperimentType -> Html ExperimentTypeMsg
+        viewRow attributi etWithRuns et =
+            let
+                runs =
+                    Maybe.withDefault []
+                        (ListExtra.findMap
+                            (\etwr ->
+                                if etwr.experimentTypeId == et.id then
+                                    Just etwr.runs
+
+                                else
+                                    Nothing
+                            )
+                            etWithRuns
+                        )
+            in
             tr_
                 [ td_ [ text (String.fromInt et.id) ]
                 , td_ [ text et.name ]
                 , td_ [ ul_ (List.map (viewAttributoWithRole attributi) et.attributi) ]
-                , td_ [ button [ class "btn btn-danger btn-sm", onClick (ExperimentTypeDeleteSubmit et.id) ] [ icon { name = "trash" } ] ]
+                , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
+                , td_ [ button [ class "btn btn-danger btn-sm", onClick (ExperimentTypeDeleteSubmit et.id), disabled (not <| List.isEmpty runs) ] [ icon { name = "trash" } ] ]
                 ]
 
         viewAttributoCheckbox attributi { name } =
@@ -282,10 +298,11 @@ viewExperimentType model =
                         [ th_ [ text "ID" ]
                         , th_ [ text "Name" ]
                         , th_ [ text "Attributi" ]
+                        , th_ [ text "Runs" ]
                         , th_ [ text "Actions" ]
                         ]
                     ]
-                , tbody_ (List.map (viewRow experimentTypesResponse.attributi) experimentTypesResponse.experimentTypes)
+                , tbody_ (List.map (viewRow experimentTypesResponse.attributi experimentTypesResponse.experimentTypeIdsToRuns) experimentTypesResponse.experimentTypes)
                 ]
 
         _ ->
