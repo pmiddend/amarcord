@@ -1840,6 +1840,21 @@ async def delete_file() -> JSONDict:
 
     return {}
 
+@app.post("/api/attributi/schema")
+async def create_attributi_from_schema() -> JSONDict:
+    r = JSONChecker(await quart_safe_json_dict(), "request")
+    logger.info("ingesting attributi schema")
+
+    async with db.instance.begin() as conn:
+        attributi_schema = r.retrieve_safe_dict("attributi-schema")
+        await ingest_run_attributi_schema(
+            db.instance,
+            conn,
+            await db.instance.retrieve_attributi(conn, AssociatedTable.RUN),
+            attributi_schema,  # type: ignore
+            group=AUTOMATIC_ATTRIBUTI_GROUP,
+        )
+        return {}
 
 @app.post("/api/attributi")
 async def create_attributo() -> JSONDict:
