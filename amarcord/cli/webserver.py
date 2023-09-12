@@ -919,7 +919,7 @@ async def create_or_update_run(run_id: int) -> JSONDict:
                 group=AUTOMATIC_ATTRIBUTI_GROUP,
             )
         # Important to retrieve this here, after ingesting new attributi before!
-        attributi = await db.instance.retrieve_attributi(conn, AssociatedTable.RUN)
+        attributi = await db.instance.retrieve_attributi(conn, None)
         run_in_db = await db.instance.retrieve_run(conn, run_id, attributi)
         chemicals = await db.instance.retrieve_chemicals(conn, attributi)
         chemical_ids = [c.id for c in chemicals]
