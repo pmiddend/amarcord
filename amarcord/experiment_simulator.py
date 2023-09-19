@@ -339,6 +339,8 @@ def _random_fom(previous_fom: DBIndexingFOM | None) -> DBIndexingFOM:
         indexed_frames=previous_fom.indexed_frames + int(random.uniform(10, 100))
         if previous_fom is not None
         else 10,
+        detector_shift_x_mm=None,
+        detector_shift_y_mm=None,
     )
 
 

@@ -426,6 +426,8 @@ def _table_indexing_result(
         sa.Column("hit_rate", sa.Float(), nullable=False),
         sa.Column("indexing_rate", sa.Float(), nullable=False),
         sa.Column("indexed_frames", sa.Integer(), nullable=False),
+        sa.Column("detector_shift_x_mm", sa.Float(), nullable=True),
+        sa.Column("detector_shift_y_mm", sa.Float(), nullable=True),
         sa.Column("job_id", sa.Integer, nullable=True),
         sa.Column("job_status", sa.Enum(DBJobStatus), nullable=False),
         sa.Column("job_error", sa.Text, nullable=True),

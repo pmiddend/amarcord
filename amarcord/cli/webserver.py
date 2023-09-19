@@ -503,6 +503,8 @@ async def indexing_job_update(indexing_result_id: int) -> JSONDict:
         indexed_frames: int
         indexed_crystals: int
         done: bool
+        detector_shift_x_mm: None | float
+        detector_shift_y_mm: None | float
 
     class IndexingResultRootJson(BaseModel):
         error: None | str
@@ -519,6 +521,8 @@ async def indexing_job_update(indexing_result_id: int) -> JSONDict:
             hit_rate=jr.hits / jr.frames * 100.0 if jr.frames != 0 else 0,
             indexing_rate=jr.indexed_frames / jr.hits * 100 if jr.hits != 0 else 0.0,
             indexed_frames=jr.indexed_frames,
+            detector_shift_x_mm=jr.detector_shift_x_mm,
+            detector_shift_y_mm=jr.detector_shift_y_mm,
         )
 
     async with db.instance.begin() as conn:
@@ -1091,10 +1095,14 @@ async def update_run() -> JSONDict:
 def _summary_from_foms(ir: list[DBIndexingFOM]) -> DBIndexingFOM:
     if not ir:
         return empty_indexing_fom
+    shifts_x = [e.detector_shift_x_mm for e in ir if e.detector_shift_x_mm is not None]
+    shifts_y = [e.detector_shift_y_mm for e in ir if e.detector_shift_y_mm is not None]
     return DBIndexingFOM(
         hit_rate=mean(x.hit_rate for x in ir),
         indexing_rate=mean(x.indexing_rate for x in ir),
         indexed_frames=sum(x.indexed_frames for x in ir),
+        detector_shift_x_mm=mean(shifts_x) if shifts_x else None,
+        detector_shift_y_mm=mean(shifts_y) if shifts_y else None,
     )
 
 
@@ -1168,6 +1176,31 @@ def run_has_started_date(run: DBRun, date_filter: str) -> bool:
 
 def event_has_date(event: DBEvent, date_filter: str) -> bool:
     return event.created.strftime(DATE_FORMAT) == date_filter
+
+
+@app.get("/api/run-analysis")
+async def read_run_analysis() -> JSONDict:
+    async with db.instance.read_only_connection() as conn:
+
+        def extract_summary(o: DBIndexingResultOutput) -> DBIndexingFOM:
+            if isinstance(
+                o.runtime_status, (DBIndexingResultRunning, DBIndexingResultDone)
+            ):
+                return o.runtime_status.fom
+            return empty_indexing_fom
+
+        indexing_results = await db.instance.retrieve_indexing_results(conn)
+        return {
+            "indexing-results-by-run-id": [
+                {
+                    "run-id": rid,
+                    "foms": [_encode_summary(extract_summary(fom)) for fom in foms],
+                }
+                for rid, foms in group_by(
+                    indexing_results, lambda ir: ir.run_id
+                ).items()
+            ]
+        }
 
 
 @app.get("/api/runs")
@@ -1809,6 +1842,8 @@ def _encode_summary(summary: DBIndexingFOM) -> JSONDict:
         "hit-rate": summary.hit_rate,
         "indexing-rate": summary.indexing_rate,
         "indexed-frames": summary.indexed_frames,
+        "detector-shift-x-mm": summary.detector_shift_x_mm,
+        "detector-shift-y-mm": summary.detector_shift_y_mm,
     }
 
 
@@ -1869,6 +1904,7 @@ async def delete_file() -> JSONDict:
 
     return {}
 
+
 @app.post("/api/attributi/schema")
 async def create_attributi_from_schema() -> JSONDict:
     r = JSONChecker(await quart_safe_json_dict(), "request")
@@ -1884,6 +1920,7 @@ async def create_attributi_from_schema() -> JSONDict:
             group=AUTOMATIC_ATTRIBUTI_GROUP,
         )
         return {}
+
 
 @app.post("/api/attributi")
 async def create_attributo() -> JSONDict:

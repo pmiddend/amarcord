@@ -13,12 +13,14 @@ type alias DataSetSummary =
     { hitRate : Maybe Float
     , indexingRate : Maybe Float
     , indexedFrames : Int
+    , detectorShiftX : Maybe Float
+    , detectorShiftY : Maybe Float
     }
 
 
 emptySummary : DataSetSummary
 emptySummary =
-    { hitRate = Nothing, indexingRate = Nothing, indexedFrames = 0 }
+    { hitRate = Nothing, indexingRate = Nothing, indexedFrames = 0, detectorShiftX = Nothing, detectorShiftY = Nothing }
 
 
 type alias DataSet =
@@ -31,11 +33,13 @@ type alias DataSet =
 
 dataSetSummaryDecoder : Decode.Decoder DataSetSummary
 dataSetSummaryDecoder =
-    Decode.map3
+    Decode.map5
         DataSetSummary
         (Decode.field "hit-rate" (Decode.maybe Decode.float))
         (Decode.field "indexing-rate" (Decode.maybe Decode.float))
         (Decode.field "indexed-frames" Decode.int)
+        (Decode.field "detector-shift-x-mm" (Decode.maybe Decode.float))
+        (Decode.field "detector-shift-y-mm" (Decode.maybe Decode.float))
 
 
 dataSetDecoder : Decode.Decoder DataSet

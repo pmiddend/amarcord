@@ -34,6 +34,7 @@ class CrystFELOnlineConfig:
     output_base_directory: Path
     crystfel_path: Path
     api_url: str
+    use_auto_geom_refinement: bool
     dummy_h5_input: None | str
 
 
@@ -62,6 +63,7 @@ async def start_indexing_job(
                 "stream-file": str(stream_file),
                 "dummy-h5-input": config.dummy_h5_input,
                 "crystfel-path": str(config.crystfel_path),
+                "use-auto-geom-refinement": config.use_auto_geom_refinement,
                 "cell-description": coparse_cell_description(
                     indexing_result.cell_description
                 )

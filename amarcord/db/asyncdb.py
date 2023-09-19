@@ -112,6 +112,8 @@ def _evaluate_indexing_result_runtime_status(
                 db_row["hit_rate"],
                 db_row["indexing_rate"],
                 db_row["indexed_frames"],
+                db_row["detector_shift_x_mm"],
+                db_row["detector_shift_y_mm"],
             ),
         )
         if db_row["job_status"] == DBJobStatus.DONE
@@ -122,6 +124,8 @@ def _evaluate_indexing_result_runtime_status(
                 db_row["hit_rate"],
                 db_row["indexing_rate"],
                 db_row["indexed_frames"],
+                db_row["detector_shift_x_mm"],
+                db_row["detector_shift_y_mm"],
             ),
         )
         if db_row["job_status"] == DBJobStatus.RUNNING
@@ -1566,6 +1570,8 @@ class AsyncDB:
                         ir.c.hit_rate,
                         ir.c.indexing_rate,
                         ir.c.indexed_frames,
+                        ir.c.detector_shift_x_mm,
+                        ir.c.detector_shift_y_mm,
                         ir.c.job_id,
                         ir.c.job_status,
                         ir.c.job_error,
@@ -1706,6 +1712,8 @@ class AsyncDB:
                         ir.c.hit_rate,
                         ir.c.indexing_rate,
                         ir.c.indexed_frames,
+                        ir.c.detector_shift_x_mm,
+                        ir.c.detector_shift_y_mm,
                         ir.c.cell_description,
                         ir.c.point_group,
                         ir.c.chemical_id,
@@ -1754,6 +1762,8 @@ class AsyncDB:
                         ir.c.hit_rate,
                         ir.c.indexing_rate,
                         ir.c.indexed_frames,
+                        ir.c.detector_shift_x_mm,
+                        ir.c.detector_shift_y_mm,
                         ir.c.cell_description,
                         ir.c.point_group,
                         ir.c.chemical_id,

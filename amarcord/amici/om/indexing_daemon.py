@@ -82,6 +82,8 @@ async def _update_run(
                         )
                         * 100.0,
                         indexed_frames=indexing_data.indexed_frames,
+                        detector_shift_x_mm=None,
+                        detector_shift_y_mm=None,
                     ),
                 ),
             ),

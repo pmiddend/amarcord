@@ -7,6 +7,7 @@ import subprocess
 import sys
 from base64 import b64decode
 from dataclasses import dataclass
+from dataclasses import replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import time
@@ -109,6 +110,7 @@ class ParsedArgs:
     crystfel_path: Path
     cell_description: None | str
     dummy_h5_input: None | str
+    use_auto_geom_refinement: bool
 
 
 def read_path(j: dict[str, Any], key: str) -> Path:
@@ -174,6 +176,9 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         dummy_h5_input=j.get(  # pyright: ignore[reportUnknownArgumentType]
             "dummy-h5-input"
         ),
+        use_auto_geom_refinement=j.get(
+            "use-auto-geom-refinement", False
+        ),  # pyright: ignore[reportUnknownArgumentType]
     )
 
 
@@ -213,6 +218,8 @@ class IndexingFom:
     hits: int
     indexed_frames: int
     indexed_crystals: int
+    detector_shift_x_mm: None | float
+    detector_shift_y_mm: None | float
 
 
 def write_status(args: ParsedArgs, line: IndexingFom, done: bool) -> None:
@@ -224,6 +231,8 @@ def write_status(args: ParsedArgs, line: IndexingFom, done: bool) -> None:
             "hits": line.hits,
             "indexed_frames": line.indexed_frames,
             "indexed_crystals": line.indexed_crystals,
+            "detector_shift_x_mm": line.detector_shift_x_mm,
+            "detector_shift_y_mm": line.detector_shift_y_mm,
             "done": done,
         },
     )
@@ -322,6 +331,114 @@ def generate_output(args: ParsedArgs) -> None:
     )
 
 
+def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
+    success = False
+    x_translation_mm: None | float = None
+    y_translation_mm: None | float = None
+    X_TRANSLATION_REGEX_INPUT = r"x-translation ([+-]?[0-9.]+) mm"
+    Y_TRANSLATION_REGEX_INPUT = r"y-translation ([+-]?[0-9.]+) mm"
+    MILLEPEDE_SUCCEDED_INPUT = "Millepede succeeded"
+    x_translation_regex = re.compile(X_TRANSLATION_REGEX_INPUT)
+    y_translation_regex = re.compile(Y_TRANSLATION_REGEX_INPUT)
+
+    for l in stdout.split("\n"):
+        if not success:
+            if MILLEPEDE_SUCCEDED_INPUT in l:
+                success = True
+            continue
+
+        x_match = x_translation_regex.search(l)
+        if x_match is not None:
+            x_translation_mm = float(x_match.group(1))
+        y_match = y_translation_regex.search(l)
+        if y_match is not None:
+            y_translation_mm = float(y_match.group(1))
+
+    if not success:
+        return "no line matching " + MILLEPEDE_SUCCEDED_INPUT
+
+    if x_translation_mm is None:
+        return "no line matching " + X_TRANSLATION_REGEX_INPUT
+    if y_translation_mm is None:
+        return "no line matching " + Y_TRANSLATION_REGEX_INPUT
+    return x_translation_mm, y_translation_mm
+
+
+def run_align_detector(
+    args: ParsedArgs, core_path: Path, geometry_path: str, last_fom: None | IndexingFom
+) -> None:
+    align_detector_binary = f"{args.crystfel_path}/bin/align_detector"
+    if not Path(align_detector_binary).is_file():
+        exit_with_error(
+            args,
+            f"error running align_detector: binary {align_detector_binary} doesn't exist",
+        )
+    geometries_dir = core_path / "processed" / "geometries"
+    try:
+        geometries_dir.mkdir(parents=True, exist_ok=True)
+    except:
+        exit_with_error(
+            args,
+            f"error running align_detector: target directory {geometries_dir} couldn't be created",
+        )
+    MILLE_BIN_GLOB = "mille-data-*.bin"
+    mille_bin_files = list(Path("./").glob(MILLE_BIN_GLOB))
+    if mille_bin_files:
+        align_detector_args = (
+            [
+                align_detector_binary,
+                "-i",
+                geometry_path,
+                "-o",
+                str(geometries_dir / f"run-{args.run_id}-job-{args.job_id}.geom"),
+            ]
+            + [str(f) for f in mille_bin_files]
+            + ["--level=0"]
+        )
+        logger.info(
+            f"found files matching {MILLE_BIN_GLOB}, running "
+            + " ".join(align_detector_args)
+        )
+        try:
+            completed_process = subprocess.run(
+                align_detector_args,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                encoding="utf-8",
+            )
+            logger.info(f"completed align_detector call: {completed_process}")
+            detector_shift = parse_millepede_output(completed_process.stdout)
+            if isinstance(detector_shift, str):
+                exit_with_error(
+                    args,
+                    f"error running align_detector: output didn't parse correctly: {detector_shift}",
+                )
+
+            write_status(
+                args,
+                replace(
+                    last_fom,
+                    detector_shift_x_mm=detector_shift[0],
+                    detector_shift_y_mm=detector_shift[1],
+                )
+                if last_fom is not None
+                else IndexingFom(
+                    frames=0,
+                    hits=0,
+                    indexed_frames=0,
+                    indexed_crystals=0,
+                    detector_shift_x_mm=detector_shift[0],
+                    detector_shift_y_mm=detector_shift[1],
+                ),
+                done=True,
+            )
+        except Exception as e:
+            exit_with_error(args, f"error running align_detector: {e}")
+    else:
+        logger.info(f"found no files matching {MILLE_BIN_GLOB}")
+
+
 def run_indexamajig(
     args: ParsedArgs,
     cell_file: None | Path,
@@ -333,6 +450,7 @@ def run_indexamajig(
     with asapo_token.open("r", encoding="utf-8") as f:
         asapo_token_content = f.read().strip()
 
+    geometry_path = f"{core_path}/shared/geometry.geom"
     command_line_args = [
         f"{args.crystfel_path}/bin/indexamajig",
         "--peaks=peakfinder8",
@@ -352,13 +470,15 @@ def run_indexamajig(
         f"-j{os.cpu_count()}",
         "--no-retry",
         "-g",
-        f"{core_path}/shared/geometry.geom",
+        geometry_path,
         "--profile",
         "-o",
         str(args.stream_file),
     ]
     if cell_file is not None:
         command_line_args.extend(["-p", str(cell_file)])
+    if args.use_auto_geom_refinement:
+        command_line_args.append("--mille")
     # pylint: disable=consider-using-with
     input_tmpfile = NamedTemporaryFile() if args.dummy_h5_input is not None else None
     if args.dummy_h5_input:
@@ -424,6 +544,8 @@ def run_indexamajig(
                         hits=hits,
                         indexed_frames=indexable,
                         indexed_crystals=crystals,
+                        detector_shift_x_mm=None,
+                        detector_shift_y_mm=None,
                     )
                     logger.info(f"writing {last_fom}")
                     write_status(
@@ -437,14 +559,22 @@ def run_indexamajig(
                     last_fom
                     if last_fom is not None
                     else IndexingFom(
-                        frames=0, hits=0, indexed_frames=0, indexed_crystals=0
+                        frames=0,
+                        hits=0,
+                        indexed_frames=0,
+                        indexed_crystals=0,
+                        detector_shift_x_mm=None,
+                        detector_shift_y_mm=None,
                     ),
-                    done=True,
+                    done=not args.use_auto_geom_refinement,
                 )
                 if input_tmpfile is not None:
                     input_tmpfile.close()
     except Exception as e:
         exit_with_error(args, f"error running indexamajig: {e}")
+
+    if args.use_auto_geom_refinement:
+        run_align_detector(args, core_path, geometry_path, last_fom)
 
 
 if __name__ == "__main__":

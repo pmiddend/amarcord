@@ -17,6 +17,7 @@ import Amarcord.Pages.Chemicals as Chemicals
 import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
 import Amarcord.Pages.Help as Help
+import Amarcord.Pages.RunAnalysis as RunAnalysis
 import Amarcord.Pages.RunOverview as RunOverview
 import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Route as Route exposing (Route)
@@ -63,6 +64,7 @@ type Msg
     | DataSetsMsg DataSets.Msg
     | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
     | AnalysisPageMsg Analysis.Msg
+    | RunAnalysisPageMsg RunAnalysis.Msg
     | ScheduleMsg Schedule.ScheduleMsg
     | LinkClicked UrlRequest
     | UrlChanged Url
@@ -81,6 +83,7 @@ type Page
     | SchedulePage Schedule.ScheduleModel
     | ExperimentTypesPage ExperimentTypes.ExperimentTypeModel
     | AnalysisPage Analysis.Model
+    | RunAnalysisPage RunAnalysis.Model
 
 
 type alias Model =
@@ -202,6 +205,12 @@ currentView model =
             div []
                 [ Analysis.view pageModel
                     |> Html.map AnalysisPageMsg
+                ]
+
+        RunAnalysisPage pageModel ->
+            div []
+                [ RunAnalysis.view pageModel
+                    |> Html.map RunAnalysisPageMsg
                 ]
 
         DataSetsPage dataSetModel ->
@@ -337,6 +346,15 @@ updateInner hereAndNow msg model =
             , Cmd.map AnalysisPageMsg updatedCmd
             )
 
+        ( RunAnalysisPageMsg subMsg, RunAnalysisPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    RunAnalysis.update subMsg pageModel
+            in
+            ( { model | page = RunAnalysisPage updatedPageModel }
+            , Cmd.map RunAnalysisPageMsg updatedCmd
+            )
+
         ( RefreshMsg t, AnalysisPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -441,6 +459,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             Analysis.init hereAndNow
                     in
                     ( AnalysisPage pageModel, Cmd.map AnalysisPageMsg pageCmds )
+
+                Route.RunAnalysis ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            RunAnalysis.init hereAndNow
+                    in
+                    ( RunAnalysisPage pageModel, Cmd.map RunAnalysisPageMsg pageCmds )
 
                 Route.DataSets ->
                     let

@@ -81,6 +81,7 @@
                 version = "1.0.0";
                 src = frontend/.;
                 outputJavaScript = true;
+                targets = [ "src/Main.elm" ];
               };
               mtzJs = pkgs.fetchurl {
                 url = "https://raw.githubusercontent.com/uglymol/uglymol.github.io/master/wasm/mtz.js";

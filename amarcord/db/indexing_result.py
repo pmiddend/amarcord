@@ -12,10 +12,16 @@ class DBIndexingFOM:
     hit_rate: float
     indexing_rate: float
     indexed_frames: int
+    detector_shift_x_mm: None | float
+    detector_shift_y_mm: None | float
 
 
 empty_indexing_fom: Final = DBIndexingFOM(
-    hit_rate=0.0, indexing_rate=0.0, indexed_frames=0
+    hit_rate=0.0,
+    indexing_rate=0.0,
+    indexed_frames=0,
+    detector_shift_x_mm=None,
+    detector_shift_y_mm=None,
 )
 
 

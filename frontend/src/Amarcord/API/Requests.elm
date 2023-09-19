@@ -16,6 +16,8 @@ module Amarcord.API.Requests exposing
     , RefinementResult
     , RequestError(..)
     , Run
+    , RunAnalysisResult
+    , RunAnalysisResultsRoot
     , RunEventDate
     , RunEventDateFilter(..)
     , RunFilter(..)
@@ -49,6 +51,7 @@ module Amarcord.API.Requests exposing
     , httpGetConfig
     , httpGetDataSets
     , httpGetExperimentTypes
+    , httpGetRunAnalysisResults
     , httpGetRunsBulk
     , httpGetRunsFilter
     , httpGetSchedule
@@ -620,12 +623,31 @@ sortAnalysisResultsExperimentType a b =
     compare a.dataSet.id b.dataSet.id
 
 
-type alias AnalysisResultsRoot =
-    { experimentTypes : List ExperimentType
-    , dataSets : Dict ExperimentTypeId (List AnalysisResultsExperimentType)
-    , attributi : List (Attributo AttributoType)
-    , chemicalIdToName : Dict Int String
+type alias RunAnalysisResult =
+    { runId : Int
+    , foms : List DataSetSummary
     }
+
+
+type alias RunAnalysisResultsRoot =
+    { indexingResultsByRunId : List RunAnalysisResult
+    }
+
+
+runAnalysisRootDecoder : Decode.Decoder RunAnalysisResultsRoot
+runAnalysisRootDecoder =
+    Decode.map
+        RunAnalysisResultsRoot
+        (Decode.field "indexing-results-by-run-id"
+            (Decode.list
+                (Decode.map2 RunAnalysisResult
+                    (Decode.field "run-id" Decode.int)
+                    (Decode.field "foms"
+                        (Decode.list dataSetSummaryDecoder)
+                    )
+                )
+            )
+        )
 
 
 analysisResultsExperimentTypeDecoder : Decode.Decoder AnalysisResultsExperimentType
@@ -636,6 +658,14 @@ analysisResultsExperimentTypeDecoder =
         (Decode.field "runs" (Decode.list Decode.string))
         (Decode.field "merge-results" (Decode.list mergeResultDecoder))
         (Decode.field "number-of-indexing-results" Decode.int)
+
+
+type alias AnalysisResultsRoot =
+    { experimentTypes : List ExperimentType
+    , dataSets : Dict ExperimentTypeId (List AnalysisResultsExperimentType)
+    , attributi : List (Attributo AttributoType)
+    , chemicalIdToName : Dict Int String
+    }
 
 
 analysisResultsRootDecoder : Decode.Decoder AnalysisResultsRoot
@@ -684,6 +714,14 @@ httpGetAnalysisResults f =
     Http.get
         { url = "api/analysis/analysis-results"
         , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| analysisResultsRootDecoder)
+        }
+
+
+httpGetRunAnalysisResults : (Result RequestError RunAnalysisResultsRoot -> msg) -> Cmd msg
+httpGetRunAnalysisResults f =
+    Http.get
+        { url = "api/run-analysis"
+        , expect = Http.expectJson (f << httpResultToRequestError) (valueOrError <| runAnalysisRootDecoder)
         }
 
 

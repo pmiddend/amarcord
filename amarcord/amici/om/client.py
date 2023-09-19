@@ -158,6 +158,8 @@ class OmZMQProcessor:
                     hit_rate=final_hit_rate,
                     indexing_rate=latest_runtime_status.fom.indexing_rate,
                     indexed_frames=latest_runtime_status.fom.indexed_frames,
+                    detector_shift_x_mm=None,
+                    detector_shift_y_mm=None,
                 ),
             )
             protein_chemical_id = latest_run.attributi.select_chemical_id(

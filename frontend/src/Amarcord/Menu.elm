@@ -53,7 +53,11 @@ menu =
         [ { route = Route.Chemicals, description = "Chemicals", iconName = "gem" }
         , { route = Route.DataSets, description = "Data Sets", iconName = "folder2" }
         ]
-    , Leaf { route = Route.Analysis, description = "Analysis", iconName = "bar-chart-steps" }
+    , Dropdown "Analysis"
+        "bar-chart-steps"
+        [ { route = Route.Analysis, description = "By Experiment Type", iconName = "clipboard-check" }
+        , { route = Route.RunAnalysis, description = "By Run", iconName = "card-list" }
+        ]
     , Dropdown "Admin"
         "gear-fill"
         [ { route = Route.ExperimentTypes, description = "Experiment Types", iconName = "clipboard-check" }
