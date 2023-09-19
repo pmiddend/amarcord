@@ -1,6 +1,5 @@
 module Amarcord.DataSetHtml exposing (..)
 
-import Amarcord.API.DataSet exposing (DataSet)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoMapNames)
 import Amarcord.AttributoHtml exposing (viewAttributoCell)
 import Amarcord.Html exposing (tbody_, th_, thead_, tr_)
@@ -11,8 +10,8 @@ import List.Extra exposing (find)
 import Time exposing (Zone)
 
 
-viewDataSetTable : List (Attributo AttributoType) -> Zone -> Dict.Dict Int String -> DataSet -> Bool -> Maybe (Html msg) -> Html msg
-viewDataSetTable attributi zone chemicalIdToName ds withHeader footer =
+viewDataSetTable : List (Attributo AttributoType) -> Zone -> Dict.Dict Int String -> AttributoMap AttributoValue -> Bool -> Maybe (Html msg) -> Html msg
+viewDataSetTable attributi zone chemicalIdToName attributoMap withHeader footer =
     let
         viewAttributiValueRow : Int -> AttributoMap AttributoValue -> Int -> String -> Html msg
         viewAttributiValueRow maxIdx attributoValues idx name =
@@ -41,7 +40,7 @@ viewDataSetTable attributi zone chemicalIdToName ds withHeader footer =
 
           else
             text ""
-        , tbody_ (List.indexedMap (viewAttributiValueRow (Dict.size ds.attributi - 1) ds.attributi) (attributoMapNames ds.attributi))
+        , tbody_ (List.indexedMap (viewAttributiValueRow (Dict.size attributoMap - 1) attributoMap) (attributoMapNames attributoMap))
         , case footer of
             Nothing ->
                 text ""

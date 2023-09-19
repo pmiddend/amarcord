@@ -56,6 +56,7 @@ from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
+from amarcord.db.indexing_result import DBIndexingResultStatistic
 from amarcord.db.merge_model import MergeModel
 from amarcord.db.merge_parameters import DBMergeParameters
 from amarcord.db.merge_result import MergeResult
@@ -1653,6 +1654,48 @@ class AsyncDB:
             )
             .where(self.tables.indexing_result.c.id == indexing_result_id)
         )
+
+    async def add_indexing_result_statistic(
+        self, conn: Connection, s: DBIndexingResultStatistic
+    ) -> None:
+        await conn.execute(
+            self.tables.indexing_result_has_statistic.insert().values(
+                indexing_result_id=s.indexing_result_id,
+                time=s.time,
+                frames=s.frames,
+                hits=s.hits,
+                indexed_frames=s.indexed_frames,
+                indexed_crystals=s.indexed_crystals,
+            )
+        )
+
+    async def retrieve_indexing_result_statistics(
+        self,
+        conn: Connection,
+        indexing_result_id: None | int,
+    ) -> list[DBIndexingResultStatistic]:
+        irhs = self.tables.indexing_result_has_statistic.c
+        statement = sa.select(
+            irhs.indexing_result_id,
+            irhs.time,
+            irhs.frames,
+            irhs.hits,
+            irhs.indexed_frames,
+            irhs.indexed_crystals,
+        ).order_by(irhs.time)
+        if indexing_result_id is not None:
+            statement = statement.where(irhs.indexing_result_id == indexing_result_id)
+        return [
+            DBIndexingResultStatistic(
+                indexing_result_id=s["indexing_result_id"],
+                time=s["time"],
+                frames=s["frames"],
+                hits=s["hits"],
+                indexed_frames=s["indexed_frames"],
+                indexed_crystals=s["indexed_crystals"],
+            )
+            for s in (await conn.execute(statement)).fetchall()
+        ]
 
     async def update_indexing_result_status(
         self,

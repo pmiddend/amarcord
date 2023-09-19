@@ -594,7 +594,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                             , viewDataSetTable rrc.attributi
                                 zone
                                 (chemicalIdDict rrc.chemicals)
-                                ds
+                                ds.attributi
                                 True
                                 Nothing
                             ]

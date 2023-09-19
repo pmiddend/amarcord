@@ -73,3 +73,13 @@ class DBIndexingResultOutput:
     point_group: None | str
     chemical_id: int
     runtime_status: DBIndexingResultRuntimeStatus
+
+
+@dataclass(frozen=True, eq=True)
+class DBIndexingResultStatistic:
+    indexing_result_id: int
+    time: datetime.datetime
+    frames: int
+    hits: int
+    indexed_frames: int
+    indexed_crystals: int

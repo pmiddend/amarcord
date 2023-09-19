@@ -38,6 +38,7 @@ from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultRunning
+from amarcord.db.indexing_result import DBIndexingResultStatistic
 from amarcord.db.table_classes import DBRun
 from amarcord.numeric_range import NumericRange
 from amarcord.util import first
@@ -339,8 +340,8 @@ def _random_fom(previous_fom: DBIndexingFOM | None) -> DBIndexingFOM:
         indexed_frames=previous_fom.indexed_frames + int(random.uniform(10, 100))
         if previous_fom is not None
         else 10,
-        detector_shift_x_mm=None,
-        detector_shift_y_mm=None,
+        detector_shift_x_mm=random.uniform(0, 10.0),
+        detector_shift_y_mm=random.uniform(0, 10.0),
     )
 
 
@@ -385,11 +386,41 @@ async def _update_run(db: AsyncDB, run: DBRun, log: BoundLogger) -> None:
         rs = ir.runtime_status
         if not isinstance(rs, DBIndexingResultRunning):
             return
+        log.info("Updating indexing result")
         await db.update_indexing_result_status(
             conn,
             indexing_result_id=ir.id,
             runtime_status=DBIndexingResultRunning(
                 stream_file=rs.stream_file, job_id=rs.job_id, fom=_random_fom(rs.fom)
+            ),
+        )
+        all_stats = await db.retrieve_indexing_result_statistics(conn, ir.id)
+        stats = (
+            all_stats[-1]
+            if all_stats
+            else DBIndexingResultStatistic(
+                indexing_result_id=ir.id,
+                time=datetime.datetime.utcnow(),
+                frames=0,
+                hits=0,
+                indexed_frames=0,
+                indexed_crystals=0,
+            )
+        )
+        new_frames = int(random.uniform(0, 100))
+        frames = stats.frames + new_frames
+        new_hits = int(new_frames * random.uniform(0, 0.1))
+        hits = stats.hits + new_hits
+        indexed_frames = int(stats.indexed_frames + new_hits * random.uniform(0, 1))
+        await db.add_indexing_result_statistic(
+            conn,
+            s=DBIndexingResultStatistic(
+                indexing_result_id=ir.id,
+                time=datetime.datetime.utcnow(),
+                frames=frames,
+                hits=hits,
+                indexed_frames=indexed_frames,
+                indexed_crystals=indexed_frames,
             ),
         )
 

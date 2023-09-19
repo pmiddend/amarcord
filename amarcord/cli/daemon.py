@@ -48,8 +48,6 @@ class Arguments(Tap):
     om_indexing_file: Optional[Path] = None  # Whether to enable the Om indexing daemon
     experiment_simulator_enabled: bool = False
     # pylint: disable=consider-alternative-union-syntax
-    experiment_simulator_files_dir: Optional[Path] = None
-    # pylint: disable=consider-alternative-union-syntax
     mjpeg_stream_url: Optional[str] = None
     mjpeg_stream_delay_seconds: float = 5.0
     # pylint: disable=consider-alternative-union-syntax

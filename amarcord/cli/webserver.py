@@ -70,6 +70,7 @@ from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
+from amarcord.db.indexing_result import DBIndexingResultStatistic
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.ingest_attributi_from_json import ingest_run_attributi_schema
 from amarcord.db.merge_model import MergeModel
@@ -572,6 +573,17 @@ async def indexing_job_update(indexing_result_id: int) -> JSONDict:
                     if runtime_status is not None
                     else Path("dummy-after-success"),
                 )
+            )
+            await db.instance.add_indexing_result_statistic(
+                conn,
+                DBIndexingResultStatistic(
+                    indexing_result_id=indexing_result_id,
+                    time=datetime.datetime.utcnow(),
+                    frames=json_result.result.frames,
+                    hits=json_result.result.hits,
+                    indexed_frames=json_result.result.indexed_frames,
+                    indexed_crystals=json_result.result.indexed_crystals,
+                ),
             )
         else:
             final_status = None
@@ -1189,17 +1201,52 @@ async def read_run_analysis() -> JSONDict:
                 return o.runtime_status.fom
             return empty_indexing_fom
 
-        indexing_results = await db.instance.retrieve_indexing_results(conn)
+        all_indexing_results = await db.instance.retrieve_indexing_results(conn)
+        ir_to_stats: dict[int, list[DBIndexingResultStatistic]] = group_by(
+            await db.instance.retrieve_indexing_result_statistics(
+                conn, indexing_result_id=None
+            ),
+            lambda irs: irs.indexing_result_id,
+        )
+        attributi = await db.instance.retrieve_attributi(conn, associated_table=None)
+        chemicals = await db.instance.retrieve_chemicals(conn, attributi)
         return {
+            "chemicals": [_encode_chemical(s) for s in chemicals],
+            "attributi": [_encode_attributo(a) for a in attributi],
+            "runs": [
+                {"id": r.id, "attributi": r.attributi.to_json()}
+                for r in await db.instance.retrieve_runs(conn, attributi)
+            ],
             "indexing-results-by-run-id": [
                 {
                     "run-id": rid,
-                    "foms": [_encode_summary(extract_summary(fom)) for fom in foms],
+                    # foms = figures of merit
+                    "foms": [
+                        _encode_summary(extract_summary(indexing_result))
+                        for indexing_result in indexing_results_for_run
+                    ],
+                    "indexing-statistics": [
+                        {
+                            "time": datetime_to_attributo_int(stat.time),
+                            "frames": stat.frames,
+                            "hits": stat.hits,
+                            "indexed": stat.indexed_frames,
+                            "crystals": stat.indexed_crystals,
+                        }
+                        # slightly confusing but super handy
+                        # double-list comprehension: first, get all
+                        # indexing result for the run...
+                        for indexing_result_for_run in indexing_results_for_run
+                        # ...then, get all the statistics points
+                        # inside the indexing result, and concatenate
+                        # this list of lists
+                        for stat in ir_to_stats.get(indexing_result_for_run.id, [])
+                    ],
                 }
-                for rid, foms in group_by(
-                    indexing_results, lambda ir: ir.run_id
+                for rid, indexing_results_for_run in group_by(
+                    all_indexing_results, lambda ir: ir.run_id
                 ).items()
-            ]
+            ],
         }
 
 

@@ -203,7 +203,7 @@ viewDataSet model =
                     tr_
                         [ td_ [ text (String.fromInt ds.id) ]
                         , td_ [ text (Maybe.withDefault "" <| Dict.get ds.experimentTypeId experimentTypesById) ]
-                        , td_ [ viewDataSetTable attributi model.zone (chemicalIdDict chemicals) ds False Nothing ]
+                        , td_ [ viewDataSetTable attributi model.zone (chemicalIdDict chemicals) ds.attributi False Nothing ]
                         , td_ [ button [ class "btn btn-sm btn-danger", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 

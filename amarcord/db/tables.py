@@ -206,6 +206,26 @@ def _table_run_has_file(
     )
 
 
+def _table_indexing_result_has_statistic(
+    metadata: sa.MetaData, indexing_result: sa.Table
+) -> sa.Table:
+    return sa.Table(
+        "IndexingResultHasStatistic",
+        metadata,
+        sa.Column(
+            "indexing_result_id",
+            sa.Integer(),
+            # If the run vanishes, delete this entry as well
+            ForeignKey(_fk_identifier(indexing_result.c.id), ondelete="cascade"),
+        ),
+        sa.Column("time", sa.DateTime(), nullable=False),
+        sa.Column("frames", sa.Integer(), nullable=False),
+        sa.Column("hits", sa.Integer(), nullable=False),
+        sa.Column("indexed_frames", sa.Integer(), nullable=False),
+        sa.Column("indexed_crystals", sa.Integer(), nullable=False),
+    )
+
+
 def _table_event_has_file(
     metadata: sa.MetaData, event_log: sa.Table, file: sa.Table
 ) -> sa.Table:
@@ -487,6 +507,7 @@ class DBTables:
         beamtime_schedule: sa.Table,
         beamtime_schedule_has_chemical: sa.Table,
         indexing_result: sa.Table,
+        indexing_result_has_statistic: sa.Table,
         merge_result: sa.Table,
         merge_result_has_indexing_result: sa.Table,
         merge_result_shell_fom: sa.Table,
@@ -511,6 +532,7 @@ class DBTables:
         self.merge_result_shell_fom = merge_result_shell_fom
         self.merge_result_has_indexing_result = merge_result_has_indexing_result
         self.refinement_result = refinement_result
+        self.indexing_result_has_statistic = indexing_result_has_statistic
 
 
 def create_tables_from_metadata(metadata: MetaData) -> DBTables:
@@ -551,4 +573,7 @@ def create_tables_from_metadata(metadata: MetaData) -> DBTables:
             metadata, merge_result, indexing_result
         ),
         refinement_result=_table_refinement_result(metadata, merge_result, file),
+        indexing_result_has_statistic=_table_indexing_result_has_statistic(
+            metadata, indexing_result
+        ),
     )

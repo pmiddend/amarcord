@@ -9,6 +9,7 @@ module Amarcord.API.Requests exposing
     , ExperimentTypeWithRuns
     , ExperimentTypesResponse
     , IncludeLiveStream(..)
+    , IndexingStatistic
     , MergeFom
     , MergeResult
     , MergeResultState(..)
@@ -27,6 +28,7 @@ module Amarcord.API.Requests exposing
     , RunsResponseContent
     , ScheduleEntry
     , ScheduleResponse
+    , SimpleRun
     , StandardUnitCheckResult(..)
     , emptyRunEventDateFilter
     , emptyRunFilter
@@ -623,31 +625,71 @@ sortAnalysisResultsExperimentType a b =
     compare a.dataSet.id b.dataSet.id
 
 
+type alias IndexingStatistic =
+    { time : Posix
+    , frames : Int
+    , hits : Int
+    , indexedFrames : Int
+    , indexedCrystals : Int
+    }
+
+
+indexingStatisticDecoder : Decode.Decoder IndexingStatistic
+indexingStatisticDecoder =
+    Decode.map5 IndexingStatistic
+        (Decode.field "time" decodePosix)
+        (Decode.field "frames" Decode.int)
+        (Decode.field "hits" Decode.int)
+        (Decode.field "indexed" Decode.int)
+        (Decode.field "crystals" Decode.int)
+
+
 type alias RunAnalysisResult =
     { runId : Int
     , foms : List DataSetSummary
+    , indexingStatistics : List IndexingStatistic
     }
+
+
+type alias SimpleRun =
+    { id : Int
+    , attributi : AttributoMap AttributoValue
+    }
+
+
+decodeSimpleRun : Decode.Decoder SimpleRun
+decodeSimpleRun =
+    Decode.map2 SimpleRun (Decode.field "id" Decode.int) (Decode.field "attributi" attributoMapDecoder)
 
 
 type alias RunAnalysisResultsRoot =
     { indexingResultsByRunId : List RunAnalysisResult
+    , runs : List SimpleRun
+    , attributi : List (Attributo AttributoType)
+    , chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
     }
 
 
 runAnalysisRootDecoder : Decode.Decoder RunAnalysisResultsRoot
 runAnalysisRootDecoder =
-    Decode.map
+    Decode.map4
         RunAnalysisResultsRoot
         (Decode.field "indexing-results-by-run-id"
             (Decode.list
-                (Decode.map2 RunAnalysisResult
+                (Decode.map3 RunAnalysisResult
                     (Decode.field "run-id" Decode.int)
                     (Decode.field "foms"
                         (Decode.list dataSetSummaryDecoder)
                     )
+                    (Decode.field "indexing-statistics"
+                        (Decode.list indexingStatisticDecoder)
+                    )
                 )
             )
         )
+        (Decode.field "runs" (Decode.list decodeSimpleRun))
+        (Decode.field "attributi" <| Decode.list (attributoDecoder attributoTypeDecoder))
+        (Decode.field "chemicals" <| Decode.list chemicalDecoder)
 
 
 analysisResultsExperimentTypeDecoder : Decode.Decoder AnalysisResultsExperimentType
