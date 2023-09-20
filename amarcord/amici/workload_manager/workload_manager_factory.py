@@ -44,6 +44,7 @@ class LocalWorkloadManagerConfig:
 class SlurmRestWorkloadManagerConfig:
     partition: str
     reservation: None | str
+    explicit_node: None | str
     token: None | str
     portal_token: None | str
     user: str
@@ -95,6 +96,7 @@ def parse_workload_manager_config(
             return SlurmRestWorkloadManagerConfig(
                 partition=partition,
                 reservation=jcc.string_parameter("reservation"),
+                explicit_node=jcc.string_parameter("explicit-node"),
                 token=jcc.string_parameter("token"),
                 portal_token=jcc.string_parameter("portal-token"),
                 user=user if user is not None else getuser(),
@@ -116,6 +118,7 @@ def parse_workload_manager_config(
             return SlurmRestWorkloadManagerConfig(
                 partition=partition,
                 reservation=jcc.string_parameter("reservation"),
+                explicit_node=jcc.string_parameter("explicit-node"),
                 token=jcc.string_parameter("token"),
                 portal_token=None,
                 user=user if user is not None else getuser(),
@@ -160,7 +163,11 @@ def create_workload_manager(
         case LocalWorkloadManagerConfig():
             raise Exception("local workload manager not supported right now")
         case SlurmRestWorkloadManagerConfig(
-            partition=partition, reservation=reservation, url=rest_url, user=user
+            partition=partition,
+            reservation=reservation,
+            url=rest_url,
+            user=user,
+            explicit_node=explicit_node,
         ):
             token_retriever: TokenRetriever
             if config.token is not None:
@@ -178,6 +185,7 @@ def create_workload_manager(
             return SlurmRestWorkloadManager(
                 partition=partition,
                 reservation=reservation,
+                explicit_node=explicit_node,
                 token_retriever=token_retriever,
                 request_wrapper=SlurmRequestsHttpWrapper(),
                 rest_url=rest_url,

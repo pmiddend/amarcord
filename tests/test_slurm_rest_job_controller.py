@@ -71,6 +71,7 @@ async def test_slurm_rest_job_controller_start_job() -> None:
     controller = SlurmRestWorkloadManager(
         partition=_TEST_PARTITION,
         reservation=None,
+        explicit_node=None,
         token_retriever=_TEST_TOKEN_RETRIEVER,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
@@ -92,6 +93,7 @@ async def test_slurm_rest_job_controller_list_jobs_with_errors() -> None:
     controller = SlurmRestWorkloadManager(
         partition=_TEST_PARTITION,
         reservation=None,
+        explicit_node=None,
         token_retriever=_TEST_TOKEN_RETRIEVER,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
@@ -109,6 +111,7 @@ async def test_slurm_rest_job_controller_list_jobs_other_users_are_ignored() -> 
     controller = SlurmRestWorkloadManager(
         partition=_TEST_PARTITION,
         reservation=None,
+        explicit_node=None,
         token_retriever=_TEST_TOKEN_RETRIEVER,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,
@@ -124,6 +127,7 @@ async def test_slurm_rest_job_controller_list_jobs_success() -> None:
     controller = SlurmRestWorkloadManager(
         partition=_TEST_PARTITION,
         reservation=None,
+        explicit_node=None,
         token_retriever=_TEST_TOKEN_RETRIEVER,
         request_wrapper=http_wrapper,
         rest_user=_REST_USER,

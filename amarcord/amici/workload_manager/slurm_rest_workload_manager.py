@@ -199,6 +199,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         self,
         partition: str,
         reservation: None | str,
+        explicit_node: None | str,
         token_retriever: TokenRetriever,
         request_wrapper: SlurmHttpWrapper,
         rest_url: str,
@@ -206,6 +207,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
     ) -> None:
         self._partition = partition
         self._reservation = reservation
+        self._explicit_node = explicit_node
         self._token_retriever = token_retriever
         self._rest_url = rest_url
         self._rest_user = rest_user if rest_user is not None else getpass.getuser()
@@ -233,7 +235,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
             json.dumps(await self._headers()),
             script,
         )
-        job_dict = {
+        job_dict: dict[str, int | str | dict[str, str] | list[str]] = {
             "nodes": 1,
             "current_working_directory": str(working_directory),
             "time_limit": int(time_limit.total_seconds()) // 60,
@@ -253,6 +255,8 @@ class SlurmRestWorkloadManager(WorkloadManager):
         }
         if self._reservation is not None:
             job_dict["reservation"] = self._reservation
+        if self._explicit_node is not None:
+            job_dict["nodelist"] = [self._explicit_node]
         json_request: JSONDict = {
             "script": script,
             "job": job_dict,

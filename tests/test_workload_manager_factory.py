@@ -30,6 +30,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation=None,
+                explicit_node=None,
                 token=None,
                 user="user",
                 url=MAXWELL_SLURM_URL,
@@ -41,6 +42,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation="bar",
+                explicit_node=None,
                 token="blub",
                 user="user",
                 url=MAXWELL_SLURM_URL,
@@ -52,6 +54,7 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation="bar",
+                explicit_node=None,
                 token=None,
                 user="user",
                 url=MAXWELL_SLURM_URL,
@@ -63,6 +66,19 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
             SlurmRestWorkloadManagerConfig(
                 partition="foo",
                 reservation="bar",
+                explicit_node=None,
+                token="blub",
+                user="user",
+                url="https://myhost:80/foo",
+                portal_token=None,
+            ),
+        ),
+        (
+            "slurm-rest:partition=foo|reservation=bar|user=user|explicit-node=foo|token=blub|host=myhost|port=80|path=/foo",
+            SlurmRestWorkloadManagerConfig(
+                partition="foo",
+                reservation="bar",
+                explicit_node="foo",
                 token="blub",
                 user="user",
                 url="https://myhost:80/foo",
