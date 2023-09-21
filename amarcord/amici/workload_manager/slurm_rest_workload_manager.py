@@ -235,7 +235,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
             json.dumps(await self._headers()),
             script,
         )
-        job_dict: dict[str, int | str | dict[str, str] | list[str]] = {
+        job_dict: dict[str, int | str | dict[str, str]] = {
             "nodes": 1,
             "current_working_directory": str(working_directory),
             "time_limit": int(time_limit.total_seconds()) // 60,
@@ -256,7 +256,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         if self._reservation is not None:
             job_dict["reservation"] = self._reservation
         if self._explicit_node is not None:
-            job_dict["nodelist"] = [self._explicit_node]
+            job_dict["nodelist"] = self._explicit_node
         json_request: JSONDict = {
             "script": script,
             "job": job_dict,
