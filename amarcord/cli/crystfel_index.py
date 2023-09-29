@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from time import time
 from typing import IO
 from typing import Any
@@ -332,6 +333,7 @@ def generate_output(args: ParsedArgs) -> None:
 
 
 def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
+    logger.info(f"parsing {stdout}")
     success = False
     x_translation_mm: None | float = None
     y_translation_mm: None | float = None
@@ -367,76 +369,90 @@ def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
 def run_align_detector(
     args: ParsedArgs, core_path: Path, geometry_path: str, last_fom: None | IndexingFom
 ) -> None:
-    align_detector_binary = f"{args.crystfel_path}/bin/align_detector"
-    if not Path(align_detector_binary).is_file():
-        exit_with_error(
-            args,
-            f"error running align_detector: binary {align_detector_binary} doesn't exist",
-        )
-    geometries_dir = core_path / "processed" / "geometries"
-    try:
-        geometries_dir.mkdir(parents=True, exist_ok=True)
-    except:
-        exit_with_error(
-            args,
-            f"error running align_detector: target directory {geometries_dir} couldn't be created",
-        )
-    MILLE_BIN_GLOB = "mille-data-*.bin"
-    mille_bin_files = list(Path("./").glob(MILLE_BIN_GLOB))
-    if mille_bin_files:
-        align_detector_args = (
-            [
-                align_detector_binary,
-                "-i",
-                geometry_path,
-                "-o",
-                str(geometries_dir / f"run-{args.run_id}-job-{args.job_id}.geom"),
-            ]
-            + [str(f) for f in mille_bin_files]
-            + ["--level=0"]
-        )
-        logger.info(
-            f"found files matching {MILLE_BIN_GLOB}, running "
-            + " ".join(align_detector_args)
-        )
-        try:
-            completed_process = subprocess.run(
-                align_detector_args,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                encoding="utf-8",
-            )
-            logger.info(f"completed align_detector call: {completed_process}")
-            detector_shift = parse_millepede_output(completed_process.stdout)
-            if isinstance(detector_shift, str):
-                exit_with_error(
-                    args,
-                    f"error running align_detector: output didn't parse correctly: {detector_shift}",
-                )
-
-            write_status(
+    with TemporaryDirectory() as tempdir:
+        os.chdir(tempdir)
+        align_detector_binary = f"{args.crystfel_path}/bin/align_detector"
+        if not Path(align_detector_binary).is_file():
+            exit_with_error(
                 args,
-                replace(
-                    last_fom,
-                    detector_shift_x_mm=detector_shift[0],
-                    detector_shift_y_mm=detector_shift[1],
-                )
-                if last_fom is not None
-                else IndexingFom(
-                    frames=0,
-                    hits=0,
-                    indexed_frames=0,
-                    indexed_crystals=0,
-                    detector_shift_x_mm=detector_shift[0],
-                    detector_shift_y_mm=detector_shift[1],
-                ),
-                done=True,
+                f"error running align_detector: binary {align_detector_binary} doesn't exist",
             )
-        except Exception as e:
-            exit_with_error(args, f"error running align_detector: {e}")
-    else:
-        logger.info(f"found no files matching {MILLE_BIN_GLOB}")
+        geometries_dir = core_path / "processed" / "geometries"
+        try:
+            geometries_dir.mkdir(parents=True, exist_ok=True)
+        except:
+            exit_with_error(
+                args,
+                f"error running align_detector: target directory {geometries_dir} couldn't be created",
+            )
+        MILLE_BIN_GLOB = "mille-data-*.bin"
+        mille_bin_files = list(
+            (
+                core_path
+                / "processed"
+                / "millepede-files"
+                / f"run-{args.run_id}-job-{args.job_id}"
+            ).glob(MILLE_BIN_GLOB)
+        )
+        if mille_bin_files:
+            align_detector_args = (
+                [
+                    align_detector_binary,
+                    "-i",
+                    geometry_path,
+                    "-o",
+                    str(geometries_dir / f"run-{args.run_id}-job-{args.job_id}.geom"),
+                ]
+                + [str(f) for f in mille_bin_files]
+                + ["--level=0"]
+            )
+            logger.info(
+                f"found files matching {MILLE_BIN_GLOB}, running "
+                + " ".join(align_detector_args)
+            )
+            try:
+                align_detector_environ = os.environ.copy()
+                align_detector_environ[
+                    "PATH"
+                ] = f"{args.crystfel_path}/bin:{align_detector_environ['PATH']}"
+                completed_process = subprocess.run(
+                    align_detector_args,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    encoding="utf-8",
+                    env=align_detector_environ,
+                )
+                logger.info(f"completed align_detector call: {completed_process}")
+                detector_shift = parse_millepede_output(completed_process.stdout)
+                if isinstance(detector_shift, str):
+                    exit_with_error(
+                        args,
+                        f"error running align_detector: output didn't parse correctly: {detector_shift}",
+                    )
+
+                write_status(
+                    args,
+                    replace(
+                        last_fom,
+                        detector_shift_x_mm=detector_shift[0],
+                        detector_shift_y_mm=detector_shift[1],
+                    )
+                    if last_fom is not None
+                    else IndexingFom(
+                        frames=0,
+                        hits=0,
+                        indexed_frames=0,
+                        indexed_crystals=0,
+                        detector_shift_x_mm=detector_shift[0],
+                        detector_shift_y_mm=detector_shift[1],
+                    ),
+                    done=True,
+                )
+            except Exception as e:
+                exit_with_error(args, f"error running align_detector: {e}")
+        else:
+            logger.info(f"found no files matching {MILLE_BIN_GLOB}")
 
 
 def run_indexamajig(
@@ -451,6 +467,7 @@ def run_indexamajig(
         asapo_token_content = f.read().strip()
 
     geometry_path = f"{core_path}/shared/geometry.geom"
+    cpu_count = os.cpu_count()
     command_line_args = [
         f"{args.crystfel_path}/bin/indexamajig",
         "--peaks=peakfinder8",
@@ -465,9 +482,8 @@ def run_indexamajig(
         "--local-bg-radius=3",
         "--int-radius=4,5,7",
         "--indexing=asdf",
-        "--cpu-pin",
         "--asdf-fast",
-        f"-j{os.cpu_count()}",
+        f"-j{cpu_count // 2 if cpu_count is not None else 96}",
         "--no-retry",
         "-g",
         geometry_path,
@@ -478,7 +494,15 @@ def run_indexamajig(
     if cell_file is not None:
         command_line_args.extend(["-p", str(cell_file)])
     if args.use_auto_geom_refinement:
-        command_line_args.append("--mille")
+        mille_dir = (
+            core_path
+            / "processed"
+            / "millepede-files"
+            / f"run-{args.run_id}-job-{args.job_id}"
+        )
+        logging.info(f"creating mille dir {mille_dir}")
+        mille_dir.mkdir(exist_ok=True, parents=True)
+        command_line_args.extend(["--mille", f"--mille-dir={mille_dir}"])
     # pylint: disable=consider-using-with
     input_tmpfile = NamedTemporaryFile() if args.dummy_h5_input is not None else None
     if args.dummy_h5_input:

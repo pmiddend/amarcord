@@ -38,9 +38,9 @@ config =
     , NoUnused.Exports.rule |> Rule.ignoreErrorsForDirectories [ "third-party" ]
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule
-    , NoEtaReducibleLambdas.rule {
-          lambdaReduceStrategy = NoEtaReducibleLambdas.AlwaysRemoveLambdaWhenPossible
+    , NoEtaReducibleLambdas.rule
+        { lambdaReduceStrategy = NoEtaReducibleLambdas.AlwaysRemoveLambdaWhenPossible
         , argumentNamePredicate = always True
-      }
+        }
     , Simplify.rule Simplify.defaults
     ]

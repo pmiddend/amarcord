@@ -12,10 +12,12 @@ import Amarcord.Html exposing (h1_)
 import Amarcord.Util exposing (HereAndNow)
 import Axis
 import Color
-import Html exposing (Html, br, div, h4, span, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (class, style)
+import Html exposing (Html, br, div, h4, input, label, span, table, tbody, td, text, th, thead, tr)
+import Html.Attributes exposing (class, for, id, style, type_)
+import Html.Events exposing (onClick)
 import List.Extra as ListExtra
 import Maybe
+import Maybe.Extra as MaybeExtra
 import Path exposing (Path)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Scale exposing (ContinuousScale)
@@ -34,11 +36,13 @@ import TypedSvg.Types exposing (Paint(..), Transform(..))
 
 type Msg
     = RunAnalysisResultsReceived (Result RequestError RunAnalysisResultsRoot)
+    | BinningPeriodChange (Maybe Int)
 
 
 type alias Model =
     { hereAndNow : HereAndNow
     , analysisRequest : RemoteData RequestError RunAnalysisResultsRoot
+    , binningPeriod : Maybe Int
     }
 
 
@@ -46,6 +50,7 @@ init : HereAndNow -> ( Model, Cmd Msg )
 init hereAndNow =
     ( { hereAndNow = hereAndNow
       , analysisRequest = Loading
+      , binningPeriod = Nothing
       }
     , httpGetRunAnalysisResults RunAnalysisResultsReceived
     )
@@ -122,7 +127,7 @@ viewDetectorShifts r =
                 )
                 r
                 |> List.map (runIdLineGenerator scale)
-                |> Shape.line Shape.monotoneInXCurve
+                |> Shape.line Shape.linearCurve
     in
     svg [ viewBox 0 0 w h ]
         [ g [ transform [ Translate (padding - 1) (h - padding) ] ]
@@ -158,9 +163,67 @@ hitRateColor =
     Color.red
 
 
-viewRunStatistics : IndexingStatistic -> List IndexingStatistic -> Html msg
-viewRunStatistics firstStat stats =
+foldNeighbors : (Maybe a -> a -> b) -> List a -> List b
+foldNeighbors f xs =
     let
+        transducer : a -> ( Maybe a, List b ) -> ( Maybe a, List b )
+        transducer newElement ( priorElement, priorList ) =
+            ( Just newElement, f priorElement newElement :: priorList )
+    in
+    second <| List.foldl transducer ( Nothing, [] ) xs
+
+
+viewRunStatistics : Maybe Int -> IndexingStatistic -> List IndexingStatistic -> Html msg
+viewRunStatistics binningPeriod firstStat originalStats =
+    let
+        convertStat : Maybe IndexingStatistic -> IndexingStatistic -> IndexingStatistic
+        convertStat leftNeighbor element =
+            case leftNeighbor of
+                Nothing ->
+                    element
+
+                Just ln ->
+                    { element
+                        | frames = element.frames - ln.frames
+                        , hits = element.hits - ln.hits
+                        , indexedFrames = element.indexedFrames - ln.indexedFrames
+                        , indexedCrystals = element.indexedCrystals - ln.indexedCrystals
+                    }
+
+        binStats : Int -> List IndexingStatistic -> List IndexingStatistic
+        binStats binSeconds =
+            let
+                transducer newElement ( oldBatch, oldList ) =
+                    case ListExtra.last oldBatch of
+                        Nothing ->
+                            ( [ newElement ], oldList )
+
+                        Just oldestElement ->
+                            if posixToMillis oldestElement.time - posixToMillis newElement.time > binSeconds * 1000 then
+                                let
+                                    compressedBatch =
+                                        { oldestElement
+                                            | frames = List.sum (List.map .frames oldBatch)
+                                            , hits = List.sum (List.map .hits oldBatch)
+                                            , indexedFrames = List.sum (List.map .indexedFrames oldBatch)
+                                            , indexedCrystals = List.sum (List.map .indexedCrystals oldBatch)
+                                        }
+                                in
+                                ( [ newElement ], compressedBatch :: oldList )
+
+                            else
+                                ( newElement :: oldBatch, oldList )
+            in
+            second << List.foldl transducer ( [], [] )
+
+        stats =
+            case binningPeriod of
+                Just binSeconds ->
+                    binStats binSeconds (foldNeighbors convertStat originalStats)
+
+                Nothing ->
+                    originalStats
+
         w : Float
         w =
             900
@@ -188,22 +251,33 @@ viewRunStatistics firstStat stats =
                 |> Scale.linear ( 0.0, w - 2 * padding )
 
         hitRateAccessor stat =
-            toFloat stat.hits / toFloat stat.frames * 100.0
+            if stat.frames > 0 then
+                toFloat stat.hits / toFloat stat.frames * 100.0
+
+            else
+                0
 
         avgHitRate =
             Maybe.withDefault 0.0 <| Stat.mean hitRateAccessor stats
 
         hitRateScale : ContinuousScale Float
         hitRateScale =
-            stats
-                |> List.map hitRateAccessor
+            let
+                hitRates =
+                    avgHitRate :: List.map hitRateAccessor stats
+            in
+            hitRates
                 |> Statistics.extent
+                |> Maybe.map (\( _, maxHr ) -> ( 0, maxHr ))
                 |> Maybe.withDefault ( 0, 0 )
                 |> Scale.linear ( h - 2 * padding, 0 )
-                |> Scale.nice 4
 
         indexingRateAccessor stat =
-            toFloat stat.indexedFrames / toFloat stat.hits * 100.0
+            if stat.hits > 0 then
+                toFloat stat.indexedFrames / toFloat stat.hits * 100.0
+
+            else
+                0
 
         avgIndexingRate =
             Maybe.withDefault 0.0 <| Stat.mean indexingRateAccessor stats
@@ -227,7 +301,7 @@ viewRunStatistics firstStat stats =
                         )
                 )
                 stats
-                |> Shape.line Shape.monotoneInXCurve
+                |> Shape.line Shape.linearCurve
 
         rightSide =
             padding + second (Scale.range runTimeScale) - 1.0
@@ -253,37 +327,39 @@ viewRunStatistics firstStat stats =
                 , fill PaintNone
                 ]
             ]
-        , SubPath.element
-            (SubPath.fromSegments
-                [ Segment.line ( padding, Scale.convert indexingRateScale avgIndexingRate ) ( rightSide, Scale.convert indexingRateScale avgIndexingRate )
+        , g [ transform [ Translate 0 padding ] ]
+            [ SubPath.element
+                (SubPath.fromSegments
+                    [ Segment.line ( padding, Scale.convert hitRateScale avgHitRate ) ( rightSide, Scale.convert hitRateScale avgHitRate ) ]
+                )
+                [ stroke <| Paint <| hitRateColor
+                , strokeDasharray "5,5"
+                , strokeWidth 2
+                , fill PaintNone
                 ]
-            )
-            [ stroke <| Paint <| indexingRateColor
-            , strokeDasharray "10,10"
-            , strokeWidth 2
-            , fill PaintNone
-            ]
-        , SubPath.element
-            (SubPath.fromSegments
-                [ Segment.line ( padding, Scale.convert hitRateScale avgHitRate ) ( rightSide, Scale.convert hitRateScale avgHitRate )
+            , SubPath.element
+                (SubPath.fromSegments
+                    [ Segment.line ( padding, Scale.convert indexingRateScale avgIndexingRate ) ( rightSide, Scale.convert indexingRateScale avgIndexingRate )
+                    ]
+                )
+                [ stroke <| Paint <| indexingRateColor
+                , strokeDasharray "10,10"
+                , strokeWidth 2
+                , fill PaintNone
                 ]
-            )
-            [ stroke <| Paint <| hitRateColor
-            , strokeDasharray "5,5"
-            , strokeWidth 2
-            , fill PaintNone
             ]
         ]
 
 
 viewRunTableRow :
     HereAndNow
+    -> Maybe Int
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) File)
     -> List SimpleRun
     -> RunAnalysisResult
     -> Html msg
-viewRunTableRow hereAndNow attributi chemicals runs rar =
+viewRunTableRow hereAndNow binningPeriod attributi chemicals runs rar =
     let
         foundRun : Maybe SimpleRun
         foundRun =
@@ -304,27 +380,28 @@ viewRunTableRow hereAndNow attributi chemicals runs rar =
                     text ""
 
                 Just first ->
-                    viewRunStatistics first rar.indexingStatistics
+                    viewRunStatistics binningPeriod first rar.indexingStatistics
             ]
         ]
 
 
 viewRunGraphs :
     HereAndNow
+    -> Maybe Int
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) File)
     -> List SimpleRun
     -> List RunAnalysisResult
     -> Html msg
-viewRunGraphs hereAndNow attributi chemicals runs rars =
+viewRunGraphs hereAndNow binningPeriod attributi chemicals runs rars =
     table [ class "table table-striped" ]
         [ thead [] [ tr [] [ th [] [ text "Run ID" ], th [ style "width" "100%" ] [ text "Statistics" ] ] ]
-        , tbody [] (List.map (viewRunTableRow hereAndNow attributi chemicals runs) rars)
+        , tbody [] (List.map (viewRunTableRow hereAndNow binningPeriod attributi chemicals runs) rars)
         ]
 
 
-viewInner : HereAndNow -> RunAnalysisResultsRoot -> List (Html Msg)
-viewInner hereAndNow { runs, attributi, chemicals, indexingResultsByRunId } =
+viewInner : HereAndNow -> Maybe Int -> RunAnalysisResultsRoot -> List (Html Msg)
+viewInner hereAndNow binningPeriod { runs, attributi, chemicals, indexingResultsByRunId } =
     [ h1_ [ text "Detector Shifts" ]
     , div [ class "hstack gap-1" ]
         [ span [] [ span [ style "color" (Color.toCssString xShiftColor) ] [ text "■" ], text " X direction" ]
@@ -333,12 +410,26 @@ viewInner hereAndNow { runs, attributi, chemicals, indexingResultsByRunId } =
         ]
     , viewDetectorShifts indexingResultsByRunId
     , h1_ [ text "Online Indexing Statistics" ]
+    , div [ class "form-check mb-3" ]
+        [ input
+            [ class "form-check-input"
+            , type_ "checkbox"
+            , id "use-binning"
+            , onClick
+                (BinningPeriodChange <|
+                    MaybeExtra.unwrap (Just 20) (always Nothing) binningPeriod
+                )
+            ]
+            []
+        , label [ class "form-check-label", for "use-binning" ] [ text "Use binning" ]
+        , div [ class "form-text" ] [ text "This will show a binned (windowed) version of the indexing and hit rate graphs." ]
+        ]
     , div [ class "hstack gap-1" ]
         [ span [] [ span [ style "color" (Color.toCssString indexingRateColor) ] [ text "■" ], text " Indexing rate" ]
         , div [ class "vr" ] []
         , span [] [ span [ style "color" (Color.toCssString hitRateColor) ] [ text "■" ], text " Hit rate" ]
         ]
-    , viewRunGraphs hereAndNow attributi chemicals runs indexingResultsByRunId
+    , viewRunGraphs hereAndNow binningPeriod attributi chemicals runs indexingResultsByRunId
     ]
 
 
@@ -356,7 +447,7 @@ view model =
                 List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showRequestError e ]
 
             Success r ->
-                viewInner model.hereAndNow r
+                viewInner model.hereAndNow model.binningPeriod r
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -364,3 +455,6 @@ update msg model =
     case msg of
         RunAnalysisResultsReceived analysisResults ->
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
+
+        BinningPeriodChange newBinningPeriod ->
+            ( { model | binningPeriod = newBinningPeriod }, Cmd.none )

@@ -239,7 +239,6 @@ class SlurmRestWorkloadManager(WorkloadManager):
             "nodes": 1,
             "current_working_directory": str(working_directory),
             "time_limit": int(time_limit.total_seconds()) // 60,
-            "requeue": True,
             "environment": {
                 "SHELL": "/bin/bash",
                 "PATH": "/bin:/usr/bin:/usr/local/bin",

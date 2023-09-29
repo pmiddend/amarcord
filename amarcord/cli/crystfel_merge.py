@@ -338,16 +338,22 @@ def quick_refine(
         ],
     )
 
-    REFMAC_LOG_FILE = Path("08-refmac5_restr.log")
+    REFMAC_LOG_GLOB = "*refmac5_restr*.log"
+    refmac_log_files = list(Path("./").glob(REFMAC_LOG_GLOB))
 
-    if not REFMAC_LOG_FILE.is_file():
-        error = f"dimple ran successfully, but didn't produce file {REFMAC_LOG_FILE}, please check the output"
+    if not refmac_log_files:
+        error = f"dimple ran successfully, but didn't produce file matching {REFMAC_LOG_GLOB}, please check the output"
         raise Exception(error)
+
+    if len(refmac_log_files) > 1:
+        logging.info(
+            f"found multiple refmac log files: {refmac_log_files}, taking the first one"
+        )
 
     return RefinementResult(
         pdb_path=Path(DIMPLE_OUT_PDB),
         mtz_path=Path(DIMPLE_OUT_MTZ),
-        fom=parse_refmac_log(REFMAC_LOG_FILE),
+        fom=parse_refmac_log(refmac_log_files[0]),
     )
 
 
@@ -818,7 +824,7 @@ def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
 def generate_output(args: ParsedArgs) -> None:
     merge_subdirectory = Path(f"./merging-{args.merge_result_id}")
 
-    merge_subdirectory.mkdir(parents=True)
+    merge_subdirectory.mkdir(parents=True, exist_ok=True)
     os.chdir(merge_subdirectory)
 
     run_partialator(args)

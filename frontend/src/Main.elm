@@ -5,6 +5,7 @@
 module Main exposing (main)
 
 import Amarcord.API.Requests exposing (AppConfig, RequestError, httpGetConfig)
+import Amarcord.Attributo exposing (attributoStarted, attributoStopped, retrieveDateTimeAttributoValue)
 import Amarcord.Bootstrap exposing (viewRemoteData)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Html exposing (h1_, img_)
@@ -118,9 +119,87 @@ init localStorageStr url navKey =
     ( model, Cmd.batch [ Task.perform HereAndNowReceived <| retrieveHereAndNow, httpGetConfig ConfigReceived ] )
 
 
+buildTitle : Model -> String
+buildTitle model =
+    case model.metadata.appConfigRequest of
+        Success { title } ->
+            let
+                prefix =
+                    case model.route of
+                        Route.Chemicals ->
+                            "Chemicals — "
+
+                        Route.DataSets ->
+                            "Data Sets — "
+
+                        Route.Schedule ->
+                            "Schedule — "
+
+                        Route.ExperimentTypes ->
+                            "Experiment Types — "
+
+                        Route.RunOverview ->
+                            case model.page of
+                                RunOverviewPage runOverviewModel ->
+                                    case runOverviewModel.runs of
+                                        Success { runs } ->
+                                            case List.head runs of
+                                                Nothing ->
+                                                    "Runs — "
+
+                                                Just { id, attributi } ->
+                                                    let
+                                                        runStarted : Maybe Posix
+                                                        runStarted =
+                                                            retrieveDateTimeAttributoValue attributoStarted attributi
+
+                                                        runStopped : Maybe Posix
+                                                        runStopped =
+                                                            retrieveDateTimeAttributoValue attributoStopped attributi
+                                                    in
+                                                    case ( runStarted, runStopped ) of
+                                                        ( Just _, Nothing ) ->
+                                                            "🏃 Run " ++ String.fromInt id ++ " — "
+
+                                                        _ ->
+                                                            "Run " ++ String.fromInt id ++ " — "
+
+                                        _ ->
+                                            "Runs — "
+
+                                _ ->
+                                    "Runs — "
+
+                        Route.Attributi ->
+                            "Attributi — "
+
+                        Route.AdvancedControls ->
+                            "Advanced — "
+
+                        Route.Analysis ->
+                            "Analysis by Experiment Type — "
+
+                        Route.RunAnalysis ->
+                            "Analysis by Run — "
+
+                        Route.Root ->
+                            ""
+
+                suffix =
+                    "— AMARCORD"
+            in
+            prefix ++ title ++ suffix
+
+        _ ->
+            "AMARCORD"
+
+
 view : Model -> Document Msg
 view model =
     let
+        tabTitle =
+            buildTitle model
+
         displayTitle =
             case model.metadata.appConfigRequest of
                 Success { title } ->
@@ -129,7 +208,7 @@ view model =
                 _ ->
                     "AMARCORD"
     in
-    { title = displayTitle
+    { title = tabTitle
     , body =
         [ main_ []
             [ div [ class "container" ]
