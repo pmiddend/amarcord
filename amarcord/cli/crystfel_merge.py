@@ -11,7 +11,6 @@ import subprocess
 import sys
 from base64 import b64decode
 from dataclasses import dataclass
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from typing import Final
@@ -21,9 +20,14 @@ from urllib import request
 _NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE: Final = 6
 _NUMBER_OF_COLUMNS_IN_CHECK_SHELL_FILE: Final = 11
 _HIGHRES_CUT_CCSTAR_THRESHOLD: Final = 0.5
-_NSHELLS_FOR_HIGHRES_CUT: Final = 20
+_MAX_SHELLS_TO_TEST: Final = 30
 
-CCSTAR_COMPARE_SHELL_FILE_FIRST_PASS = Path("ccstar_shells_first_pass.dat")
+
+def ccstar_compare_shell_file(i: int) -> Path:
+    return Path(f"ccstar_shells_first_pass_{i}.dat")
+
+
+DESIRED_NREFS_PER_SHELL: Final = 2000
 RSPLIT_COMPARE_SHELL_FILE = Path("rsplit_shells.dat")
 CCSTAR_COMPARE_SHELL_FILE = Path("ccstar_shells.dat")
 CHECK_HKL_SHELL_FILE = Path("check.dat")
@@ -371,7 +375,6 @@ class ParsedArgs:
     cell_file_id: int
     point_group: str
     hkl_file: Path
-    nshells: None | int
     partialator_additional: None | str
     crystfel_path: Path
     pdb_file_id: None | int
@@ -428,7 +431,6 @@ def parse_predefined(s: bytes) -> ParsedArgs:
                 "hkl-file", "partialator.hkl"
             )  # pyright: ignore [reportUnknownArgumentType]
         ),
-        nshells=j.get("nshells"),  # pyright: ignore [reportUnknownArgumentType]
         partialator_additional=j.get(
             "partialator-additional"
         ),  # pyright: ignore [reportUnknownArgumentType]
@@ -632,6 +634,7 @@ def run_compare_hkl_single_fom(
     fom: str,
     search_term: str,
     highres: None | float,
+    nshells: int,
     may_fail: bool = False,
     output_file: None | Path = None,
 ) -> None | float:
@@ -645,7 +648,7 @@ def run_compare_hkl_single_fom(
             fom=fom,
             shell_file=output_file,
             highres=highres,
-            nshells=args.nshells,
+            nshells=nshells,
         )
     )
     logging.info(
@@ -834,9 +837,9 @@ def generate_output(args: ParsedArgs) -> None:
     mtz_path = Path(f"output-{args.merge_result_id}.mtz")
     create_mtz(args, mtz_path, cell_file)
 
-    highres_cut = calculate_highres_cut(args)
+    highres_cut, nshells = calculate_highres_cut(args)
 
-    logger.info(f"highres cut is {highres_cut}")
+    logger.info(f"highres cut is {highres_cut}, {nshells} shell(s)")
 
     check_out = run_check_hkl(
         args,
@@ -847,7 +850,7 @@ def generate_output(args: ParsedArgs) -> None:
             unit_cell=cell_file,
             highres=highres_cut,
             shell_file=CHECK_HKL_SHELL_FILE,
-            nshells=args.nshells,
+            nshells=nshells,
         ),
     )
     snr = first_group_as_float(check_out, r"Overall <snr> = ([^\n]+)")
@@ -887,7 +890,7 @@ def generate_output(args: ParsedArgs) -> None:
             unit_cell=cell_file,
             highres=highres_cut,
             wilson=True,
-            nshells=args.nshells,
+            nshells=nshells,
         ),
     )
     try:
@@ -902,6 +905,7 @@ def generate_output(args: ParsedArgs) -> None:
         "Rsplit",
         "Overall Rsplit",
         highres_cut,
+        nshells=nshells,
         output_file=RSPLIT_COMPARE_SHELL_FILE,
     )
     ccstar = run_compare_hkl_single_fom(
@@ -909,6 +913,7 @@ def generate_output(args: ParsedArgs) -> None:
         "CCstar",
         "Overall CC*",
         highres_cut,
+        nshells=nshells,
         output_file=CCSTAR_COMPARE_SHELL_FILE,
     )
     cc = run_compare_hkl_single_fom(
@@ -916,6 +921,7 @@ def generate_output(args: ParsedArgs) -> None:
         "CC",
         "Overall CC",
         highres_cut,
+        nshells=nshells,
         output_file=CC_COMPARE_SHELL_FILE,
     )
     check_file = read_shells_file(args, CHECK_HKL_SHELL_FILE)
@@ -976,12 +982,14 @@ def generate_output(args: ParsedArgs) -> None:
                 "R1i",
                 "Overall R1(I)",
                 highres_cut,
+                nshells=nshells,
             ),
             "r2": run_compare_hkl_single_fom(
                 args,
                 "R2",
                 "Overall R(2)",
                 highres_cut,
+                nshells=nshells,
             ),
             "cc": cc,
             "ccstar": ccstar,
@@ -990,6 +998,7 @@ def generate_output(args: ParsedArgs) -> None:
                 "CC",
                 "Overall CCano",
                 highres_cut,
+                nshells=nshells,
                 may_fail=True,
             ),
             "crdano": run_compare_hkl_single_fom(
@@ -997,6 +1006,7 @@ def generate_output(args: ParsedArgs) -> None:
                 "CRDano",
                 "Overall CRDano",
                 highres_cut,
+                nshells=nshells,
                 may_fail=True,
             ),
             "rano": run_compare_hkl_single_fom(
@@ -1004,6 +1014,7 @@ def generate_output(args: ParsedArgs) -> None:
                 "Rano",
                 "Overall Rano",
                 highres_cut,
+                nshells=nshells,
                 may_fail=True,
             ),
             "rano_over_r_split": run_compare_hkl_single_fom(
@@ -1011,6 +1022,7 @@ def generate_output(args: ParsedArgs) -> None:
                 "Rano/Rsplit",
                 "Overall Rano/Rsplit",
                 highres_cut,
+                nshells=nshells,
                 may_fail=True,
             ),
             "d1sig": run_compare_hkl_single_fom(
@@ -1018,16 +1030,18 @@ def generate_output(args: ParsedArgs) -> None:
                 "d1sig",
                 "Fraction of differences less than 1 sigma",
                 highres_cut,
+                nshells=nshells,
             ),
             "d2sig": run_compare_hkl_single_fom(
                 args,
                 "d2sig",
                 "Fraction of differences less than 2 sigma",
                 highres_cut,
+                nshells=nshells,
             ),
             "outer_shell": {
                 "resolution": read_compare_shells_file(
-                    args, CCSTAR_COMPARE_SHELL_FILE_FIRST_PASS
+                    args, ccstar_compare_shell_file(nshells)
                 )[-1].d_over_a,
                 "ccstar": read_compare_shells_file(args, CCSTAR_COMPARE_SHELL_FILE)[
                     -1
@@ -1078,29 +1092,54 @@ def extract_shell_resolutions(args: ParsedArgs) -> list[dict[str, float | int]]:
     ]
 
 
-def calculate_highres_cut(args: ParsedArgs) -> float:
-    run_compare_hkl_single_fom(
-        replace(args, nshells=_NSHELLS_FOR_HIGHRES_CUT),
-        "CCstar",
-        "Overall CC*",
-        output_file=CCSTAR_COMPARE_SHELL_FILE_FIRST_PASS,
-        highres=None,
-    )
-    first_pass_ccstar_file = read_compare_shells_file(
-        args, CCSTAR_COMPARE_SHELL_FILE_FIRST_PASS
-    )
-    if not first_pass_ccstar_file:
-        exit_with_error(
-            args, "Error in data: CC* shells file is empty, cannot calculate cutoff"
+def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
+    def calculate_ccstar_values(nshells: int) -> None | tuple[float, int]:
+        output_file = ccstar_compare_shell_file(nshells)
+        run_compare_hkl_single_fom(
+            args,
+            "CCstar",
+            "Overall CC*",
+            output_file=output_file,
+            highres=None,
+            nshells=nshells,
         )
-    highres_cut_line: None | CompareShellLine = None
-    for line in first_pass_ccstar_file:
-        if line.fom_value < _HIGHRES_CUT_CCSTAR_THRESHOLD:
-            break
-        highres_cut_line = line
-    if highres_cut_line is None:
-        highres_cut_line = first_pass_ccstar_file[-1]
-    return highres_cut_line.d_over_a
+        first_pass_ccstar_file = read_compare_shells_file(args, output_file)
+        if not first_pass_ccstar_file:
+            logger.warning(
+                f"Error in data: CC* shells file for {nshells} shell(s), cannot calculate cutoff - continuing with more shells"
+            )
+            return None
+        highres_cut_line: None | CompareShellLine = None
+        for line in first_pass_ccstar_file:
+            if line.fom_value < _HIGHRES_CUT_CCSTAR_THRESHOLD:
+                break
+            highres_cut_line = line
+        if highres_cut_line is None:
+            highres_cut_line = first_pass_ccstar_file[-1]
+        return highres_cut_line.d_over_a, min(x.nref for x in first_pass_ccstar_file)
+
+    result: None | tuple[float, int] = None
+    for nshells in range(1, _MAX_SHELLS_TO_TEST):
+        highres_cut_and_minimum_nref = calculate_ccstar_values(nshells)
+        if highres_cut_and_minimum_nref is None:
+            logger.warning(
+                f"Error in data: CC* shells file for {nshells} shell(s), cannot calculate cutoff - continuing with more shells"
+            )
+            continue
+        highres_cut, minimum_nref = highres_cut_and_minimum_nref
+        if minimum_nref > DESIRED_NREFS_PER_SHELL:
+            result = highres_cut, nshells
+        else:
+            if result is None:
+                logger.warning(
+                    f"after {nshells} shell(s), we have shells with less than {DESIRED_NREFS_PER_SHELL} refs, but we found no number of shells that match, so taking this one"
+                )
+                return highres_cut, nshells
+            return result
+    exit_with_error(
+        args,
+        f"considered all number of shells from 1 to {_MAX_SHELLS_TO_TEST}, but found no good configuration",
+    )
 
 
 def run_partialator(args: ParsedArgs) -> None:

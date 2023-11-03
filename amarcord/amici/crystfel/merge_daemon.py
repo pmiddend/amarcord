@@ -171,7 +171,6 @@ async def start_merge_job(
                 "merge-result-id": merge_result.id,
                 "cell-file-id": cell_file_id,
                 "point-group": merge_result.parameters.point_group,
-                "nshells": None,
                 "partialator-additional": shlex.join(
                     merge_parameters_to_crystfel_parameters(merge_result.parameters)
                 ),
