@@ -15,12 +15,14 @@ import Color
 import Html exposing (Html, br, div, h4, input, label, span, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (class, for, id, style, type_)
 import Html.Events exposing (onClick)
+import List exposing (head)
 import List.Extra as ListExtra
 import Maybe
 import Maybe.Extra as MaybeExtra
 import Path exposing (Path)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Scale exposing (ContinuousScale)
+import Scale.Color
 import Segment
 import Shape
 import Stat
@@ -28,10 +30,10 @@ import Statistics
 import SubPath
 import Time exposing (posixToMillis)
 import Tuple exposing (second)
-import TypedSvg exposing (g, svg)
-import TypedSvg.Attributes exposing (fill, stroke, strokeDasharray, transform, viewBox)
-import TypedSvg.Attributes.InPx exposing (strokeWidth)
-import TypedSvg.Types exposing (Paint(..), Transform(..))
+import TypedSvg exposing (g, line, svg, text_)
+import TypedSvg.Attributes exposing (dominantBaseline, fill, stroke, strokeDasharray, textAnchor, transform, viewBox)
+import TypedSvg.Attributes.InPx exposing (fontSize, strokeWidth, x, x1, x2, y, y1, y2)
+import TypedSvg.Types exposing (AnchorAlignment(..), DominantBaseline(..), Paint(..), Transform(..))
 
 
 type Msg
@@ -58,12 +60,12 @@ init hereAndNow =
 
 xShiftColor : Color.Color
 xShiftColor =
-    Color.red
+    Maybe.withDefault Color.red <| head Scale.Color.colorblind
 
 
 yShiftColor : Color.Color
 yShiftColor =
-    Color.green
+    Maybe.withDefault Color.red <| ListExtra.last Scale.Color.colorblind
 
 
 viewDetectorShifts : List RunAnalysisResult -> Html msg
@@ -77,9 +79,27 @@ viewDetectorShifts r =
         h =
             450
 
-        padding : Float
-        padding =
-            60
+        xPadding : Float
+        xPadding =
+            70
+
+        topPadding : Float
+        topPadding =
+            30
+
+        bottomPadding : Float
+        bottomPadding =
+            70
+
+        largeFontSize =
+            16
+
+        smallFontSize =
+            14
+
+        yPadding : Float
+        yPadding =
+            topPadding + bottomPadding
 
         runIdScale : ContinuousScale Float
         runIdScale =
@@ -87,34 +107,24 @@ viewDetectorShifts r =
                 |> List.map (\rr -> toFloat rr.runId)
                 |> Statistics.extent
                 |> Maybe.withDefault ( 1, 2 )
-                |> Scale.linear ( 0.0, w - 2 * padding )
+                |> Scale.linear ( 0.0, w - 2 * xPadding )
 
-        xShiftScale : ContinuousScale Float
-        xShiftScale =
+        shiftScale : ContinuousScale Float
+        shiftScale =
             r
                 |> List.concatMap (\rr -> rr.foms)
-                |> List.filterMap (\fom -> fom.detectorShiftX)
+                |> List.concatMap (\fom -> MaybeExtra.toList fom.detectorShiftX ++ MaybeExtra.toList fom.detectorShiftY)
                 |> Statistics.extent
                 |> Maybe.withDefault ( 0, 0 )
-                |> Scale.linear ( h - 2 * padding, 0 )
-                |> Scale.nice 4
-
-        yShiftScale : ContinuousScale Float
-        yShiftScale =
-            r
-                |> List.concatMap (\rr -> rr.foms)
-                |> List.filterMap (\fom -> fom.detectorShiftY)
-                |> Statistics.extent
-                |> Maybe.withDefault ( 0, 0 )
-                |> Scale.linear ( h - 2 * padding, 0 )
+                |> Scale.linear ( h - yPadding, 0 )
                 |> Scale.nice 4
 
         runIdLineGenerator : ContinuousScale Float -> ( Int, Float ) -> Maybe ( Float, Float )
         runIdLineGenerator scale ( runId, amount ) =
             Just ( Scale.convert runIdScale (toFloat runId), Scale.convert scale amount )
 
-        line : ContinuousScale Float -> (DataSetSummary -> Maybe Float) -> Path
-        line scale accessor =
+        plotLine : ContinuousScale Float -> (DataSetSummary -> Maybe Float) -> Path
+        plotLine scale accessor =
             List.filterMap
                 (\rr ->
                     Maybe.map
@@ -128,25 +138,82 @@ viewDetectorShifts r =
                 r
                 |> List.map (runIdLineGenerator scale)
                 |> Shape.line Shape.linearCurve
+
+        xAxisLabel =
+            text_
+                [ y (h - bottomPadding / 2)
+                , x (xPadding + (w - xPadding) / 2)
+                , textAnchor AnchorMiddle
+                , fontSize largeFontSize
+                ]
+                [ text "Run ID"
+                ]
+
+        yAxisLabel =
+            text_
+                [ textAnchor AnchorMiddle
+                , dominantBaseline DominantBaselineMiddle
+                , transform [ Rotate 270 (xPadding * 0.25) (h / 2.0), Translate (xPadding * 0.25) (h / 2.0) ]
+                , fontSize largeFontSize
+                ]
+                [ text "Shift (mm)"
+                ]
+
+        xAxisLegend =
+            g []
+                [ line [ x1 xPadding, x2 (xPadding + smallFontSize + 2), y1 (topPadding / 2.0), y2 (topPadding / 2.0), stroke (Paint xShiftColor), strokeWidth 2 ] []
+                , text_
+                    [ dominantBaseline DominantBaselineMiddle
+                    , y (topPadding / 2.0)
+                    , x (xPadding + smallFontSize + 6)
+                    , fontSize smallFontSize
+                    ]
+                    [ text "X direction" ]
+                ]
+
+        yAxisLegend =
+            let
+                xBasePoint =
+                    100
+            in
+            g []
+                [ line
+                    [ x1 (xPadding + xBasePoint)
+                    , x2 (xPadding + xBasePoint + smallFontSize + 2)
+                    , y1 (topPadding / 2.0)
+                    , y2 (topPadding / 2.0)
+                    , stroke (Paint yShiftColor)
+                    , strokeWidth 2
+                    ]
+                    []
+                , text_
+                    [ dominantBaseline DominantBaselineMiddle
+                    , y (topPadding / 2.0)
+                    , x (xPadding + xBasePoint + smallFontSize + 6)
+                    , fontSize smallFontSize
+                    ]
+                    [ text "Y direction" ]
+                ]
     in
     svg [ viewBox 0 0 w h ]
-        [ g [ transform [ Translate (padding - 1) (h - padding) ] ]
+        [ g [ transform [ Translate (xPadding - 1) (h - bottomPadding) ] ]
             [ Axis.bottom [ Axis.tickCount 10 ] runIdScale ]
-        , g [ transform [ Translate (padding - 1) padding ] ]
-            [ Axis.left [] xShiftScale
+        , g [ transform [ Translate (xPadding - 1) topPadding ] ]
+            [ Axis.left [] shiftScale
             ]
-        , g [ transform [ Translate (padding + second (Scale.range runIdScale) - 1.0) padding ] ]
-            [ Axis.right [] yShiftScale
-            ]
-        , g [ transform [ Translate padding padding ] ]
-            [ Path.element (line xShiftScale .detectorShiftX)
+        , xAxisLabel
+        , yAxisLabel
+        , xAxisLegend
+        , yAxisLegend
+        , g [ transform [ Translate xPadding topPadding ] ]
+            [ Path.element (plotLine shiftScale .detectorShiftX)
                 [ stroke <| Paint <| xShiftColor
-                , strokeWidth 3
+                , strokeWidth 2
                 , fill PaintNone
                 ]
-            , Path.element (line yShiftScale .detectorShiftY)
+            , Path.element (plotLine shiftScale .detectorShiftY)
                 [ stroke <| Paint <| yShiftColor
-                , strokeWidth 3
+                , strokeWidth 2
                 , fill PaintNone
                 ]
             ]
@@ -403,11 +470,6 @@ viewRunGraphs hereAndNow binningPeriod attributi chemicals runs rars =
 viewInner : HereAndNow -> Maybe Int -> RunAnalysisResultsRoot -> List (Html Msg)
 viewInner hereAndNow binningPeriod { runs, attributi, chemicals, indexingResultsByRunId } =
     [ h1_ [ text "Detector Shifts" ]
-    , div [ class "hstack gap-1" ]
-        [ span [] [ span [ style "color" (Color.toCssString xShiftColor) ] [ text "■" ], text " X direction" ]
-        , div [ class "vr" ] []
-        , span [] [ span [ style "color" (Color.toCssString yShiftColor) ] [ text "■" ], text " Y direction" ]
-        ]
     , viewDetectorShifts indexingResultsByRunId
     , h1_ [ text "Online Indexing Statistics" ]
     , div [ class "form-check mb-3" ]
