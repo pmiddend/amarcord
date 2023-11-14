@@ -225,7 +225,15 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
                         viewRunExperimentTypeCell (Maybe.withDefault "unknown experiment type" <| Dict.get run.experimentTypeId experimentTypeIds)
 
                     else
-                        viewAttributoCell { shortDateTime = True, colorize = True } zone chemicalIds run.attributi a
+                        viewAttributoCell
+                            { shortDateTime = True
+                            , colorize = True
+                            , withUnit = True
+                            }
+                            zone
+                            chemicalIds
+                            run.attributi
+                            a
 
             else
                 Nothing

@@ -9,7 +9,7 @@ import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, fo
 import Dict exposing (Dict, get)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (Decimals(..), Locale, usLocale)
-import Html exposing (Html, div, label, option, select, span, td, text)
+import Html exposing (Html, div, em, label, option, select, small, span, td, text)
 import Html.Attributes exposing (checked, class, for, id, selected, step, style, type_, value)
 import Html.Events exposing (onInput)
 import Html.Events.Extra exposing (onEnter)
@@ -51,6 +51,7 @@ makeAttributoHeader a =
 type alias ViewAttributoValueProperties =
     { shortDateTime : Bool
     , colorize : Bool
+    , withUnit : Bool
     }
 
 
@@ -82,6 +83,24 @@ viewAttributoCell props zone chemicalIds attributiValues { name, group, type_ } 
             Just v ->
                 viewAttributoValue props zone chemicalIds type_ v
         ]
+
+
+possiblyAddSuffix : ViewAttributoValueProperties -> Html msg -> Maybe String -> Html msg
+possiblyAddSuffix props prefix possibleSuffix =
+    span []
+        (prefix
+            :: (if props.withUnit then
+                    case possibleSuffix of
+                        Nothing ->
+                            []
+
+                        Just suffixString ->
+                            [ small [ class "text-muted" ] [ em [] [ text (" " ++ suffixString) ] ] ]
+
+                else
+                    []
+               )
+        )
 
 
 viewAttributoValue : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoType -> AttributoValue -> Html msg
@@ -122,6 +141,9 @@ viewAttributoValue props zone chemicalIds type_ value =
                             zone
                             (millisToPosix int)
 
+                Number { suffix } ->
+                    possiblyAddSuffix props (text (formatIntHumanFriendly int)) suffix
+
                 _ ->
                     text (formatIntHumanFriendly int)
 
@@ -145,7 +167,15 @@ viewAttributoValue props zone chemicalIds type_ value =
                     text "unsupported list type"
 
         ValueNumber float ->
-            text (formatFloatHumanFriendly float)
+            possiblyAddSuffix props
+                (text (formatFloatHumanFriendly float))
+                (case type_ of
+                    Number { suffix } ->
+                        suffix
+
+                    _ ->
+                        Nothing
+                )
 
 
 formatIntHumanFriendly : Int -> String

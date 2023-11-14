@@ -409,7 +409,15 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
                                     "Solution"
 
                     else
-                        viewAttributoCell { shortDateTime = False, colorize = False } zone Dict.empty chemical.attributi attributo
+                        viewAttributoCell
+                            { shortDateTime = False
+                            , colorize = False
+                            , withUnit = True
+                            }
+                            zone
+                            Dict.empty
+                            chemical.attributi
+                            attributo
             in
             td [ style "width" attributoColumnsPercent ] [ small [ class "text-muted" ] [ text attributo.name ], br_, attributoValue ]
 

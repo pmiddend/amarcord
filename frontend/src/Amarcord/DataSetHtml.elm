@@ -30,7 +30,17 @@ viewDataSetTable attributi zone chemicalIdToName attributoMap withHeader footer 
                             )
                         ]
                         [ td [ style "width" "50%" ] [ text attributo.name ]
-                        , td [ style "width" "50%" ] [ viewAttributoCell { shortDateTime = False, colorize = False } zone chemicalIdToName attributoValues attributo ]
+                        , td [ style "width" "50%" ]
+                            [ viewAttributoCell
+                                { shortDateTime = False
+                                , colorize = False
+                                , withUnit = True
+                                }
+                                zone
+                                chemicalIdToName
+                                attributoValues
+                                attributo
+                            ]
                         ]
     in
     table
@@ -40,7 +50,14 @@ viewDataSetTable attributi zone chemicalIdToName attributoMap withHeader footer 
 
           else
             text ""
-        , tbody_ (List.indexedMap (viewAttributiValueRow (Dict.size attributoMap - 1) attributoMap) (attributoMapNames attributoMap))
+        , tbody_
+            (List.indexedMap
+                (viewAttributiValueRow
+                    (Dict.size attributoMap - 1)
+                    attributoMap
+                )
+                (attributoMapNames attributoMap)
+            )
         , case footer of
             Nothing ->
                 text ""
