@@ -73,13 +73,19 @@ def upgrade() -> None:
                     .where(_chemical.c.id == row[0])
                     .values(responsible_person="No responsible person")
                 )
-
         with op.batch_alter_table("Attributo") as batch_op:  # type: ignore
             batch_op.execute(
                 _attributo.delete().where(
                     _attributo.c.name == _ATTRIBUTO_RESPONSIBLE_PERSON
                 )
             )
+    else:
+        # If we don't have an attributo for responsible person, simply set it to 'none' for all chemcials.
+        op.execute(
+            _chemical.update()
+            .values(responsible_person="No responsible person")
+        )
+
 
     with op.batch_alter_table("Chemical") as batch_op:  # type: ignore
         batch_op.alter_column(

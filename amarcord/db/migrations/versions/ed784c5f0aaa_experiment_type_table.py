@@ -50,13 +50,14 @@ def upgrade() -> None:
     conn = op.get_bind()
     name_to_id: dict[str, int] = {}
     # Set, because we might have duplicates (the table is "experiment type has attributo", not
-    # "experiment types" after all)
-    existing_experiment_type_names: set[str] = set(
+    # "experiment types" after all). However, we want a definite order for the IDs of the experiment types, so we sort
+    existing_experiment_type_names: list[str] = list(set(
         row[0]
         for row in conn.execute(
             select(_experiment_has_attributo_old.c.experiment_type)
         ).fetchall()
-    )
+    ))
+    existing_experiment_type_names.sort(key=str.casefold)
     for experiment_type_name in existing_experiment_type_names:
         name_to_id[experiment_type_name] = conn.execute(
             experiment_type.insert().values({"name": experiment_type_name})
