@@ -2,6 +2,8 @@
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=17ee3bcc82adbe5666c42591f73eef41c4bd00f5";
+  # It's very important to have at least 7.3.0 of this generator - otherwise generating Python code doesn't work properly
+  inputs.nixpkgs-openapi-generator.url = "github:NixOS/nixpkgs";
   inputs.poetry2nix = {
     url = "github:nix-community/poetry2nix?rev=0b2bff39e9bd4e6db3208e09c276ca83a063b370";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -12,7 +14,7 @@
     inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, poetry2nix, uglymol, mkElmDerivation }:
+  outputs = { self, nixpkgs, nixpkgs-openapi-generator, poetry2nix, uglymol, mkElmDerivation }:
     let
       system = "x86_64-linux";
       pypkgs-build-requirements = {
@@ -147,6 +149,10 @@
             overlays = [ overlay ];
           };
 
+          pkgs-openapi-generator = import nixpkgs-openapi-generator {
+            inherit system;
+          };
+
           # External as in "not provided by poetry"
           externalDependencies = [
             pkgs.poetry
@@ -158,7 +164,7 @@
             pkgs.mermaid-cli
             pkgs.gnumake
             # For generating Elm code
-            pkgs.openapi-generator-cli
+            pkgs-openapi-generator.openapi-generator-cli
             # To generate the DB diagrams
             pkgs.schemacrawler
           ];

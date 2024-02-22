@@ -201,6 +201,21 @@
         "type": "github"
       }
     },
+    "nixpkgs-openapi-generator": {
+      "locked": {
+        "lastModified": 1708601118,
+        "narHash": "sha256-jwEuL6mHn/Go8MCwQBKnHGQpX5RbuWpxyLrVCnakB1Y=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "99c3b5465471e60758cf87a2f8358a33388110c4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs_2": {
       "locked": {
         "lastModified": 1701019804,
@@ -317,6 +332,7 @@
       "inputs": {
         "mkElmDerivation": "mkElmDerivation",
         "nixpkgs": "nixpkgs_2",
+        "nixpkgs-openapi-generator": "nixpkgs-openapi-generator",
         "poetry2nix": "poetry2nix",
         "uglymol": "uglymol"
       }
