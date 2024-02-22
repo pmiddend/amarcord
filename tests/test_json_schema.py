@@ -1,22 +1,15 @@
+from typing import Any
+
 import pytest
 
+from amarcord.db.attributi import coparse_schema_type
+from amarcord.db.attributi import parse_schema_type
 from amarcord.json_schema import JSONSchemaArray
 from amarcord.json_schema import JSONSchemaBoolean
-from amarcord.json_schema import JSONSchemaCustomIntegerFormat
 from amarcord.json_schema import JSONSchemaInteger
-from amarcord.json_schema import JSONSchemaIntegerFormat
 from amarcord.json_schema import JSONSchemaNumber
-from amarcord.json_schema import JSONSchemaNumberFormat
 from amarcord.json_schema import JSONSchemaString
-from amarcord.json_schema import JSONSchemaType
-from amarcord.json_schema import coparse_schema_type
-from amarcord.json_schema import parse_schema_type
-from amarcord.json_types import JSONDict
-
-
-def test_parse_schema_type_no_type() -> None:
-    with pytest.raises(Exception):
-        parse_schema_type({"type_": "number"})
+from amarcord.json_schema import JSONSchemaUnion
 
 
 @pytest.mark.parametrize(
@@ -25,27 +18,29 @@ def test_parse_schema_type_no_type() -> None:
         (
             {"type": "number"},
             JSONSchemaNumber(
+                type="number",
                 minimum=None,
                 maximum=None,
                 exclusiveMaximum=None,
                 exclusiveMinimum=None,
                 suffix=None,
-                format_=None,
+                format=None,
                 tolerance=None,
-                tolerance_is_absolute=False,
+                toleranceIsAbsolute=False,
             ),
         ),
         (
             {"type": "number", "suffix": "suffix", "format": "standard-unit"},
             JSONSchemaNumber(
+                type="number",
                 minimum=None,
                 maximum=None,
                 exclusiveMaximum=None,
                 exclusiveMinimum=None,
                 suffix="suffix",
-                format_=JSONSchemaNumberFormat.STANDARD_UNIT,
+                format="standard-unit",
                 tolerance=None,
-                tolerance_is_absolute=False,
+                toleranceIsAbsolute=False,
             ),
         ),
         (
@@ -56,14 +51,15 @@ def test_parse_schema_type_no_type() -> None:
                 "tolerance": 0.5,
             },
             JSONSchemaNumber(
+                type="number",
                 minimum=None,
                 maximum=None,
                 exclusiveMaximum=None,
                 exclusiveMinimum=None,
                 suffix="suffix",
-                format_=JSONSchemaNumberFormat.STANDARD_UNIT,
+                format="standard-unit",
                 tolerance=0.5,
-                tolerance_is_absolute=False,
+                toleranceIsAbsolute=False,
             ),
         ),
         (
@@ -76,13 +72,14 @@ def test_parse_schema_type_no_type() -> None:
             },
             JSONSchemaNumber(
                 minimum=None,
+                type="number",
                 maximum=None,
                 exclusiveMaximum=None,
                 exclusiveMinimum=None,
                 suffix="suffix",
-                format_=JSONSchemaNumberFormat.STANDARD_UNIT,
+                format="standard-unit",
                 tolerance=0.5,
-                tolerance_is_absolute=True,
+                toleranceIsAbsolute=True,
             ),
         ),
         (
@@ -94,36 +91,42 @@ def test_parse_schema_type_no_type() -> None:
                 "toleranceIsAbsolute": True,
             },
             JSONSchemaNumber(
+                type="number",
                 minimum=None,
                 maximum=None,
                 exclusiveMaximum=None,
                 exclusiveMinimum=None,
                 suffix="suffix",
-                format_=JSONSchemaNumberFormat.STANDARD_UNIT,
+                format="standard-unit",
                 tolerance=3,
-                tolerance_is_absolute=True,
+                toleranceIsAbsolute=True,
             ),
         ),
-        ({"type": "string"}, JSONSchemaString(enum_=None)),
+        ({"type": "string"}, JSONSchemaString(type="string", enum=None)),
         (
-            {"type": "array", "items": {"type": "integer"}, "minItems": 10},
+            {"type": "array", "items": {"type": "boolean"}, "minItems": 10},
             JSONSchemaArray(
-                value_type=JSONSchemaInteger(format_=None), min_items=10, max_items=None
+                type="array",
+                minItems=10,
+                maxItems=None,
+                items=JSONSchemaBoolean(type="boolean"),
             ),
         ),
-        ({"type": "boolean"}, JSONSchemaBoolean()),
-        ({"type": "integer"}, JSONSchemaInteger(format_=None)),
+        ({"type": "boolean"}, JSONSchemaBoolean(type="boolean")),
+        ({"type": "integer"}, JSONSchemaInteger(type="integer", format=None)),
         (
             {"type": "integer", "format": "chemical-id"},
-            JSONSchemaInteger(format_=JSONSchemaCustomIntegerFormat("chemical-id")),
+            JSONSchemaInteger(type="integer", format="chemical-id"),
         ),
         (
             {"type": "integer", "format": "date-time"},
-            JSONSchemaInteger(format_=JSONSchemaIntegerFormat.DATE_TIME),
+            JSONSchemaInteger(type="integer", format="date-time"),
         ),
     ],
 )
-def test_parse_schema_type(input_json: JSONDict, expected: JSONSchemaType) -> None:
+def test_parse_schema_type(
+    input_json: dict[str, Any], expected: JSONSchemaUnion
+) -> None:
     assert parse_schema_type(input_json) == expected
 
 
@@ -131,42 +134,75 @@ def test_parse_schema_type(input_json: JSONDict, expected: JSONSchemaType) -> No
     "expected,input_schema",
     [
         (
-            {"type": "number"},
+            {
+                "type": "number",
+                "maximum": None,
+                "minimum": None,
+                "exclusiveMaximum": None,
+                "exclusiveMinimum": None,
+                "format": None,
+                "suffix": None,
+                "tolerance": None,
+                "toleranceIsAbsolute": False,
+            },
             JSONSchemaNumber(
+                type="number",
                 minimum=None,
                 maximum=None,
                 exclusiveMaximum=None,
                 exclusiveMinimum=None,
                 suffix=None,
-                format_=None,
+                format=None,
                 tolerance=None,
-                tolerance_is_absolute=False,
+                toleranceIsAbsolute=False,
             ),
         ),
         (
-            {"type": "number", "minimum": 1.0, "maximum": 3.0},
+            {
+                "type": "number",
+                "minimum": 1.0,
+                "maximum": 3.0,
+                "exclusiveMaximum": None,
+                "exclusiveMinimum": None,
+                "format": None,
+                "suffix": None,
+                "tolerance": None,
+                "toleranceIsAbsolute": False,
+            },
             JSONSchemaNumber(
+                type="number",
                 minimum=1.0,
                 maximum=3.0,
                 exclusiveMaximum=None,
                 exclusiveMinimum=None,
                 suffix=None,
-                format_=None,
+                format=None,
                 tolerance=None,
-                tolerance_is_absolute=False,
+                toleranceIsAbsolute=False,
             ),
         ),
         (
-            {"type": "number", "exclusiveMinimum": 1.0, "exclusiveMaximum": 3.0},
+            {
+                "type": "number",
+                "exclusiveMinimum": 1.0,
+                "exclusiveMaximum": 3.0,
+                "maximum": None,
+                "minimum": None,
+                "format": None,
+                "suffix": None,
+                "tolerance": None,
+                "toleranceIsAbsolute": False,
+            },
             JSONSchemaNumber(
+                type="number",
                 minimum=None,
                 maximum=None,
                 exclusiveMinimum=1.0,
                 exclusiveMaximum=3.0,
                 suffix=None,
-                format_=None,
+                format=None,
                 tolerance=None,
-                tolerance_is_absolute=False,
+                toleranceIsAbsolute=False,
             ),
         ),
         (
@@ -174,13 +210,18 @@ def test_parse_schema_type(input_json: JSONDict, expected: JSONSchemaType) -> No
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 3,
-                "items": {"type": "string"},
+                "items": {"type": "string", "enum": None},
             },
             JSONSchemaArray(
-                min_items=1, max_items=3, value_type=JSONSchemaString(enum_=None)
+                type="array",
+                minItems=1,
+                maxItems=3,
+                items=JSONSchemaString(type="string", enum=None),
             ),
         ),
     ],
 )
-def test_coparse_schema_type(expected: JSONDict, input_schema: JSONSchemaType) -> None:
+def test_coparse_schema_type(
+    expected: dict[str, Any], input_schema: JSONSchemaUnion
+) -> None:
     assert coparse_schema_type(input_schema) == expected

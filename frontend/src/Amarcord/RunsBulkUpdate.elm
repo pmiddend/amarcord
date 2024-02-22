@@ -1,17 +1,20 @@
 module Amarcord.RunsBulkUpdate exposing (Model, Msg, init, update, view)
 
-import Amarcord.API.Requests exposing (RequestError, RunsBulkGetResponse, httpGetRunsBulk, httpUpdateRunsBulk)
-import Amarcord.Attributo exposing (AttributoMap, AttributoValue)
+import Amarcord.API.Requests exposing (BeamtimeId, RunExternalId, runExternalIdFromInt, runExternalIdToInt)
+import Amarcord.Attributo exposing (AttributoMap, AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoValueFromApi)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, viewAttributoForm)
 import Amarcord.Bootstrap exposing (icon, viewRemoteData)
-import Amarcord.Chemical exposing (Chemical, ChemicalId, ChemicalType(..))
-import Amarcord.File exposing (File)
-import Amarcord.Html exposing (form_, input_, li_, p_, strongText)
+import Amarcord.Chemical exposing (Chemical, ChemicalId, convertChemicalFromApi)
+import Amarcord.Html exposing (form_, h3_, hr_, input_, li_, onIntInput, p_, strongText)
 import Amarcord.Util exposing (HereAndNow)
+import Api exposing (send)
+import Api.Data exposing (ChemicalType(..), JsonExperimentType, JsonFileOutput, JsonReadRunsBulkOutput, JsonUpdateRunsBulkOutput)
+import Api.Request.Runs exposing (readRunsBulkApiRunsBulkPost, updateRunsBulkApiRunsBulkPatch)
 import Dict
-import Html exposing (Html, button, div, label, p, text, ul)
-import Html.Attributes exposing (class, disabled, for, id, placeholder, type_, value)
+import Html exposing (Html, button, div, label, option, p, select, text, ul)
+import Html.Attributes exposing (class, disabled, for, id, placeholder, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Http
 import Maybe.Extra as MaybeExtra
 import Parser exposing ((|.), (|=))
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
@@ -19,16 +22,20 @@ import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 
 type alias EditableAttributiData =
     { actualEditableAttributi : EditableAttributiAndOriginal
-    , chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
+    , chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
+    , experimentTypeIds : List Int
+    , experimentTypes : List JsonExperimentType
+    , selectedExperimentType : Maybe Int
     }
 
 
 type alias Model =
     { hereAndNow : HereAndNow
     , runsInputField : String
-    , runsBulkGetRequest : RemoteData RequestError EditableAttributiData
-    , runsBulkUpdateRequest : RemoteData RequestError ()
+    , runsBulkGetRequest : RemoteData Http.Error EditableAttributiData
+    , runsBulkUpdateRequest : RemoteData Http.Error JsonUpdateRunsBulkOutput
     , submitErrors : List String
+    , beamtimeId : BeamtimeId
     }
 
 
@@ -36,13 +43,24 @@ type Msg
     = RunsInputFieldChanged String
     | SubmitRunRange
     | SubmitBulkChange
-    | RunsBulkGetResponseReceived (Result RequestError RunsBulkGetResponse)
-    | RunsBulkUpdateResponseReceived (Result RequestError ())
+    | RunsBulkGetResponseReceived (Result Http.Error JsonReadRunsBulkOutput)
+    | RunsBulkUpdateResponseReceived (Result Http.Error JsonUpdateRunsBulkOutput)
+    | RunsBulkChangeExperimentType Int
     | AttributoChange AttributoNameWithValueUpdate
 
 
-viewBulkAttributiForm : RemoteData RequestError () -> List String -> EditableAttributiData -> Html Msg
-viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAttributi } =
+singletonElement : List a -> Maybe a
+singletonElement xs =
+    case xs of
+        x :: [] ->
+            Just x
+
+        _ ->
+            Nothing
+
+
+viewBulkAttributiForm : RemoteData Http.Error JsonUpdateRunsBulkOutput -> List String -> EditableAttributiData -> Html Msg
+viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAttributi, experimentTypeIds, experimentTypes, selectedExperimentType } =
     let
         submitErrors =
             case submitErrorsList of
@@ -79,8 +97,47 @@ viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAt
 
                 AttributoFormSubmit ->
                     SubmitBulkChange
+
+        experimentTypeOption : JsonExperimentType -> Html Msg
+        experimentTypeOption { id, name } =
+            option
+                [ value (String.fromInt id)
+                , selected (Just id == singletonElement experimentTypeIds)
+                ]
+                [ text name ]
+
+        variousOptions =
+            case experimentTypeIds of
+                -- no experiment type IDs => can't be, every run must have one
+                [] ->
+                    []
+
+                -- a single experiment ID - then a "various" option doesn't make sense
+                _ :: [] ->
+                    []
+
+                _ ->
+                    [ option [ disabled True, value "", selected (MaybeExtra.isNothing selectedExperimentType) ] [ text "«various»" ] ]
+
+        experimentTypeSelect : Html Msg
+        experimentTypeSelect =
+            div [ class "form-floating" ]
+                [ select
+                    [ class "form-select", id "bulk-experiment-type", onIntInput RunsBulkChangeExperimentType ]
+                    (variousOptions ++ List.map experimentTypeOption experimentTypes)
+                , label [ for "bulk-experiment-type" ] [ text "Experiment Type" ]
+                ]
     in
-    form_ (List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals Crystal) actualEditableAttributi.editableAttributi ++ submitErrors ++ submitSuccess ++ okButton)
+    form_
+        (h3_ [ text "Attributo values" ]
+            :: div [ class "lead" ] [ text "The following input fields might be left empty, in which case multiple runs have different values for this attributo. Write something in the input field value, and all runs will have the new attributo value set." ]
+            :: hr_
+            :: experimentTypeSelect
+            :: List.map (Html.map attributoFormMsgToMsg << viewAttributoForm chemicals ChemicalTypeCrystal) actualEditableAttributi.editableAttributi
+            ++ submitErrors
+            ++ submitSuccess
+            ++ okButton
+        )
 
 
 view : Model -> Html Msg
@@ -101,7 +158,7 @@ view model =
                 ]
             , button
                 [ type_ "button"
-                , class "btn btn-primary"
+                , class "btn btn-primary mb-3"
                 , onClick SubmitRunRange
                 , disabled (model.runsInputField == "" || MaybeExtra.isNothing (parseRunIds model.runsInputField))
                 ]
@@ -116,13 +173,14 @@ view model =
         ]
 
 
-init : HereAndNow -> Model
-init hereAndNow =
+init : HereAndNow -> BeamtimeId -> Model
+init hereAndNow beamtimeId =
     { hereAndNow = hereAndNow
     , runsInputField = ""
     , runsBulkGetRequest = NotAsked
     , runsBulkUpdateRequest = NotAsked
     , submitErrors = []
+    , beamtimeId = beamtimeId
     }
 
 
@@ -158,14 +216,14 @@ parseRunIdsRaw =
         )
 
 
-parseRunIds : String -> Maybe (List Int)
+parseRunIds : String -> Maybe (List RunExternalId)
 parseRunIds x =
     case parseRunIdsRaw x of
         Err _ ->
             Nothing
 
         Ok intRanges ->
-            Just <| List.concatMap (\ir -> List.range ir.from ir.to) intRanges
+            Just <| List.concatMap (\ir -> List.map runExternalIdFromInt <| List.range ir.from ir.to) intRanges
 
 
 buildAttributoMap : AttributoMap (List AttributoValue) -> AttributoMap AttributoValue
@@ -188,19 +246,34 @@ buildAttributoMap =
 update : Model -> Msg -> ( Model, Cmd Msg )
 update model msg =
     case msg of
+        RunsBulkChangeExperimentType newExperimentTypeId ->
+            case model.runsBulkGetRequest of
+                Success successfulRequest ->
+                    ( { model | runsBulkGetRequest = Success { successfulRequest | selectedExperimentType = Just newExperimentTypeId } }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
         RunsInputFieldChanged string ->
             ( { model | runsInputField = string }, Cmd.none )
 
         SubmitBulkChange ->
             case ( parseRunIds model.runsInputField, model.runsBulkGetRequest ) of
-                ( Just runIds, Success { actualEditableAttributi } ) ->
+                ( Just runIds, Success { selectedExperimentType, actualEditableAttributi } ) ->
                     case convertEditValues model.hereAndNow.zone actualEditableAttributi of
                         Err errorList ->
-                            ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+                            ( { model | submitErrors = List.map (\( attributoId, errorMessage ) -> String.fromInt attributoId ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
                         Ok editedAttributi ->
                             ( { model | runsBulkUpdateRequest = Loading }
-                            , httpUpdateRunsBulk RunsBulkUpdateResponseReceived { runIds = runIds, attributi = editedAttributi }
+                            , send RunsBulkUpdateResponseReceived
+                                (updateRunsBulkApiRunsBulkPatch
+                                    { beamtimeId = model.beamtimeId
+                                    , externalRunIds = List.map runExternalIdToInt runIds
+                                    , attributi = attributoMapToListOfAttributi editedAttributi
+                                    , newExperimentTypeId = selectedExperimentType
+                                    }
+                                )
                             )
 
                 _ ->
@@ -213,7 +286,7 @@ update model msg =
 
                 Just runIds ->
                     ( { model | runsBulkGetRequest = Loading }
-                    , httpGetRunsBulk RunsBulkGetResponseReceived { runIds = runIds }
+                    , send RunsBulkGetResponseReceived (readRunsBulkApiRunsBulkPost { beamtimeId = model.beamtimeId, externalRunIds = List.map runExternalIdToInt runIds })
                     )
 
         RunsBulkGetResponseReceived response ->
@@ -221,23 +294,43 @@ update model msg =
                 Ok bulkResponse ->
                     let
                         editableAttributi =
-                            createEditableAttributi model.hereAndNow.zone bulkResponse.attributi (buildAttributoMap bulkResponse.attributiMap)
+                            createEditableAttributi
+                                model.hereAndNow.zone
+                                (List.map convertAttributoFromApi bulkResponse.attributi)
+                                (buildAttributoMap <| Dict.fromList <| List.map (\{ attributoId, values } -> ( attributoId, List.map convertAttributoValueFromApi values )) <| bulkResponse.attributiValues)
                     in
-                    ( { model | runsBulkGetRequest = Success { actualEditableAttributi = editableAttributi, chemicals = bulkResponse.chemicals } }, Cmd.none )
+                    ( { model
+                        | runsBulkGetRequest =
+                            Success
+                                { actualEditableAttributi = editableAttributi
+                                , chemicals = List.map convertChemicalFromApi bulkResponse.chemicals
+                                , experimentTypeIds = bulkResponse.experimentTypeIds
+                                , experimentTypes = bulkResponse.experimentTypes
+
+                                -- if we have exactly one experiment type, select that, otherwise make the selection "Nothing"
+                                , selectedExperimentType = singletonElement bulkResponse.experimentTypeIds
+                                }
+                      }
+                    , Cmd.none
+                    )
 
                 Err error ->
                     ( { model | runsBulkGetRequest = Failure error }, Cmd.none )
 
         AttributoChange v ->
             case model.runsBulkGetRequest of
-                Success { actualEditableAttributi, chemicals } ->
+                Success { actualEditableAttributi, chemicals, experimentTypes, experimentTypeIds, selectedExperimentType } ->
                     let
                         newEditable =
                             editEditableAttributi actualEditableAttributi.editableAttributi v
 
+                        newRunsBulkGetRequest : EditableAttributiData
                         newRunsBulkGetRequest =
-                            { actualEditableAttributi = { editableAttributi = newEditable, originalAttributi = actualEditableAttributi.originalAttributi }
+                            { actualEditableAttributi = { actualEditableAttributi | editableAttributi = newEditable }
                             , chemicals = chemicals
+                            , experimentTypes = experimentTypes
+                            , experimentTypeIds = experimentTypeIds
+                            , selectedExperimentType = selectedExperimentType
                             }
                     in
                     ( { model | runsBulkGetRequest = Success newRunsBulkGetRequest }, Cmd.none )

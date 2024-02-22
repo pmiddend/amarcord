@@ -1,16 +1,20 @@
 module Amarcord.EventForm exposing (Model, Msg(..), init, update, updateLiveStream, view)
 
-import Amarcord.API.Requests exposing (IncludeLiveStream(..), RequestError, httpCreateEvent, httpCreateFile)
-import Amarcord.API.RequestsHtml exposing (showRequestError)
+import Amarcord.API.Requests exposing (BeamtimeId, IncludeLiveStream(..))
+import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert)
-import Amarcord.File exposing (File)
 import Amarcord.Html exposing (form_, h5_, input_, tbody_, td_, th_, thead_, tr_)
+import Api exposing (send)
+import Api.Data exposing (JsonCreateFileOutput, JsonEventTopLevelOutput, JsonFileOutput)
+import Api.Request.Events exposing (createEventApiEventsPost)
+import Api.Request.Files exposing (createFileApiFilesPost)
 import File as ElmFile
 import File.Select
 import Hotkeys exposing (onEnter)
 import Html exposing (Html, button, div, h4, label, p, table, text, tr)
 import Html.Attributes exposing (class, disabled, for, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Http
 import List
 import RemoteData exposing (RemoteData(..), isLoading)
 import String
@@ -19,20 +23,21 @@ import String
 type alias Model =
     { userName : String
     , message : String
-    , files : List File
-    , fileUploadRequest : RemoteData RequestError ()
-    , eventRequest : RemoteData RequestError ()
+    , files : List JsonFileOutput
+    , fileUploadRequest : RemoteData Http.Error JsonCreateFileOutput
+    , eventRequest : RemoteData Http.Error JsonEventTopLevelOutput
     , hasLiveStream : Bool
+    , beamtimeId : BeamtimeId
     }
 
 
 type Msg
     = NewModel Model
     | Submit IncludeLiveStream
-    | SubmitFinished (Result RequestError ())
+    | SubmitFinished (Result Http.Error JsonEventTopLevelOutput)
     | OpenSelector (List String)
     | NewFile ElmFile.File
-    | FileUploadFinished (Result RequestError File)
+    | FileUploadFinished (Result Http.Error JsonCreateFileOutput)
     | FileDelete Int
 
 
@@ -46,19 +51,20 @@ updateLiveStream m b =
     { m | hasLiveStream = b }
 
 
-init : Model
-init =
+init : BeamtimeId -> Model
+init beamtimeId =
     { userName = "User"
     , message = ""
     , files = []
     , fileUploadRequest = NotAsked
     , eventRequest = NotAsked
     , hasLiveStream = False
+    , beamtimeId = beamtimeId
     }
 
 
 view : Model -> Html Msg
-view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream } =
+view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream, beamtimeId } =
     let
         eventError =
             case eventRequest of
@@ -66,7 +72,7 @@ view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream 
                     p [ class "text-success" ] [ text "Message added!" ]
 
                 Failure e ->
-                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ], showRequestError e ]
+                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ], showHttpError e ]
 
                 _ ->
                     text ""
@@ -80,16 +86,17 @@ view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream 
                     text "Uploading"
 
                 Failure e ->
-                    showRequestError e
+                    showHttpError e
 
                 Success _ ->
                     p [ class "text-success" ] [ text "File added!" ]
 
+        viewFileRow : JsonFileOutput -> Html Msg
         viewFileRow file =
             tr [ class "align-middle" ]
                 [ td_ [ text (String.fromInt file.id) ]
                 , td_ [ text file.fileName ]
-                , td_ [ text file.type_ ]
+                , td_ [ text file.type__ ]
                 , td_ [ text file.description ]
                 , td_ [ button [ class "btn btn-danger btn-sm", type_ "button", onClick (FileDelete file.id) ] [ icon { name = "trash" } ] ]
                 ]
@@ -107,7 +114,18 @@ view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream 
                                 , class "form-control form-control-sm"
                                 , placeholder "User name"
                                 , id "user-name"
-                                , onInput (\e -> NewModel { eventRequest = eventRequest, userName = e, message = message, files = files, fileUploadRequest = fileUploadRequest, hasLiveStream = hasLiveStream })
+                                , onInput
+                                    (\e ->
+                                        NewModel
+                                            { eventRequest = eventRequest
+                                            , userName = e
+                                            , message = message
+                                            , files = files
+                                            , fileUploadRequest = fileUploadRequest
+                                            , hasLiveStream = hasLiveStream
+                                            , beamtimeId = beamtimeId
+                                            }
+                                    )
                                 ]
                             , label [ for "user-name" ] [ text "User name" ]
                             ]
@@ -122,7 +140,18 @@ view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream 
                                     , class "form-control"
                                     , id "event-text"
                                     , onEnter (Submit NoLiveStream)
-                                    , onInput (\e -> NewModel { eventRequest = eventRequest, userName = userName, message = e, files = files, fileUploadRequest = fileUploadRequest, hasLiveStream = hasLiveStream })
+                                    , onInput
+                                        (\e ->
+                                            NewModel
+                                                { eventRequest = eventRequest
+                                                , userName = userName
+                                                , message = e
+                                                , files = files
+                                                , fileUploadRequest = fileUploadRequest
+                                                , hasLiveStream = hasLiveStream
+                                                , beamtimeId = beamtimeId
+                                                }
+                                        )
                                     ]
                                 , label [ for "event-text" ] [ text "What happened?" ]
                                 ]
@@ -197,7 +226,19 @@ update msg model =
         Submit includeStream ->
             if modelValid model then
                 ( { model | eventRequest = Loading }
-                , httpCreateEvent SubmitFinished includeStream model.userName model.message (List.map .id model.files)
+                , send SubmitFinished
+                    (createEventApiEventsPost
+                        { beamtimeId = model.beamtimeId
+                        , withLiveStream =
+                            case includeStream of
+                                NoLiveStream ->
+                                    False
+
+                                _ ->
+                                    True
+                        , event = { source = model.userName, text = model.message, fileIds = List.map .id model.files, level = "user" }
+                        }
+                    )
                 )
 
             else
@@ -208,9 +249,9 @@ update msg model =
                 Err e ->
                     ( { model | eventRequest = Failure e }, Cmd.none )
 
-                Ok _ ->
+                Ok v ->
                     ( { model
-                        | eventRequest = Success ()
+                        | eventRequest = Success v
                         , message = ""
                         , files = []
                         , fileUploadRequest = NotAsked
@@ -219,7 +260,7 @@ update msg model =
                     )
 
         NewFile newFile ->
-            ( { model | fileUploadRequest = Loading }, httpCreateFile FileUploadFinished (ElmFile.name newFile) newFile )
+            ( { model | fileUploadRequest = Loading }, send FileUploadFinished (createFileApiFilesPost newFile (ElmFile.name newFile)) )
 
         OpenSelector mimes ->
             ( model, File.Select.file mimes NewFile )
@@ -230,7 +271,20 @@ update msg model =
                     ( { model | fileUploadRequest = Failure e }, Cmd.none )
 
                 Ok file ->
-                    ( { model | fileUploadRequest = Success (), files = file :: model.files }, Cmd.none )
+                    ( { model
+                        | fileUploadRequest = Success file
+                        , files =
+                            { id = file.id
+                            , description = file.description
+                            , type__ = file.type__
+                            , originalPath = file.originalPath
+                            , fileName = file.fileName
+                            , sizeInBytes = file.sizeInBytes
+                            }
+                                :: model.files
+                      }
+                    , Cmd.none
+                    )
 
         FileDelete fileId ->
             ( { model | files = List.filter (\f -> f.id /= fileId) model.files }, Cmd.none )

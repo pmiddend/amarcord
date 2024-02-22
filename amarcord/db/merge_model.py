@@ -1,7 +1,8 @@
 from enum import Enum
 
 
-class MergeModel(Enum):
+# str to make it JSON serializable
+class MergeModel(str, Enum):
     UNITY = "unity"
     XSPHERE = "xsphere"
     OFFSET = "offset"

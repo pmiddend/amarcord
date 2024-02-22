@@ -1,40 +1,44 @@
 module Amarcord.Pages.Analysis exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
-import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
-import Amarcord.API.Requests exposing (AnalysisResultsExperimentType, AnalysisResultsRoot, MergeFom, MergeResult, MergeResultState(..), MergeShellFom, RefinementResult, RequestError, httpGetAnalysisResults, httpStartMergeJobForDataSet, sortAnalysisResultsExperimentType)
-import Amarcord.API.RequestsHtml exposing (showRequestError)
-import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType, AttributoValue, attributoIsChemicalId, attributoValueToString)
+import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
+import Amarcord.API.Requests exposing (BeamtimeId)
+import Amarcord.API.RequestsHtml exposing (showHttpError)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoType, AttributoValue, attributoIsChemicalId, convertAttributoFromApi, convertAttributoMapFromApi, prettyPrintAttributoValue)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
-import Amarcord.CrystFELMerge as CrystFELMerge exposing (MergeParametersInput, Polarisation, ScaleIntensities(..), mergeModelToString, modelToMergeParameters)
+import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (br_, div_, h5_, input_, li_, span_, tbody_, td_, th_, thead_, tr_)
-import Amarcord.PointGroupChooser exposing (pointGroupToString)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
+import Api exposing (send)
+import Api.Data exposing (JsonAnalysisDataSet, JsonDataSet, JsonExperimentType, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonReadAnalysisResults, JsonRefinementResult, JsonStartMergeJobForDataSetOutput, MergeResultFom, MergeResultShell, ScaleIntensities(..))
+import Api.Request.Analysis exposing (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet)
+import Api.Request.Merging exposing (startMergeJobForDataSetApiMergingDataSetIdStartPost)
 import Dict exposing (Dict)
 import Dict.Extra
 import Html exposing (Html, a, abbr, button, dd, div, dl, dt, em, h2, h4, input, label, node, p, small, span, sup, table, td, text, th, tr, ul)
 import Html.Attributes exposing (attribute, checked, class, colspan, disabled, for, href, id, style, title, type_)
 import Html.Events exposing (onClick, onInput)
+import Http
 import List.Extra
 import Maybe
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Set exposing (Set)
 import String
-import Time exposing (Posix)
+import Time exposing (Posix, millisToPosix)
 
 
 type Msg
-    = AnalysisResultsReceived (Result RequestError AnalysisResultsRoot)
+    = AnalysisResultsReceived (Result Http.Error JsonReadAnalysisResults)
     | StartMerge DataSetId
     | QuickStartMerge DataSetId
     | CancelMerge
     | SubmitMerge DataSetId CrystFELMerge.Model
-    | MergeFinished (Result RequestError ())
+    | MergeFinished (Result Http.Error JsonStartMergeJobForDataSetOutput)
     | Refresh Posix
     | OpenMergeResultDetail DetailMerge
     | CloseMergeResultDetail
@@ -63,7 +67,7 @@ type alias MergeResultId =
 
 
 type alias MergeResultWrapper =
-    { mergeResult : MergeResult, showResults : Bool }
+    { mergeResult : JsonMergeResult, showResults : Bool }
 
 
 type alias ActivatedMergeForm =
@@ -73,22 +77,22 @@ type alias ActivatedMergeForm =
 
 
 type alias DetailMerge =
-    { id : Int, fom : MergeFom, shell_foms : List MergeShellFom, refinementResults : List RefinementResult }
+    { id : Int, fom : MergeResultFom, shell_foms : List MergeResultShell, refinementResults : List JsonRefinementResult }
 
 
 type alias MergeRequest =
     { dataSetId : Int
-    , request : RemoteData RequestError ()
+    , request : RemoteData Http.Error JsonStartMergeJobForDataSetOutput
     }
 
 
 type alias ExperimentTypeAttributoFilter =
-    { expType : ExperimentType, attrName : AttributoName, attrValue : AttributoValue }
+    { expType : JsonExperimentType, attrId : AttributoId, attrValue : AttributoValue }
 
 
 type alias Model =
     { hereAndNow : HereAndNow
-    , analysisRequest : RemoteData RequestError AnalysisResultsRoot
+    , analysisRequest : RemoteData Http.Error JsonReadAnalysisResults
     , activatedMergeForm : Maybe ActivatedMergeForm
     , mergeRequest : Maybe MergeRequest
     , selectedMergeResult : SelectedMergeResult
@@ -97,11 +101,12 @@ type alias Model =
     , hiddenExperimentTypeAttributiFilters : List ExperimentTypeAttributoFilter
     , selectMergeStatus : Maybe MergeStatus
     , dataSetsSortingAscending : Bool
+    , beamtimeId : BeamtimeId
     }
 
 
-init : HereAndNow -> ( Model, Cmd Msg )
-init hereAndNow =
+init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
+init hereAndNow beamtimeId =
     ( { hereAndNow = hereAndNow
       , analysisRequest = Loading
       , activatedMergeForm = Nothing
@@ -112,12 +117,13 @@ init hereAndNow =
       , hiddenExperimentTypeAttributiFilters = []
       , selectMergeStatus = Nothing
       , dataSetsSortingAscending = True
+      , beamtimeId = beamtimeId
       }
-    , httpGetAnalysisResults AnalysisResultsReceived
+    , send AnalysisResultsReceived (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet beamtimeId)
     )
 
 
-viewFilters : Set ExperimentTypeId -> Maybe MergeStatus -> AnalysisResultsRoot -> Html Msg
+viewFilters : Set ExperimentTypeId -> Maybe MergeStatus -> JsonReadAnalysisResults -> Html Msg
 viewFilters hiddenExperimentTypeIds mergeStatus { experimentTypes } =
     let
         mergeFilterId =
@@ -187,24 +193,55 @@ viewFilters hiddenExperimentTypeIds mergeStatus { experimentTypes } =
         ]
 
 
-viewInner : HereAndNow -> Maybe MergeRequest -> Maybe ActivatedMergeForm -> Maybe MergeStatus -> Set ExperimentTypeId -> Set MergeResultId -> List ExperimentTypeAttributoFilter -> Bool -> AnalysisResultsRoot -> List (Html Msg)
+viewInner : HereAndNow -> Maybe MergeRequest -> Maybe ActivatedMergeForm -> Maybe MergeStatus -> Set ExperimentTypeId -> Set MergeResultId -> List ExperimentTypeAttributoFilter -> Bool -> JsonReadAnalysisResults -> List (Html Msg)
 viewInner hereAndNow mergeRequest activatedMergeForm selectedMergeStatus hiddenExperimentTypeIds hiddenMergeResultIds hiddenExperimentTypeAttributoFilters datasetSortingIdAscending { experimentTypes, attributi, chemicalIdToName, dataSets } =
     List.map
-        (\experimentType ->
+        (\experimentTypePrime ->
             viewResultsTableForSingleExperimentType
-                attributi
+                (List.map convertAttributoFromApi attributi)
                 hereAndNow
                 mergeRequest
                 activatedMergeForm
-                chemicalIdToName
-                experimentType
+                (List.foldr (\{ chemicalId, name } -> Dict.insert chemicalId name) Dict.empty chemicalIdToName)
+                experimentTypePrime
                 selectedMergeStatus
                 hiddenMergeResultIds
                 hiddenExperimentTypeAttributoFilters
                 datasetSortingIdAscending
-                (Maybe.withDefault [] <| Dict.get experimentType.id dataSets)
+                (Maybe.withDefault [] <| Maybe.map .dataSets <| List.Extra.find (\{ experimentType } -> experimentType == experimentTypePrime.id) dataSets)
         )
         (List.filter (\expType -> not <| Set.member expType.id hiddenExperimentTypeIds) experimentTypes)
+
+
+
+-- we should probably refactor the OpenAPI spec to use a tagged union in the first place, but for now, this is the band-aid
+
+
+type MergeResultStateUnion
+    = MergeResultStateQueued JsonMergeResultStateQueued
+    | MergeResultStateError JsonMergeResultStateError
+    | MergeResultStateRunning JsonMergeResultStateRunning
+    | MergeResultStateDone JsonMergeResultStateDone
+
+
+createMergeResultUnion : JsonMergeResult -> Maybe MergeResultStateUnion
+createMergeResultUnion mr =
+    case mr.stateQueued of
+        Nothing ->
+            case mr.stateError of
+                Nothing ->
+                    case mr.stateRunning of
+                        Nothing ->
+                            mr.stateDone |> Maybe.map MergeResultStateDone
+
+                        Just running ->
+                            Just (MergeResultStateRunning running)
+
+                Just error ->
+                    Just (MergeResultStateError error)
+
+        Just queued ->
+            Just (MergeResultStateQueued queued)
 
 
 viewResultsTableForSingleExperimentType :
@@ -213,12 +250,12 @@ viewResultsTableForSingleExperimentType :
     -> Maybe MergeRequest
     -> Maybe ActivatedMergeForm
     -> Dict Int String
-    -> ExperimentType
+    -> JsonExperimentType
     -> Maybe MergeStatus
     -> Set MergeResultId
     -> List ExperimentTypeAttributoFilter
     -> Bool
-    -> List AnalysisResultsExperimentType
+    -> List JsonAnalysisDataSet
     -> Html Msg
 viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activatedMergeForm chemicalIdsToName experimentType selectedMergeStatus hiddenMergeResultIds hiddenExperimentTypeAttributoFilters datasetSortingIdAscending dataSets =
     let
@@ -231,12 +268,14 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                 Just { request } ->
                     isLoading request
 
-        viewDataSet : AnalysisResultsExperimentType -> List (Html Msg)
+        viewDataSet : JsonAnalysisDataSet -> List (Html Msg)
         viewDataSet experimentTypeResults =
             let
+                dataSet : JsonDataSet
                 dataSet =
                     experimentTypeResults.dataSet
 
+                mergeResultWrappers : List MergeResultWrapper
                 mergeResultWrappers =
                     List.map
                         (\mr -> { mergeResult = mr, showResults = Set.member mr.id hiddenMergeResultIds })
@@ -261,17 +300,17 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                 scaleIntensitiesToString : ScaleIntensities -> String
                 scaleIntensitiesToString x =
                     case x of
-                        Off ->
+                        ScaleIntensitiesOff ->
                             "off"
 
-                        DebyeWaller ->
+                        ScaleIntensitiesDebyewaller ->
                             "Debye-Waller"
 
-                        Normal ->
+                        ScaleIntensitiesNormal ->
                             "Scale intensities"
 
-                viewMergeParameters : MergeParametersInput -> Html msg
-                viewMergeParameters { model, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
+                viewMergeParameters : JsonMergeParameters -> Html msg
+                viewMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, polarisation, startAfter, stopAfter, relB, noPr, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
                     let
                         dtClass =
                             []
@@ -291,7 +330,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                             , dd ddClass [ dlContent ]
                             ]
 
-                        polarisationToDescription : Polarisation -> String
+                        polarisationToDescription : JsonPolarisation -> String
                         polarisationToDescription { angle, percent } =
                             if angle == 0 then
                                 "Horizontal "
@@ -324,7 +363,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                     in
                     div_
                         [ dl []
-                            (dtDl "Model" (text <| mergeModelToString model)
+                            (dtDl "Model" (text <| mergeModelToString mergeModel)
                                 ++ dtDl "Scale intensities" (text <| scaleIntensitiesToString scaleIntensities)
                                 ++ boolDtDl "Post refinement" postRefinement
                                 ++ dtDl "Iterations" (text <| String.fromInt iterations)
@@ -335,7 +374,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                 ++ boolDtDl "Write partiality model diagnostics" logs
                                 ++ maybeDtDl "Require minimum estimated pattern resolution" (Maybe.map (text << formatFloatHumanFriendly) minRes)
                                 ++ maybeDtDl "Exclude measurements above resolution limit" (Maybe.map (text << formatFloatHumanFriendly) pushRes)
-                                ++ maybeDtDl "Indexing assignment refinement" (Maybe.map (text << pointGroupToString) w)
+                                ++ maybeDtDl "Indexing assignment refinement" (Maybe.map text w)
                                 ++ dtDl "Reject crystals with absolute B factors ≥ Å²" (text <| String.fromFloat <| relB)
                                 ++ boolDtDl "Disable the orientation/physics model part of the refinement calculation" noPr
                                 ++ maybeDtDl "Start after crystals" (Maybe.map (text << String.fromInt) startAfter)
@@ -346,7 +385,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                 showDatasetByAttributiFilters =
                     let
                         attrValuePossibleFilters =
-                            List.map (\( attrName, attrValue ) -> { expType = experimentType, attrName = attrName, attrValue = attrValue }) (Dict.toList dataSet.attributi)
+                            List.map (\( attrId, attrValue ) -> { expType = experimentType, attrId = attrId, attrValue = attrValue }) (Dict.toList <| convertAttributoMapFromApi dataSet.attributi)
                     in
                     List.Extra.allDifferent (attrValuePossibleFilters ++ hiddenExperimentTypeAttributoFilters)
 
@@ -383,9 +422,6 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
 
                         parameters =
                             mrw.mergeResult.parameters
-
-                        state =
-                            mrw.mergeResult.state
 
                         runs =
                             mrw.mergeResult.runs
@@ -435,37 +471,40 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                             ]
                         , td [ class "text-nowrap" ] (List.intersperse br_ <| List.map text runs)
                         ]
-                            ++ (case state of
-                                    MergeResultQueued ->
-                                        [ td
-                                            [ colspan remainingHeaders ]
-                                            [ div [ class "spinner-border spinner-border-sm text-secondary" ] [], span_ [ text " In queue..." ] ]
-                                        ]
-
-                                    MergeResultRunning started _ _ ->
+                            ++ (case createMergeResultUnion mrw.mergeResult of
+                                    Just (MergeResultStateRunning { started }) ->
                                         [ td
                                             [ colspan remainingHeaders ]
                                             [ div [ class "spinner-border spinner-border-sm text-primary" ] []
                                             , em [ class "mb-3" ]
                                                 [ text " Running for "
                                                 , text <|
-                                                    posixDiffHumanFriendly hereAndNow.now started
+                                                    posixDiffHumanFriendly hereAndNow.now (millisToPosix started)
                                                 ]
                                             ]
                                         ]
 
-                                    MergeResultError _ _ error _ ->
+                                    Just (MergeResultStateError { error }) ->
                                         [ td [ colspan remainingHeaders ] [ span_ [ text <| "Error: " ++ error ++ "." ] ] ]
 
-                                    MergeResultDone started stopped mtzFileId fom shells ->
+                                    Just (MergeResultStateDone { started, stopped, result }) ->
                                         let
                                             refinementResults =
                                                 mrw.mergeResult.refinementResults
 
                                             floatWithShell overall outer =
                                                 td_ [ text <| formatFloatHumanFriendly overall ++ " (" ++ formatFloatHumanFriendly outer ++ ")" ]
+
+                                            fom =
+                                                result.fom
+
+                                            mtzFileId =
+                                                result.mtzFileId
+
+                                            shells =
+                                                result.detailedFoms
                                         in
-                                        [ td_ [ text <| String.fromInt <| posixDiffMinutes stopped started ]
+                                        [ td_ [ text <| String.fromInt <| posixDiffMinutes (millisToPosix stopped) (millisToPosix started) ]
                                         , td_
                                             [ text <|
                                                 formatFloatHumanFriendly fom.oneOverDFrom
@@ -480,7 +519,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                         , floatWithShell fom.completeness fom.outerShell.completeness
                                         , floatWithShell fom.redundancy fom.outerShell.redundancy
                                         , floatWithShell fom.cc fom.outerShell.cc
-                                        , floatWithShell fom.ccStar fom.outerShell.ccStar
+                                        , floatWithShell fom.ccstar fom.outerShell.ccstar
                                         , td_ [ text <| Maybe.withDefault "" <| Maybe.map formatFloatHumanFriendly fom.wilson ]
                                         , td_
                                             [ icon { name = "file-binary" }
@@ -494,6 +533,12 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                                 ]
                                                 [ text "Details" ]
                                             ]
+                                        ]
+
+                                    _ ->
+                                        [ td
+                                            [ colspan remainingHeaders ]
+                                            [ div [ class "spinner-border spinner-border-sm text-secondary" ] [], span_ [ text " In queue..." ] ]
                                         ]
                                )
             in
@@ -548,7 +593,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                         []
                     )
                     [ td_ [ text (String.fromInt dataSet.id) ]
-                    , td_ [ viewDataSetTable attributi hereAndNow.zone chemicalIdsToName dataSet.attributi False Nothing ]
+                    , td_ [ viewDataSetTable attributi hereAndNow.zone chemicalIdsToName (convertAttributoMapFromApi dataSet.attributi) False Nothing ]
                     , td_ (List.intersperse br_ <| List.map text experimentTypeResults.runs)
                     , td_
                         [ text <|
@@ -556,7 +601,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                 ""
 
                             else
-                                MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.hitRate) dataSet.summary
+                                MaybeExtra.unwrap "" (\summary -> formatFloatHumanFriendly summary.hitRate ++ "%") dataSet.summary
                         ]
                     , td_
                         [ text <|
@@ -564,7 +609,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                 ""
 
                             else
-                                MaybeExtra.unwrap "" (\summary -> MaybeExtra.unwrap "" (\hr -> formatFloatHumanFriendly hr ++ "%") summary.indexingRate) dataSet.summary
+                                MaybeExtra.unwrap "" (\summary -> formatFloatHumanFriendly summary.indexingRate ++ "%") dataSet.summary
                         ]
                     , td_
                         [ text <|
@@ -613,7 +658,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                 Just { request } ->
                                     case request of
                                         Failure e ->
-                                            div_ [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
+                                            div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
 
                                         _ ->
                                             text ""
@@ -629,48 +674,48 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
             else
                 []
 
-        experimentTypeAttributi : Set AttributoName
+        experimentTypeAttributi : Set AttributoId
         experimentTypeAttributi =
-            Set.fromList <| List.concatMap (Dict.keys << .attributi << .dataSet) dataSets
+            Set.fromList <| List.concatMap (List.map .attributoId << .attributi << .dataSet) dataSets
 
-        attributoValueSelector : AttributoName -> AttributoValue -> String
-        attributoValueSelector attrName attrValue =
-            case List.Extra.find (\a -> a.name == attrName) attributi of
+        attributoValueSelector : AttributoId -> AttributoValue -> String
+        attributoValueSelector attrId attrValue =
+            case List.Extra.find (\a -> a.id == attrId) attributi of
                 Nothing ->
-                    "what is this? " ++ attrName
+                    "what is this? " ++ String.fromInt attrId
 
                 Just attr ->
                     if attributoIsChemicalId attr.type_ then
-                        case String.toInt (attributoValueToString attrValue) of
+                        case String.toInt (prettyPrintAttributoValue attrValue) of
                             Nothing ->
-                                attributoValueToString attrValue
+                                prettyPrintAttributoValue attrValue
 
                             Just chemicalId ->
                                 case Dict.get chemicalId chemicalIdsToName of
                                     Nothing ->
-                                        attributoValueToString attrValue
+                                        prettyPrintAttributoValue attrValue
 
                                     Just ch ->
                                         ch
 
                     else
-                        attributoValueToString attrValue
+                        prettyPrintAttributoValue attrValue
 
         checkAttributeFilterIsPresent : ExperimentTypeAttributoFilter -> List ExperimentTypeAttributoFilter -> Bool
-        checkAttributeFilterIsPresent { expType, attrName, attrValue } hiddenFilters =
-            List.member { expType = expType, attrName = attrName, attrValue = attrValue } hiddenFilters
+        checkAttributeFilterIsPresent { expType, attrId, attrValue } hiddenFilters =
+            List.member { expType = expType, attrId = attrId, attrValue = attrValue } hiddenFilters
 
-        allNoneResetCheckButton : AttributoName -> List AttributoValue -> Html Msg
-        allNoneResetCheckButton attributoName valuesForAttributo =
+        allNoneResetCheckButton : AttributoId -> List AttributoValue -> Html Msg
+        allNoneResetCheckButton attributoId valuesForAttributo =
             let
-                filterFromAttributoPair : AttributoName -> AttributoValue -> ExperimentTypeAttributoFilter
-                filterFromAttributoPair aname avalue =
-                    { expType = experimentType, attrName = aname, attrValue = avalue }
+                filterFromAttributoPair : AttributoId -> AttributoValue -> ExperimentTypeAttributoFilter
+                filterFromAttributoPair aid avalue =
+                    { expType = experimentType, attrId = aid, attrValue = avalue }
 
                 attrFilters : List ExperimentTypeAttributoFilter
                 attrFilters =
                     List.map
-                        (filterFromAttributoPair attributoName)
+                        (filterFromAttributoPair attributoId)
                         valuesForAttributo
             in
             li_
@@ -690,11 +735,11 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                     ]
                 ]
 
-        checkboxForOneAttributoValue : ( AttributoName, AttributoValue ) -> Html Msg
-        checkboxForOneAttributoValue ( attrName, attrValue ) =
+        checkboxForOneAttributoValue : ( AttributoId, AttributoValue ) -> Html Msg
+        checkboxForOneAttributoValue ( attrId, attrValue ) =
             let
                 selectedAttributoValue =
-                    { expType = experimentType, attrName = attrName, attrValue = attrValue }
+                    { expType = experimentType, attrId = attrId, attrValue = attrValue }
             in
             li_
                 [ div [ class "dropdown-item" ]
@@ -702,12 +747,12 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                         [ input
                             [ class "form-check-input"
                             , type_ "checkbox"
-                            , for attrName
+                            , for (String.fromInt attrId)
                             , onInput (SetFilterExperimentTypeAttributo selectedAttributoValue)
                             , checked <| not <| checkAttributeFilterIsPresent selectedAttributoValue hiddenExperimentTypeAttributoFilters
                             ]
                             []
-                        , label [ class "form-check-label" ] [ text <| attributoValueSelector attrName attrValue ]
+                        , label [ class "form-check-label" ] [ text <| attributoValueSelector attrId attrValue ]
                         ]
                     ]
                 ]
@@ -716,28 +761,28 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
         dictMapValues f =
             Dict.map (\_ -> f)
 
-        dictAttrNameValues : Dict AttributoName (List AttributoValue)
-        dictAttrNameValues =
-            List.concatMap (Dict.toList << .attributi << .dataSet) dataSets
+        dictAttrIdValues : Dict AttributoId (List AttributoValue)
+        dictAttrIdValues =
+            List.concatMap (Dict.toList << convertAttributoMapFromApi << .attributi << .dataSet) dataSets
                 |> List.Extra.unique
                 |> Dict.Extra.groupBy Tuple.first
                 |> dictMapValues (List.map Tuple.second)
 
-        dropdownForAttributo : AttributoName -> Html Msg
-        dropdownForAttributo attributoName =
+        dropdownForAttributo : Attributo AttributoType -> Html Msg
+        dropdownForAttributo attributo =
             let
-                attributoValueCheckBoxes : AttributoName -> List AttributoValue -> List (Html Msg)
+                attributoValueCheckBoxes : AttributoId -> List AttributoValue -> List (Html Msg)
                 attributoValueCheckBoxes attrName attrValues =
                     List.map (\v -> checkboxForOneAttributoValue ( attrName, v )) attrValues
             in
-            case Dict.get attributoName dictAttrNameValues of
+            case Dict.get attributo.id dictAttrIdValues of
                 Nothing ->
                     span_ []
 
                 Just listValues ->
                     let
                         checkBoxes =
-                            attributoValueCheckBoxes attributoName listValues
+                            attributoValueCheckBoxes attributo.id listValues
                     in
                     if List.length checkBoxes > 1 then
                         span [ class "dropdown px-1" ]
@@ -746,9 +791,9 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                 , attribute "data-bs-toggle" "dropdown"
                                 , attribute "data-bs-auto-close" "outside"
                                 ]
-                                [ text (attributoName ++ " ") ]
+                                [ text (attributo.name ++ " ") ]
                             , ul [ class "dropdown-menu" ] <|
-                                allNoneResetCheckButton attributoName listValues
+                                allNoneResetCheckButton attributo.id listValues
                                     :: checkBoxes
                             ]
 
@@ -757,7 +802,7 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
 
         attributiFilters : List (Html Msg)
         attributiFilters =
-            List.map dropdownForAttributo (Set.toList experimentTypeAttributi)
+            List.map dropdownForAttributo <| List.filterMap (\aid -> List.Extra.find (\a -> a.id == aid) attributi) <| Set.toList experimentTypeAttributi
     in
     div_
         [ h2 [ class "mt-2 mb-4", style "text-shadow" "0.5px 0.5px 1px gray" ] [ span_ [ text experimentType.name ] ]
@@ -788,8 +833,9 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                 ]
             , let
                 sortedDatasets =
-                    List.sortWith sortAnalysisResultsExperimentType dataSets
+                    List.sortWith (\a b -> compare a.dataSet.id b.dataSet.id) dataSets
 
+                requestedSortedDatasets : List JsonAnalysisDataSet
                 requestedSortedDatasets =
                     if datasetSortingIdAscending then
                         List.reverse <| sortedDatasets
@@ -821,21 +867,21 @@ modalMergeResultDetail m =
             text ""
 
 
-modalBodyShells : MergeFom -> List MergeShellFom -> List RefinementResult -> Html Msg
+modalBodyShells : MergeResultFom -> List MergeResultShell -> List JsonRefinementResult -> Html Msg
 modalBodyShells fom shells refinementResults =
     let
-        singleShellRow : MergeShellFom -> Html Msg
+        singleShellRow : MergeResultShell -> Html Msg
         singleShellRow shellRow =
             tr_
                 [ td_ [ text <| formatFloatHumanFriendly shellRow.minRes ++ "–" ++ formatFloatHumanFriendly shellRow.maxRes ]
-                , td_ [ text <| formatIntHumanFriendly shellRow.nRef ]
+                , td_ [ text <| formatIntHumanFriendly shellRow.nref ]
                 , td_ [ text <| formatIntHumanFriendly shellRow.reflectionsPossible ]
                 , td_ [ text <| formatFloatHumanFriendly shellRow.completeness ]
                 , td_ [ text <| formatFloatHumanFriendly shellRow.redundancy ]
                 , td_ [ text <| formatFloatHumanFriendly shellRow.snr ]
                 , td_ [ text <| formatFloatHumanFriendly shellRow.rSplit ]
                 , td_ [ text <| formatFloatHumanFriendly shellRow.cc ]
-                , td_ [ text <| formatFloatHumanFriendly shellRow.ccStar ]
+                , td_ [ text <| formatFloatHumanFriendly shellRow.ccstar ]
                 ]
 
         overallRow =
@@ -848,14 +894,14 @@ modalBodyShells fom shells refinementResults =
                 , td_ [ text <| formatFloatHumanFriendly fom.snr ]
                 , td_ [ text <| formatFloatHumanFriendly fom.rSplit ]
                 , td_ [ text <| formatFloatHumanFriendly fom.cc ]
-                , td_ [ text <| formatFloatHumanFriendly fom.ccStar ]
+                , td_ [ text <| formatFloatHumanFriendly fom.ccstar ]
                 ]
 
         uglymol : Int -> Int -> String -> Html msg
         uglymol pdbId mtzId prefix =
             node "uglymol-viewer" [ attribute "pdbid" (String.fromInt pdbId), attribute "mtzid" (String.fromInt mtzId), attribute "idprefix" prefix ] []
 
-        viewRefinementResult : RefinementResult -> Html msg
+        viewRefinementResult : JsonRefinementResult -> Html msg
         viewRefinementResult { id, pdbFileId, mtzFileId, rFree, rWork, rmsBondAngle, rmsBondLength } =
             div_
                 [ uglymol pdbFileId mtzFileId ("refinement-" ++ String.fromInt id)
@@ -926,12 +972,24 @@ view model =
                 List.singleton <| loadingBar "Loading analysis results..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showRequestError e ]
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showHttpError e ]
 
             Success r ->
                 modalMergeResultDetail model
-                    :: viewFilters model.hiddenExperimentTypeIds model.selectMergeStatus r
-                    :: viewInner model.hereAndNow model.mergeRequest model.activatedMergeForm model.selectMergeStatus model.hiddenExperimentTypeIds model.hiddenParametersMergeResultIds model.hiddenExperimentTypeAttributiFilters model.dataSetsSortingAscending r
+                    :: viewFilters
+                        model.hiddenExperimentTypeIds
+                        model.selectMergeStatus
+                        r
+                    :: viewInner
+                        model.hereAndNow
+                        model.mergeRequest
+                        model.activatedMergeForm
+                        model.selectMergeStatus
+                        model.hiddenExperimentTypeIds
+                        model.hiddenParametersMergeResultIds
+                        model.hiddenExperimentTypeAttributiFilters
+                        model.dataSetsSortingAscending
+                        r
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -941,11 +999,11 @@ update msg model =
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
 
         StartMerge dataSetId ->
-            ( { model | activatedMergeForm = Just { dataSetId = dataSetId, mergeParameters = CrystFELMerge.init } }, Cmd.none )
+            ( { model | activatedMergeForm = Just { dataSetId = dataSetId, mergeParameters = CrystFELMerge.init model.beamtimeId } }, Cmd.none )
 
         QuickStartMerge dataSetId ->
             ( { model | activatedMergeForm = Nothing, mergeRequest = Just { dataSetId = dataSetId, request = Loading } }
-            , httpStartMergeJobForDataSet MergeFinished dataSetId CrystFELMerge.quickMergeParameters
+            , send MergeFinished (startMergeJobForDataSetApiMergingDataSetIdStartPost dataSetId (CrystFELMerge.quickMergeParameters model.beamtimeId))
             )
 
         CancelMerge ->
@@ -958,7 +1016,7 @@ update msg model =
 
                 Just _ ->
                     ( { model | mergeRequest = Just { dataSetId = dataSetId, request = Loading }, activatedMergeForm = Nothing }
-                    , httpStartMergeJobForDataSet MergeFinished dataSetId (modelToMergeParameters mergeParameters)
+                    , send MergeFinished (startMergeJobForDataSetApiMergingDataSetIdStartPost dataSetId (modelToMergeParameters mergeParameters))
                     )
 
         MergeFinished result ->
@@ -967,8 +1025,14 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just { dataSetId } ->
-                    ( { model | mergeRequest = Just { dataSetId = dataSetId, request = RemoteData.fromResult result } }
-                    , httpGetAnalysisResults AnalysisResultsReceived
+                    ( { model
+                        | mergeRequest =
+                            Just
+                                { dataSetId = dataSetId
+                                , request = RemoteData.fromResult result
+                                }
+                      }
+                    , send AnalysisResultsReceived (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet model.beamtimeId)
                     )
 
         Refresh posix ->
@@ -976,7 +1040,7 @@ update msg model =
                 newHereAndNow =
                     { now = posix, zone = model.hereAndNow.zone }
             in
-            ( { model | hereAndNow = newHereAndNow }, httpGetAnalysisResults AnalysisResultsReceived )
+            ( { model | hereAndNow = newHereAndNow }, send AnalysisResultsReceived (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet model.beamtimeId) )
 
         OpenMergeResultDetail mr ->
             ( { model | selectedMergeResult = MergeResultSelected mr }, Cmd.none )

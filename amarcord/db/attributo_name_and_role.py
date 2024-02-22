@@ -5,6 +5,6 @@ from amarcord.db.chemical_type import ChemicalType
 
 
 @dataclass(frozen=True)
-class AttributoNameAndRole:
-    attributo_name: AttributoId
+class AttributoIdAndRole:
+    attributo_id: AttributoId
     chemical_role: ChemicalType

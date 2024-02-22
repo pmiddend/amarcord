@@ -1,17 +1,20 @@
 module Amarcord.Pages.ExperimentTypes exposing (..)
 
-import Amarcord.API.AttributoWithRole exposing (AttributoWithRole)
-import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId)
-import Amarcord.API.Requests exposing (ExperimentTypeWithRuns, ExperimentTypesResponse, RequestError, httpCreateExperimentType, httpDeleteExperimentType, httpGetExperimentTypes)
-import Amarcord.API.RequestsHtml exposing (showRequestError)
-import Amarcord.Attributo exposing (Attributo, AttributoType, attributoIsChemicalId)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewRemoteData)
-import Amarcord.Chemical exposing (ChemicalType(..), chemicalTypeToString)
+import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
+import Amarcord.API.Requests exposing (BeamtimeId)
+import Amarcord.API.RequestsHtml exposing (showHttpError)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoType, attributoIsChemicalId, convertAttributoFromApi)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewRemoteDataHttp)
+import Amarcord.Chemical exposing (chemicalTypeFromApi, chemicalTypeToString)
 import Amarcord.Html exposing (br_, div_, form_, h1_, h5_, input_, li_, tbody_, td_, th_, thead_, tr_, ul_)
-import Amarcord.Util exposing (listContainsBy)
+import Amarcord.Util exposing (forgetMsgInput)
+import Api exposing (send)
+import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonCreateExperimentTypeOutput, JsonDeleteExperimentTypeOutput, JsonExperimentType, JsonExperimentTypeAndRuns, JsonReadExperimentTypes)
+import Api.Request.Experimenttypes exposing (createExperimentTypeApiExperimentTypesPost, deleteExperimentTypeApiExperimentTypesDelete, readExperimentTypesApiExperimentTypesBeamtimeIdGet)
 import Html exposing (Html, button, div, h4, input, label, table, td, text)
 import Html.Attributes exposing (checked, class, disabled, for, id, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Http
 import List.Extra as ListExtra
 import RemoteData exposing (RemoteData(..), fromResult)
 import Set exposing (Set)
@@ -19,44 +22,49 @@ import String
 
 
 type ExperimentTypeMsg
-    = ExperimentTypeCreated (Result RequestError ())
-    | ExperimentTypeDeleted (Result RequestError ())
-    | ExperimentTypesReceived (Result RequestError ExperimentTypesResponse)
+    = ExperimentTypeCreated (Result Http.Error JsonCreateExperimentTypeOutput)
+    | ExperimentTypeDeleted (Result Http.Error JsonDeleteExperimentTypeOutput)
+    | ExperimentTypesReceived (Result Http.Error JsonReadExperimentTypes)
     | ExperimentTypeNameChange String
     | ExperimentTypeDeleteSubmit ExperimentTypeId
-    | ExperimentTypeAttributoRoleChange String ChemicalType
+    | ExperimentTypeAttributoRoleChange AttributoId ChemicalType
     | ExperimentTypeSubmit
-    | AddOrRemoveAttributo String Bool
+    | AddOrRemoveAttributo AttributoId Bool
     | AddExperimentType
     | CancelAddExperimentType
 
 
 type alias NewExperimentType =
     { name : String
-    , attributi : List String
-    , solutionAttributi : Set String
-    , createRequest : RemoteData RequestError ()
+    , attributi : List AttributoId
+    , solutionAttributi : Set AttributoId
+    , createRequest : RemoteData Http.Error {}
     }
 
 
 type alias ExperimentTypeModel =
-    { deleteRequest : RemoteData RequestError ()
-    , experimentTypes : RemoteData RequestError ExperimentTypesResponse
+    { deleteRequest : RemoteData Http.Error {}
+    , experimentTypes : RemoteData Http.Error JsonReadExperimentTypes
     , newExperimentType : Maybe NewExperimentType
+    , beamtimeId : BeamtimeId
     }
 
 
-initExperimentType : ( ExperimentTypeModel, Cmd ExperimentTypeMsg )
-initExperimentType =
+initExperimentType : BeamtimeId -> ( ExperimentTypeModel, Cmd ExperimentTypeMsg )
+initExperimentType beamtimeId =
     ( { deleteRequest = NotAsked
       , experimentTypes = Loading
       , newExperimentType = Nothing
+      , beamtimeId = beamtimeId
       }
-    , httpGetExperimentTypes ExperimentTypesReceived
+    , send ExperimentTypesReceived (readExperimentTypesApiExperimentTypesBeamtimeIdGet beamtimeId)
     )
 
 
-updateNewExperimentType : ExperimentTypeModel -> (NewExperimentType -> ( NewExperimentType, Cmd ExperimentTypeMsg )) -> ( ExperimentTypeModel, Cmd ExperimentTypeMsg )
+updateNewExperimentType :
+    ExperimentTypeModel
+    -> (NewExperimentType -> ( NewExperimentType, Cmd ExperimentTypeMsg ))
+    -> ( ExperimentTypeModel, Cmd ExperimentTypeMsg )
 updateNewExperimentType model f =
     case model.newExperimentType of
         Nothing ->
@@ -74,10 +82,15 @@ updateExperimentType : ExperimentTypeMsg -> ExperimentTypeModel -> ( ExperimentT
 updateExperimentType msg model =
     case msg of
         ExperimentTypeCreated result ->
-            updateNewExperimentType model (\newExperimentType -> ( { newExperimentType | createRequest = fromResult result }, httpGetExperimentTypes ExperimentTypesReceived ))
+            updateNewExperimentType model
+                (\newExperimentType ->
+                    ( { newExperimentType | createRequest = fromResult (forgetMsgInput result) }
+                    , send ExperimentTypesReceived (readExperimentTypesApiExperimentTypesBeamtimeIdGet model.beamtimeId)
+                    )
+                )
 
         ExperimentTypeDeleted result ->
-            ( { model | deleteRequest = fromResult result }, httpGetExperimentTypes ExperimentTypesReceived )
+            ( { model | deleteRequest = fromResult (forgetMsgInput result) }, send ExperimentTypesReceived (readExperimentTypesApiExperimentTypesBeamtimeIdGet model.beamtimeId) )
 
         ExperimentTypesReceived result ->
             ( { model | experimentTypes = fromResult result }, Cmd.none )
@@ -88,7 +101,7 @@ updateExperimentType msg model =
         ExperimentTypeAttributoRoleChange attributoId newRole ->
             let
                 newSolutionAttributi newExType =
-                    if newRole == Solution then
+                    if newRole == ChemicalTypeSolution then
                         Set.insert attributoId newExType.solutionAttributi
 
                     else
@@ -99,26 +112,32 @@ updateExperimentType msg model =
                 (\newExperimentType -> ( { newExperimentType | solutionAttributi = newSolutionAttributi newExperimentType }, Cmd.none ))
 
         ExperimentTypeDeleteSubmit experimentTypeId ->
-            ( { model | deleteRequest = Loading }, httpDeleteExperimentType ExperimentTypeDeleted experimentTypeId )
+            ( { model | deleteRequest = Loading }, send ExperimentTypeDeleted (deleteExperimentTypeApiExperimentTypesDelete { id = experimentTypeId }) )
 
         ExperimentTypeSubmit ->
             let
-                createAttributoWithRole : NewExperimentType -> String -> AttributoWithRole
-                createAttributoWithRole newExp attributoName =
-                    { name = attributoName
+                createAttributoWithRole : NewExperimentType -> AttributoId -> JsonAttributiIdAndRole
+                createAttributoWithRole newExp attributoId =
+                    { id = attributoId
                     , role =
-                        if Set.member attributoName newExp.solutionAttributi then
-                            Solution
+                        if Set.member attributoId newExp.solutionAttributi then
+                            ChemicalTypeSolution
 
                         else
-                            Crystal
+                            ChemicalTypeCrystal
                     }
             in
             updateNewExperimentType
                 model
                 (\newExperimentType ->
                     ( { newExperimentType | createRequest = Loading, name = "" }
-                    , httpCreateExperimentType ExperimentTypeCreated newExperimentType.name (List.map (createAttributoWithRole newExperimentType) newExperimentType.attributi)
+                    , send ExperimentTypeCreated
+                        (createExperimentTypeApiExperimentTypesPost
+                            { name = newExperimentType.name
+                            , beamtimeId = model.beamtimeId
+                            , attributi = List.map (createAttributoWithRole newExperimentType) newExperimentType.attributi
+                            }
+                        )
                     )
                 )
 
@@ -162,22 +181,27 @@ view model =
 viewExperimentType : ExperimentTypeModel -> List (Html ExperimentTypeMsg)
 viewExperimentType model =
     let
-        viewAttributoWithRole : List (Attributo AttributoType) -> AttributoWithRole -> Html msg
-        viewAttributoWithRole attributi { name, role } =
-            if listContainsBy (\a -> a.name == name && attributoIsChemicalId a.type_) attributi then
-                li_ [ text (name ++ " (" ++ chemicalTypeToString role ++ ")") ]
+        viewAttributoWithRole : List (Attributo AttributoType) -> JsonAttributiIdAndRole -> Html msg
+        viewAttributoWithRole attributi { id, role } =
+            case ListExtra.find (\a -> a.id == id) attributi of
+                Nothing ->
+                    li_ [ text ("attributo " ++ String.fromInt id ++ "not found in attributo list") ]
 
-            else
-                li_ [ text name ]
+                Just { type_, name } ->
+                    if attributoIsChemicalId type_ then
+                        li_ [ text (name ++ " (" ++ chemicalTypeToString (chemicalTypeFromApi role) ++ ")") ]
 
-        viewRow : List (Attributo AttributoType) -> List ExperimentTypeWithRuns -> ExperimentType -> Html ExperimentTypeMsg
+                    else
+                        li_ [ text name ]
+
+        viewRow : List (Attributo AttributoType) -> List JsonExperimentTypeAndRuns -> JsonExperimentType -> Html ExperimentTypeMsg
         viewRow attributi etWithRuns et =
             let
                 runs =
                     Maybe.withDefault []
                         (ListExtra.findMap
                             (\etwr ->
-                                if etwr.experimentTypeId == et.id then
+                                if etwr.id == et.id then
                                     Just etwr.runs
 
                                 else
@@ -194,17 +218,18 @@ viewExperimentType model =
                 , td_ [ button [ class "btn btn-danger btn-sm", onClick (ExperimentTypeDeleteSubmit et.id), disabled (not <| List.isEmpty runs) ] [ icon { name = "trash" } ] ]
                 ]
 
-        viewAttributoCheckbox attributi { name } =
+        viewAttributoCheckbox : List AttributoId -> Attributo AttributoType -> Html ExperimentTypeMsg
+        viewAttributoCheckbox attributi a =
             div [ class "form-check" ]
                 [ input
                     [ class "form-check-input"
                     , type_ "checkbox"
-                    , id ("et-" ++ name)
-                    , checked (List.member name attributi)
-                    , onInput (always <| AddOrRemoveAttributo name (not (List.member name attributi)))
+                    , id ("et-" ++ a.name)
+                    , checked (List.member a.id attributi)
+                    , onInput (always <| AddOrRemoveAttributo a.id (not (List.member a.id attributi)))
                     ]
                     []
-                , label [ class "form-check-label", for ("et-" ++ name) ] [ text name ]
+                , label [ class "form-check-label", for ("et-" ++ a.name) ] [ text a.name ]
                 ]
 
         newExperimentTypeForm =
@@ -223,11 +248,11 @@ viewExperimentType model =
                             Success { attributi } ->
                                 let
                                     attributiCheckboxes =
-                                        List.map (viewAttributoCheckbox newExperimentType.attributi) attributi
+                                        List.map (viewAttributoCheckbox newExperimentType.attributi << convertAttributoFromApi) attributi
 
                                     viewAttributoRoleRadio : Attributo AttributoType -> Html ExperimentTypeMsg
                                     viewAttributoRoleRadio a =
-                                        if attributoIsChemicalId a.type_ && List.member a.name newExperimentType.attributi then
+                                        if attributoIsChemicalId a.type_ && List.member a.id newExperimentType.attributi then
                                             tr_
                                                 [ td_ [ text a.name ]
                                                 , td_
@@ -236,8 +261,8 @@ viewExperimentType model =
                                                             [ id (a.name ++ "-chemical-role-solution")
                                                             , class "form-check-input"
                                                             , type_ "radio"
-                                                            , checked (Set.member a.name newExperimentType.solutionAttributi)
-                                                            , onInput (\_ -> ExperimentTypeAttributoRoleChange a.name Solution)
+                                                            , checked (Set.member a.id newExperimentType.solutionAttributi)
+                                                            , onInput (\_ -> ExperimentTypeAttributoRoleChange a.id ChemicalTypeSolution)
                                                             ]
                                                         , label [ for (a.name ++ "-chemical-role-solution") ] [ text "Solution" ]
                                                         ]
@@ -246,8 +271,8 @@ viewExperimentType model =
                                                             [ id (a.name ++ "-chemical-role-crystal")
                                                             , class "form-check-input"
                                                             , type_ "radio"
-                                                            , checked (not <| Set.member a.name newExperimentType.solutionAttributi)
-                                                            , onInput (\_ -> ExperimentTypeAttributoRoleChange a.name Crystal)
+                                                            , checked (not <| Set.member a.id newExperimentType.solutionAttributi)
+                                                            , onInput (\_ -> ExperimentTypeAttributoRoleChange a.id ChemicalTypeCrystal)
                                                             ]
                                                         , label [ for (a.name ++ "-chemical-role-crystal") ] [ text "Crystal" ]
                                                         ]
@@ -261,7 +286,7 @@ viewExperimentType model =
                                         table []
                                             [ tbody_
                                                 (List.map
-                                                    viewAttributoRoleRadio
+                                                    (viewAttributoRoleRadio << convertAttributoFromApi)
                                                     attributi
                                                 )
                                             ]
@@ -281,15 +306,15 @@ viewExperimentType model =
                             , onClick CancelAddExperimentType
                             ]
                             [ icon { name = "x-lg" }, text " Cancel" ]
-                        , viewRemoteData "Creation successful!" newExperimentType.createRequest
+                        , viewRemoteDataHttp "Creation successful!" newExperimentType.createRequest
                         ]
     in
     [ h1_ [ text "Experiment Types" ]
     , newExperimentTypeForm
-    , viewRemoteData "Deletion successful!" model.deleteRequest
+    , viewRemoteDataHttp "Deletion successful!" model.deleteRequest
     , case model.experimentTypes of
         Failure e ->
-            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ], showRequestError e ]
+            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ], showHttpError e ]
 
         Success experimentTypesResponse ->
             table [ class "table table-striped" ]
@@ -302,7 +327,7 @@ viewExperimentType model =
                         , th_ [ text "Actions" ]
                         ]
                     ]
-                , tbody_ (List.map (viewRow experimentTypesResponse.attributi experimentTypesResponse.experimentTypeIdsToRuns) experimentTypesResponse.experimentTypes)
+                , tbody_ (List.map (viewRow (List.map convertAttributoFromApi experimentTypesResponse.attributi) experimentTypesResponse.experimentTypeIdToRun) experimentTypesResponse.experimentTypes)
                 ]
 
         _ ->

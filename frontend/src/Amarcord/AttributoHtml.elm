@@ -1,11 +1,12 @@
 module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
 
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), attributoValueToString, createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, retrieveAttributoValue, updateAttributoMap)
-import Amarcord.Chemical exposing (Chemical, ChemicalType)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, prettyPrintAttributoValue, retrieveAttributoValue, updateAttributoMap)
+import Amarcord.Chemical exposing (Chemical)
 import Amarcord.Html exposing (br_, em_, input_, span_, strongText)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, emptyNumericRange, numericRangeToString, valueInRange)
-import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, localDateTimeParser)
+import Amarcord.Util exposing (collectResults, formatPosixDateTimeCompatible, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, localDateTimeStringToPosix)
+import Api.Data exposing (ChemicalType)
 import Dict exposing (Dict, get)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (Decimals(..), Locale, usLocale)
@@ -17,11 +18,9 @@ import List exposing (intersperse)
 import List.Extra as List
 import Maybe exposing (withDefault)
 import Maybe.Extra exposing (isNothing, orElse, traverse, unwrap)
-import Parser exposing (deadEndsToString, run)
 import Set
 import String exposing (fromInt, join, split, toInt, trim)
 import Time exposing (Zone, millisToPosix, posixToMillis)
-import Time.Extra exposing (partsToPosix)
 import Tuple exposing (second)
 
 
@@ -66,7 +65,7 @@ viewRunExperimentTypeCell experimentType =
 
 
 viewAttributoCell : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
-viewAttributoCell props zone chemicalIds attributiValues { name, group, type_ } =
+viewAttributoCell props zone chemicalIds attributiValues { id, group, type_ } =
     td
         [ class
             (if props.colorize && group == "manual" then
@@ -76,9 +75,9 @@ viewAttributoCell props zone chemicalIds attributiValues { name, group, type_ } 
                 ""
             )
         ]
-        [ case retrieveAttributoValue name attributiValues of
+        [ case retrieveAttributoValue id attributiValues of
             Nothing ->
-                text ""
+                em [] [ text "n/a" ]
 
             Just v ->
                 viewAttributoValue props zone chemicalIds type_ v
@@ -510,14 +509,18 @@ createEditableAttributi zone attributi m =
         -- 1. convert existing values into "best" manual values
         -- 2. add missing attributo and add as empty attributi, too
         -- Convert attributo metadata, as well as an attributo value, into an "editable attributo"
-        convertToEditValues : String -> Attributo ( AttributoType, AttributoValue ) -> Dict String (Attributo AttributoEditValueWithStatus) -> Dict String (Attributo AttributoEditValueWithStatus)
-        convertToEditValues attributoName a prev =
-            case attributoValueToEditValue zone attributoName attributi (second a.type_) of
+        convertToEditValues :
+            AttributoId
+            -> Attributo ( AttributoType, AttributoValue )
+            -> Dict AttributoId (Attributo AttributoEditValueWithStatus)
+            -> Dict AttributoId (Attributo AttributoEditValueWithStatus)
+        convertToEditValues attributoId a prev =
+            case attributoValueToEditValue zone attributoId attributi (second a.type_) of
                 Nothing ->
                     prev
 
                 Just finishedEditValue ->
-                    Dict.insert attributoName
+                    Dict.insert attributoId
                         (mapAttributo
                             (always
                                 { editStatus = Unchanged
@@ -528,27 +531,27 @@ createEditableAttributi zone attributi m =
                         )
                         prev
 
-        existingAttributiMap : Dict String EditableAttributo
+        existingAttributiMap : Dict AttributoId EditableAttributo
         existingAttributiMap =
             Dict.foldr convertToEditValues Dict.empty (createAnnotatedAttributoMap attributi m)
 
-        totalAttributoNames : Set.Set String
-        totalAttributoNames =
-            Set.fromList (List.map .name attributi)
+        totalAttributoIds : Set.Set AttributoId
+        totalAttributoIds =
+            Set.fromList (List.map .id attributi)
 
-        missingKeys : Set.Set String
+        missingKeys : Set.Set AttributoId
         missingKeys =
-            Set.diff totalAttributoNames <| Set.fromList (Dict.keys existingAttributiMap)
+            Set.diff totalAttributoIds <| Set.fromList (Dict.keys existingAttributiMap)
 
         missingAttributi : List (Attributo AttributoType)
         missingAttributi =
-            List.filter (\x -> Set.member x.name missingKeys) attributi
+            List.filter (\x -> Set.member x.id missingKeys) attributi
 
-        missingAttributiMap : Dict String EditableAttributo
+        missingAttributiMap : Dict AttributoId EditableAttributo
         missingAttributiMap =
             Dict.fromList <|
                 List.map
-                    (\a -> ( a.name, mapAttributo (\type_ -> { editStatus = Unchanged, editValue = emptyEditValue type_ }) a ))
+                    (\a -> ( a.id, mapAttributo (\type_ -> { editStatus = Unchanged, editValue = emptyEditValue type_ }) a ))
                 <|
                     missingAttributi
     in
@@ -590,12 +593,12 @@ emptyEditValue a =
             EditValueChoice { choiceValues = choiceValues, editValue = "" }
 
 
-attributoValueToEditValue : Zone -> AttributoName -> List (Attributo AttributoType) -> AttributoValue -> Maybe AttributoEditValue
-attributoValueToEditValue zone attributoName attributi value =
+attributoValueToEditValue : Zone -> AttributoId -> List (Attributo AttributoType) -> AttributoValue -> Maybe AttributoEditValue
+attributoValueToEditValue zone attributoId attributi value =
     let
         attributoFound : Maybe (Attributo AttributoType)
         attributoFound =
-            List.find (\x -> x.name == attributoName) attributi
+            List.find (\x -> x.id == attributoId) attributi
 
         convert : Attributo AttributoType -> Maybe AttributoEditValue
         convert a =
@@ -679,7 +682,7 @@ attributoValueToEditValue zone attributoName attributi value =
                             { subType = subType
                             , minLength = minLength
                             , maxLength = maxLength
-                            , editValue = join "," <| List.map attributoValueToString xs
+                            , editValue = join "," <| List.map prettyPrintAttributoValue xs
                             }
                         )
 
@@ -691,8 +694,6 @@ attributoValueToEditValue zone attributoName attributi value =
 
                 _ ->
                     Nothing
-
-        -- Debug.log (Debug.toString x) Nothing
     in
     Maybe.andThen convert attributoFound
 
@@ -728,12 +729,7 @@ editValueToValue zone x =
             Ok (ValueBoolean boolValue)
 
         EditValueDateTime string ->
-            case run localDateTimeParser string of
-                Ok { year, month, day, hour, minute } ->
-                    Ok <| ValueInt <| posixToMillis <| partsToPosix zone { year = year, month = month, day = day, hour = hour, minute = minute, second = 0, millisecond = 0 }
-
-                Err error ->
-                    Err (deadEndsToString error)
+            Result.map (ValueInt << posixToMillis) (localDateTimeStringToPosix zone string)
 
         EditValueChemicalId chemicalId ->
             Ok (ValueInt (withDefault 0 chemicalId))
@@ -791,16 +787,16 @@ editValueToValue zone x =
                 Err "invalid choice"
 
 
-convertEditValues : Zone -> EditableAttributiAndOriginal -> Result (List ( AttributoName, String )) (AttributoMap AttributoValue)
+convertEditValues : Zone -> EditableAttributiAndOriginal -> Result (List ( AttributoId, String )) (AttributoMap AttributoValue)
 convertEditValues zone { editableAttributi } =
     let
         -- first, filter for manually edited values (the other ones we don't care about here)
-        manuallyEdited : List ( AttributoName, AttributoEditValue )
+        manuallyEdited : List ( AttributoId, AttributoEditValue )
         manuallyEdited =
             List.foldr
                 (\attributo prev ->
                     if attributo.type_.editStatus == Edited then
-                        ( attributo.name, attributo.type_.editValue ) :: prev
+                        ( attributo.id, attributo.type_.editValue ) :: prev
 
                     else
                         prev
@@ -809,24 +805,24 @@ convertEditValues zone { editableAttributi } =
                 editableAttributi
 
         -- Convert the edited value to the real value (with optional error)
-        convertSingle : ( AttributoName, AttributoEditValue ) -> Result ( AttributoName, String ) ( AttributoName, AttributoValue )
-        convertSingle ( name, v ) =
+        convertSingle : ( AttributoId, AttributoEditValue ) -> Result ( AttributoId, String ) ( AttributoId, AttributoValue )
+        convertSingle ( id, v ) =
             case editValueToValue zone v of
                 Err e ->
-                    -- add attributo name to error for better display later
-                    Err ( name, e )
+                    -- add attributo id to error for better display later
+                    Err ( id, e )
 
                 Ok value ->
-                    Ok ( name, value )
+                    Ok ( id, value )
 
         -- Convert _all_ edited values, optionally failing
-        converted : Result (List ( AttributoName, String )) (List ( AttributoName, AttributoValue ))
+        converted : Result (List ( AttributoId, String )) (List ( AttributoId, AttributoValue ))
         converted =
             collectResults (List.map convertSingle manuallyEdited)
 
         -- Combine result of editing with original map
-        combineWithOriginal : List ( AttributoName, AttributoValue ) -> AttributoMap AttributoValue
+        combineWithOriginal : List ( AttributoId, AttributoValue ) -> AttributoMap AttributoValue
         combineWithOriginal =
-            List.foldr (\( name, value ) -> updateAttributoMap name value) Dict.empty
+            List.foldr (\( id, value ) -> updateAttributoMap id value) Dict.empty
     in
     Result.map combineWithOriginal converted

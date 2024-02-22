@@ -24,6 +24,7 @@ class Arguments(Tap):
     working_directory: Path
     executable: Path
     command_line: str
+    name: str
     time_limit_minutes: int
     # pylint: disable=consider-alternative-union-syntax
     stdout: Optional[Path] = None
@@ -40,11 +41,12 @@ async def _main_loop(args: Arguments) -> None:
 
     start_result = await workload_manager.start_job(
         args.working_directory,
+        name=args.name,
         script=f"""#!/bin/sh
-        
+
         set -eu
         set -o pipefail
-        
+
         {args.executable} {shlex.join(args.command_line)}
         """,
         time_limit=timedelta(minutes=args.time_limit_minutes),

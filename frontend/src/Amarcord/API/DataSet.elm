@@ -35,11 +35,11 @@ dataSetSummaryDecoder : Decode.Decoder DataSetSummary
 dataSetSummaryDecoder =
     Decode.map5
         DataSetSummary
-        (Decode.field "hit-rate" (Decode.maybe Decode.float))
-        (Decode.field "indexing-rate" (Decode.maybe Decode.float))
-        (Decode.field "indexed-frames" Decode.int)
-        (Decode.field "detector-shift-x-mm" (Decode.maybe Decode.float))
-        (Decode.field "detector-shift-y-mm" (Decode.maybe Decode.float))
+        (Decode.field "hit_rate" (Decode.maybe Decode.float))
+        (Decode.field "indexing_rate" (Decode.maybe Decode.float))
+        (Decode.field "indexed_frames" Decode.int)
+        (Decode.field "detector_shift_x_mm" (Decode.maybe Decode.float))
+        (Decode.field "detector_shift_y_mm" (Decode.maybe Decode.float))
 
 
 dataSetDecoder : Decode.Decoder DataSet
@@ -47,6 +47,6 @@ dataSetDecoder =
     Decode.map4
         DataSet
         (Decode.field "id" Decode.int)
-        (Decode.field "experiment-type-id" Decode.int)
+        (Decode.field "experiment_type_id" Decode.int)
         (Decode.field "attributi" attributoMapDecoder)
         (Decode.maybe <| Decode.field "summary" dataSetSummaryDecoder)

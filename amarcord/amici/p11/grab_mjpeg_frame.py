@@ -5,8 +5,8 @@ from urllib.parse import urlparse
 
 import structlog
 
-from amarcord.db.asyncdb import LIVE_STREAM_IMAGE
 from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.asyncdb import live_stream_image_name
 
 logger = structlog.stdlib.get_logger(__name__)
 
@@ -88,7 +88,9 @@ async def mjpeg_grab_single_frame(mjpeg_stream_url: str) -> bytes:
     return image
 
 
-async def mjpeg_stream_loop(db: AsyncDB, mjpeg_stream_url: str, delay: float) -> None:
+async def mjpeg_stream_loop(
+    db: AsyncDB, mjpeg_stream_url: str, delay: float, beamtime_id: int
+) -> None:
     while True:
         try:
             image = await mjpeg_grab_single_frame(mjpeg_stream_url)
@@ -97,13 +99,14 @@ async def mjpeg_stream_loop(db: AsyncDB, mjpeg_stream_url: str, delay: float) ->
             await asyncio.sleep(delay)
             continue
         async with db.begin() as conn:
+            image_name = live_stream_image_name(beamtime_id)
             existing_file_id = await db.retrieve_file_id_by_name(
-                conn, LIVE_STREAM_IMAGE
+                conn, live_stream_image_name(beamtime_id)
             )
             if existing_file_id is None:
                 await db.create_file_from_bytes(
                     conn,
-                    file_name=LIVE_STREAM_IMAGE,
+                    file_name=image_name,
                     description="",
                     original_path=None,
                     contents=image,
@@ -113,7 +116,7 @@ async def mjpeg_stream_loop(db: AsyncDB, mjpeg_stream_url: str, delay: float) ->
                 await db.update_file_from_bytes(
                     conn,
                     existing_file_id,
-                    file_name=LIVE_STREAM_IMAGE,
+                    file_name=image_name,
                     description="",
                     original_path=None,
                     contents=image,

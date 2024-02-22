@@ -32,7 +32,6 @@ RSPLIT_COMPARE_SHELL_FILE = Path("rsplit_shells.dat")
 CCSTAR_COMPARE_SHELL_FILE = Path("ccstar_shells.dat")
 CHECK_HKL_SHELL_FILE = Path("check.dat")
 CC_COMPARE_SHELL_FILE = Path("cc_shells.dat")
-OUTPUT_JSON_PATH = Path("output.json")
 
 EXCLUSION_MTZ = "input-mtz-after-rflag-exclusion.mtz"
 POINTLESS_MTZ = "input-pointless.mtz"

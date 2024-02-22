@@ -1,38 +1,33 @@
-module Amarcord.CrystFELMerge exposing (MergeModel(..), MergeParametersInput, Model, Msg, Polarisation, ScaleIntensities(..), init, mergeModelSubtitleFromString, mergeModelToString, modelToMergeParameters, quickMergeParameters, update, view)
+module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, modelToMergeParameters, quickMergeParameters, update, view)
 
+import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Html exposing (enumSelect, form_, h3_, input_, onFloatInput, onIntInput, sup_)
-import Amarcord.PointGroupChooser as PointGroupChooser exposing (PointGroup)
+import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
+import Api.Data exposing (JsonPolarisation, JsonStartMergeJobForDataSetInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
 import Html exposing (Html, button, div, h2, label, span, text)
 import Html.Attributes exposing (checked, class, classList, disabled, for, id, type_, value)
 import Html.Events exposing (onClick)
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
 
 
-type MergeModel
-    = Unity
-    | XSphere
-    | Offset
-    | Ggpm
-
-
 allMergeModels : List MergeModel
 allMergeModels =
-    [ Unity, XSphere, Offset, Ggpm ]
+    [ MergeModelUnity, MergeModelXsphere, MergeModelOffset, MergeModelGgpm ]
 
 
 mergeModelSubtitleToString : MergeModel -> String
 mergeModelSubtitleToString x =
     case x of
-        Unity ->
+        MergeModelUnity ->
             "unity"
 
-        XSphere ->
+        MergeModelXsphere ->
             "xsphere"
 
-        Offset ->
+        MergeModelOffset ->
             "offset"
 
-        Ggpm ->
+        MergeModelGgpm ->
             "ggpm"
 
 
@@ -40,16 +35,16 @@ mergeModelSubtitleFromString : String -> Maybe MergeModel
 mergeModelSubtitleFromString x =
     case x of
         "unity" ->
-            Just Unity
+            Just MergeModelUnity
 
         "xsphere" ->
-            Just XSphere
+            Just MergeModelXsphere
 
         "offset" ->
-            Just Offset
+            Just MergeModelOffset
 
         "ggpm" ->
-            Just Ggpm
+            Just MergeModelGgpm
 
         _ ->
             Nothing
@@ -58,29 +53,21 @@ mergeModelSubtitleFromString x =
 mergeModelToString : MergeModel -> String
 mergeModelToString x =
     case x of
-        Unity ->
+        MergeModelUnity ->
             "No partialities"
 
-        XSphere ->
+        MergeModelXsphere ->
             "Bandwidth integral"
 
-        Offset ->
+        MergeModelOffset ->
             "Monochromatic Ewald sphere offset"
 
-        Ggpm ->
+        MergeModelGgpm ->
             "Overlap integral using Gaussians"
 
 
-type ScaleIntensities
-    = Off
-    | Normal
-    | DebyeWaller
-
-
 type alias Polarisation =
-    { angle : Int
-    , percent : Int
-    }
+    JsonPolarisation
 
 
 horizontalEField : Polarisation
@@ -101,30 +88,6 @@ unpolarized : Polarisation
 unpolarized =
     { angle = 0
     , percent = 50
-    }
-
-
-type alias MergeParametersInput =
-    { model : MergeModel
-    , scaleIntensities : ScaleIntensities
-    , postRefinement : Bool
-    , iterations : Int
-    , polarisation : Maybe Polarisation
-    , startAfter : Maybe Int
-    , stopAfter : Maybe Int
-    , relB : Float
-    , noPr : Bool
-    , forceBandwidth : Maybe Float
-    , forceRadius : Maybe Float
-    , forceLambda : Maybe Float
-    , noDeltaCcHalf : Bool
-    , maxAdu : Maybe Float
-    , minMeasurements : Int
-    , logs : Bool
-    , minRes : Maybe Float
-    , pushRes : Maybe Float
-    , w : Maybe PointGroup
-    , negativeHandling : Maybe String
     }
 
 
@@ -245,7 +208,7 @@ polarisationPresetToDescription x =
 
 
 type alias Model =
-    { model : MergeModel
+    { mergeModel : MergeModel
     , scaleIntensities : ScaleIntensities
     , postRefinement : Bool
     , iterations : Int
@@ -265,11 +228,12 @@ type alias Model =
     , minRes : Maybe Float
     , pushRes : Maybe Float
     , w : Maybe PointGroupChooser.Model
+    , beamtimeId : BeamtimeId
     }
 
 
-modelToMergeParameters : Model -> MergeParametersInput
-modelToMergeParameters { model, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
+modelToMergeParameters : Model -> JsonStartMergeJobForDataSetInput
+modelToMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, beamtimeId } =
     let
         polarisationModelToPolarisation =
             case polarisationPreset of
@@ -294,7 +258,8 @@ modelToMergeParameters { model, scaleIntensities, postRefinement, iterations, po
                 PolarisationCustom ->
                     Just polarisation
     in
-    { model = model
+    { mergeModel = mergeModel
+    , beamtimeId = beamtimeId
     , scaleIntensities = scaleIntensities
     , postRefinement = postRefinement
     , iterations = iterations
@@ -312,8 +277,9 @@ modelToMergeParameters { model, scaleIntensities, postRefinement, iterations, po
     , logs = logs
     , minRes = minRes
     , pushRes = pushRes
-    , w = Maybe.andThen .chosenPointGroup w
-    , negativeHandling = Nothing
+    , w = Maybe.map pointGroupToString <| Maybe.andThen .chosenPointGroup w
+    , negativeHandling = MergeNegativeHandlingIgnore
+    , strictMode = False
     }
 
 
@@ -327,7 +293,7 @@ view model =
                 mergeModelSubtitleToString
                 mergeModelToString
                 (Maybe.map ModelChange << mergeModelSubtitleFromString)
-                model.model
+                model.mergeModel
 
         makePolarisationPresetSelect : Html Msg
         makePolarisationPresetSelect =
@@ -347,11 +313,11 @@ view model =
         scalingAndRefinementCheckboxes =
             div [ class "row g-2 mb-3" ]
                 [ div [ class "form-check col" ]
-                    [ input_ [ class "form-check-input", id "crystfel-scaling", type_ "checkbox", checked (model.scaleIntensities /= Off), onClick ToggleScaleIntensities ]
+                    [ input_ [ class "form-check-input", id "crystfel-scaling", type_ "checkbox", checked (model.scaleIntensities /= ScaleIntensitiesOff), onClick ToggleScaleIntensities ]
                     , label [ class "form-check-label", for "crystfel-scaling" ] [ text "Scale intensities" ]
                     ]
                 , div [ class "form-check col" ]
-                    [ input_ [ class "form-check-input", id "crystfel-debye-waller-scaling", type_ "checkbox", checked (model.scaleIntensities == DebyeWaller), disabled (model.scaleIntensities == Off), onClick ToggleDebyeWallerScaling ]
+                    [ input_ [ class "form-check-input", id "crystfel-debye-waller-scaling", type_ "checkbox", checked (model.scaleIntensities == ScaleIntensitiesDebyewaller), disabled (model.scaleIntensities == ScaleIntensitiesOff), onClick ToggleDebyeWallerScaling ]
                     , label [ class "form-check-label", for "crystfel-debye-waller-scaling" ] [ text "Debye-Waller scaling" ]
                     ]
                 , div [ class "form-check col" ]
@@ -672,10 +638,10 @@ view model =
         ]
 
 
-init : Model
-init =
-    { model = Unity
-    , scaleIntensities = Off
+init : BeamtimeId -> Model
+init beamtimeId =
+    { mergeModel = MergeModelUnity
+    , scaleIntensities = ScaleIntensitiesOff
     , postRefinement = False
     , iterations = 3
     , polarisationPreset = HorizontalEField
@@ -690,6 +656,7 @@ init =
     , noDeltaCcHalf = True
     , maxAdu = Nothing
     , minMeasurements = 2
+    , beamtimeId = beamtimeId
     , logs = True
     , minRes = Nothing
     , pushRes = Nothing
@@ -697,11 +664,13 @@ init =
     }
 
 
-quickMergeParameters : MergeParametersInput
-quickMergeParameters =
-    { model = Unity
-    , scaleIntensities = Off
+quickMergeParameters : Int -> JsonStartMergeJobForDataSetInput
+quickMergeParameters beamtimeId =
+    { mergeModel = MergeModelUnity
+    , scaleIntensities = ScaleIntensitiesOff
+    , beamtimeId = beamtimeId
     , postRefinement = False
+    , strictMode = False
     , iterations = 3
     , polarisation = Just horizontalEField
     , startAfter = Nothing
@@ -718,7 +687,7 @@ quickMergeParameters =
     , minRes = Nothing
     , pushRes = Nothing
     , w = Nothing
-    , negativeHandling = Nothing
+    , negativeHandling = MergeNegativeHandlingIgnore
     }
 
 
@@ -746,7 +715,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ModelChange mergeModel ->
-            ( { model | model = mergeModel }, Cmd.none )
+            ( { model | mergeModel = mergeModel }, Cmd.none )
 
         ModelChangeFn f ->
             ( f model, Cmd.none )
@@ -758,11 +727,11 @@ update msg model =
             let
                 newScaleIntensities =
                     case model.scaleIntensities of
-                        Off ->
-                            Normal
+                        ScaleIntensitiesOff ->
+                            ScaleIntensitiesNormal
 
                         _ ->
-                            Off
+                            ScaleIntensitiesOff
             in
             ( { model | scaleIntensities = newScaleIntensities }, Cmd.none )
 
@@ -770,14 +739,14 @@ update msg model =
             let
                 newScaleIntensities =
                     case model.scaleIntensities of
-                        DebyeWaller ->
-                            Normal
+                        ScaleIntensitiesDebyewaller ->
+                            ScaleIntensitiesNormal
 
-                        Normal ->
-                            DebyeWaller
+                        ScaleIntensitiesNormal ->
+                            ScaleIntensitiesDebyewaller
 
-                        Off ->
-                            Off
+                        ScaleIntensitiesOff ->
+                            ScaleIntensitiesOff
             in
             ( { model | scaleIntensities = newScaleIntensities }, Cmd.none )
 

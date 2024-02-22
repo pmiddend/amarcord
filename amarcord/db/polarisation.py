@@ -26,10 +26,9 @@ def parse_crystfel_polarisation(s: str) -> PolarisationError | None | Polarisati
     predefined_match = _CRYSTFEL_POLARISATION_PREDEFINED_REGEX.match(s)
     if predefined_match is not None:
         return Polarisation(
-            angle=(
-                0 if predefined_match.group(1) == "horiz" else 90
-            )  # pyright: ignore [reportUnknownArgumentType]
-            * _UNIT_REGISTRY.degrees,
+            # Not sure how pyright wants it. It complains that it has a Unit, but Polarisation takes a Quantity. Seems to work though.
+            angle=(0 if predefined_match.group(1) == "horiz" else 90)
+            * _UNIT_REGISTRY.degrees,  # pyright: ignore[reportGeneralTypeIssues]
             percentage=int(predefined_match.group(2))
             if predefined_match.group(2) is not None
             else 100,
@@ -41,9 +40,8 @@ def parse_crystfel_polarisation(s: str) -> PolarisationError | None | Polarisati
             + 'then an optional integral percentage, nor "number", then "deg", then an optional integral percentage'
         )
     return Polarisation(
-        angle=int(
-            specific_match.group(1)
-        )  # pyright: ignore [reportUnknownArgumentType]
+        # Not sure how pyright wants it. It complains that it has a Unit, but Polarisation takes a Quantity. Seems to work though.
+        angle=int(specific_match.group(1))  # pyright: ignore [reportGeneralTypeIssues]
         * _UNIT_REGISTRY.degrees,
         percentage=int(specific_match.group(2))
         if specific_match.group(2) is not None

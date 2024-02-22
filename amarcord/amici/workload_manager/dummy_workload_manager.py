@@ -28,6 +28,7 @@ class DummyWorkloadManager(WorkloadManager):
         self,
         working_directory: Path,
         script: str,
+        name: str,
         time_limit: datetime.timedelta,
         stdout: None | Path = None,
         stderr: None | Path = None,

@@ -107,6 +107,7 @@ class ParsedArgs:
     run_id: int
     job_id: int
     api_url: str
+    asapo_source: str
     stream_file: Path
     crystfel_path: Path
     cell_description: None | str
@@ -150,6 +151,15 @@ def parse_predefined(s: bytes) -> ParsedArgs:
             f"run-id not an int but {run_id} (type {type(run_id)})",  # pyright: ignore[reportUnknownArgumentType]
         )
 
+    asapo_source = j.get("asapo-source")
+    if asapo_source is None:
+        exit_with_error(None, "asapo-source missing in input")
+    if not isinstance(asapo_source, str):
+        exit_with_error(
+            None,
+            f"asapo-source not a str but {asapo_source} (type {type(asapo_source)})",  # pyright: ignore[reportUnknownArgumentType]
+        )
+
     job_id = j.get("job-id")
     if job_id is None:
         exit_with_error(None, "job-id missing in input")
@@ -170,6 +180,7 @@ def parse_predefined(s: bytes) -> ParsedArgs:
     return ParsedArgs(
         run_id=run_id,
         job_id=job_id,
+        asapo_source=asapo_source,  # pyright: ignore[reportUnknownArgumentType]
         api_url=j.get("api-url"),  # type: ignore
         stream_file=stream_file_path,
         cell_description=cell_description,  # pyright: ignore[reportUnknownArgumentType]
@@ -201,6 +212,7 @@ predefined_args: None | bytes = None
 def write_output_json(
     args: ParsedArgs, error: None | str, result: None | dict[str, Any]
 ) -> None:
+    logger.info(f"contacting AMARCORD at {args.api_url} to send status")
     req = request.Request(
         f"{args.api_url}/api/indexing/{args.job_id}",
         data=json.dumps(
@@ -327,6 +339,7 @@ def generate_output(args: ParsedArgs) -> None:
         core_path=Path(core_path),
         cell_file=output_cell_file,
         beamtime_id=beamtime_id,
+        asapo_source=args.asapo_source,
         asapo_token=Path(core_path) / asapo_token_raw,
         asapo_endpoint=asapo_endpoint,
     )
@@ -460,6 +473,7 @@ def run_indexamajig(
     cell_file: None | Path,
     core_path: Path,
     asapo_token: Path,
+    asapo_source: str,
     asapo_endpoint: str,
     beamtime_id: str,
 ) -> None:
@@ -517,7 +531,7 @@ def run_indexamajig(
                 f"--asapo-endpoint={asapo_endpoint}",
                 f"--asapo-token={asapo_token_content}",
                 f"--asapo-beamtime={beamtime_id}",
-                "--asapo-source=haspp11e16m-100g",
+                f"--asapo-source={asapo_source}",
                 f"--asapo-stream={args.run_id}",
                 "--asapo-wait-for-stream",
                 "--asapo-group=online",
@@ -545,9 +559,9 @@ def run_indexamajig(
                 last_fom: None | IndexingFom = None
                 assert proc.stderr is not None
                 while True:
-                    logger.info("reading line")
                     err_line = proc.stderr.readline()
-                    logger.info(f"reading line finished: {err_line.rstrip()}")
+                    sys.stdout.write(err_line.rstrip() + "\n")
+                    sys.stdout.flush()
                     if not err_line:
                         break
                     match = _INDEXING_RE.search(err_line)
@@ -598,7 +612,13 @@ def run_indexamajig(
         exit_with_error(args, f"error running indexamajig: {e}")
 
     if args.use_auto_geom_refinement:
-        run_align_detector(args, core_path, geometry_path, last_fom)
+        if last_fom is None or last_fom.indexed_frames == 0:
+            logger.info("not running align_detector: we have no indexed frames anyway")
+        else:
+            logger.info("running align_detector")
+            run_align_detector(args, core_path, geometry_path, last_fom)
+    else:
+        logger.info("not running align_detector, not activated")
 
 
 if __name__ == "__main__":

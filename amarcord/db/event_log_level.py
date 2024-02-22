@@ -1,21 +1,11 @@
-import logging
 from enum import Enum
 from enum import unique
 
 
+# str to make it JSON serializable
 @unique
-class EventLogLevel(Enum):
+class EventLogLevel(str, Enum):
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
-
-    def to_python_log_level(self) -> int:
-        return (
-            logging.INFO
-            if self == EventLogLevel.INFO
-            else logging.WARNING
-            if self == EventLogLevel.WARNING
-            else logging.ERROR
-            if self == EventLogLevel.ERROR
-            else logging.INFO
-        )
+    USER = "user"

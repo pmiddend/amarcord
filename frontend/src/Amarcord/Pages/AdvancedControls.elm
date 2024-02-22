@@ -3,74 +3,81 @@ module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, update, v
 import Amarcord.API.ExperimentType exposing (ExperimentType)
 import Amarcord.API.Requests
     exposing
-        ( RequestError
-        , RunsResponse
-        , RunsResponseContent
-        , emptyRunEventDateFilter
-        , emptyRunFilter
-        , httpGetRunsFilter
-        , httpStartRun
-        , httpStopRun
-        , httpUserConfigurationSetInt
+        ( BeamtimeId
+        , RunExternalId(..)
+        , beamtimeIdToString
+        , firstRunId
+        , increaseRunExternalId
+        , runExternalIdFromInt
+        , runExternalIdToInt
+        , runExternalIdToString
         )
-import Amarcord.Attributo exposing (attributoStopped, retrieveAttributoValue)
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Html exposing (form_, h2_, hr_, input_, onIntInput)
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
-import Amarcord.Util exposing (HereAndNow)
+import Amarcord.Util exposing (HereAndNow, forgetMsgInput)
+import Api exposing (send)
+import Api.Data exposing (JsonReadRuns, JsonStartRunOutput, JsonStopRunOutput, JsonUserConfigurationSingleOutput)
+import Api.Request.Config exposing (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
+import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
 import Html exposing (Html, a, button, div, form, h2, label, option, p, select, text)
 import Html.Attributes exposing (class, disabled, for, href, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Http
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import Time exposing (Posix)
 
 
 type alias Model =
-    { runs : RemoteData RequestError RunsResponseContent
-    , refreshRequest : RemoteData RequestError ()
-    , startOrStopRequest : RemoteData RequestError ()
-    , nextRunId : Int
+    { runs : RemoteData Http.Error JsonReadRuns
+    , refreshRequest : RemoteData Http.Error ()
+    , startOrStopRequest : RemoteData Http.Error {}
+    , nextRunId : RunExternalId
     , isRunning : Bool
     , manualChange : Bool
     , bulkUpdateModel : RunsBulkUpdate.Model
+    , beamtimeId : BeamtimeId
     }
 
 
 type Msg
     = StartRun
-    | StartRunFinished (Result RequestError ())
+    | StartRunFinished (Result Http.Error JsonStartRunOutput)
     | StopRun
-    | StopRunFinished (Result RequestError ())
-    | RunsReceived RunsResponse
+    | StopRunFinished (Result Http.Error JsonStopRunOutput)
+    | RunsReceived (Result Http.Error JsonReadRuns)
     | Refresh Posix
     | RunIdChanged (Maybe Int)
     | RunsBulkUpdateMsg RunsBulkUpdate.Msg
     | CurrentExperimentTypeChanged Int
-    | ExperimentIdChanged (Result RequestError Int)
+    | ExperimentIdChanged (Result Http.Error JsonUserConfigurationSingleOutput)
 
 
-init : HereAndNow -> ( Model, Cmd Msg )
-init hereAndNow =
+init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
+init hereAndNow beamtimeId =
     ( { runs = Loading
       , refreshRequest = NotAsked
-      , nextRunId = 1
+      , nextRunId = firstRunId
       , isRunning = False
       , startOrStopRequest = NotAsked
       , manualChange = False
-      , bulkUpdateModel = RunsBulkUpdate.init hereAndNow
+      , bulkUpdateModel = RunsBulkUpdate.init hereAndNow beamtimeId
+      , beamtimeId = beamtimeId
       }
-    , httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived
+    , send
+        RunsReceived
+        (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing)
     )
 
 
-calculateIsRunning : Result RequestError RunsResponseContent -> Bool
+calculateIsRunning : Result Http.Error JsonReadRuns -> Bool
 calculateIsRunning runResponse =
     case runResponse of
         Ok { runs } ->
             case List.head runs of
                 Just latestRun ->
-                    MaybeExtra.isNothing <| retrieveAttributoValue attributoStopped latestRun.attributi
+                    MaybeExtra.isNothing <| latestRun.stopped
 
                 _ ->
                     False
@@ -79,23 +86,27 @@ calculateIsRunning runResponse =
             False
 
 
-calculateNextRunId : Int -> Result RequestError RunsResponseContent -> Int
+calculateNextRunId : RunExternalId -> Result Http.Error JsonReadRuns -> RunExternalId
 calculateNextRunId currentRunId runResponse =
     case runResponse of
         Ok { runs } ->
             case List.head runs of
                 Just latestRun ->
                     if calculateIsRunning runResponse then
-                        latestRun.id
+                        RunExternalId latestRun.externalId
 
                     else
-                        latestRun.id + 1
+                        increaseRunExternalId (RunExternalId latestRun.externalId)
 
                 Nothing ->
                     currentRunId
 
         _ ->
             currentRunId
+
+
+receiveRuns : Model -> Cmd Msg
+receiveRuns model = send RunsReceived (readRunsApiRunsBeamtimeIdGet model.beamtimeId Nothing Nothing)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -105,7 +116,9 @@ update msg model =
             ( model, Cmd.none )
 
         CurrentExperimentTypeChanged newExperimentTypeId ->
-            ( model, httpUserConfigurationSetInt "current-experiment-type-id" ExperimentIdChanged newExperimentTypeId )
+            ( model
+            , send ExperimentIdChanged (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch model.beamtimeId "current-experiment-type-id" (String.fromInt newExperimentTypeId))
+            )
 
         RunsReceived response ->
             ( { model
@@ -128,7 +141,9 @@ update msg model =
             )
 
         Refresh _ ->
-            ( { model | refreshRequest = Loading }, httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived )
+            ( { model | refreshRequest = Loading }
+            , receiveRuns model
+            )
 
         RunIdChanged int ->
             case int of
@@ -136,19 +151,23 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just runId ->
-                    ( { model | nextRunId = runId, manualChange = True }, Cmd.none )
+                    ( { model | nextRunId = runExternalIdFromInt runId, manualChange = True }, Cmd.none )
 
         StartRun ->
-            ( { model | startOrStopRequest = Loading }, httpStartRun model.nextRunId StartRunFinished )
+            ( { model | startOrStopRequest = Loading }, send StartRunFinished (startRunApiRunsRunExternalIdStartBeamtimeIdGet (runExternalIdToInt model.nextRunId) model.beamtimeId) )
 
         StopRun ->
-            ( { model | startOrStopRequest = Loading, manualChange = False }, httpStopRun StopRunFinished )
+            ( { model | startOrStopRequest = Loading, manualChange = False }, send StopRunFinished (stopLatestRunApiRunsStopLatestBeamtimeIdGet model.beamtimeId) )
 
         StartRunFinished result ->
-            ( { model | startOrStopRequest = fromResult result }, httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived )
+            ( { model | startOrStopRequest = fromResult <| forgetMsgInput result }
+            , receiveRuns model
+            )
 
         StopRunFinished result ->
-            ( { model | startOrStopRequest = fromResult result }, httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived )
+            ( { model | startOrStopRequest = fromResult <| forgetMsgInput result }
+            , receiveRuns model
+            )
 
         RunsBulkUpdateMsg msgInner ->
             let
@@ -202,14 +221,14 @@ view model =
                 [ input_
                     [ type_ "number"
                     , class "form-control"
-                    , value (String.fromInt model.nextRunId)
+                    , value (runExternalIdToString model.nextRunId)
                     , onInput (RunIdChanged << String.toInt)
                     , disabled (model.isRunning || isLoading model.startOrStopRequest)
                     ]
                 , label [ for "run-id", class "form-label" ] [ text "Run ID" ]
                 ]
             , button [ type_ "button", class "btn btn-primary me-3", disabled (model.isRunning || isLoading model.startOrStopRequest), onClick StartRun ]
-                [ icon { name = "play" }, text (" Start Run " ++ String.fromInt model.nextRunId) ]
+                [ icon { name = "play" }, text (" Start Run " ++ runExternalIdToString model.nextRunId) ]
             , button [ type_ "button", class "btn btn-secondary", disabled (not model.isRunning || isLoading model.startOrStopRequest), onClick StopRun ]
                 [ icon { name = "stop" }, text " Stop Run" ]
             ]
@@ -222,6 +241,6 @@ view model =
         , Html.map RunsBulkUpdateMsg <| RunsBulkUpdate.view model.bulkUpdateModel
         , h2 [ class "mt-3" ] [ icon { name = "file-earmark-spreadsheet" }, text " Export" ]
         , p [ class "lead" ] [ text "Done with the experiment? Ready for more analyses? Just download the whole database with a single click!" ]
-        , a [ href "api/spreadsheet.zip", class "btn btn-secondary" ] [ icon { name = "file-earmark-spreadsheet" }, text " Download spreadsheet" ]
+        , a [ href ("api/" ++ beamtimeIdToString model.beamtimeId ++ "/spreadsheet.zip"), class "btn btn-secondary" ] [ icon { name = "file-earmark-spreadsheet" }, text " Download spreadsheet" ]
         , p [ class "text-muted" ] [ text "Right-click and choose \"Save as\". The result will be a .zip file containing an Excel file and a list of attached files, if you have any." ]
         ]

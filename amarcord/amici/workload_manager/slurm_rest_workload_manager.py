@@ -2,7 +2,6 @@ import asyncio
 import datetime
 import getpass
 import json
-import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +12,7 @@ from typing import Final
 from typing import TypedDict
 
 import aiohttp
+import structlog
 from aiohttp import BasicAuth
 from aiohttp import ContentTypeError
 
@@ -23,13 +23,12 @@ from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import JobStartResult
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.json_types import JSONDict
-from amarcord.util import last_line_of_file
 
 MAXWELL_PREFIX: Final = "https://max-portal.desy.de"
-MAXWELL_SLURM_URL: Final = f"{MAXWELL_PREFIX}/sapi/slurm/v0.0.36"
+MAXWELL_SLURM_URL: Final = f"{MAXWELL_PREFIX}/sapi/slurm/v0.0.38"
 MAXWELL_SLURM_TOOLS_VERSION: Final = "4.6.0"
 
-logger = logging.getLogger(__name__)
+logger = structlog.stdlib.get_logger(__name__)
 
 
 @dataclass(eq=True, frozen=True)
@@ -134,6 +133,7 @@ class DynamicTokenRetriever:
             token = await self._retriever(self._token_lifetime_seconds)
             if isinstance(token, TokenRetrievalError):
                 raise Exception(f"couldn't retrieve token: {token.message}")
+            logger.info(f"got a new token: {token}")
             self._token = token
         return self._token
 
@@ -186,12 +186,6 @@ class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
                 return await response.json()  # type: ignore
 
 
-def slurm_file_contains_preemption(p: Path) -> bool:
-    if not p.is_file():
-        return False
-    return "DUE TO PREEMPTION ***" in last_line_of_file(p)
-
-
 class SlurmRestWorkloadManager(WorkloadManager):
     # Super class is Protocol which gives an error (protocols aren't instantiated)
     # pylint: disable=super-init-not-called
@@ -224,21 +218,21 @@ class SlurmRestWorkloadManager(WorkloadManager):
         self,
         working_directory: Path,
         script: str,
+        name: str,
         time_limit: datetime.timedelta,
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
         url = f"{self._rest_url}/job/submit"
+        headers_output = json.dumps(await self._headers())
         logger.info(
-            "sending the following script to %s (headers %s): %s",
-            url,
-            json.dumps(await self._headers()),
-            script,
+            f"sending the following script (excerpt) to {url} (headers {headers_output}): {script[0:50]}..."
         )
         job_dict: dict[str, int | str | dict[str, str]] = {
             "nodes": 1,
             "current_working_directory": str(working_directory),
             "time_limit": int(time_limit.total_seconds()) // 60,
+            "name": name,
             "environment": {
                 "SHELL": "/bin/bash",
                 "PATH": "/bin:/usr/bin:/usr/local/bin",
@@ -261,7 +255,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
             "job": job_dict,
         }
         logger.info(
-            f"sending the following request: {json_request}",
+            f"sending the following request job: {job_dict}",
         )
         try:
             response = await self._request_wrapper.post(
@@ -269,7 +263,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
             )
         except Exception as e:
             raise JobStartError(f"error starting job {e}")
-        logger.info("response was %s", json.dumps(response))
+        logger.info(f"response was {json.dumps(response)}")
         response_json = response
         # We should use pydantic here instead of this "type error"
         errors: None | list[SlurmError] = response_json.get("errors")  # type: ignore
@@ -311,8 +305,7 @@ class SlurmRestWorkloadManager(WorkloadManager):
         assert isinstance(jobs, list)
         if not jobs:
             logger.info(
-                "jobs array actually empty (token expired probably): %s",
-                json.dumps(response),
+                f"jobs array actually empty (token expired probably): {json.dumps(response)}"
             )
             raise Exception("jobs array empty, token expired?")
         # pyright rightfully complains that this doesn't have to be a JSONDict

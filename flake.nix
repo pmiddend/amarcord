@@ -1,9 +1,9 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=5df4d78d54f7a34e9ea1f84a22b4fd9baebc68d0";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=17ee3bcc82adbe5666c42591f73eef41c4bd00f5";
   inputs.poetry2nix = {
-    url = "github:nix-community/poetry2nix?rev=1d7eda9336f336392d24e9602be5cb9be7ae405c";
+    url = "github:nix-community/poetry2nix?rev=0b2bff39e9bd4e6db3208e09c276ca83a063b370";
     inputs.nixpkgs.follows = "nixpkgs";
   };
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
@@ -17,11 +17,12 @@
       system = "x86_64-linux";
       pypkgs-build-requirements = {
         structlog-overtime = [ "setuptools" ];
-        openpyxl-stubs = [ "setuptools" ];
         fawltydeps = [ "poetry" ];
+        openpyxl-stubs = [ "setuptools" ];
         randomname = [ "setuptools" ];
-        quart-cors = [ "setuptools" ];
-        quart = [ "poetry" ];
+        alabaster = [ "flit-core" ];
+        sphinx-autobuild = [ "flit-core" ];
+        sphinxcontrib-mermaid = [ "setuptools" ];
       };
       p2n-overrides = final: prev: prev.poetry2nix.defaultPoetryOverrides.extend (self: super:
         builtins.mapAttrs
@@ -36,7 +37,7 @@
     rec {
       # Nixpkgs overlay providing the application
       overlay = nixpkgs.lib.composeManyExtensions [
-        poetry2nix.overlay
+        poetry2nix.overlays.default
         (final: prev:
           let
             poetryOverrides = p2n-overrides final prev;
@@ -51,8 +52,12 @@
                 '';
                 overrides = poetryOverrides;
               };
-            amarcord-production-webserver = frontend: prev.writeShellScriptBin "amarcord-production-webserver" ''
-              ${(amarcord-python-package frontend).dependencyEnv}/bin/hypercorn amarcord.cli.webserver:app "$@"
+            # super annoying: .dependencyEnv gives us an env with the "python" and "uvicorn" executables, which then search upwards and sidewards
+            # to find dependencies. uvicorn, however, still uses the current working directory as a search path. However, the current working directory
+            # is the wrong directory, since the hardcoded_static_folder isn't replaced yet. This is breaking isolation, so we override the behavior with
+            # the --app dir explicitly
+            build-amarcord-production-webserver = frontend: prev.writeShellScriptBin "amarcord-production-webserver" ''
+              ${(amarcord-python-package frontend).dependencyEnv}/bin/uvicorn --app-dir=${amarcord-python-package frontend}/lib/python${(amarcord-python-package frontend).dependencyEnv.pythonVersion}/site-packages amarcord.cli.webserver:app "$@"
             '';
             amarcord-python-env = prev.poetry2nix.mkPoetryEnv {
               projectDir = ./.;
@@ -113,13 +118,24 @@
         in
         {
           amarcord-python-package = pkgs.amarcord-python-package amarcord-frontend;
-          amarcord-production-webserver = pkgs.amarcord-production-webserver amarcord-frontend;
+          amarcord-production-webserver = pkgs.build-amarcord-production-webserver amarcord-frontend;
           inherit amarcord-frontend;
+          amarcord-docker-image-no-stream = pkgs.dockerTools.buildImage {
+            name = "amarcord";
+            tag = "latest";
+
+            copyToRoot = pkgs.buildEnv {
+              name = "amarcord-docker-root";
+              paths = [ (pkgs.build-amarcord-production-webserver amarcord-frontend) ];
+              pathsToLink = [ "/bin" ];
+            };
+
+          };
           amarcord-docker-image = pkgs.dockerTools.streamLayeredImage {
             name = "amarcord";
             tag = "latest";
 
-            contents = [ (pkgs.amarcord-production-webserver amarcord-frontend) ];
+            contents = [ (pkgs.build-amarcord-production-webserver amarcord-frontend) ];
 
           };
         };
@@ -137,25 +153,44 @@
             pkgs.skopeo
             pkgs.shellcheck
             pkgs.nodePackages.pyright
+            # for docs
+            pkgs.glibcLocales
+            pkgs.mermaid-cli
+            pkgs.gnumake
+            # For generating Elm code
+            pkgs.openapi-generator-cli
+            # To generate the DB diagrams
+            pkgs.schemacrawler
           ];
 
         in
         {
-          default = pkgs.amarcord-python-env.env.overrideAttrs (oldAttrs: {
-            buildInputs = externalDependencies;
-            PYTHONPATH = "./";
-          });
+          default = pkgs.amarcord-python-env.env.overrideAttrs
+            (oldAttrs: {
+              buildInputs = externalDependencies;
+              PYTHONPATH = "./";
+              # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
+              LD_LIBRARY_PATH = "${pkgs.enchant}/lib";
+              # This is also more or less a hack, see
+              # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
+              ASPELL_CONF = "dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";
+            });
 
-          frontend = pkgs.mkShell {
-            buildInputs = [
-              pkgs.elmPackages.elm
-              pkgs.elmPackages.elm-review
-              pkgs.elmPackages.elm-format
-              pkgs.elmPackages.elm-json
-              pkgs.nodejs
-              pkgs.elm2nix
-            ];
-          };
+          frontend =
+            let
+              elm-language-server = (import ./frontend/elm-language-server { inherit pkgs; })."@elm-tooling/elm-language-server";
+            in
+            pkgs.mkShell {
+              buildInputs = [
+                pkgs.elmPackages.elm
+                pkgs.elmPackages.elm-review
+                pkgs.elmPackages.elm-format
+                pkgs.elmPackages.elm-json
+                elm-language-server
+                pkgs.nodejs
+                pkgs.elm2nix
+              ];
+            };
         };
     };
 

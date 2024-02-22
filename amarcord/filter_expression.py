@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Final
 from typing import TypeAlias
 
@@ -15,7 +14,7 @@ from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.table_classes import DBRun
+from amarcord.db.table_classes import DBRunOutput
 from amarcord.util import maybe_you_meant
 
 _filter_expression_parser: Final = Lark(
@@ -65,8 +64,9 @@ identifier_string: IDENTIFIER | STRING
 
 @dataclass(frozen=True)
 class FilterInput:
-    run: DBRun
-    chemical_names: Dict[str, int]
+    run: DBRunOutput
+    attributo_name_to_id: dict[str, AttributoId]
+    chemical_names: dict[str, int]
 
 
 RunFilterFunction: TypeAlias = Callable[[FilterInput], bool]
@@ -80,7 +80,7 @@ class FilterParseError(Exception):
 
 
 def _transform_comparison_operand_before_comparison(
-    aid: AttributoId,
+    aid: str,
     input_: AttributoValue,
     type_: AttributoType,
     chemical_names: dict[str, int],
@@ -112,28 +112,33 @@ def _comparison_filter(
     filter_input: FilterInput,
 ) -> bool:
     run = filter_input.run
-    aid = AttributoId(attributo_id_raw)
+    aname = attributo_id_raw
     attributo_value: AttributoValue
     type_: AttributoType
-    if aid == AttributoId("id"):
+    if aname == "id":
         attributo_value = run.id
         type_ = AttributoTypeInt()
     else:
+        aid = filter_input.attributo_name_to_id.get(aname)
+        if aid is None:
+            raise FilterParseError(
+                f'attributo "{aname}" not defined{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}'
+            )
         attributo = run.attributi.retrieve_type(aid)
         if attributo is None:
             raise FilterParseError(
-                f'attributo "{aid}" not defined{maybe_you_meant(aid, run.attributi.names())}'
+                f'attributo "{aid}" not defined{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}'
             )
         type_ = attributo.attributo_type
         attributo_value = run.attributi.select(aid)
     operand_processed = _transform_comparison_operand_before_comparison(
-        aid, operand, type_, filter_input.chemical_names
+        aname, operand, type_, filter_input.chemical_names
     )
     try:
         return comparison_op(attributo_value, operand_processed)
     except TypeError:
         raise FilterParseError(
-            f'attributo "{aid}": wrong type for comparison; left-hand side is {attributo_value} (type {type(attributo_value).__name__}), right-hand side is {operand_processed} (type {type(operand_processed).__name__}); maybe remove or add quotation marks?'
+            f'attributo "{aname}": wrong type for comparison; left-hand side is {attributo_value} (type {type(attributo_value).__name__}), right-hand side is {operand_processed} (type {type(operand_processed).__name__}); maybe remove or add quotation marks?'
         )
 
 
@@ -233,6 +238,7 @@ def compile_run_filter(query_string: str) -> RunFilterFunction:
     if not query_string:
         return lambda _: True
     try:
+        print(query_string)
         parse_result = _filter_expression_parser.parse(query_string)
     except Exception as e:
         raise FilterParseError(e)

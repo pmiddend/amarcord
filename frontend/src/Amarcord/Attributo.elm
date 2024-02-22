@@ -1,44 +1,43 @@
 module Amarcord.Attributo exposing
     ( Attributo
+    , AttributoId
     , AttributoMap
     , AttributoName
     , AttributoType(..)
     , AttributoValue(..)
-    , attributoDecoder
     , attributoExposureTime
     , attributoIsChemicalId
     , attributoIsNumber
     , attributoIsString
     , attributoMapDecoder
-    , attributoMapNames
-    , attributoStarted
-    , attributoStopped
-    , attributoTypeDecoder
-    , attributoValueDecoder
-    , attributoValueToString
+    , attributoMapIds
+    , attributoMapToListOfAttributi
+    , convertAttributoFromApi
+    , convertAttributoMapFromApi
+    , convertAttributoTypeToApi
+    , convertAttributoValueFromApi
     , createAnnotatedAttributoMap
     , emptyAttributoMap
-    , extractDateTime
     , extractInt
     , mapAttributo
     , mapAttributoMaybe
+    , prettyPrintAttributoValue
     , retrieveAttributoValue
-    , retrieveDateTimeAttributoValue
     , retrieveFloatAttributoValue
     , updateAttributoMap
     )
 
-import Amarcord.AssociatedTable exposing (AssociatedTable, associatedTableDecoder)
-import Amarcord.JsonSchema exposing (JsonSchema(..), jsonSchemaDecoder)
-import Amarcord.NumericRange exposing (NumericRange, rangeFromJsonSchema)
-import Amarcord.Util exposing (resultToJsonDecoder)
+import Amarcord.AssociatedTable exposing (AssociatedTable, associatedTableFromApi)
+import Amarcord.NumericRange as NumericRange exposing (NumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum)
+import Api.Data exposing (AttributoType(..), JSONSchemaBooleanType(..), JSONSchemaIntegerFormat(..), JSONSchemaIntegerType(..), JSONSchemaNumberFormat(..), JSONSchemaNumberType(..), JSONSchemaStringType(..), JsonAttributo, JsonAttributoValue)
 import Dict exposing (Dict)
 import Json.Decode as Decode
-import List
+import Json.Decode.Extra as JsonExtra
+import List exposing (filterMap)
 import Maybe
 import Maybe.Extra as MaybeExtra
-import Result
-import Time exposing (Posix, millisToPosix)
+import Api.Data exposing (JSONSchemaArrayType(..))
+import Api.Data exposing (Items(..))
 
 
 type AttributoValue
@@ -50,10 +49,93 @@ type AttributoValue
     | ValueNone
 
 
+attributoValueToBool : AttributoValue -> Maybe Bool
+attributoValueToBool x =
+    case x of
+        ValueBoolean b ->
+            Just b
+
+        _ ->
+            Nothing
+
+
+attributoValueToInt : AttributoValue -> Maybe Int
+attributoValueToInt x =
+    case x of
+        ValueInt b ->
+            Just b
+
+        _ ->
+            Nothing
+
+
+attributoValueToFloat : AttributoValue -> Maybe Float
+attributoValueToFloat x =
+    case x of
+        ValueNumber b ->
+            Just b
+
+        _ ->
+            Nothing
+
+
+attributoValueToString : AttributoValue -> Maybe String
+attributoValueToString x =
+    case x of
+        ValueString b ->
+            Just b
+
+        _ ->
+            Nothing
+
+
+attributoValueToListOfBool : AttributoValue -> Maybe (List Bool)
+attributoValueToListOfBool x =
+    case x of
+        ValueList xs ->
+            Just (filterMap attributoValueToBool xs)
+
+        _ ->
+            Nothing
+
+
+attributoValueToListOfFloat : AttributoValue -> Maybe (List Float)
+attributoValueToListOfFloat x =
+    case x of
+        ValueList xs ->
+            Just (filterMap attributoValueToFloat xs)
+
+        _ ->
+            Nothing
+
+
+attributoValueToListOfString : AttributoValue -> Maybe (List String)
+attributoValueToListOfString x =
+    case x of
+        ValueList xs ->
+            Just (filterMap attributoValueToString xs)
+
+        _ ->
+            Nothing
+
+
+attributoValueToJson : Int -> AttributoValue -> JsonAttributoValue
+attributoValueToJson aid a =
+    { attributoId = aid
+    , attributoValueBool = attributoValueToBool a
+    , attributoValueFloat = attributoValueToFloat a
+    , attributoValueInt = attributoValueToInt a
+    , attributoValueListBool = attributoValueToListOfBool a
+    , attributoValueListFloat = attributoValueToListOfFloat a
+    , attributoValueListStr = attributoValueToListOfString a
+    , attributoValueStr = attributoValueToString a
+    }
+
+
 {-| This is used for the comma-separated "list of xy" input field
 -}
-attributoValueToString : AttributoValue -> String
-attributoValueToString x =
+prettyPrintAttributoValue : AttributoValue -> String
+prettyPrintAttributoValue x =
     case x of
         ValueNone ->
             ""
@@ -72,7 +154,7 @@ attributoValueToString x =
             string
 
         ValueList attributoValues ->
-            String.join "," <| List.map attributoValueToString attributoValues
+            String.join "," <| List.map prettyPrintAttributoValue attributoValues
 
         ValueNumber float ->
             String.fromFloat float
@@ -145,8 +227,13 @@ type alias AttributoName =
     String
 
 
+type alias AttributoId =
+    Int
+
+
 type alias Attributo a =
-    { name : AttributoName
+    { id : AttributoId
+    , name : AttributoName
     , description : String
     , group : String
     , associatedTable : AssociatedTable
@@ -155,96 +242,63 @@ type alias Attributo a =
 
 
 type alias AttributoMap a =
-    Dict String a
+    Dict AttributoId a
+
+
+generalAttributoMapDecoder : Decode.Decoder value -> Decode.Decoder (AttributoMap value)
+generalAttributoMapDecoder valueDecoder =
+    let
+        transducer : String -> value -> Result String (AttributoMap value) -> Result String (AttributoMap value)
+        transducer stringKey value previousDict =
+            case previousDict of
+                Err e ->
+                    Err e
+
+                Ok v ->
+                    case String.toInt stringKey of
+                        Nothing ->
+                            Err ("couldn't convert attributo ID " ++ stringKey ++ " to integer")
+
+                        Just intKey ->
+                            Ok <| Dict.insert intKey value v
+    in
+    Decode.dict valueDecoder |> Decode.andThen (JsonExtra.fromResult << Dict.foldr transducer (Ok Dict.empty))
 
 
 attributoMapDecoder : Decode.Decoder (AttributoMap AttributoValue)
 attributoMapDecoder =
-    Decode.dict attributoValueDecoder
+    generalAttributoMapDecoder attributoValueDecoder
 
 
-attributoMapNames : AttributoMap a -> List String
-attributoMapNames =
+attributoMapIds : AttributoMap a -> List AttributoId
+attributoMapIds =
     Dict.keys
 
 
 mapAttributo : (a -> b) -> Attributo a -> Attributo b
-mapAttributo f { name, description, group, associatedTable, type_ } =
-    { name = name, description = description, group = group, associatedTable = associatedTable, type_ = f type_ }
+mapAttributo f { id, name, description, group, associatedTable, type_ } =
+    { id = id
+    , name = name
+    , description = description
+    , group = group
+    , associatedTable = associatedTable
+    , type_ = f type_
+    }
 
 
 mapAttributoMaybe : (a -> Maybe b) -> Attributo a -> Maybe (Attributo b)
-mapAttributoMaybe f { name, description, group, associatedTable, type_ } =
-    case f type_ of
-        Nothing ->
-            Nothing
-
-        Just converted ->
-            Just { name = name, description = description, group = group, associatedTable = associatedTable, type_ = converted }
-
-
-attributoDecoder : Decode.Decoder a -> Decode.Decoder (Attributo a)
-attributoDecoder typeDecoder =
-    Decode.map5
-        Attributo
-        (Decode.field "name" Decode.string)
-        (Decode.field "description" Decode.string)
-        (Decode.field "group" Decode.string)
-        (Decode.field "associatedTable" associatedTableDecoder)
-        (Decode.field "type" typeDecoder)
-
-
-jsonSchemaToAttributoType : JsonSchema -> Result String AttributoType
-jsonSchemaToAttributoType x =
-    case x of
-        JsonSchemaNumber { minimum, exclusiveMinimum, exclusiveMaximum, maximum, suffix, format, tolerance, toleranceIsAbsolute } ->
-            Ok
-                (Number
-                    { range = rangeFromJsonSchema minimum maximum exclusiveMinimum exclusiveMaximum
-                    , standardUnit = format == Just "standard-unit"
-                    , suffix = suffix
-                    , tolerance = tolerance
-                    , toleranceIsAbsolute = toleranceIsAbsolute
-                    }
-                )
-
-        JsonSchemaInteger { format } ->
-            case format of
-                Just "chemical-id" ->
-                    Ok ChemicalId
-
-                Just "date-time" ->
-                    Ok DateTime
-
-                Just unknown ->
-                    Err <| "invalid integer format \"" ++ unknown ++ "\""
-
-                Nothing ->
-                    Ok Int
-
-        JsonSchemaArray { minItems, maxItems, items, format } ->
-            case format of
-                Just unknown ->
-                    Err <| "unknown array format \"" ++ unknown ++ "\""
-
-                Nothing ->
-                    jsonSchemaToAttributoType items |> Result.map (\subType -> List { minLength = minItems, maxLength = maxItems, subType = subType })
-
-        JsonSchemaString { enum } ->
-            case enum of
-                Nothing ->
-                    Ok String
-
-                Just choices ->
-                    Ok (Choice { choiceValues = choices })
-
-        JsonSchemaBoolean ->
-            Ok Boolean
-
-
-attributoTypeDecoder : Decode.Decoder AttributoType
-attributoTypeDecoder =
-    Decode.andThen (\x -> resultToJsonDecoder (jsonSchemaToAttributoType x)) jsonSchemaDecoder
+mapAttributoMaybe f { id, name, description, group, associatedTable, type_ } =
+    f type_
+        |> Maybe.map
+            (\converted ->
+                { id = id
+                , name = name
+                , description = description
+                , group = group
+                , associatedTable = associatedTable
+                , type_ = converted
+                }
+            )
 
 
 emptyAttributoMap : AttributoMap a
@@ -252,34 +306,29 @@ emptyAttributoMap =
     Dict.empty
 
 
-retrieveAttributoValue : AttributoName -> AttributoMap a -> Maybe a
-retrieveAttributoValue name m =
-    Dict.get name m
+retrieveAttributoValue : AttributoId -> AttributoMap a -> Maybe a
+retrieveAttributoValue =
+    Dict.get
 
 
-retrieveFloatAttributoValue : AttributoName -> AttributoMap AttributoValue -> Maybe Float
-retrieveFloatAttributoValue name m =
-    Maybe.andThen extractFloat <| retrieveAttributoValue name m
+retrieveFloatAttributoValue : AttributoId -> AttributoMap AttributoValue -> Maybe Float
+retrieveFloatAttributoValue id m =
+    Maybe.andThen extractFloat <| retrieveAttributoValue id m
 
 
-retrieveDateTimeAttributoValue : AttributoName -> AttributoMap AttributoValue -> Maybe Posix
-retrieveDateTimeAttributoValue name m =
-    Maybe.andThen extractDateTime <| retrieveAttributoValue name m
+updateAttributoMap : AttributoId -> a -> AttributoMap a -> AttributoMap a
+updateAttributoMap id value m =
+    Dict.insert id value m
 
 
-updateAttributoMap : AttributoName -> a -> AttributoMap a -> AttributoMap a
-updateAttributoMap name value m =
-    Dict.insert name value m
-
-
-createAnnotatedAttributoMap : List (Attributo x) -> AttributoMap a -> Dict String (Attributo ( x, a ))
+createAnnotatedAttributoMap : List (Attributo x) -> AttributoMap a -> Dict AttributoId (Attributo ( x, a ))
 createAnnotatedAttributoMap attributi values =
     let
-        bestValueMapper : Attributo x -> Maybe ( String, Attributo ( x, a ) )
+        bestValueMapper : Attributo x -> Maybe ( AttributoId, Attributo ( x, a ) )
         bestValueMapper a =
-            Maybe.map (\value -> ( a.name, mapAttributo (\attributoType -> ( attributoType, value )) a )) <| retrieveAttributoValue a.name values
+            Maybe.map (\value -> ( a.id, mapAttributo (\attributoType -> ( attributoType, value )) a )) <| retrieveAttributoValue a.id values
 
-        bestValues : List ( String, Attributo ( x, a ) )
+        bestValues : List ( AttributoId, Attributo ( x, a ) )
         bestValues =
             MaybeExtra.values <| List.map bestValueMapper attributi
     in
@@ -306,21 +355,191 @@ extractFloat x =
             Nothing
 
 
-extractDateTime : AttributoValue -> Maybe Posix
-extractDateTime =
-    Maybe.map millisToPosix << extractInt
-
-
-attributoStarted : AttributoName
-attributoStarted =
-    "started"
-
-
-attributoStopped : AttributoName
-attributoStopped =
-    "stopped"
-
-
 attributoExposureTime : AttributoName
 attributoExposureTime =
     "exposure_time"
+
+convertAttributoItemsToApi : AttributoType -> Api.Data.Items
+convertAttributoItemsToApi x = 
+    case x of
+        String ->
+            ItemsJSONSchemaString
+                { type_ = JSONSchemaStringTypeString
+                , enum = Nothing
+                }
+
+        Boolean ->
+            ItemsJSONSchemaBoolean { type_ = JSONSchemaBooleanTypeBoolean }
+
+        Number { suffix, tolerance, toleranceIsAbsolute, standardUnit, range } ->
+            ItemsJSONSchemaNumber
+                { suffix = suffix
+                , tolerance = tolerance
+                , toleranceIsAbsolute = Just toleranceIsAbsolute
+                , format =
+                    if standardUnit then
+                        Just JSONSchemaNumberFormatStandardUnit
+
+                    else
+                        Nothing
+                , maximum = numericRangeMaximum range
+                , minimum = numericRangeMinimum range
+                , exclusiveMaximum = numericRangeExclusiveMaximum range
+                , exclusiveMinimum = numericRangeExclusiveMinimum range
+                , type_ = JSONSchemaNumberTypeNumber
+                }
+                
+        _ ->
+            ItemsJSONSchemaNumber {
+                    suffix = Nothing,
+                    tolerance = Nothing,
+                        toleranceIsAbsolute = Just False,
+                        format = Nothing,
+                        maximum = Nothing,
+                        minimum = Nothing,
+                        exclusiveMaximum = Nothing,
+                        exclusiveMinimum = Nothing,
+                        type_ = JSONSchemaNumberTypeNumber
+                }
+        
+convertAttributoTypeToApi : AttributoType -> Api.Data.AttributoType
+convertAttributoTypeToApi x =
+    case x of
+        Int ->
+            AttributoTypeJSONSchemaInteger
+                { format = Nothing
+                , type_ = JSONSchemaIntegerTypeInteger
+                }
+
+        DateTime ->
+            AttributoTypeJSONSchemaInteger
+                { format = Just JSONSchemaIntegerFormatDateTime
+                , type_ = JSONSchemaIntegerTypeInteger
+                }
+
+        ChemicalId ->
+            AttributoTypeJSONSchemaInteger
+                { format = Just JSONSchemaIntegerFormatChemicalId
+                , type_ = JSONSchemaIntegerTypeInteger
+                }
+
+        String ->
+            AttributoTypeJSONSchemaString
+                { type_ = JSONSchemaStringTypeString
+                , enum = Nothing
+                }
+
+        Boolean ->
+            AttributoTypeJSONSchemaBoolean { type_ = JSONSchemaBooleanTypeBoolean }
+
+        List {minLength, maxLength, subType} ->
+            AttributoTypeJSONSchemaArray
+                { type_ = JSONSchemaArrayTypeArray
+                , items = convertAttributoItemsToApi subType
+                , minItems = minLength
+                , maxItems = maxLength
+                }
+
+        Number { suffix, tolerance, toleranceIsAbsolute, standardUnit, range } ->
+            AttributoTypeJSONSchemaNumber
+                { suffix = suffix
+                , tolerance = tolerance
+                , toleranceIsAbsolute = Just toleranceIsAbsolute
+                , format =
+                    if standardUnit then
+                        Just JSONSchemaNumberFormatStandardUnit
+
+                    else
+                        Nothing
+                , maximum = numericRangeMaximum range
+                , minimum = numericRangeMinimum range
+                , exclusiveMaximum = numericRangeExclusiveMaximum range
+                , exclusiveMinimum = numericRangeExclusiveMinimum range
+                , type_ = JSONSchemaNumberTypeNumber
+                }
+
+        Choice { choiceValues } ->
+            AttributoTypeJSONSchemaString
+                { type_ = JSONSchemaStringTypeString
+                , enum = Just choiceValues
+                }
+
+
+convertAttributoTypeFromApi : Api.Data.AttributoType -> AttributoType
+convertAttributoTypeFromApi x =
+    case x of
+        AttributoTypeJSONSchemaBoolean _ ->
+            Boolean
+
+        AttributoTypeJSONSchemaInteger params ->
+            if params.format == Just JSONSchemaIntegerFormatDateTime then
+                DateTime
+
+            else if params.format == Just JSONSchemaIntegerFormatChemicalId then
+                ChemicalId
+
+            else
+                Int
+
+        AttributoTypeJSONSchemaString params ->
+            case params.enum of
+                Nothing ->
+                    String
+
+                Just choices ->
+                    Choice { choiceValues = choices }
+
+        AttributoTypeJSONSchemaNumber params ->
+            Number
+                { suffix = params.suffix
+                , tolerance = params.tolerance
+                , toleranceIsAbsolute = Maybe.withDefault True params.toleranceIsAbsolute
+                , standardUnit = params.format == Just JSONSchemaNumberFormatStandardUnit
+                , range =
+                    NumericRange.rangeFromJsonSchema
+                        params.minimum
+                        params.maximum
+                        params.exclusiveMinimum
+                        params.exclusiveMaximum
+                }
+
+        AttributoTypeJSONSchemaArray _ ->
+            -- FIXME
+            Int
+
+
+convertAttributoFromApi : JsonAttributo -> Attributo AttributoType
+convertAttributoFromApi a =
+    { id = a.id
+    , name = a.name
+    , description = a.description
+    , group = a.group
+    , associatedTable = associatedTableFromApi a.associatedTable
+    , type_ = convertAttributoTypeFromApi a.attributoType
+    }
+
+
+convertAttributoValueFromApi : JsonAttributoValue -> AttributoValue
+convertAttributoValueFromApi v =
+    MaybeExtra.orList
+        [ Maybe.map ValueBoolean v.attributoValueBool
+        , Maybe.map ValueNumber v.attributoValueFloat
+        , Maybe.map ValueInt v.attributoValueInt
+        , Maybe.map (ValueList << List.map ValueBoolean) v.attributoValueListBool
+        , Maybe.map (ValueList << List.map ValueNumber) v.attributoValueListFloat
+        , Maybe.map (ValueList << List.map ValueString) v.attributoValueListStr
+        , Maybe.map ValueString v.attributoValueStr
+        ]
+        |> Maybe.withDefault ValueNone
+
+
+convertAttributoMapFromApi : List JsonAttributoValue -> AttributoMap AttributoValue
+convertAttributoMapFromApi =
+    List.foldr
+        (\newAttributo -> Dict.insert newAttributo.attributoId (convertAttributoValueFromApi newAttributo))
+        Dict.empty
+
+
+attributoMapToListOfAttributi : AttributoMap AttributoValue -> List JsonAttributoValue
+attributoMapToListOfAttributi =
+    Dict.foldl (\attributoId attributoValue oldList -> attributoValueToJson attributoId attributoValue :: oldList) []

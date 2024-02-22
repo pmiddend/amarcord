@@ -4,5 +4,9 @@
     "elm-review": "^2.7.6",
     "http-server": "^14.1.0",
     "uglify-js": "^3.14.5"
-  }
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.10"
+  },
+  "scripts": {}
 }

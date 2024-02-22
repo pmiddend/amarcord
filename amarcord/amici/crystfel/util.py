@@ -3,11 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import time
 from typing import IO
-from typing import Final
 
-from amarcord.db.attributo_id import AttributoId
-
-ATTRIBUTO_PROTEIN: Final = AttributoId("protein")
+from amarcord.db.table_classes import BeamtimeOutput
 
 
 @dataclass(frozen=True, eq=True)
@@ -74,3 +71,28 @@ def write_cell_file(c: CrystFELCellFile, p: Path) -> None:
 def make_cell_file_name(c: CrystFELCellFile) -> str:
     ua = c.unique_axis if c.unique_axis else "noaxis"
     return f"chemical_{c.lattice_type}_{c.centering}_{ua}_{c.a}_{c.b}_{c.c}_{c.alpha}_{c.beta}_{c.gamma}_{int(time())}.cell"
+
+
+def determine_output_directory(
+    beamtime: BeamtimeOutput,
+    base_directory_template: Path,
+    additional_replacements: dict[str, str],
+) -> Path:
+    # This is a gratuitous selection of beamtime metadata. Please add necessary fields if you need them.
+    job_base_directory_str = (
+        str(base_directory_template)
+        .replace("{beamtime.external_id}", beamtime.external_id)
+        .replace("{beamtime.year}", str(beamtime.start.year))
+        .replace("{beamtime.beamline}", beamtime.beamline)
+        .replace("{beamtime.beamline_lowercase}", beamtime.beamline.lower())
+    )
+
+    for k, v in additional_replacements.items():
+        job_base_directory_str = job_base_directory_str.replace("{" + k + "}", v)
+
+    if "{" in job_base_directory_str or "}" in job_base_directory_str:
+        raise Exception(
+            f"job base directory {job_base_directory_str} contains placeholder characters (so '{{' and '}}'), stopping"
+        )
+
+    return Path(job_base_directory_str)

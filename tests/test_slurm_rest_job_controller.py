@@ -81,6 +81,7 @@ async def test_slurm_rest_job_controller_start_job() -> None:
     http_wrapper.responses.append({"job_id": 1})
     await controller.start_job(
         working_directory=Path("test"),
+        name="test",
         script='#!/bin/sh\n\necho "Done"',
         time_limit=_TIME_LIMIT,
     )

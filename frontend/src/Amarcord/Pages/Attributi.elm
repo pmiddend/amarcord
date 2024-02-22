@@ -1,21 +1,25 @@
 module Amarcord.Pages.Attributi exposing (Model, Msg, init, update, view)
 
-import Amarcord.API.Requests exposing (ConversionFlags, RequestError, StandardUnitCheckResult(..), httpCheckStandardUnit, httpCreateAttributo, httpDeleteAttributo, httpEditAttributo, httpGetAndDecodeAttributi)
-import Amarcord.API.RequestsHtml exposing (showRequestError)
-import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToString)
-import Amarcord.Attributo exposing (Attributo, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, mapAttributo, mapAttributoMaybe)
+import Amarcord.API.Requests exposing (BeamtimeId, ConversionFlags)
+import Amarcord.API.RequestsHtml exposing (showHttpError)
+import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToApi, associatedTableToString)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, convertAttributoFromApi, convertAttributoTypeToApi, mapAttributo, mapAttributoMaybe)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
-import Amarcord.JsonSchema exposing (JsonSchema(..))
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
-import Amarcord.NumericRange exposing (NumericRange, coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum, numericRangeToString, parseRange)
+import Amarcord.NumericRange exposing (NumericRange, coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
-import Amarcord.Util exposing (HereAndNow, scrollToTop)
+import Amarcord.Util exposing (HereAndNow, forgetMsgInput, scrollToTop)
+import Api exposing (send)
+import Api.Data exposing (JsonAttributo, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
+import Api.Request.Attributi exposing (createAttributoApiAttributiPost, deleteAttributoApiAttributiDelete, readAttributiApiAttributiBeamtimeIdGet, updateAttributoApiAttributiPatch)
+import Api.Request.Default exposing (checkStandardUnitApiUnitPost)
 import Html exposing (..)
 import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, scope, selected, step, style, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Http
 import List exposing (singleton)
 import List.Extra exposing (find)
 import Maybe exposing (withDefault)
@@ -178,49 +182,7 @@ attributoAugTypeToEnum x =
 
 emptyAugAttributo : Attributo AttributoTypeAug
 emptyAugAttributo =
-    { name = "", description = "", group = manualAttributiGroup, associatedTable = Chemical, type_ = AugSimple String }
-
-
-attributoTypeToJsonSchema : AttributoType -> JsonSchema
-attributoTypeToJsonSchema x =
-    case x of
-        Int ->
-            JsonSchemaInteger { format = Nothing }
-
-        DateTime ->
-            JsonSchemaInteger { format = Just "date-time" }
-
-        ChemicalId ->
-            JsonSchemaInteger { format = Just "chemical-id" }
-
-        String ->
-            JsonSchemaString { enum = Nothing }
-
-        List { subType, minLength, maxLength } ->
-            JsonSchemaArray { minItems = minLength, maxItems = maxLength, items = attributoTypeToJsonSchema subType, format = Nothing }
-
-        Number { range, suffix, standardUnit, tolerance, toleranceIsAbsolute } ->
-            JsonSchemaNumber
-                { suffix = suffix
-                , format =
-                    if standardUnit then
-                        Just "standard-unit"
-
-                    else
-                        Nothing
-                , minimum = numericRangeMinimum range
-                , exclusiveMinimum = numericRangeExclusiveMinimum range
-                , maximum = numericRangeMaximum range
-                , exclusiveMaximum = numericRangeExclusiveMaximum range
-                , tolerance = tolerance
-                , toleranceIsAbsolute = toleranceIsAbsolute
-                }
-
-        Choice { choiceValues } ->
-            JsonSchemaString { enum = Just choiceValues }
-
-        Boolean ->
-            JsonSchemaBoolean
+    { id = -1, name = "", description = "", group = manualAttributiGroup, associatedTable = Chemical, type_ = AugSimple String }
 
 
 attributoAugTypeFromType : AttributoType -> AttributoTypeAug
@@ -347,7 +309,7 @@ attributoAugTypeToType x =
 
 
 type Msg
-    = AttributiReceived (Result RequestError (List (Attributo AttributoType)))
+    = AttributiReceived (Result Http.Error JsonReadAttributi)
     | AddAttributo
     | EditAttributoAssociatedTable AssociatedTable
     | ToleranceCheckerChangeDs String
@@ -360,12 +322,12 @@ type Msg
     | EditAttributoGroup String
     | EditConversionFlags ConversionFlags
     | EditAttributoAugChange AttributoTypeAug
-    | EditSubmitFinished (Result RequestError ())
-    | CheckStandardUnitFinished (Result RequestError StandardUnitCheckResult)
-    | AskDelete AttributoName
-    | ConfirmDelete AttributoName
+    | EditSubmitFinished (Result Http.Error {})
+    | CheckStandardUnitFinished (Result Http.Error JsonCheckStandardUnitOutput)
+    | AskDelete AttributoId AttributoName
+    | ConfirmDelete AttributoId
     | CancelDelete
-    | DeleteFinished (Result RequestError ())
+    | DeleteFinished (Result Http.Error {})
     | InitiateEdit AttributoName
     | Nop
 
@@ -375,20 +337,21 @@ type alias ToleranceChecker =
 
 
 type alias Model =
-    { attributiList : RemoteData RequestError (List (Attributo AttributoType))
+    { attributiList : RemoteData Http.Error (List (Attributo AttributoType))
     , editAttributo : Maybe (Attributo AttributoTypeAug)
     , editAttributoOriginalName : Maybe AttributoName
     , conversionFlags : ConversionFlags
-    , modifyRequest : RemoteData RequestError ()
-    , deleteRequest : RemoteData RequestError ()
-    , deleteModalOpen : Maybe AttributoName
-    , unitValidationRequest : RemoteData RequestError ()
+    , modifyRequest : RemoteData Http.Error {}
+    , deleteRequest : RemoteData Http.Error {}
+    , deleteModalOpen : Maybe ( AttributoId, AttributoName )
+    , unitValidationRequest : RemoteData Http.Error {}
     , toleranceChecker : ToleranceChecker
+    , beamtimeId : BeamtimeId
     }
 
 
-init : HereAndNow -> ( Model, Cmd Msg )
-init _ =
+init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
+init _ beamtimeId =
     ( { attributiList = Loading
       , editAttributo = Nothing
       , editAttributoOriginalName = Nothing
@@ -398,8 +361,9 @@ init _ =
       , deleteModalOpen = Nothing
       , unitValidationRequest = NotAsked
       , toleranceChecker = { dsValue = "", runValue = "" }
+      , beamtimeId = beamtimeId
       }
-    , httpGetAndDecodeAttributi AttributiReceived
+    , send AttributiReceived (readAttributiApiAttributiBeamtimeIdGet beamtimeId)
     )
 
 
@@ -475,14 +439,14 @@ attributoTypeToHtml x =
 
 
 viewAttributoRow : Attributo AttributoType -> Html Msg
-viewAttributoRow { name, description, group, associatedTable, type_ } =
+viewAttributoRow { id, name, description, group, associatedTable, type_ } =
     tr_
         [ th [ scope "row", style "white-space" "nowrap" ] [ text (associatedTableToString associatedTable ++ "." ++ name) ]
         , td [ style "white-space" "nowrap" ] [ text group ]
         , td_ [ markupWithoutErrors description ]
         , td [ style "white-space" "nowrap" ] (attributoTypeToHtml type_)
         , td [ style "white-space" "nowrap" ]
-            [ button [ class "btn btn-sm btn-danger me-3", onClick (AskDelete name) ] [ icon { name = "trash" } ]
+            [ button [ class "btn btn-sm btn-danger me-3", onClick (AskDelete id name) ] [ icon { name = "trash" } ]
             , button [ class "btn btn-sm btn-info", onClick (InitiateEdit name) ] [ icon { name = "pencil-square" } ]
             ]
         ]
@@ -873,31 +837,35 @@ viewEditForm model attributiList attributo =
                     "Edit attributo"
                 )
             ]
-        , div [ class "mb-3" ]
-            [ label [ for "associated-table", class "form-label" ] [ text "Attributo is for ..." ]
-            , div_
-                [ div [ class "form-check form-check-inline" ]
-                    [ input_
-                        [ id "associated-table-run"
-                        , class "form-check-input"
-                        , type_ "radio"
-                        , checked (attributo.associatedTable == Run)
-                        , onInput (\_ -> EditAttributoAssociatedTable Run)
+        , if isNothing model.editAttributoOriginalName then
+            div [ class "mb-3" ]
+                [ label [ for "associated-table", class "form-label" ] [ text "Attributo is for ..." ]
+                , div_
+                    [ div [ class "form-check form-check-inline" ]
+                        [ input_
+                            [ id "associated-table-run"
+                            , class "form-check-input"
+                            , type_ "radio"
+                            , checked (attributo.associatedTable == Run)
+                            , onInput (\_ -> EditAttributoAssociatedTable Run)
+                            ]
+                        , label [ for "associated-table-run" ] [ text "Run" ]
                         ]
-                    , label [ for "associated-table-run" ] [ text "Run" ]
-                    ]
-                , div [ class "form-check form-check-inline" ]
-                    [ input_
-                        [ id "associated-table-chemical"
-                        , class "form-check-input"
-                        , type_ "radio"
-                        , checked (attributo.associatedTable == Chemical)
-                        , onInput (\_ -> EditAttributoAssociatedTable Chemical)
+                    , div [ class "form-check form-check-inline" ]
+                        [ input_
+                            [ id "associated-table-chemical"
+                            , class "form-check-input"
+                            , type_ "radio"
+                            , checked (attributo.associatedTable == Chemical)
+                            , onInput (\_ -> EditAttributoAssociatedTable Chemical)
+                            ]
+                        , label [ for "associated-table-chemical" ] [ text "Chemical" ]
                         ]
-                    , label [ for "associated-table-chemical" ] [ text "Chemical" ]
                     ]
                 ]
-            ]
+
+          else
+            p [ class "text-muted" ] [ small [] [ text "Attributo association (chemical/run) cannot be changed after creation." ] ]
         , div [ class "mb-3" ]
             [ label [ for "name", class "form-label" ] [ text "Name" ]
             , div [ class "w-75" ]
@@ -995,7 +963,7 @@ viewInner model =
             singleton <| loadingBar "Loading attributi..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showRequestError e ]
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showHttpError e ]
 
         Success attributiListReal ->
             let
@@ -1039,10 +1007,10 @@ viewInner model =
                             p_ [ text "Request in progress..." ]
 
                         Failure e ->
-                            div_ [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
+                            div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
 
                         Success _ ->
-                            div [ class "mt-3" ]
+                            div [ class "mt-3", id "attributi-modify-request-alert" ]
                                 [ makeAlert [ AlertSuccess ] [ text "Request successful!" ]
                                 ]
 
@@ -1055,7 +1023,7 @@ viewInner model =
                             p_ [ text "Request in progress..." ]
 
                         Failure e ->
-                            div_ [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
+                            div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -1090,7 +1058,7 @@ view model =
                 Nothing ->
                     []
 
-                Just attributoName ->
+                Just ( attributoId, attributoName ) ->
                     [ Dialog.view
                         (Just
                             { header = Nothing
@@ -1098,7 +1066,7 @@ view model =
                             , closeMessage = Just CancelDelete
                             , modalDialogClass = Nothing
                             , containerClass = Nothing
-                            , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete attributoName) ] [ text "Really delete!" ])
+                            , footer = Just (button [ class "btn btn-danger", onClick (ConfirmDelete attributoId) ] [ text "Really delete!" ])
                             }
                         )
                     ]
@@ -1170,7 +1138,7 @@ update msg model =
 
         -- The list of all attributi was received
         AttributiReceived x ->
-            ( { model | attributiList = fromResult x }, Cmd.none )
+            ( { model | attributiList = fromResult <| Result.map (List.map convertAttributoFromApi << .attributi) x }, Cmd.none )
 
         -- The attributo type changed (as a whole, e.g. from int to string or something)
         EditAttributoType attributoTypeEnum ->
@@ -1244,7 +1212,7 @@ update msg model =
                         newCmd =
                             case changeResult of
                                 CheckUnit newSuffix ->
-                                    httpCheckStandardUnit CheckStandardUnitFinished newSuffix
+                                    send CheckStandardUnitFinished (checkStandardUnitApiUnitPost { input = newSuffix })
 
                                 _ ->
                                     Cmd.none
@@ -1275,7 +1243,7 @@ update msg model =
         CheckStandardUnitFinished requestResult ->
             case model.editAttributo of
                 Nothing ->
-                    ( { model | unitValidationRequest = Success () }, Cmd.none )
+                    ( { model | unitValidationRequest = Success {} }, Cmd.none )
 
                 Just editAttributo ->
                     case editAttributo.type_ of
@@ -1284,7 +1252,7 @@ update msg model =
                             -- to false, so we don't need the request result anymore
                             if not standardUnit then
                                 ( { model
-                                    | unitValidationRequest = Success ()
+                                    | unitValidationRequest = Success {}
                                     , editAttributo =
                                         Just
                                             { editAttributo
@@ -1304,76 +1272,61 @@ update msg model =
 
                             else
                                 case requestResult of
-                                    Ok (StandardUnitValid { input, normalized }) ->
-                                        if input == suffixInput then
-                                            ( { model
-                                                | unitValidationRequest = Success ()
-                                                , editAttributo =
-                                                    Just
-                                                        { editAttributo
-                                                            | type_ =
-                                                                AugNumber
-                                                                    { rangeInput = rangeInput
-                                                                    , suffixInput = suffixInput
-                                                                    , standardUnit = standardUnit
-                                                                    , suffixNormalized = ValidSuffix normalized
-                                                                    , toleranceInput = toleranceInput
-                                                                    , toleranceIsAbsolute = toleranceIsAbsolute
-                                                                    }
-                                                        }
-                                              }
-                                            , Cmd.none
-                                            )
-
-                                        else
-                                            ( model, httpCheckStandardUnit CheckStandardUnitFinished suffixInput )
-
-                                    Ok (StandardUnitInvalid { input }) ->
-                                        if input == suffixInput then
-                                            ( { model
-                                                | unitValidationRequest = Success ()
-                                                , editAttributo =
-                                                    Just
-                                                        { editAttributo
-                                                            | type_ =
-                                                                AugNumber
-                                                                    { rangeInput = rangeInput
-                                                                    , suffixInput = suffixInput
-                                                                    , standardUnit = standardUnit
-                                                                    , suffixNormalized = InvalidSuffix
-                                                                    , toleranceInput = toleranceInput
-                                                                    , toleranceIsAbsolute = toleranceIsAbsolute
-                                                                    }
-                                                        }
-                                              }
-                                            , Cmd.none
-                                            )
-
-                                        else
-                                            ( model, httpCheckStandardUnit CheckStandardUnitFinished suffixInput )
-
                                     Err x ->
-                                        ( { model
-                                            | unitValidationRequest = Failure x
-                                            , editAttributo =
-                                                Just
-                                                    { editAttributo
-                                                        | type_ =
-                                                            AugNumber
-                                                                { rangeInput = rangeInput
-                                                                , suffixInput = suffixInput
-                                                                , standardUnit = standardUnit
-                                                                , suffixNormalized = InvalidSuffix
-                                                                , toleranceInput = toleranceInput
-                                                                , toleranceIsAbsolute = toleranceIsAbsolute
+                                        ( { model | unitValidationRequest = Failure x }, Cmd.none )
+
+                                    Ok requestResultOk ->
+                                        -- If the request is outdated, because the input field has changed, ignore the result and check again
+                                        if requestResultOk.input /= suffixInput then
+                                            ( model
+                                            , send CheckStandardUnitFinished (checkStandardUnitApiUnitPost { input = suffixInput })
+                                            )
+
+                                        else
+                                            case requestResultOk.normalized of
+                                                -- Standard unit requested, but no normalized output from the request? Not good!
+                                                Nothing ->
+                                                    ( { model
+                                                        | unitValidationRequest = Success {}
+                                                        , editAttributo =
+                                                            Just
+                                                                { editAttributo
+                                                                    | type_ =
+                                                                        AugNumber
+                                                                            { rangeInput = rangeInput
+                                                                            , suffixInput = suffixInput
+                                                                            , standardUnit = standardUnit
+                                                                            , suffixNormalized = InvalidSuffix
+                                                                            , toleranceInput = toleranceInput
+                                                                            , toleranceIsAbsolute = toleranceIsAbsolute
+                                                                            }
                                                                 }
-                                                    }
-                                          }
-                                        , Cmd.none
-                                        )
+                                                      }
+                                                    , Cmd.none
+                                                    )
+
+                                                Just normalized ->
+                                                    ( { model
+                                                        | unitValidationRequest = Success {}
+                                                        , editAttributo =
+                                                            Just
+                                                                { editAttributo
+                                                                    | type_ =
+                                                                        AugNumber
+                                                                            { rangeInput = rangeInput
+                                                                            , suffixInput = suffixInput
+                                                                            , standardUnit = standardUnit
+                                                                            , suffixNormalized = ValidSuffix normalized
+                                                                            , toleranceInput = toleranceInput
+                                                                            , toleranceIsAbsolute = toleranceIsAbsolute
+                                                                            }
+                                                                }
+                                                      }
+                                                    , Cmd.none
+                                                    )
 
                         _ ->
-                            ( { model | unitValidationRequest = Success () }, Cmd.none )
+                            ( { model | unitValidationRequest = Success {} }, Cmd.none )
 
         -- The submit button was pressed and the attributo should be edited or created
         EditAttributoSubmit ->
@@ -1382,17 +1335,49 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just editAttributo ->
-                    case mapAttributoMaybe (\y -> Maybe.map attributoTypeToJsonSchema (attributoAugTypeToType y)) editAttributo of
+                    case mapAttributoMaybe (\y -> Maybe.map convertAttributoTypeToApi (attributoAugTypeToType y)) editAttributo of
                         Nothing ->
                             ( model, Cmd.none )
 
                         Just baseAttributo ->
                             case model.editAttributoOriginalName of
                                 Nothing ->
-                                    ( { model | modifyRequest = Loading }, httpCreateAttributo EditSubmitFinished baseAttributo )
+                                    let
+                                        createAttributoInput : JsonCreateAttributoInput
+                                        createAttributoInput =
+                                            { beamtimeId = model.beamtimeId
+                                            , associatedTable = associatedTableToApi baseAttributo.associatedTable
+                                            , description = baseAttributo.description
+                                            , group = baseAttributo.group
+                                            , name = baseAttributo.name
+                                            , attributoType = baseAttributo.type_
+                                            }
+                                    in
+                                    ( { model | modifyRequest = Loading }
+                                    , send (EditSubmitFinished << forgetMsgInput) (createAttributoApiAttributiPost createAttributoInput)
+                                    )
 
-                                Just originalName ->
-                                    ( { model | modifyRequest = Loading }, httpEditAttributo EditSubmitFinished model.conversionFlags originalName baseAttributo )
+                                Just _ ->
+                                    let
+                                        updateAttributoInput : JsonAttributo
+                                        updateAttributoInput =
+                                            { associatedTable = associatedTableToApi baseAttributo.associatedTable
+                                            , description = baseAttributo.description
+                                            , group = baseAttributo.group
+                                            , name = baseAttributo.name
+                                            , id = baseAttributo.id
+                                            , attributoType = baseAttributo.type_
+                                            }
+                                    in
+                                    ( { model | modifyRequest = Loading }
+                                    , send (EditSubmitFinished << forgetMsgInput)
+                                        (updateAttributoApiAttributiPatch
+                                            { conversionFlags = model.conversionFlags
+                                            , beamtimeId = model.beamtimeId
+                                            , attributo = updateAttributoInput
+                                            }
+                                        )
+                                    )
 
         EditAttributoCancel ->
             ( { model | editAttributo = Nothing, editAttributoOriginalName = Nothing }, Cmd.none )
@@ -1403,13 +1388,17 @@ update msg model =
                     ( { model | modifyRequest = Failure e }, Cmd.none )
 
                 Ok _ ->
-                    ( { model | modifyRequest = Success (), editAttributo = Nothing, editAttributoOriginalName = Nothing }, httpGetAndDecodeAttributi AttributiReceived )
+                    ( { model | modifyRequest = Success {}, editAttributo = Nothing, editAttributoOriginalName = Nothing }
+                    , send AttributiReceived (readAttributiApiAttributiBeamtimeIdGet model.beamtimeId)
+                    )
 
-        AskDelete attributoName ->
-            ( { model | deleteModalOpen = Just attributoName }, Cmd.none )
+        AskDelete attributoId attributoName ->
+            ( { model | deleteModalOpen = Just ( attributoId, attributoName ) }, Cmd.none )
 
-        ConfirmDelete attributoName ->
-            ( { model | deleteRequest = Loading, deleteModalOpen = Nothing }, httpDeleteAttributo DeleteFinished attributoName )
+        ConfirmDelete attributoId ->
+            ( { model | deleteRequest = Loading, deleteModalOpen = Nothing }
+            , send (DeleteFinished << forgetMsgInput) (deleteAttributoApiAttributiDelete { id = attributoId })
+            )
 
         CancelDelete ->
             ( { model | deleteModalOpen = Nothing }, Cmd.none )
@@ -1420,7 +1409,9 @@ update msg model =
                     ( { model | deleteRequest = Failure e }, Cmd.none )
 
                 Ok _ ->
-                    ( { model | deleteRequest = Success () }, httpGetAndDecodeAttributi AttributiReceived )
+                    ( { model | deleteRequest = Success {} }
+                    , send AttributiReceived (readAttributiApiAttributiBeamtimeIdGet model.beamtimeId)
+                    )
 
         Nop ->
             ( model, Cmd.none )

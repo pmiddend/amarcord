@@ -7,10 +7,3 @@ def parse_job_state(s: str) -> JobStatus:
         if s in ("PENDING", "RUNNING", "REQUEUED", "RESIZING", "SUSPENDED")
         else JobStatus.SUCCESSFUL
     )
-
-
-def build_sbatch(content: str) -> str:
-    return f"""#!/bin/sh
-
-{content}
-    """

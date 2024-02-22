@@ -1,3 +1,3 @@
 from typing import NewType
 
-AttributoId = NewType("AttributoId", str)
+AttributoId = NewType("AttributoId", int)

@@ -7,7 +7,6 @@ from asyncio.subprocess import Process
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
-from typing import TypedDict
 
 from amarcord.amici.workload_manager.job import Job
 from amarcord.amici.workload_manager.job import JobMetadata
@@ -16,11 +15,6 @@ from amarcord.amici.workload_manager.workload_manager import JobStartResult
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 
 logger = logging.getLogger(__name__)
-
-
-class JobResult(TypedDict):
-    failed: bool
-    reason: None | str
 
 
 @dataclass(frozen=True)
@@ -73,6 +67,7 @@ class LocalWorkloadManager(WorkloadManager):
         self,
         working_directory: Path,
         script: str,
+        name: str,
         time_limit: datetime.timedelta,
         stdout: None | Path = None,
         stderr: None | Path = None,

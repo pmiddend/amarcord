@@ -1,20 +1,23 @@
 module Amarcord.Pages.DataSets exposing (..)
 
-import Amarcord.API.DataSet exposing (DataSet)
 import Amarcord.API.ExperimentType exposing (ExperimentType)
-import Amarcord.API.Requests exposing (DataSetResult, RequestError, httpCreateDataSet, httpDeleteDataSet, httpGetDataSets)
-import Amarcord.API.RequestsHtml exposing (showRequestError)
-import Amarcord.Attributo exposing (Attributo, AttributoType, emptyAttributoMap)
+import Amarcord.API.Requests exposing (BeamtimeId)
+import Amarcord.API.RequestsHtml exposing (showHttpError)
+import Amarcord.Attributo exposing (Attributo, AttributoType, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteData)
-import Amarcord.Chemical exposing (Chemical, ChemicalType(..), chemicalIdDict)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteDataHttp)
+import Amarcord.Chemical exposing (Chemical, chemicalIdDict, chemicalTypeFromApi, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.Util exposing (HereAndNow, listContainsBy)
+import Api exposing (send)
+import Api.Data exposing (ChemicalType(..), JsonCreateDataSetOutput, JsonDataSet, JsonDeleteDataSetOutput, JsonExperimentType, JsonReadDataSets)
+import Api.Request.Datasets exposing (createDataSetApiDataSetsPost, deleteDataSetApiDataSetsDelete, readDataSetsApiDataSetsBeamtimeIdGet)
 import Dict
 import Html exposing (Html, button, div, h4, option, select, table, text)
 import Html.Attributes exposing (class, disabled, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Http
 import List.Extra as ListExtra exposing (find)
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
@@ -23,15 +26,30 @@ import Time exposing (Zone)
 
 
 type Msg
-    = DataSetCreated (Result RequestError ())
-    | DataSetDeleted (Result RequestError ())
-    | DataSetsReceived (Result RequestError DataSetResult)
+    = DataSetCreated (Result Http.Error JsonCreateDataSetOutput)
+    | DataSetDeleted (Result Http.Error JsonDeleteDataSetOutput)
+    | DataSetsReceived (Result Http.Error JsonReadDataSets)
     | DataSetDeleteSubmit Int
     | DataSetExperimentTypeChange String
     | DataSetAttributiChange AttributoNameWithValueUpdate
     | DataSetSubmit
     | AddDataSet
     | CancelAddDataSet
+
+
+convertExperimentTypeFromApi : JsonExperimentType -> ExperimentType
+convertExperimentTypeFromApi et =
+    { id = et.id
+    , name = et.name
+    , attributi =
+        List.map
+            (\attributo_id_and_role ->
+                { id = attributo_id_and_role.id
+                , role = chemicalTypeFromApi attributo_id_and_role.role
+                }
+            )
+            et.attributi
+    }
 
 
 type alias NewDataSet =
@@ -41,25 +59,32 @@ type alias NewDataSet =
 
 
 type alias DataSetModel =
-    { createRequest : RemoteData RequestError ()
-    , deleteRequest : RemoteData RequestError ()
+    { createRequest : RemoteData Http.Error JsonCreateDataSetOutput
+    , deleteRequest : RemoteData Http.Error JsonDeleteDataSetOutput
     , newDataSet : Maybe NewDataSet
-    , dataSets : RemoteData RequestError DataSetResult
+    , dataSets : RemoteData Http.Error JsonReadDataSets
     , submitErrors : List String
     , zone : Zone
+    , beamtimeId : BeamtimeId
     }
 
 
-initDataSet : HereAndNow -> ( DataSetModel, Cmd Msg )
-initDataSet hereAndNow =
+readDataSetsWrapper : Int -> Cmd Msg
+readDataSetsWrapper beamtimeId =
+    send DataSetsReceived (readDataSetsApiDataSetsBeamtimeIdGet beamtimeId)
+
+
+initDataSet : HereAndNow -> BeamtimeId -> ( DataSetModel, Cmd Msg )
+initDataSet hereAndNow beamtimeId =
     ( { createRequest = NotAsked
       , deleteRequest = NotAsked
       , dataSets = Loading
       , submitErrors = []
       , newDataSet = Nothing
       , zone = hereAndNow.zone
+      , beamtimeId = beamtimeId
       }
-    , httpGetDataSets DataSetsReceived
+    , readDataSetsWrapper beamtimeId
     )
 
 
@@ -67,16 +92,16 @@ updateDataSet : Msg -> DataSetModel -> ( DataSetModel, Cmd Msg )
 updateDataSet msg model =
     case msg of
         DataSetCreated result ->
-            ( { model | createRequest = fromResult result }, httpGetDataSets DataSetsReceived )
+            ( { model | createRequest = fromResult result }, readDataSetsWrapper model.beamtimeId )
 
         DataSetDeleted result ->
-            ( { model | deleteRequest = fromResult result }, httpGetDataSets DataSetsReceived )
+            ( { model | deleteRequest = fromResult result }, readDataSetsWrapper model.beamtimeId )
 
         DataSetsReceived result ->
             ( { model | dataSets = fromResult result }, Cmd.none )
 
         DataSetDeleteSubmit dataSetId ->
-            ( { model | deleteRequest = Loading }, httpDeleteDataSet DataSetDeleted dataSetId )
+            ( { model | deleteRequest = Loading }, send DataSetDeleted (deleteDataSetApiDataSetsDelete { id = dataSetId }) )
 
         AddDataSet ->
             ( { model | newDataSet = Just { experimentType = Nothing, attributi = emptyEditableAttributiAndOriginal } }, Cmd.none )
@@ -114,19 +139,37 @@ updateDataSet msg model =
                         Just experimentType ->
                             case convertEditValues model.zone newDataSet.attributi of
                                 Err errorList ->
-                                    ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+                                    ( { model | submitErrors = List.map (\( attributoId, errorMessage ) -> String.fromInt attributoId ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
                                 Ok editedAttributi ->
-                                    ( { model | createRequest = Loading }, httpCreateDataSet DataSetCreated experimentType.id editedAttributi )
+                                    ( { model | createRequest = Loading }
+                                    , send DataSetCreated
+                                        (createDataSetApiDataSetsPost
+                                            { beamtimeId = model.beamtimeId
+                                            , experimentTypeId = experimentType.id
+                                            , attributi = attributoMapToListOfAttributi editedAttributi
+                                            }
+                                        )
+                                    )
 
         DataSetExperimentTypeChange newExperimentTypeIdStr ->
             case model.dataSets of
                 Success { attributi, experimentTypes } ->
                     let
+                        convertedAttributi =
+                            List.map convertAttributoFromApi attributi
+
                         matchingExperimentType : Maybe ExperimentType
                         matchingExperimentType =
                             String.toInt newExperimentTypeIdStr
-                                |> Maybe.andThen (\newExperimentTypeId -> find (\et -> et.id == newExperimentTypeId) experimentTypes)
+                                |> Maybe.andThen
+                                    (\newExperimentTypeId ->
+                                        let
+                                            convertedExperimentTypes =
+                                                List.map convertExperimentTypeFromApi experimentTypes
+                                        in
+                                        find (\et -> et.id == newExperimentTypeId) convertedExperimentTypes
+                                    )
 
                         attributoInExperimentType : Attributo AttributoType -> Bool
                         attributoInExperimentType attributo =
@@ -135,13 +178,13 @@ updateDataSet msg model =
                                     False
 
                                 Just et ->
-                                    listContainsBy (\a -> a.name == attributo.name) et.attributi
+                                    listContainsBy (\a -> a.id == attributo.id) et.attributi
 
                         newDataSet : Maybe NewDataSet
                         newDataSet =
                             Just
                                 { experimentType = matchingExperimentType
-                                , attributi = createEditableAttributi model.zone (List.filter attributoInExperimentType attributi) emptyAttributoMap
+                                , attributi = createEditableAttributi model.zone (List.filter attributoInExperimentType convertedAttributi) emptyAttributoMap
                                 }
                     in
                     ( { model | newDataSet = newDataSet }, Cmd.none )
@@ -165,9 +208,9 @@ viewEditForm et chemicals =
         viewAttributoFormWithRole : EditableAttributo -> Html AttributoFormMsg
         viewAttributoFormWithRole e =
             viewAttributoForm chemicals
-                (Maybe.withDefault Solution <|
+                (Maybe.withDefault ChemicalTypeSolution <|
                     Maybe.map .role <|
-                        ListExtra.find (\awr -> awr.name == e.name) <|
+                        ListExtra.find (\awr -> awr.id == e.id) <|
                             et.attributi
                 )
                 e
@@ -190,7 +233,11 @@ viewDataSet model =
             List.singleton <| loadingBar "Loading data set..."
 
         Failure e ->
-            List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ], showRequestError e ]
+            List.singleton <|
+                makeAlert [ AlertDanger ] <|
+                    [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ]
+                    , showHttpError e
+                    ]
 
         Success { chemicals, attributi, dataSets, experimentTypes } ->
             let
@@ -198,12 +245,20 @@ viewDataSet model =
                 experimentTypesById =
                     List.foldl (\et -> Dict.insert et.id et.name) Dict.empty experimentTypes
 
-                viewRow : DataSet -> Html Msg
+                viewRow : JsonDataSet -> Html Msg
                 viewRow ds =
                     tr_
                         [ td_ [ text (String.fromInt ds.id) ]
                         , td_ [ text (Maybe.withDefault "" <| Dict.get ds.experimentTypeId experimentTypesById) ]
-                        , td_ [ viewDataSetTable attributi model.zone (chemicalIdDict chemicals) ds.attributi False Nothing ]
+                        , td_
+                            [ viewDataSetTable
+                                (List.map convertAttributoFromApi attributi)
+                                model.zone
+                                (chemicalIdDict (List.map convertChemicalFromApi chemicals))
+                                (convertAttributoMapFromApi ds.attributi)
+                                False
+                                Nothing
+                            ]
                         , td_ [ button [ class "btn btn-sm btn-danger", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]
                         ]
 
@@ -228,13 +283,18 @@ viewDataSet model =
                                             []
 
                                         Just et ->
-                                            viewEditForm et chemicals newDataSet.attributi
+                                            viewEditForm et (List.map convertChemicalFromApi chemicals) newDataSet.attributi
                             in
                             form_
                                 ([ h5_ [ text "New Data Set" ]
                                  , div [ class "mb-3" ]
                                     [ select [ class "form-select", onInput DataSetExperimentTypeChange ]
-                                        (option [ selected (isNothing newDataSet.experimentType) ] [ text "«no value»" ] :: List.map (viewExperimentTypeOption newDataSet.experimentType) experimentTypes)
+                                        (option
+                                            [ selected (isNothing newDataSet.experimentType)
+                                            ]
+                                            [ text "«no value»" ]
+                                            :: List.map (viewExperimentTypeOption newDataSet.experimentType) (List.map convertExperimentTypeFromApi experimentTypes)
+                                        )
                                     ]
                                  ]
                                     ++ editForm
@@ -256,8 +316,8 @@ viewDataSet model =
             in
             [ h1_ [ text "Data Sets" ]
             , newDataSetForm
-            , viewRemoteData "Deletion successful!" model.deleteRequest
-            , viewRemoteData "Creation successful!" model.createRequest
+            , viewRemoteDataHttp "Deletion successful!" model.deleteRequest
+            , viewRemoteDataHttp "Creation successful!" model.createRequest
             , table [ class "table table-striped" ]
                 [ thead_
                     [ tr_

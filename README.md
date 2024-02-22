@@ -59,10 +59,16 @@ this is for [idiotic reasons](https://stackoverflow.com/questions/43826134/why-i
 
 ## How to start a backend server
 
-To start a web server with a “blank”, but usable SQLite database, run:
+To start a backend server, you have to create a database first. This isn't done implicitly when starting the web server, since this created problems. It's easy to create one, however, just do this:
 
 ```
-poetry run amarcord-webserver
+python amarcord/cli/upgrade_to_latest.py --db-connection-url 'sqlite+aiosqlite:///tmp/test.db'
+```
+
+To start a web server with a “blank”, but usable SQLite database in `/tmp/test.db` (adapt if you're on Windows), run:
+
+```
+DB_URL=sqlite+aiosqlite:////tmp/test.db 
 ```
 
 which will open a web server on port `5000` with an in-memory database, so restarting the server means deleting the database. To get something that sticks around a bit longer:

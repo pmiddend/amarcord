@@ -6,10 +6,11 @@ import Json.Decode as Decode
 import List exposing (foldr)
 import List.Extra as ListExtra
 import Maybe.Extra exposing (isJust)
-import Parser exposing ((|.), (|=))
+import Parser exposing ((|.), (|=), deadEndsToString, run)
 import String exposing (fromInt, padLeft)
 import Task
 import Time exposing (Month(..), Posix, Zone, here, now, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
+import Time.Extra exposing (partsToPosix)
 
 
 collectResults : List (Result e b) -> Result (List e) (List b)
@@ -324,6 +325,21 @@ localDateTimeParser =
         |= parserZeroPaddedInt
 
 
+localDateTimeStringToPosix : Zone -> String -> Result String Posix
+localDateTimeStringToPosix zone input =
+    case run localDateTimeParser input of
+        Ok { year, month, day, hour, minute } ->
+            Ok <| partsToPosix zone { year = year, month = month, day = day, hour = hour, minute = minute, second = 0, millisecond = 0 }
+
+        Err error ->
+            Err (deadEndsToString error)
+
+
 listContainsBy : (a -> Bool) -> List a -> Bool
 listContainsBy f =
     isJust << ListExtra.find f
+
+
+forgetMsgInput : Result x b -> Result x {}
+forgetMsgInput =
+    Result.map (always {})

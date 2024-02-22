@@ -1,6 +1,6 @@
 module Amarcord.DataSetHtml exposing (..)
 
-import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, attributoMapNames)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType, AttributoValue, attributoMapIds)
 import Amarcord.AttributoHtml exposing (viewAttributoCell)
 import Amarcord.Html exposing (tbody_, th_, thead_, tr_)
 import Dict
@@ -13,9 +13,9 @@ import Time exposing (Zone)
 viewDataSetTable : List (Attributo AttributoType) -> Zone -> Dict.Dict Int String -> AttributoMap AttributoValue -> Bool -> Maybe (Html msg) -> Html msg
 viewDataSetTable attributi zone chemicalIdToName attributoMap withHeader footer =
     let
-        viewAttributiValueRow : Int -> AttributoMap AttributoValue -> Int -> String -> Html msg
-        viewAttributiValueRow maxIdx attributoValues idx name =
-            case find (\a -> a.name == name) attributi of
+        viewAttributiValueRow : Int -> AttributoMap AttributoValue -> Int -> AttributoId -> Html msg
+        viewAttributiValueRow maxIdx attributoValues idx attributoId =
+            case find (\a -> a.id == attributoId) attributi of
                 Nothing ->
                     tr_ []
 
@@ -56,7 +56,7 @@ viewDataSetTable attributi zone chemicalIdToName attributoMap withHeader footer 
                     (Dict.size attributoMap - 1)
                     attributoMap
                 )
-                (attributoMapNames attributoMap)
+                (attributoMapIds attributoMap)
             )
         , case footer of
             Nothing ->

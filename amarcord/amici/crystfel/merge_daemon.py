@@ -10,7 +10,6 @@ from enum import IntEnum
 from enum import auto
 from io import StringIO
 from pathlib import Path
-from typing import Final
 
 import structlog
 from pydantic import BaseModel
@@ -18,6 +17,7 @@ from structlog.stdlib import BoundLogger
 
 import amarcord.cli.crystfel_merge
 from amarcord.amici.crystfel.util import coparse_cell_file
+from amarcord.amici.crystfel.util import determine_output_directory
 from amarcord.amici.crystfel.util import make_cell_file_name
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartError
@@ -32,16 +32,14 @@ from amarcord.db.db_merge_result import DBMergeRuntimeStatusRunning
 from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.merge_parameters import DBMergeParameters
 from amarcord.db.merge_result import MergeResult
+from amarcord.db.run_internal_id import RunInternalId
 from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.db.table_classes import DBFile
 
-_RECENT_LOG_LINES: Final = -5
-
-_STDOUT_NAME: Final = "stdout.txt"
-_STDERR_NAME: Final = "stderr.txt"
-_MAXIMUM_RECENT_LOG_LENGTH: Final = 4096
-
 logger = structlog.stdlib.get_logger(__name__)
+
+_SHORT_SLEEP_DURATION_SECONDS = 2.0
+_LONG_SLEEP_DURATION_SECONDS = 20.0
 
 
 @dataclass(frozen=True)
@@ -119,7 +117,10 @@ async def start_merge_job(
     finished_results: list[DBIndexingResultDone] = []
     pdb_file_id: None | int = None
     restraints_cif_file_id: None | int = None
-    attributi = await db.retrieve_attributi(conn, associated_table=None)
+    attributi = await db.retrieve_attributi(
+        conn, beamtime_id=None, associated_table=None
+    )
+    random_run_id: None | RunInternalId = None
     for ir in merge_result.indexing_results:
         if not isinstance(ir.runtime_status, DBIndexingResultDone):
             parent_logger.error(
@@ -139,6 +140,7 @@ async def start_merge_job(
                 stopped=datetime.datetime.utcnow(),
                 recent_log="",
             )
+        random_run_id = ir.run_id
         this_pdb_file_id = _find_file_id_by_extension(chemical.files, "pdb")
         if this_pdb_file_id is not None:
             pdb_file_id = this_pdb_file_id
@@ -147,6 +149,11 @@ async def start_merge_job(
             restraints_cif_file_id = this_restraints_cif_file_id
         finished_results.append(ir.runtime_status)
     parent_logger.info("All indexing results have finished, we can start merging")
+
+    assert (
+        random_run_id is not None
+    ), "one of the indexing results doesn't have a run ID, how can that be?"
+    random_run = await db.retrieve_run(conn, random_run_id, attributi)
 
     cell_file_contents = StringIO()
     coparse_cell_file(merge_result.parameters.cell_description, cell_file_contents)
@@ -179,7 +186,8 @@ async def start_merge_job(
                 "restraints-cif-file-id": restraints_cif_file_id,
             }
             parent_logger.info(
-                "command line for this job is " + " ".join(predefined_args)
+                "command line for this job is "
+                + " ".join(f"{k}={v}" for k, v in predefined_args.items())
             )
             predefined_args_b64 = b64encode(
                 json.dumps(predefined_args, allow_nan=False).encode("utf-8")
@@ -188,14 +196,19 @@ async def start_merge_job(
                 "predefined_args: None | bytes = None",
                 f'predefined_args = "{predefined_args_b64}"',
             )
+            beamtime = await db.retrieve_beamtime(conn, random_run.beamtime_id)
+            job_base_directory = determine_output_directory(
+                beamtime,
+                config.output_base_directory,
+                {},
+            )
             job_start_result = await workload_manager.start_job(
-                working_directory=config.output_base_directory,
+                working_directory=job_base_directory,
+                name=f"mg_{merge_result.id}",
                 script=merge_file_contents,
                 time_limit=timedelta(days=1),
-                stdout=config.output_base_directory
-                / f"merge_{merge_result.id}_stdout.txt",
-                stderr=config.output_base_directory
-                / f"merge_{merge_result.id}_stderr.txt",
+                stdout=job_base_directory / f"{merge_result.id}_stdout.txt",
+                stderr=job_base_directory / f"{merge_result.id}_stderr.txt",
             )
 
         job_logger = parent_logger.bind(job_id=job_start_result.job_id)
@@ -215,7 +228,7 @@ async def start_merge_job(
         )
 
 
-class MergeResultRootJson(BaseModel):
+class JsonMergeResultRootJson(BaseModel):
     error: None | str
     result: None | MergeResult
 
@@ -259,7 +272,7 @@ async def _start_new_jobs(
             await db.update_merge_result_status(conn, merge_result.id, new_status)
 
         logger.info("new merge job submitted, taking a long break")
-        await asyncio.sleep(20)
+        await asyncio.sleep(_LONG_SLEEP_DURATION_SECONDS)
 
     return CheckResult.CHECK_ACTION
 
@@ -319,7 +332,7 @@ async def _merging_loop_iteration(
         check_result_start == CheckResult.CHECK_NO_ACTION
         and check_result_update == CheckResult.CHECK_NO_ACTION
     ):
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(_SHORT_SLEEP_DURATION_SECONDS)
 
 
 async def merging_loop(

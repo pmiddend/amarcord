@@ -26,109 +26,109 @@ from amarcord.json_types import JSONValue
 
 SPECIAL_VALUE_CHOICE_NONE = ""
 
-SPECIAL_CHEMICAL_ID_NONE = 0
-
 JsonAttributiMap = dict[str, JSONValue]
 
-UntypedAttributiMap = dict[AttributoId, AttributoValue]
+UntypedAttributiMap = dict[int, AttributoValue]
 
 
-def _check_type(
-    name: str, chemical_ids: list[int], type_: AttributoType, value: AttributoValue
-) -> None:
+def _check_type(id_: int, type_: AttributoType, value: AttributoValue) -> None:
     if value is None:
         return
     if isinstance(type_, AttributoTypeChemical):
         if not isinstance(value, int):
             raise Exception(
-                f'attributo "{name}": should have type int, but got value {value}'
+                f'attributo "{id_}": should have type int, but got value {value}'
             )
-        if value != SPECIAL_CHEMICAL_ID_NONE and value not in chemical_ids:
-            raise Exception(f'attributo "{name}": invalid chemical ID {value}')
     if isinstance(type_, (AttributoTypeInt, AttributoTypeChemical)):
         if not isinstance(value, int):
             raise Exception(
-                f'attributo "{name}": should have type int, but got value {value}'
+                f'attributo "{id_}": should have type int, but got value {value} (type {type(value)})'
             )
     elif isinstance(type_, AttributoTypeString):
         if not isinstance(value, str):
             raise Exception(
-                f'attributo "{name}": should have type string, but got value {value}'
+                f'attributo "{id_}": should have type string, but got value {value}'
             )
     elif isinstance(type_, AttributoTypeBoolean):
         if not isinstance(value, bool):
             raise Exception(
-                f'attributo "{name}": should have type bool, but got value {value}'
+                f'attributo "{id_}": should have type bool, but got value {value}'
             )
     elif isinstance(type_, AttributoTypeDecimal):
         assert isinstance(
             value, (float, int)
-        ), f'attributo "{name}": expected type float but got value {value}'
+        ), f'attributo "{id_}": expected type float but got value {value}'
         if type_.range is not None and not type_.range.value_is_inside(value):
             raise ValueError(
-                f'attributo "{name}": value is out of range; range is {type_.range}, '
+                f'attributo "{id_}": value is out of range; range is {type_.range}, '
                 + f"value is {value}"
             )
     elif isinstance(type_, AttributoTypeChoice):
         assert isinstance(
             value, str
-        ), f'attributo "{name}": expected type string but got value {value}'
+        ), f'attributo "{id_}": expected type string but got value {value}'
         assert (
             value == SPECIAL_VALUE_CHOICE_NONE or value in type_.values
-        ), f'attributo "{name}": value "{value}" not one of ' + ", ".join(type_.values)
+        ), f'attributo "{id_}": value "{value}" not one of ' + ", ".join(type_.values)
     elif isinstance(type_, AttributoTypeList):
         assert isinstance(
             value, list
-        ), f'attributo "{name}": expected type list but got value {value}'
+        ), f'attributo "{id_}": expected type list but got value {value}'
         assert (
             type_.min_length is None or len(value) >= type_.min_length
-        ), f'attributo "{name}": list min length is {type_.min_length}, got {len(value)} element(s)'
+        ), f'attributo "{id_}": list min length is {type_.min_length}, got {len(value)} element(s)'
         assert (
             type_.max_length is None or len(value) <= type_.max_length
-        ), f'attributo "{name}": list max length is {type_.min_length}, got {len(value)} element(s)'
+        ), f'attributo "{id_}": list max length is {type_.min_length}, got {len(value)} element(s)'
 
         for i, v in enumerate(value):
-            _check_type(name + f"[{i}]", chemical_ids, type_.sub_type, v)  # type: ignore
+            _check_type(f"{id_}[{i}]", type_.sub_type, v)  # type: ignore
     else:
         assert isinstance(type_, AttributoTypeDateTime)
         assert isinstance(
             value, datetime.datetime
-        ), f'attributo "{name}": expected type datetime but got value {value}'
+        ), f'attributo "{id_}": expected type datetime but got value {value}'
 
 
 def check_attributo_types(
     types: dict[AttributoId, DBAttributo],
-    chemical_ids: list[int],
     d: UntypedAttributiMap,
-) -> None:
-    for name, value in d.items():
-        type_ = types.get(name, None)
+) -> UntypedAttributiMap:
+    for id_str, value in d.items():
+        try:
+            id_int = AttributoId(int(id_str))
+        except:
+            raise Exception(f'got non-numeric attributo ID "{id_str}"')
+        type_ = types.get(id_int, None)
         if type_ is None:
-            raise Exception(f'attributo "{name}" not found!')
-        _check_type(name, chemical_ids, type_.attributo_type, value)
+            raise Exception(f'attributo "{id_int}" not found!')
+        _check_type(id_int, type_.attributo_type, value)
+    return d
 
 
 def _convert_single_attributo_value_from_json(
-    i: AttributoId,
+    id_str: str,
     v: JSONValue,
     types: dict[AttributoId, DBAttributo],
-    chemical_ids: list[int],
-) -> AttributoValue:
-    attributo_type = types.get(i, None)
+) -> tuple[AttributoId, AttributoValue]:
+    try:
+        id_int = AttributoId(int(id_str))
+    except:
+        raise Exception(f'got a non-integer for the attributo id: "{id_str}"')
+    attributo_type = types.get(id_int, None)
     if attributo_type is None:
         raise ValueError(
-            f'cannot convert attributo "{i}" from JSON, don\'t have a type! value is "{v}"'
+            f'cannot convert attributo with ID "{id_int}" from JSON, don\'t have a type! value is "{v}", attributi {types}'
         )
-    return _convert_single_attributo_value_from_json_with_type(
-        i, v, attributo_type.attributo_type, chemical_ids
+    return id_int, _convert_single_attributo_value_from_json_with_type(
+        id_int, v, attributo_type.attributo_type
     )
 
 
 def _convert_single_attributo_value_from_json_with_type(
-    i: AttributoId,
+    i: int,
     v: JSONValue,
     attributo_type: AttributoType,
-    chemical_ids: list[int],
 ) -> AttributoValue:
     if v is None:
         return None
@@ -136,8 +136,6 @@ def _convert_single_attributo_value_from_json_with_type(
         assert isinstance(
             v, int
         ), f'expected type int for attributo "{i}", got {type(v)}'
-        if v != SPECIAL_CHEMICAL_ID_NONE and v not in chemical_ids:
-            raise Exception(f"{v} is not a valid chemical ID")
         return v
     if isinstance(attributo_type, AttributoTypeBoolean):
         assert isinstance(
@@ -208,7 +206,7 @@ def _convert_single_attributo_value_from_json_with_type(
         )
     return [  # type: ignore
         _convert_single_attributo_value_from_json_with_type(
-            i, sub_value, attributo_type.sub_type, chemical_ids
+            i, sub_value, attributo_type.sub_type
         )
         for sub_value in v
     ]
@@ -237,47 +235,49 @@ class AttributiMap:
     def __init__(
         self,
         types_dict: dict[AttributoId, DBAttributo],
-        chemical_ids: list[int],
-        impl: UntypedAttributiMap,
+        impl: dict[AttributoId, AttributoValue],
     ) -> None:
         self._attributi = impl
         self._types = types_dict
-        self._chemical_ids = chemical_ids
 
     @staticmethod
     def from_types_and_raw(
         types: Iterable[DBAttributo],
-        chemical_ids: list[int],
         raw_attributi: UntypedAttributiMap,
     ) -> "AttributiMap":
-        result = AttributiMap({a.name: a for a in types}, chemical_ids, {})
+        result = AttributiMap({a.id: a for a in types}, {})
         result.extend(raw_attributi)
         return result
 
     @staticmethod
-    def from_types_and_json(
-        types: Iterable[DBAttributo],
-        chemical_ids: list[int],
-        raw_attributi: None | JSONDict,
+    def from_types_and_json_dict(
+        types: Iterable[DBAttributo], json_dict: JSONDict
     ) -> "AttributiMap":
-        attributi: UntypedAttributiMap = {}
-        types_dict = {a.name: a for a in types}
-        if raw_attributi is not None:
-            for attributo_name, attributo_value in raw_attributi.items():
-                v = _convert_single_attributo_value_from_json(
-                    AttributoId(attributo_name),
-                    attributo_value,
-                    types_dict,
-                    chemical_ids,
-                )
-                attributi[AttributoId(attributo_name)] = v
+        attributi: dict[AttributoId, AttributoValue] = {}
+        types_dict = {a.id: a for a in types}
+        for attributo_id_str, attributo_value in json_dict.items():
+            id_, v = _convert_single_attributo_value_from_json(
+                attributo_id_str,
+                attributo_value,
+                types_dict,
+            )
+            attributi[id_] = v
 
-        return AttributiMap(types_dict, chemical_ids, attributi)
+        types_dict = {a.id: a for a in types}
+        return AttributiMap(types_dict, attributi)
+
+    @staticmethod
+    def from_types_and_value_rows(
+        types: Iterable[DBAttributo],
+        value_rows: list[tuple[AttributoId, AttributoValue]],
+    ) -> "AttributiMap":
+        attributi: dict[AttributoId, AttributoValue] = {a[0]: a[1] for a in value_rows}
+        types_dict = {a.id: a for a in types}
+        return AttributiMap(types_dict, attributi)
 
     def copy(self) -> "AttributiMap":
         return AttributiMap(
             types_dict=self._types.copy(),
-            chemical_ids=self._chemical_ids.copy(),
             impl=self._attributi.copy(),
         )
 
@@ -286,6 +286,22 @@ class AttributiMap:
         if not isinstance(selected, int):
             raise Exception(
                 f"Attributo {attributo_id} is not an integer but {type(selected)}"
+            )
+        return selected
+
+    def select_float_unsafe(self, attributo_id: AttributoId) -> float:
+        selected = self.select_unsafe(attributo_id)
+        if not isinstance(selected, (int, float)):
+            raise Exception(
+                f"Attributo {attributo_id} is not a decimal value but {type(selected)}"
+            )
+        return selected
+
+    def select_bool_unsafe(self, attributo_id: AttributoId) -> bool:
+        selected = self.select_unsafe(attributo_id)
+        if not isinstance(selected, bool):
+            raise Exception(
+                f"Attributo {attributo_id} is not a boolean value but {type(selected)}"
             )
         return selected
 
@@ -354,16 +370,15 @@ class AttributiMap:
         return type_.attributo_type, value
 
     def extend(self, new_attributi: UntypedAttributiMap) -> None:
-        check_attributo_types(self._types, self._chemical_ids, new_attributi)
-        for k, v in new_attributi.items():
+        int_map = check_attributo_types(self._types, new_attributi)
+        for k, v in int_map.items():
             if v is not None:
-                self._attributi[k] = v
+                self._attributi[AttributoId(k)] = v
 
     def create_sub_map_for_group(self, group: str) -> "AttributiMap":
-        attributi_in_group = {k.name for k in self._types.values() if k.group == group}
+        attributi_in_group = {k.id for k in self._types.values() if k.group == group}
         return AttributiMap(
             self._types.copy(),
-            self._chemical_ids.copy(),
             {k: v for k, v in self._attributi.items() if k in attributi_in_group},
         )
 
@@ -387,39 +402,35 @@ class AttributiMap:
             self._types.pop(attributo, None)
         return previous is not None
 
+    def json_items(self) -> list[tuple[AttributoId, JSONValue]]:
+        return [
+            (attributo_id, convert_single_attributo_value_to_json(value))
+            for attributo_id, value in self._attributi.items()
+        ]
+
     def to_json(self) -> JSONDict:
         return {
-            attributo_id: convert_single_attributo_value_to_json(value)
+            str(attributo_id): convert_single_attributo_value_to_json(value)
             for attributo_id, value in self._attributi.items()
         }
 
     def convert_attributo(
         self,
         conversion_flags: AttributoConversionFlags,
-        old_name: AttributoId,
-        new_name: AttributoId,
+        id_: AttributoId,
         after_type: AttributoType,
     ) -> None:
-        before_type = self._types[old_name].attributo_type
-        before_value = self._attributi.get(old_name, None)
+        before_type = self._types[id_].attributo_type
+        before_value = self._attributi.get(id_, None)
         after_value = convert_attributo_value(
             before_type, after_type, conversion_flags, before_value
         )
         # Change types
-        self._types[new_name] = replace(
-            self._types[old_name], attributo_type=after_type
-        )
-        if new_name != old_name:
-            del self._types[old_name]
+        self._types[id_] = replace(self._types[id_], attributo_type=after_type)
 
-        # Change value
-        if new_name == old_name:
-            self.append_single(old_name, after_value)
-        else:
-            self.remove_with_type(old_name)
-            self.append_single(new_name, after_value)
+        self.append_single(id_, after_value)
 
-    def names(self) -> set[str]:
+    def ids(self) -> set[int]:
         return set(self._attributi.keys())
 
     def items(self) -> Iterable[tuple[AttributoId, AttributoValue]]:

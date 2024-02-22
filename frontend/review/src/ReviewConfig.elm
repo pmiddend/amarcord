@@ -28,19 +28,23 @@ import Simplify
 
 config : List Rule
 config =
-    [ NoMissingTypeAnnotation.rule
-    , NoDeprecated.rule NoDeprecated.defaults
-    , NoPrematureLetComputation.rule
-    , NoSinglePatternCase.rule NoSinglePatternCase.fixInArgument
-    , NoUnused.Dependencies.rule
-    , NoUnused.Variables.rule |> Rule.ignoreErrorsForDirectories [ "third-party" ]
-    , NoUnused.CustomTypeConstructors.rule [] |> Rule.ignoreErrorsForDirectories [ "third-party" ]
-    , NoUnused.Exports.rule |> Rule.ignoreErrorsForDirectories [ "third-party" ]
-    , NoUnused.Parameters.rule
-    , NoUnused.Patterns.rule
-    , NoEtaReducibleLambdas.rule
-        { lambdaReduceStrategy = NoEtaReducibleLambdas.AlwaysRemoveLambdaWhenPossible
-        , argumentNamePredicate = always True
-        }
-    , Simplify.rule Simplify.defaults
-    ]
+    List.map
+        (Rule.ignoreErrorsForDirectories
+            [ "third-party", "generated" ]
+        )
+        [ NoMissingTypeAnnotation.rule
+        , NoDeprecated.rule NoDeprecated.defaults
+        , NoPrematureLetComputation.rule
+        , NoSinglePatternCase.rule NoSinglePatternCase.fixInArgument
+        , NoUnused.Dependencies.rule
+        , NoUnused.Variables.rule
+        , NoUnused.CustomTypeConstructors.rule []
+        , NoUnused.Exports.rule
+        , NoUnused.Parameters.rule
+        , NoUnused.Patterns.rule
+        , NoEtaReducibleLambdas.rule
+            { lambdaReduceStrategy = NoEtaReducibleLambdas.AlwaysRemoveLambdaWhenPossible
+            , argumentNamePredicate = always True
+            }
+        , Simplify.rule Simplify.defaults
+        ]

@@ -3,6 +3,7 @@ import pytest
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import attributo_type_to_string
 from amarcord.db.attributi import attributo_types_semantically_equivalent
+from amarcord.db.attributi import coparse_schema_type
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -12,7 +13,6 @@ from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
-from amarcord.json_schema import coparse_schema_type
 from amarcord.json_types import JSONDict
 from amarcord.numeric_range import NumericRange
 
@@ -217,7 +217,17 @@ def test_attributo_types_semantically_equivalent() -> None:
                 tolerance_is_absolute=False,
                 tolerance=0.5,
             ),
-            {"type": "number", "tolerance": 0.5, "toleranceIsAbsolute": False},
+            {
+                "type": "number",
+                "tolerance": 0.5,
+                "toleranceIsAbsolute": False,
+                "maximum": None,
+                "minimum": None,
+                "exclusiveMaximum": None,
+                "exclusiveMinimum": None,
+                "format": None,
+                "suffix": None,
+            },
         ),
         (
             AttributoTypeDecimal(
@@ -227,7 +237,17 @@ def test_attributo_types_semantically_equivalent() -> None:
                 tolerance_is_absolute=True,
                 tolerance=0.5,
             ),
-            {"type": "number", "tolerance": 0.5, "toleranceIsAbsolute": True},
+            {
+                "type": "number",
+                "tolerance": 0.5,
+                "toleranceIsAbsolute": True,
+                "maximum": None,
+                "minimum": None,
+                "exclusiveMaximum": None,
+                "exclusiveMinimum": None,
+                "format": None,
+                "suffix": None,
+            },
         ),
         (
             AttributoTypeDecimal(
@@ -237,7 +257,17 @@ def test_attributo_types_semantically_equivalent() -> None:
                 tolerance_is_absolute=True,
                 tolerance=None,
             ),
-            {"type": "number"},
+            {
+                "type": "number",
+                "maximum": None,
+                "minimum": None,
+                "exclusiveMaximum": None,
+                "exclusiveMinimum": None,
+                "format": None,
+                "suffix": None,
+                "tolerance": None,
+                "toleranceIsAbsolute": True,
+            },
         ),
         (
             AttributoTypeDecimal(
@@ -252,7 +282,17 @@ def test_attributo_types_semantically_equivalent() -> None:
                 tolerance_is_absolute=True,
                 tolerance=None,
             ),
-            {"type": "number", "exclusiveMinimum": 1.0, "exclusiveMaximum": 3.0},
+            {
+                "type": "number",
+                "exclusiveMinimum": 1.0,
+                "exclusiveMaximum": 3.0,
+                "maximum": None,
+                "minimum": None,
+                "format": None,
+                "suffix": None,
+                "tolerance": None,
+                "toleranceIsAbsolute": True,
+            },
         ),
         (
             AttributoTypeDecimal(
@@ -267,7 +307,17 @@ def test_attributo_types_semantically_equivalent() -> None:
                 tolerance_is_absolute=True,
                 tolerance=None,
             ),
-            {"type": "number", "minimum": 1.0, "exclusiveMaximum": 3.0},
+            {
+                "type": "number",
+                "minimum": 1.0,
+                "exclusiveMaximum": 3.0,
+                "maximum": None,
+                "exclusiveMinimum": None,
+                "format": None,
+                "suffix": None,
+                "tolerance": None,
+                "toleranceIsAbsolute": True,
+            },
         ),
         (
             AttributoTypeDecimal(
@@ -282,7 +332,17 @@ def test_attributo_types_semantically_equivalent() -> None:
                 tolerance_is_absolute=True,
                 tolerance=None,
             ),
-            {"type": "number", "exclusiveMinimum": 1.0, "maximum": 3.0},
+            {
+                "type": "number",
+                "exclusiveMinimum": 1.0,
+                "maximum": 3.0,
+                "minimum": None,
+                "exclusiveMaximum": None,
+                "format": None,
+                "suffix": None,
+                "tolerance": None,
+                "toleranceIsAbsolute": True,
+            },
         ),
         (
             AttributoTypeDecimal(
@@ -297,7 +357,17 @@ def test_attributo_types_semantically_equivalent() -> None:
                 tolerance_is_absolute=True,
                 tolerance=None,
             ),
-            {"type": "number", "minimum": 1.0, "maximum": 3.0},
+            {
+                "type": "number",
+                "minimum": 1.0,
+                "maximum": 3.0,
+                "exclusiveMinimum": None,
+                "exclusiveMaximum": None,
+                "format": None,
+                "suffix": None,
+                "tolerance": None,
+                "toleranceIsAbsolute": True,
+            },
         ),
     ],
 )

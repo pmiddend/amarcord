@@ -3,12 +3,12 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 from typing import Callable
-from typing import Final
 from typing import Type
 
 from pint import UnitRegistry
+from pydantic import BaseModel
+from pydantic import Field
 
-from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -22,15 +22,10 @@ from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.json_schema import JSONSchemaArray
 from amarcord.json_schema import JSONSchemaBoolean
-from amarcord.json_schema import JSONSchemaCustomIntegerFormat
 from amarcord.json_schema import JSONSchemaInteger
-from amarcord.json_schema import JSONSchemaIntegerFormat
 from amarcord.json_schema import JSONSchemaNumber
-from amarcord.json_schema import JSONSchemaNumberFormat
 from amarcord.json_schema import JSONSchemaString
-from amarcord.json_schema import JSONSchemaType
-from amarcord.json_schema import parse_schema_type
-from amarcord.json_types import JSONDict
+from amarcord.json_schema import JSONSchemaUnion
 from amarcord.numeric_range import NumericRange
 from amarcord.util import str_to_float
 from amarcord.util import str_to_int
@@ -39,19 +34,26 @@ from amarcord.util import str_to_int
 _UNIT_REGISTRY = UnitRegistry()
 _ATTRIBUTO_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
-_JSON_SCHEMA_INTEGER_CHEMICAL_ID: Final = JSONSchemaCustomIntegerFormat("chemical-id")
-
 logger = logging.getLogger(__name__)
 
-ATTRIBUTO_STARTED: Final = AttributoId("started")
-ATTRIBUTO_STOPPED: Final = AttributoId("stopped")
+
+class SchemaPydanticWrapper(BaseModel):
+    content: JSONSchemaUnion = Field(discriminator="type")
 
 
-def schema_json_to_attributo_type(json_schema: JSONDict) -> AttributoType:
+def parse_schema_type(json_schema: dict[str, Any]) -> JSONSchemaUnion:
+    return SchemaPydanticWrapper(content=json_schema).content  # type: ignore
+
+
+def coparse_schema_type(s: JSONSchemaUnion) -> dict[str, Any]:
+    return s.dict()
+
+
+def schema_json_to_attributo_type(json_schema: dict[str, Any]) -> AttributoType:
     return schema_to_attributo_type(parse_schema_type(json_schema))
 
 
-def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
+def schema_to_attributo_type(parsed_schema: JSONSchemaUnion) -> AttributoType:
     if isinstance(parsed_schema, JSONSchemaNumber):
         return AttributoTypeDecimal(
             range=None
@@ -70,47 +72,47 @@ def schema_to_attributo_type(parsed_schema: JSONSchemaType) -> AttributoType:
                 parsed_schema.exclusiveMaximum is None,
             ),
             suffix=parsed_schema.suffix,
-            standard_unit=parsed_schema.format_ == JSONSchemaNumberFormat.STANDARD_UNIT,
+            standard_unit=parsed_schema.format == "standard-unit",
             tolerance=parsed_schema.tolerance,
-            tolerance_is_absolute=parsed_schema.tolerance_is_absolute,
+            tolerance_is_absolute=parsed_schema.toleranceIsAbsolute,
         )
     if isinstance(parsed_schema, JSONSchemaBoolean):
         return AttributoTypeBoolean()
     if isinstance(parsed_schema, JSONSchemaInteger):
-        if parsed_schema.format_ is not None:
-            if parsed_schema.format_ == _JSON_SCHEMA_INTEGER_CHEMICAL_ID:
-                return AttributoTypeChemical()
-            if parsed_schema.format_ == JSONSchemaIntegerFormat.DATE_TIME:
-                return AttributoTypeDateTime()
-            raise Exception(f'integer with format "{parsed_schema.format_}" invalid')
+        if parsed_schema.format == "chemical-id":
+            return AttributoTypeChemical()
+        if parsed_schema.format == "date-time":
+            return AttributoTypeDateTime()
         return AttributoTypeInt()
     if isinstance(parsed_schema, JSONSchemaArray):
-        if isinstance(parsed_schema.value_type, JSONSchemaNumber):
+        if isinstance(parsed_schema.items, JSONSchemaNumber):
             return AttributoTypeList(
-                schema_to_attributo_type(parsed_schema.value_type),
-                min_length=parsed_schema.min_items,
-                max_length=parsed_schema.max_items,
+                schema_to_attributo_type(parsed_schema.items),
+                min_length=parsed_schema.minItems,
+                max_length=parsed_schema.maxItems,
             )
-        if isinstance(parsed_schema.value_type, JSONSchemaInteger):
+        if isinstance(parsed_schema.items, JSONSchemaBoolean):
             return AttributoTypeList(
-                schema_to_attributo_type(parsed_schema.value_type),
-                min_length=parsed_schema.min_items,
-                max_length=parsed_schema.max_items,
+                schema_to_attributo_type(parsed_schema.items),
+                min_length=parsed_schema.minItems,
+                max_length=parsed_schema.maxItems,
             )
         assert isinstance(
-            parsed_schema.value_type, JSONSchemaString
+            parsed_schema.items, JSONSchemaString
         ), "arrays of non-strings aren't supported yet"
         assert (
-            parsed_schema.value_type.enum_ is None
+            parsed_schema.items.enum is None
         ), "arrays of enum strings aren't supported yet"
         return AttributoTypeList(
-            schema_to_attributo_type(parsed_schema.value_type),
-            min_length=parsed_schema.min_items,
-            max_length=parsed_schema.max_items,
+            schema_to_attributo_type(parsed_schema.items),
+            min_length=parsed_schema.minItems,
+            max_length=parsed_schema.maxItems,
         )
-    assert isinstance(parsed_schema, JSONSchemaString)
-    if parsed_schema.enum_ is not None:
-        return AttributoTypeChoice(parsed_schema.enum_)
+    assert isinstance(
+        parsed_schema, JSONSchemaString
+    ), f"unknown schema type {parsed_schema}"
+    if parsed_schema.enum is not None:
+        return AttributoTypeChoice(parsed_schema.enum)
     return AttributoTypeString()
 
 
@@ -173,11 +175,13 @@ def attributo_type_to_string(pt: AttributoType) -> str:
     return "list of " + attributo_type_to_string(pt.sub_type)
 
 
-def attributo_type_to_schema(rp: AttributoType) -> JSONSchemaType:
+def attributo_type_to_schema(
+    rp: AttributoType,
+) -> JSONSchemaInteger | JSONSchemaNumber | JSONSchemaString | JSONSchemaArray | JSONSchemaBoolean:
     if isinstance(rp, AttributoTypeInt):
-        return JSONSchemaInteger(format_=None)
+        return JSONSchemaInteger(type="integer", format=None)
     if isinstance(rp, AttributoTypeBoolean):
-        return JSONSchemaBoolean()
+        return JSONSchemaBoolean(type="boolean")
     if isinstance(rp, AttributoTypeDecimal):
         minimum: float | None
         maximum: float | None
@@ -185,6 +189,7 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONSchemaType:
         exclusiveMaximum: float | None
         if rp.range is not None:
             if rp.range.minimum is not None:
+                print(f"minimum is: {rp.range.minimum}, {rp.range.minimum_inclusive}")
                 if rp.range.minimum_inclusive:
                     minimum = rp.range.minimum
                     exclusiveMinimum = None
@@ -210,28 +215,34 @@ def attributo_type_to_schema(rp: AttributoType) -> JSONSchemaType:
             exclusiveMinimum = None
             exclusiveMaximum = None
         return JSONSchemaNumber(
-            format_=JSONSchemaNumberFormat.STANDARD_UNIT if rp.standard_unit else None,
+            type="number",
+            format="standard-unit" if rp.standard_unit else None,
             suffix=rp.suffix,
             tolerance=rp.tolerance,
-            tolerance_is_absolute=rp.tolerance_is_absolute,
+            toleranceIsAbsolute=rp.tolerance_is_absolute,
             minimum=minimum,
             exclusiveMinimum=exclusiveMinimum,
             maximum=maximum,
             exclusiveMaximum=exclusiveMaximum,
         )
     if isinstance(rp, AttributoTypeString):
-        return JSONSchemaString(enum_=None)
+        return JSONSchemaString(type="string", enum=None)
     if isinstance(rp, AttributoTypeChemical):
-        return JSONSchemaInteger(format_=_JSON_SCHEMA_INTEGER_CHEMICAL_ID)
+        return JSONSchemaInteger(type="integer", format="chemical-id")
     if isinstance(rp, AttributoTypeChoice):
-        return JSONSchemaString(enum_=rp.values)
+        return JSONSchemaString(type="string", enum=rp.values)
     if isinstance(rp, AttributoTypeDateTime):
-        return JSONSchemaInteger(format_=JSONSchemaIntegerFormat.DATE_TIME)
+        return JSONSchemaInteger(type="integer", format="date-time")
     assert isinstance(rp, AttributoTypeList)
+    sub_type = attributo_type_to_schema(rp.sub_type)
+    assert isinstance(
+        sub_type, (JSONSchemaString | JSONSchemaBoolean | JSONSchemaNumber)
+    ), f"array of type {sub_type} are not supported; supported are only string, boolean, number"
     return JSONSchemaArray(
-        value_type=attributo_type_to_schema(rp.sub_type),
-        min_items=rp.min_length,
-        max_items=rp.max_length,
+        type="array",
+        items=sub_type,
+        minItems=rp.min_length,
+        maxItems=rp.max_length,
     )
 
 
@@ -687,21 +698,16 @@ _conversion_matrix.update(
     }
 )
 
-# This function is not really needed, but it's just nicer to have the attributo in the runs table sorted by...
-# 0. ID (not an attributo)
-# 1. "started time"
-# 2. "stopped time"
-# _. "the rest"
+# This function is not really needed, but it's just nicer to have the attributo in the runs table sorted by...something predefined
 def attributo_sort_key(r: DBAttributo) -> tuple[int, str]:
-    return (
-        0 if r.name == ATTRIBUTO_STARTED else 1 if r.name == ATTRIBUTO_STOPPED else 2,
-        r.name,
-    )
+    return (0, r.name)
 
 
 def attributo_types_semantically_equivalent(a: AttributoType, b: AttributoType) -> bool:
     if isinstance(a, AttributoTypeDecimal) and isinstance(b, AttributoTypeDecimal):
         if a.standard_unit and b.standard_unit:
+            if not a.suffix or not b.suffix:
+                return False
             if _UNIT_REGISTRY(a.suffix) != _UNIT_REGISTRY(b.suffix):
                 return False
             return a.range == b.range

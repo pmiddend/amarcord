@@ -11,54 +11,67 @@ from structlog.stdlib import BoundLogger
 
 import amarcord.cli.crystfel_index
 from amarcord.amici.crystfel.util import coparse_cell_description
+from amarcord.amici.crystfel.util import determine_output_directory
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributo_id import AttributoId
+from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultOutput
 from amarcord.db.indexing_result import DBIndexingResultRunning
 from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.db.run_internal_id import RunInternalId
+from amarcord.db.table_classes import BeamtimeOutput
+from amarcord.db.table_classes import DBRunOutput
 
 logger = structlog.stdlib.get_logger(__name__)
 
-ATTRIBUTO_POINT_GROUP = AttributoId("point group")
-ATTRIBUTO_CELL_DESCRIPTION = AttributoId("cell description")
+_LONG_BREAK_DURATION_SECONDS = 5
+_SHORT_BREAK_DURATION_SECONDS = 1
 
 
 @dataclass(frozen=True)
 class CrystFELOnlineConfig:
     output_base_directory: Path
+    beamtime_id: None | BeamtimeId
     crystfel_path: Path
     api_url: str
+    asapo_source: str
     use_auto_geom_refinement: bool
     dummy_h5_input: None | str
 
 
 async def start_indexing_job(
+    bound_logger: BoundLogger,
     workload_manager: WorkloadManager,
     config: CrystFELOnlineConfig,
+    beamtime: BeamtimeOutput,
+    run: DBRunOutput,
     indexing_result: DBIndexingResultOutput,
 ) -> DBIndexingResultRuntimeStatus:
-    bound_logger = logger.bind(
-        indexing_result_id=indexing_result.id, run_id=indexing_result.run_id
-    )
     bound_logger.info("starting indexing job")
 
-    job_base_directory = config.output_base_directory
-    output_base_name = f"run_{indexing_result.run_id}_indexing_{indexing_result.id}"
-    stream_file = job_base_directory / "processed" / f"{output_base_name}.stream"
+    job_base_directory = determine_output_directory(
+        beamtime, config.output_base_directory, {}
+    )
+
+    output_base_name = f"run-{run.external_id}-indexing-{indexing_result.id}"
+    stream_file = job_base_directory / f"{output_base_name}.stream"
 
     try:
         with Path(inspect.getfile(amarcord.cli.crystfel_index)).open(
             "r", encoding="utf-8"
         ) as merge_file:
             predefined_args = {
-                "run-id": indexing_result.run_id,
+                # We could give CrystFEL the internal ID as well, and
+                # it wouldn't matter, but the user expects the
+                # external, beamtime-specific one
+                "run-id": run.external_id,
                 "job-id": indexing_result.id,
+                "asapo-source": config.asapo_source,
                 "api-url": config.api_url,
                 "stream-file": str(stream_file),
                 "dummy-h5-input": config.dummy_h5_input,
@@ -81,26 +94,23 @@ async def start_indexing_job(
                 f'predefined_args = "{predefined_args_b64}"',
             )
             job_start_result = await workload_manager.start_job(
-                working_directory=config.output_base_directory,
+                working_directory=job_base_directory,
+                name=f"ix_run_{run.external_id}",
                 script=indexing_file_contents,
                 time_limit=timedelta(days=1),
-                stdout=config.output_base_directory
-                / "processed"
-                / "logs"
-                / f"indexing_{indexing_result.id}_stdout.txt",
-                stderr=config.output_base_directory
-                / "processed"
-                / "logs"
-                / f"indexing_{indexing_result.id}_stderr.txt",
+                stdout=job_base_directory / f"{output_base_name}-stdout.txt",
+                stderr=job_base_directory / f"{output_base_name}-stderr.txt",
             )
-            logger.info(f"job start successful, ID {job_start_result.job_id}")
+            bound_logger.info(
+                "job start successful", indexing_job_id=job_start_result.job_id
+            )
             return DBIndexingResultRunning(
                 stream_file=stream_file,
                 job_id=job_start_result.job_id,
                 fom=empty_indexing_fom,
             )
     except JobStartError as e:
-        logger.error(f"job start errored: {e}")
+        bound_logger.error(f"job start errored: {e}")
         return DBIndexingResultDone(
             stream_file=stream_file,
             job_error=e.message,
@@ -111,17 +121,39 @@ async def start_indexing_job(
 async def _start_new_jobs(
     db: AsyncDB, workload_manager: WorkloadManager, config: CrystFELOnlineConfig
 ) -> None:
-
+    runs: dict[RunInternalId, DBRunOutput] = {}
     async with db.read_only_connection() as conn:
         queued_indexing_results = await db.retrieve_indexing_results(
-            conn, DBJobStatus.QUEUED
+            conn, beamtime_id=config.beamtime_id, job_status_filter=DBJobStatus.QUEUED
         )
+        attributi = await db.retrieve_attributi(
+            conn, beamtime_id=None, associated_table=None
+        )
+        for indexing_result in queued_indexing_results:
+            runs[indexing_result.run_id] = await db.retrieve_run(
+                conn, internal_id=indexing_result.run_id, attributi=attributi
+            )
+        beamtimes = {bt.id: bt for bt in await db.retrieve_beamtimes(conn)}
 
     if queued_indexing_results:
         for indexing_result in queued_indexing_results:
-            logger.info(f"starting indexing job for run {indexing_result.run_id}")
+            bound_logger = logger.bind(
+                run_id=indexing_result.run_id, indexing_result_id=indexing_result.id
+            )
+            run = runs.get(indexing_result.run_id)
+            if run is None:
+                raise Exception(
+                    f"indexing result {indexing_result.id} has run ID {indexing_result.run_id} which we cannot find in our list of run IDs:"
+                    + ", ".join(str(s) for s in runs)
+                )
+            beamtime = beamtimes.get(run.beamtime_id)
+            if beamtime is None:
+                raise Exception(
+                    f"indexing result {indexing_result.id} has run {indexing_result.run_id} which has beamtime {run.beamtime_id} we cannot find in our list of beamtime IDs:"
+                    + ", ".join(str(s) for s in beamtimes.keys())
+                )
             new_status = await start_indexing_job(
-                workload_manager, config, indexing_result
+                bound_logger, workload_manager, config, beamtime, run, indexing_result
             )
 
             async with db.begin() as conn:
@@ -131,17 +163,19 @@ async def _start_new_jobs(
                     runtime_status=new_status,
                 )
 
-            logger.info("new indexing job submitted, taking a long break")
-            await asyncio.sleep(5)
+            bound_logger.info(
+                f"new indexing job submitted, taking a {_LONG_BREAK_DURATION_SECONDS}s break"
+            )
+            await asyncio.sleep(_LONG_BREAK_DURATION_SECONDS)
     else:
-        await asyncio.sleep(1)
+        await asyncio.sleep(_SHORT_BREAK_DURATION_SECONDS)
 
 
 def _process_premature_finish(
-    log: BoundLogger,
+    bound_logger: BoundLogger,
     runtime_status: DBIndexingResultRuntimeStatus,
 ) -> DBIndexingResultRuntimeStatus:
-    log.info("job has finished prematurely")
+    bound_logger.info("job has finished prematurely")
 
     return DBIndexingResultDone(
         job_error="job has finished on SLURM, but delivered no results",
@@ -150,19 +184,22 @@ def _process_premature_finish(
     )
 
 
-async def _update_jobs(db: AsyncDB, workload_manager: WorkloadManager) -> None:
-
+async def _update_jobs(
+    db: AsyncDB, workload_manager: WorkloadManager, beamtime_id: None | BeamtimeId
+) -> None:
     jobs_on_workload_manager = {j.id: j for j in await workload_manager.list_jobs()}
 
     async with db.read_only_connection() as conn:
-        db_jobs = await db.retrieve_indexing_results(conn, DBJobStatus.RUNNING)
+        db_jobs = await db.retrieve_indexing_results(
+            conn, beamtime_id=beamtime_id, job_status_filter=DBJobStatus.RUNNING
+        )
 
     for indexing_result in db_jobs:
         if not isinstance(indexing_result.runtime_status, DBIndexingResultRunning):
             continue
 
-        log = logger.bind(
-            job_id=indexing_result.runtime_status.job_id,
+        bound_logger = logger.bind(
+            indexing_job_id=indexing_result.runtime_status.job_id,
             run_id=indexing_result.run_id,
         )
 
@@ -177,18 +214,22 @@ async def _update_jobs(db: AsyncDB, workload_manager: WorkloadManager) -> None:
             continue
 
         if workload_job is None:
-            log.info("finished because not in SLURM REST job list anymore")
+            bound_logger.info("finished because not in SLURM REST job list anymore")
         else:
-            log.info(f"finished because SLURM REST job status is {workload_job.status}")
+            bound_logger.info(
+                f"finished because SLURM REST job status is {workload_job.status}"
+            )
 
         # Job has finished prematurely
-        new_status = _process_premature_finish(log, indexing_result.runtime_status)
+        new_status = _process_premature_finish(
+            bound_logger, indexing_result.runtime_status
+        )
 
         async with db.begin() as conn:
             await db.update_indexing_result_status(conn, indexing_result.id, new_status)
 
     logger.info("indexing jobs stati updated, take a (longer) break")
-    await asyncio.sleep(5)
+    await asyncio.sleep(_LONG_BREAK_DURATION_SECONDS)
 
 
 async def _indexing_loop_iteration(
@@ -197,27 +238,24 @@ async def _indexing_loop_iteration(
     config: CrystFELOnlineConfig,
     start_new_jobs: bool,
 ) -> None:
-
+    # This is weird, I know, but it stems from the fact that the DESY Maxwell REST API has rate limiting included,
+    # so we cannot just do two REST API requests back to back. Instead, we have this weird counter.
     if start_new_jobs:
         await _start_new_jobs(db, workload_manager, config)
 
     else:
-        await _update_jobs(db, workload_manager)
+        await _update_jobs(db, workload_manager, config.beamtime_id)
 
 
 async def indexing_loop(
-    db: AsyncDB, workload_manager: WorkloadManager, config: CrystFELOnlineConfig
+    db: AsyncDB,
+    workload_manager: WorkloadManager,
+    config: CrystFELOnlineConfig,
 ) -> None:
     logger.info("starting Online CrystFEL indexing loop")
 
     counter = 0
     while True:
-        async with db.read_only_connection() as conn:
-            user_config = await db.retrieve_configuration(conn)
-
-        if user_config.use_online_crystfel:
-            await _indexing_loop_iteration(
-                db, workload_manager, config, counter % 30 != 0
-            )
+        await _indexing_loop_iteration(db, workload_manager, config, counter % 30 != 0)
 
         counter += 1

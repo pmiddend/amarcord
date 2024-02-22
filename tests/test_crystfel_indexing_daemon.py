@@ -7,7 +7,6 @@ import structlog
 
 from amarcord.amici.crystfel.indexing_daemon import CrystFELOnlineConfig
 from amarcord.amici.crystfel.indexing_daemon import start_indexing_job
-from amarcord.amici.crystfel.util import ATTRIBUTO_PROTEIN
 from amarcord.amici.crystfel.util import CrystFELCellFile
 from amarcord.amici.crystfel.util import coparse_cell_description
 from amarcord.amici.crystfel.util import parse_cell_description
@@ -19,14 +18,19 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import AsyncDBContext
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi_map import AttributiMap
-from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_name_and_role import AttributoNameAndRole
+from amarcord.db.attributo_name_and_role import AttributoIdAndRole
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeString
+from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultInput
 from amarcord.db.indexing_result import DBIndexingResultRunning
+from amarcord.db.run_external_id import RunExternalId
+from amarcord.db.run_internal_id import RunInternalId
+from amarcord.db.table_classes import BeamtimeInput
+from amarcord.db.table_classes import BeamtimeOutput
+from amarcord.db.table_classes import DBRunOutput
 from amarcord.db.tables import create_tables_from_metadata
 
 logger = structlog.stdlib.get_logger(__name__)
@@ -123,9 +127,22 @@ async def _get_db(use_sqlalchemy_default_json_serializer: bool = False) -> Async
 
 async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -> int:
     async with db.begin() as conn:
-        await db.create_attributo(
+        beamtime_id = await db.create_beamtime(
             conn,
-            ATTRIBUTO_PROTEIN,
+            BeamtimeInput(
+                external_id="",
+                proposal="",
+                beamline="",
+                title="",
+                comment="",
+                start=datetime.datetime.utcnow(),
+                end=datetime.datetime.utcnow(),
+            ),
+        )
+        attributo_protein = await db.create_attributo(
+            conn,
+            "protein",
+            beamtime_id,
             "",
             "manual",
             AssociatedTable.RUN,
@@ -133,39 +150,43 @@ async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -
         )
         experiment_type_id = await db.create_experiment_type(
             conn,
+            beamtime_id,
             name="chemical-based",
             experiment_attributi=[
-                AttributoNameAndRole(ATTRIBUTO_PROTEIN, ChemicalType.CRYSTAL)
+                AttributoIdAndRole(attributo_protein, ChemicalType.CRYSTAL)
             ],
         )
-        await db.create_attributo(
+        attributo_cell_description = await db.create_attributo(
             conn,
             "cell description",
+            beamtime_id,
             "",
             "manual",
             AssociatedTable.CHEMICAL,
             AttributoTypeString(),
         )
-        attributi = await db.retrieve_attributi(conn, None)
+        attributi = await db.retrieve_attributi(conn, beamtime_id, None)
         chemical_id = await db.create_chemical(
             conn=conn,
+            beamtime_id=beamtime_id,
             name="lyso",
             responsible_person="Rosalind Franklin",
             type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_raw(
                 attributi,
-                [],
-                {AttributoId("cell description"): cell_description}
+                {attributo_cell_description: cell_description}
                 if cell_description is not None
                 else {},
             ),
         )
         await db.create_run(
             conn,
-            run_id=1,
+            run_external_id=RunExternalId(1),
+            started=datetime.datetime.utcnow(),
+            beamtime_id=beamtime_id,
             attributi=attributi,
             attributi_map=AttributiMap.from_types_and_raw(
-                attributi, [chemical_id], {ATTRIBUTO_PROTEIN: chemical_id}
+                attributi, {attributo_protein: chemical_id}
             ),
             experiment_type_id=experiment_type_id,
             keep_manual_attributes_from_previous_run=True,
@@ -188,14 +209,14 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
                 cell_description=_VALID_CELL_DESCRIPTION,
                 point_group=_VALID_POINT_GROUP,
                 chemical_id=protein_id,
-                run_id=1,
+                run_id=RunInternalId(1),
                 frames=0,
                 hits=0,
                 not_indexed_frames=0,
                 runtime_status=None,
             ),
         )
-        indexing_results = await db.retrieve_indexing_results(conn)
+        indexing_results = await db.retrieve_indexing_results(conn, beamtime_id=None)
         assert indexing_results
         indexing_result = indexing_results[0]
 
@@ -209,15 +230,39 @@ async def test_start_indexing_job_valid_cell_file(tmp_path: Path) -> None:
         JobStartResult(job_id=1, metadata=JobMetadata({}))
     )
     ir = await start_indexing_job(
-        workload_manager,
-        CrystFELOnlineConfig(
+        bound_logger=logger,
+        workload_manager=workload_manager,
+        config=CrystFELOnlineConfig(
             output_base_directory=base_dir,
+            beamtime_id=None,
+            asapo_source="detector",
             crystfel_path=crystfel_path,
             api_url="http://localhost",
             use_auto_geom_refinement=False,
             dummy_h5_input=None,
         ),
-        indexing_result,
+        beamtime=BeamtimeOutput(
+            id=BeamtimeId(1),
+            external_id="11010000",
+            proposal="BAG",
+            beamline="",
+            title="",
+            comment="",
+            start=datetime.datetime.utcnow(),
+            end=datetime.datetime.utcnow(),
+            chemical_names=[],
+        ),
+        run=DBRunOutput(
+            id=RunInternalId(1),
+            external_id=RunExternalId(100),
+            experiment_type_id=1,
+            beamtime_id=BeamtimeId(1),
+            started=datetime.datetime.utcnow(),
+            stopped=datetime.datetime.utcnow(),
+            attributi=None,  # type: ignore
+            files=[],
+        ),
+        indexing_result=indexing_result,
     )
     assert isinstance(ir, DBIndexingResultRunning)
     assert len(workload_manager.job_starts) == 1
@@ -237,14 +282,14 @@ async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
                 cell_description=None,
                 point_group=None,
                 chemical_id=protein_id,
-                run_id=1,
+                run_id=RunInternalId(1),
                 frames=0,
                 hits=0,
                 not_indexed_frames=0,
                 runtime_status=None,
             ),
         )
-        indexing_results = await db.retrieve_indexing_results(conn)
+        indexing_results = await db.retrieve_indexing_results(conn, beamtime_id=None)
         assert indexing_results
         indexing_result = indexing_results[0]
 
@@ -258,15 +303,39 @@ async def test_start_indexing_job_no_cell_file(tmp_path: Path) -> None:
         JobStartResult(job_id=1, metadata=JobMetadata({}))
     )
     ir = await start_indexing_job(
+        logger,
         workload_manager,
         CrystFELOnlineConfig(
             output_base_directory=base_dir,
+            beamtime_id=None,
+            asapo_source="detector",
             crystfel_path=crystfel_path,
             api_url="http://localhost",
             use_auto_geom_refinement=False,
             dummy_h5_input=None,
         ),
-        indexing_result,
+        beamtime=BeamtimeOutput(
+            id=BeamtimeId(1),
+            external_id="11010000",
+            proposal="BAG",
+            beamline="",
+            title="",
+            comment="",
+            start=datetime.datetime.utcnow(),
+            end=datetime.datetime.utcnow(),
+            chemical_names=[],
+        ),
+        run=DBRunOutput(
+            id=RunInternalId(1),
+            external_id=RunExternalId(100),
+            experiment_type_id=1,
+            beamtime_id=BeamtimeId(1),
+            started=datetime.datetime.utcnow(),
+            stopped=datetime.datetime.utcnow(),
+            attributi=None,  # type: ignore
+            files=[],
+        ),
+        indexing_result=indexing_result,
     )
     assert isinstance(ir, DBIndexingResultRunning)
     assert not [x for x in cell_file_dir.iterdir() if x.name.endswith(".cell")]
@@ -289,14 +358,14 @@ async def test_start_indexing_job_start_error(tmp_path: Path) -> None:
                 cell_description=_VALID_CELL_DESCRIPTION,
                 point_group=_VALID_POINT_GROUP,
                 chemical_id=protein_id,
-                run_id=1,
+                run_id=RunInternalId(1),
                 frames=0,
                 hits=0,
                 not_indexed_frames=0,
                 runtime_status=None,
             ),
         )
-        indexing_results = await db.retrieve_indexing_results(conn)
+        indexing_results = await db.retrieve_indexing_results(conn, beamtime_id=None)
         assert indexing_results
         indexing_result = indexing_results[0]
 
@@ -309,15 +378,39 @@ async def test_start_indexing_job_start_error(tmp_path: Path) -> None:
     # None her signifies a job start error
     workload_manager.job_start_results.append(None)
     ir = await start_indexing_job(
+        logger,
         workload_manager,
         CrystFELOnlineConfig(
             output_base_directory=base_dir,
+            beamtime_id=None,
+            asapo_source="detector",
             crystfel_path=crystfel_path,
             api_url="http://localhost",
             use_auto_geom_refinement=False,
             dummy_h5_input=None,
         ),
-        indexing_result,
+        beamtime=BeamtimeOutput(
+            id=BeamtimeId(1),
+            external_id="11010000",
+            proposal="BAG",
+            beamline="",
+            title="",
+            comment="",
+            start=datetime.datetime.utcnow(),
+            end=datetime.datetime.utcnow(),
+            chemical_names=[],
+        ),
+        run=DBRunOutput(
+            id=RunInternalId(1),
+            external_id=RunExternalId(100),
+            experiment_type_id=1,
+            beamtime_id=BeamtimeId(1),
+            started=datetime.datetime.utcnow(),
+            stopped=datetime.datetime.utcnow(),
+            attributi=None,  # type: ignore
+            files=[],
+        ),
+        indexing_result=indexing_result,
     )
     assert workload_manager.job_starts
     assert isinstance(ir, DBIndexingResultDone)

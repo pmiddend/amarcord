@@ -6,8 +6,8 @@ AttributoValue = (
     | float
     | datetime.datetime
     | bool
-    | list[int]
     | list[str]
     | list[float]
+    | list[bool]
     | None
 )

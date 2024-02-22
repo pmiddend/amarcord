@@ -1,81 +1,97 @@
-module Amarcord.Pages.Chemicals exposing (Model, Msg, init, update, view)
+module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, init, update, view)
 
-import Amarcord.API.Requests exposing (ChemicalsResponse, RequestError, Run, RunsResponse, emptyRunEventDateFilter, emptyRunFilter, httpCreateChemical, httpCreateFile, httpDeleteChemical, httpGetChemicals, httpGetRunsFilter, httpUpdateChemical)
-import Amarcord.API.RequestsHtml exposing (showRequestError)
+import Amarcord.API.Requests exposing (BeamtimeId)
+import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo as Attributo exposing (Attributo, AttributoMap, AttributoName, AttributoType(..), AttributoValue, emptyAttributoMap, extractInt)
+import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractInt)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteData)
-import Amarcord.Chemical exposing (Chemical, ChemicalId, ChemicalType(..), chemicalMapAttributi, chemicalMapId)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteDataHttp)
+import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId, chemicalTypeToApi, convertChemicalFromApi)
 import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
 import Amarcord.Dialog as Dialog
-import Amarcord.File exposing (File)
 import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
+import Api exposing (send)
+import Api.Data exposing (ChemicalType(..), JsonChemicalWithId, JsonChemicalWithoutId, JsonCreateFileOutput, JsonDeleteChemicalInput, JsonDeleteChemicalOutput, JsonFileOutput, JsonReadChemicals, JsonReadRuns, JsonRun)
+import Api.Request.Chemicals exposing (createChemicalApiChemicalsPost, deleteChemicalApiChemicalsDelete, readChemicalsApiChemicalsBeamtimeIdGet, updateChemicalApiChemicalsPatch)
+import Api.Request.Files exposing (createFileApiFilesPost)
+import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet)
+import Bytes
 import Dict
 import File as ElmFile
 import File.Select
 import Html exposing (..)
 import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
+import Http
 import List exposing (isEmpty, length, singleton)
 import List.Extra as ListExtra
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
+import Result.Extra as ResultExtra
 import Set exposing (Set)
 import String
+import Task
 import Time exposing (Zone)
 
 
 type alias ChemicalsAndAttributi =
-    { chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
+    { chemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
     , attributi : List (Attributo AttributoType)
     }
 
 
+type alias FileWithBytes =
+    { fileMetadata : ElmFile.File
+    , fileBytes : Bytes.Bytes
+    }
+
+
 type alias NewFileUpload =
-    { file : Maybe ElmFile.File
+    { file : Maybe FileWithBytes
     , description : String
     }
 
 
 type alias Model =
-    { chemicals : RemoteData RequestError ChemicalsAndAttributi
+    { chemicals : RemoteData Http.Error ChemicalsAndAttributi
     , chemicalsUsedInRuns : Set ChemicalId
     , deleteModalOpen : Maybe ( String, ChemicalId )
-    , chemicalDeleteRequest : RemoteData RequestError ()
-    , fileUploadRequest : RemoteData RequestError ()
-    , editChemical : Maybe (Chemical (Maybe Int) EditableAttributiAndOriginal File)
-    , modifyRequest : RemoteData RequestError ()
+    , chemicalDeleteRequest : RemoteData Http.Error ()
+    , fileUploadRequest : RemoteData Http.Error ()
+    , editChemical : Maybe (Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput)
+    , modifyRequest : RemoteData Http.Error ()
     , myTimeZone : Zone
     , submitErrors : List (Html Msg)
     , newFileUpload : NewFileUpload
     , responsiblePersonFilter : Maybe String
     , typeFilter : Maybe ChemicalType
+    , beamtimeId : BeamtimeId
     }
 
 
 type Msg
-    = ChemicalsReceived ChemicalsResponse
-    | RunsReceived RunsResponse
+    = ChemicalsReceived (Result Http.Error JsonReadChemicals)
+    | RunsReceived (Result Http.Error JsonReadRuns)
     | CancelDelete
     | AskDelete String ChemicalId
-    | InitiateEdit (Chemical Int (AttributoMap AttributoValue) File)
+    | InitiateEdit (Chemical Int (AttributoMap AttributoValue) JsonFileOutput)
     | ConfirmDelete ChemicalId
     | AddChemical ChemicalType
     | EditChemicalName String
     | EditChemicalResponsiblePerson String
-    | ChemicalDeleteFinished (Result RequestError ())
+    | ChemicalDeleteFinished (Result Http.Error JsonDeleteChemicalOutput)
     | EditChemicalSubmit
     | EditChemicalCancel
-    | EditChemicalFinished (Result RequestError ())
+    | EditChemicalFinished (Result Http.Error {})
     | EditChemicalAttributo AttributoNameWithValueUpdate
     | EditNewFileDescription String
     | EditNewFileFile ElmFile.File
+    | EditNewFileWithBytes FileWithBytes
     | EditFileUpload
-    | EditFileUploadFinished (Result RequestError File)
+    | EditFileUploadFinished (Result Http.Error JsonCreateFileOutput)
     | EditFileDelete Int
     | EditResetNewFileUpload
     | EditNewFileOpenSelector
@@ -84,8 +100,8 @@ type Msg
     | ChangeTypeFilter (Maybe ChemicalType)
 
 
-init : HereAndNow -> ( Model, Cmd Msg )
-init { zone } =
+init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
+init { zone } beamtimeId =
     ( { chemicals = Loading
       , chemicalsUsedInRuns = Set.empty
       , deleteModalOpen = Nothing
@@ -98,28 +114,29 @@ init { zone } =
       , newFileUpload = { file = Nothing, description = "" }
       , responsiblePersonFilter = Nothing
       , typeFilter = Nothing
+      , beamtimeId = beamtimeId
       }
-    , getChemicalsAndRuns
+    , getChemicalsAndRuns beamtimeId
     )
 
 
-getChemicalsAndRuns : Cmd Msg
-getChemicalsAndRuns =
+getChemicalsAndRuns : BeamtimeId -> Cmd Msg
+getChemicalsAndRuns beamtimeId =
     Cmd.batch
-        [ httpGetChemicals ChemicalsReceived
-        , httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived
+        [ send ChemicalsReceived (readChemicalsApiChemicalsBeamtimeIdGet beamtimeId)
+        , send RunsReceived (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing)
         ]
 
 
-viewFiles : RemoteData RequestError () -> NewFileUpload -> List File -> List (Html Msg)
+viewFiles : RemoteData Http.Error () -> NewFileUpload -> List JsonFileOutput -> List (Html Msg)
 viewFiles fileUploadError newFile files =
     let
-        viewFileRow : File -> Html Msg
+        viewFileRow : JsonFileOutput -> Html Msg
         viewFileRow file =
             tr [ class "align-middle" ]
                 [ td_ [ text (String.fromInt file.id) ]
                 , td_ [ text file.fileName ]
-                , td_ [ text file.type_ ]
+                , td_ [ text file.type__ ]
                 , td_ [ markupWithoutErrors file.description ]
                 , td_ [ button [ class "btn btn-danger btn-sm", type_ "button", onClick (EditFileDelete file.id) ] [ icon { name = "trash" } ] ]
                 ]
@@ -129,10 +146,10 @@ viewFiles fileUploadError newFile files =
                 [ div [ class "card-header" ]
                     [ text "File upload" ]
                 , div [ class "card-body" ]
-                    [ viewRemoteData "Upload successful!" fileUploadError
+                    [ viewRemoteDataHttp "Upload successful!" fileUploadError
                     , div [ class "input-group mb-3" ]
                         [ button [ type_ "button", class "btn btn-outline-secondary", onClick EditNewFileOpenSelector ] [ text "Choose file..." ]
-                        , input [ type_ "text", disabled True, value (MaybeExtra.unwrap "No file selected" ElmFile.name newFile.file), class "form-control" ] []
+                        , input [ type_ "text", disabled True, value (MaybeExtra.unwrap "No file selected" (ElmFile.name << .fileMetadata) newFile.file), class "form-control" ] []
                         ]
                     , div [ class "mb-3" ]
                         [ label [ for "file-description", class "form-label" ] [ text "File Description", sup_ [ text "*" ] ]
@@ -193,7 +210,7 @@ viewFiles fileUploadError newFile files =
         filesTable ++ uploadForm
 
 
-viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) File) -> RemoteData RequestError () -> List (Html Msg) -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal File -> Html Msg
+viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput) -> RemoteData Http.Error () -> List (Html Msg) -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput -> Html Msg
 viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingChemical =
     let
         attributoFormMsgToMsg : AttributoFormMsg -> Msg
@@ -208,7 +225,7 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
                     Nop
 
         attributiFormEntries =
-            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] Crystal attributo)) editingChemical.attributi.editableAttributi
+            List.map (\attributo -> Html.map attributoFormMsgToMsg (viewAttributoForm [] ChemicalTypeCrystal attributo)) editingChemical.attributi.editableAttributi
 
         otherChemicalsNames =
             List.map .name <|
@@ -247,10 +264,10 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
 
         chemicalTypeToPretty ct =
             case ct of
-                Crystal ->
+                ChemicalTypeCrystal ->
                     "crystals"
 
-                Solution ->
+                ChemicalTypeSolution ->
                     "solution"
 
         addOrEditHeadline =
@@ -361,16 +378,16 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
                ]
 
 
-viewChemicalRow : Zone -> List (Attributo AttributoType) -> Set ChemicalId -> Chemical ChemicalId (AttributoMap AttributoValue) File -> List (Html Msg)
+viewChemicalRow : Zone -> List (Attributo AttributoType) -> Set ChemicalId -> Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput -> List (Html Msg)
 viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
     let
-        viewFile { id, type_, fileName, description } =
+        viewFile { id, type__, fileName, description } =
             li [ class "list-group-item" ] <|
-                if String.startsWith "image/" type_ then
+                if String.startsWith "image/" type__ then
                     [ figure [ class "figure" ] [ img_ [ src (makeFilesLink id), style "width" "20em" ], figcaption [ class "figure-caption" ] [ a [ href (makeFilesLink id) ] [ text description ] ] ] ]
 
                 else
-                    [ mimeTypeToIcon type_
+                    [ mimeTypeToIcon type__
                     , text " "
                     , span [ attribute "data-tooltip" description, class "align-top" ] [ a [ href (makeFilesLink id) ] [ text fileName ] ]
                     ]
@@ -402,10 +419,10 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
                     else if attributo.name == "Type" then
                         text <|
                             case chemical.type_ of
-                                Crystal ->
+                                ChemicalTypeCrystal ->
                                     "Crystal"
 
-                                Solution ->
+                                ChemicalTypeSolution ->
                                     "Solution"
 
                     else
@@ -427,7 +444,8 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
 
         virtualChemicalTableAttributo : String -> AttributoType -> Attributo AttributoType
         virtualChemicalTableAttributo name aType =
-            { name = name
+            { id = -1
+            , name = name
             , description = ""
             , group = ""
             , type_ = aType
@@ -480,7 +498,7 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
 viewChemicalTable :
     Set ChemicalId
     -> Zone
-    -> List (Chemical ChemicalId (AttributoMap AttributoValue) File)
+    -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
     -> List (Attributo AttributoType)
     -> Maybe String
     -> Maybe ChemicalType
@@ -512,18 +530,18 @@ viewChemicalTable usedChemicalIds zone chemicals attributi responsiblePersonFilt
                             [ type_ "radio"
                             , class "btn-check"
                             , id "type-filter-crystals"
-                            , checked (typeFilter == Just Crystal)
-                            , onClick (ChangeTypeFilter (Just Crystal))
+                            , checked (typeFilter == Just ChemicalTypeCrystal)
+                            , onClick (ChangeTypeFilter (Just ChemicalTypeCrystal))
                             ]
-                        , label [ class "btn btn-outline-primary", for "type-filter-crystals" ] [ viewChemicalTypeIcon Crystal, text " Crystals" ]
+                        , label [ class "btn btn-outline-primary", for "type-filter-crystals" ] [ viewChemicalTypeIcon ChemicalTypeCrystal, text " Crystals" ]
                         , input_
                             [ type_ "radio"
                             , class "btn-check"
                             , id "type-filter-solution"
-                            , checked (typeFilter == Just Solution)
-                            , onClick (ChangeTypeFilter (Just Solution))
+                            , checked (typeFilter == Just ChemicalTypeSolution)
+                            , onClick (ChangeTypeFilter (Just ChemicalTypeSolution))
                             ]
-                        , label [ class "btn btn-outline-primary", for "type-filter-solution" ] [ viewChemicalTypeIcon Solution, text " Solution" ]
+                        , label [ class "btn btn-outline-primary", for "type-filter-solution" ] [ viewChemicalTypeIcon ChemicalTypeSolution, text " Solution" ]
                         ]
                     ]
 
@@ -547,7 +565,7 @@ viewChemicalTable usedChemicalIds zone chemicals attributi responsiblePersonFilt
             chemicalFilter c =
                 MaybeExtra.unwrap True (\rpf -> c.responsiblePerson == rpf) responsiblePersonFilter && MaybeExtra.unwrap True (\tf -> c.type_ == tf) typeFilter
 
-            filteredChemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) File)
+            filteredChemicals : List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
             filteredChemicals =
                 List.filter chemicalFilter chemicals
         in
@@ -557,13 +575,15 @@ viewChemicalTable usedChemicalIds zone chemicals attributi responsiblePersonFilt
 viewChemicalTypeIcon : ChemicalType -> Html msg
 viewChemicalTypeIcon ct =
     case ct of
-        Crystal ->
+        ChemicalTypeCrystal ->
             icon { name = "gem" }
 
-        Solution ->
+        ChemicalTypeSolution ->
             icon { name = "droplet-fill" }
 
 
+{-| view function for anything that's not the modal
+-}
 viewInner : Model -> List (Html Msg)
 viewInner model =
     case model.chemicals of
@@ -574,7 +594,7 @@ viewInner model =
             singleton <| loadingBar "Loading chemicals..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ], showRequestError e ]
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ], showHttpError e ]
 
         Success { chemicals, attributi } ->
             let
@@ -582,9 +602,9 @@ viewInner model =
                     case model.editChemical of
                         Nothing ->
                             div [ class "hstack gap-3" ]
-                                [ button [ class "btn btn-primary", onClick (AddChemical Crystal) ] [ viewChemicalTypeIcon Crystal, text " Add crystals" ]
+                                [ button [ class "btn btn-primary", onClick (AddChemical ChemicalTypeCrystal) ] [ viewChemicalTypeIcon ChemicalTypeCrystal, text " Add crystals" ]
                                 , div [ class "vr" ] []
-                                , button [ class "btn btn-primary", onClick (AddChemical Solution) ] [ viewChemicalTypeIcon Solution, text " Add solution" ]
+                                , button [ class "btn btn-primary", onClick (AddChemical ChemicalTypeSolution) ] [ viewChemicalTypeIcon ChemicalTypeSolution, text " Add solution" ]
                                 ]
 
                         Just editChemical ->
@@ -599,7 +619,7 @@ viewInner model =
                             p [] [ text "Request in progress..." ]
 
                         Failure e ->
-                            div [] [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
+                            div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -615,7 +635,7 @@ viewInner model =
                             p [] [ text "Request in progress..." ]
 
                         Failure e ->
-                            div [] [ makeAlert [ AlertDanger ] [ showRequestError e ] ]
+                            div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -652,12 +672,24 @@ emptyNewFileUpload =
 
 validatePointGroupAndCellDescription : Chemical a EditableAttributiAndOriginal b -> Result (Html msg) ()
 validatePointGroupAndCellDescription { attributi } =
-    findEditableAttributo attributi.editableAttributi "point group"
-        |> Result.andThen extractStringAttributo
-        |> Result.andThen validatePointGroup
-        |> Result.andThen (\_ -> findEditableAttributo attributi.editableAttributi "cell description")
-        |> Result.andThen extractStringAttributo
-        |> Result.andThen validateCellDescription
+    let
+        pointGroupResult =
+            case findEditableAttributo attributi.editableAttributi "point group" of
+                Err _ ->
+                    Ok ()
+
+                foundPointGroup ->
+                    foundPointGroup |> Result.andThen extractStringAttributo |> Result.andThen validatePointGroup
+
+        cellDescriptionResult =
+            case findEditableAttributo attributi.editableAttributi "cell description" of
+                Err _ ->
+                    Ok ()
+
+                foundCellDescription ->
+                    foundCellDescription |> Result.andThen extractStringAttributo |> Result.andThen validateCellDescription
+    in
+    Result.map (always ()) <| ResultExtra.combine [ pointGroupResult, cellDescriptionResult ]
 
 
 view : Model -> Html Msg
@@ -684,15 +716,24 @@ view model =
     div [ class "container" ] (maybeDeleteModal ++ viewInner model)
 
 
+convertChemicalsResponse : JsonReadChemicals -> ChemicalsAndAttributi
+convertChemicalsResponse x =
+    { chemicals = List.map convertChemicalFromApi x.chemicals
+    , attributi = List.map convertAttributoFromApi x.attributi
+    }
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ChemicalsReceived response ->
-            ( { model | chemicals = fromResult <| Result.map (\( chemicals, attributi ) -> { chemicals = chemicals, attributi = attributi }) <| response }, Cmd.none )
+            ( { model | chemicals = fromResult (Result.map convertChemicalsResponse response) }, Cmd.none )
 
         -- The user pressed "yes, really delete!" in the modal
         ConfirmDelete chemicalId ->
-            ( { model | chemicalDeleteRequest = Loading, deleteModalOpen = Nothing }, httpDeleteChemical ChemicalDeleteFinished chemicalId )
+            ( { model | chemicalDeleteRequest = Loading, deleteModalOpen = Nothing }
+            , send ChemicalDeleteFinished (deleteChemicalApiChemicalsDelete (JsonDeleteChemicalInput chemicalId))
+            )
 
         -- The user closed the "Really delete?" modal
         CancelDelete ->
@@ -706,7 +747,7 @@ update msg model =
 
                 Ok _ ->
                     ( { model | chemicalDeleteRequest = Success () }
-                    , getChemicalsAndRuns
+                    , getChemicalsAndRuns model.beamtimeId
                     )
 
         AddChemical type_ ->
@@ -758,23 +799,55 @@ update msg model =
                             Ok _ ->
                                 case convertEditValues model.myTimeZone editChemical.attributi of
                                     Err errorList ->
-                                        ( { model | submitErrors = List.map (\( name, errorMessage ) -> text <| name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+                                        ( { model
+                                            | submitErrors =
+                                                List.map
+                                                    (\( attributoId, errorMessage ) ->
+                                                        text <|
+                                                            String.fromInt attributoId
+                                                                ++ ": "
+                                                                ++ errorMessage
+                                                    )
+                                                    errorList
+                                          }
+                                        , Cmd.none
+                                        )
 
                                     Ok editedAttributi ->
-                                        let
-                                            operation =
-                                                MaybeExtra.unwrap httpCreateChemical (always httpUpdateChemical) editChemical.id
+                                        case editChemical.id of
+                                            Just editId ->
+                                                let
+                                                    chemicalToSend : JsonChemicalWithId
+                                                    chemicalToSend =
+                                                        { id = editId
+                                                        , name = editChemical.name
+                                                        , responsiblePerson = editChemical.responsiblePerson
+                                                        , chemicalType = chemicalTypeToApi editChemical.type_
+                                                        , attributi = attributoMapToListOfAttributi editedAttributi
+                                                        , fileIds = List.map .id editChemical.files
+                                                        , beamtimeId = model.beamtimeId
+                                                        }
+                                                in
+                                                ( { model | modifyRequest = Loading }
+                                                , send (EditChemicalFinished << Result.map (always {})) (updateChemicalApiChemicalsPatch chemicalToSend)
+                                                )
 
-                                            chemicalToSend =
-                                                { id = editChemical.id
-                                                , name = editChemical.name
-                                                , responsiblePerson = editChemical.responsiblePerson
-                                                , type_ = editChemical.type_
-                                                , attributi = editedAttributi
-                                                , files = List.map .id editChemical.files
-                                                }
-                                        in
-                                        ( { model | modifyRequest = Loading }, operation EditChemicalFinished chemicalToSend )
+                                            Nothing ->
+                                                let
+                                                    chemicalToSend : JsonChemicalWithoutId
+                                                    chemicalToSend =
+                                                        { name = editChemical.name
+                                                        , responsiblePerson = editChemical.responsiblePerson
+                                                        , chemicalType = chemicalTypeToApi editChemical.type_
+                                                        , attributi = attributoMapToListOfAttributi editedAttributi
+                                                        , fileIds = List.map .id editChemical.files
+                                                        , beamtimeId = model.beamtimeId
+                                                        }
+                                                in
+                                                ( { model | modifyRequest = Loading }
+                                                  -- Result.map (always {}) to get rid of the create output, since we don't need the ID
+                                                , send (EditChemicalFinished << Result.map (always {})) (createChemicalApiChemicalsPost chemicalToSend)
+                                                )
 
         EditChemicalCancel ->
             ( { model
@@ -794,8 +867,14 @@ update msg model =
                     ( { model | modifyRequest = Failure e }, Cmd.none )
 
                 Ok _ ->
-                    ( { model | modifyRequest = Success (), editChemical = Nothing, fileUploadRequest = NotAsked, chemicalDeleteRequest = NotAsked, submitErrors = [] }
-                    , getChemicalsAndRuns
+                    ( { model
+                        | modifyRequest = Success ()
+                        , editChemical = Nothing
+                        , fileUploadRequest = NotAsked
+                        , chemicalDeleteRequest = NotAsked
+                        , submitErrors = []
+                      }
+                    , getChemicalsAndRuns model.beamtimeId
                     )
 
         EditChemicalAttributo v ->
@@ -839,11 +918,14 @@ update msg model =
             ( { model | newFileUpload = { oldFileUpload | description = newDescription } }, Cmd.none )
 
         EditNewFileFile newFile ->
+            ( model, Task.perform (EditNewFileWithBytes << FileWithBytes newFile) (ElmFile.toBytes newFile) )
+
+        EditNewFileWithBytes fwb ->
             let
                 oldFileUpload =
                     model.newFileUpload
             in
-            ( { model | newFileUpload = { oldFileUpload | file = Just newFile } }, Cmd.none )
+            ( { model | newFileUpload = { oldFileUpload | file = Just fwb } }, Cmd.none )
 
         EditFileUpload ->
             case model.newFileUpload.file of
@@ -851,7 +933,9 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just fileToUpload ->
-                    ( { model | fileUploadRequest = Loading }, httpCreateFile EditFileUploadFinished model.newFileUpload.description fileToUpload )
+                    ( { model | fileUploadRequest = Loading }
+                    , send EditFileUploadFinished (createFileApiFilesPost fileToUpload.fileMetadata model.newFileUpload.description)
+                    )
 
         EditFileUploadFinished result ->
             case result of
@@ -861,12 +945,22 @@ update msg model =
                 Ok file ->
                     let
                         newEditChemical =
-                            case model.editChemical of
-                                Nothing ->
-                                    Nothing
-
-                                Just editChemical ->
-                                    Just { editChemical | files = file :: editChemical.files }
+                            Maybe.map
+                                (\editChemical ->
+                                    let
+                                        newEditChemicalFile : JsonFileOutput
+                                        newEditChemicalFile =
+                                            { id = file.id
+                                            , type__ = file.type__
+                                            , description = file.description
+                                            , fileName = file.fileName
+                                            , originalPath = file.originalPath
+                                            , sizeInBytes = file.sizeInBytes
+                                            }
+                                    in
+                                    { editChemical | files = newEditChemicalFile :: editChemical.files }
+                                )
+                                model.editChemical
                     in
                     ( { model | fileUploadRequest = Success (), newFileUpload = emptyNewFileUpload, editChemical = newEditChemical }, Cmd.none )
 
@@ -893,18 +987,18 @@ update msg model =
 
         RunsReceived runsResponse ->
             let
-                chemicalAttributoName : Attributo AttributoType -> Maybe AttributoName
-                chemicalAttributoName aa =
+                chemicalAttributoId : Attributo AttributoType -> Maybe AttributoId
+                chemicalAttributoId aa =
                     case aa.type_ of
                         ChemicalId ->
-                            Just aa.name
+                            Just aa.id
 
                         _ ->
                             Nothing
 
-                valuesFromAttributo : List Run -> AttributoName -> List AttributoValue
-                valuesFromAttributo rrs mattrname =
-                    List.filterMap (Dict.get mattrname) (List.map .attributi rrs)
+                valuesFromAttributo : List JsonRun -> AttributoId -> List AttributoValue
+                valuesFromAttributo rrs mattrid =
+                    List.filterMap (Dict.get mattrid) (List.map (convertAttributoMapFromApi << .attributi) rrs)
 
                 chemicalsUsedInRuns =
                     case runsResponse of
@@ -912,7 +1006,7 @@ update msg model =
                             Set.fromList <|
                                 List.filterMap extractInt <|
                                     List.concatMap (valuesFromAttributo rr.runs) <|
-                                        List.filterMap chemicalAttributoName rr.attributi
+                                        List.filterMap (chemicalAttributoId << convertAttributoFromApi) rr.attributi
 
                         _ ->
                             Set.empty

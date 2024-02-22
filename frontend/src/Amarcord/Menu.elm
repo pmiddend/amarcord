@@ -1,9 +1,11 @@
 module Amarcord.Menu exposing (viewMenu)
 
+import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Route as Route exposing (Route)
-import Html exposing (Html, a, div, li, text, ul)
+import Html exposing (Html, a, div, h3, li, text, ul)
 import Html.Attributes exposing (attribute, class, href, target)
+import Html.Attributes.Extra exposing (role)
 import List exposing (any)
 
 
@@ -38,6 +40,7 @@ viewMenuNode modelRoute x =
                                )
                         )
                     , attribute "data-bs-toggle" "dropdown"
+                    , role "button"
                     , target "_self"
                     ]
                     [ icon { name = iconName }, text <| " " ++ description ]
@@ -45,34 +48,39 @@ viewMenuNode modelRoute x =
                 ]
 
 
-menu : List MenuNode
-menu =
-    [ Leaf { route = Route.RunOverview, description = "Overview", iconName = "card-list" }
+menu : BeamtimeId -> List MenuNode
+menu bt =
+    [ Leaf { route = Route.RunOverview bt, description = "Overview", iconName = "card-list" }
     , Dropdown "Library"
         "collection"
-        [ { route = Route.Chemicals, description = "Chemicals", iconName = "gem" }
-        , { route = Route.DataSets, description = "Data Sets", iconName = "folder2" }
+        [ { route = Route.Chemicals bt, description = "Chemicals", iconName = "gem" }
+        , { route = Route.DataSets bt, description = "Data Sets", iconName = "folder2" }
         ]
     , Dropdown "Analysis"
         "bar-chart-steps"
-        [ { route = Route.Analysis, description = "By Experiment Type", iconName = "clipboard-check" }
-        , { route = Route.RunAnalysis, description = "By Run", iconName = "card-list" }
+        [ { route = Route.Analysis bt, description = "By Experiment Type", iconName = "clipboard-check" }
+        , { route = Route.RunAnalysis bt, description = "By Run", iconName = "card-list" }
         ]
     , Dropdown "Admin"
         "gear-fill"
-        [ { route = Route.ExperimentTypes, description = "Experiment Types", iconName = "clipboard-check" }
-        , { route = Route.Attributi, description = "Attributi", iconName = "card-list" }
-        , { route = Route.AdvancedControls, description = "Advanced", iconName = "speedometer" }
-        , { route = Route.Schedule, description = "Schedule", iconName = "calendar-week" }
+        [ { route = Route.ExperimentTypes bt, description = "Experiment Types", iconName = "clipboard-check" }
+        , { route = Route.Attributi bt, description = "Attributi", iconName = "card-list" }
+        , { route = Route.AdvancedControls bt, description = "Advanced", iconName = "speedometer" }
+        , { route = Route.Schedule bt, description = "Schedule", iconName = "calendar-week" }
+        , { route = Route.EventLog bt, description = "Events", iconName = "book" }
         ]
-    , Leaf { route = Route.Root, description = "Help", iconName = "patch-question" }
+    , Leaf { route = Route.Root bt, description = "Help", iconName = "patch-question" }
     ]
 
 
 viewMenu : Route -> Html msg
 viewMenu modelRoute =
-    ul [ class "nav nav-pills" ]
-        (List.map (viewMenuNode modelRoute) menu)
+    case Route.beamtimeIdInRoute modelRoute of
+        Nothing ->
+            h3 [] [ text "Select a beam time" ]
+
+        Just btid ->
+            ul [ class "nav nav-pills" ] (List.map (viewMenuNode modelRoute) (menu btid))
 
 
 viewMenuLeaf : Route -> MenuLeaf -> Html msg

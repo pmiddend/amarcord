@@ -5,6 +5,8 @@ from typing import Final
 from typing import TypeAlias
 
 from amarcord.amici.crystfel.util import CrystFELCellFile
+from amarcord.db.run_external_id import RunExternalId
+from amarcord.db.run_internal_id import RunInternalId
 
 
 @dataclass(frozen=True, eq=True)
@@ -51,7 +53,7 @@ DBIndexingResultRuntimeStatus: TypeAlias = (
 @dataclass(frozen=True, eq=True)
 class DBIndexingResultInput:
     created: datetime.datetime
-    run_id: int
+    run_id: RunInternalId
     frames: None | int
     hits: None | int
     not_indexed_frames: None | int
@@ -65,7 +67,8 @@ class DBIndexingResultInput:
 class DBIndexingResultOutput:
     id: int
     created: datetime.datetime
-    run_id: int
+    run_id: RunInternalId
+    run_external_id: RunExternalId
     frames: None | int
     hits: None | int
     not_indexed_frames: None | int

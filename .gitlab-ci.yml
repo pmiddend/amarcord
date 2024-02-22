@@ -19,12 +19,16 @@ fawltydeps:
     - nix develop --command fawltydeps
 
 check-shell-scripts:
-   script:
+  script:
      - nix develop --command shellcheck ci/*.sh
 
 elm-review:
   script:
     - ci/elm-review.sh
+
+frontend-check-openapi:
+  script:
+    - nix develop --command ci/check-generated-elm-code.sh
 
 frontend:
   script:
@@ -64,3 +68,16 @@ tests:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+
+
+pages:
+  script:
+    - pushd docs
+    - nix develop --command make linkcheck
+    - nix develop --command sphinx-build -b spelling source/ build/
+    - nix develop --command make html
+    - popd
+    - cp -R docs/build/html public/
+  artifacts:
+    paths:
+    - public

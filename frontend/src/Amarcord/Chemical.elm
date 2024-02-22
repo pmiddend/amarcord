@@ -1,13 +1,10 @@
 module Amarcord.Chemical exposing (..)
 
+import Amarcord.Attributo exposing (AttributoMap, AttributoValue, convertAttributoMapFromApi)
+import Api.Data exposing (ChemicalType(..), JsonChemical, JsonFileOutput)
 import Dict
 import Json.Decode as Decode
 import Json.Encode as Encode
-
-
-type ChemicalType
-    = Crystal
-    | Solution
 
 
 chemicalTypeDecoder : Decode.Decoder ChemicalType
@@ -17,10 +14,10 @@ chemicalTypeDecoder =
             (\str ->
                 case str of
                     "crystal" ->
-                        Decode.succeed Crystal
+                        Decode.succeed ChemicalTypeCrystal
 
                     "solution" ->
-                        Decode.succeed Solution
+                        Decode.succeed ChemicalTypeSolution
 
                     _ ->
                         Decode.fail <| "unknown chemical type " ++ str
@@ -30,20 +27,20 @@ chemicalTypeDecoder =
 chemicalTypeToString : ChemicalType -> String
 chemicalTypeToString ct =
     case ct of
-        Crystal ->
+        ChemicalTypeCrystal ->
             "crystal"
 
-        Solution ->
+        ChemicalTypeSolution ->
             "solution"
 
 
 chemicalTypeToPrettyString : ChemicalType -> String
 chemicalTypeToPrettyString ct =
     case ct of
-        Crystal ->
+        ChemicalTypeCrystal ->
             "Crystal"
 
-        Solution ->
+        ChemicalTypeSolution ->
             "Solution"
 
 
@@ -79,3 +76,43 @@ chemicalMapId f { id, name, responsiblePerson, type_, attributi, files } =
 chemicalIdDict : List (Chemical Int b c) -> Dict.Dict Int String
 chemicalIdDict =
     List.foldr (\s -> Dict.insert s.id s.name) Dict.empty
+
+
+chemicalTypeToApi : ChemicalType -> Api.Data.ChemicalType
+chemicalTypeToApi a =
+    case a of
+        ChemicalTypeCrystal ->
+            Api.Data.ChemicalTypeCrystal
+
+        ChemicalTypeSolution ->
+            Api.Data.ChemicalTypeSolution
+
+
+chemicalTypeFromApi : Api.Data.ChemicalType -> ChemicalType
+chemicalTypeFromApi a =
+    case a of
+        Api.Data.ChemicalTypeCrystal ->
+            ChemicalTypeCrystal
+
+        Api.Data.ChemicalTypeSolution ->
+            ChemicalTypeSolution
+
+
+convertChemicalFromApi : JsonChemical -> Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput
+convertChemicalFromApi c =
+    { id = c.id
+    , name = c.name
+    , type_ = chemicalTypeFromApi c.chemicalType
+    , responsiblePerson = c.responsiblePerson
+    , attributi = convertAttributoMapFromApi c.attributi
+    , files = c.files
+    }
+
+
+chemicalTypeFromString : String -> ChemicalType
+chemicalTypeFromString s =
+    if s == "crystal" then
+        ChemicalTypeCrystal
+
+    else
+        ChemicalTypeSolution

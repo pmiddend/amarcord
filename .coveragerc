@@ -1,4 +1,0 @@
-# Syntax described here: https://coverage.readthedocs.io/en/latest/source.html#source
-[run]
-omit =
-     amarcord/experiment_simulator.py

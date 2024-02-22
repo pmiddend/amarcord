@@ -4,9 +4,7 @@
 
 module Main exposing (main)
 
-import Amarcord.API.Requests exposing (AppConfig, RequestError, httpGetConfig)
-import Amarcord.Attributo exposing (attributoStarted, attributoStopped, retrieveDateTimeAttributoValue)
-import Amarcord.Bootstrap exposing (viewRemoteData)
+import Amarcord.Bootstrap exposing (viewRemoteDataHttp)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Html exposing (h1_, img_)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
@@ -14,8 +12,10 @@ import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
 import Amarcord.Pages.Analysis as Analysis
 import Amarcord.Pages.Attributi as Attributi
+import Amarcord.Pages.BeamtimeSelection as BeamtimeSelection
 import Amarcord.Pages.Chemicals as Chemicals
 import Amarcord.Pages.DataSets as DataSets
+import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
 import Amarcord.Pages.Help as Help
 import Amarcord.Pages.RunAnalysis as RunAnalysis
@@ -24,10 +24,14 @@ import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (version)
+import Api exposing (send)
+import Api.Data exposing (JsonBeamtime)
+import Api.Request.Beamtimes exposing (readBeamtimeApiBeamtimesBeamtimeIdGet)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Http
 import RemoteData exposing (RemoteData(..))
 import String exposing (contains)
 import Task
@@ -62,16 +66,18 @@ type Msg
     | ChemicalsPageMsg Chemicals.Msg
     | RunOverviewPageMsg RunOverview.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
+    | BeamtimeSelectionPageMsg BeamtimeSelection.Msg
     | DataSetsMsg DataSets.Msg
     | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
     | AnalysisPageMsg Analysis.Msg
     | RunAnalysisPageMsg RunAnalysis.Msg
     | ScheduleMsg Schedule.ScheduleMsg
+    | EventLogMsg EventLog.Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
     | RefreshMsg Posix
     | HereAndNowReceived HereAndNow
-    | ConfigReceived (Result RequestError AppConfig)
+    | BeamtimeReceived (Result Http.Error JsonBeamtime)
 
 
 type Page
@@ -80,8 +86,10 @@ type Page
     | ChemicalsPage Chemicals.Model
     | RunOverviewPage RunOverview.Model
     | AdvancedControlsPage AdvancedControls.Model
+    | BeamtimeSelectionPage BeamtimeSelection.Model
     | DataSetsPage DataSets.DataSetModel
     | SchedulePage Schedule.ScheduleModel
+    | EventLogPage EventLog.Model
     | ExperimentTypesPage ExperimentTypes.ExperimentTypeModel
     | AnalysisPage Analysis.Model
     | RunAnalysisPage RunAnalysis.Model
@@ -97,48 +105,70 @@ type alias Model =
 
 type alias Metadata =
     { hereAndNow : Maybe HereAndNow
-    , appConfigRequest : RemoteData RequestError AppConfig
+    , beamtimeRequest : RemoteData Http.Error JsonBeamtime
     , localStorage : Maybe LocalStorage
     }
+
+
+retrieveRouteBeamtime : Route -> Cmd Msg
+retrieveRouteBeamtime r =
+    case Route.beamtimeIdInRoute r of
+        Nothing ->
+            Cmd.none
+
+        Just btId ->
+            send BeamtimeReceived (readBeamtimeApiBeamtimesBeamtimeIdGet btId)
 
 
 init : Maybe String -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init localStorageStr url navKey =
     let
+        route =
+            Route.parseUrlFragment url
+
         model =
-            { route = Route.parseUrlFragment url
+            { route = route
             , page = RootPage
             , navKey = navKey
             , metadata =
                 { hereAndNow = Nothing
-                , appConfigRequest = Loading
+                , beamtimeRequest =
+                    case Route.beamtimeIdInRoute route of
+                        Nothing ->
+                            NotAsked
+
+                        Just _ ->
+                            Loading
                 , localStorage = Maybe.andThen decodeLocalStorage localStorageStr
                 }
             }
     in
-    ( model, Cmd.batch [ Task.perform HereAndNowReceived <| retrieveHereAndNow, httpGetConfig ConfigReceived ] )
+    ( model, Cmd.batch [ Task.perform HereAndNowReceived retrieveHereAndNow, retrieveRouteBeamtime route ] )
 
 
 buildTitle : Model -> String
 buildTitle model =
-    case model.metadata.appConfigRequest of
+    case model.metadata.beamtimeRequest of
         Success { title } ->
             let
                 prefix =
                     case model.route of
-                        Route.Chemicals ->
+                        Route.Chemicals _ ->
                             "Chemicals — "
 
-                        Route.DataSets ->
+                        Route.DataSets _ ->
                             "Data Sets — "
 
-                        Route.Schedule ->
+                        Route.Schedule _ ->
                             "Schedule — "
 
-                        Route.ExperimentTypes ->
+                        Route.EventLog _ ->
+                            "Events — "
+
+                        Route.ExperimentTypes _ ->
                             "Experiment Types — "
 
-                        Route.RunOverview ->
+                        Route.RunOverview _ ->
                             case model.page of
                                 RunOverviewPage runOverviewModel ->
                                     case runOverviewModel.runs of
@@ -147,22 +177,13 @@ buildTitle model =
                                                 Nothing ->
                                                     "Runs — "
 
-                                                Just { id, attributi } ->
-                                                    let
-                                                        runStarted : Maybe Posix
-                                                        runStarted =
-                                                            retrieveDateTimeAttributoValue attributoStarted attributi
-
-                                                        runStopped : Maybe Posix
-                                                        runStopped =
-                                                            retrieveDateTimeAttributoValue attributoStopped attributi
-                                                    in
-                                                    case ( runStarted, runStopped ) of
-                                                        ( Just _, Nothing ) ->
-                                                            "🏃 Run " ++ String.fromInt id ++ " — "
+                                                Just { externalId, stopped } ->
+                                                    case stopped of
+                                                        Nothing ->
+                                                            "🏃 Run " ++ String.fromInt externalId ++ " — "
 
                                                         _ ->
-                                                            "Run " ++ String.fromInt id ++ " — "
+                                                            "Run " ++ String.fromInt externalId ++ " — "
 
                                         _ ->
                                             "Runs — "
@@ -170,25 +191,31 @@ buildTitle model =
                                 _ ->
                                     "Runs — "
 
-                        Route.Attributi ->
+                        Route.Attributi _ ->
                             "Attributi — "
 
-                        Route.AdvancedControls ->
+                        Route.AdvancedControls _ ->
                             "Advanced — "
 
-                        Route.Analysis ->
+                        Route.Analysis _ ->
                             "Analysis by Experiment Type — "
 
-                        Route.RunAnalysis ->
+                        Route.RunAnalysis _ ->
                             "Analysis by Run — "
 
-                        Route.Root ->
+                        Route.Root _ ->
                             ""
 
+                        Route.BeamtimeSelection ->
+                            "Beamtime Selection"
+
                 suffix =
-                    "— AMARCORD"
+                    " — AMARCORD"
             in
             prefix ++ title ++ suffix
+
+        NotAsked ->
+            "AMARCORD — Beamtime Selection"
 
         _ ->
             "AMARCORD"
@@ -201,25 +228,23 @@ view model =
             buildTitle model
 
         displayTitle =
-            case model.metadata.appConfigRequest of
-                Success { title } ->
-                    title
+            case model.metadata.beamtimeRequest of
+                Success { title, externalId } ->
+                    div [ class "vstack me-md-auto" ]
+                        [ div [ class "fs-4" ] [ a [ class "text-dark text-decoration-none" ] [ text title ] ]
+                        , div [] [ small [] [ text ("ID: " ++ externalId) ] ]
+                        ]
 
                 _ ->
-                    "AMARCORD"
+                    text ""
     in
     { title = tabTitle
     , body =
         [ main_ []
             [ div [ class "container" ]
                 [ header
-                    [ class "d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom" ]
-                    [ img [ src "amarcord-logo.png", alt "AMARCORD logo", class "img-fluid amarcord-logo" ] []
-                    , a [ class "d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none" ]
-                        [ span [ class "fs-4" ] [ text displayTitle ]
-                        ]
-                    , viewMenu model.route
-                    ]
+                    [ class "d-flex align-items-center justify-content-center py-3 mb-4 border-bottom" ]
+                    [ img [ src "amarcord-logo.png", alt "AMARCORD logo", class "img-fluid amarcord-logo" ] [], displayTitle, viewMenu model.route ]
                 ]
             , currentViewOuter model
             , div [ class "container mt-5 text-center" ]
@@ -232,15 +257,18 @@ view model =
 
 currentViewOuter : Model -> Html Msg
 currentViewOuter model =
-    case model.metadata.appConfigRequest of
+    case model.metadata.beamtimeRequest of
         Success _ ->
+            currentView model
+
+        NotAsked ->
             currentView model
 
         _ ->
             div [ class "container" ]
                 [ h1_ [ text "Web server is offline" ]
                 , p [ class "lead" ] [ text "Might just be temporary (so please retry loading this in a minute). Otherwise, please contact the Admin." ]
-                , viewRemoteData "Configuration" model.metadata.appConfigRequest
+                , viewRemoteDataHttp "Configuration" model.metadata.beamtimeRequest
                 ]
 
 
@@ -266,6 +294,12 @@ currentView model =
             div []
                 [ Schedule.view sm
                     |> Html.map ScheduleMsg
+                ]
+
+        EventLogPage sm ->
+            div []
+                [ EventLog.view sm
+                    |> Html.map EventLogMsg
                 ]
 
         ChemicalsPage pageModel ->
@@ -304,23 +338,29 @@ currentView model =
                     |> Html.map ExperimentTypesMsg
                 ]
 
+        BeamtimeSelectionPage beamtimeSelectionModel ->
+            div []
+                [ BeamtimeSelection.view beamtimeSelectionModel
+                    |> Html.map BeamtimeSelectionPageMsg
+                ]
+
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ConfigReceived appConfig ->
+        BeamtimeReceived response ->
             let
                 oldMetadata =
                     model.metadata
             in
-            case appConfig of
+            case response of
                 Err e ->
-                    ( { model | metadata = { oldMetadata | appConfigRequest = Failure e } }, Cmd.none )
+                    ( { model | metadata = { oldMetadata | beamtimeRequest = Failure e } }, Cmd.none )
 
-                Ok appConfigUnpacked ->
+                Ok beamtime ->
                     let
                         newModel =
-                            { model | metadata = { oldMetadata | appConfigRequest = Success appConfigUnpacked } }
+                            { model | metadata = { oldMetadata | beamtimeRequest = Success beamtime } }
                     in
                     case model.metadata.hereAndNow of
                         Nothing ->
@@ -334,16 +374,25 @@ update msg model =
                 oldMetadata =
                     model.metadata
             in
-            case model.metadata.appConfigRequest of
+            case model.metadata.beamtimeRequest of
                 Success _ ->
                     initCurrentPage model.metadata.localStorage hereAndNow ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
+
+                NotAsked ->
+                    initCurrentPage
+                        model.metadata.localStorage
+                        hereAndNow
+                        ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
 
                 _ ->
                     ( { model | metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.none )
 
         _ ->
-            case ( model.metadata.hereAndNow, model.metadata.appConfigRequest ) of
+            case ( model.metadata.hereAndNow, model.metadata.beamtimeRequest ) of
                 ( Just hereAndNow, Success _ ) ->
+                    updateInner hereAndNow msg model
+
+                ( Just hereAndNow, NotAsked ) ->
                     updateInner hereAndNow msg model
 
                 _ ->
@@ -389,6 +438,15 @@ updateInner hereAndNow msg model =
             , Cmd.map ScheduleMsg updatedCmd
             )
 
+        ( EventLogMsg eventLogMsg, EventLogPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    EventLog.update eventLogMsg pageModel
+            in
+            ( { model | page = EventLogPage updatedPageModel }
+            , Cmd.map EventLogMsg updatedCmd
+            )
+
         ( RunOverviewPageMsg subMsg, RunOverviewPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -396,6 +454,15 @@ updateInner hereAndNow msg model =
             in
             ( { model | page = RunOverviewPage updatedPageModel }
             , Cmd.map RunOverviewPageMsg updatedCmd
+            )
+
+        ( BeamtimeSelectionPageMsg subMsg, BeamtimeSelectionPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    BeamtimeSelection.update subMsg pageModel
+            in
+            ( { model | page = BeamtimeSelectionPage updatedPageModel }
+            , Cmd.map BeamtimeSelectionPageMsg updatedCmd
             )
 
         ( DataSetsMsg subMsg, DataSetsPage pageModel ) ->
@@ -443,6 +510,15 @@ updateInner hereAndNow msg model =
             , Cmd.map AnalysisPageMsg updatedCmd
             )
 
+        ( RefreshMsg t, EventLogPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    EventLog.update (EventLog.Refresh t) pageModel
+            in
+            ( { model | page = EventLogPage updatedPageModel }
+            , Cmd.map EventLogMsg updatedCmd
+            )
+
         ( RefreshMsg t, RunOverviewPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -466,7 +542,7 @@ updateInner hereAndNow msg model =
                 Browser.Internal url ->
                     -- Special case here; if this wasn't present, we'd try to open the /api prefix stuff and the
                     -- routing would fail.
-                    if contains "api/files/" url.path then
+                    if contains "api/files/" url.path || contains "spreadsheet.zip" url.path then
                         ( model, Nav.load (URL.toString url) )
 
                     else
@@ -485,9 +561,34 @@ updateInner hereAndNow msg model =
             let
                 newRoute =
                     Route.parseUrlFragment url
+
+                beamtimeIdInRoute =
+                    Route.beamtimeIdInRoute newRoute
+
+                newBeamtimeRequest =
+                    case beamtimeIdInRoute of
+                        Nothing ->
+                            NotAsked
+
+                        Just _ ->
+                            Loading
+
+                retrieveRouteBeamtimeCmd : Cmd Msg
+                retrieveRouteBeamtimeCmd =
+                    case beamtimeIdInRoute of
+                        Nothing ->
+                            Cmd.none
+
+                        Just btId ->
+                            send BeamtimeReceived (readBeamtimeApiBeamtimesBeamtimeIdGet btId)
+
+                oldMetadata =
+                    model.metadata
+
+                newMetadata =
+                    { oldMetadata | beamtimeRequest = newBeamtimeRequest }
             in
-            ( { model | route = newRoute }, Cmd.none )
-                |> initCurrentPage model.metadata.localStorage hereAndNow
+            ( { model | route = newRoute, metadata = newMetadata }, retrieveRouteBeamtimeCmd ) |> initCurrentPage model.metadata.localStorage hereAndNow
 
         _ ->
             ( model, Cmd.none )
@@ -501,70 +602,84 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
 
         ( currentPage, mappedPageCmds ) =
             case model.route of
-                Route.Root ->
+                Route.Root _ ->
                     ( RootPage, Cmd.none )
 
-                Route.Attributi ->
+                Route.Attributi beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Attributi.init hereAndNow
+                            Attributi.init hereAndNow beamtimeId
                     in
                     ( AttributiPage pageModel, Cmd.map AttributiPageMsg pageCmds )
 
-                Route.AdvancedControls ->
+                Route.AdvancedControls beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            AdvancedControls.init hereAndNow
+                            AdvancedControls.init hereAndNow beamtimeId
                     in
                     ( AdvancedControlsPage pageModel, Cmd.map AdvancedControlsPageMsg pageCmds )
 
-                Route.Chemicals ->
+                Route.Chemicals beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Chemicals.init hereAndNow
+                            Chemicals.init hereAndNow beamtimeId
                     in
                     ( ChemicalsPage pageModel, Cmd.map ChemicalsPageMsg pageCmds )
 
-                Route.RunOverview ->
+                Route.RunOverview beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            RunOverview.init hereAndNow localStorage
+                            RunOverview.init hereAndNow localStorage beamtimeId
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
 
-                Route.Analysis ->
+                Route.Analysis beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Analysis.init hereAndNow
+                            Analysis.init hereAndNow beamtimeId
                     in
                     ( AnalysisPage pageModel, Cmd.map AnalysisPageMsg pageCmds )
 
-                Route.RunAnalysis ->
+                Route.RunAnalysis beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            RunAnalysis.init hereAndNow
+                            RunAnalysis.init hereAndNow beamtimeId
                     in
                     ( RunAnalysisPage pageModel, Cmd.map RunAnalysisPageMsg pageCmds )
 
-                Route.DataSets ->
+                Route.DataSets beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            DataSets.initDataSet hereAndNow
+                            DataSets.initDataSet hereAndNow beamtimeId
                     in
                     ( DataSetsPage pageModel, Cmd.map DataSetsMsg pageCmds )
 
-                Route.Schedule ->
+                Route.Schedule beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Schedule.initSchedule
+                            Schedule.initSchedule beamtimeId
                     in
                     ( SchedulePage pageModel, Cmd.map ScheduleMsg pageCmds )
 
-                Route.ExperimentTypes ->
+                Route.EventLog beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            ExperimentTypes.initExperimentType
+                            EventLog.init hereAndNow beamtimeId
+                    in
+                    ( EventLogPage pageModel, Cmd.map EventLogMsg pageCmds )
+
+                Route.ExperimentTypes beamtimeId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            ExperimentTypes.initExperimentType beamtimeId
                     in
                     ( ExperimentTypesPage pageModel, Cmd.map ExperimentTypesMsg pageCmds )
+
+                Route.BeamtimeSelection ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            BeamtimeSelection.init hereAndNow
+                    in
+                    ( BeamtimeSelectionPage pageModel, Cmd.map BeamtimeSelectionPageMsg pageCmds )
     in
     ( { model | page = currentPage, metadata = { oldMetadata | hereAndNow = Just hereAndNow } }, Cmd.batch [ existingCmds, mappedPageCmds ] )

@@ -1,10 +1,12 @@
 import datetime
 from dataclasses import dataclass
-from pathlib import Path
 
 from amarcord.db.attributi_map import AttributiMap
+from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.event_log_level import EventLogLevel
+from amarcord.db.run_external_id import RunExternalId
+from amarcord.db.run_internal_id import RunInternalId
 
 
 @dataclass(frozen=True)
@@ -29,14 +31,9 @@ class DBEvent:
 
 
 @dataclass(frozen=True)
-class DBFileBlueprint:
-    description: str
-    location: Path
-
-
-@dataclass(frozen=True)
 class DBChemical:
     id: int
+    beamtime_id: BeamtimeId
     name: str
     responsible_person: str
     attributi: AttributiMap
@@ -45,34 +42,36 @@ class DBChemical:
 
 
 @dataclass(frozen=True)
-class DBRun:
-    id: int
+class DBRunOutput:
+    id: RunInternalId
+    external_id: RunExternalId
+    beamtime_id: BeamtimeId
     attributi: AttributiMap
+    started: datetime.datetime
+    stopped: None | datetime.datetime
     experiment_type_id: int
     files: list[DBFile]
 
 
 @dataclass(frozen=True)
-class DBIndexingParameter:
-    id: int
-    project_file_first_discovery: datetime.datetime
-    project_file_last_discovery: datetime.datetime
-    project_file_path: Path
-    project_file_content: str | None
-    geometry_file_content: str | None
-    project_file_hash: str
+class BeamtimeInput:
+    external_id: str
+    proposal: str
+    beamline: str
+    title: str
+    comment: str
+    start: datetime.datetime
+    end: datetime.datetime
 
 
 @dataclass(frozen=True)
-class DBAugmentedIndexingParameter:
-    indexing_parameter: DBIndexingParameter
-    number_of_jobs: int
-
-
-@dataclass(frozen=True)
-class DBIndexingRunData:
-    run_id: int
-    master_file: Path
-    output_directory: Path
-    command_line: str
-    slurm_job_id: int
+class BeamtimeOutput:
+    id: BeamtimeId
+    external_id: str
+    proposal: str
+    beamline: str
+    title: str
+    comment: str
+    start: datetime.datetime
+    end: datetime.datetime
+    chemical_names: None | list[str]

@@ -1,12 +1,9 @@
-module Amarcord.API.RequestsHtml exposing (showRequestError)
+module Amarcord.API.RequestsHtml exposing (showHttpError)
 
-import Amarcord.API.Requests exposing (RequestError(..))
 import Amarcord.Html exposing (div_)
-import Amarcord.UserError exposing (CustomError)
 import Html exposing (Html, h5, pre, text)
 import Html.Attributes exposing (class)
 import Http
-import Maybe.Extra as MaybeExtra
 
 
 showHttpError : Http.Error -> Html msg
@@ -26,21 +23,3 @@ showHttpError x =
 
         Http.BadBody errorMessage ->
             div_ [ h5 [ class "alert-heading" ] [ text "Bad Request Body" ], pre [] [ text errorMessage ] ]
-
-
-showUserError : CustomError -> Html msg
-showUserError { title, description } =
-    div_
-        [ h5 [ class "alert-heading" ] [ text title ]
-        , MaybeExtra.unwrap (text "") (\descriptionReal -> pre [] [ text descriptionReal ]) description
-        ]
-
-
-showRequestError : RequestError -> Html msg
-showRequestError x =
-    case x of
-        HttpError error ->
-            showHttpError error
-
-        UserError userError ->
-            showUserError userError

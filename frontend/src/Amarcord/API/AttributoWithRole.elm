@@ -1,20 +1,21 @@
 module Amarcord.API.AttributoWithRole exposing (..)
 
-import Amarcord.Chemical exposing (ChemicalType, chemicalTypeDecoder, encodeChemicalType)
+import Amarcord.Chemical exposing (chemicalTypeDecoder, chemicalTypeFromApi, encodeChemicalType)
+import Api.Data exposing (ChemicalType, JsonAttributiIdAndRole)
 import Json.Decode as Decode
 import Json.Encode as Encode
 
 
 type alias AttributoWithRole =
-    { name : String
+    { id : Int
     , role : ChemicalType
     }
 
 
 encodeAttributoWithRole : AttributoWithRole -> Encode.Value
-encodeAttributoWithRole { name, role } =
+encodeAttributoWithRole { id, role } =
     Encode.object
-        [ ( "name", Encode.string name )
+        [ ( "id", Encode.int id )
         , ( "role", encodeChemicalType role )
         ]
 
@@ -23,5 +24,12 @@ attributoWithRoleDecoder : Decode.Decoder AttributoWithRole
 attributoWithRoleDecoder =
     Decode.map2
         AttributoWithRole
-        (Decode.field "name" Decode.string)
+        (Decode.field "id" Decode.int)
         (Decode.field "role" chemicalTypeDecoder)
+
+
+convertAttributoWithRoleFromApi : JsonAttributiIdAndRole -> AttributoWithRole
+convertAttributoWithRoleFromApi x =
+    { id = x.id
+    , role = chemicalTypeFromApi x.role
+    }

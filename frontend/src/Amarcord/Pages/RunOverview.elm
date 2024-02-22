@@ -1,15 +1,13 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
-import Amarcord.API.AttributoWithRole exposing (AttributoWithRole)
-import Amarcord.API.DataSet exposing (DataSet, emptySummary)
-import Amarcord.API.ExperimentType exposing (ExperimentType, ExperimentTypeId, experimentTypeIdDict)
-import Amarcord.API.Requests exposing (Event, RequestError, Run, RunEventDate, RunEventDateFilter, RunFilter(..), RunsResponse, RunsResponseContent, emptyRunEventDateFilter, emptyRunFilter, httpChangeCurrentExperimentTypeForRun, httpCreateDataSetFromRun, httpDeleteEvent, httpGetRunsFilter, httpUpdateRun, httpUserConfigurationSetAutoPilot, httpUserConfigurationSetOnlineCrystFEL, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
-import Amarcord.API.RequestsHtml exposing (showRequestError)
+import Amarcord.API.ExperimentType exposing (ExperimentTypeId, experimentTypeIdDict)
+import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter(..), RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateToString, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
+import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoStarted, attributoStopped, extractDateTime, retrieveAttributoValue, retrieveDateTimeAttributoValue, retrieveFloatAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData)
-import Amarcord.Chemical exposing (Chemical, ChemicalType(..), chemicalIdDict)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteDataHttp)
+import Amarcord.Chemical exposing (Chemical, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
@@ -20,6 +18,13 @@ import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
+import Api exposing (send)
+import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonChangeRunExperimentTypeOutput, JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonExperimentType, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput, JsonUserConfigurationSingleOutput)
+import Api.Request.Config exposing (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
+import Api.Request.Datasets exposing (createDataSetFromRunApiDataSetsFromRunPost)
+import Api.Request.Events exposing (deleteEventApiEventsDelete)
+import Api.Request.Experimenttypes exposing (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost)
+import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, updateRunApiRunsPatch)
 import Char exposing (fromCode)
 import Date
 import Dict exposing (Dict)
@@ -27,27 +32,28 @@ import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, la
 import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Html.Events.Extra exposing (onEnter)
+import Http
 import List exposing (head)
 import List.Extra as ListExtra exposing (find)
 import Maybe
 import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
-import String exposing (fromInt)
-import Time exposing (Posix, Zone, posixToMillis)
+import String
+import Time exposing (Posix, Zone, millisToPosix, posixToMillis)
 import Tuple exposing (first, second)
 
 
 type Msg
-    = RunsReceived RunsResponse
+    = RunsReceived (Result Http.Error JsonReadRuns)
     | Refresh Posix
     | EventDelete Int
-    | EventDeleteFinished (Result RequestError ())
+    | EventDeleteFinished (Result Http.Error JsonDeleteEventOutput)
     | EventFormMsg EventForm.Msg
     | RunEditInfoValueUpdate AttributoNameWithValueUpdate
     | RunEditInfoExperimentTypeIdChanged Int
     | RunEditSubmit
-    | RunEditFinished (Result RequestError ())
-    | RunInitiateEdit Run
+    | RunEditFinished (Result Http.Error JsonUpdateRunOutput)
+    | RunInitiateEdit JsonRun
     | RunEditCancel
     | RunFilterSubMsg RunFilterMsg
     | Nop
@@ -56,17 +62,20 @@ type Msg
     | ColumnChooserMessage ColumnChooser.Msg
     | ChangeAutoPilot Bool
     | ChangeOnlineCrystFEL Bool
-    | AutoPilotToggled (Result RequestError Bool)
-    | OnlineCrystFELToggled (Result RequestError Bool)
-    | CreateDataSetFromRun ExperimentTypeId Int
-    | CreateDataSetFromRunFinished (Result RequestError ())
-    | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result RequestError ())
+    | AutoPilotToggled (Result Http.Error JsonUserConfigurationSingleOutput)
+    | OnlineCrystFELToggled (Result Http.Error JsonUserConfigurationSingleOutput)
+    | CreateDataSetFromRun ExperimentTypeId RunInternalId
+    | CreateDataSetFromRunFinished (Result Http.Error JsonCreateDataSetFromRunOutput)
+    | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result Http.Error JsonChangeRunExperimentTypeOutput)
     | ResetDate
     | SetRunDateFilter RunEventDate
 
 
 type alias RunEditInfo =
-    { runId : Int
+    { runId : RunInternalId
+    , runExternalId : RunExternalId
+    , started : Posix
+    , stopped : Maybe Posix
     , experimentTypeId : Int
     , editableAttributi : EditableAttributiAndOriginal
 
@@ -79,7 +88,7 @@ type alias RunEditInfo =
 type alias RunFilterInfo =
     { runFilter : RunFilter
     , nextRunFilter : String
-    , runFilterRequest : RemoteData RequestError ()
+    , runFilterRequest : RemoteData Http.Error JsonReadRuns
     }
 
 
@@ -91,7 +100,7 @@ type RunFilterMsg
     = RunFilterEdit String
     | RunFilterReset
     | RunFilterSubmit
-    | RunFilterSubmitFinished RunsResponse
+    | RunFilterSubmitFinished (Result Http.Error JsonReadRuns)
 
 
 initRunFilter : RunFilterInfo
@@ -137,15 +146,15 @@ viewRunFilter model =
             ]
         , case model.runFilterRequest of
             Failure e ->
-                div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showRequestError e ] ] ]
+                div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ] ]
 
             _ ->
                 text ""
         ]
 
 
-updateRunFilter : RunFilterInfo -> RunFilterMsg -> ( RunFilterInfo, Cmd RunFilterMsg )
-updateRunFilter model msg =
+updateRunFilter : BeamtimeId -> RunFilterInfo -> RunFilterMsg -> ( RunFilterInfo, Cmd RunFilterMsg )
+updateRunFilter beamtimeId model msg =
     case msg of
         RunFilterEdit newRunFilter ->
             ( { model | nextRunFilter = newRunFilter }, Cmd.none )
@@ -154,44 +163,52 @@ updateRunFilter model msg =
             ( { model | nextRunFilter = runFilterToString model.runFilter, runFilterRequest = NotAsked }, Cmd.none )
 
         RunFilterSubmit ->
-            ( { model | runFilterRequest = Loading }, httpGetRunsFilter (RunFilter model.nextRunFilter) emptyRunEventDateFilter RunFilterSubmitFinished )
+            ( { model | runFilterRequest = Loading }
+            , send RunFilterSubmitFinished
+                (readRunsApiRunsBeamtimeIdGet
+                    beamtimeId
+                    (Maybe.map runEventDateToString <| runEventDateFilter <| emptyRunEventDateFilter)
+                    (Just model.nextRunFilter)
+                )
+            )
 
         RunFilterSubmitFinished response ->
             case response of
                 Err e ->
                     ( { model | runFilterRequest = Failure e }, Cmd.none )
 
-                Ok _ ->
-                    ( { model | runFilter = RunFilter model.nextRunFilter, runFilterRequest = Success () }, Cmd.none )
+                Ok v ->
+                    ( { model | runFilter = RunFilter model.nextRunFilter, runFilterRequest = Success v }, Cmd.none )
 
 
 type alias Model =
-    { runs : RemoteData RequestError RunsResponseContent
+    { runs : RemoteData Http.Error JsonReadRuns
     , myTimeZone : Zone
-    , refreshRequest : RemoteData RequestError ()
+    , refreshRequest : RemoteData Http.Error ()
     , eventForm : EventForm.Model
     , now : Posix
     , runDateFilter : RunDateFilterInfo
     , runDates : List RunEventDate
     , runEditInfo : Maybe RunEditInfo
-    , runEditRequest : RemoteData RequestError ()
+    , runEditRequest : RemoteData Http.Error JsonUpdateRunOutput
     , runFilter : RunFilterInfo
     , submitErrors : List String
-    , currentExperimentType : Maybe ExperimentType
-    , selectedExperimentType : Maybe ExperimentType
+    , currentExperimentType : Maybe JsonExperimentType
+    , selectedExperimentType : Maybe JsonExperimentType
     , columnChooser : ColumnChooser.Model
     , localStorage : Maybe LocalStorage
-    , dataSetFromRunRequest : RemoteData RequestError ()
-    , changeExperimentTypeRequest : RemoteData RequestError ()
+    , dataSetFromRunRequest : RemoteData Http.Error JsonCreateDataSetFromRunOutput
+    , changeExperimentTypeRequest : RemoteData Http.Error JsonChangeRunExperimentTypeOutput
+    , beamtimeId : BeamtimeId
     }
 
 
-init : HereAndNow -> Maybe LocalStorage -> ( Model, Cmd Msg )
-init { zone, now } localStorage =
+init : HereAndNow -> Maybe LocalStorage -> BeamtimeId -> ( Model, Cmd Msg )
+init { zone, now } localStorage beamtimeId =
     ( { runs = Loading
       , myTimeZone = zone
       , refreshRequest = NotAsked
-      , eventForm = EventForm.init
+      , eventForm = EventForm.init beamtimeId
       , now = now
       , runDates = []
       , runDateFilter = initRunDateFilter
@@ -205,8 +222,14 @@ init { zone, now } localStorage =
       , localStorage = localStorage
       , dataSetFromRunRequest = NotAsked
       , changeExperimentTypeRequest = NotAsked
+      , beamtimeId = beamtimeId
       }
-    , httpGetRunsFilter emptyRunFilter emptyRunEventDateFilter RunsReceived
+    , send RunsReceived
+        (readRunsApiRunsBeamtimeIdGet
+            beamtimeId
+            (Maybe.map runEventDateToString <| runEventDateFilter emptyRunEventDateFilter)
+            (Just <| runFilterToString emptyRunFilter)
+        )
     )
 
 
@@ -215,9 +238,10 @@ attributiColumnHeaders =
     List.map (th_ << makeAttributoHeader)
 
 
-attributiColumns : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> Run -> List (Html Msg)
+attributiColumns : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> List (Html Msg)
 attributiColumns zone chemicalIds experimentTypeIds attributi run =
     let
+        viewCell : Attributo AttributoType -> Maybe (Html Msg)
         viewCell a =
             if a.associatedTable == AssociatedTable.Run then
                 Just <|
@@ -228,11 +252,11 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
                         viewAttributoCell
                             { shortDateTime = True
                             , colorize = True
-                            , withUnit = True
+                            , withUnit = False
                             }
                             zone
                             chemicalIds
-                            run.attributi
+                            (convertAttributoMapFromApi run.attributi)
                             a
 
             else
@@ -241,10 +265,13 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
     List.filterMap viewCell attributi
 
 
-viewRunRow : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> Run -> Html Msg
+viewRunRow : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> Html Msg
 viewRunRow zone chemicalIds experimentTypeIds attributi r =
     tr [ style "white-space" "nowrap" ] <|
-        td_ [ text (fromInt r.id) ]
+        td_ [ strongText (String.fromInt r.externalId) ]
+            :: td_ [ text (String.fromInt r.id) ]
+            :: td_ [ text <| formatPosixTimeOfDayHumanFriendly zone (millisToPosix r.started) ]
+            :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatPosixTimeOfDayHumanFriendly zone) (Maybe.map millisToPosix r.stopped) ]
             :: attributiColumns zone chemicalIds experimentTypeIds attributi r
             ++ [ td_
                     [ button
@@ -256,12 +283,13 @@ viewRunRow zone chemicalIds experimentTypeIds attributi r =
                ]
 
 
-viewEventRow : Zone -> Int -> Event -> Html Msg
+viewEventRow : Zone -> Int -> JsonEvent -> Html Msg
 viewEventRow zone attributoColumnCount e =
     let
-        viewFile { type_, fileName, id } =
+        viewFile : JsonFileOutput -> Html Msg
+        viewFile { type__, fileName, id } =
             li_
-                [ mimeTypeToIcon type_
+                [ mimeTypeToIcon type__
                 , text " "
                 , a [ href (makeFilesLink id) ] [ text fileName ]
                 ]
@@ -282,12 +310,12 @@ viewEventRow zone attributoColumnCount e =
     in
     tr [ class "bg-light" ]
         [ td_ []
-        , td_ [ text <| formatPosixTimeOfDayHumanFriendly zone e.created ]
+        , td_ [ text <| formatPosixTimeOfDayHumanFriendly zone (millisToPosix e.created) ]
         , td [ colspan attributoColumnCount ] mainContent
         ]
 
 
-viewRunAndEventRows : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> List Run -> List Event -> List (Html Msg)
+viewRunAndEventRows : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> List JsonRun -> List JsonEvent -> List (Html Msg)
 viewRunAndEventRows zone chemicalIds experimentTypeIds attributi runs events =
     case ( head runs, head events ) of
         -- No elements, neither runs nor events, left anymore
@@ -304,30 +332,27 @@ viewRunAndEventRows zone chemicalIds experimentTypeIds attributi runs events =
 
         -- We have events and runs and have to compare the dates
         ( Just run, Just event ) ->
-            case Maybe.andThen extractDateTime <| retrieveAttributoValue attributoStarted run.attributi of
-                Just runStarted ->
-                    if posixBefore event.created runStarted then
-                        viewRunRow zone chemicalIds experimentTypeIds attributi run :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi (List.drop 1 runs) events
+            if posixBefore (millisToPosix event.created) (millisToPosix run.started) then
+                viewRunRow zone chemicalIds experimentTypeIds attributi run :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi (List.drop 1 runs) events
 
-                    else
-                        viewEventRow zone (List.length attributi) event :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi runs (List.drop 1 events)
-
-                -- We don't have a start time...take the run
-                Nothing ->
-                    viewRunRow zone chemicalIds experimentTypeIds attributi run :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi (List.drop 1 runs) events
+            else
+                viewEventRow zone (List.length attributi) event :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi runs (List.drop 1 events)
 
 
-viewRunsTable : Zone -> List (Attributo AttributoType) -> RunsResponseContent -> Html Msg
+viewRunsTable : Zone -> List (Attributo AttributoType) -> JsonReadRuns -> Html Msg
 viewRunsTable zone chosenColumns { runs, events, chemicals, experimentTypes } =
     let
         runRows : List (Html Msg)
         runRows =
-            viewRunAndEventRows zone (chemicalIdDict chemicals) (experimentTypeIdDict experimentTypes) chosenColumns runs events
+            viewRunAndEventRows zone (chemicalIdDict <| List.map convertChemicalFromApi chemicals) (experimentTypeIdDict experimentTypes) chosenColumns runs events
     in
     table [ class "table amarcord-table-fix-head table-bordered table-hover" ]
         [ thead_
             [ tr [ class "align-top" ] <|
                 th_ [ text "ID" ]
+                    :: th_ [ text "Internal ID" ]
+                    :: th_ [ text "Started" ]
+                    :: th_ [ text "Stopped" ]
                     :: attributiColumnHeaders chosenColumns
                     ++ [ th_ [ text "Actions" ] ]
             ]
@@ -335,23 +360,214 @@ viewRunsTable zone chosenColumns { runs, events, chemicals, experimentTypes } =
         ]
 
 
-viewCurrentRun : Zone -> Posix -> Maybe ExperimentType -> Maybe ExperimentType -> RemoteData RequestError () -> RemoteData RequestError () -> RunsResponseContent -> List (Html Msg)
+dataSetInformation :
+    Zone
+    -> JsonRun
+    -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
+    -> Maybe JsonExperimentType
+    -> JsonReadRuns
+    -> List (Html Msg)
+dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc =
+    case currentExperimentTypeMaybe of
+        Nothing ->
+            [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
+
+        Just currentExperimentType ->
+            case find (\ds -> ds.experimentTypeId == currentExperimentType.id && List.member ds.id run.dataSets) rrc.dataSets of
+                Nothing ->
+                    [ p [ class "text-muted" ]
+                        [ text <| "Run is not part of any data set in \"" ++ currentExperimentType.name ++ "\". You can automatically create a data set that matches the current run's attributi."
+                        ]
+                    , button
+                        [ type_ "button"
+                        , class "btn btn-secondary"
+                        , onClick (CreateDataSetFromRun currentExperimentType.id (RunInternalId run.id))
+                        , disabled (isLoading dataSetFromRunRequest)
+                        ]
+                        [ icon { name = "plus-lg" }, text " Create data set from run" ]
+                    , viewRemoteDataHttp "Data set created" dataSetFromRunRequest
+                    ]
+
+                Just ds ->
+                    let
+                        indexingProgress =
+                            let
+                                progressSummary =
+                                    case ds.summary of
+                                        Nothing ->
+                                            run.summary
+
+                                        Just dsSummary ->
+                                            dsSummary
+
+                                etaFor10kFrames =
+                                    let
+                                        ir =
+                                            run.summary.indexingRate
+
+                                        hr =
+                                            run.summary.hitRate
+                                    in
+                                    if ir > 0.01 && hr > 0.01 then
+                                        let
+                                            runExposureTime : Maybe Float
+                                            runExposureTime =
+                                                ListExtra.find
+                                                    (\a -> a.name == attributoExposureTime)
+                                                    rrc.attributi
+                                                    |> Maybe.andThen (\a -> retrieveFloatAttributoValue a.id (convertAttributoMapFromApi run.attributi))
+                                        in
+                                        runExposureTime
+                                            |> Maybe.andThen
+                                                (\realExposureTime ->
+                                                    let
+                                                        remainingFrames =
+                                                            10000 - progressSummary.indexedFrames
+                                                    in
+                                                    if remainingFrames > 0 then
+                                                        let
+                                                            remainingFramesToCapture =
+                                                                round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
+
+                                                            framesPerSecond =
+                                                                1000 / (2 * realExposureTime)
+
+                                                            indexedFramesPerSecond =
+                                                                framesPerSecond * ir / 100.0 * hr / 100.0
+
+                                                            remainingTimeStr =
+                                                                secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
+                                                        in
+                                                        Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
+
+                                                    else
+                                                        Nothing
+                                                )
+
+                                    else
+                                        Nothing
+
+                                -- case run.summary.indexingRate of
+                                --     Nothing ->
+                                --         Nothing
+                                --     Just ir ->
+                                --         case run.summary.hitRate of
+                                --             Nothing ->
+                                --                 Nothing
+                                --             Just hr ->
+                                --                 if ir > 0.01 && hr > 0.01 then
+                                --                     let
+                                --                         runExposureTime : Maybe Float
+                                --                         runExposureTime =
+                                --                             ListExtra.find
+                                --                                 (\a -> a.name == attributoExposureTime)
+                                --                                 rrc.attributi
+                                --                                 |> Maybe.andThen (\a -> retrieveFloatAttributoValue a.id run.attributi)
+                                --                     in
+                                --                     case runExposureTime of
+                                --                         Nothing ->
+                                --                             Nothing
+                                --                         Just realExposureTime ->
+                                --                             let
+                                --                                 remainingFrames =
+                                --                                     10000 - progressSummary.indexedFrames
+                                --                             in
+                                --                             if remainingFrames > 0 then
+                                --                                 let
+                                --                                     remainingFramesToCapture =
+                                --                                         round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
+                                --                                     framesPerSecond =
+                                --                                         1000 / (2 * realExposureTime)
+                                --                                     indexedFramesPerSecond =
+                                --                                         framesPerSecond * ir / 100.0 * hr / 100.0
+                                --                                     remainingTimeStr =
+                                --                                         secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
+                                --                                 in
+                                --                                 Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
+                                --                             else
+                                --                                 Nothing
+                                --                 else
+                                --                     Nothing
+                            in
+                            [ div [ class "d-flex justify-content-center" ]
+                                [ div [ class "progress", style "width" "80%" ]
+                                    [ div
+                                        [ class
+                                            ("progress-bar"
+                                                ++ (if MaybeExtra.isJust run.stopped then
+                                                        ""
+
+                                                    else
+                                                        " progress-bar-striped progress-bar-animated"
+                                                   )
+                                            )
+                                        , style "width" ((String.fromInt <| min 100 <| round <| toFloat progressSummary.indexedFrames / 10000 * 100.0) ++ "%")
+                                        ]
+                                        []
+                                    ]
+                                ]
+                            , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ formatIntHumanFriendly progressSummary.indexedFrames ++ "/" ++ formatIntHumanFriendly 10000 ] ]
+                            , case etaFor10kFrames of
+                                Nothing ->
+                                    text ""
+
+                                Just eta ->
+                                    div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ eta ] ]
+                            ]
+
+                        smallBox color =
+                            span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
+
+                        twoValueGauge : String -> Float -> Maybe Float -> List (Html msg)
+                        twoValueGauge title thisValue total =
+                            case total of
+                                Nothing ->
+                                    [ gauge (Just thisValue) total, div_ [ em [ class "amarcord-small-text" ] [ smallBox thisFillColor, text <| " " ++ title ++ " " ++ formatFloatHumanFriendly thisValue ++ "%" ] ] ]
+
+                                Just totalValue ->
+                                    [ gauge (Just thisValue) total
+                                    , div_
+                                        [ em [ class "amarcord-small-text" ]
+                                            [ smallBox thisFillColor
+                                            , text (" run: " ++ formatFloatHumanFriendly thisValue ++ "% | ")
+                                            , smallBox totalFillColor
+                                            , text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%"
+                                            ]
+                                        ]
+                                    ]
+                    in
+                    [ div [ class "d-flex flex-row justify-content-evenly" ]
+                        [ div [ class "text-center" ] (twoValueGauge "Indexing rate" run.summary.indexingRate Nothing)
+                        , div [ class "text-center" ] (twoValueGauge "Hit rate" run.summary.hitRate Nothing)
+                        ]
+                    , div [ class "mb-3" ] indexingProgress
+                    , h3_ [ text "Data set" ]
+                    , viewDataSetTable (List.map convertAttributoFromApi rrc.attributi)
+                        zone
+                        (chemicalIdDict (List.map convertChemicalFromApi rrc.chemicals))
+                        (convertAttributoMapFromApi ds.attributi)
+                        True
+                        Nothing
+                    ]
+
+
+viewCurrentRun :
+    Zone
+    -> Posix
+    -> Maybe JsonExperimentType
+    -> Maybe JsonExperimentType
+    -> RemoteData Http.Error JsonChangeRunExperimentTypeOutput
+    -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
+    -> JsonReadRuns
+    -> List (Html Msg)
 viewCurrentRun zone now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
     case head rrc.runs of
         Nothing ->
             List.singleton <| text ""
 
-        Just { id, attributi, summary, dataSets } ->
+        Just ({ id, externalId, started, stopped } as run) ->
             let
-                runStarted : Maybe Posix
-                runStarted =
-                    retrieveDateTimeAttributoValue attributoStarted attributi
-
-                runStopped : Maybe Posix
-                runStopped =
-                    retrieveDateTimeAttributoValue attributoStopped attributi
-
                 autoPilot =
                     [ div [ class "form-check form-switch mb-3" ]
                         [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.userConfig.autoPilot, onInput (always (ChangeAutoPilot (not rrc.userConfig.autoPilot))) ]
@@ -362,7 +578,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
 
                 onlineCrystFEL =
                     [ div [ class "form-check form-switch mb-3" ]
-                        [ input_ [ type_ "checkbox", Html.Attributes.id "crystfel-online", class "form-check-input", checked rrc.userConfig.onlineCrystFEL, onInput (always (ChangeOnlineCrystFEL (not rrc.userConfig.onlineCrystFEL))) ]
+                        [ input_ [ type_ "checkbox", Html.Attributes.id "crystfel-online", class "form-check-input", checked rrc.userConfig.onlineCrystfel, onInput (always (ChangeOnlineCrystFEL (not rrc.userConfig.onlineCrystfel))) ]
                         , label [ class "form-check-label", for "crystfel-online" ] [ text "Use CrystFEL Online" ]
                         ]
                     , runningIndexingJobsIndicator
@@ -375,15 +591,10 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                                 Nothing
 
                             else if r.id == id then
-                                case runStopped of
-                                    Just _ ->
-                                        Just id
-
-                                    Nothing ->
-                                        Nothing
+                                Maybe.map (\_ -> r.externalId) stopped
 
                             else if r.id < id then
-                                Just r.id
+                                Just r.externalId
 
                             else
                                 Nothing
@@ -407,25 +618,22 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                             ]
 
                 header =
-                    case ( runStarted, runStopped ) of
-                        ( Just started, Nothing ) ->
+                    case stopped of
+                        Nothing ->
                             [ h1_
                                 [ span [ class "text-success" ] [ spinner False ]
-                                , text <| " Run " ++ fromInt id
+                                , text <| " Run " ++ String.fromInt externalId
                                 ]
-                            , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now started ]
+                            , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now (millisToPosix started) ]
                             ]
 
-                        ( Just started, Just stopped ) ->
-                            [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ fromInt id ]
-                            , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendly stopped now ++ " ago " ]
-                            , p_ [ text <| "Duration " ++ posixDiffHumanFriendly started stopped ]
+                        Just realStoppedTime ->
+                            [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ String.fromInt externalId ]
+                            , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendly (millisToPosix realStoppedTime) now ++ " ago " ]
+                            , p_ [ text <| "Duration " ++ posixDiffHumanFriendly (millisToPosix started) (millisToPosix realStoppedTime) ]
                             ]
 
-                        _ ->
-                            []
-
-                viewExperimentTypeOption : ExperimentType -> Html msg
+                viewExperimentTypeOption : JsonExperimentType -> Html msg
                 viewExperimentTypeOption experimentType =
                     option [ selected (Just experimentType.id == Maybe.map .id currentExperimentType), value (String.fromInt experimentType.id) ] [ text experimentType.name ]
 
@@ -451,173 +659,18 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                             ]
                         ]
                     ]
-
-                currentRunDataSet : Maybe DataSet
-                currentRunDataSet =
-                    case currentExperimentType of
-                        Nothing ->
-                            Nothing
-
-                        Just experimentType ->
-                            find (\ds -> ds.experimentTypeId == experimentType.id && List.member ds.id dataSets) rrc.dataSets
-
-                smallBox color =
-                    span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
-
-                dataSetInformation =
-                    case currentRunDataSet of
-                        Nothing ->
-                            case currentExperimentType of
-                                Nothing ->
-                                    [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
-
-                                Just experimentType ->
-                                    [ p [ class "text-muted" ] [ text <| "Run is not part of any data set in \"" ++ experimentType.name ++ "\". You can automatically create a data set that matches the current run's attributi." ]
-                                    , button [ type_ "button", class "btn btn-secondary", onClick (CreateDataSetFromRun experimentType.id id), disabled (isLoading dataSetFromRunRequest) ]
-                                        [ icon { name = "plus-lg" }, text " Create data set from run" ]
-                                    , viewRemoteData "Data set created" dataSetFromRunRequest
-                                    ]
-
-                        Just ds ->
-                            let
-                                indexingProgress =
-                                    let
-                                        progressSummary =
-                                            case Maybe.andThen .summary currentRunDataSet of
-                                                Nothing ->
-                                                    summary
-
-                                                Just dsSummary ->
-                                                    dsSummary
-
-                                        etaFor10kFrames =
-                                            case summary.indexingRate of
-                                                Nothing ->
-                                                    Nothing
-
-                                                Just ir ->
-                                                    case summary.hitRate of
-                                                        Nothing ->
-                                                            Nothing
-
-                                                        Just hr ->
-                                                            if ir > 0.01 && hr > 0.01 then
-                                                                let
-                                                                    runExposureTime : Maybe Float
-                                                                    runExposureTime =
-                                                                        retrieveFloatAttributoValue attributoExposureTime attributi
-                                                                in
-                                                                case runExposureTime of
-                                                                    Nothing ->
-                                                                        Nothing
-
-                                                                    Just realExposureTime ->
-                                                                        let
-                                                                            remainingFrames =
-                                                                                10000 - progressSummary.indexedFrames
-                                                                        in
-                                                                        if remainingFrames > 0 then
-                                                                            let
-                                                                                remainingFramesToCapture =
-                                                                                    round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
-
-                                                                                framesPerSecond =
-                                                                                    1000 / (2 * realExposureTime)
-
-                                                                                indexedFramesPerSecond =
-                                                                                    framesPerSecond * ir / 100.0 * hr / 100.0
-
-                                                                                remainingTimeStr =
-                                                                                    secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
-                                                                            in
-                                                                            Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
-
-                                                                        else
-                                                                            Nothing
-
-                                                            else
-                                                                Nothing
-                                    in
-                                    [ div [ class "d-flex justify-content-center" ]
-                                        [ div [ class "progress", style "width" "80%" ]
-                                            [ div
-                                                [ class
-                                                    ("progress-bar"
-                                                        ++ (if MaybeExtra.isJust runStopped then
-                                                                ""
-
-                                                            else
-                                                                " progress-bar-striped progress-bar-animated"
-                                                           )
-                                                    )
-                                                , style "width" ((String.fromInt <| min 100 <| round <| toFloat progressSummary.indexedFrames / 10000 * 100.0) ++ "%")
-                                                ]
-                                                []
-                                            ]
-                                        ]
-                                    , div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ text <| "Indexed frames: " ++ formatIntHumanFriendly progressSummary.indexedFrames ++ "/" ++ formatIntHumanFriendly 10000 ] ]
-                                    , case etaFor10kFrames of
-                                        Nothing ->
-                                            text ""
-
-                                        Just eta ->
-                                            div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ eta ] ]
-                                    ]
-
-                                twoValueGauge title this total =
-                                    case total of
-                                        Nothing ->
-                                            case this of
-                                                Nothing ->
-                                                    []
-
-                                                Just thisValue ->
-                                                    [ gauge this total, div_ [ em [ class "amarcord-small-text" ] [ smallBox thisFillColor, text <| " " ++ title ++ " " ++ formatFloatHumanFriendly thisValue ++ "%" ] ] ]
-
-                                        Just totalValue ->
-                                            case this of
-                                                Nothing ->
-                                                    [ gauge this total
-                                                    , div_ [ em [ class "amarcord-small-text" ] [ smallBox totalFillColor, text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%" ] ]
-                                                    ]
-
-                                                Just thisValue ->
-                                                    [ gauge this total
-                                                    , div_
-                                                        [ em [ class "amarcord-small-text" ]
-                                                            [ smallBox thisFillColor
-                                                            , text (" run: " ++ formatFloatHumanFriendly thisValue ++ "% | ")
-                                                            , smallBox totalFillColor
-                                                            , text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%"
-                                                            ]
-                                                        ]
-                                                    ]
-                            in
-                            [ div [ class "d-flex flex-row justify-content-evenly" ]
-                                [ div [ class "text-center" ] (twoValueGauge "Indexing rate" summary.indexingRate Nothing)
-                                , div [ class "text-center" ] (twoValueGauge "Hit rate" summary.hitRate Nothing)
-                                ]
-                            , div [ class "mb-3" ] indexingProgress
-                            , h3_ [ text "Data set" ]
-                            , viewDataSetTable rrc.attributi
-                                zone
-                                (chemicalIdDict rrc.chemicals)
-                                ds.attributi
-                                True
-                                Nothing
-                            ]
             in
-            header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation
+            header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation zone run dataSetFromRunRequest currentExperimentType rrc
 
 
 viewRunAttributiForm :
-    Maybe (List AttributoWithRole)
-    -> Maybe Run
+    Maybe (List JsonAttributiIdAndRole)
+    -> Maybe JsonRun
     -> List String
-    -> RemoteData RequestError ()
+    -> RemoteData Http.Error JsonUpdateRunOutput
     -> List (Chemical Int a b)
     -> Maybe RunEditInfo
-    -> List ExperimentType
+    -> List JsonExperimentType
     -> List (Html Msg)
 viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList runEditRequest chemicals rei experimentTypes =
     case rei of
@@ -632,7 +685,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                             True
 
                         Just attributi ->
-                            listContainsBy (\otherAttributo -> otherAttributo.name == a.name) attributi
+                            listContainsBy (\otherAttributo -> otherAttributo.id == a.id) attributi
 
                 -- For ergonomic reasons, we want chemical attributi to be on top - everything else should be
                 -- sorted alphabetically
@@ -658,9 +711,9 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                 viewAttributoFormWithRole : EditableAttributo -> Html AttributoFormMsg
                 viewAttributoFormWithRole e =
                     viewAttributoForm chemicals
-                        (Maybe.withDefault Solution <|
+                        (Maybe.withDefault ChemicalTypeSolution <|
                             Maybe.map .role <|
-                                ListExtra.find (\awr -> awr.name == e.name) <|
+                                ListExtra.find (\awr -> awr.id == e.id) <|
                                     Maybe.withDefault [] currentExperimentTypeAttributi
                         )
                         e
@@ -699,7 +752,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                     ]
 
                 isLatestRun =
-                    Just runId == Maybe.map .id latestRun
+                    Just runId == Maybe.map (RunInternalId << .id) latestRun
 
                 attributoFormMsgToMsg : AttributoFormMsg -> Msg
                 attributoFormMsgToMsg x =
@@ -710,7 +763,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                         AttributoFormSubmit ->
                             RunEditSubmit
 
-                viewExperimentTypeOption : ExperimentType -> Html msg
+                viewExperimentTypeOption : JsonExperimentType -> Html msg
                 viewExperimentTypeOption experimentType =
                     option
                         [ selected (experimentType.id == experimentTypeId)
@@ -724,7 +777,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                         "Edit run"
 
                     else
-                        "Edit run " ++ fromInt runId
+                        "Edit run " ++ runInternalIdToString runId
                 ]
             , if not isLatestRun then
                 p [ class "text-warning" ] [ text "You are currently editing an older run!" ]
@@ -745,14 +798,22 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
             ]
 
 
-viewInner : Model -> RunsResponseContent -> List (Html Msg)
+viewInner : Model -> JsonReadRuns -> List (Html Msg)
 viewInner model rrc =
     List.concat
         [ [ div [ class "container" ]
                 [ div
                     [ class "row" ]
                     [ div [ class "col-lg-6" ]
-                        (viewCurrentRun model.myTimeZone model.now model.selectedExperimentType model.currentExperimentType model.changeExperimentTypeRequest model.dataSetFromRunRequest rrc)
+                        (viewCurrentRun
+                            model.myTimeZone
+                            model.now
+                            model.selectedExperimentType
+                            model.currentExperimentType
+                            model.changeExperimentTypeRequest
+                            model.dataSetFromRunRequest
+                            rrc
+                        )
                     , div [ class "col-lg-6" ]
                         (viewRunAttributiForm
                             (model.currentExperimentType
@@ -762,7 +823,7 @@ viewInner model rrc =
                             (head rrc.runs)
                             model.submitErrors
                             model.runEditRequest
-                            rrc.chemicals
+                            (List.map convertChemicalFromApi rrc.chemicals)
                             model.runEditInfo
                             rrc.experimentTypes
                         )
@@ -771,7 +832,7 @@ viewInner model rrc =
           , hr_
           , Html.map EventFormMsg (EventForm.view model.eventForm)
           , hr_
-          , case rrc.jetStreamFileId of
+          , case rrc.liveStreamFileId of
                 Nothing ->
                     Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
 
@@ -878,7 +939,7 @@ view model =
                 List.singleton <| loadingBar "Loading runs..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ], showRequestError e ]
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ], showHttpError e ]
 
             Success a ->
                 case model.refreshRequest of
@@ -889,24 +950,23 @@ view model =
                         viewInner model a
 
 
-updateRunEditInfoFromContent : Zone -> Maybe RunEditInfo -> RunsResponseContent -> Maybe RunEditInfo
+updateRunEditInfoFromContent : Zone -> Maybe RunEditInfo -> JsonReadRuns -> Maybe RunEditInfo
 updateRunEditInfoFromContent zone runEditInfoRaw { runs, attributi } =
     case runEditInfoRaw of
         -- We have no previous edit info
         Nothing ->
-            case head runs of
-                -- We have no edit info, and no runs
-                Nothing ->
-                    Nothing
-
-                -- We have no edit info, and now we have a run
-                Just latestRun ->
-                    Just
-                        { runId = latestRun.id
+            head runs
+                |> Maybe.map
+                    (\latestRun ->
+                        { runId = RunInternalId latestRun.id
+                        , runExternalId = RunExternalId latestRun.externalId
+                        , started = millisToPosix latestRun.started
+                        , stopped = Maybe.map millisToPosix latestRun.stopped
                         , experimentTypeId = latestRun.experimentTypeId
-                        , editableAttributi = createEditableAttributi zone attributi latestRun.attributi
+                        , editableAttributi = createEditableAttributi zone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi latestRun.attributi)
                         , initiatedManually = False
                         }
+                    )
 
         -- We have previous edit info
         Just runEditInfo ->
@@ -917,21 +977,21 @@ updateRunEditInfoFromContent zone runEditInfoRaw { runs, attributi } =
 
             else
                 -- We have no unsaved changes and a run
-                case head runs of
-                    -- This case cannot really occur
-                    Nothing ->
-                        Nothing
-
-                    Just latestRun ->
-                        Just
-                            { runId = latestRun.id
+                head runs
+                    |> Maybe.map
+                        (\latestRun ->
+                            { runId = RunInternalId latestRun.id
+                            , runExternalId = RunExternalId latestRun.externalId
+                            , started = millisToPosix latestRun.started
+                            , stopped = Maybe.map millisToPosix latestRun.stopped
                             , experimentTypeId = latestRun.experimentTypeId
-                            , editableAttributi = createEditableAttributi zone attributi latestRun.attributi
+                            , editableAttributi = createEditableAttributi zone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi latestRun.attributi)
                             , initiatedManually = False
                             }
+                        )
 
 
-updateRunEditInfo : Zone -> Maybe RunEditInfo -> RunsResponse -> Maybe RunEditInfo
+updateRunEditInfo : Zone -> Maybe RunEditInfo -> Result Http.Error JsonReadRuns -> Maybe RunEditInfo
 updateRunEditInfo zone runEditInfoRaw responseRaw =
     case responseRaw of
         Ok content ->
@@ -946,34 +1006,35 @@ virtualExperimentTypeAttributoName =
     "experiment_type"
 
 
-updateColumnChooser : Maybe LocalStorage -> ColumnChooser.Model -> RemoteData RequestError RunsResponseContent -> RunsResponse -> ColumnChooser.Model
+updateColumnChooser : Maybe LocalStorage -> ColumnChooser.Model -> RemoteData Http.Error JsonReadRuns -> Result Http.Error JsonReadRuns -> ColumnChooser.Model
 updateColumnChooser localStorage ccm currentRuns runsResponse =
     case ( currentRuns, runsResponse ) of
-        ( _, Ok currentResponseUnpacked ) ->
+        ( _, Ok { attributi } ) ->
             -- Inject "virtual" attributo experiment type here
             let
                 experimentTypeAttributo =
-                    { name = virtualExperimentTypeAttributoName
+                    { id = -1
+                    , name = virtualExperimentTypeAttributoName
                     , description = "Experiment Type"
                     , group = "manual"
                     , associatedTable = AssociatedTable.Run
                     , type_ = String
                     }
             in
-            ColumnChooser.updateAttributi ccm (currentResponseUnpacked.attributi ++ [ experimentTypeAttributo ])
+            ColumnChooser.updateAttributi ccm (List.map convertAttributoFromApi attributi ++ [ experimentTypeAttributo ])
 
         ( _, Err _ ) ->
             ColumnChooser.init localStorage []
 
 
-extractRunDates : RunsResponse -> List RunEventDate
+extractRunDates : Result Http.Error JsonReadRuns -> List RunEventDate
 extractRunDates runDates =
     case runDates of
         Err _ ->
             []
 
-        Ok values ->
-            values.runsDates
+        Ok { filterDates } ->
+            List.map RunEventDate filterDates
 
 
 updateRunDateFilter : RunDateFilterInfo -> RunEventDate -> RunDateFilterInfo
@@ -981,7 +1042,7 @@ updateRunDateFilter runDateFilterInfo runDate =
     { runDateFilterInfo | runDateFilter = specificRunEventDateFilter runDate }
 
 
-withRunsResponse : Model -> (RunsResponseContent -> ( Model, Cmd Msg )) -> ( Model, Cmd Msg )
+withRunsResponse : Model -> (JsonReadRuns -> ( Model, Cmd Msg )) -> ( Model, Cmd Msg )
 withRunsResponse model f =
     case model.runs of
         Success rrc ->
@@ -991,25 +1052,39 @@ withRunsResponse model f =
             ( model, Cmd.none )
 
 
+retrieveRuns : Model -> Cmd Msg
+retrieveRuns model =
+    send RunsReceived
+        (readRunsApiRunsBeamtimeIdGet model.beamtimeId
+            (Maybe.map runEventDateToString <| runEventDateFilter <| model.runDateFilter.runDateFilter)
+            (Just <| runFilterToString model.runFilter.runFilter)
+        )
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ResetDate ->
-            ( { model
-                | runDateFilter = initRunDateFilter
-              }
-            , httpGetRunsFilter model.runFilter.runFilter initRunDateFilter.runDateFilter RunsReceived
+            let
+                newModel =
+                    { model
+                        | runDateFilter = initRunDateFilter
+                    }
+            in
+            ( newModel
+            , retrieveRuns newModel
             )
 
         SetRunDateFilter runDate ->
             let
                 newRunDateFilter =
                     updateRunDateFilter model.runDateFilter runDate
+
+                newModel =
+                    { model | runDateFilter = newRunDateFilter }
             in
-            ( { model
-                | runDateFilter = newRunDateFilter
-              }
-            , httpGetRunsFilter model.runFilter.runFilter newRunDateFilter.runDateFilter RunsReceived
+            ( newModel
+            , retrieveRuns newModel
             )
 
         RunsReceived response ->
@@ -1019,13 +1094,13 @@ update msg model =
                         Err _ ->
                             False
 
-                        Ok { jetStreamFileId } ->
-                            MaybeExtra.isJust jetStreamFileId
+                        Ok { liveStreamFileId } ->
+                            MaybeExtra.isJust liveStreamFileId
 
                 newEventForm =
                     EventForm.updateLiveStream model.eventForm hasLiveStream
 
-                newCurrentExperimentType : Maybe ExperimentType
+                newCurrentExperimentType : Maybe JsonExperimentType
                 newCurrentExperimentType =
                     case response of
                         Ok { experimentTypes, userConfig } ->
@@ -1088,7 +1163,9 @@ update msg model =
                     ( model, Cmd.none )
 
                 _ ->
-                    ( { model | refreshRequest = Loading, now = now }, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
+                    ( { model | refreshRequest = Loading, now = now }
+                    , retrieveRuns model
+                    )
 
         EventFormMsg eventFormMsg ->
             let
@@ -1099,7 +1176,7 @@ update msg model =
             , Cmd.batch
                 [ case eventFormMsg of
                     EventForm.SubmitFinished _ ->
-                        httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
+                        retrieveRuns model
 
                     _ ->
                         Cmd.none
@@ -1108,12 +1185,12 @@ update msg model =
             )
 
         EventDelete eventId ->
-            ( model, httpDeleteEvent EventDeleteFinished eventId )
+            ( model, send EventDeleteFinished (deleteEventApiEventsDelete { id = eventId }) )
 
         EventDeleteFinished result ->
             case result of
                 Ok _ ->
-                    ( model, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
+                    ( model, retrieveRuns model )
 
                 _ ->
                     ( model, Cmd.none )
@@ -1155,34 +1232,35 @@ update msg model =
                 Just runEditInfo ->
                     case convertEditValues model.myTimeZone runEditInfo.editableAttributi of
                         Err errorList ->
-                            ( { model | submitErrors = List.map (\( name, errorMessage ) -> name ++ ": " ++ errorMessage) errorList }, Cmd.none )
+                            ( { model | submitErrors = List.map (\( attributoId, errorMessage ) -> String.fromInt attributoId ++ ": " ++ errorMessage) errorList }, Cmd.none )
 
                         Ok editedAttributi ->
-                            let
-                                run =
-                                    { id = runEditInfo.runId
+                            ( { model | runEditRequest = Loading }
+                            , send RunEditFinished
+                                (updateRunApiRunsPatch
+                                    { beamtimeId = model.beamtimeId
+                                    , id = runInternalIdToInt runEditInfo.runId
                                     , experimentTypeId = runEditInfo.experimentTypeId
-                                    , attributi = editedAttributi
-                                    , summary = emptySummary
-                                    , files = []
-                                    , dataSets = []
-                                    , runningIndexingJobs = []
+                                    , attributi = attributoMapToListOfAttributi editedAttributi
                                     }
-                            in
-                            ( { model | runEditRequest = Loading }, httpUpdateRun RunEditFinished run )
+                                )
+                            )
 
         RunEditFinished result ->
             case result of
                 Err e ->
                     ( { model | runEditRequest = Failure e }, Cmd.none )
 
-                Ok _ ->
+                Ok editRequestResult ->
                     case model.runs of
                         Success _ ->
                             let
                                 resetEditedFlags : RunEditInfo -> RunEditInfo
                                 resetEditedFlags rei =
                                     { runId = rei.runId
+                                    , runExternalId = rei.runExternalId
+                                    , started = rei.started
+                                    , stopped = rei.stopped
                                     , experimentTypeId = rei.experimentTypeId
                                     , editableAttributi =
                                         { originalAttributi = rei.editableAttributi.originalAttributi
@@ -1193,25 +1271,28 @@ update msg model =
                                     , initiatedManually = False
                                     }
                             in
-                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Maybe.map resetEditedFlags model.runEditInfo }
-                            , httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
+                            ( { model | runEditRequest = Success editRequestResult, submitErrors = [], runEditInfo = Maybe.map resetEditedFlags model.runEditInfo }
+                            , retrieveRuns model
                             )
 
                         _ ->
                             -- Super unlikely case, we don't really have a successful runs request, after finishing editing a run?
-                            ( { model | runEditRequest = Success (), submitErrors = [], runEditInfo = Nothing }
-                            , httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
+                            ( { model | runEditRequest = Success editRequestResult, submitErrors = [], runEditInfo = Nothing }
+                            , retrieveRuns model
                             )
 
         RunInitiateEdit run ->
             case model.runs of
-                Success rrc ->
+                Success { attributi } ->
                     ( { model
                         | runEditInfo =
                             Just
-                                { runId = run.id
+                                { runId = RunInternalId run.id
+                                , runExternalId = RunExternalId run.externalId
+                                , started = millisToPosix run.started
+                                , stopped = Maybe.map millisToPosix run.stopped
                                 , experimentTypeId = run.experimentTypeId
-                                , editableAttributi = createEditableAttributi model.myTimeZone rrc.attributi run.attributi
+                                , editableAttributi = createEditableAttributi model.myTimeZone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi run.attributi)
                                 , initiatedManually = True
                                 }
                         , runEditRequest = NotAsked
@@ -1252,22 +1333,52 @@ update msg model =
             ( { model | columnChooser = newColumnChooser }, Cmd.map ColumnChooserMessage cmds )
 
         ChangeAutoPilot newValue ->
-            ( model, httpUserConfigurationSetAutoPilot AutoPilotToggled newValue )
+            ( model
+            , send AutoPilotToggled
+                (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch model.beamtimeId
+                    "auto-pilot"
+                    (if newValue then
+                        "True"
+
+                     else
+                        "False"
+                    )
+                )
+            )
 
         ChangeOnlineCrystFEL newValue ->
-            ( model, httpUserConfigurationSetOnlineCrystFEL OnlineCrystFELToggled newValue )
+            ( model
+            , send OnlineCrystFELToggled
+                (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch model.beamtimeId
+                    "online-crystfel"
+                    (if newValue then
+                        "True"
+
+                     else
+                        "False"
+                    )
+                )
+            )
 
         AutoPilotToggled _ ->
-            ( model, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
+            ( model, retrieveRuns model )
 
         OnlineCrystFELToggled _ ->
-            ( model, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
+            ( model, retrieveRuns model )
 
         CreateDataSetFromRun experimentTypeId runId ->
-            ( { model | dataSetFromRunRequest = Loading }, httpCreateDataSetFromRun CreateDataSetFromRunFinished experimentTypeId runId )
+            ( { model | dataSetFromRunRequest = Loading }
+            , send CreateDataSetFromRunFinished
+                (createDataSetFromRunApiDataSetsFromRunPost
+                    { beamtimeId = model.beamtimeId
+                    , experimentTypeId = experimentTypeId
+                    , runInternalId = runInternalIdToInt runId
+                    }
+                )
+            )
 
         CreateDataSetFromRunFinished result ->
-            ( { model | dataSetFromRunRequest = fromResult result }, httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived )
+            ( { model | dataSetFromRunRequest = fromResult result }, retrieveRuns model )
 
         ChangeCurrentExperimentType ->
             case model.runEditInfo of
@@ -1276,9 +1387,14 @@ update msg model =
 
                 Just ei ->
                     ( { model | changeExperimentTypeRequest = Loading }
-                    , httpChangeCurrentExperimentTypeForRun (ChangeCurrentExperimentTypeFinished (Maybe.map .id model.selectedExperimentType))
-                        (Maybe.map .id model.selectedExperimentType)
-                        ei.runId
+                    , send
+                        (ChangeCurrentExperimentTypeFinished (Maybe.map .id model.selectedExperimentType))
+                        (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost
+                            { beamtimeId = model.beamtimeId
+                            , experimentTypeId = Maybe.map .id model.selectedExperimentType
+                            , runInternalId = runInternalIdToInt ei.runId
+                            }
+                        )
                     )
 
         ChangeCurrentExperimentTypeFinished selectedExperimentType result ->
@@ -1288,13 +1404,13 @@ update msg model =
                         | changeExperimentTypeRequest = fromResult result
                         , currentExperimentType = ListExtra.find (\et -> Just et.id == selectedExperimentType) response.experimentTypes
                       }
-                    , httpGetRunsFilter model.runFilter.runFilter model.runDateFilter.runDateFilter RunsReceived
+                    , retrieveRuns model
                     )
 
         RunFilterSubMsg runFilterMsg ->
             let
                 ( newRunFilter, cmds ) =
-                    updateRunFilter model.runFilter runFilterMsg
+                    updateRunFilter model.beamtimeId model.runFilter runFilterMsg
 
                 newModel =
                     { model | runFilter = newRunFilter }

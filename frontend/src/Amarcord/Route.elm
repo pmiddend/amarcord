@@ -1,20 +1,63 @@
 module Amarcord.Route exposing (..)
 
+import Amarcord.API.Requests exposing (BeamtimeId, beamtimeIdToString)
 import Url
-import Url.Parser exposing (Parser, map, oneOf, parse, s, top)
+import Url.Parser exposing ((</>), Parser, int, map, oneOf, parse, s, top)
 
 
 type Route
-    = Root
-    | Chemicals
-    | DataSets
-    | Schedule
-    | ExperimentTypes
-    | RunOverview
-    | Attributi
-    | AdvancedControls
-    | Analysis
-    | RunAnalysis
+    = BeamtimeSelection
+    | Root BeamtimeId
+    | Chemicals BeamtimeId
+    | DataSets BeamtimeId
+    | Schedule BeamtimeId
+    | ExperimentTypes BeamtimeId
+    | RunOverview BeamtimeId
+    | Attributi BeamtimeId
+    | AdvancedControls BeamtimeId
+    | Analysis BeamtimeId
+    | RunAnalysis BeamtimeId
+    | EventLog BeamtimeId
+
+
+beamtimeIdInRoute : Route -> Maybe BeamtimeId
+beamtimeIdInRoute x =
+    case x of
+        BeamtimeSelection ->
+            Nothing
+
+        Root btid ->
+            Just btid
+
+        Chemicals btid ->
+            Just btid
+
+        DataSets btid ->
+            Just btid
+
+        Schedule btid ->
+            Just btid
+
+        ExperimentTypes btid ->
+            Just btid
+
+        RunOverview btid ->
+            Just btid
+
+        Attributi btid ->
+            Just btid
+
+        AdvancedControls btid ->
+            Just btid
+
+        Analysis btid ->
+            Just btid
+
+        RunAnalysis btid ->
+            Just btid
+
+        EventLog btid ->
+            Just btid
 
 
 
@@ -36,7 +79,7 @@ parseUrlFragment url =
             parseUrl subUrl
 
         Nothing ->
-            Root
+            BeamtimeSelection
 
 
 parseUrl : Url.Url -> Route
@@ -46,7 +89,7 @@ parseUrl url =
             route
 
         Nothing ->
-            Root
+            BeamtimeSelection
 
 
 routePrefix : String
@@ -57,35 +100,41 @@ routePrefix =
 makeLink : Route -> String
 makeLink x =
     case x of
-        Root ->
+        BeamtimeSelection ->
             routePrefix ++ "/"
 
-        Attributi ->
-            routePrefix ++ "/attributi"
+        Root beamtimeId ->
+            routePrefix ++ "/" ++ beamtimeIdToString beamtimeId
 
-        RunOverview ->
-            routePrefix ++ "/runoverview"
+        Attributi beamtimeId ->
+            routePrefix ++ "/attributi/" ++ beamtimeIdToString beamtimeId
 
-        AdvancedControls ->
-            routePrefix ++ "/advancedcontrols"
+        RunOverview beamtimeId ->
+            routePrefix ++ "/runoverview/" ++ beamtimeIdToString beamtimeId
 
-        Chemicals ->
-            routePrefix ++ "/chemicals"
+        AdvancedControls beamtimeId ->
+            routePrefix ++ "/advancedcontrols/" ++ beamtimeIdToString beamtimeId
 
-        Analysis ->
-            routePrefix ++ "/analysis"
+        Chemicals beamtimeId ->
+            routePrefix ++ "/chemicals/" ++ beamtimeIdToString beamtimeId
 
-        RunAnalysis ->
-            routePrefix ++ "/runanalysis"
+        Analysis beamtimeId ->
+            routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
 
-        DataSets ->
-            routePrefix ++ "/datasets"
+        RunAnalysis beamtimeId ->
+            routePrefix ++ "/runanalysis/" ++ beamtimeIdToString beamtimeId
 
-        ExperimentTypes ->
-            routePrefix ++ "/experimenttypes"
+        DataSets beamtimeId ->
+            routePrefix ++ "/datasets/" ++ beamtimeIdToString beamtimeId
 
-        Schedule ->
-            routePrefix ++ "/schedule"
+        ExperimentTypes beamtimeId ->
+            routePrefix ++ "/experimenttypes/" ++ beamtimeIdToString beamtimeId
+
+        Schedule beamtimeId ->
+            routePrefix ++ "/schedule/" ++ beamtimeIdToString beamtimeId
+
+        EventLog beamtimeId ->
+            routePrefix ++ "/event-log/" ++ beamtimeIdToString beamtimeId
 
 
 makeFilesLink : Int -> String
@@ -96,14 +145,17 @@ makeFilesLink id =
 matchRoute : Parser (Route -> a) a
 matchRoute =
     oneOf
-        [ map Root top
-        , map Attributi (s "attributi")
-        , map Chemicals (s "chemicals")
-        , map RunOverview (s "runoverview")
-        , map Schedule (s "schedule")
-        , map AdvancedControls (s "advancedcontrols")
-        , map Analysis (s "analysis")
-        , map RunAnalysis (s "runanalysis")
-        , map DataSets (s "datasets")
-        , map ExperimentTypes (s "experimenttypes")
+        [ map BeamtimeSelection top
+
+        -- , map Root int
+        , map Attributi (s "attributi" </> int)
+        , map Chemicals (s "chemicals" </> int)
+        , map RunOverview (s "runoverview" </> int)
+        , map Schedule (s "schedule" </> int)
+        , map EventLog (s "event-log" </> int)
+        , map AdvancedControls (s "advancedcontrols" </> int)
+        , map Analysis (s "analysis" </> int)
+        , map RunAnalysis (s "runanalysis" </> int)
+        , map DataSets (s "datasets" </> int)
+        , map ExperimentTypes (s "experimenttypes" </> int)
         ]
