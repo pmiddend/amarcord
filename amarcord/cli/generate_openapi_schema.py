@@ -4,7 +4,7 @@ from fastapi.openapi.utils import get_openapi
 
 from amarcord.cli.webserver import app
 
-schema = get_openapi(version="2.5.0", routes=app.routes, title="AMARCORD OpenAPI")
+schema = get_openapi(version="2.5.0", routes=app.routes, title="AMARCORD OpenAPI", openapi_version="3.0.3")
 
 # The openapi-generator-cli doesn't support version 3.1 which FastAPI
 # generates (as of August 2023), and generates bogus Elm output
