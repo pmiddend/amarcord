@@ -750,7 +750,7 @@ class JsonReadBeamtime(BaseModel):
     beamtimes: list[JsonBeamtime]
 
 
-@app.get("/api/beamtimes", tags=["beamtimes"])
+@app.get("/api/beamtimes", tags=["beamtimes"], response_model_exclude_defaults=True)
 async def read_beamtimes(db: AsyncDB = Depends(get_db)) -> JsonReadBeamtime:
     async with db.read_only_connection() as conn:
         return JsonReadBeamtime(
@@ -758,7 +758,7 @@ async def read_beamtimes(db: AsyncDB = Depends(get_db)) -> JsonReadBeamtime:
         )
 
 
-@app.get("/api/beamtimes/{beamtimeId}", tags=["beamtimes"])
+@app.get("/api/beamtimes/{beamtimeId}", tags=["beamtimes"], response_model_exclude_defaults=True)
 async def read_beamtime(beamtimeId: int, db: AsyncDB = Depends(get_db)) -> JsonBeamtime:
     async with db.read_only_connection() as conn:
         return _encode_beamtime(
@@ -791,7 +791,7 @@ def _encode_attributo(a: DBAttributo) -> JsonAttributo:
     )
 
 
-@app.get("/api/chemicals/{beamtimeId}", tags=["chemicals"])
+@app.get("/api/chemicals/{beamtimeId}", tags=["chemicals"], response_model_exclude_defaults=True)
 async def read_chemicals(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadChemicals:
@@ -827,7 +827,7 @@ class JsonIndexingJobUpdateOutput(BaseModel):
     result: bool
 
 
-@app.post("/api/indexing/{indexingResultId}", tags=["analysis", "processing"])
+@app.post("/api/indexing/{indexingResultId}", tags=["analysis", "processing"], response_model_exclude_defaults=True)
 async def indexing_job_update(
     indexingResultId: int,
     json_result: JsonIndexingResultRootJson,
@@ -940,7 +940,7 @@ async def _safe_create_new_event(
         this_logger.exception("error writing event log")
 
 
-@app.post("/api/merging/{mergeResultId}", tags=["merging"])
+@app.post("/api/merging/{mergeResultId}", tags=["merging"], response_model_exclude_defaults=True)
 async def merge_job_finished(
     mergeResultId: int,
     json_merge_result: JsonMergeResultRootJson,
@@ -1079,7 +1079,7 @@ class JsonStartMergeJobForDataSetOutput(BaseModel):
     merge_result_id: int
 
 
-@app.post("/api/merging/{dataSetId}/start", tags=["merging"])
+@app.post("/api/merging/{dataSetId}/start", tags=["merging"], response_model_exclude_defaults=True)
 async def start_merge_job_for_data_set(
     dataSetId: int,
     input_: JsonStartMergeJobForDataSetInput,
@@ -1231,7 +1231,7 @@ class JsonStartRunOutput(BaseModel):
     run_internal_id: int
 
 
-@app.get("/api/runs/{runExternalId}/start/{beamtimeId}", tags=["runs"])
+@app.get("/api/runs/{runExternalId}/start/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True)
 async def start_run(
     runExternalId: RunExternalId,
     beamtimeId: BeamtimeId,
@@ -1267,7 +1267,7 @@ class JsonStopRunOutput(BaseModel):
     result: bool
 
 
-@app.get("/api/runs/stop-latest/{beamtimeId}", tags=["runs"])
+@app.get("/api/runs/stop-latest/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True)
 async def stop_latest_run(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonStopRunOutput:
@@ -1303,7 +1303,7 @@ class JsonCreateOrUpdateRunOutput(BaseModel):
     run_internal_id: None | int
 
 
-@app.post("/api/runs/{runExternalId}", tags=["runs"])
+@app.post("/api/runs/{runExternalId}", tags=["runs"], response_model_exclude_defaults=True)
 async def create_or_update_run(
     runExternalId: RunExternalId,
     input_: JsonCreateOrUpdateRun,
@@ -1548,7 +1548,7 @@ class JsonUpdateRunOutput(BaseModel):
     result: bool
 
 
-@app.patch("/api/runs", tags=["runs"])
+@app.patch("/api/runs", tags=["runs"], response_model_exclude_defaults=True)
 async def update_run(
     input_: JsonUpdateRun, db: AsyncDB = Depends(get_db)
 ) -> JsonUpdateRunOutput:
@@ -1627,7 +1627,7 @@ class JsonReadRunsBulkOutput(BaseModel):
     experiment_type_ids: list[int]
 
 
-@app.post("/api/runs-bulk", tags=["runs"])
+@app.post("/api/runs-bulk", tags=["runs"], response_model_exclude_defaults=True)
 async def read_runs_bulk(
     input_: JsonReadRunsBulkInput, db: AsyncDB = Depends(get_db)
 ) -> JsonReadRunsBulkOutput:
@@ -1699,7 +1699,7 @@ class JsonUpdateRunsBulkOutput(BaseModel):
     result: bool
 
 
-@app.patch("/api/runs-bulk", tags=["runs"])
+@app.patch("/api/runs-bulk", tags=["runs"], response_model_exclude_defaults=True)
 async def update_runs_bulk(
     input_: JsonUpdateRunsBulkInput, db: AsyncDB = Depends(get_db)
 ) -> JsonUpdateRunsBulkOutput:
@@ -1799,7 +1799,7 @@ class JsonReadRunAnalysis(BaseModel):
     indexing_results_by_run_id: list[JsonRunAnalysisIndexingResult]
 
 
-@app.get("/api/run-analysis/{beamtimeId}", tags=["analysis"])
+@app.get("/api/run-analysis/{beamtimeId}", tags=["analysis"], response_model_exclude_defaults=True)
 async def read_run_analysis(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadRunAnalysis:
@@ -1939,7 +1939,7 @@ def _encode_data_set(a: DBDataSet, summary: DBIndexingFOM | None) -> JsonDataSet
     )
 
 
-@app.get("/api/runs/{beamtimeId}", tags=["runs"])
+@app.get("/api/runs/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True)
 async def read_runs(
     beamtimeId: BeamtimeId,
     date: None | str = None,
@@ -2065,7 +2065,7 @@ class JsonCreateFileOutput(BaseModel):
     original_path: None | str
 
 
-@app.post("/api/files", tags=["files"])
+@app.post("/api/files", tags=["files"], response_model_exclude_defaults=True)
 async def create_file(
     file: UploadFile, description: Annotated[str, Form()], db: AsyncDB = Depends(get_db)
 ) -> JsonCreateFileOutput:
@@ -2105,6 +2105,7 @@ async def create_file(
     It doesn't need a multipart request and the file extension can be set using the path parameter (which is used to generate nice
     .mtz and .pdb download URLs).
     """,
+    response_model_exclude_defaults=True
 )
 async def create_file_simple(
     extension: str, request: Request, db: AsyncDB = Depends(get_db)
@@ -2143,7 +2144,7 @@ class JsonUserConfigurationSingleOutput(BaseModel):
     value_int: None | int
 
 
-@app.get("/api/user-config/{beamtimeId}/{key}", tags=["config"])
+@app.get("/api/user-config/{beamtimeId}/{key}", tags=["config"], response_model_exclude_defaults=True)
 async def read_user_configuration_single(
     beamtimeId: BeamtimeId, key: str, db: AsyncDB = Depends(get_db)
 ) -> JsonUserConfigurationSingleOutput:
@@ -2167,7 +2168,7 @@ async def read_user_configuration_single(
         )
 
 
-@app.patch("/api/user-config/{beamtimeId}/{key}/{value}", tags=["config"])
+@app.patch("/api/user-config/{beamtimeId}/{key}/{value}", tags=["config"], response_model_exclude_defaults=True)
 async def update_user_configuration_single(
     beamtimeId: BeamtimeId, key: str, value: str, db: AsyncDB = Depends(get_db)
 ) -> JsonUserConfigurationSingleOutput:
@@ -2232,7 +2233,7 @@ class JsonCreateExperimentTypeOutput(BaseModel):
     id: int
 
 
-@app.post("/api/experiment-types", tags=["experimenttypes"])
+@app.post("/api/experiment-types", tags=["experimenttypes"], response_model_exclude_defaults=True)
 async def create_experiment_type(
     input_: JsonCreateExperimentTypeInput, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateExperimentTypeOutput:
@@ -2260,7 +2261,7 @@ class JsonChangeRunExperimentTypeOutput(BaseModel):
     result: bool
 
 
-@app.post("/api/experiment-types/change-for-run", tags=["experimenttypes"])
+@app.post("/api/experiment-types/change-for-run", tags=["experimenttypes"], response_model_exclude_defaults=True)
 async def change_current_run_experiment_type(
     input_: JsonChangeRunExperimentType, db: AsyncDB = Depends(get_db)
 ) -> JsonChangeRunExperimentTypeOutput:
@@ -2328,7 +2329,7 @@ class JsonReadExperimentTypes(BaseModel):
     experiment_type_id_to_run: list[JsonExperimentTypeAndRuns]
 
 
-@app.get("/api/experiment-types/{beamtimeId}", tags=["experimenttypes"])
+@app.get("/api/experiment-types/{beamtimeId}", tags=["experimenttypes"], response_model_exclude_defaults=True)
 async def read_experiment_types(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadExperimentTypes:
@@ -2387,7 +2388,7 @@ class JsonBeamtimeSchedule(BaseModel):
     schedule: list[JsonBeamtimeScheduleRow]
 
 
-@app.get("/api/schedule/{beamtimeId}", tags=["schedule"])
+@app.get("/api/schedule/{beamtimeId}", tags=["schedule"], response_model_exclude_defaults=True)
 async def get_beamtime_schedule(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonBeamtimeSchedule:
@@ -2417,7 +2418,7 @@ class JsonBeamtimeScheduleOutput(BaseModel):
     schedule: list[JsonBeamtimeScheduleRow]
 
 
-@app.post("/api/schedule", tags=["schedule"])
+@app.post("/api/schedule", tags=["schedule"], response_model_exclude_defaults=True)
 async def update_beamtime_schedule(
     input_: JsonUpdateBeamtimeScheduleInput, db: AsyncDB = Depends(get_db)
 ) -> JsonBeamtimeScheduleOutput:
@@ -2465,7 +2466,7 @@ class JsonCreateLiveStreamSnapshotOutput(BaseModel):
     original_path: None | str
 
 
-@app.get("/api/live-stream/snapshot/{beamtimeId}", tags=["events"])
+@app.get("/api/live-stream/snapshot/{beamtimeId}", tags=["events"], response_model_exclude_defaults=True)
 async def create_live_stream_snapshot(
     beamtimeId: int, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateLiveStreamSnapshotOutput:
@@ -2492,7 +2493,7 @@ class JsonUpdateLiveStream(BaseModel):
     id: int
 
 
-@app.post("/api/live-stream/{beamtimeId}")
+@app.post("/api/live-stream/{beamtimeId}", response_model_exclude_defaults=True)
 async def update_live_stream(
     file: UploadFile, beamtimeId: int, db: AsyncDB = Depends(get_db)
 ) -> JsonUpdateLiveStream:
@@ -2540,7 +2541,7 @@ class JsonCreateDataSetFromRunOutput(BaseModel):
     data_set_id: int
 
 
-@app.post("/api/data-sets/from-run", tags=["datasets"])
+@app.post("/api/data-sets/from-run", tags=["datasets"], response_model_exclude_defaults=True)
 async def create_data_set_from_run(
     input_: JsonCreateDataSetFromRun, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateDataSetFromRunOutput:
@@ -2624,7 +2625,7 @@ class JsonCreateDataSetOutput(BaseModel):
     id: int
 
 
-@app.post("/api/data-sets", tags=["datasets"])
+@app.post("/api/data-sets", tags=["datasets"], response_model_exclude_defaults=True)
 async def create_data_set(
     input_: JsonCreateDataSetInput, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateDataSetOutput:
@@ -2704,7 +2705,7 @@ class JsonReadDataSets(BaseModel):
     experiment_types: list[JsonExperimentType]
 
 
-@app.get("/api/data-sets/{beamtimeId}", tags=["datasets"])
+@app.get("/api/data-sets/{beamtimeId}", tags=["datasets"], response_model_exclude_defaults=True)
 async def read_data_sets(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadDataSets:
@@ -2737,7 +2738,7 @@ class JsonDeleteDataSetOutput(BaseModel):
     result: bool
 
 
-@app.delete("/api/data-sets", tags=["datasets"])
+@app.delete("/api/data-sets", tags=["datasets"], response_model_exclude_defaults=True)
 async def delete_data_set(
     input_: JsonDeleteDataSetInput, db: AsyncDB = Depends(get_db)
 ) -> JsonDeleteDataSetOutput:
@@ -2755,7 +2756,7 @@ class JsonDeleteEventOutput(BaseModel):
     result: bool
 
 
-@app.delete("/api/events", tags=["events"])
+@app.delete("/api/events", tags=["events"], response_model_exclude_defaults=True)
 async def delete_event(
     input_: JsonDeleteEventInput, db: AsyncDB = Depends(get_db)
 ) -> JsonDeleteEventOutput:
@@ -2769,7 +2770,7 @@ class JsonReadEvents(BaseModel):
     events: list[JsonEvent]
 
 
-@app.get("/api/events/{beamtimeId}", tags=["events"])
+@app.get("/api/events/{beamtimeId}", tags=["events"], response_model_exclude_defaults=True)
 async def read_events(
     beamtimeId: BeamtimeId,
     db: AsyncDB = Depends(get_db),
@@ -2791,7 +2792,7 @@ class JsonDeleteFileOutput(BaseModel):
     id: int
 
 
-@app.delete("/api/files", tags=["files"])
+@app.delete("/api/files", tags=["files"], response_model_exclude_defaults=True)
 async def delete_file(
     input_: JsonDeleteFileInput, db: AsyncDB = Depends(get_db)
 ) -> JsonDeleteFileOutput:
@@ -2816,7 +2817,7 @@ class JsonCreateAttributiFromSchemaOutput(BaseModel):
     created_attributi: int
 
 
-@app.post("/api/attributi/schema", tags=["attributi"])
+@app.post("/api/attributi/schema", tags=["attributi"], response_model_exclude_defaults=True)
 async def create_attributi_from_schema(
     input_: JsonCreateAttributiFromSchemaInput, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateAttributiFromSchemaOutput:
@@ -2854,7 +2855,7 @@ class JsonCreateAttributoOutput(BaseModel):
     id: int
 
 
-@app.post("/api/attributi", tags=["attributi"])
+@app.post("/api/attributi", tags=["attributi"], response_model_exclude_defaults=True)
 async def create_attributo(
     input_: JsonCreateAttributoInput, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateAttributoOutput:
@@ -2886,7 +2887,7 @@ class JsonUpdateAttributoOutput(BaseModel):
     id: int
 
 
-@app.patch("/api/attributi", tags=["attributi"])
+@app.patch("/api/attributi", tags=["attributi"], response_model_exclude_defaults=True)
 async def update_attributo(
     input_: JsonUpdateAttributoInput, db: AsyncDB = Depends(get_db)
 ) -> JsonUpdateAttributoOutput:
@@ -2925,7 +2926,7 @@ class JsonCheckStandardUnitOutput(BaseModel):
     normalized: None | str
 
 
-@app.post("/api/unit")
+@app.post("/api/unit", response_model_exclude_defaults=True)
 async def check_standard_unit(
     input_: JsonCheckStandardUnitInput,
 ) -> JsonCheckStandardUnitOutput:
@@ -2954,7 +2955,7 @@ class JsonDeleteAttributoOutput(BaseModel):
     id: int
 
 
-@app.delete("/api/attributi", tags=["attributi"])
+@app.delete("/api/attributi", tags=["attributi"], response_model_exclude_defaults=True)
 async def delete_attributo(
     input_: JsonDeleteAttributoInput, db: AsyncDB = Depends(get_db)
 ) -> JsonDeleteAttributoOutput:
@@ -3004,7 +3005,7 @@ class JsonReadAttributi(BaseModel):
     attributi: list[JsonAttributo]
 
 
-@app.get("/api/attributi/{beamtimeId}", tags=["attributi"])
+@app.get("/api/attributi/{beamtimeId}", tags=["attributi"], response_model_exclude_defaults=True)
 async def read_attributi(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadAttributi:
@@ -3038,7 +3039,7 @@ class JsonReadAnalysisResults(BaseModel):
     data_sets: list[JsonAnalysisExperimentType]
 
 
-@app.get("/api/analysis/analysis-results/{beamtimeId}", tags=["analysis"])
+@app.get("/api/analysis/analysis-results/{beamtimeId}", tags=["analysis"], response_model_exclude_defaults=True)
 async def read_analysis_results(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadAnalysisResults:
