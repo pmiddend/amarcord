@@ -4,6 +4,7 @@ from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import attributo_type_to_string
 from amarcord.db.attributi import attributo_types_semantically_equivalent
 from amarcord.db.attributi import coparse_schema_type
+from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -83,7 +84,9 @@ def test_attributo_type_to_string_list() -> None:
     assert (
         attributo_type_to_string(
             AttributoTypeList(
-                sub_type=AttributoTypeString(), min_length=None, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_STRING,
+                min_length=None,
+                max_length=None,
             )
         )
         == "list of string"

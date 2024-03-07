@@ -10,6 +10,7 @@ from amarcord.db.attributi import convert_attributo_value
 from amarcord.db.attributi import datetime_from_attributo_int
 from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -81,10 +82,17 @@ def _check_type(id_: int, type_: AttributoType, value: AttributoValue) -> None:
             type_.max_length is None or len(value) <= type_.max_length
         ), f'attributo "{id_}": list max length is {type_.min_length}, got {len(value)} element(s)'
 
-        for i, v in enumerate(value):
-            _check_type(f"{id_}[{i}]", type_.sub_type, v)  # type: ignore
+        for v in value:
+            if type_.sub_type == ArrayAttributoType.ARRAY_STRING:
+                assert isinstance(v, str)
+            elif type_.sub_type == ArrayAttributoType.ARRAY_BOOL:
+                assert isinstance(v, bool)
+            else:
+                assert isinstance(v, (int, float))
     else:
-        assert isinstance(type_, AttributoTypeDateTime)
+        assert isinstance(
+            type_, AttributoTypeDateTime
+        ), f'expected "{value}" to be of datetime, is {type(value)}'
         assert isinstance(
             value, datetime.datetime
         ), f'attributo "{id_}": expected type datetime but got value {value}'
@@ -204,12 +212,24 @@ def _convert_single_attributo_value_from_json_with_type(
         raise ValueError(
             f"attributo {i}: the list needs at least {max_len} element(s), got {lv} element(s)"
         )
-    return [  # type: ignore
-        _convert_single_attributo_value_from_json_with_type(
-            i, sub_value, attributo_type.sub_type
-        )
-        for sub_value in v
-    ]
+    if attributo_type.sub_type == ArrayAttributoType.ARRAY_STRING:
+        str_list: list[str] = []
+        for sub_value in v:
+            assert isinstance(sub_value, str)
+            str_list.append(sub_value)
+        return str_list
+    if attributo_type.sub_type == ArrayAttributoType.ARRAY_BOOL:
+        bool_list: list[bool] = []
+        for sub_value in v:
+            assert isinstance(sub_value, bool)
+            bool_list.append(sub_value)
+        return bool_list
+    assert attributo_type.sub_type == ArrayAttributoType.ARRAY_NUMBER
+    number_list: list[float] = []
+    for sub_value in v:
+        assert isinstance(sub_value, (int, float))
+        number_list.append(sub_value)
+    return number_list
 
 
 def convert_single_attributo_value_to_json(value: AttributoValue) -> JSONValue:

@@ -211,7 +211,7 @@ def cell_description_attributo_id(client: TestClient, beamtime_id: int) -> int:
         description="description",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.CHEMICAL,
-        attributo_type=JSONSchemaString(type="string", enum=None),
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
         beamtime_id=beamtime_id,
     ).dict()
     response = JsonCreateAttributoOutput(
@@ -231,7 +231,7 @@ def point_group_attributo_id(client: TestClient, beamtime_id: int) -> int:
         description="description",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.CHEMICAL,
-        attributo_type=JSONSchemaString(type="string", enum=None),
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
         beamtime_id=beamtime_id,
     ).dict()
     response_json = client.post(
@@ -249,7 +249,7 @@ def run_string_attributo_id(client: TestClient, beamtime_id: int) -> int:
         description="",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.RUN,
-        attributo_type=JSONSchemaString(type="string", enum=None),
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
         beamtime_id=beamtime_id,
     ).dict()
     response = JsonCreateAttributoOutput(
@@ -269,7 +269,7 @@ def run_int_attributo_id(client: TestClient, beamtime_id: int) -> int:
         description="",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.RUN,
-        attributo_type=JSONSchemaInteger(type="integer", format=None),
+        attributo_type_integer=JSONSchemaInteger(type="integer", format=None),
         beamtime_id=beamtime_id,
     ).dict()
     response = JsonCreateAttributoOutput(
@@ -289,7 +289,7 @@ def run_channel_1_chemical_attributo_id(client: TestClient, beamtime_id: int) ->
         description="",
         group=ATTRIBUTO_GROUP_MANUAL,
         associated_table=AssociatedTable.RUN,
-        attributo_type=JSONSchemaInteger(type="integer", format="chemical-id"),
+        attributo_type_integer=JSONSchemaInteger(type="integer", format="chemical-id"),
         beamtime_id=beamtime_id,
     ).dict()
     response = JsonCreateAttributoOutput(
@@ -522,7 +522,7 @@ def test_chemical_string_attributo_creation_works(
         description="description",
         group="manual",
         name="cell description",
-        attributo_type=JSONSchemaString(type="string", enum=None),
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
     )
 
 
@@ -543,7 +543,7 @@ def test_chemical_string_attributo_creation_works_in_presence_of_second_beamtime
         description="description",
         group="manual",
         name="cell description",
-        attributo_type=JSONSchemaString(type="string", enum=None),
+        attributo_type_string=JSONSchemaString(type="string", enum=None),
     )
 
     # Second beamtime shouldn't have attributi
@@ -2040,7 +2040,7 @@ def test_update_attributo(client: TestClient, beamtime_id: int) -> None:
                 description="description",
                 group=ATTRIBUTO_GROUP_MANUAL,
                 associated_table=AssociatedTable.CHEMICAL,
-                attributo_type=JSONSchemaString(type="string", enum=None),
+                attributo_type_string=JSONSchemaString(type="string", enum=None),
                 beamtime_id=beamtime_id,
             ).dict(),
         ).json()
@@ -2076,7 +2076,7 @@ def test_update_attributo(client: TestClient, beamtime_id: int) -> None:
         group="new group",
         associated_table=AssociatedTable.CHEMICAL,
         # even change the type to int here
-        attributo_type=JSONSchemaInteger(type="integer", format=None),
+        attributo_type_integer=JSONSchemaInteger(type="integer", format=None),
     )
 
     attributo_update_response = JsonUpdateAttributoOutput(
@@ -2116,7 +2116,7 @@ def test_delete_attributo(client: TestClient, beamtime_id: int) -> None:
                 description="description",
                 group=ATTRIBUTO_GROUP_MANUAL,
                 associated_table=AssociatedTable.CHEMICAL,
-                attributo_type=JSONSchemaString(type="string", enum=None),
+                attributo_type_string=JSONSchemaString(type="string", enum=None),
                 beamtime_id=beamtime_id,
             ).dict(),
         ).json()

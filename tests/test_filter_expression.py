@@ -6,6 +6,7 @@ import pytest
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -116,7 +117,9 @@ from amarcord.filter_expression import compile_run_filter
             1,
             {
                 "foo": AttributoTypeList(
-                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                    sub_type=ArrayAttributoType.ARRAY_STRING,
+                    min_length=None,
+                    max_length=None,
                 )
             },
             {"foo": ["x", "a"]},
@@ -127,7 +130,9 @@ from amarcord.filter_expression import compile_run_filter
             1,
             {
                 "foo": AttributoTypeList(
-                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                    sub_type=ArrayAttributoType.ARRAY_STRING,
+                    min_length=None,
+                    max_length=None,
                 )
             },
             {"foo": ["x", "a"]},

@@ -2,7 +2,7 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.async_dbcontext import Connection
 from amarcord.db.asyncdb import AsyncDB
 from amarcord.db.attributi import attributo_types_semantically_equivalent
-from amarcord.db.attributi import schema_to_attributo_type
+from amarcord.db.attributi import schema_union_to_attributo_type
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.json_schema import JSONSchemaUnion
@@ -23,7 +23,7 @@ async def ingest_run_attributi_schema(
         attributo_description,
         attributo_schema,
     ) in attributi_schema.items():
-        attributo_type = schema_to_attributo_type(attributo_schema)
+        attributo_type = schema_union_to_attributo_type(attributo_schema)
 
         existing_attributo = preexisting_attributi_dict.get(attributo_name)
         if existing_attributo is None:

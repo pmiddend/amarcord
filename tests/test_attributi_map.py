@@ -10,6 +10,7 @@ from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributi_map import decimal_attributi_match
 from amarcord.db.attributi_map import run_matches_dataset
 from amarcord.db.attributo_id import AttributoId
+from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -93,7 +94,9 @@ def test_attributi_map_equality_check() -> None:
         [
             _create_attributo(
                 AttributoTypeList(
-                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                    sub_type=ArrayAttributoType.ARRAY_STRING,
+                    min_length=None,
+                    max_length=None,
                 )
             )
         ],
@@ -103,7 +106,9 @@ def test_attributi_map_equality_check() -> None:
         [
             _create_attributo(
                 AttributoTypeList(
-                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                    sub_type=ArrayAttributoType.ARRAY_STRING,
+                    min_length=None,
+                    max_length=None,
                 )
             )
         ],
@@ -118,7 +123,9 @@ def test_attributi_map_valid_list_value() -> None:
         [
             _create_attributo(
                 AttributoTypeList(
-                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                    sub_type=ArrayAttributoType.ARRAY_STRING,
+                    min_length=None,
+                    max_length=None,
                 )
             )
         ],
@@ -133,7 +140,9 @@ def test_attributi_map_to_json_with_list() -> None:
         [
             _create_attributo(
                 AttributoTypeList(
-                    sub_type=AttributoTypeString(), min_length=None, max_length=None
+                    sub_type=ArrayAttributoType.ARRAY_STRING,
+                    min_length=None,
+                    max_length=None,
                 )
             )
         ],
@@ -149,7 +158,9 @@ def test_attributi_map_invalid_list_length_too_big() -> None:
             [
                 _create_attributo(
                     AttributoTypeList(
-                        sub_type=AttributoTypeString(), min_length=None, max_length=2
+                        sub_type=ArrayAttributoType.ARRAY_STRING,
+                        min_length=None,
+                        max_length=2,
                     )
                 )
             ],
@@ -163,7 +174,9 @@ def test_attributi_map_invalid_list_length_too_small() -> None:
             [
                 _create_attributo(
                     AttributoTypeList(
-                        sub_type=AttributoTypeString(), min_length=2, max_length=None
+                        sub_type=ArrayAttributoType.ARRAY_STRING,
+                        min_length=2,
+                        max_length=None,
                     )
                 )
             ],
@@ -177,7 +190,9 @@ def test_attributi_map_invalid_list_value() -> None:
             [
                 _create_attributo(
                     AttributoTypeList(
-                        sub_type=AttributoTypeString(), min_length=None, max_length=None
+                        sub_type=ArrayAttributoType.ARRAY_STRING,
+                        min_length=None,
+                        max_length=None,
                     )
                 )
             ],
@@ -336,7 +351,7 @@ def test_check_attributo_types_when_extending_list() -> None:
         [
             _create_attributo(
                 AttributoTypeList(
-                    sub_type=AttributoTypeString(), min_length=1, max_length=2
+                    sub_type=ArrayAttributoType.ARRAY_STRING, min_length=1, max_length=2
                 )
             )
         ],

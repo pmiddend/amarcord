@@ -8,6 +8,7 @@ from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi import convert_attributo_value
 from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import datetime_to_attributo_string
+from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeChoice
@@ -94,7 +95,7 @@ def test_attributo_int_to_list() -> None:
     assert convert_attributo_value(
         AttributoTypeInt(),
         AttributoTypeList(
-            sub_type=AttributoTypeInt(), min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
         ),
         _default_flags,
         1,
@@ -105,18 +106,7 @@ def test_attributo_int_to_list() -> None:
         convert_attributo_value(
             AttributoTypeInt(),
             AttributoTypeList(
-                sub_type=AttributoTypeInt(), min_length=2, max_length=None
-            ),
-            _default_flags,
-            1,
-        )
-
-    # then to a list of a wrong element type
-    with pytest.raises(Exception):
-        convert_attributo_value(
-            AttributoTypeInt(),
-            AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=None
             ),
             _default_flags,
             1,
@@ -127,10 +117,10 @@ def test_attributo_list_to_list() -> None:
     # first, test without length restrictions and the same contained types
     assert convert_attributo_value(
         AttributoTypeList(
-            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
         ),
         AttributoTypeList(
-            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
         ),
         _default_flags,
         [1, 2, 3],
@@ -138,9 +128,11 @@ def test_attributo_list_to_list() -> None:
 
     # now test with loser length constraints
     assert convert_attributo_value(
-        AttributoTypeList(sub_type=AttributoTypeDecimal(), min_length=5, max_length=10),
         AttributoTypeList(
-            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=5, max_length=10
+        ),
+        AttributoTypeList(
+            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
         ),
         _default_flags,
         [1, 2, 3, 4, 5, 6],
@@ -151,10 +143,10 @@ def test_attributo_list_to_list() -> None:
         # min
         convert_attributo_value(
             AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=2, max_length=10
+                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=10
             ),
             AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=3, max_length=10
+                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=3, max_length=10
             ),
             _default_flags,
             [1, 2],
@@ -164,35 +156,23 @@ def test_attributo_list_to_list() -> None:
         # max
         convert_attributo_value(
             AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=2, max_length=5
+                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=5
             ),
             AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=2, max_length=4
+                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=4
             ),
             _default_flags,
             [1, 2, 3, 4, 5],
         )
 
-    # finally, test with a value, but converting value type
-    assert convert_attributo_value(
-        AttributoTypeList(
-            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
-        ),
-        AttributoTypeList(
-            sub_type=AttributoTypeInt(), min_length=None, max_length=None
-        ),
-        _default_flags,
-        [1, 2, 3, 4, 5],
-    ) == [1.0, 2.0, 3.0, 4.0, 5.0]
-
     # and now with an invalid type
     with pytest.raises(Exception):
         convert_attributo_value(
             AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=2, max_length=5
+                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=5
             ),
             AttributoTypeList(
-                sub_type=AttributoTypeDateTime(), min_length=2, max_length=4
+                sub_type=ArrayAttributoType.ARRAY_BOOL, min_length=2, max_length=4
             ),
             _default_flags,
             [1, 2, 3, 4, 5],
@@ -296,7 +276,7 @@ def test_attributo_string_list() -> None:
     assert convert_attributo_value(
         AttributoTypeString(),
         AttributoTypeList(
-            sub_type=AttributoTypeString(), min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_STRING, min_length=None, max_length=None
         ),
         _default_flags,
         "abc",
@@ -307,7 +287,7 @@ def test_attributo_string_list() -> None:
         convert_attributo_value(
             AttributoTypeString(),
             AttributoTypeList(
-                sub_type=AttributoTypeString(), min_length=2, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_STRING, min_length=2, max_length=None
             ),
             _default_flags,
             "abc",
@@ -318,7 +298,9 @@ def test_attributo_string_list() -> None:
         convert_attributo_value(
             AttributoTypeString(),
             AttributoTypeList(
-                sub_type=AttributoTypeDateTime(), min_length=None, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=None,
+                max_length=None,
             ),
             _default_flags,
             "abc",
@@ -437,7 +419,7 @@ def test_attributo_double_list() -> None:
     assert convert_attributo_value(
         AttributoTypeDecimal(),
         AttributoTypeList(
-            sub_type=AttributoTypeDecimal(), min_length=None, max_length=None
+            sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=None, max_length=None
         ),
         _default_flags,
         1.5,
@@ -448,7 +430,7 @@ def test_attributo_double_list() -> None:
         convert_attributo_value(
             AttributoTypeDecimal(),
             AttributoTypeList(
-                sub_type=AttributoTypeDecimal(), min_length=2, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_NUMBER, min_length=2, max_length=None
             ),
             _default_flags,
             1.0,
@@ -459,7 +441,9 @@ def test_attributo_double_list() -> None:
         convert_attributo_value(
             AttributoTypeDecimal(),
             AttributoTypeList(
-                sub_type=AttributoTypeDateTime(), min_length=None, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_NUMBER,
+                min_length=None,
+                max_length=None,
             ),
             _default_flags,
             1,

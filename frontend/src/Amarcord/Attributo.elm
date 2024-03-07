@@ -12,9 +12,13 @@ module Amarcord.Attributo exposing
     , attributoMapDecoder
     , attributoMapIds
     , attributoMapToListOfAttributi
+    , attributoTypeToSchemaArray
+    , attributoTypeToSchemaBoolean
+    , attributoTypeToSchemaInt
+    , attributoTypeToSchemaNumber
+    , attributoTypeToSchemaString
     , convertAttributoFromApi
     , convertAttributoMapFromApi
-    , convertAttributoTypeToApi
     , convertAttributoValueFromApi
     , createAnnotatedAttributoMap
     , emptyAttributoMap
@@ -28,16 +32,14 @@ module Amarcord.Attributo exposing
     )
 
 import Amarcord.AssociatedTable exposing (AssociatedTable, associatedTableFromApi)
-import Amarcord.NumericRange as NumericRange exposing (NumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum)
-import Api.Data exposing (AttributoType(..), JSONSchemaBooleanType(..), JSONSchemaIntegerFormat(..), JSONSchemaIntegerType(..), JSONSchemaNumberFormat(..), JSONSchemaNumberType(..), JSONSchemaStringType(..), JsonAttributo, JsonAttributoValue)
+import Amarcord.NumericRange as NumericRange exposing (NumericRange, emptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum)
+import Api.Data exposing (JSONSchemaArray, JSONSchemaArraySubtype(..), JSONSchemaArrayType(..), JSONSchemaBoolean, JSONSchemaBooleanType(..), JSONSchemaInteger, JSONSchemaIntegerFormat(..), JSONSchemaIntegerType(..), JSONSchemaNumber, JSONSchemaNumberFormat(..), JSONSchemaNumberType(..), JSONSchemaString, JSONSchemaStringType(..), JsonAttributo, JsonAttributoValue)
 import Dict exposing (Dict)
 import Json.Decode as Decode
 import Json.Decode.Extra as JsonExtra
 import List exposing (filterMap)
 import Maybe
 import Maybe.Extra as MaybeExtra
-import Api.Data exposing (JSONSchemaArrayType(..))
-import Api.Data exposing (Items(..))
 
 
 type AttributoValue
@@ -359,153 +361,72 @@ attributoExposureTime : AttributoName
 attributoExposureTime =
     "exposure_time"
 
-convertAttributoItemsToApi : AttributoType -> Api.Data.Items
-convertAttributoItemsToApi x = 
-    case x of
-        String ->
-            ItemsJSONSchemaString
-                { type_ = JSONSchemaStringTypeString
-                , enum = Nothing
-                }
 
-        Boolean ->
-            ItemsJSONSchemaBoolean { type_ = JSONSchemaBooleanTypeBoolean }
-
-        Number { suffix, tolerance, toleranceIsAbsolute, standardUnit, range } ->
-            ItemsJSONSchemaNumber
-                { suffix = suffix
-                , tolerance = tolerance
-                , toleranceIsAbsolute = Just toleranceIsAbsolute
-                , format =
-                    if standardUnit then
-                        Just JSONSchemaNumberFormatStandardUnit
-
-                    else
-                        Nothing
-                , maximum = numericRangeMaximum range
-                , minimum = numericRangeMinimum range
-                , exclusiveMaximum = numericRangeExclusiveMaximum range
-                , exclusiveMinimum = numericRangeExclusiveMinimum range
-                , type_ = JSONSchemaNumberTypeNumber
-                }
-                
-        _ ->
-            ItemsJSONSchemaNumber {
-                    suffix = Nothing,
-                    tolerance = Nothing,
-                        toleranceIsAbsolute = Just False,
-                        format = Nothing,
-                        maximum = Nothing,
-                        minimum = Nothing,
-                        exclusiveMaximum = Nothing,
-                        exclusiveMinimum = Nothing,
-                        type_ = JSONSchemaNumberTypeNumber
-                }
-        
-convertAttributoTypeToApi : AttributoType -> Api.Data.AttributoType
-convertAttributoTypeToApi x =
-    case x of
-        Int ->
-            AttributoTypeJSONSchemaInteger
-                { format = Nothing
-                , type_ = JSONSchemaIntegerTypeInteger
-                }
-
-        DateTime ->
-            AttributoTypeJSONSchemaInteger
-                { format = Just JSONSchemaIntegerFormatDateTime
-                , type_ = JSONSchemaIntegerTypeInteger
-                }
-
-        ChemicalId ->
-            AttributoTypeJSONSchemaInteger
-                { format = Just JSONSchemaIntegerFormatChemicalId
-                , type_ = JSONSchemaIntegerTypeInteger
-                }
-
-        String ->
-            AttributoTypeJSONSchemaString
-                { type_ = JSONSchemaStringTypeString
-                , enum = Nothing
-                }
-
-        Boolean ->
-            AttributoTypeJSONSchemaBoolean { type_ = JSONSchemaBooleanTypeBoolean }
-
-        List {minLength, maxLength, subType} ->
-            AttributoTypeJSONSchemaArray
-                { type_ = JSONSchemaArrayTypeArray
-                , items = convertAttributoItemsToApi subType
-                , minItems = minLength
-                , maxItems = maxLength
-                }
-
-        Number { suffix, tolerance, toleranceIsAbsolute, standardUnit, range } ->
-            AttributoTypeJSONSchemaNumber
-                { suffix = suffix
-                , tolerance = tolerance
-                , toleranceIsAbsolute = Just toleranceIsAbsolute
-                , format =
-                    if standardUnit then
-                        Just JSONSchemaNumberFormatStandardUnit
-
-                    else
-                        Nothing
-                , maximum = numericRangeMaximum range
-                , minimum = numericRangeMinimum range
-                , exclusiveMaximum = numericRangeExclusiveMaximum range
-                , exclusiveMinimum = numericRangeExclusiveMinimum range
-                , type_ = JSONSchemaNumberTypeNumber
-                }
-
-        Choice { choiceValues } ->
-            AttributoTypeJSONSchemaString
-                { type_ = JSONSchemaStringTypeString
-                , enum = Just choiceValues
-                }
-
-
-convertAttributoTypeFromApi : Api.Data.AttributoType -> AttributoType
-convertAttributoTypeFromApi x =
-    case x of
-        AttributoTypeJSONSchemaBoolean _ ->
-            Boolean
-
-        AttributoTypeJSONSchemaInteger params ->
-            if params.format == Just JSONSchemaIntegerFormatDateTime then
+convertAttributoTypeFromApi : Api.Data.JsonAttributo -> AttributoType
+convertAttributoTypeFromApi { attributoTypeInteger, attributoTypeNumber, attributoTypeString, attributoTypeArray } =
+    case attributoTypeInteger of
+        Just { format } ->
+            if format == Just JSONSchemaIntegerFormatDateTime then
                 DateTime
 
-            else if params.format == Just JSONSchemaIntegerFormatChemicalId then
+            else if format == Just JSONSchemaIntegerFormatChemicalId then
                 ChemicalId
 
             else
                 Int
 
-        AttributoTypeJSONSchemaString params ->
-            case params.enum of
+        Nothing ->
+            case attributoTypeNumber of
+                Just params ->
+                    Number
+                        { suffix = params.suffix
+                        , tolerance = params.tolerance
+                        , toleranceIsAbsolute = Maybe.withDefault True params.toleranceIsAbsolute
+                        , standardUnit = params.format == Just JSONSchemaNumberFormatStandardUnit
+                        , range =
+                            NumericRange.rangeFromJsonSchema
+                                params.minimum
+                                params.maximum
+                                params.exclusiveMinimum
+                                params.exclusiveMaximum
+                        }
+
                 Nothing ->
-                    String
+                    case attributoTypeString of
+                        Just params ->
+                            case params.enum of
+                                Nothing ->
+                                    String
 
-                Just choices ->
-                    Choice { choiceValues = choices }
+                                Just choices ->
+                                    Choice { choiceValues = choices }
 
-        AttributoTypeJSONSchemaNumber params ->
-            Number
-                { suffix = params.suffix
-                , tolerance = params.tolerance
-                , toleranceIsAbsolute = Maybe.withDefault True params.toleranceIsAbsolute
-                , standardUnit = params.format == Just JSONSchemaNumberFormatStandardUnit
-                , range =
-                    NumericRange.rangeFromJsonSchema
-                        params.minimum
-                        params.maximum
-                        params.exclusiveMinimum
-                        params.exclusiveMaximum
-                }
+                        Nothing ->
+                            case attributoTypeArray of
+                                Just params ->
+                                    List
+                                        { minLength = params.minItems
+                                        , maxLength = params.maxItems
+                                        , subType =
+                                            case params.itemType of
+                                                JSONSchemaArraySubtypeString ->
+                                                    String
 
-        AttributoTypeJSONSchemaArray _ ->
-            -- FIXME
-            Int
+                                                JSONSchemaArraySubtypeNumber ->
+                                                    Number
+                                                        { range = emptyNumericRange
+                                                        , suffix = Nothing
+                                                        , standardUnit = False
+                                                        , tolerance = Nothing
+                                                        , toleranceIsAbsolute = False
+                                                        }
+
+                                                JSONSchemaArraySubtypeBool ->
+                                                    Boolean
+                                        }
+
+                                Nothing ->
+                                    Boolean
 
 
 convertAttributoFromApi : JsonAttributo -> Attributo AttributoType
@@ -515,7 +436,7 @@ convertAttributoFromApi a =
     , description = a.description
     , group = a.group
     , associatedTable = associatedTableFromApi a.associatedTable
-    , type_ = convertAttributoTypeFromApi a.attributoType
+    , type_ = convertAttributoTypeFromApi a
     }
 
 
@@ -543,3 +464,94 @@ convertAttributoMapFromApi =
 attributoMapToListOfAttributi : AttributoMap AttributoValue -> List JsonAttributoValue
 attributoMapToListOfAttributi =
     Dict.foldl (\attributoId attributoValue oldList -> attributoValueToJson attributoId attributoValue :: oldList) []
+
+
+attributoTypeToSchemaInt : AttributoType -> Maybe JSONSchemaInteger
+attributoTypeToSchemaInt x =
+    case x of
+        Int ->
+            Just { type_ = JSONSchemaIntegerTypeInteger, format = Nothing }
+
+        _ ->
+            Nothing
+
+
+attributoTypeToSchemaBoolean : AttributoType -> Maybe JSONSchemaBoolean
+attributoTypeToSchemaBoolean x =
+    case x of
+        Boolean ->
+            Just { type_ = JSONSchemaBooleanTypeBoolean }
+
+        _ ->
+            Nothing
+
+
+attributoTypeToSchemaNumber : AttributoType -> Maybe JSONSchemaNumber
+attributoTypeToSchemaNumber x =
+    case x of
+        Number { range, suffix, tolerance, toleranceIsAbsolute, standardUnit } ->
+            Just
+                { type_ = JSONSchemaNumberTypeNumber
+                , minimum = numericRangeMinimum range
+                , maximum = numericRangeMaximum range
+                , exclusiveMinimum = numericRangeExclusiveMinimum range
+                , exclusiveMaximum = numericRangeExclusiveMaximum range
+                , suffix = suffix
+                , format =
+                    if standardUnit then
+                        Just JSONSchemaNumberFormatStandardUnit
+
+                    else
+                        Nothing
+                , tolerance = tolerance
+                , toleranceIsAbsolute = Just toleranceIsAbsolute
+                }
+
+        _ ->
+            Nothing
+
+
+attributoTypeToSchemaString : AttributoType -> Maybe JSONSchemaString
+attributoTypeToSchemaString x =
+    case x of
+        String ->
+            Just
+                { type_ = JSONSchemaStringTypeString
+                , enum = Nothing
+                }
+
+        Choice { choiceValues } ->
+            Just
+                { type_ = JSONSchemaStringTypeString
+                , enum = Just choiceValues
+                }
+
+        _ ->
+            Nothing
+
+
+attributoTypeToSchemaArray : AttributoType -> Maybe JSONSchemaArray
+attributoTypeToSchemaArray x =
+    case x of
+        List { minLength, maxLength, subType } ->
+            Just
+                { type_ = JSONSchemaArrayTypeArray
+                , minItems = minLength
+                , maxItems = maxLength
+                , itemType =
+                    case subType of
+                        String ->
+                            JSONSchemaArraySubtypeString
+
+                        Choice _ ->
+                            JSONSchemaArraySubtypeString
+
+                        Number _ ->
+                            JSONSchemaArraySubtypeNumber
+
+                        _ ->
+                            JSONSchemaArraySubtypeBool
+                }
+
+        _ ->
+            Nothing

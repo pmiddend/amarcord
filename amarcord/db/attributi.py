@@ -9,6 +9,7 @@ from pint import UnitRegistry
 from pydantic import BaseModel
 from pydantic import Field
 
+from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
@@ -21,6 +22,7 @@ from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.dbattributo import DBAttributo
 from amarcord.json_schema import JSONSchemaArray
+from amarcord.json_schema import JSONSchemaArraySubtype
 from amarcord.json_schema import JSONSchemaBoolean
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaNumber
@@ -49,70 +51,70 @@ def coparse_schema_type(s: JSONSchemaUnion) -> dict[str, Any]:
     return s.dict()
 
 
-def schema_json_to_attributo_type(json_schema: dict[str, Any]) -> AttributoType:
-    return schema_to_attributo_type(parse_schema_type(json_schema))
+def schema_union_to_attributo_type(s: JSONSchemaUnion) -> AttributoType:
+    return schema_to_attributo_type(
+        schema_number=s if isinstance(s, JSONSchemaNumber) else None,
+        schema_boolean=s if isinstance(s, JSONSchemaBoolean) else None,
+        schema_integer=s if isinstance(s, JSONSchemaInteger) else None,
+        schema_array=s if isinstance(s, JSONSchemaArray) else None,
+        schema_string=s if isinstance(s, JSONSchemaString) else None,
+    )
 
 
-def schema_to_attributo_type(parsed_schema: JSONSchemaUnion) -> AttributoType:
-    if isinstance(parsed_schema, JSONSchemaNumber):
+def schema_to_attributo_type(
+    schema_number: None | JSONSchemaNumber,
+    schema_boolean: None | JSONSchemaBoolean,
+    schema_integer: None | JSONSchemaInteger,
+    schema_array: None | JSONSchemaArray,
+    schema_string: None | JSONSchemaString,
+) -> AttributoType:
+    if schema_number is not None:
         return AttributoTypeDecimal(
-            range=None
-            if parsed_schema.minimum is None
-            and parsed_schema.maximum is None
-            and parsed_schema.exclusiveMaximum is None
-            and parsed_schema.exclusiveMinimum is None
-            else NumericRange(
-                parsed_schema.minimum
-                if parsed_schema.minimum is not None
-                else parsed_schema.exclusiveMinimum,
-                parsed_schema.exclusiveMinimum is None,
-                parsed_schema.maximum
-                if parsed_schema.maximum is not None
-                else parsed_schema.exclusiveMaximum,
-                parsed_schema.exclusiveMaximum is None,
+            range=(
+                None
+                if schema_number.minimum is None
+                and schema_number.maximum is None
+                and schema_number.exclusiveMaximum is None
+                and schema_number.exclusiveMinimum is None
+                else NumericRange(
+                    (
+                        schema_number.minimum
+                        if schema_number.minimum is not None
+                        else schema_number.exclusiveMinimum
+                    ),
+                    schema_number.exclusiveMinimum is None,
+                    (
+                        schema_number.maximum
+                        if schema_number.maximum is not None
+                        else schema_number.exclusiveMaximum
+                    ),
+                    schema_number.exclusiveMaximum is None,
+                )
             ),
-            suffix=parsed_schema.suffix,
-            standard_unit=parsed_schema.format == "standard-unit",
-            tolerance=parsed_schema.tolerance,
-            tolerance_is_absolute=parsed_schema.toleranceIsAbsolute,
+            suffix=schema_number.suffix,
+            standard_unit=schema_number.format == "standard-unit",
+            tolerance=schema_number.tolerance,
+            tolerance_is_absolute=schema_number.toleranceIsAbsolute,
         )
-    if isinstance(parsed_schema, JSONSchemaBoolean):
+    if schema_boolean is not None:
         return AttributoTypeBoolean()
-    if isinstance(parsed_schema, JSONSchemaInteger):
-        if parsed_schema.format == "chemical-id":
+    if schema_integer is not None:
+        if schema_integer.format == "chemical-id":
             return AttributoTypeChemical()
-        if parsed_schema.format == "date-time":
+        if schema_integer.format == "date-time":
             return AttributoTypeDateTime()
         return AttributoTypeInt()
-    if isinstance(parsed_schema, JSONSchemaArray):
-        if isinstance(parsed_schema.items, JSONSchemaNumber):
-            return AttributoTypeList(
-                schema_to_attributo_type(parsed_schema.items),
-                min_length=parsed_schema.minItems,
-                max_length=parsed_schema.maxItems,
-            )
-        if isinstance(parsed_schema.items, JSONSchemaBoolean):
-            return AttributoTypeList(
-                schema_to_attributo_type(parsed_schema.items),
-                min_length=parsed_schema.minItems,
-                max_length=parsed_schema.maxItems,
-            )
-        assert isinstance(
-            parsed_schema.items, JSONSchemaString
-        ), "arrays of non-strings aren't supported yet"
-        assert (
-            parsed_schema.items.enum is None
-        ), "arrays of enum strings aren't supported yet"
+    if schema_array is not None:
         return AttributoTypeList(
-            schema_to_attributo_type(parsed_schema.items),
-            min_length=parsed_schema.minItems,
-            max_length=parsed_schema.maxItems,
+            sub_type=ArrayAttributoType(schema_array.item_type.value),
+            min_length=schema_array.minItems,
+            max_length=schema_array.maxItems,
         )
     assert isinstance(
-        parsed_schema, JSONSchemaString
-    ), f"unknown schema type {parsed_schema}"
-    if parsed_schema.enum is not None:
-        return AttributoTypeChoice(parsed_schema.enum)
+        schema_string, JSONSchemaString
+    ), f"unknown schema type {schema_string}"
+    if schema_string.enum is not None:
+        return AttributoTypeChoice(schema_string.enum)
     return AttributoTypeString()
 
 
@@ -172,12 +174,18 @@ def attributo_type_to_string(pt: AttributoType) -> str:
     if isinstance(pt, AttributoTypeDateTime):
         return "date-time"
     assert isinstance(pt, AttributoTypeList)
-    return "list of " + attributo_type_to_string(pt.sub_type)
+    return "list of " + pt.sub_type
 
 
 def attributo_type_to_schema(
     rp: AttributoType,
-) -> JSONSchemaInteger | JSONSchemaNumber | JSONSchemaString | JSONSchemaArray | JSONSchemaBoolean:
+) -> (
+    JSONSchemaInteger
+    | JSONSchemaNumber
+    | JSONSchemaString
+    | JSONSchemaArray
+    | JSONSchemaBoolean
+):
     if isinstance(rp, AttributoTypeInt):
         return JSONSchemaInteger(type="integer", format=None)
     if isinstance(rp, AttributoTypeBoolean):
@@ -234,13 +242,9 @@ def attributo_type_to_schema(
     if isinstance(rp, AttributoTypeDateTime):
         return JSONSchemaInteger(type="integer", format="date-time")
     assert isinstance(rp, AttributoTypeList)
-    sub_type = attributo_type_to_schema(rp.sub_type)
-    assert isinstance(
-        sub_type, (JSONSchemaString | JSONSchemaBoolean | JSONSchemaNumber)
-    ), f"array of type {sub_type} are not supported; supported are only string, boolean, number"
     return JSONSchemaArray(
         type="array",
-        items=sub_type,
+        item_type=JSONSchemaArraySubtype(rp.sub_type.value),
         minItems=rp.min_length,
         maxItems=rp.max_length,
     )
@@ -285,7 +289,7 @@ def _convert_int_to_int_list(
 ) -> AttributoValue:
     assert isinstance(after_type, AttributoTypeList)
     assert isinstance(v, int)
-    if not isinstance(after_type.sub_type, AttributoTypeInt):
+    if after_type.sub_type != ArrayAttributoType.ARRAY_NUMBER:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
             + "first, and then to list?)"
@@ -305,7 +309,7 @@ def _convert_double_to_double_list(
 ) -> AttributoValue:
     assert isinstance(after_type, AttributoTypeList)
     assert isinstance(v, float)
-    if not isinstance(after_type.sub_type, AttributoTypeDecimal):
+    if after_type.sub_type != ArrayAttributoType.ARRAY_NUMBER:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
             + "first, and then to list?)"
@@ -325,7 +329,7 @@ def _convert_string_to_string_list(
 ) -> AttributoValue:
     assert isinstance(after_type, AttributoTypeList)
     assert isinstance(v, str)
-    if not isinstance(after_type.sub_type, AttributoTypeString):
+    if after_type.sub_type != ArrayAttributoType.ARRAY_STRING:
         raise Exception(
             f"cannot convert from {before_type} to {after_type} (maybe convert to the list value type "
             + "first, and then to list?)"
@@ -595,12 +599,42 @@ def _convert_list_to_list(
             f"cannot convert {before_type} to {after_type} because {value} has too little elements"
         )
 
-    return [
-        # type error is expected here, since we don't have lists of AttributoValue yet, since that
-        # would mean mypy has support for recursive types.
-        convert_attributo_value(before_type.sub_type, after_type.sub_type, _conversion_flags, x)  # type: ignore
-        for x in value
-    ]
+    if before_type.sub_type == after_type.sub_type:
+        return value.copy()
+
+    if (
+        before_type.sub_type == ArrayAttributoType.ARRAY_STRING
+        and after_type.sub_type == ArrayAttributoType.ARRAY_NUMBER
+    ):
+        result_float: list[float] = []
+        for i, v in enumerate(value):
+            try:
+                result_float.append(float(v))
+            except:
+                raise Exception(
+                    f'cannot convert element {i} of list from string "{v}" to number'
+                )
+        return result_float
+    if (
+        before_type.sub_type == ArrayAttributoType.ARRAY_STRING
+        and after_type.sub_type == ArrayAttributoType.ARRAY_BOOL
+    ):
+        result_bool: list[bool] = []
+        for i, v in enumerate(value):
+            try:
+                result_bool.append(bool(v))
+            except:
+                raise Exception(
+                    f'cannot convert element {i} of list from string "{v}" to bool'
+                )
+        return result_bool
+    if after_type.sub_type == ArrayAttributoType.ARRAY_STRING:
+        result_str: list[str] = []
+        for i, v in enumerate(value):
+            result_str.append(str(v))
+        return result_str
+    # Remaining conversion are: number -> bool and bool -> number which frankly don't make much sense
+    raise Exception("conversion doesn't make much sense")
 
 
 def _convert_choice_to_choice(
@@ -697,6 +731,7 @@ _conversion_matrix.update(
         (AttributoTypeChoice, AttributoTypeString): lambda before, after, flags, v: v,
     }
 )
+
 
 # This function is not really needed, but it's just nicer to have the attributo in the runs table sorted by...something predefined
 def attributo_sort_key(r: DBAttributo) -> tuple[int, str]:

@@ -97,6 +97,11 @@ from amarcord.db.user_configuration import UserConfiguration
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
+from amarcord.json_schema import JSONSchemaArray
+from amarcord.json_schema import JSONSchemaBoolean
+from amarcord.json_schema import JSONSchemaInteger
+from amarcord.json_schema import JSONSchemaNumber
+from amarcord.json_schema import JSONSchemaString
 from amarcord.json_schema import JSONSchemaUnion
 from amarcord.logging_util import setup_structlog
 from amarcord.util import create_intervals
@@ -772,7 +777,11 @@ class JsonAttributo(BaseModel):
     description: str
     group: str
     associated_table: AssociatedTable
-    attributo_type: JSONSchemaUnion = Field(discriminator="type")
+    attributo_type_integer: None | JSONSchemaInteger = None
+    attributo_type_number: None | JSONSchemaNumber = None
+    attributo_type_string: None | JSONSchemaString = None
+    attributo_type_array: None | JSONSchemaArray = None
+    attributo_type_boolean: None | JSONSchemaBoolean = None
 
 
 class JsonReadChemicals(BaseModel):
@@ -781,13 +790,50 @@ class JsonReadChemicals(BaseModel):
 
 
 def _encode_attributo(a: DBAttributo) -> JsonAttributo:
+    schema = attributo_type_to_schema(a.attributo_type)
+    if isinstance(schema, JSONSchemaInteger):
+        return JsonAttributo(
+            id=a.id,
+            name=a.name,
+            description=a.description,
+            group=a.group,
+            associated_table=a.associated_table,
+            attributo_type_integer=schema,
+        )
+    if isinstance(schema, JSONSchemaNumber):
+        return JsonAttributo(
+            id=a.id,
+            name=a.name,
+            description=a.description,
+            group=a.group,
+            associated_table=a.associated_table,
+            attributo_type_number=schema,
+        )
+    if isinstance(schema, JSONSchemaString):
+        return JsonAttributo(
+            id=a.id,
+            name=a.name,
+            description=a.description,
+            group=a.group,
+            associated_table=a.associated_table,
+            attributo_type_string=schema,
+        )
+    if isinstance(schema, JSONSchemaArray):
+        return JsonAttributo(
+            id=a.id,
+            name=a.name,
+            description=a.description,
+            group=a.group,
+            associated_table=a.associated_table,
+            attributo_type_array=schema,
+        )
     return JsonAttributo(
         id=a.id,
         name=a.name,
         description=a.description,
         group=a.group,
         associated_table=a.associated_table,
-        attributo_type=attributo_type_to_schema(a.attributo_type),
+        attributo_type_boolean=schema,
     )
 
 
@@ -2848,7 +2894,11 @@ class JsonCreateAttributoInput(BaseModel):
     description: str
     group: str
     associated_table: AssociatedTable
-    attributo_type: JSONSchemaUnion = Field(discriminator="type")
+    attributo_type_integer: None | JSONSchemaInteger = None
+    attributo_type_number: None | JSONSchemaNumber = None
+    attributo_type_string: None | JSONSchemaString = None
+    attributo_type_array: None | JSONSchemaArray = None
+    attributo_type_boolean: None | JSONSchemaBoolean = None
 
 
 class JsonCreateAttributoOutput(BaseModel):
@@ -2867,7 +2917,13 @@ async def create_attributo(
             description=input_.description,
             group=input_.group,
             associated_table=input_.associated_table,
-            type_=schema_to_attributo_type(input_.attributo_type),
+            type_=schema_to_attributo_type(
+                schema_number=input_.attributo_type_number,
+                schema_boolean=input_.attributo_type_boolean,
+                schema_integer=input_.attributo_type_integer,
+                schema_array=input_.attributo_type_array,
+                schema_string=input_.attributo_type_string,
+            ),
         )
 
     return JsonCreateAttributoOutput(id=attributo_id)
@@ -2901,7 +2957,13 @@ async def update_attributo(
             description=input_.attributo.description,
             group=input_.attributo.group,
             associated_table=input_.attributo.associated_table,
-            attributo_type=schema_to_attributo_type(input_.attributo.attributo_type),
+            attributo_type=schema_to_attributo_type(
+                schema_number=input_.attributo.attributo_type_number,
+                schema_boolean=input_.attributo.attributo_type_boolean,
+                schema_integer=input_.attributo.attributo_type_integer,
+                schema_array=input_.attributo.attributo_type_array,
+                schema_string=input_.attributo.attributo_type_string,
+            ),
         )
         await db.update_attributo(
             conn,

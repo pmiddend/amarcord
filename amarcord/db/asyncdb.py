@@ -23,7 +23,8 @@ from amarcord.db.async_dbcontext import Connection
 from amarcord.db.attributi import AttributoConversionFlags
 from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributi import convert_attributo_value
-from amarcord.db.attributi import schema_json_to_attributo_type
+from amarcord.db.attributi import parse_schema_type
+from amarcord.db.attributi import schema_union_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_name_and_role import AttributoIdAndRole
@@ -612,7 +613,9 @@ class AsyncDB:
                 description=a.description,
                 group=a.group,
                 associated_table=a.associated_table,
-                attributo_type=schema_json_to_attributo_type(a.json_schema),
+                attributo_type=schema_union_to_attributo_type(
+                    parse_schema_type(a.json_schema)
+                ),
             )
             for a in result
         ]

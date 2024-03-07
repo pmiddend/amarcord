@@ -1,7 +1,7 @@
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel
-from pydantic import Field
 
 
 class JSONSchemaInteger(BaseModel):
@@ -31,12 +31,20 @@ class JSONSchemaBoolean(BaseModel):
     type: Literal["boolean"]
 
 
+class JSONSchemaArraySubtype(str, Enum):
+    ARRAY_STRING = "string"
+    ARRAY_BOOL = "bool"
+    ARRAY_NUMBER = "number"
+
+
 class JSONSchemaArray(BaseModel):
     type: Literal["array"]
+
+    item_type: JSONSchemaArraySubtype
     # Here, we are using an "abbreviated" JSON schema, as we are not allowing nested arrays
-    items: JSONSchemaString | JSONSchemaBoolean | JSONSchemaNumber = Field(
-        discriminator="type"
-    )
+    # items: JSONSchemaString | JSONSchemaBoolean | JSONSchemaNumber = Field(
+    #     discriminator="type"
+    # )
     minItems: int | None = None
     maxItems: int | None = None
 

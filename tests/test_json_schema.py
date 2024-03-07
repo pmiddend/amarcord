@@ -5,6 +5,7 @@ import pytest
 from amarcord.db.attributi import coparse_schema_type
 from amarcord.db.attributi import parse_schema_type
 from amarcord.json_schema import JSONSchemaArray
+from amarcord.json_schema import JSONSchemaArraySubtype
 from amarcord.json_schema import JSONSchemaBoolean
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaNumber
@@ -104,12 +105,12 @@ from amarcord.json_schema import JSONSchemaUnion
         ),
         ({"type": "string"}, JSONSchemaString(type="string", enum=None)),
         (
-            {"type": "array", "items": {"type": "boolean"}, "minItems": 10},
+            {"type": "array", "item_type": "bool", "minItems": 10},
             JSONSchemaArray(
                 type="array",
                 minItems=10,
                 maxItems=None,
-                items=JSONSchemaBoolean(type="boolean"),
+                item_type=JSONSchemaArraySubtype.ARRAY_BOOL,
             ),
         ),
         ({"type": "boolean"}, JSONSchemaBoolean(type="boolean")),
@@ -210,13 +211,13 @@ def test_parse_schema_type(
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 3,
-                "items": {"type": "string", "enum": None},
+                "item_type": "string",
             },
             JSONSchemaArray(
                 type="array",
                 minItems=1,
                 maxItems=3,
-                items=JSONSchemaString(type="string", enum=None),
+                item_type=JSONSchemaArraySubtype.ARRAY_STRING,
             ),
         ),
     ],

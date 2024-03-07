@@ -3,7 +3,7 @@ module Amarcord.Pages.Attributi exposing (Model, Msg, init, update, view)
 import Amarcord.API.Requests exposing (BeamtimeId, ConversionFlags)
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToApi, associatedTableToString)
-import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, convertAttributoFromApi, convertAttributoTypeToApi, mapAttributo, mapAttributoMaybe)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, attributoTypeToSchemaArray, attributoTypeToSchemaBoolean, attributoTypeToSchemaInt, attributoTypeToSchemaNumber, attributoTypeToSchemaString, convertAttributoFromApi, mapAttributo, mapAttributoMaybe)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
@@ -1335,7 +1335,7 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just editAttributo ->
-                    case mapAttributoMaybe (\y -> Maybe.map convertAttributoTypeToApi (attributoAugTypeToType y)) editAttributo of
+                    case mapAttributoMaybe attributoAugTypeToType editAttributo of
                         Nothing ->
                             ( model, Cmd.none )
 
@@ -1350,7 +1350,11 @@ update msg model =
                                             , description = baseAttributo.description
                                             , group = baseAttributo.group
                                             , name = baseAttributo.name
-                                            , attributoType = baseAttributo.type_
+                                            , attributoTypeInteger = attributoTypeToSchemaInt baseAttributo.type_
+                                            , attributoTypeNumber = attributoTypeToSchemaNumber baseAttributo.type_
+                                            , attributoTypeString = attributoTypeToSchemaString baseAttributo.type_
+                                            , attributoTypeArray = attributoTypeToSchemaArray baseAttributo.type_
+                                            , attributoTypeBoolean = attributoTypeToSchemaBoolean baseAttributo.type_
                                             }
                                     in
                                     ( { model | modifyRequest = Loading }
@@ -1366,7 +1370,11 @@ update msg model =
                                             , group = baseAttributo.group
                                             , name = baseAttributo.name
                                             , id = baseAttributo.id
-                                            , attributoType = baseAttributo.type_
+                                            , attributoTypeInteger = attributoTypeToSchemaInt baseAttributo.type_
+                                            , attributoTypeNumber = attributoTypeToSchemaNumber baseAttributo.type_
+                                            , attributoTypeString = attributoTypeToSchemaString baseAttributo.type_
+                                            , attributoTypeArray = attributoTypeToSchemaArray baseAttributo.type_
+                                            , attributoTypeBoolean = attributoTypeToSchemaBoolean baseAttributo.type_
                                             }
                                     in
                                     ( { model | modifyRequest = Loading }

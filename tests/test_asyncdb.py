@@ -16,6 +16,7 @@ from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributi_map import JsonAttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_name_and_role import AttributoIdAndRole
+from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeDateTime
@@ -582,7 +583,9 @@ async def test_create_and_retrieve_runs() -> None:
             _TEST_ATTRIBUTO_GROUP,
             AssociatedTable.RUN,
             AttributoTypeList(
-                sub_type=AttributoTypeString(), min_length=None, max_length=None
+                sub_type=ArrayAttributoType.ARRAY_STRING,
+                min_length=None,
+                max_length=None,
             ),
         )
 

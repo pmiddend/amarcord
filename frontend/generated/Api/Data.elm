@@ -18,8 +18,8 @@ module Api.Data exposing
     , AttributoType(..)
     , ChemicalType(..), chemicalTypeVariants
     , HTTPValidationError
-    , Items(..)
     , JSONSchemaArray, JSONSchemaArrayType(..), jSONSchemaArrayTypeVariants
+    , JSONSchemaArraySubtype(..), jSONSchemaArraySubtypeVariants
     , JSONSchemaBoolean, JSONSchemaBooleanType(..), jSONSchemaBooleanTypeVariants
     , JSONSchemaInteger, JSONSchemaIntegerType(..), jSONSchemaIntegerTypeVariants, JSONSchemaIntegerFormat(..), jSONSchemaIntegerFormatVariants
     , JSONSchemaNumber, JSONSchemaNumberType(..), jSONSchemaNumberTypeVariants, JSONSchemaNumberFormat(..), jSONSchemaNumberFormatVariants
@@ -139,8 +139,8 @@ module Api.Data exposing
     , encodeAttributoType
     , encodeChemicalType
     , encodeHTTPValidationError
-    , encodeItems
     , encodeJSONSchemaArray
+    , encodeJSONSchemaArraySubtype
     , encodeJSONSchemaBoolean
     , encodeJSONSchemaInteger
     , encodeJSONSchemaNumber
@@ -258,6 +258,7 @@ module Api.Data exposing
     , encodeValidationError
     , stringFromAssociatedTable
     , stringFromChemicalType
+    , stringFromJSONSchemaArraySubtype
     , stringFromMergeModel
     , stringFromMergeNegativeHandling
     , stringFromScaleIntensities
@@ -265,8 +266,8 @@ module Api.Data exposing
     , attributoTypeDecoder
     , chemicalTypeDecoder
     , hTTPValidationErrorDecoder
-    , itemsDecoder
     , jSONSchemaArrayDecoder
+    , jSONSchemaArraySubtypeDecoder
     , jSONSchemaBooleanDecoder
     , jSONSchemaIntegerDecoder
     , jSONSchemaNumberDecoder
@@ -435,16 +436,9 @@ type alias HTTPValidationError =
     }
 
 
-type Items
-    = ItemsJSONSchemaBoolean JSONSchemaBoolean
-    | ItemsJSONSchemaNumber JSONSchemaNumber
-    | ItemsJSONSchemaString JSONSchemaString
-
-
-
 type alias JSONSchemaArray =
     { type_ : JSONSchemaArrayType
-    , items : Items
+    , itemType : JSONSchemaArraySubtype
     , minItems : Maybe Int
     , maxItems : Maybe Int
     }
@@ -457,6 +451,22 @@ type JSONSchemaArrayType
 jSONSchemaArrayTypeVariants : List JSONSchemaArrayType
 jSONSchemaArrayTypeVariants =
     [ JSONSchemaArrayTypeArray
+    ]
+
+
+{-| An enumeration.
+-}
+type JSONSchemaArraySubtype
+    = JSONSchemaArraySubtypeString
+    | JSONSchemaArraySubtypeBool
+    | JSONSchemaArraySubtypeNumber
+
+
+jSONSchemaArraySubtypeVariants : List JSONSchemaArraySubtype
+jSONSchemaArraySubtypeVariants =
+    [ JSONSchemaArraySubtypeString
+    , JSONSchemaArraySubtypeBool
+    , JSONSchemaArraySubtypeNumber
     ]
 
 
@@ -584,7 +594,11 @@ type alias JsonAttributo =
     , description : String
     , group : String
     , associatedTable : AssociatedTable
-    , attributoType : AttributoType
+    , attributoTypeInteger : Maybe JSONSchemaInteger
+    , attributoTypeNumber : Maybe JSONSchemaNumber
+    , attributoTypeString : Maybe JSONSchemaString
+    , attributoTypeArray : Maybe JSONSchemaArray
+    , attributoTypeBoolean : Maybe JSONSchemaBoolean
     }
 
 
@@ -730,7 +744,11 @@ type alias JsonCreateAttributoInput =
     , description : String
     , group : String
     , associatedTable : AssociatedTable
-    , attributoType : AttributoType
+    , attributoTypeInteger : Maybe JSONSchemaInteger
+    , attributoTypeNumber : Maybe JSONSchemaNumber
+    , attributoTypeString : Maybe JSONSchemaString
+    , attributoTypeArray : Maybe JSONSchemaArray
+    , attributoTypeBoolean : Maybe JSONSchemaBoolean
     }
 
 
@@ -1517,21 +1535,6 @@ encodeHTTPValidationErrorPairs model =
     pairs
 
 
-encodeItems : Items -> Json.Encode.Value
-encodeItems model =
-    case model of
-        ItemsJSONSchemaBoolean subModel ->
-            encodeJSONSchemaBooleanWithTag ("type_", "boolean") subModel
-
-        ItemsJSONSchemaNumber subModel ->
-            encodeJSONSchemaNumberWithTag ("type_", "number") subModel
-
-        ItemsJSONSchemaString subModel ->
-            encodeJSONSchemaStringWithTag ("type_", "string") subModel
-
-
-
-
 encodeJSONSchemaArray : JSONSchemaArray -> Json.Encode.Value
 encodeJSONSchemaArray =
     encodeObject << encodeJSONSchemaArrayPairs
@@ -1547,7 +1550,7 @@ encodeJSONSchemaArrayPairs model =
     let
         pairs =
             [ encode "type" encodeJSONSchemaArrayType model.type_
-            , encode "items" encodeItems model.items
+            , encode "item_type" encodeJSONSchemaArraySubtype model.itemType
             , maybeEncode "minItems" Json.Encode.int model.minItems
             , maybeEncode "maxItems" Json.Encode.int model.maxItems
             ]
@@ -1565,6 +1568,24 @@ encodeJSONSchemaArrayType : JSONSchemaArrayType -> Json.Encode.Value
 encodeJSONSchemaArrayType =
     Json.Encode.string << stringFromJSONSchemaArrayType
 
+
+
+stringFromJSONSchemaArraySubtype : JSONSchemaArraySubtype -> String
+stringFromJSONSchemaArraySubtype model =
+    case model of
+        JSONSchemaArraySubtypeString ->
+            "string"
+
+        JSONSchemaArraySubtypeBool ->
+            "bool"
+
+        JSONSchemaArraySubtypeNumber ->
+            "number"
+
+
+encodeJSONSchemaArraySubtype : JSONSchemaArraySubtype -> Json.Encode.Value
+encodeJSONSchemaArraySubtype =
+    Json.Encode.string << stringFromJSONSchemaArraySubtype
 
 
 encodeJSONSchemaBoolean : JSONSchemaBoolean -> Json.Encode.Value
@@ -1837,7 +1858,11 @@ encodeJsonAttributoPairs model =
             , encode "description" Json.Encode.string model.description
             , encode "group" Json.Encode.string model.group
             , encode "associated_table" encodeAssociatedTable model.associatedTable
-            , encode "attributo_type" encodeAttributoType model.attributoType
+            , maybeEncode "attributo_type_integer" encodeJSONSchemaInteger model.attributoTypeInteger
+            , maybeEncode "attributo_type_number" encodeJSONSchemaNumber model.attributoTypeNumber
+            , maybeEncode "attributo_type_string" encodeJSONSchemaString model.attributoTypeString
+            , maybeEncode "attributo_type_array" encodeJSONSchemaArray model.attributoTypeArray
+            , maybeEncode "attributo_type_boolean" encodeJSONSchemaBoolean model.attributoTypeBoolean
             ]
     in
     pairs
@@ -2268,7 +2293,11 @@ encodeJsonCreateAttributoInputPairs model =
             , encode "description" Json.Encode.string model.description
             , encode "group" Json.Encode.string model.group
             , encode "associated_table" encodeAssociatedTable model.associatedTable
-            , encode "attributo_type" encodeAttributoType model.attributoType
+            , maybeEncode "attributo_type_integer" encodeJSONSchemaInteger model.attributoTypeInteger
+            , maybeEncode "attributo_type_number" encodeJSONSchemaNumber model.attributoTypeNumber
+            , maybeEncode "attributo_type_string" encodeJSONSchemaString model.attributoTypeString
+            , maybeEncode "attributo_type_array" encodeJSONSchemaArray model.attributoTypeArray
+            , maybeEncode "attributo_type_boolean" encodeJSONSchemaBoolean model.attributoTypeBoolean
             ]
     in
     pairs
@@ -4321,34 +4350,11 @@ hTTPValidationErrorDecoder =
         |> maybeDecode "detail" (Json.Decode.list validationErrorDecoder) Nothing
 
 
-itemsDecoder : Json.Decode.Decoder Items
-itemsDecoder =
-    Json.Decode.field "type" Json.Decode.string
-        |> Json.Decode.andThen itemsTagDecoder
-
-
-itemsTagDecoder : String -> Json.Decode.Decoder Items
-itemsTagDecoder tag =
-    case tag of
-        "boolean" ->
-            Json.Decode.map ItemsJSONSchemaBoolean jSONSchemaBooleanDecoder
-
-        "number" ->
-            Json.Decode.map ItemsJSONSchemaNumber jSONSchemaNumberDecoder
-
-        "string" ->
-            Json.Decode.map ItemsJSONSchemaString jSONSchemaStringDecoder
-
-        _ ->
-            Json.Decode.fail <| "Trying to decode Items, but type_ '" ++ tag ++ "' is not supported."
-
-
-
 jSONSchemaArrayDecoder : Json.Decode.Decoder JSONSchemaArray
 jSONSchemaArrayDecoder =
     Json.Decode.succeed JSONSchemaArray
         |> decode "type" jSONSchemaArrayTypeDecoder 
-        |> decode "items" itemsDecoder 
+        |> decode "item_type" jSONSchemaArraySubtypeDecoder 
         |> maybeDecode "minItems" Json.Decode.int Nothing
         |> maybeDecode "maxItems" Json.Decode.int Nothing
 
@@ -4366,6 +4372,26 @@ jSONSchemaArrayTypeDecoder =
                         Json.Decode.fail <| "Unknown type: " ++ other
             )
 
+
+
+jSONSchemaArraySubtypeDecoder : Json.Decode.Decoder JSONSchemaArraySubtype
+jSONSchemaArraySubtypeDecoder =
+    Json.Decode.string
+        |> Json.Decode.andThen
+            (\value ->
+                case value of
+                    "string" ->
+                        Json.Decode.succeed JSONSchemaArraySubtypeString
+
+                    "bool" ->
+                        Json.Decode.succeed JSONSchemaArraySubtypeBool
+
+                    "number" ->
+                        Json.Decode.succeed JSONSchemaArraySubtypeNumber
+
+                    other ->
+                        Json.Decode.fail <| "Unknown type: " ++ other
+            )
 
 
 jSONSchemaBooleanDecoder : Json.Decode.Decoder JSONSchemaBoolean
@@ -4533,7 +4559,11 @@ jsonAttributoDecoder =
         |> decode "description" Json.Decode.string 
         |> decode "group" Json.Decode.string 
         |> decode "associated_table" associatedTableDecoder 
-        |> decode "attributo_type" attributoTypeDecoder 
+        |> maybeDecode "attributo_type_integer" jSONSchemaIntegerDecoder Nothing
+        |> maybeDecode "attributo_type_number" jSONSchemaNumberDecoder Nothing
+        |> maybeDecode "attributo_type_string" jSONSchemaStringDecoder Nothing
+        |> maybeDecode "attributo_type_array" jSONSchemaArrayDecoder Nothing
+        |> maybeDecode "attributo_type_boolean" jSONSchemaBooleanDecoder Nothing
 
 
 jsonAttributoBulkValueDecoder : Json.Decode.Decoder JsonAttributoBulkValue
@@ -4698,7 +4728,11 @@ jsonCreateAttributoInputDecoder =
         |> decode "description" Json.Decode.string 
         |> decode "group" Json.Decode.string 
         |> decode "associated_table" associatedTableDecoder 
-        |> decode "attributo_type" attributoTypeDecoder 
+        |> maybeDecode "attributo_type_integer" jSONSchemaIntegerDecoder Nothing
+        |> maybeDecode "attributo_type_number" jSONSchemaNumberDecoder Nothing
+        |> maybeDecode "attributo_type_string" jSONSchemaStringDecoder Nothing
+        |> maybeDecode "attributo_type_array" jSONSchemaArrayDecoder Nothing
+        |> maybeDecode "attributo_type_boolean" jSONSchemaBooleanDecoder Nothing
 
 
 jsonCreateAttributoOutputDecoder : Json.Decode.Decoder JsonCreateAttributoOutput

@@ -21,7 +21,7 @@ from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.asyncdb import attributo_value_to_db_row
 from amarcord.db.asyncdb import live_stream_image_name
 from amarcord.db.attributi import datetime_from_attributo_int
-from amarcord.db.attributi import schema_json_to_attributo_type
+from amarcord.db.attributi import schema_union_to_attributo_type
 from amarcord.db.attributi_map import AttributiMap
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.beamtime_id import BeamtimeId
@@ -168,7 +168,7 @@ def main_inner(
                 description="",
                 group="",
                 associated_table=attributo.associated_table,
-                attributo_type=schema_json_to_attributo_type(attributo.json_schema),
+                attributo_type=schema_union_to_attributo_type(attributo.json_schema),
             )
         )
 
@@ -352,9 +352,11 @@ def main_inner(
                 modified=f.modified,
                 experiment_type_id=old_to_new_experiment_type_id[f.experiment_type_id],
                 started=datetime_from_attributo_int(f.attributi["started"]),
-                stopped=datetime_from_attributo_int(f.attributi["stopped"])
-                if "stopped" in f.attributi
-                else None,
+                stopped=(
+                    datetime_from_attributo_int(f.attributi["stopped"])
+                    if "stopped" in f.attributi
+                    else None
+                ),
             )
         ).lastrowid
         old_to_new_run_id[f.id] = new_run_id
@@ -467,9 +469,11 @@ def main_inner(
                 cell_description=f.cell_description,
                 job_id=f.job_id,
                 job_error=f.job_error,
-                mtz_file_id=old_to_new_file_id[f.mtz_file_id]
-                if f.mtz_file_id is not None
-                else None,
+                mtz_file_id=(
+                    old_to_new_file_id[f.mtz_file_id]
+                    if f.mtz_file_id is not None
+                    else None
+                ),
                 input_merge_model=f.input_merge_model,
                 input_scale_intensities=f.input_scale_intensities,
                 input_post_refinement=f.input_post_refinement,
