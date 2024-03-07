@@ -543,6 +543,8 @@ def run_indexamajig(
                 f"--asapo-token={asapo_token_content}",
                 f"--asapo-beamtime={beamtime_id}",
                 f"--asapo-source={asapo_source}",
+                f"--asapo-consumer-timeout=3000",
+                f"--asapo-no-data-timeout=15",
                 f"--asapo-stream={args.run_id}",
                 "--asapo-wait-for-stream",
                 "--asapo-group=online",
