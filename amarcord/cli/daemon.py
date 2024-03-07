@@ -53,6 +53,8 @@ class Arguments(Tap):
     # pylint: disable=consider-alternative-union-syntax
     online_crystfel_asapo_source: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
+    online_crystfel_cpu_count_multiplier: Optional[float] = None
+    # pylint: disable=consider-alternative-union-syntax
     merge_daemon_workload_manager_uri: Optional[str] = None
     # pylint: disable=consider-alternative-union-syntax
     merge_daemon_output_base_directory: Optional[Path] = None
@@ -117,6 +119,7 @@ async def _main_loop(args: Arguments) -> None:
                         args.online_crystfel_crystfel_path,
                         args.online_crystfel_api_url,
                         args.online_crystfel_asapo_source,
+                        args.online_crystfel_cpu_count_multiplier,
                         args.online_crystfel_use_auto_geom_refinement,
                         args.online_crystfel_dummy_h5_input,
                     ),

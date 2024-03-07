@@ -113,6 +113,7 @@ class ParsedArgs:
     cell_description: None | str
     dummy_h5_input: None | str
     use_auto_geom_refinement: bool
+    cpu_count_multiplier: float
 
 
 def read_path(j: dict[str, Any], key: str) -> Path:
@@ -169,6 +170,15 @@ def parse_predefined(s: bytes) -> ParsedArgs:
             f"job-id not an int but {job_id} (type {type(job_id)})",  # pyright: ignore[reportUnknownArgumentType]
         )
 
+    cpu_count_multiplier = j.get("cpu-count-multiplier")
+    if cpu_count_multiplier is None:
+        exit_with_error(None, "cpu-count-multiplier missing in input")
+    if not isinstance(cpu_count_multiplier, (float, int)):
+        exit_with_error(
+            None,
+            f"cpu-count-multiplier not a float but {cpu_count_multiplier} (type {type(cpu_count_multiplier)})",  # pyright: ignore[reportUnknownArgumentType]
+        )
+
     cell_description = j.get("cell-description")
     if cell_description is not None:
         if not isinstance(cell_description, str):
@@ -185,6 +195,7 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         stream_file=stream_file_path,
         cell_description=cell_description,  # pyright: ignore[reportUnknownArgumentType]
         crystfel_path=crystfel_path,
+        cpu_count_multiplier=cpu_count_multiplier,
         dummy_h5_input=j.get(  # pyright: ignore[reportUnknownArgumentType]
             "dummy-h5-input"
         ),
@@ -497,7 +508,7 @@ def run_indexamajig(
         "--int-radius=4,5,7",
         "--indexing=asdf",
         "--asdf-fast",
-        f"-j{cpu_count // 6 if cpu_count is not None else 96}",
+        f"-j{int(cpu_count * args.cpu_count_multiplier) if cpu_count is not None else 96}",
         "--no-retry",
         "-g",
         geometry_path,

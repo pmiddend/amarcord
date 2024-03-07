@@ -40,6 +40,7 @@ class CrystFELOnlineConfig:
     crystfel_path: Path
     api_url: str
     asapo_source: str
+    cpu_count_multiplier: None | float
     use_auto_geom_refinement: bool
     dummy_h5_input: None | str
 
@@ -72,6 +73,9 @@ async def start_indexing_job(
                 "run-id": run.external_id,
                 "job-id": indexing_result.id,
                 "asapo-source": config.asapo_source,
+                "cpu-count-multiplier": config.cpu_count_multiplier
+                if config.cpu_count_multiplier
+                else 2.0,
                 "api-url": config.api_url,
                 "stream-file": str(stream_file),
                 "dummy-h5-input": config.dummy_h5_input,
