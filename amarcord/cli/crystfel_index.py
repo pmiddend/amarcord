@@ -497,7 +497,7 @@ def run_indexamajig(
         "--int-radius=4,5,7",
         "--indexing=asdf",
         "--asdf-fast",
-        f"-j{cpu_count // 2 if cpu_count is not None else 96}",
+        f"-j{cpu_count // 6 if cpu_count is not None else 96}",
         "--no-retry",
         "-g",
         geometry_path,
