@@ -208,6 +208,20 @@ viewDetectorShifts r =
         , yAxisLabel
         , xAxisLegend
         , yAxisLegend
+        , g [ transform [ Translate (xPadding - 1) 0 ] ]
+            [ SubPath.element
+                (SubPath.fromSegments
+                    [ Segment.line
+                        ( 0, topPadding + Scale.convert shiftScale 0 )
+                        ( Tuple.second (Scale.range runIdScale), topPadding + Scale.convert shiftScale 0 )
+                    ]
+                )
+                [ stroke <| Paint <| Color.black
+                , strokeDasharray "5,5"
+                , strokeWidth 2
+                , fill PaintNone
+                ]
+            ]
         , g [ transform [ Translate xPadding topPadding ] ]
             [ Path.element (plotLine shiftScale .detectorShiftXMm)
                 [ stroke <| Paint <| xShiftColor
