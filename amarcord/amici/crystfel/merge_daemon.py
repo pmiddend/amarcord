@@ -240,7 +240,7 @@ def _process_premature_finish(
     log.info("job has finished prematurely")
 
     return DBMergeRuntimeStatusError(
-        error="job has finished on SLURM, but delivered no results",
+        error="job has finished on SLURM, but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!",
         started=runtime_status.started,
         stopped=datetime.datetime.utcnow(),
         recent_log=runtime_status.recent_log,
