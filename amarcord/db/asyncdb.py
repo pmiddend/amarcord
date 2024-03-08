@@ -652,6 +652,7 @@ class AsyncDB:
                     self.tables.run.c.id == self.tables.indexing_result.c.run_id,
                 )
                 .where(self.tables.run.c.beamtime_id == beamtime_id)
+                .distinct()
             )
         return [
             DBRefinementResultOutput(
