@@ -57,7 +57,7 @@
             # is the wrong directory, since the hardcoded_static_folder isn't replaced yet. This is breaking isolation, so we override the behavior with
             # the --app dir explicitly
             build-amarcord-production-webserver = frontend: prev.writeShellScriptBin "amarcord-production-webserver" ''
-              ${(amarcord-python-package frontend).dependencyEnv}/bin/uvicorn --app-dir=${amarcord-python-package frontend}/lib/python${(amarcord-python-package frontend).dependencyEnv.pythonVersion}/site-packages amarcord.cli.webserver:app "$@"
+              ${(amarcord-python-package frontend).dependencyEnv}/bin/gunicorn amarcord.cli.webserver:app  --worker-class uvicorn.workers.UvicornWorker "$@"
             '';
             amarcord-python-env = prev.poetry2nix.mkPoetryEnv {
               projectDir = ./.;

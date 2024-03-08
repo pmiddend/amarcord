@@ -10,6 +10,7 @@ python = ">=3.9, <3.12"
 
 # for general DB access
 SQLAlchemy = "2.0.23"
+gunicorn = "21.2.0"
 # for caching_sha2_password access in MySQL
 cryptography = '40.0.2'
 # For parsing the arguments for programs (always required basically)
@@ -126,9 +127,9 @@ ignore_undeclared = ["amarcord", "hypothesis", "pytest", "pytest_asyncio", "pyte
 # python-magic is imported a little weirdly
 # greenlet is for explicit version forcing
 # pymysql for the migration script
-# uvicorn is our web server
+# uvicorn is our web server (same for gunicorn)
 # python-multipart is for the web server internals (file upload, see FastAPI docs)
-ignore_unused = ["aiosqlite", "asyncmy", "cryptography", "fawltydeps", "python-magic", "greenlet", "pymysql", "uvicorn", "python-multipart"]
+ignore_unused = ["aiosqlite", "asyncmy", "cryptography", "fawltydeps", "python-magic", "greenlet", "pymysql", "uvicorn", "python-multipart", "gunicorn"]
 
 [tool.pyright]
 include = ["amarcord", "tests"]
