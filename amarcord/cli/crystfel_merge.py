@@ -484,11 +484,21 @@ def upload_file(args: ParsedArgs, file_path: Path) -> int:
 def write_output_json(
     args: ParsedArgs, error: None | str, result: None | dict[str, Any]
 ) -> None:
+    try:
+        result_json = json.dumps(
+            {"error": error, "result": result}, allow_nan=False, indent=2
+        ).encode("utf-8")
+    except ValueError:
+        result_json_with_nan = json.dumps(
+            {"error": error, "result": result}, allow_nan=True, indent=2
+        ).encode("utf-8")
+        logger.info(
+            f"couldn't serialize output json - it probably contained NaN: {result_json_with_nan}"
+        )
+        raise
     req = request.Request(
         f"{args.api_url}/api/merging/{args.merge_result_id}",
-        data=json.dumps(
-            {"error": error, "result": result}, allow_nan=False, indent=2
-        ).encode("utf-8"),
+        data=result_json,
         method="POST",
     )
     req.add_header("Content-Type", "application/json")
