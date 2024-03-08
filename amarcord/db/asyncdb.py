@@ -618,9 +618,41 @@ class AsyncDB:
         ]
 
     async def retrieve_refinement_results(
-        self, conn: Connection
+        self, conn: Connection, beamtime_id: None | BeamtimeId = None
     ) -> list[DBRefinementResultOutput]:
         rr = self.tables.refinement_result.c
+        statement = sa.select(
+            rr.id,
+            rr.merge_result_id,
+            rr.pdb_file_id,
+            rr.mtz_file_id,
+            rr.r_free,
+            rr.r_work,
+            rr.rms_bond_angle,
+            rr.rms_bond_length,
+        )
+        if beamtime_id is not None:
+            statement = (
+                statement.join(
+                    self.tables.merge_result,
+                    self.tables.merge_result.c.id == rr.merge_result_id,
+                )
+                .join(
+                    self.tables.merge_result_has_indexing_result,
+                    self.tables.merge_result_has_indexing_result.c.merge_result_id
+                    == self.tables.merge_result.c.id,
+                )
+                .join(
+                    self.tables.indexing_result,
+                    self.tables.indexing_result.c.id
+                    == self.tables.merge_result_has_indexing_result.c.indexing_result_id,
+                )
+                .join(
+                    self.tables.run,
+                    self.tables.run.c.id == self.tables.indexing_result.c.run_id,
+                )
+                .where(self.tables.run.c.beamtime_id == beamtime_id)
+            )
         return [
             DBRefinementResultOutput(
                 id=row.id,
@@ -632,18 +664,7 @@ class AsyncDB:
                 rms_bond_angle=row.rms_bond_angle,
                 rms_bond_length=row.rms_bond_length,
             )
-            for row in await conn.execute(
-                sa.select(
-                    rr.id,
-                    rr.merge_result_id,
-                    rr.pdb_file_id,
-                    rr.mtz_file_id,
-                    rr.r_free,
-                    rr.r_work,
-                    rr.rms_bond_angle,
-                    rr.rms_bond_length,
-                )
-            )
+            for row in await conn.execute(statement)
         ]
 
     async def create_refinement_result(
@@ -2282,7 +2303,7 @@ class AsyncDB:
         refinement_results_by_merge_id: dict[
             int, list[DBRefinementResultOutput]
         ] = group_by(
-            await self.retrieve_refinement_results(conn),
+            await self.retrieve_refinement_results(conn, beamtime_id),
             lambda rr: rr.merge_result_id,
         )
 

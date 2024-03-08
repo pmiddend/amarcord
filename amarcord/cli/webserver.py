@@ -3083,7 +3083,9 @@ async def read_analysis_results(
         # result's runs.
         #
         # This is what's tested here.
-        for merge_result in await db.retrieve_merge_results(conn):
+        for merge_result in await db.retrieve_merge_results(
+            conn, beamtime_id=beamtimeId
+        ):
             runs_in_merge_result: set[int] = set(
                 ir.run_id for ir in merge_result.indexing_results
             )
@@ -3098,7 +3100,7 @@ async def read_analysis_results(
         refinement_results_per_merge_result_id: dict[
             int, list[DBRefinementResultOutput]
         ] = group_by(
-            await db.retrieve_refinement_results(conn),
+            await db.retrieve_refinement_results(conn, beamtimeId),
             lambda rr: rr.merge_result_id,
         )
 
