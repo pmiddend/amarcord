@@ -1120,6 +1120,8 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
             return None
         highres_cut_line: None | CompareShellLine = None
         for line in first_pass_ccstar_file:
+            if math.isnan(line.fom_value):
+                continue
             if line.fom_value < _HIGHRES_CUT_CCSTAR_THRESHOLD:
                 break
             highres_cut_line = line
