@@ -495,7 +495,14 @@ def write_output_json(
         logger.info(
             f"couldn't serialize output json - it probably contained NaN: {result_json_with_nan}"
         )
-        raise
+        result_json = json.dumps(
+            {
+                "error": 'The merge result contained invalid statistics (probably CC* is "not a number"). Try collecting more data, using different merge parameters or indexing prior runs manually to fix this. The full output of this merge job contains the final JSON with the invalid stats, you can take a look if you have access to it.',
+                "result": None,
+            },
+            allow_nan=False,
+            indent=2,
+        ).encode("utf-8")
     req = request.Request(
         f"{args.api_url}/api/merging/{args.merge_result_id}",
         data=result_json,
