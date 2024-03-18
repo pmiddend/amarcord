@@ -41,9 +41,11 @@ class AsyncDBContext:
             connect_args={"check_same_thread": False} if in_memory_db else {},
             future=True,
             poolclass=StaticPool if in_memory_db else NullPool,
-            json_serializer=_json_serializer_allow_nan_false
-            if not use_sqlalchemy_default_json_serializer
-            else None,
+            json_serializer=(
+                _json_serializer_allow_nan_false
+                if not use_sqlalchemy_default_json_serializer
+                else None
+            ),
             # execution_options={"isolation_level": "SERIALIZABLE"},
         )
 

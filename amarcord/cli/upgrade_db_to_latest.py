@@ -8,7 +8,9 @@ from amarcord.db.tables import create_tables_from_metadata
 
 
 class Arguments(Tap):
-    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    db_connection_url: (
+        str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    )
 
 
 async def _upgrade_db_to_latest(args: Arguments) -> None:

@@ -138,6 +138,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 # Dependency
 async def get_db() -> AsyncGenerator[AsyncDB, None]:
     db_url: Any = os.environ["DB_URL"]
@@ -340,17 +342,27 @@ class JsonAttributoValue(BaseModel):
         return (
             self.attributo_value_str
             if self.attributo_value_str is not None
-            else self.attributo_value_int
-            if self.attributo_value_int is not None
-            else self.attributo_value_float
-            if self.attributo_value_float is not None
-            else self.attributo_value_bool
-            if self.attributo_value_bool is not None
-            else self.attributo_value_list_str
-            if self.attributo_value_list_str is not None
-            else self.attributo_value_list_float
-            if self.attributo_value_list_float is not None
-            else None
+            else (
+                self.attributo_value_int
+                if self.attributo_value_int is not None
+                else (
+                    self.attributo_value_float
+                    if self.attributo_value_float is not None
+                    else (
+                        self.attributo_value_bool
+                        if self.attributo_value_bool is not None
+                        else (
+                            self.attributo_value_list_str
+                            if self.attributo_value_list_str is not None
+                            else (
+                                self.attributo_value_list_float
+                                if self.attributo_value_list_float is not None
+                                else None
+                            )
+                        )
+                    )
+                )
+            )
         )
 
 
@@ -510,31 +522,37 @@ def _encode_attributo_value(
 ) -> JsonAttributoValue:
     return JsonAttributoValue(
         attributo_id=attributo_id,
-        attributo_value_str=attributo_value
-        if isinstance(attributo_value, str)
-        else None,
-        attributo_value_int=attributo_value
-        if isinstance(attributo_value, int)
-        else None,
-        attributo_value_float=attributo_value
-        if isinstance(attributo_value, float)
-        else None,
-        attributo_value_bool=attributo_value
-        if isinstance(attributo_value, bool)
-        else None,
+        attributo_value_str=(
+            attributo_value if isinstance(attributo_value, str) else None
+        ),
+        attributo_value_int=(
+            attributo_value if isinstance(attributo_value, int) else None
+        ),
+        attributo_value_float=(
+            attributo_value if isinstance(attributo_value, float) else None
+        ),
+        attributo_value_bool=(
+            attributo_value if isinstance(attributo_value, bool) else None
+        ),
         # we cannot thoroughly test the array for type-correctness (or we dont' want to, rather)
-        attributo_value_list_str=attributo_value
-        if isinstance(attributo_value, list)
-        and (not attributo_value or isinstance(attributo_value[0], str))
-        else None,  # pyright: ignore[reportGeneralTypeIssues]
-        attributo_value_list_float=attributo_value
-        if isinstance(attributo_value, list)
-        and (not attributo_value or isinstance(attributo_value[0], (int, float)))
-        else None,  # pyright: ignore[reportGeneralTypeIssues]
-        attributo_value_list_bool=attributo_value
-        if isinstance(attributo_value, list)
-        and (not attributo_value or isinstance(attributo_value[0], bool))
-        else None,  # pyright: ignore[reportGeneralTypeIssues]
+        attributo_value_list_str=(
+            attributo_value
+            if isinstance(attributo_value, list)
+            and (not attributo_value or isinstance(attributo_value[0], str))
+            else None
+        ),  # pyright: ignore[reportGeneralTypeIssues]
+        attributo_value_list_float=(
+            attributo_value
+            if isinstance(attributo_value, list)
+            and (not attributo_value or isinstance(attributo_value[0], (int, float)))
+            else None
+        ),  # pyright: ignore[reportGeneralTypeIssues]
+        attributo_value_list_bool=(
+            attributo_value
+            if isinstance(attributo_value, list)
+            and (not attributo_value or isinstance(attributo_value[0], bool))
+            else None
+        ),  # pyright: ignore[reportGeneralTypeIssues]
     )
 
 
@@ -655,31 +673,39 @@ def _encode_merge_result(
         ),
         cell_description=coparse_cell_description(mr.parameters.cell_description),
         point_group=mr.parameters.point_group,
-        state_queued=JsonMergeResultStateQueued(queued=True)
-        if mr.runtime_status is None
-        else None,
-        state_running=JsonMergeResultStateRunning(
-            started=datetime_to_attributo_int(mr.runtime_status.started),
-            job_id=mr.runtime_status.job_id,
-            latest_log=mr.runtime_status.recent_log,
-        )
-        if isinstance(mr.runtime_status, DBMergeRuntimeStatusRunning)
-        else None,
-        state_error=JsonMergeResultStateError(
-            started=datetime_to_attributo_int(mr.runtime_status.started),
-            stopped=datetime_to_attributo_int(mr.runtime_status.stopped),
-            error=mr.runtime_status.error,
-            latest_log=mr.runtime_status.recent_log,
-        )
-        if isinstance(mr.runtime_status, DBMergeRuntimeStatusError)
-        else None,
-        state_done=JsonMergeResultStateDone(
-            started=datetime_to_attributo_int(mr.runtime_status.started),
-            stopped=datetime_to_attributo_int(mr.runtime_status.stopped),
-            result=mr.runtime_status.result,
-        )
-        if isinstance(mr.runtime_status, DBMergeRuntimeStatusDone)
-        else None,
+        state_queued=(
+            JsonMergeResultStateQueued(queued=True)
+            if mr.runtime_status is None
+            else None
+        ),
+        state_running=(
+            JsonMergeResultStateRunning(
+                started=datetime_to_attributo_int(mr.runtime_status.started),
+                job_id=mr.runtime_status.job_id,
+                latest_log=mr.runtime_status.recent_log,
+            )
+            if isinstance(mr.runtime_status, DBMergeRuntimeStatusRunning)
+            else None
+        ),
+        state_error=(
+            JsonMergeResultStateError(
+                started=datetime_to_attributo_int(mr.runtime_status.started),
+                stopped=datetime_to_attributo_int(mr.runtime_status.stopped),
+                error=mr.runtime_status.error,
+                latest_log=mr.runtime_status.recent_log,
+            )
+            if isinstance(mr.runtime_status, DBMergeRuntimeStatusError)
+            else None
+        ),
+        state_done=(
+            JsonMergeResultStateDone(
+                started=datetime_to_attributo_int(mr.runtime_status.started),
+                stopped=datetime_to_attributo_int(mr.runtime_status.stopped),
+                result=mr.runtime_status.result,
+            )
+            if isinstance(mr.runtime_status, DBMergeRuntimeStatusDone)
+            else None
+        ),
         parameters=JsonMergeParameters(
             point_group=mr.parameters.point_group,
             cell_description=coparse_cell_description(mr.parameters.cell_description),
@@ -688,12 +714,14 @@ def _encode_merge_result(
             scale_intensities=mr.parameters.scale_intensities,
             post_refinement=mr.parameters.post_refinement,
             iterations=mr.parameters.iterations,
-            polarisation=JsonPolarisation(
-                angle=int(mr.parameters.polarisation.angle.m),
-                percent=mr.parameters.polarisation.percentage,
-            )
-            if mr.parameters.polarisation is not None
-            else None,
+            polarisation=(
+                JsonPolarisation(
+                    angle=int(mr.parameters.polarisation.angle.m),
+                    percent=mr.parameters.polarisation.percentage,
+                )
+                if mr.parameters.polarisation is not None
+                else None
+            ),
             start_after=mr.parameters.start_after,
             stop_after=mr.parameters.stop_after,
             rel_b=mr.parameters.rel_b,
@@ -763,7 +791,11 @@ async def read_beamtimes(db: AsyncDB = Depends(get_db)) -> JsonReadBeamtime:
         )
 
 
-@app.get("/api/beamtimes/{beamtimeId}", tags=["beamtimes"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/beamtimes/{beamtimeId}",
+    tags=["beamtimes"],
+    response_model_exclude_defaults=True,
+)
 async def read_beamtime(beamtimeId: int, db: AsyncDB = Depends(get_db)) -> JsonBeamtime:
     async with db.read_only_connection() as conn:
         return _encode_beamtime(
@@ -837,7 +869,11 @@ def _encode_attributo(a: DBAttributo) -> JsonAttributo:
     )
 
 
-@app.get("/api/chemicals/{beamtimeId}", tags=["chemicals"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/chemicals/{beamtimeId}",
+    tags=["chemicals"],
+    response_model_exclude_defaults=True,
+)
 async def read_chemicals(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadChemicals:
@@ -873,7 +909,11 @@ class JsonIndexingJobUpdateOutput(BaseModel):
     result: bool
 
 
-@app.post("/api/indexing/{indexingResultId}", tags=["analysis", "processing"], response_model_exclude_defaults=True)
+@app.post(
+    "/api/indexing/{indexingResultId}",
+    tags=["analysis", "processing"],
+    response_model_exclude_defaults=True,
+)
 async def indexing_job_update(
     indexingResultId: int,
     json_result: JsonIndexingResultRootJson,
@@ -915,9 +955,11 @@ async def indexing_job_update(
                     # This is confusing, I know. The idea is: if we're in this "if" branch, then we have an error.
                     # This means that in theory, we can only be in state "Running". However, to be absolutely sure not to
                     # lose the "stream file" information, we take it from the runtime status, if that's not None.
-                    stream_file=runtime_status.stream_file
-                    if runtime_status is not None
-                    else Path("dummy-after-error"),
+                    stream_file=(
+                        runtime_status.stream_file
+                        if runtime_status is not None
+                        else Path("dummy-after-error")
+                    ),
                 )
             )
         elif json_result.result is not None:
@@ -934,9 +976,11 @@ async def indexing_job_update(
                     # This is confusing, I know. The idea is: if we're in this "if" branch, then we have a final result now.
                     # This means that in theory, we can only be in state "Running". However, to be absolutely sure not to
                     # lose the "stream file" information, we take it from the runtime status, if that's not None.
-                    stream_file=runtime_status.stream_file
-                    if runtime_status is not None
-                    else Path("dummy-after-success"),
+                    stream_file=(
+                        runtime_status.stream_file
+                        if runtime_status is not None
+                        else Path("dummy-after-success")
+                    ),
                 )
             )
             await db.add_indexing_result_statistic(
@@ -986,7 +1030,11 @@ async def _safe_create_new_event(
         this_logger.exception("error writing event log")
 
 
-@app.post("/api/merging/{mergeResultId}", tags=["merging"], response_model_exclude_defaults=True)
+@app.post(
+    "/api/merging/{mergeResultId}",
+    tags=["merging"],
+    response_model_exclude_defaults=True,
+)
 async def merge_job_finished(
     mergeResultId: int,
     json_merge_result: JsonMergeResultRootJson,
@@ -1125,7 +1173,11 @@ class JsonStartMergeJobForDataSetOutput(BaseModel):
     merge_result_id: int
 
 
-@app.post("/api/merging/{dataSetId}/start", tags=["merging"], response_model_exclude_defaults=True)
+@app.post(
+    "/api/merging/{dataSetId}/start",
+    tags=["merging"],
+    response_model_exclude_defaults=True,
+)
 async def start_merge_job_for_data_set(
     dataSetId: int,
     input_: JsonStartMergeJobForDataSetInput,
@@ -1235,12 +1287,14 @@ async def start_merge_job_for_data_set(
                     scale_intensities=ScaleIntensities(input_.scale_intensities),
                     post_refinement=input_.post_refinement,
                     iterations=input_.iterations,
-                    polarisation=Polarisation(
-                        polarisation.angle * _UNIT_REGISTRY.degrees,
-                        percentage=polarisation.percent,
-                    )
-                    if polarisation is not None
-                    else None,
+                    polarisation=(
+                        Polarisation(
+                            polarisation.angle * _UNIT_REGISTRY.degrees,
+                            percentage=polarisation.percent,
+                        )
+                        if polarisation is not None
+                        else None
+                    ),
                     start_after=input_.start_after,
                     stop_after=input_.stop_after,
                     rel_b=input_.rel_b,
@@ -1277,7 +1331,11 @@ class JsonStartRunOutput(BaseModel):
     run_internal_id: int
 
 
-@app.get("/api/runs/{runExternalId}/start/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/runs/{runExternalId}/start/{beamtimeId}",
+    tags=["runs"],
+    response_model_exclude_defaults=True,
+)
 async def start_run(
     runExternalId: RunExternalId,
     beamtimeId: BeamtimeId,
@@ -1313,7 +1371,11 @@ class JsonStopRunOutput(BaseModel):
     result: bool
 
 
-@app.get("/api/runs/stop-latest/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/runs/stop-latest/{beamtimeId}",
+    tags=["runs"],
+    response_model_exclude_defaults=True,
+)
 async def stop_latest_run(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonStopRunOutput:
@@ -1349,7 +1411,9 @@ class JsonCreateOrUpdateRunOutput(BaseModel):
     run_internal_id: None | int
 
 
-@app.post("/api/runs/{runExternalId}", tags=["runs"], response_model_exclude_defaults=True)
+@app.post(
+    "/api/runs/{runExternalId}", tags=["runs"], response_model_exclude_defaults=True
+)
 async def create_or_update_run(
     runExternalId: RunExternalId,
     input_: JsonCreateOrUpdateRun,
@@ -1389,12 +1453,16 @@ async def create_or_update_run(
                 external_id=runExternalId,
                 experiment_type_id=experiment_type_id,
                 beamtime_id=beamtime_id,
-                started=datetime.datetime.utcnow()
-                if input_.started is None
-                else datetime_from_attributo_int(input_.started),
-                stopped=None
-                if input_.stopped is None
-                else datetime_from_attributo_int(input_.stopped),
+                started=(
+                    datetime.datetime.utcnow()
+                    if input_.started is None
+                    else datetime_from_attributo_int(input_.started)
+                ),
+                stopped=(
+                    None
+                    if input_.stopped is None
+                    else datetime_from_attributo_int(input_.stopped)
+                ),
                 attributi=AttributiMap.from_types_and_json_dict(attributi, {}),
                 files=[],
             )
@@ -1407,9 +1475,11 @@ async def create_or_update_run(
             await db.update_run(
                 conn,
                 internal_id=run_internal_id,
-                stopped=current_run.stopped
-                if input_.stopped is None
-                else datetime_from_attributo_int(input_.stopped),
+                stopped=(
+                    current_run.stopped
+                    if input_.stopped is None
+                    else datetime_from_attributo_int(input_.stopped)
+                ),
                 attributi=current_run.attributi,
                 new_experiment_type_id=experiment_type_id,
             )
@@ -1418,9 +1488,11 @@ async def create_or_update_run(
             run_internal_id = await db.create_run(
                 conn,
                 run_external_id=runExternalId,
-                started=datetime_from_attributo_int(input_.started)
-                if input_.started is not None
-                else datetime.datetime.utcnow(),
+                started=(
+                    datetime_from_attributo_int(input_.started)
+                    if input_.started is not None
+                    else datetime.datetime.utcnow()
+                ),
                 beamtime_id=beamtime_id,
                 attributi=attributi,
                 attributi_map=current_run.attributi,
@@ -1567,9 +1639,11 @@ async def create_or_update_run(
                     hits=0,
                     not_indexed_frames=0,
                     runtime_status=None,
-                    point_group=point_group
-                    if point_group is not None and point_group.strip()
-                    else None,
+                    point_group=(
+                        point_group
+                        if point_group is not None and point_group.strip()
+                        else None
+                    ),
                     cell_description=cell_description,
                     chemical_id=channel_chemical_id,
                 ),
@@ -1845,7 +1919,11 @@ class JsonReadRunAnalysis(BaseModel):
     indexing_results_by_run_id: list[JsonRunAnalysisIndexingResult]
 
 
-@app.get("/api/run-analysis/{beamtimeId}", tags=["analysis"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/run-analysis/{beamtimeId}",
+    tags=["analysis"],
+    response_model_exclude_defaults=True,
+)
 async def read_run_analysis(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadRunAnalysis:
@@ -2078,9 +2156,11 @@ async def read_runs(
                     external_id=r.external_id,
                     attributi=_encode_attributi_map(r.attributi),
                     started=datetime_to_attributo_int(r.started),
-                    stopped=datetime_to_attributo_int(r.stopped)
-                    if r.stopped is not None
-                    else None,
+                    stopped=(
+                        datetime_to_attributo_int(r.stopped)
+                        if r.stopped is not None
+                        else None
+                    ),
                     files=[_encode_file_output(f) for f in r.files],
                     summary=_encode_summary(run_foms.get(r.id, empty_indexing_fom)),
                     experiment_type_id=r.experiment_type_id,
@@ -2151,7 +2231,7 @@ async def create_file(
     It doesn't need a multipart request and the file extension can be set using the path parameter (which is used to generate nice
     .mtz and .pdb download URLs).
     """,
-    response_model_exclude_defaults=True
+    response_model_exclude_defaults=True,
 )
 async def create_file_simple(
     extension: str, request: Request, db: AsyncDB = Depends(get_db)
@@ -2190,7 +2270,11 @@ class JsonUserConfigurationSingleOutput(BaseModel):
     value_int: None | int
 
 
-@app.get("/api/user-config/{beamtimeId}/{key}", tags=["config"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/user-config/{beamtimeId}/{key}",
+    tags=["config"],
+    response_model_exclude_defaults=True,
+)
 async def read_user_configuration_single(
     beamtimeId: BeamtimeId, key: str, db: AsyncDB = Depends(get_db)
 ) -> JsonUserConfigurationSingleOutput:
@@ -2214,7 +2298,11 @@ async def read_user_configuration_single(
         )
 
 
-@app.patch("/api/user-config/{beamtimeId}/{key}/{value}", tags=["config"], response_model_exclude_defaults=True)
+@app.patch(
+    "/api/user-config/{beamtimeId}/{key}/{value}",
+    tags=["config"],
+    response_model_exclude_defaults=True,
+)
 async def update_user_configuration_single(
     beamtimeId: BeamtimeId, key: str, value: str, db: AsyncDB = Depends(get_db)
 ) -> JsonUserConfigurationSingleOutput:
@@ -2279,7 +2367,11 @@ class JsonCreateExperimentTypeOutput(BaseModel):
     id: int
 
 
-@app.post("/api/experiment-types", tags=["experimenttypes"], response_model_exclude_defaults=True)
+@app.post(
+    "/api/experiment-types",
+    tags=["experimenttypes"],
+    response_model_exclude_defaults=True,
+)
 async def create_experiment_type(
     input_: JsonCreateExperimentTypeInput, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateExperimentTypeOutput:
@@ -2307,7 +2399,11 @@ class JsonChangeRunExperimentTypeOutput(BaseModel):
     result: bool
 
 
-@app.post("/api/experiment-types/change-for-run", tags=["experimenttypes"], response_model_exclude_defaults=True)
+@app.post(
+    "/api/experiment-types/change-for-run",
+    tags=["experimenttypes"],
+    response_model_exclude_defaults=True,
+)
 async def change_current_run_experiment_type(
     input_: JsonChangeRunExperimentType, db: AsyncDB = Depends(get_db)
 ) -> JsonChangeRunExperimentTypeOutput:
@@ -2375,7 +2471,11 @@ class JsonReadExperimentTypes(BaseModel):
     experiment_type_id_to_run: list[JsonExperimentTypeAndRuns]
 
 
-@app.get("/api/experiment-types/{beamtimeId}", tags=["experimenttypes"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/experiment-types/{beamtimeId}",
+    tags=["experimenttypes"],
+    response_model_exclude_defaults=True,
+)
 async def read_experiment_types(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadExperimentTypes:
@@ -2434,7 +2534,11 @@ class JsonBeamtimeSchedule(BaseModel):
     schedule: list[JsonBeamtimeScheduleRow]
 
 
-@app.get("/api/schedule/{beamtimeId}", tags=["schedule"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/schedule/{beamtimeId}",
+    tags=["schedule"],
+    response_model_exclude_defaults=True,
+)
 async def get_beamtime_schedule(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonBeamtimeSchedule:
@@ -2512,7 +2616,11 @@ class JsonCreateLiveStreamSnapshotOutput(BaseModel):
     original_path: None | str
 
 
-@app.get("/api/live-stream/snapshot/{beamtimeId}", tags=["events"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/live-stream/snapshot/{beamtimeId}",
+    tags=["events"],
+    response_model_exclude_defaults=True,
+)
 async def create_live_stream_snapshot(
     beamtimeId: int, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateLiveStreamSnapshotOutput:
@@ -2587,7 +2695,9 @@ class JsonCreateDataSetFromRunOutput(BaseModel):
     data_set_id: int
 
 
-@app.post("/api/data-sets/from-run", tags=["datasets"], response_model_exclude_defaults=True)
+@app.post(
+    "/api/data-sets/from-run", tags=["datasets"], response_model_exclude_defaults=True
+)
 async def create_data_set_from_run(
     input_: JsonCreateDataSetFromRun, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateDataSetFromRunOutput:
@@ -2751,7 +2861,11 @@ class JsonReadDataSets(BaseModel):
     experiment_types: list[JsonExperimentType]
 
 
-@app.get("/api/data-sets/{beamtimeId}", tags=["datasets"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/data-sets/{beamtimeId}",
+    tags=["datasets"],
+    response_model_exclude_defaults=True,
+)
 async def read_data_sets(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadDataSets:
@@ -2816,7 +2930,9 @@ class JsonReadEvents(BaseModel):
     events: list[JsonEvent]
 
 
-@app.get("/api/events/{beamtimeId}", tags=["events"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/events/{beamtimeId}", tags=["events"], response_model_exclude_defaults=True
+)
 async def read_events(
     beamtimeId: BeamtimeId,
     db: AsyncDB = Depends(get_db),
@@ -2863,7 +2979,9 @@ class JsonCreateAttributiFromSchemaOutput(BaseModel):
     created_attributi: int
 
 
-@app.post("/api/attributi/schema", tags=["attributi"], response_model_exclude_defaults=True)
+@app.post(
+    "/api/attributi/schema", tags=["attributi"], response_model_exclude_defaults=True
+)
 async def create_attributi_from_schema(
     input_: JsonCreateAttributiFromSchemaInput, db: AsyncDB = Depends(get_db)
 ) -> JsonCreateAttributiFromSchemaOutput:
@@ -3055,9 +3173,13 @@ async def read_file(fileId: int, db: AsyncDB = Depends(get_db)) -> StreamingResp
         return StreamingResponse(
             async_generator(),
             media_type=file_.type_,
-            headers={"Content-Disposition": f'attachment; filename="{file_.file_name}"'}
-            if _do_content_disposition(file_.type_, Path(file_.file_name).suffix[1:])
-            else {},
+            headers=(
+                {"Content-Disposition": f'attachment; filename="{file_.file_name}"'}
+                if _do_content_disposition(
+                    file_.type_, Path(file_.file_name).suffix[1:]
+                )
+                else {}
+            ),
         )
     except NotFoundError:
         raise HTTPException(status_code=404, detail=f"File with id {fileId} not found")
@@ -3067,7 +3189,11 @@ class JsonReadAttributi(BaseModel):
     attributi: list[JsonAttributo]
 
 
-@app.get("/api/attributi/{beamtimeId}", tags=["attributi"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/attributi/{beamtimeId}",
+    tags=["attributi"],
+    response_model_exclude_defaults=True,
+)
 async def read_attributi(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadAttributi:
@@ -3101,7 +3227,11 @@ class JsonReadAnalysisResults(BaseModel):
     data_sets: list[JsonAnalysisExperimentType]
 
 
-@app.get("/api/analysis/analysis-results/{beamtimeId}", tags=["analysis"], response_model_exclude_defaults=True)
+@app.get(
+    "/api/analysis/analysis-results/{beamtimeId}",
+    tags=["analysis"],
+    response_model_exclude_defaults=True,
+)
 async def read_analysis_results(
     beamtimeId: BeamtimeId, db: AsyncDB = Depends(get_db)
 ) -> JsonReadAnalysisResults:

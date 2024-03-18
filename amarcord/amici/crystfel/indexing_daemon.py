@@ -73,19 +73,19 @@ async def start_indexing_job(
                 "run-id": run.external_id,
                 "job-id": indexing_result.id,
                 "asapo-source": config.asapo_source,
-                "cpu-count-multiplier": config.cpu_count_multiplier
-                if config.cpu_count_multiplier
-                else 2.0,
+                "cpu-count-multiplier": (
+                    config.cpu_count_multiplier if config.cpu_count_multiplier else 2.0
+                ),
                 "api-url": config.api_url,
                 "stream-file": str(stream_file),
                 "dummy-h5-input": config.dummy_h5_input,
                 "crystfel-path": str(config.crystfel_path),
                 "use-auto-geom-refinement": config.use_auto_geom_refinement,
-                "cell-description": coparse_cell_description(
-                    indexing_result.cell_description
-                )
-                if indexing_result.cell_description is not None
-                else None,
+                "cell-description": (
+                    coparse_cell_description(indexing_result.cell_description)
+                    if indexing_result.cell_description is not None
+                    else None
+                ),
             }
             bound_logger.info(
                 "command line for this job is " + " ".join(predefined_args)

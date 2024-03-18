@@ -29,7 +29,9 @@ setup_structlog()
 
 
 class Arguments(Tap):
-    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    db_connection_url: (
+        str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    )
     experiment_simulator_enabled: bool = False
     # pylint: disable=consider-alternative-union-syntax
     mjpeg_stream_url: Optional[str] = None
@@ -113,9 +115,11 @@ async def _main_loop(args: Arguments) -> None:
                     ),
                     config=CrystFELOnlineConfig(
                         args.online_crystfel_output_base_directory,
-                        BeamtimeId(args.online_crystfel_beamtime_id)
-                        if args.online_crystfel_beamtime_id is not None
-                        else None,
+                        (
+                            BeamtimeId(args.online_crystfel_beamtime_id)
+                            if args.online_crystfel_beamtime_id is not None
+                            else None
+                        ),
                         args.online_crystfel_crystfel_path,
                         args.online_crystfel_api_url,
                         args.online_crystfel_asapo_source,

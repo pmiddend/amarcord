@@ -964,25 +964,25 @@ def generate_output(args: ParsedArgs) -> None:
     output_json = {
         "mtz_file_id": upload_file(args, mtz_path),
         "detailed_foms": extract_shell_resolutions(args),
-        "refinement_results": [
-            {
-                "pdb_file_id": upload_file(args, refinement_result.pdb_path),
-                "mtz_file_id": upload_file(args, refinement_result.mtz_path),
-                "r_free": refinement_result.fom.r_free,
-                "r_work": refinement_result.fom.r_work,
-                "rms_bond_angle": refinement_result.fom.rms_bond_angle,
-                "rms_bond_length": refinement_result.fom.rms_bond_length,
-            }
-        ]
-        if refinement_result is not None
-        else [],
+        "refinement_results": (
+            [
+                {
+                    "pdb_file_id": upload_file(args, refinement_result.pdb_path),
+                    "mtz_file_id": upload_file(args, refinement_result.mtz_path),
+                    "r_free": refinement_result.fom.r_free,
+                    "r_work": refinement_result.fom.r_work,
+                    "rms_bond_angle": refinement_result.fom.rms_bond_angle,
+                    "rms_bond_length": refinement_result.fom.rms_bond_length,
+                }
+            ]
+            if refinement_result is not None
+            else []
+        ),
         "fom": {
             "snr": snr,
-            "wilson": None
-            if wilson is None
-            else None
-            if math.isnan(wilson)
-            else wilson,
+            "wilson": (
+                None if wilson is None else None if math.isnan(wilson) else wilson
+            ),
             "ln_k": None if ln_k is None else None if math.isnan(ln_k) else ln_k,
             "discarded_reflections": discarded_reflections,
             "one_over_d_from": one_over_d_from,

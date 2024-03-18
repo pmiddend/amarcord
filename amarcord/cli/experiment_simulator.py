@@ -83,9 +83,13 @@ class SimulatorData:
 
 
 class Arguments(Tap):
-    db_connection_url: str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    db_connection_url: (
+        str  # Connection URL for the database (e.g. pymysql+mysql://foo/bar)
+    )
     verbose: bool = False  # Show more log messages
-    wait_time_seconds: float  # How long to wait before simulating another event (in seconds)
+    wait_time_seconds: (
+        float  # How long to wait before simulating another event (in seconds)
+    )
 
 
 def random_date(start: datetime.datetime, end: datetime.datetime) -> datetime.datetime:
@@ -390,9 +394,11 @@ def _random_fom(previous_fom: DBIndexingFOM | None) -> DBIndexingFOM:
     return DBIndexingFOM(
         hit_rate=random.uniform(0, 100),
         indexing_rate=random.uniform(0, 100),
-        indexed_frames=previous_fom.indexed_frames + int(random.uniform(10, 100))
-        if previous_fom is not None
-        else 10,
+        indexed_frames=(
+            previous_fom.indexed_frames + int(random.uniform(10, 100))
+            if previous_fom is not None
+            else 10
+        ),
         detector_shift_x_mm=random.uniform(0, 10.0),
         detector_shift_y_mm=random.uniform(0, 10.0),
     )

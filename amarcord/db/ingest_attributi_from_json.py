@@ -31,9 +31,9 @@ async def ingest_run_attributi_schema(
                 conn,
                 beamtime_id=beamtime_id,
                 name=attributo_name,
-                description=""
-                if attributo_description is None
-                else attributo_description,
+                description=(
+                    "" if attributo_description is None else attributo_description
+                ),
                 group=group,
                 type_=attributo_type,
                 associated_table=AssociatedTable.RUN,

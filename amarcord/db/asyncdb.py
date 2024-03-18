@@ -188,19 +188,21 @@ def _evaluate_indexing_result_runtime_status(
             ),
         )
         if db_row.job_status == DBJobStatus.DONE
-        else DBIndexingResultRunning(
-            stream_file=Path(db_row.stream_file),
-            job_id=db_row.job_id,
-            fom=DBIndexingFOM(
-                db_row.hit_rate,
-                db_row.indexing_rate,
-                db_row.indexed_frames,
-                db_row.detector_shift_x_mm,
-                db_row.detector_shift_y_mm,
-            ),
+        else (
+            DBIndexingResultRunning(
+                stream_file=Path(db_row.stream_file),
+                job_id=db_row.job_id,
+                fom=DBIndexingFOM(
+                    db_row.hit_rate,
+                    db_row.indexing_rate,
+                    db_row.indexed_frames,
+                    db_row.detector_shift_x_mm,
+                    db_row.detector_shift_y_mm,
+                ),
+            )
+            if db_row.job_status == DBJobStatus.RUNNING
+            else None
         )
-        if db_row.job_status == DBJobStatus.RUNNING
-        else None
     )
 
 
@@ -465,9 +467,9 @@ class AsyncDB:
             .where(self.tables.beamtime_schedule.c.beamtime_id == beamtime_id)
         )
 
-        schedule_chemicals_fetched: list[
-            tuple[int, int]
-        ] = schedule_chemicals_select.fetchall()
+        schedule_chemicals_fetched: list[tuple[int, int]] = (
+            schedule_chemicals_select.fetchall()
+        )
         schedule_chemicals_by_chemical: dict[int, list[int]] = {
             k: [*map(lambda v: v[1], values)]
             for k, values in itertools.groupby(
@@ -1144,13 +1146,15 @@ class AsyncDB:
         original_file = await self.retrieve_file(conn, id_, with_contents=True)
         return await self.create_file_from_bytes(
             conn,
-            file_name=original_file.file_name
-            if new_file_name is None
-            else new_file_name,
+            file_name=(
+                original_file.file_name if new_file_name is None else new_file_name
+            ),
             description=original_file.description,
-            original_path=Path(original_file.original_path)
-            if original_file.original_path is not None
-            else None,
+            original_path=(
+                Path(original_file.original_path)
+                if original_file.original_path is not None
+                else None
+            ),
             contents=cast(bytes, original_file.contents),
             deduplicate=False,
         )
@@ -1453,34 +1457,46 @@ class AsyncDB:
                 sa.insert(self.tables.indexing_result).values(
                     created=r.created,
                     run_id=r.run_id,
-                    stream_file=str(r.runtime_status.stream_file)
-                    if isinstance(
-                        r.runtime_status,
-                        (DBIndexingResultRunning, DBIndexingResultDone),
-                    )
-                    else None,
+                    stream_file=(
+                        str(r.runtime_status.stream_file)
+                        if isinstance(
+                            r.runtime_status,
+                            (DBIndexingResultRunning, DBIndexingResultDone),
+                        )
+                        else None
+                    ),
                     hits=r.hits,
                     frames=r.frames,
                     not_indexed_frames=r.not_indexed_frames,
                     hit_rate=fom.hit_rate if fom is not None else 0.0,
                     indexing_rate=fom.indexing_rate if fom is not None else 0.0,
                     indexed_frames=fom.indexed_frames if fom is not None else 0.0,
-                    cell_description=coparse_cell_description(r.cell_description)
-                    if r.cell_description is not None
-                    else None,
+                    cell_description=(
+                        coparse_cell_description(r.cell_description)
+                        if r.cell_description is not None
+                        else None
+                    ),
                     point_group=r.point_group,
                     chemical_id=r.chemical_id,
-                    job_id=r.runtime_status.job_id
-                    if isinstance(r.runtime_status, DBIndexingResultRunning)
-                    else None,
-                    job_status=DBJobStatus.RUNNING
-                    if isinstance(r.runtime_status, DBIndexingResultRunning)
-                    else DBJobStatus.QUEUED
-                    if r.runtime_status is None
-                    else DBJobStatus.DONE,
-                    job_error=r.runtime_status.job_error
-                    if isinstance(r.runtime_status, DBIndexingResultDone)
-                    else None,
+                    job_id=(
+                        r.runtime_status.job_id
+                        if isinstance(r.runtime_status, DBIndexingResultRunning)
+                        else None
+                    ),
+                    job_status=(
+                        DBJobStatus.RUNNING
+                        if isinstance(r.runtime_status, DBIndexingResultRunning)
+                        else (
+                            DBJobStatus.QUEUED
+                            if r.runtime_status is None
+                            else DBJobStatus.DONE
+                        )
+                    ),
+                    job_error=(
+                        r.runtime_status.job_error
+                        if isinstance(r.runtime_status, DBIndexingResultDone)
+                        else None
+                    ),
                 )
             )
         ).inserted_primary_key[0]
@@ -2007,9 +2023,11 @@ class AsyncDB:
                 frames=r.frames,
                 hits=r.hits,
                 not_indexed_frames=r.not_indexed_frames,
-                cell_description=parse_cell_description(r.cell_description)
-                if r.cell_description is not None
-                else None,
+                cell_description=(
+                    parse_cell_description(r.cell_description)
+                    if r.cell_description is not None
+                    else None
+                ),
                 point_group=r.point_group,
                 chemical_id=r.chemical_id,
                 runtime_status=_evaluate_indexing_result_runtime_status(r),
@@ -2041,12 +2059,16 @@ class AsyncDB:
                     self.tables.run.c.id == ir.c.run_id,
                 )
                 .where(
-                    self.tables.run.c.beamtime_id == beamtime_id
-                    if beamtime_id is not None
-                    else sa.true(),
-                    ir.c.job_status == job_status_filter
-                    if job_status_filter is not None
-                    else sa.true(),
+                    (
+                        self.tables.run.c.beamtime_id == beamtime_id
+                        if beamtime_id is not None
+                        else sa.true()
+                    ),
+                    (
+                        ir.c.job_status == job_status_filter
+                        if job_status_filter is not None
+                        else sa.true()
+                    ),
                 )
             )
         ]
@@ -2123,29 +2145,31 @@ class AsyncDB:
                     "job_error": None,
                 }
                 if runtime_status is None
-                else {
-                    "stream_file": str(runtime_status.stream_file),
-                    "hit_rate": runtime_status.fom.hit_rate,
-                    "indexing_rate": runtime_status.fom.indexing_rate,
-                    "indexed_frames": runtime_status.fom.indexed_frames,
-                    "detector_shift_x_mm": runtime_status.fom.detector_shift_x_mm,
-                    "detector_shift_y_mm": runtime_status.fom.detector_shift_y_mm,
-                    "job_id": runtime_status.job_id,
-                    "job_status": DBJobStatus.RUNNING,
-                    "job_error": None,
-                }
-                if isinstance(runtime_status, DBIndexingResultRunning)
-                else {
-                    "stream_file": str(runtime_status.stream_file),
-                    "hit_rate": runtime_status.fom.hit_rate,
-                    "indexing_rate": runtime_status.fom.indexing_rate,
-                    "indexed_frames": runtime_status.fom.indexed_frames,
-                    "detector_shift_x_mm": runtime_status.fom.detector_shift_x_mm,
-                    "detector_shift_y_mm": runtime_status.fom.detector_shift_y_mm,
-                    "job_id": None,
-                    "job_status": DBJobStatus.DONE,
-                    "job_error": runtime_status.job_error,
-                }
+                else (
+                    {
+                        "stream_file": str(runtime_status.stream_file),
+                        "hit_rate": runtime_status.fom.hit_rate,
+                        "indexing_rate": runtime_status.fom.indexing_rate,
+                        "indexed_frames": runtime_status.fom.indexed_frames,
+                        "detector_shift_x_mm": runtime_status.fom.detector_shift_x_mm,
+                        "detector_shift_y_mm": runtime_status.fom.detector_shift_y_mm,
+                        "job_id": runtime_status.job_id,
+                        "job_status": DBJobStatus.RUNNING,
+                        "job_error": None,
+                    }
+                    if isinstance(runtime_status, DBIndexingResultRunning)
+                    else {
+                        "stream_file": str(runtime_status.stream_file),
+                        "hit_rate": runtime_status.fom.hit_rate,
+                        "indexing_rate": runtime_status.fom.indexing_rate,
+                        "indexed_frames": runtime_status.fom.indexed_frames,
+                        "detector_shift_x_mm": runtime_status.fom.detector_shift_x_mm,
+                        "detector_shift_y_mm": runtime_status.fom.detector_shift_y_mm,
+                        "job_id": None,
+                        "job_status": DBJobStatus.DONE,
+                        "job_error": runtime_status.job_error,
+                    }
+                )
             )
             .where(self.tables.indexing_result.c.id == indexing_result_id)
         )
@@ -2195,9 +2219,11 @@ class AsyncDB:
             frames=r.frames,
             hits=r.hits,
             not_indexed_frames=r.not_indexed_frames,
-            cell_description=parse_cell_description(r.cell_description)
-            if r.cell_description is not None
-            else None,
+            cell_description=(
+                parse_cell_description(r.cell_description)
+                if r.cell_description is not None
+                else None
+            ),
             point_group=r.point_group,
             chemical_id=r.chemical_id,
             runtime_status=_evaluate_indexing_result_runtime_status(r),
@@ -2249,16 +2275,18 @@ class AsyncDB:
             "input_scale_intensities": mrp.scale_intensities,
             "input_post_refinement": mrp.post_refinement,
             "input_iterations": mrp.iterations,
-            "input_polarisation_angle": int(
-                mrp.polarisation.angle.to(
-                    _UNIT_REGISTRY.degrees
-                ).m  # pyright: ignore [reportUnknownArgumentType]
-            )
-            if mrp.polarisation is not None
-            else None,
-            "input_polarisation_percent": mrp.polarisation.percentage
-            if mrp.polarisation is not None
-            else None,
+            "input_polarisation_angle": (
+                int(
+                    mrp.polarisation.angle.to(
+                        _UNIT_REGISTRY.degrees
+                    ).m  # pyright: ignore [reportUnknownArgumentType]
+                )
+                if mrp.polarisation is not None
+                else None
+            ),
+            "input_polarisation_percent": (
+                mrp.polarisation.percentage if mrp.polarisation is not None else None
+            ),
             "input_start_after": mrp.start_after,
             "input_stop_after": mrp.stop_after,
             "input_rel_b": mrp.rel_b,
@@ -2304,11 +2332,11 @@ class AsyncDB:
         merge_result_id_filter: None | int = None,
         beamtime_id: None | BeamtimeId = None,
     ) -> list[DBMergeResultOutput]:
-        refinement_results_by_merge_id: dict[
-            int, list[DBRefinementResultOutput]
-        ] = group_by(
-            await self.retrieve_refinement_results(conn, beamtime_id),
-            lambda rr: rr.merge_result_id,
+        refinement_results_by_merge_id: dict[int, list[DBRefinementResultOutput]] = (
+            group_by(
+                await self.retrieve_refinement_results(conn, beamtime_id),
+                lambda rr: rr.merge_result_id,
+            )
         )
 
         ir = self.tables.indexing_result
@@ -2327,9 +2355,11 @@ class AsyncDB:
                             frames=r.frames,
                             hits=r.hits,
                             not_indexed_frames=r.not_indexed_frames,
-                            cell_description=parse_cell_description(r.cell_description)
-                            if r.cell_description is not None
-                            else None,
+                            cell_description=(
+                                parse_cell_description(r.cell_description)
+                                if r.cell_description is not None
+                                else None
+                            ),
                             point_group=r.point_group,
                             chemical_id=r.chemical_id,
                             runtime_status=_evaluate_indexing_result_runtime_status(r),
@@ -2375,9 +2405,11 @@ class AsyncDB:
                             self.tables.merge_result_has_indexing_result.c.merge_result_id
                             == merge_result_id_filter
                             if merge_result_id_filter is not None
-                            else self.tables.run.c.beamtime_id == beamtime_id
-                            if beamtime_id is not None
-                            else sa.true()
+                            else (
+                                self.tables.run.c.beamtime_id == beamtime_id
+                                if beamtime_id is not None
+                                else sa.true()
+                            )
                         )
                     )
                 ),
@@ -2482,14 +2514,16 @@ class AsyncDB:
                     scale_intensities=ScaleIntensities(row.input_scale_intensities),
                     post_refinement=row.input_post_refinement,
                     iterations=row.input_iterations,
-                    polarisation=Polarisation(
-                        angle=row.input_polarisation_angle
-                        * _UNIT_REGISTRY.degrees,  # pyright: ignore [reportUnknownArgumentType]
-                        percentage=row.input_polarisation_percent,
-                    )
-                    if row.input_polarisation_angle is not None
-                    and row.input_polarisation_percent is not None
-                    else None,
+                    polarisation=(
+                        Polarisation(
+                            angle=row.input_polarisation_angle
+                            * _UNIT_REGISTRY.degrees,  # pyright: ignore [reportUnknownArgumentType]
+                            percentage=row.input_polarisation_percent,
+                        )
+                        if row.input_polarisation_angle is not None
+                        and row.input_polarisation_percent is not None
+                        else None
+                    ),
                     start_after=row.input_start_after,
                     stop_after=row.input_stop_after,
                     rel_b=row.input_rel_b,
@@ -2579,9 +2613,11 @@ class AsyncDB:
                 mr.fom_outer_max_res,
             ).where(
                 sa.and_(
-                    mr.job_status == job_status_filter  # pyright: ignore
-                    if job_status_filter is not None
-                    else True,
+                    (
+                        mr.job_status == job_status_filter  # pyright: ignore
+                        if job_status_filter is not None
+                        else True
+                    ),
                     mr.id.in_(merge_result_to_indexing_result.keys()),
                 )
             )

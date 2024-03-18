@@ -60,7 +60,11 @@ class RemotePetraSlurmWorkloadManagerConfig:
 
 def parse_workload_manager_config(
     s: str,
-) -> LocalWorkloadManagerConfig | SlurmRestWorkloadManagerConfig | RemotePetraSlurmWorkloadManagerConfig:
+) -> (
+    LocalWorkloadManagerConfig
+    | SlurmRestWorkloadManagerConfig
+    | RemotePetraSlurmWorkloadManagerConfig
+):
     jcc = parse_simple_uri(s)
 
     if isinstance(jcc, str):
@@ -81,9 +85,11 @@ def parse_workload_manager_config(
             additional_ssh_options = jcc.bool_parameter("use-additional-ssh-options")
             return RemotePetraSlurmWorkloadManagerConfig(
                 beamtime_id_or_metadata_file=beamtime_id_or_metadata_file,
-                additional_ssh_options=additional_ssh_options
-                if additional_ssh_options is not None
-                else True,
+                additional_ssh_options=(
+                    additional_ssh_options
+                    if additional_ssh_options is not None
+                    else True
+                ),
                 explicit_node=jcc.string_parameter("explicit-node"),
             )
         case "maxwell-rest":
@@ -133,9 +139,11 @@ def parse_workload_manager_config(
 
 
 def create_workload_manager(
-    config: LocalWorkloadManagerConfig
-    | SlurmRestWorkloadManagerConfig
-    | RemotePetraSlurmWorkloadManagerConfig,
+    config: (
+        LocalWorkloadManagerConfig
+        | SlurmRestWorkloadManagerConfig
+        | RemotePetraSlurmWorkloadManagerConfig
+    ),
 ) -> WorkloadManager:
     match config:
         case RemotePetraSlurmWorkloadManagerConfig(

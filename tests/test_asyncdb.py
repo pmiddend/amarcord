@@ -1035,7 +1035,9 @@ async def test_create_attributo_and_run_then_delete_attributo() -> None:
         assert runs[0].attributi.select_int(attributo_id) is None
 
 
-async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemical() -> None:
+async def test_create_attributo_and_run_and_chemical_for_run_then_delete_chemical() -> (
+    None
+):
     """This is a bit of an edge case: we have an attributo that signifies the chemical of a run, and we create a run and a chemical, and then we delete the chemical"""
 
     db = await _get_db()

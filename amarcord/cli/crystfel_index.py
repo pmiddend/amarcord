@@ -436,9 +436,9 @@ def run_align_detector(
             )
             try:
                 align_detector_environ = os.environ.copy()
-                align_detector_environ[
-                    "PATH"
-                ] = f"{args.crystfel_path}/bin:{align_detector_environ['PATH']}"
+                align_detector_environ["PATH"] = (
+                    f"{args.crystfel_path}/bin:{align_detector_environ['PATH']}"
+                )
                 completed_process = subprocess.run(
                     align_detector_args,
                     check=False,
@@ -457,19 +457,21 @@ def run_align_detector(
 
                 write_status(
                     args,
-                    replace(
-                        last_fom,
-                        detector_shift_x_mm=detector_shift[0],
-                        detector_shift_y_mm=detector_shift[1],
-                    )
-                    if last_fom is not None
-                    else IndexingFom(
-                        frames=0,
-                        hits=0,
-                        indexed_frames=0,
-                        indexed_crystals=0,
-                        detector_shift_x_mm=detector_shift[0],
-                        detector_shift_y_mm=detector_shift[1],
+                    (
+                        replace(
+                            last_fom,
+                            detector_shift_x_mm=detector_shift[0],
+                            detector_shift_y_mm=detector_shift[1],
+                        )
+                        if last_fom is not None
+                        else IndexingFom(
+                            frames=0,
+                            hits=0,
+                            indexed_frames=0,
+                            indexed_crystals=0,
+                            detector_shift_x_mm=detector_shift[0],
+                            detector_shift_y_mm=detector_shift[1],
+                        )
                     ),
                     done=True,
                 )
@@ -609,15 +611,17 @@ def run_indexamajig(
                 logger.info(f"process done writing final fom: {last_fom}")
                 write_status(
                     args,
-                    last_fom
-                    if last_fom is not None
-                    else IndexingFom(
-                        frames=0,
-                        hits=0,
-                        indexed_frames=0,
-                        indexed_crystals=0,
-                        detector_shift_x_mm=None,
-                        detector_shift_y_mm=None,
+                    (
+                        last_fom
+                        if last_fom is not None
+                        else IndexingFom(
+                            frames=0,
+                            hits=0,
+                            indexed_frames=0,
+                            indexed_crystals=0,
+                            detector_shift_x_mm=None,
+                            detector_shift_y_mm=None,
+                        )
                     ),
                     done=not args.use_auto_geom_refinement,
                 )

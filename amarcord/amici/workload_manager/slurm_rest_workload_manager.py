@@ -74,12 +74,10 @@ async def retrieve_jwt_token_on_maxwell_node(
     lifespan_seconds: int,
 ) -> str | TokenRetrievalError:
     try:
-        result = await (
-            asyncio.create_subprocess_shell(
-                " ".join(slurm_token_command(lifespan_seconds)),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
+        result = await asyncio.create_subprocess_shell(
+            " ".join(slurm_token_command(lifespan_seconds)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
 
         stdout, stderr = await result.communicate()
@@ -166,12 +164,12 @@ class SlurmError(TypedDict):
 
 class SlurmHttpWrapper:
     # pylint: disable=unused-argument
-    async def post(self, url: str, headers: dict[str, Any], data: JSONDict) -> JSONDict:
-        ...
+    async def post(
+        self, url: str, headers: dict[str, Any], data: JSONDict
+    ) -> JSONDict: ...
 
     # pylint: disable=unused-argument
-    async def get(self, url: str, headers: dict[str, Any]) -> JSONDict:
-        ...
+    async def get(self, url: str, headers: dict[str, Any]) -> JSONDict: ...
 
 
 class SlurmRequestsHttpWrapper(SlurmHttpWrapper):
@@ -239,12 +237,12 @@ class SlurmRestWorkloadManager(WorkloadManager):
                 "LD_LIBRARY_PATH": "/lib/:/lib64/:/usr/local/lib",
             },
             "partition": self._partition,
-            "standard_output": str(working_directory / "stdout.txt")
-            if stdout is None
-            else str(stdout),
-            "standard_error": str(working_directory / "stderr.txt")
-            if stderr is None
-            else str(stderr),
+            "standard_output": (
+                str(working_directory / "stdout.txt") if stdout is None else str(stdout)
+            ),
+            "standard_error": (
+                str(working_directory / "stderr.txt") if stderr is None else str(stderr)
+            ),
         }
         if self._reservation is not None:
             job_dict["reservation"] = self._reservation

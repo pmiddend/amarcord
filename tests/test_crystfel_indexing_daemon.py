@@ -174,9 +174,11 @@ async def _create_indexing_scenario(db: AsyncDB, cell_description: None | str) -
             type_=ChemicalType.CRYSTAL,
             attributi=AttributiMap.from_types_and_raw(
                 attributi,
-                {attributo_cell_description: cell_description}
-                if cell_description is not None
-                else {},
+                (
+                    {attributo_cell_description: cell_description}
+                    if cell_description is not None
+                    else {}
+                ),
             ),
         )
         await db.create_run(
