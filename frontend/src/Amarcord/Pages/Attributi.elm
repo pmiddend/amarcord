@@ -1381,7 +1381,6 @@ update msg model =
                                     , send (EditSubmitFinished << forgetMsgInput)
                                         (updateAttributoApiAttributiPatch
                                             { conversionFlags = model.conversionFlags
-                                            , beamtimeId = model.beamtimeId
                                             , attributo = updateAttributoInput
                                             }
                                         )

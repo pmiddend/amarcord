@@ -14,8 +14,9 @@
 
 
 module Api.Request.Merging exposing
-    ( mergeJobFinishedApiMergingMergeResultIdPost
-    , startMergeJobForDataSetApiMergingDataSetIdStartPost
+    ( mergeJobFinishedApiMergingFinishMergeResultIdPost
+    , mergeJobStartedApiMergingStartMergeResultIdPost
+    , queueMergeJobForDataSetApiMergingQueueDataSetIdPost
     )
 
 import Api
@@ -25,26 +26,38 @@ import Http
 import Json.Decode
 import Json.Encode
 
-mergeJobFinishedApiMergingMergeResultIdPost : Int -> Api.Data.JsonMergeResultRootJson -> Api.Request Api.Data.JsonMergeJobUpdateOutput
-mergeJobFinishedApiMergingMergeResultIdPost mergeResultId_path jsonMergeResultRootJson_body =
+mergeJobFinishedApiMergingFinishMergeResultIdPost : Int -> Api.Data.JsonMergeJobFinishedInput -> Api.Request Api.Data.JsonMergeJobFinishOutput
+mergeJobFinishedApiMergingFinishMergeResultIdPost mergeResultId_path jsonMergeJobFinishedInput_body =
     Api.request
         "POST"
-        "/api/merging/{mergeResultId}"
+        "/api/merging/finish/{mergeResultId}"
         [ ( "mergeResultId", String.fromInt mergeResultId_path ) ]
         []
         []
-        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonMergeResultRootJson jsonMergeResultRootJson_body)))
-        Api.Data.jsonMergeJobUpdateOutputDecoder
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonMergeJobFinishedInput jsonMergeJobFinishedInput_body)))
+        Api.Data.jsonMergeJobFinishOutputDecoder
 
 
-startMergeJobForDataSetApiMergingDataSetIdStartPost : Int -> Api.Data.JsonStartMergeJobForDataSetInput -> Api.Request Api.Data.JsonStartMergeJobForDataSetOutput
-startMergeJobForDataSetApiMergingDataSetIdStartPost dataSetId_path jsonStartMergeJobForDataSetInput_body =
+mergeJobStartedApiMergingStartMergeResultIdPost : Int -> Api.Data.JsonMergeJobStartedInput -> Api.Request Api.Data.JsonMergeJobStartedOutput
+mergeJobStartedApiMergingStartMergeResultIdPost mergeResultId_path jsonMergeJobStartedInput_body =
     Api.request
         "POST"
-        "/api/merging/{dataSetId}/start"
+        "/api/merging/start/{mergeResultId}"
+        [ ( "mergeResultId", String.fromInt mergeResultId_path ) ]
+        []
+        []
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonMergeJobStartedInput jsonMergeJobStartedInput_body)))
+        Api.Data.jsonMergeJobStartedOutputDecoder
+
+
+queueMergeJobForDataSetApiMergingQueueDataSetIdPost : Int -> Api.Data.JsonQueueMergeJobForDataSetInput -> Api.Request Api.Data.JsonQueueMergeJobForDataSetOutput
+queueMergeJobForDataSetApiMergingQueueDataSetIdPost dataSetId_path jsonQueueMergeJobForDataSetInput_body =
+    Api.request
+        "POST"
+        "/api/merging/queue/{dataSetId}"
         [ ( "dataSetId", String.fromInt dataSetId_path ) ]
         []
         []
-        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonStartMergeJobForDataSetInput jsonStartMergeJobForDataSetInput_body)))
-        Api.Data.jsonStartMergeJobForDataSetOutputDecoder
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonQueueMergeJobForDataSetInput jsonQueueMergeJobForDataSetInput_body)))
+        Api.Data.jsonQueueMergeJobForDataSetOutputDecoder
 

@@ -1,5 +1,6 @@
 # working with these fixtures, this pylint error message doesn't make sense anymore
 # pylint: disable=redefined-outer-name
+
 import asyncio
 import os
 from io import BytesIO
@@ -11,95 +12,106 @@ from zipfile import ZipFile
 import pytest
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
+from sqlalchemy.ext.asyncio import create_async_engine
 
-from amarcord.amici.crystfel.merge_daemon import JsonMergeResultRootJson
-from amarcord.cli.webserver import JsonAttributiIdAndRole
-from amarcord.cli.webserver import JsonAttributo
-from amarcord.cli.webserver import JsonAttributoValue
-from amarcord.cli.webserver import JsonBeamtime
-from amarcord.cli.webserver import JsonBeamtimeOutput
-from amarcord.cli.webserver import JsonBeamtimeSchedule
-from amarcord.cli.webserver import JsonBeamtimeScheduleOutput
-from amarcord.cli.webserver import JsonBeamtimeScheduleRow
-from amarcord.cli.webserver import JsonChangeRunExperimentType
-from amarcord.cli.webserver import JsonChangeRunExperimentTypeOutput
-from amarcord.cli.webserver import JsonCheckStandardUnitInput
-from amarcord.cli.webserver import JsonCheckStandardUnitOutput
-from amarcord.cli.webserver import JsonChemicalWithId
-from amarcord.cli.webserver import JsonChemicalWithoutId
-from amarcord.cli.webserver import JsonCreateAttributoInput
-from amarcord.cli.webserver import JsonCreateAttributoOutput
-from amarcord.cli.webserver import JsonCreateChemicalOutput
-from amarcord.cli.webserver import JsonCreateDataSetFromRun
-from amarcord.cli.webserver import JsonCreateDataSetFromRunOutput
-from amarcord.cli.webserver import JsonCreateDataSetInput
-from amarcord.cli.webserver import JsonCreateDataSetOutput
-from amarcord.cli.webserver import JsonCreateExperimentTypeInput
-from amarcord.cli.webserver import JsonCreateExperimentTypeOutput
-from amarcord.cli.webserver import JsonCreateFileOutput
-from amarcord.cli.webserver import JsonCreateLiveStreamSnapshotOutput
-from amarcord.cli.webserver import JsonCreateOrUpdateRun
-from amarcord.cli.webserver import JsonCreateOrUpdateRunOutput
-from amarcord.cli.webserver import JsonDeleteAttributoInput
-from amarcord.cli.webserver import JsonDeleteAttributoOutput
-from amarcord.cli.webserver import JsonDeleteChemicalInput
-from amarcord.cli.webserver import JsonDeleteDataSetInput
-from amarcord.cli.webserver import JsonDeleteDataSetOutput
-from amarcord.cli.webserver import JsonDeleteEventInput
-from amarcord.cli.webserver import JsonDeleteExperimentType
-from amarcord.cli.webserver import JsonDeleteExperimentTypeOutput
-from amarcord.cli.webserver import JsonDeleteFileInput
-from amarcord.cli.webserver import JsonDeleteFileOutput
-from amarcord.cli.webserver import JsonEventInput
-from amarcord.cli.webserver import JsonEventTopLevelInput
-from amarcord.cli.webserver import JsonEventTopLevelOutput
-from amarcord.cli.webserver import JsonIndexingJobUpdateOutput
-from amarcord.cli.webserver import JsonIndexingResult
-from amarcord.cli.webserver import JsonIndexingResultRootJson
-from amarcord.cli.webserver import JsonMergeJobUpdateOutput
-from amarcord.cli.webserver import JsonMergeParameters
-from amarcord.cli.webserver import JsonPolarisation
-from amarcord.cli.webserver import JsonReadAnalysisResults
-from amarcord.cli.webserver import JsonReadAttributi
-from amarcord.cli.webserver import JsonReadBeamtime
-from amarcord.cli.webserver import JsonReadChemicals
-from amarcord.cli.webserver import JsonReadDataSets
-from amarcord.cli.webserver import JsonReadExperimentTypes
-from amarcord.cli.webserver import JsonReadRuns
-from amarcord.cli.webserver import JsonReadRunsBulkInput
-from amarcord.cli.webserver import JsonReadRunsBulkOutput
-from amarcord.cli.webserver import JsonRefinementResult
-from amarcord.cli.webserver import JsonStartMergeJobForDataSetInput
-from amarcord.cli.webserver import JsonStartMergeJobForDataSetOutput
-from amarcord.cli.webserver import JsonStartRunOutput
-from amarcord.cli.webserver import JsonUpdateAttributoConversionFlags
-from amarcord.cli.webserver import JsonUpdateAttributoInput
-from amarcord.cli.webserver import JsonUpdateAttributoOutput
-from amarcord.cli.webserver import JsonUpdateBeamtimeInput
-from amarcord.cli.webserver import JsonUpdateBeamtimeScheduleInput
-from amarcord.cli.webserver import JsonUpdateLiveStream
-from amarcord.cli.webserver import JsonUpdateRun
-from amarcord.cli.webserver import JsonUpdateRunOutput
-from amarcord.cli.webserver import JsonUpdateRunsBulkInput
-from amarcord.cli.webserver import JsonUpdateRunsBulkOutput
-from amarcord.cli.webserver import JsonUserConfigurationSingleOutput
 from amarcord.cli.webserver import app
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.asyncdb import ATTRIBUTO_GROUP_MANUAL
-from amarcord.db.asyncdb import AsyncDB
+from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.chemical_type import ChemicalType
+from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.merge_model import MergeModel
 from amarcord.db.merge_negative_handling import MergeNegativeHandling
-from amarcord.db.merge_result import MergeResult
-from amarcord.db.merge_result import MergeResultFom
-from amarcord.db.merge_result import MergeResultOuterShell
-from amarcord.db.merge_result import MergeResultShell
-from amarcord.db.merge_result import RefinementResult
+from amarcord.db.merge_result import JsonMergeJobFinishedInput
+from amarcord.db.merge_result import JsonMergeJobStartedInput
+from amarcord.db.merge_result import JsonMergeJobStartedOutput
+from amarcord.db.merge_result import JsonMergeResultFom
+from amarcord.db.merge_result import JsonMergeResultInternal
+from amarcord.db.merge_result import JsonMergeResultOuterShell
+from amarcord.db.merge_result import JsonMergeResultShell
+from amarcord.db.merge_result import JsonRefinementResultInternal
+from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.orm_utils import live_stream_image_name
+from amarcord.db.orm_utils import migrate
 from amarcord.db.scale_intensities import ScaleIntensities
-from amarcord.db.tables import create_tables_from_metadata
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaString
+from amarcord.web.json_models import JsonAttributiIdAndRole
+from amarcord.web.json_models import JsonAttributo
+from amarcord.web.json_models import JsonAttributoValue
+from amarcord.web.json_models import JsonBeamtime
+from amarcord.web.json_models import JsonBeamtimeOutput
+from amarcord.web.json_models import JsonBeamtimeSchedule
+from amarcord.web.json_models import JsonBeamtimeScheduleOutput
+from amarcord.web.json_models import JsonBeamtimeScheduleRow
+from amarcord.web.json_models import JsonChangeRunExperimentType
+from amarcord.web.json_models import JsonChangeRunExperimentTypeOutput
+from amarcord.web.json_models import JsonCheckStandardUnitInput
+from amarcord.web.json_models import JsonCheckStandardUnitOutput
+from amarcord.web.json_models import JsonChemicalWithId
+from amarcord.web.json_models import JsonChemicalWithoutId
+from amarcord.web.json_models import JsonCreateAttributiFromSchemaInput
+from amarcord.web.json_models import JsonCreateAttributiFromSchemaOutput
+from amarcord.web.json_models import JsonCreateAttributiFromSchemaSingleAttributo
+from amarcord.web.json_models import JsonCreateAttributoInput
+from amarcord.web.json_models import JsonCreateAttributoOutput
+from amarcord.web.json_models import JsonCreateChemicalOutput
+from amarcord.web.json_models import JsonCreateDataSetFromRun
+from amarcord.web.json_models import JsonCreateDataSetFromRunOutput
+from amarcord.web.json_models import JsonCreateDataSetInput
+from amarcord.web.json_models import JsonCreateDataSetOutput
+from amarcord.web.json_models import JsonCreateExperimentTypeInput
+from amarcord.web.json_models import JsonCreateExperimentTypeOutput
+from amarcord.web.json_models import JsonCreateFileOutput
+from amarcord.web.json_models import JsonCreateLiveStreamSnapshotOutput
+from amarcord.web.json_models import JsonCreateOrUpdateRun
+from amarcord.web.json_models import JsonCreateOrUpdateRunOutput
+from amarcord.web.json_models import JsonDeleteAttributoInput
+from amarcord.web.json_models import JsonDeleteAttributoOutput
+from amarcord.web.json_models import JsonDeleteChemicalInput
+from amarcord.web.json_models import JsonDeleteDataSetInput
+from amarcord.web.json_models import JsonDeleteDataSetOutput
+from amarcord.web.json_models import JsonDeleteEventInput
+from amarcord.web.json_models import JsonDeleteExperimentType
+from amarcord.web.json_models import JsonDeleteExperimentTypeOutput
+from amarcord.web.json_models import JsonDeleteFileInput
+from amarcord.web.json_models import JsonDeleteFileOutput
+from amarcord.web.json_models import JsonEventInput
+from amarcord.web.json_models import JsonEventTopLevelInput
+from amarcord.web.json_models import JsonEventTopLevelOutput
+from amarcord.web.json_models import JsonIndexingJobUpdateOutput
+from amarcord.web.json_models import JsonIndexingResult
+from amarcord.web.json_models import JsonIndexingResultRootJson
+from amarcord.web.json_models import JsonMergeJobFinishOutput
+from amarcord.web.json_models import JsonMergeParameters
+from amarcord.web.json_models import JsonPolarisation
+from amarcord.web.json_models import JsonQueueMergeJobForDataSetInput
+from amarcord.web.json_models import JsonQueueMergeJobForDataSetOutput
+from amarcord.web.json_models import JsonReadAnalysisResults
+from amarcord.web.json_models import JsonReadAttributi
+from amarcord.web.json_models import JsonReadBeamtime
+from amarcord.web.json_models import JsonReadChemicals
+from amarcord.web.json_models import JsonReadDataSets
+from amarcord.web.json_models import JsonReadEvents
+from amarcord.web.json_models import JsonReadExperimentTypes
+from amarcord.web.json_models import JsonReadIndexingResultsOutput
+from amarcord.web.json_models import JsonReadMergeResultsOutput
+from amarcord.web.json_models import JsonReadRuns
+from amarcord.web.json_models import JsonReadRunsBulkInput
+from amarcord.web.json_models import JsonReadRunsBulkOutput
+from amarcord.web.json_models import JsonRefinementResult
+from amarcord.web.json_models import JsonStartRunOutput
+from amarcord.web.json_models import JsonStopRunOutput
+from amarcord.web.json_models import JsonUpdateAttributoConversionFlags
+from amarcord.web.json_models import JsonUpdateAttributoInput
+from amarcord.web.json_models import JsonUpdateAttributoOutput
+from amarcord.web.json_models import JsonUpdateBeamtimeInput
+from amarcord.web.json_models import JsonUpdateBeamtimeScheduleInput
+from amarcord.web.json_models import JsonUpdateLiveStream
+from amarcord.web.json_models import JsonUpdateRun
+from amarcord.web.json_models import JsonUpdateRunOutput
+from amarcord.web.json_models import JsonUpdateRunsBulkInput
+from amarcord.web.json_models import JsonUpdateRunsBulkOutput
+from amarcord.web.json_models import JsonUserConfigurationSingleOutput
 
 IN_MEMORY_DB_URL = "sqlite+aiosqlite://"
 
@@ -110,8 +122,8 @@ TEST_CHEMICAL_RESPONSIBLE_PERSON = "Rosalind Franklin"
 
 
 async def init_db(url: str) -> None:
-    context = AsyncDBContext(url)
-    await AsyncDB(context, create_tables_from_metadata(context.metadata)).migrate()
+    engine = create_async_engine(url)
+    await migrate(engine)
 
 
 @pytest.fixture
@@ -122,7 +134,7 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
     yield TestClient(app)
 
 
-def create_beamtime(client: TestClient, input_: JsonUpdateBeamtimeInput) -> int:
+def create_beamtime(client: TestClient, input_: JsonUpdateBeamtimeInput) -> BeamtimeId:
     response = JsonBeamtimeOutput(
         **client.post(
             "/api/beamtimes",
@@ -130,15 +142,15 @@ def create_beamtime(client: TestClient, input_: JsonUpdateBeamtimeInput) -> int:
         ).json()
     )
     assert response.id > 0
-    return response.id
+    return BeamtimeId(response.id)
 
 
 @pytest.fixture
-def beamtime_id(client: TestClient) -> int:
+def beamtime_id(client: TestClient) -> BeamtimeId:
     return create_beamtime(
         client,
         JsonUpdateBeamtimeInput(
-            id=0,
+            id=BeamtimeId(0),
             external_id="cool 1337",
             beamline="P12",
             proposal="BAG",
@@ -151,11 +163,11 @@ def beamtime_id(client: TestClient) -> int:
 
 
 @pytest.fixture
-def second_beamtime_id(client: TestClient) -> int:
+def second_beamtime_id(client: TestClient) -> BeamtimeId:
     return create_beamtime(
         client,
         JsonUpdateBeamtimeInput(
-            id=0,
+            id=BeamtimeId(0),
             external_id="second external",
             beamline="P13",
             proposal="BAG2",
@@ -179,7 +191,7 @@ def test_file(client: TestClient, test_file_path: Path) -> int:
     with test_file_path.open("rb") as upload_file:
         raw_output = client.post(
             "/api/files",
-            data={"description": "test description"},
+            data={"description": "test description", "deduplicate": str(False)},
             files={"file": upload_file},
         )
         output = JsonCreateFileOutput(**raw_output.json())
@@ -197,7 +209,7 @@ def second_test_file(client: TestClient, test_file_path: Path) -> int:
     with test_file_path.open("rb") as upload_file:
         raw_output = client.post(
             "/api/files",
-            data={"description": "test 2 description"},
+            data={"description": "test 2 description", "deduplicate": str(False)},
             files={"file": upload_file},
         )
         output = JsonCreateFileOutput(**raw_output.json())
@@ -205,7 +217,7 @@ def second_test_file(client: TestClient, test_file_path: Path) -> int:
 
 
 @pytest.fixture
-def cell_description_attributo_id(client: TestClient, beamtime_id: int) -> int:
+def cell_description_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
         name="cell description",
         description="description",
@@ -225,7 +237,7 @@ def cell_description_attributo_id(client: TestClient, beamtime_id: int) -> int:
 
 
 @pytest.fixture
-def point_group_attributo_id(client: TestClient, beamtime_id: int) -> int:
+def point_group_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
         name="point group",
         description="description",
@@ -243,7 +255,7 @@ def point_group_attributo_id(client: TestClient, beamtime_id: int) -> int:
 
 
 @pytest.fixture
-def run_string_attributo_id(client: TestClient, beamtime_id: int) -> int:
+def run_string_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
         name="run_string",
         description="",
@@ -263,7 +275,7 @@ def run_string_attributo_id(client: TestClient, beamtime_id: int) -> int:
 
 
 @pytest.fixture
-def run_int_attributo_id(client: TestClient, beamtime_id: int) -> int:
+def run_int_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
     input_ = JsonCreateAttributoInput(
         name="run_int",
         description="",
@@ -283,7 +295,29 @@ def run_int_attributo_id(client: TestClient, beamtime_id: int) -> int:
 
 
 @pytest.fixture
-def run_channel_1_chemical_attributo_id(client: TestClient, beamtime_id: int) -> int:
+def run_int_automatic_attributo_id(client: TestClient, beamtime_id: BeamtimeId) -> int:
+    input_ = JsonCreateAttributoInput(
+        name="run_int_automatic",
+        description="",
+        group="automatic",
+        associated_table=AssociatedTable.RUN,
+        attributo_type_integer=JSONSchemaInteger(type="integer", format=None),
+        beamtime_id=beamtime_id,
+    ).dict()
+    response = JsonCreateAttributoOutput(
+        **client.post(
+            "/api/attributi",
+            json=input_,
+        ).json()
+    )
+    assert response.id > 0
+    return response.id
+
+
+@pytest.fixture
+def run_channel_1_chemical_attributo_id(
+    client: TestClient, beamtime_id: BeamtimeId
+) -> int:
     input_ = JsonCreateAttributoInput(
         name="channel_1_chemical_id",
         description="",
@@ -304,7 +338,9 @@ def run_channel_1_chemical_attributo_id(client: TestClient, beamtime_id: int) ->
 
 @pytest.fixture
 def chemical_experiment_type_id(
-    client: TestClient, beamtime_id: int, run_channel_1_chemical_attributo_id: int
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    run_channel_1_chemical_attributo_id: int,
 ) -> int:
     input_ = JsonCreateExperimentTypeInput(
         name="experiment type test",
@@ -327,7 +363,7 @@ def chemical_experiment_type_id(
 
 @pytest.fixture
 def string_experiment_type_id(
-    client: TestClient, beamtime_id: int, run_string_attributo_id: int
+    client: TestClient, beamtime_id: BeamtimeId, run_string_attributo_id: int
 ) -> int:
     input_ = JsonCreateExperimentTypeInput(
         name="experiment type test",
@@ -357,7 +393,7 @@ LYSO_POINT_GROUP = "4/mmm"
 @pytest.fixture
 def lyso_chemical_id(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
     test_file: int,
@@ -393,7 +429,7 @@ def lyso_chemical_id(
 @pytest.fixture
 def second_lyso_chemical_id(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
 ) -> int:
@@ -423,7 +459,7 @@ def second_lyso_chemical_id(
     return response.id
 
 
-def test_read_single_beamtime(client: TestClient, beamtime_id: int) -> None:
+def test_read_single_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> None:
     beamtime = JsonBeamtime(**client.get(f"/api/beamtimes/{beamtime_id}").json())
 
     assert beamtime == JsonBeamtime(
@@ -439,9 +475,9 @@ def test_read_single_beamtime(client: TestClient, beamtime_id: int) -> None:
     )
 
 
-def test_read_single_beamtime_chemical_names(
+def test_read_single_chemical_names_beamtime(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     # pylint: disable=unused-argument
     lyso_chemical_id: int,
 ) -> None:
@@ -460,7 +496,7 @@ def test_read_single_beamtime_chemical_names(
     )
 
 
-def test_edit_random_beamtime(client: TestClient, beamtime_id: int) -> None:
+def test_update_random_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> None:
     response = JsonBeamtimeOutput(
         **client.patch(
             "/api/beamtimes",
@@ -493,7 +529,9 @@ def test_edit_random_beamtime(client: TestClient, beamtime_id: int) -> None:
     )
 
 
-def test_random_beamtime_creation_works(client: TestClient, beamtime_id: int) -> None:
+def test_random_beamtime_creation_works(
+    client: TestClient, beamtime_id: BeamtimeId
+) -> None:
     response = JsonReadBeamtime(**client.get("/api/beamtimes").json())
     assert len(response.beamtimes) == 1
     first_beamtime = response.beamtimes[0]
@@ -510,8 +548,8 @@ def test_random_beamtime_creation_works(client: TestClient, beamtime_id: int) ->
     )
 
 
-def test_chemical_string_attributo_creation_works(
-    client: TestClient, cell_description_attributo_id: int, beamtime_id: int
+def test_chemical_string_attributo_creation_works_with_one_beamtime(
+    client: TestClient, cell_description_attributo_id: int, beamtime_id: BeamtimeId
 ) -> None:
     response = JsonReadAttributi(**client.get(f"/api/attributi/{beamtime_id}").json())
     assert len(response.attributi) == 1
@@ -529,8 +567,8 @@ def test_chemical_string_attributo_creation_works(
 def test_chemical_string_attributo_creation_works_in_presence_of_second_beamtime(
     client: TestClient,
     cell_description_attributo_id: int,
-    beamtime_id: int,
-    second_beamtime_id: int,
+    beamtime_id: BeamtimeId,
+    second_beamtime_id: BeamtimeId,
 ) -> None:
     # We have a second beam time simply to demonstrate that creating an attributo in one beam time and then requesting
     # attributi from a different beam time works.
@@ -565,7 +603,7 @@ def _mock_string_attributo_value(aid: int, s: str) -> JsonAttributoValue:
     )
 
 
-def read_chemicals(client: TestClient, beamtime_id: int) -> JsonReadChemicals:
+def read_chemicals(client: TestClient, beamtime_id: BeamtimeId) -> JsonReadChemicals:
     return JsonReadChemicals(**client.get(f"/api/chemicals/{beamtime_id}").json())
 
 
@@ -574,7 +612,7 @@ def test_chemical_creation(
     lyso_chemical_id: int,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     test_file: int,
 ) -> None:
     """
@@ -600,7 +638,7 @@ def test_chemical_creation(
 
 def test_chemical_creation_and_deletion(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     lyso_chemical_id: int,
     second_lyso_chemical_id: int,
 ) -> None:
@@ -622,23 +660,30 @@ def test_chemical_creation_and_update(
     lyso_chemical_id: int,
     cell_description_attributo_id: int,
     point_group_attributo_id: int,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     second_test_file: int,
 ) -> None:
     """
-    Take the 'lyso_chemical_id' and update it, then check if the list contains just one element and it's the up-to-date version
+    Take the 'lyso_chemical_id' and update it, then check if the list contains
+    just one element and it's the up-to-date version.
     """
+    # Here, we are assuming some knowledge of how the lyso chemical
+    # was created in the fixture (see the attributo values and the
+    # files).
+    new_cell_description = "foo2"
+    new_point_group = "bar2"
     patched_chemical_json = JsonChemicalWithId(
         id=lyso_chemical_id,
         attributi=[
-            # previously: foo
-            _mock_string_attributo_value(cell_description_attributo_id, "foo2"),
-            # previously: bar
-            _mock_string_attributo_value(point_group_attributo_id, "bar2"),
+            _mock_string_attributo_value(
+                cell_description_attributo_id, new_cell_description
+            ),
+            _mock_string_attributo_value(point_group_attributo_id, new_point_group),
         ],
         beamtime_id=beamtime_id,
         chemical_type=ChemicalType.CRYSTAL,
-        # The first chemical has "test_file" as files attached to it. Here, we swap out the files, and see if that works.
+        # The first chemical has "test_file" as files attached to it.
+        # Here, we swap out the files, and see if that works.
         file_ids=[second_test_file],
         # new name
         name="chemicalname2",
@@ -655,14 +700,51 @@ def test_chemical_creation_and_update(
 
     # still only one chemical => the update didn't accidentally create another chemical
     assert len(response.chemicals) == 1
-    assert response.chemicals[0].name == "chemicalname2"
-    assert response.chemicals[0].files[0].id == second_test_file
+    chemical = response.chemicals[0]
+    assert chemical.name == "chemicalname2"
+    # still just one file, but a different one!
+    assert len(chemical.files) == 1
+    assert chemical.files[0].id == second_test_file
+    assert len(chemical.attributi) == 2
+    assert set(a.attributo_value_str for a in chemical.attributi) == set(
+        (new_cell_description, new_point_group)
+    )
+
+
+def test_chemical_creation_with_invalid_attributo_value(
+    client: TestClient,
+    cell_description_attributo_id: int,
+    # pylint: disable=unused-argument
+    point_group_attributo_id: int,
+    beamtime_id: BeamtimeId,
+) -> None:
+    """
+    Create a chemical, and try to use an invalid attributo value. This will test if values are actually tested against the schema
+    """
+    response = client.post(
+        "/api/chemicals",
+        json=JsonChemicalWithoutId(
+            name=TEST_CHEMICAL_NAME,
+            responsible_person=TEST_CHEMICAL_RESPONSIBLE_PERSON,
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=cell_description_attributo_id,
+                    # cell description is definitely not an integer, this should lead to failure
+                    attributo_value_int=3,
+                ),
+            ],
+            chemical_type=ChemicalType.CRYSTAL,
+            file_ids=[],
+            beamtime_id=beamtime_id,
+        ).dict(),
+    )
+    assert response.status_code // 100 == 4
 
 
 def test_create_and_delete_event_without_live_stream_and_files(
     client: TestClient,
-    beamtime_id: int,
-    second_beamtime_id: int,
+    beamtime_id: BeamtimeId,
+    second_beamtime_id: BeamtimeId,
 ) -> None:
     create_event_response = JsonEventTopLevelOutput(
         **client.post(
@@ -670,7 +752,9 @@ def test_create_and_delete_event_without_live_stream_and_files(
             json=JsonEventTopLevelInput(
                 beamtime_id=beamtime_id,
                 event=JsonEventInput(
-                    # The "level" has to be "user" here because we're testing read_runs below, which only includes user messages.
+                    # The "level" has to be "user" here because we're
+                    # testing read_runs below, which only includes
+                    # user messages.
                     source="mysource",
                     text="mytext",
                     level="user",
@@ -682,16 +766,17 @@ def test_create_and_delete_event_without_live_stream_and_files(
     )
     assert create_event_response.id > 0
 
-    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
-    assert len(read_runs_output.events) == 1
-    e = read_runs_output.events[0]
+    read_events_output = JsonReadEvents(
+        **client.get(f"/api/events/{beamtime_id}").json()
+    )
+    assert len(read_events_output.events) == 1
+    e = read_events_output.events[0]
     assert e.id == create_event_response.id
     assert e.source == "mysource"
     assert e.text == "mytext"
 
-    # Second beamtime should be unaffected
-    assert not JsonReadRuns(
-        **client.get(f"api/runs/{second_beamtime_id}").json()
+    assert not JsonReadEvents(
+        **client.get(f"/api/events/{second_beamtime_id}").json()
     ).events
 
     # can't use "client.delete" since that doesn't get JSON as an input
@@ -701,8 +786,10 @@ def test_create_and_delete_event_without_live_stream_and_files(
         json=JsonDeleteEventInput(id=create_event_response.id).dict(),
     )
 
-    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
-    assert not read_runs_output.events
+    read_events_output_after_deletion = JsonReadEvents(
+        **client.get(f"/api/events/{beamtime_id}").json()
+    )
+    assert not read_events_output_after_deletion.events
 
 
 def test_upload_and_retrieve_file(client: TestClient) -> None:
@@ -712,9 +799,10 @@ def test_upload_and_retrieve_file(client: TestClient) -> None:
     with test_file.open("rb") as upload_file:
         raw_output = client.post(
             "/api/files",
-            data={"description": "test description"},
+            data={"description": "test description", "deduplicate": str(False)},
             files={"file": upload_file},
         )
+        print(raw_output)
         output = JsonCreateFileOutput(**raw_output.json())
 
         assert output.file_name == "test-file.txt"
@@ -728,7 +816,7 @@ def test_upload_and_retrieve_file(client: TestClient) -> None:
 
 
 def test_create_event_with_file(
-    client: TestClient, beamtime_id: int, test_file: int
+    client: TestClient, beamtime_id: BeamtimeId, test_file: int
 ) -> None:
     JsonEventTopLevelOutput(
         **client.post(
@@ -743,23 +831,26 @@ def test_create_event_with_file(
         ).json()
     )
 
-    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
-    assert len(read_runs_output.events) == 1
-    assert len(read_runs_output.events[0].files) == 1
-    assert read_runs_output.events[0].files[0].id == test_file
+    read_events_output = JsonReadEvents(
+        **client.get(f"/api/events/{beamtime_id}").json()
+    )
+    assert len(read_events_output.events) == 1
+    assert len(read_events_output.events[0].files) == 1
+    assert read_events_output.events[0].files[0].id == test_file
 
 
 def test_create_event_with_live_stream(
-    client: TestClient, beamtime_id: int, test_file_path: Path
+    client: TestClient, beamtime_id: BeamtimeId, test_file_path: Path
 ) -> None:
-    # Upload the file: for the live stream, it's important to use the proper file name, as that's the criterion for a file to be
-    # a live stream (yes, ugly, I know).
+    # Upload the file: for the live stream, it's important to use the
+    # proper file name, as that's the criterion for a file to be a
+    # live stream (yes, ugly, I know).
     with test_file_path.open("rb") as upload_file:
         raw_output = client.post(
             "/api/files",
-            data={"description": "test description"},
+            data={"description": "test description", "deduplicate": str(False)},
             # To pass a file name as well as the file contents, httpx uses a tuple.
-            files={"file": (f"live-stream-image-{beamtime_id}", upload_file)},
+            files={"file": (live_stream_image_name(beamtime_id), upload_file)},
         )
         file_id = JsonCreateFileOutput(**raw_output.json()).id
 
@@ -778,14 +869,16 @@ def test_create_event_with_live_stream(
 
     # Read events -- assume we "magically" got a file attached to the event - a copy of our live stream image
     # (the actual live stream image doesn't work, because it gets updated in-place)
-    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
-    assert len(read_runs_output.events) == 1
-    assert len(read_runs_output.events[0].files) == 1
-    assert read_runs_output.events[0].files[0].id > file_id
+    read_events_output = JsonReadEvents(
+        **client.get(f"/api/events/{beamtime_id}").json()
+    )
+    assert len(read_events_output.events) == 1
+    assert len(read_events_output.events[0].files) == 1
+    assert read_events_output.events[0].files[0].id > file_id
 
 
 def test_create_experiment_type(
-    client: TestClient, beamtime_id: int, chemical_experiment_type_id: int
+    client: TestClient, beamtime_id: BeamtimeId, chemical_experiment_type_id: int
 ) -> None:
     read_ets_output = JsonReadExperimentTypes(
         **client.get(f"/api/experiment-types/{beamtime_id}").json()
@@ -797,7 +890,7 @@ def test_create_experiment_type(
 
 def test_create_or_update_run_fails_without_experiment_type(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     # we want the experiment type to be created, but not used here
     # pylint: disable=unused-argument
     chemical_experiment_type_id: int,
@@ -825,7 +918,9 @@ def test_create_or_update_run_fails_without_experiment_type(
     assert response.status_code == 400
 
 
-def set_current_experiment_type(client: TestClient, beamtime_id: int, id_: int) -> None:
+def set_current_experiment_type(
+    client: TestClient, beamtime_id: BeamtimeId, id_: int
+) -> None:
     option_set_result = JsonUserConfigurationSingleOutput(
         **client.patch(
             f"/api/user-config/{beamtime_id}/current-experiment-type-id/{id_}"
@@ -835,7 +930,15 @@ def set_current_experiment_type(client: TestClient, beamtime_id: int, id_: int) 
     assert option_set_result.value_int == id_
 
 
-def enable_crystfel_online(client: TestClient, beamtime_id: int) -> None:
+def set_auto_pilot(client: TestClient, beamtime_id: BeamtimeId, enabled: bool) -> None:
+    option_set_result = JsonUserConfigurationSingleOutput(
+        **client.patch(f"/api/user-config/{beamtime_id}/auto-pilot/{enabled}").json()
+    )
+
+    assert option_set_result.value_bool == enabled
+
+
+def enable_crystfel_online(client: TestClient, beamtime_id: BeamtimeId) -> None:
     option_set_result = JsonUserConfigurationSingleOutput(
         **client.patch(f"/api/user-config/{beamtime_id}/online-crystfel/True").json()
     )
@@ -845,7 +948,7 @@ def enable_crystfel_online(client: TestClient, beamtime_id: int) -> None:
 
 def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     run_string_attributo_id: int,
 ) -> None:
@@ -942,7 +1045,7 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
 
 def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
@@ -963,7 +1066,7 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
-                        attributo_value_int=lyso_chemical_id,
+                        attributo_value_chemical=lyso_chemical_id,
                     )
                 ],
                 started=1,
@@ -977,10 +1080,26 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
     assert not response.error_message
     assert response.indexing_result_id is not None and response.indexing_result_id > 0
 
+    # Next, test the "read indexing jobs" request with the status parameter
+    read_indexing_results_response = JsonReadIndexingResultsOutput(
+        **client.get(
+            f"/api/indexing?status={DBJobStatus.RUNNING.value}&beamtimeId={beamtime_id}"
+        ).json()
+    )
+    # Wrong status (running), so no results
+    assert not read_indexing_results_response.indexing_jobs
+
+    read_indexing_results_response = JsonReadIndexingResultsOutput(
+        **client.get(
+            f"/api/indexing?status={DBJobStatus.QUEUED.value}&beamtimeId={beamtime_id}"
+        ).json()
+    )
+    assert len(read_indexing_results_response.indexing_jobs) == 1
+
 
 def test_create_and_update_run_with_patch(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     run_string_attributo_id: int,
@@ -999,7 +1118,7 @@ def test_create_and_update_run_with_patch(
                 # we don't even mention the second run attributo here, since we're going to add it later and test if that works
                 JsonAttributoValue(
                     attributo_id=run_channel_1_chemical_attributo_id,
-                    attributo_value_int=lyso_chemical_id,
+                    attributo_value_chemical=lyso_chemical_id,
                 )
             ],
             started=1,
@@ -1016,7 +1135,6 @@ def test_create_and_update_run_with_patch(
             "/api/runs",
             json=JsonUpdateRun(
                 id=create_response.run_internal_id,
-                beamtime_id=beamtime_id,
                 experiment_type_id=chemical_experiment_type_id,
                 attributi=[
                     JsonAttributoValue(
@@ -1050,7 +1168,7 @@ def test_create_and_update_run_with_patch(
 
 def test_create_and_stop_run(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
@@ -1070,7 +1188,7 @@ def test_create_and_stop_run(
                     # we don't even mention the second run attributo here, since we're going to add it later and test if that works
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
-                        attributo_value_int=lyso_chemical_id,
+                        attributo_value_chemical=lyso_chemical_id,
                     )
                 ],
                 started=1,
@@ -1090,7 +1208,7 @@ def test_create_and_stop_run(
 
 def test_update_indexing_job(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
@@ -1112,7 +1230,7 @@ def test_update_indexing_job(
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
-                        attributo_value_int=lyso_chemical_id,
+                        attributo_value_chemical=lyso_chemical_id,
                     )
                 ],
                 started=1,
@@ -1132,6 +1250,8 @@ def test_update_indexing_job(
             f"/api/indexing/{create_run_response.indexing_result_id}",
             json=JsonIndexingResultRootJson(
                 error=None,
+                job_id=None,
+                stream_file="/tmp/some-file.stream",
                 result=JsonIndexingResult(
                     # More or less random values, we don't care about the specifics here
                     frames=200,
@@ -1159,8 +1279,6 @@ def test_update_indexing_job(
             "/api/data-sets/from-run",
             json=JsonCreateDataSetFromRun(
                 run_internal_id=create_run_response.run_internal_id,
-                beamtime_id=beamtime_id,
-                experiment_type_id=chemical_experiment_type_id,
             ).dict(),
         ).json()
     )
@@ -1173,7 +1291,7 @@ def test_update_indexing_job(
     assert read_runs_output.data_sets[0].attributi == [
         JsonAttributoValue(
             attributo_id=run_channel_1_chemical_attributo_id,
-            attributo_value_int=lyso_chemical_id,
+            attributo_value_chemical=lyso_chemical_id,
         )
     ]
     assert (
@@ -1205,7 +1323,7 @@ def test_update_indexing_job(
 
 def test_change_run_experiment_type(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     string_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
@@ -1222,10 +1340,12 @@ def test_change_run_experiment_type(
             json=JsonCreateOrUpdateRun(
                 beamtime_id=beamtime_id,
                 attributi=[
-                    # we don't even mention the second run attributo here, since we're going to add it later and test if that works
+                    # we don't even mention the second run attributo
+                    # here, since we're going to add it later and test
+                    # if that works
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
-                        attributo_value_int=lyso_chemical_id,
+                        attributo_value_chemical=lyso_chemical_id,
                     )
                 ],
                 started=1,
@@ -1235,7 +1355,8 @@ def test_change_run_experiment_type(
     )
     assert create_response.run_created
 
-    # To check if just one run has a different experiment type ID in the end, create another run that isn't changed
+    # To check if just one run has a different experiment type ID in
+    # the end, create another run that isn't changed
     external_run_id_2 = external_run_id + 1
     second_create_response = JsonCreateOrUpdateRunOutput(
         **client.post(
@@ -1243,13 +1364,12 @@ def test_change_run_experiment_type(
             json=JsonCreateOrUpdateRun(
                 beamtime_id=beamtime_id,
                 attributi=[
-                    # we don't even mention the second run attributo here, since we're going to add it later and test if that works
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
-                        attributo_value_int=lyso_chemical_id,
+                        attributo_value_chemical=lyso_chemical_id,
                     )
                 ],
-                started=1,
+                started=2,
                 stopped=None,
             ).dict(),
         ).json()
@@ -1262,7 +1382,6 @@ def test_change_run_experiment_type(
             "/api/experiment-types/change-for-run",
             json=JsonChangeRunExperimentType(
                 run_internal_id=create_response.run_internal_id,
-                beamtime_id=beamtime_id,
                 experiment_type_id=string_experiment_type_id,
             ).dict(),
         ).json()
@@ -1272,12 +1391,13 @@ def test_change_run_experiment_type(
 
     read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
 
+    # Runs are sorted by time, descending, so the second element will be our run
     assert read_runs_output.runs[1].id == create_response.run_internal_id
 
 
 def test_create_and_delete_data_set(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     lyso_chemical_id: int,
     run_channel_1_chemical_attributo_id: int,
@@ -1286,13 +1406,12 @@ def test_create_and_delete_data_set(
         **client.post(
             "/api/data-sets",
             json=JsonCreateDataSetInput(
-                beamtime_id=beamtime_id,
                 experiment_type_id=chemical_experiment_type_id,
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         # Good old Lyso!
-                        attributo_value_int=lyso_chemical_id,
+                        attributo_value_chemical=lyso_chemical_id,
                     )
                 ],
             ).dict(),
@@ -1315,7 +1434,7 @@ def test_create_and_delete_data_set(
         JsonAttributoValue(
             attributo_id=run_channel_1_chemical_attributo_id,
             # Good old Lyso!
-            attributo_value_int=lyso_chemical_id,
+            attributo_value_chemical=lyso_chemical_id,
         )
     ]
 
@@ -1333,9 +1452,9 @@ def test_create_and_delete_data_set(
     ).data_sets
 
 
-def test_start_merge_job(
+def test_queue_then_start_then_finish_merge_job(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
@@ -1358,7 +1477,7 @@ def test_start_merge_job(
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
-                        attributo_value_int=lyso_chemical_id,
+                        attributo_value_chemical=lyso_chemical_id,
                     )
                 ],
                 started=1,
@@ -1378,6 +1497,8 @@ def test_start_merge_job(
             f"/api/indexing/{create_run_response.indexing_result_id}",
             json=JsonIndexingResultRootJson(
                 error=None,
+                job_id=None,
+                stream_file=None,
                 result=JsonIndexingResult(
                     # More or less random values, we don't care about the specifics here
                     frames=200,
@@ -1394,58 +1515,83 @@ def test_start_merge_job(
         ).json()
     ).result
 
-    # The result of this indexing you can query in various places. One of the most prominent ones is the "read runs" call.
-    # For that to work, however, we need a data set.
+    # The result of this indexing you can query in various places. One
+    # of the most prominent ones is the "read runs" call. For that to
+    # work, however, we need a data set.
     #
-    # The test will be "unnecessarily" long now, but let's test the "create data set from run" feature just now
+    # The test will be "unnecessarily" long now, but let's test the
+    # "create data set from run" feature just now
     create_data_set_response = JsonCreateDataSetFromRunOutput(
         **client.post(
             "/api/data-sets/from-run",
             json=JsonCreateDataSetFromRun(
                 run_internal_id=create_run_response.run_internal_id,
-                beamtime_id=beamtime_id,
-                experiment_type_id=chemical_experiment_type_id,
             ).dict(),
         ).json()
     )
 
     assert create_data_set_response.data_set_id > 0
 
-    start_merge_job_response = JsonStartMergeJobForDataSetOutput(
+    queue_merge_job_response = JsonQueueMergeJobForDataSetOutput(
         **client.post(
-            f"/api/merging/{create_data_set_response.data_set_id}/start",
-            json=JsonStartMergeJobForDataSetInput(
+            f"/api/merging/queue/{create_data_set_response.data_set_id}",
+            json=JsonQueueMergeJobForDataSetInput(
                 # Literally random stuff here, doesn't matter.
                 strict_mode=False,
                 beamtime_id=beamtime_id,
-                merge_model=MergeModel.UNITY,
-                scale_intensities=ScaleIntensities.OFF,
-                post_refinement=False,
-                iterations=3,
-                polarisation=JsonPolarisation(angle=30, percent=50),
-                negative_handling=MergeNegativeHandling.IGNORE,
-                start_after=None,
-                stop_after=None,
-                rel_b=1.0,
-                no_pr=False,
-                force_bandwidth=None,
-                force_radius=None,
-                force_lambda=None,
-                no_delta_cc_half=False,
-                max_adu=None,
-                min_measurements=1,
-                logs=False,
-                min_res=None,
-                push_res=None,
-                w=None,
+                merge_parameters=JsonMergeParameters(
+                    point_group=LYSO_POINT_GROUP,
+                    merge_model=MergeModel.UNITY,
+                    scale_intensities=ScaleIntensities.OFF,
+                    post_refinement=False,
+                    iterations=3,
+                    polarisation=JsonPolarisation(angle=30, percent=50),
+                    negative_handling=MergeNegativeHandling.IGNORE,
+                    start_after=None,
+                    stop_after=None,
+                    rel_b=1.0,
+                    no_pr=False,
+                    force_bandwidth=None,
+                    force_radius=None,
+                    force_lambda=None,
+                    no_delta_cc_half=False,
+                    max_adu=None,
+                    min_measurements=1,
+                    logs=False,
+                    min_res=None,
+                    push_res=None,
+                    w=None,
+                ),
             ).dict(),
         ).json()
     )
-    assert start_merge_job_response.merge_result_id > 0
+    assert queue_merge_job_response.merge_result_id > 0
 
-    merge_result = MergeResult(
+    # Get the queued merge jobs, should be one:
+    queued_merge_results = JsonReadMergeResultsOutput(
+        **client.get(f"/api/merging?status={DBJobStatus.QUEUED.value}").json()
+    )
+    assert len(queued_merge_results.merge_jobs) == 1
+
+    # Now simulate that some daemon actually started the merge job
+    start_merge_job_response = JsonMergeJobStartedOutput(
+        **client.post(
+            f"/api/merging/start/{queue_merge_job_response.merge_result_id}",
+            # job ID is the SLURM (or similar) job ID, so it's random
+            json=JsonMergeJobStartedInput(job_id=1337, time=10).dict(),
+        ).json()
+    )
+    assert start_merge_job_response.time > 0
+
+    # Get the running merge jobs, should be one:
+    running_merge_results = JsonReadMergeResultsOutput(
+        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json()
+    )
+    assert len(running_merge_results.merge_jobs) == 1
+
+    merge_result = JsonMergeResultInternal(
         mtz_file_id=test_file,
-        fom=MergeResultFom(
+        fom=JsonMergeResultFom(
             # Again, more or less completely random stuff here
             snr=1.0,
             wilson=None,
@@ -1469,7 +1615,7 @@ def test_start_merge_job(
             rano_over_r_split=2.3,
             d1sig=2.4,
             d2sig=2.5,
-            outer_shell=MergeResultOuterShell(
+            outer_shell=JsonMergeResultOuterShell(
                 resolution=2.6,
                 ccstar=2.7,
                 r_split=2.8,
@@ -1483,7 +1629,7 @@ def test_start_merge_job(
             ),
         ),
         detailed_foms=[
-            MergeResultShell(
+            JsonMergeResultShell(
                 one_over_d_centre=4.0,
                 nref=3,
                 d_over_a=4.1,
@@ -1501,7 +1647,11 @@ def test_start_merge_job(
             )
         ],
         refinement_results=[
-            RefinementResult(
+            JsonRefinementResultInternal(
+                # The ID is ignored when ingesting the result into the
+                # DB, but we are using a comparison operator down in
+                # this test, where we have to specify an ID
+                id=1,
                 pdb_file_id=test_file,
                 mtz_file_id=test_file,
                 r_free=0.5,
@@ -1513,10 +1663,10 @@ def test_start_merge_job(
     )
 
     # Now finish merge job
-    finish_merge_job_response = JsonMergeJobUpdateOutput(
+    finish_merge_job_response = JsonMergeJobFinishOutput(
         **client.post(
-            f"/api/merging/{start_merge_job_response.merge_result_id}",
-            json=JsonMergeResultRootJson(
+            f"/api/merging/finish/{queue_merge_job_response.merge_result_id}",
+            json=JsonMergeJobFinishedInput(
                 error=None,
                 result=merge_result,
             ).dict(),
@@ -1536,13 +1686,10 @@ def test_start_merge_job(
     first_ds_ds = first_ds.data_sets[0]
     assert len(first_ds_ds.merge_results) == 1
     first_mr = first_ds_ds.merge_results[0]
-    assert first_mr.id == start_merge_job_response.merge_result_id
-    assert first_mr.cell_description == LYSO_CELL_DESCRIPTION
-    assert first_mr.point_group == LYSO_POINT_GROUP
+    assert first_mr.id == queue_merge_job_response.merge_result_id
     assert first_mr.runs == [str(external_run_id)]
     assert first_mr.parameters == JsonMergeParameters(
         point_group=LYSO_POINT_GROUP,
-        cell_description=LYSO_CELL_DESCRIPTION,
         negative_handling=MergeNegativeHandling.IGNORE,
         merge_model=MergeModel.UNITY,
         scale_intensities=ScaleIntensities.OFF,
@@ -1568,7 +1715,7 @@ def test_start_merge_job(
     refinement_result_id = first_mr.refinement_results[0].id
     assert first_mr.refinement_results[0] == JsonRefinementResult(
         id=refinement_result_id,
-        merge_result_id=start_merge_job_response.merge_result_id,
+        merge_result_id=queue_merge_job_response.merge_result_id,
         pdb_file_id=test_file,
         mtz_file_id=test_file,
         r_free=0.5,
@@ -1585,7 +1732,7 @@ def test_start_merge_job(
 
 def test_start_run(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
@@ -1606,9 +1753,146 @@ def test_start_run(
     assert read_runs_output.runs[0].id == start_run_response.run_internal_id
 
 
+def test_start_two_runs_and_enable_auto_pilot(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    # this attributo is marked as manual
+    run_string_attributo_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+    set_auto_pilot(client, beamtime_id, True)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Start a normal run, and finish it.
+    first_run_id = JsonStartRunOutput(
+        **client.get(f"/api/runs/{external_run_id}/start/{beamtime_id}").json()
+    ).run_internal_id
+    # This value we set to the first run, and since it's manual and
+    # the autopilot is on, we expect it to be set in the next run as
+    # well
+    string_value = "testvalue"
+    # Set the manual attribute:
+    update_run_result = client.patch(
+        "/api/runs",
+        json=JsonUpdateRun(
+            id=first_run_id,
+            experiment_type_id=chemical_experiment_type_id,
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_string_attributo_id,
+                    attributo_value_str=string_value,
+                )
+            ],
+        ).dict(),
+    )
+    assert update_run_result.status_code // 100 == 2
+    stop_result = client.get(f"/api/runs/stop-latest/{beamtime_id}")
+    assert stop_result.status_code // 100 == 2
+    assert JsonStopRunOutput(**stop_result.json()).result
+
+    # Now start a second run, providing no attributo values
+    second_external_run_id = 1001
+    second_run_id = JsonStartRunOutput(
+        **client.get(f"/api/runs/{second_external_run_id}/start/{beamtime_id}").json()
+    ).run_internal_id
+
+    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+
+    assert len(read_runs_output.runs) == 2
+    assert read_runs_output.runs[0].id == second_run_id
+    assert len(read_runs_output.runs[0].attributi) == 1
+    assert read_runs_output.runs[0].attributi[0].attributo_value_str == string_value
+    assert read_runs_output.runs[1].stopped is not None
+
+    # Final test: create a third run. This was added later to simulate a bug: in the
+    # web server, we cannot use "one or none" to get the latest run: it will return more than one run!
+    third_external_run_id = 1002
+    third_run_id = JsonStartRunOutput(
+        **client.get(f"/api/runs/{third_external_run_id}/start/{beamtime_id}").json()
+    ).run_internal_id
+
+    assert third_run_id > second_run_id
+
+
+def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    chemical_experiment_type_id: int,
+    run_int_automatic_attributo_id: int,
+    # this attributo is marked as manual
+    run_string_attributo_id: int,
+) -> None:
+    # Set the experiment type (otherwise creating a run will fail - see above)
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+    set_auto_pilot(client, beamtime_id, True)
+
+    # Let's make the external run ID deliberately high
+    external_run_id = 1000
+
+    # Start a normal run, and finish it.
+    first_run_id = JsonStartRunOutput(
+        **client.get(f"/api/runs/{external_run_id}/start/{beamtime_id}").json()
+    ).run_internal_id
+    # This value we set to the first run, and since it's manual and
+    # the autopilot is on, we expect it to be set in the next run as
+    # well
+    string_value = "testvalue"
+    # Set the manual attribute:
+    update_run_result = client.patch(
+        "/api/runs",
+        json=JsonUpdateRun(
+            id=first_run_id,
+            experiment_type_id=chemical_experiment_type_id,
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_string_attributo_id,
+                    attributo_value_str=string_value,
+                ),
+                JsonAttributoValue(
+                    attributo_id=run_int_automatic_attributo_id,
+                    attributo_value_int=1337,
+                ),
+            ],
+        ).dict(),
+    )
+    assert update_run_result.status_code // 100 == 2
+    stop_result = client.get(f"/api/runs/stop-latest/{beamtime_id}")
+    assert stop_result.status_code // 100 == 2
+    assert JsonStopRunOutput(**stop_result.json()).result
+
+    # Now start a second run, providing no attributo values
+    second_external_run_id = 2000
+    second_run_response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{second_external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                beamtime_id=beamtime_id,
+                # neither automatic nor manual attributi are present here, deliberately. We expect the automatic one to
+                # not appear, but the manual one should.
+                attributi=[],
+            ).dict(),
+        ).json()
+    )
+    assert second_run_response.run_created
+    assert second_run_response.indexing_result_id is None
+    assert second_run_response.error_message is None
+
+    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+
+    assert len(read_runs_output.runs) == 2
+    assert read_runs_output.runs[0].id == second_run_response.run_internal_id
+    assert len(read_runs_output.runs[0].attributi) == 1
+    assert read_runs_output.runs[0].attributi[0].attributo_id == run_string_attributo_id
+    assert read_runs_output.runs[0].attributi[0].attributo_value_str == string_value
+
+
 def test_start_run_no_experiment_type_set(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
 ) -> None:
     # Let's make the external run ID deliberately high
     external_run_id = 1000
@@ -1621,7 +1905,7 @@ def test_start_run_no_experiment_type_set(
 
 def test_read_and_update_runs_bulk(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     string_experiment_type_id: int,
     run_string_attributo_id: int,
@@ -1789,6 +2073,55 @@ def test_read_and_update_runs_bulk(
         assert channel_1_attributo is None
 
 
+def test_create_file(client: TestClient, test_file_path: Path) -> None:
+    file_description = "test description"
+    # Upload the file
+    with test_file_path.open("rb") as upload_file:
+        raw_output = client.post(
+            "/api/files",
+            files={"file": upload_file},
+            data={"description": file_description, "deduplicate": str(False)},
+        )
+        print(raw_output.json())
+        output = JsonCreateFileOutput(**raw_output.json())
+
+        assert output.file_name.endswith(".txt")
+        assert output.description == file_description
+        assert output.type_ == "text/plain"
+        assert output.size_in_bytes == 17
+        assert output.id > 0
+
+    # # Retrieve the contents (not the metadata)
+    with test_file_path.open("rb") as upload_file:
+        assert client.get(f"/api/files/{output.id}").content == upload_file.read()
+
+
+def test_create_file_with_deduplication(
+    client: TestClient, test_file_path: Path
+) -> None:
+    # Upload the file once
+    with test_file_path.open("rb") as upload_file:
+        first_upload = JsonCreateFileOutput(
+            **client.post(
+                "/api/files",
+                files={"file": upload_file},
+                data={"description": "test", "deduplicate": str(False)},
+            ).json()
+        )
+
+    # Upload again, check if the same file is returned due to deduplication
+    with test_file_path.open("rb") as upload_file:
+        second_upload = JsonCreateFileOutput(
+            **client.post(
+                "/api/files",
+                files={"file": upload_file},
+                data={"description": "test", "deduplicate": str(True)},
+            ).json()
+        )
+
+    assert first_upload.id == second_upload.id
+
+
 def test_create_file_simple(client: TestClient, test_file_path: Path) -> None:
     # Upload the file
     with test_file_path.open("rb") as upload_file:
@@ -1811,7 +2144,9 @@ def test_create_file_simple(client: TestClient, test_file_path: Path) -> None:
         assert client.get(f"/api/files/{output.id}").content == upload_file.read()
 
 
-def test_read_and_update_user_config(client: TestClient, beamtime_id: int) -> None:
+def test_read_and_update_user_config(
+    client: TestClient, beamtime_id: BeamtimeId
+) -> None:
     result_ap = JsonUserConfigurationSingleOutput(
         **client.get(f"/api/user-config/{beamtime_id}/auto-pilot").json()
     )
@@ -1846,7 +2181,7 @@ def test_read_and_update_user_config(client: TestClient, beamtime_id: int) -> No
 
 
 def test_read_experiment_types(
-    client: TestClient, beamtime_id: int, chemical_experiment_type_id: int
+    client: TestClient, beamtime_id: BeamtimeId, chemical_experiment_type_id: int
 ) -> None:
     result = JsonReadExperimentTypes(
         **client.get(f"/api/experiment-types/{beamtime_id}").json()
@@ -1858,7 +2193,7 @@ def test_read_experiment_types(
 
 def test_delete_experiment_types(
     client: TestClient,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
     chemical_experiment_type_id: int,
     run_channel_1_chemical_attributo_id: int,
     lyso_chemical_id: int,
@@ -1868,13 +2203,12 @@ def test_delete_experiment_types(
         **client.post(
             "/api/data-sets",
             json=JsonCreateDataSetInput(
-                beamtime_id=beamtime_id,
                 experiment_type_id=chemical_experiment_type_id,
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         # Good old Lyso!
-                        attributo_value_int=lyso_chemical_id,
+                        attributo_value_chemical=lyso_chemical_id,
                     )
                 ],
             ).dict(),
@@ -1918,7 +2252,7 @@ def test_delete_file(client: TestClient, test_file: int) -> None:
 
 
 def test_update_beamtime_schedule(
-    client: TestClient, beamtime_id: int, lyso_chemical_id: int
+    client: TestClient, beamtime_id: BeamtimeId, lyso_chemical_id: int
 ) -> None:
     schedule_rows = [
         JsonBeamtimeScheduleRow(
@@ -1957,14 +2291,14 @@ def test_update_beamtime_schedule(
 
 
 def test_create_live_stream_snapshot(
-    client: TestClient, beamtime_id: int, test_file_path: Path
+    client: TestClient, beamtime_id: BeamtimeId, test_file_path: Path
 ) -> None:
     # Upload the file: for the live stream, it's important to use the proper file name, as that's the criterion for a file to be
     # a live stream (yes, ugly, I know).
     with test_file_path.open("rb") as upload_file:
         raw_output = client.post(
             "/api/files",
-            data={"description": "test description"},
+            data={"description": "test description", "deduplicate": str(False)},
             # To pass a file name as well as the file contents, httpx uses a tuple.
             files={"file": (f"live-stream-image-{beamtime_id}", upload_file)},
         )
@@ -1979,14 +2313,14 @@ def test_create_live_stream_snapshot(
 
 
 def test_update_live_stream(
-    client: TestClient, beamtime_id: int, test_file_path: Path
+    client: TestClient, beamtime_id: BeamtimeId, test_file_path: Path
 ) -> None:
     # Upload the file: for the live stream, it's important to use the proper file name, as that's the criterion for a file to be
     # a live stream (yes, ugly, I know).
     with test_file_path.open("rb") as upload_file:
         raw_output = client.post(
             "/api/files",
-            data={"description": "test description"},
+            data={"description": "test description", "deduplicate": str(False)},
             # To pass a file name as well as the file contents, httpx uses a tuple.
             files={"file": (f"live-stream-image-{beamtime_id}", upload_file)},
         )
@@ -2031,7 +2365,7 @@ def test_check_standard_unit(client: TestClient) -> None:
     assert output.normalized is None
 
 
-def test_update_attributo(client: TestClient, beamtime_id: int) -> None:
+def test_update_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
     attributo_response = JsonCreateAttributoOutput(
         **client.post(
             "/api/attributi",
@@ -2084,7 +2418,6 @@ def test_update_attributo(client: TestClient, beamtime_id: int) -> None:
             "/api/attributi",
             json=JsonUpdateAttributoInput(
                 attributo=updated_attributo,
-                beamtime_id=beamtime_id,
                 conversion_flags=JsonUpdateAttributoConversionFlags(ignoreUnits=True),
             ).dict(),
         ).json()
@@ -2107,7 +2440,7 @@ def test_update_attributo(client: TestClient, beamtime_id: int) -> None:
     assert chemical_list.chemicals[0].attributi[0].attributo_value_int == 1
 
 
-def test_delete_attributo(client: TestClient, beamtime_id: int) -> None:
+def test_delete_attributo(client: TestClient, beamtime_id: BeamtimeId) -> None:
     attributo_response = JsonCreateAttributoOutput(
         **client.post(
             "/api/attributi",
@@ -2162,7 +2495,7 @@ def test_download_spreadsheet(
     client: TestClient,
     chemical_experiment_type_id: int,
     run_string_attributo_id: int,
-    beamtime_id: int,
+    beamtime_id: BeamtimeId,
 ) -> None:
     # Set the experiment type (otherwise creating a run will fail - see above)
     set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
@@ -2210,3 +2543,92 @@ def test_download_spreadsheet(
             assert ws.title == "Runs"
             assert ws["A1"].value == "ID"
             assert ws["A2"].value == external_run_id
+
+
+def test_create_run_attributi_from_schema(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+) -> None:
+    first_attributo_name = "first_attributo"
+    second_attributo_name = "second_attributo"
+    response = JsonCreateAttributiFromSchemaOutput(
+        **client.post(
+            "/api/attributi/schema",
+            json=JsonCreateAttributiFromSchemaInput(
+                beamtime_id=BeamtimeId(beamtime_id),
+                attributi_schema=[
+                    JsonCreateAttributiFromSchemaSingleAttributo(
+                        attributo_name=first_attributo_name,
+                        attributo_type=JSONSchemaInteger(type="integer", format=None),
+                        description=first_attributo_name + "description",
+                    ),
+                    JsonCreateAttributiFromSchemaSingleAttributo(
+                        attributo_name=second_attributo_name,
+                        attributo_type=JSONSchemaString(type="string", enum=None),
+                        description=second_attributo_name + "description",
+                    ),
+                ],
+            ).dict(),
+        ).json()
+    )
+    assert response.created_attributi == 2
+
+    read_response = JsonReadAttributi(
+        **client.get(f"/api/attributi/{beamtime_id}").json()
+    )
+    assert len(read_response.attributi) == 2
+    assert set(a.name for a in read_response.attributi) == set(
+        (first_attributo_name, second_attributo_name)
+    )
+    assert set(a.description for a in read_response.attributi) == set(
+        (first_attributo_name + "description", second_attributo_name + "description")
+    )
+
+    int_attributo = next(
+        iter(a for a in read_response.attributi if a.name == first_attributo_name)
+    )
+    assert int_attributo.attributo_type_integer is not None
+    string_attributo = next(
+        iter(a for a in read_response.attributi if a.name == second_attributo_name)
+    )
+    assert string_attributo.attributo_type_string is not None
+
+
+def test_create_two_compatible_data_sets(
+    client: TestClient,
+    chemical_experiment_type_id: int,
+    lyso_chemical_id: int,
+    run_channel_1_chemical_attributo_id: int,
+) -> None:
+    create_response = JsonCreateDataSetOutput(
+        **client.post(
+            "/api/data-sets",
+            json=JsonCreateDataSetInput(
+                experiment_type_id=chemical_experiment_type_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        # Good old Lyso!
+                        attributo_value_chemical=lyso_chemical_id,
+                    )
+                ],
+            ).dict(),
+        ).json()
+    )
+
+    assert create_response.id > 0
+
+    second_create_response = client.post(
+        "/api/data-sets",
+        json=JsonCreateDataSetInput(
+            experiment_type_id=chemical_experiment_type_id,
+            attributi=[
+                JsonAttributoValue(
+                    attributo_id=run_channel_1_chemical_attributo_id,
+                    # Good old Lyso!
+                    attributo_value_chemical=lyso_chemical_id,
+                )
+            ],
+        ).dict(),
+    )
+    assert second_create_response.status_code // 100 == 4

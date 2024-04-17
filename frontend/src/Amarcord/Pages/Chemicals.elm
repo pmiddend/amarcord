@@ -799,12 +799,17 @@ update msg model =
                             Ok _ ->
                                 case convertEditValues model.myTimeZone editChemical.attributi of
                                     Err errorList ->
+                                        let
+                                            attributoIdToName : Dict.Dict Int String
+                                            attributoIdToName =
+                                                List.foldr (\editableAttributo -> Dict.insert editableAttributo.id editableAttributo.name) Dict.empty editChemical.attributi.editableAttributi
+                                        in
                                         ( { model
                                             | submitErrors =
                                                 List.map
                                                     (\( attributoId, errorMessage ) ->
                                                         text <|
-                                                            String.fromInt attributoId
+                                                            (Maybe.withDefault "unknown attributo" <| Dict.get attributoId attributoIdToName)
                                                                 ++ ": "
                                                                 ++ errorMessage
                                                     )
@@ -934,7 +939,7 @@ update msg model =
 
                 Just fileToUpload ->
                     ( { model | fileUploadRequest = Loading }
-                    , send EditFileUploadFinished (createFileApiFilesPost fileToUpload.fileMetadata model.newFileUpload.description)
+                    , send EditFileUploadFinished (createFileApiFilesPost fileToUpload.fileMetadata model.newFileUpload.description "False")
                     )
 
         EditFileUploadFinished result ->

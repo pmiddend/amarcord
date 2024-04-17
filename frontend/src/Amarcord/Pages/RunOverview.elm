@@ -1,7 +1,7 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId, experimentTypeIdDict)
-import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter(..), RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateToString, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
+import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter(..), RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
@@ -62,9 +62,10 @@ type Msg
     | ColumnChooserMessage ColumnChooser.Msg
     | ChangeAutoPilot Bool
     | ChangeOnlineCrystFEL Bool
+    | ChangeShowAllAttributi Bool
     | AutoPilotToggled (Result Http.Error JsonUserConfigurationSingleOutput)
     | OnlineCrystFELToggled (Result Http.Error JsonUserConfigurationSingleOutput)
-    | CreateDataSetFromRun ExperimentTypeId RunInternalId
+    | CreateDataSetFromRun RunInternalId
     | CreateDataSetFromRunFinished (Result Http.Error JsonCreateDataSetFromRunOutput)
     | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result Http.Error JsonChangeRunExperimentTypeOutput)
     | ResetDate
@@ -82,6 +83,7 @@ type alias RunEditInfo =
     -- This is to handle a tricky case: usually we want to stay with the latest run so we can quickly change settings.
     -- If we manually click on an older run to edit it, we don't want to then jump to the latest one.
     , initiatedManually : Bool
+    , showAllAttributi : Bool
     }
 
 
@@ -381,7 +383,7 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
                     , button
                         [ type_ "button"
                         , class "btn btn-secondary"
-                        , onClick (CreateDataSetFromRun currentExperimentType.id (RunInternalId run.id))
+                        , onClick (CreateDataSetFromRun (RunInternalId run.id))
                         , disabled (isLoading dataSetFromRunRequest)
                         ]
                         [ icon { name = "plus-lg" }, text " Create data set from run" ]
@@ -677,7 +679,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
         Nothing ->
             []
 
-        Just { runId, experimentTypeId, editableAttributi } ->
+        Just { runId, experimentTypeId, editableAttributi, showAllAttributi } ->
             let
                 matchesCurrentExperiment a x =
                     case x of
@@ -701,7 +703,7 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
                 attributoFilterFunction a =
                     a.associatedTable
                         == AssociatedTable.Run
-                        && (a.group == manualGlobalAttributiGroup || a.group == manualAttributiGroup && matchesCurrentExperiment a currentExperimentTypeAttributi)
+                        && (showAllAttributi || a.group == manualGlobalAttributiGroup || a.group == manualAttributiGroup && matchesCurrentExperiment a currentExperimentTypeAttributi)
                         && not (List.member a.name [ "started", "stopped" ])
 
                 filteredAttributi : List EditableAttributo
@@ -785,15 +787,19 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
               else
                 text ""
             , form [ class "mb-3" ] <|
-                div [ class "form-floating" ]
-                    [ select
-                        [ class "form-select"
-                        , Html.Attributes.id "current-experiment-type-for-specific-run"
-                        , onIntInput RunEditInfoExperimentTypeIdChanged
-                        ]
-                        (List.map viewExperimentTypeOption experimentTypes)
-                    , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
+                div [ class "form-check form-switch mb-3" ]
+                    [ input_ [ type_ "checkbox", Html.Attributes.id "show-all-attributi", class "form-check-input", checked showAllAttributi, onInput (always (ChangeShowAllAttributi (not showAllAttributi))) ]
+                    , label [ class "form-check-label", for "show-all-attributi" ] [ text "Show all attributi" ]
                     ]
+                    :: div [ class "form-floating" ]
+                        [ select
+                            [ class "form-select"
+                            , Html.Attributes.id "current-experiment-type-for-specific-run"
+                            , onIntInput RunEditInfoExperimentTypeIdChanged
+                            ]
+                            (List.map viewExperimentTypeOption experimentTypes)
+                        , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
+                        ]
                     :: (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
             ]
 
@@ -965,6 +971,7 @@ updateRunEditInfoFromContent zone runEditInfoRaw { runs, attributi } =
                         , experimentTypeId = latestRun.experimentTypeId
                         , editableAttributi = createEditableAttributi zone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi latestRun.attributi)
                         , initiatedManually = False
+                        , showAllAttributi = False
                         }
                     )
 
@@ -987,6 +994,7 @@ updateRunEditInfoFromContent zone runEditInfoRaw { runs, attributi } =
                             , experimentTypeId = latestRun.experimentTypeId
                             , editableAttributi = createEditableAttributi zone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi latestRun.attributi)
                             , initiatedManually = False
+                            , showAllAttributi = False
                             }
                         )
 
@@ -1224,6 +1232,18 @@ update msg model =
                     in
                     ( { model | runEditInfo = Just newRunEditInfo }, Cmd.none )
 
+        ChangeShowAllAttributi newValue ->
+            case model.runEditInfo of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just oldRunEditInfo ->
+                    let
+                        newRunEditInfo =
+                            { oldRunEditInfo | showAllAttributi = newValue }
+                    in
+                    ( { model | runEditInfo = Just newRunEditInfo }, Cmd.none )
+
         RunEditSubmit ->
             case model.runEditInfo of
                 Nothing ->
@@ -1238,8 +1258,7 @@ update msg model =
                             ( { model | runEditRequest = Loading }
                             , send RunEditFinished
                                 (updateRunApiRunsPatch
-                                    { beamtimeId = model.beamtimeId
-                                    , id = runInternalIdToInt runEditInfo.runId
+                                    { id = runInternalIdToInt runEditInfo.runId
                                     , experimentTypeId = runEditInfo.experimentTypeId
                                     , attributi = attributoMapToListOfAttributi editedAttributi
                                     }
@@ -1269,6 +1288,7 @@ update msg model =
 
                                     -- Reset manual edit flag, so we automatically jump to the latest run again
                                     , initiatedManually = False
+                                    , showAllAttributi = False
                                     }
                             in
                             ( { model | runEditRequest = Success editRequestResult, submitErrors = [], runEditInfo = Maybe.map resetEditedFlags model.runEditInfo }
@@ -1294,6 +1314,7 @@ update msg model =
                                 , experimentTypeId = run.experimentTypeId
                                 , editableAttributi = createEditableAttributi model.myTimeZone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi run.attributi)
                                 , initiatedManually = True
+                                , showAllAttributi = False
                                 }
                         , runEditRequest = NotAsked
                       }
@@ -1366,13 +1387,11 @@ update msg model =
         OnlineCrystFELToggled _ ->
             ( model, retrieveRuns model )
 
-        CreateDataSetFromRun experimentTypeId runId ->
+        CreateDataSetFromRun runId ->
             ( { model | dataSetFromRunRequest = Loading }
             , send CreateDataSetFromRunFinished
                 (createDataSetFromRunApiDataSetsFromRunPost
-                    { beamtimeId = model.beamtimeId
-                    , experimentTypeId = experimentTypeId
-                    , runInternalId = runInternalIdToInt runId
+                    { runInternalId = runInternalIdToInt runId
                     }
                 )
             )
@@ -1390,8 +1409,7 @@ update msg model =
                     , send
                         (ChangeCurrentExperimentTypeFinished (Maybe.map .id model.selectedExperimentType))
                         (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost
-                            { beamtimeId = model.beamtimeId
-                            , experimentTypeId = Maybe.map .id model.selectedExperimentType
+                            { experimentTypeId = Maybe.map .id model.selectedExperimentType
                             , runInternalId = runInternalIdToInt ei.runId
                             }
                         )

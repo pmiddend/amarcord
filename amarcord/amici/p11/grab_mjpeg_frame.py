@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 import asyncio
 from asyncio import StreamReader
+from io import BytesIO
 from urllib.parse import urlparse
 
+import aiohttp
 import structlog
-
-from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.asyncdb import live_stream_image_name
 
 logger = structlog.stdlib.get_logger(__name__)
 
@@ -89,36 +88,31 @@ async def mjpeg_grab_single_frame(mjpeg_stream_url: str) -> bytes:
 
 
 async def mjpeg_stream_loop(
-    db: AsyncDB, mjpeg_stream_url: str, delay: float, beamtime_id: int
+    amarcord_url: str,
+    mjpeg_stream_url: str,
+    delay: float,
+    beamtime_id: int,
 ) -> None:
-    while True:
-        try:
-            image = await mjpeg_grab_single_frame(mjpeg_stream_url)
-        except:
-            logger.exception("couldn't grab camera frame, ignoring...")
+    # Why this? Well, uvicorn keeps closing the connection, although
+    # We'd like to Keep-Alive it. See
+    #
+    # https://stackoverflow.com/questions/51248714/aiohttp-client-exception-serverdisconnectederror-is-this-the-api-servers-issu
+    #
+    # We could also just create a session over and over, but this seems a bit more clean
+    connector = aiohttp.TCPConnector(force_close=True)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        while True:
+            try:
+                image = await mjpeg_grab_single_frame(mjpeg_stream_url)
+            except:
+                logger.exception("couldn't grab camera frame, ignoring...")
+                await asyncio.sleep(delay)
+                continue
+            async with session.post(
+                f"{amarcord_url}/api/live-stream/{beamtime_id}",
+                data={"file": BytesIO(image)},
+            ) as update_response:
+                logger.info(
+                    f"live stream updated, file ID {(await update_response.json())['id']}"
+                )
             await asyncio.sleep(delay)
-            continue
-        async with db.begin() as conn:
-            image_name = live_stream_image_name(beamtime_id)
-            existing_file_id = await db.retrieve_file_id_by_name(
-                conn, live_stream_image_name(beamtime_id)
-            )
-            if existing_file_id is None:
-                await db.create_file_from_bytes(
-                    conn,
-                    file_name=image_name,
-                    description="",
-                    original_path=None,
-                    contents=image,
-                    deduplicate=False,
-                )
-            else:
-                await db.update_file_from_bytes(
-                    conn,
-                    existing_file_id,
-                    file_name=image_name,
-                    description="",
-                    original_path=None,
-                    contents=image,
-                )
-        await asyncio.sleep(delay)

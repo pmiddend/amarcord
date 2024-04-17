@@ -16,6 +16,8 @@
 module Api.Request.Analysis exposing
     ( indexingJobUpdateApiIndexingIndexingResultIdPost
     , readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet
+    , readIndexingJobsApiIndexingGet
+    , readMergeJobsApiMergingGet
     , readRunAnalysisApiRunAnalysisBeamtimeIdGet
     )
 
@@ -48,6 +50,30 @@ readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet beamtimeId_path =
         []
         Nothing
         Api.Data.jsonReadAnalysisResultsDecoder
+
+
+readIndexingJobsApiIndexingGet : DBJobStatus -> Maybe Int -> Api.Request Api.Data.JsonReadIndexingResultsOutput
+readIndexingJobsApiIndexingGet status_query beamtimeId_query =
+    Api.request
+        "GET"
+        "/api/indexing"
+        []
+        [ ( "status", Just <| Api.Data.stringFromDBJobStatus status_query ), ( "beamtimeId", Maybe.map String.fromInt beamtimeId_query ) ]
+        []
+        Nothing
+        Api.Data.jsonReadIndexingResultsOutputDecoder
+
+
+readMergeJobsApiMergingGet : DBJobStatus -> Api.Request Api.Data.JsonReadMergeResultsOutput
+readMergeJobsApiMergingGet status_query =
+    Api.request
+        "GET"
+        "/api/merging"
+        []
+        [ ( "status", Just <| Api.Data.stringFromDBJobStatus status_query ) ]
+        []
+        Nothing
+        Api.Data.jsonReadMergeResultsOutputDecoder
 
 
 readRunAnalysisApiRunAnalysisBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadRunAnalysis

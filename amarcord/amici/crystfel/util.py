@@ -4,7 +4,8 @@ from pathlib import Path
 from time import time
 from typing import IO
 
-from amarcord.db.table_classes import BeamtimeOutput
+from amarcord.db.attributi import datetime_from_attributo_int
+from amarcord.web.json_models import JsonBeamtime
 
 
 @dataclass(frozen=True, eq=True)
@@ -74,7 +75,7 @@ def make_cell_file_name(c: CrystFELCellFile) -> str:
 
 
 def determine_output_directory(
-    beamtime: BeamtimeOutput,
+    beamtime: JsonBeamtime,
     base_directory_template: Path,
     additional_replacements: dict[str, str],
 ) -> Path:
@@ -82,7 +83,9 @@ def determine_output_directory(
     job_base_directory_str = (
         str(base_directory_template)
         .replace("{beamtime.external_id}", beamtime.external_id)
-        .replace("{beamtime.year}", str(beamtime.start.year))
+        .replace(
+            "{beamtime.year}", str(datetime_from_attributo_int(beamtime.start).year)
+        )
         .replace("{beamtime.beamline}", beamtime.beamline)
         .replace("{beamtime.beamline_lowercase}", beamtime.beamline.lower())
     )

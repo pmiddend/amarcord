@@ -9,12 +9,14 @@ from lark.lark import Lark
 from lark.lexer import Token
 from lark.visitors import Transformer
 
+from amarcord.db import orm
+from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.table_classes import DBRunOutput
+from amarcord.db.orm_utils import orm_entity_has_attributo_value_to_attributo_value
 from amarcord.util import maybe_you_meant
 
 _filter_expression_parser: Final = Lark(
@@ -64,7 +66,7 @@ identifier_string: IDENTIFIER | STRING
 
 @dataclass(frozen=True)
 class FilterInput:
-    run: DBRunOutput
+    run: orm.Run
     attributo_name_to_id: dict[str, AttributoId]
     chemical_names: dict[str, int]
 
@@ -124,13 +126,19 @@ def _comparison_filter(
             raise FilterParseError(
                 f'attributo "{aname}" not defined{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}'
             )
-        attributo = run.attributi.retrieve_type(aid)
-        if attributo is None:
+        run_has_attributo_value = next(
+            iter(av for av in run.attributo_values if av.attributo_id == aid), None
+        )
+        if run_has_attributo_value is None:
             raise FilterParseError(
-                f'attributo "{aid}" not defined{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}'
+                f'attributo "{aid}" not in run{maybe_you_meant(aname, filter_input.attributo_name_to_id.keys())}'
             )
-        type_ = attributo.attributo_type
-        attributo_value = run.attributi.select(aid)
+        type_ = schema_dict_to_attributo_type(
+            run_has_attributo_value.attributo.json_schema
+        )
+        attributo_value = orm_entity_has_attributo_value_to_attributo_value(
+            run_has_attributo_value
+        )
     operand_processed = _transform_comparison_operand_before_comparison(
         aname, operand, type_, filter_input.chemical_names
     )
@@ -238,7 +246,6 @@ def compile_run_filter(query_string: str) -> RunFilterFunction:
     if not query_string:
         return lambda _: True
     try:
-        print(query_string)
         parse_result = _filter_expression_parser.parse(query_string)
     except Exception as e:
         raise FilterParseError(e)

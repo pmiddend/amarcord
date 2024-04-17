@@ -17,6 +17,7 @@ module Api.Data exposing
     ( AssociatedTable(..), associatedTableVariants
     , AttributoType(..)
     , ChemicalType(..), chemicalTypeVariants
+    , DBJobStatus(..), dBJobStatusVariants
     , HTTPValidationError
     , JSONSchemaArray, JSONSchemaArrayType(..), jSONSchemaArrayTypeVariants
     , JSONSchemaArraySubtype(..), jSONSchemaArraySubtypeVariants
@@ -60,8 +61,6 @@ module Api.Data exposing
     , JsonCreateLiveStreamSnapshotOutput
     , JsonCreateOrUpdateRun
     , JsonCreateOrUpdateRunOutput
-    , JsonCreateRefinementResultInput
-    , JsonCreateRefinementResultOutput
     , JsonDataSet
     , JsonDeleteAttributoInput
     , JsonDeleteAttributoOutput
@@ -83,19 +82,29 @@ module Api.Data exposing
     , JsonExperimentTypeAndRuns
     , JsonFileOutput
     , JsonIndexingFom
+    , JsonIndexingJob
     , JsonIndexingJobUpdateOutput
     , JsonIndexingResult
     , JsonIndexingResultRootJson
     , JsonIndexingStatistic
-    , JsonMergeJobUpdateOutput
+    , JsonMergeJob
+    , JsonMergeJobFinishOutput
+    , JsonMergeJobFinishedInput
+    , JsonMergeJobStartedInput
+    , JsonMergeJobStartedOutput
     , JsonMergeParameters
     , JsonMergeResult
-    , JsonMergeResultRootJson
+    , JsonMergeResultFom
+    , JsonMergeResultInternal
+    , JsonMergeResultOuterShell
+    , JsonMergeResultShell
     , JsonMergeResultStateDone
     , JsonMergeResultStateError
     , JsonMergeResultStateQueued
     , JsonMergeResultStateRunning
     , JsonPolarisation
+    , JsonQueueMergeJobForDataSetInput
+    , JsonQueueMergeJobForDataSetOutput
     , JsonReadAnalysisResults
     , JsonReadAttributi
     , JsonReadBeamtime
@@ -103,15 +112,16 @@ module Api.Data exposing
     , JsonReadDataSets
     , JsonReadEvents
     , JsonReadExperimentTypes
+    , JsonReadIndexingResultsOutput
+    , JsonReadMergeResultsOutput
     , JsonReadRunAnalysis
     , JsonReadRuns
     , JsonReadRunsBulkInput
     , JsonReadRunsBulkOutput
     , JsonRefinementResult
+    , JsonRefinementResultInternal
     , JsonRun
     , JsonRunAnalysisIndexingResult
-    , JsonStartMergeJobForDataSetInput
-    , JsonStartMergeJobForDataSetOutput
     , JsonStartRunOutput
     , JsonStopRunOutput
     , JsonUpdateAttributoConversionFlags
@@ -128,16 +138,12 @@ module Api.Data exposing
     , JsonUserConfigurationSingleOutput
     , MergeModel(..), mergeModelVariants
     , MergeNegativeHandling(..), mergeNegativeHandlingVariants
-    , MergeResult
-    , MergeResultFom
-    , MergeResultOuterShell
-    , MergeResultShell
-    , RefinementResult
     , ScaleIntensities(..), scaleIntensitiesVariants
     , ValidationError
     , encodeAssociatedTable
     , encodeAttributoType
     , encodeChemicalType
+    , encodeDBJobStatus
     , encodeHTTPValidationError
     , encodeJSONSchemaArray
     , encodeJSONSchemaArraySubtype
@@ -181,8 +187,6 @@ module Api.Data exposing
     , encodeJsonCreateLiveStreamSnapshotOutput
     , encodeJsonCreateOrUpdateRun
     , encodeJsonCreateOrUpdateRunOutput
-    , encodeJsonCreateRefinementResultInput
-    , encodeJsonCreateRefinementResultOutput
     , encodeJsonDataSet
     , encodeJsonDeleteAttributoInput
     , encodeJsonDeleteAttributoOutput
@@ -204,19 +208,29 @@ module Api.Data exposing
     , encodeJsonExperimentTypeAndRuns
     , encodeJsonFileOutput
     , encodeJsonIndexingFom
+    , encodeJsonIndexingJob
     , encodeJsonIndexingJobUpdateOutput
     , encodeJsonIndexingResult
     , encodeJsonIndexingResultRootJson
     , encodeJsonIndexingStatistic
-    , encodeJsonMergeJobUpdateOutput
+    , encodeJsonMergeJob
+    , encodeJsonMergeJobFinishOutput
+    , encodeJsonMergeJobFinishedInput
+    , encodeJsonMergeJobStartedInput
+    , encodeJsonMergeJobStartedOutput
     , encodeJsonMergeParameters
     , encodeJsonMergeResult
-    , encodeJsonMergeResultRootJson
+    , encodeJsonMergeResultFom
+    , encodeJsonMergeResultInternal
+    , encodeJsonMergeResultOuterShell
+    , encodeJsonMergeResultShell
     , encodeJsonMergeResultStateDone
     , encodeJsonMergeResultStateError
     , encodeJsonMergeResultStateQueued
     , encodeJsonMergeResultStateRunning
     , encodeJsonPolarisation
+    , encodeJsonQueueMergeJobForDataSetInput
+    , encodeJsonQueueMergeJobForDataSetOutput
     , encodeJsonReadAnalysisResults
     , encodeJsonReadAttributi
     , encodeJsonReadBeamtime
@@ -224,15 +238,16 @@ module Api.Data exposing
     , encodeJsonReadDataSets
     , encodeJsonReadEvents
     , encodeJsonReadExperimentTypes
+    , encodeJsonReadIndexingResultsOutput
+    , encodeJsonReadMergeResultsOutput
     , encodeJsonReadRunAnalysis
     , encodeJsonReadRuns
     , encodeJsonReadRunsBulkInput
     , encodeJsonReadRunsBulkOutput
     , encodeJsonRefinementResult
+    , encodeJsonRefinementResultInternal
     , encodeJsonRun
     , encodeJsonRunAnalysisIndexingResult
-    , encodeJsonStartMergeJobForDataSetInput
-    , encodeJsonStartMergeJobForDataSetOutput
     , encodeJsonStartRunOutput
     , encodeJsonStopRunOutput
     , encodeJsonUpdateAttributoConversionFlags
@@ -249,15 +264,11 @@ module Api.Data exposing
     , encodeJsonUserConfigurationSingleOutput
     , encodeMergeModel
     , encodeMergeNegativeHandling
-    , encodeMergeResult
-    , encodeMergeResultFom
-    , encodeMergeResultOuterShell
-    , encodeMergeResultShell
-    , encodeRefinementResult
     , encodeScaleIntensities
     , encodeValidationError
     , stringFromAssociatedTable
     , stringFromChemicalType
+    , stringFromDBJobStatus
     , stringFromJSONSchemaArraySubtype
     , stringFromMergeModel
     , stringFromMergeNegativeHandling
@@ -265,6 +276,7 @@ module Api.Data exposing
     , associatedTableDecoder
     , attributoTypeDecoder
     , chemicalTypeDecoder
+    , dBJobStatusDecoder
     , hTTPValidationErrorDecoder
     , jSONSchemaArrayDecoder
     , jSONSchemaArraySubtypeDecoder
@@ -308,8 +320,6 @@ module Api.Data exposing
     , jsonCreateLiveStreamSnapshotOutputDecoder
     , jsonCreateOrUpdateRunDecoder
     , jsonCreateOrUpdateRunOutputDecoder
-    , jsonCreateRefinementResultInputDecoder
-    , jsonCreateRefinementResultOutputDecoder
     , jsonDataSetDecoder
     , jsonDeleteAttributoInputDecoder
     , jsonDeleteAttributoOutputDecoder
@@ -331,19 +341,29 @@ module Api.Data exposing
     , jsonExperimentTypeAndRunsDecoder
     , jsonFileOutputDecoder
     , jsonIndexingFomDecoder
+    , jsonIndexingJobDecoder
     , jsonIndexingJobUpdateOutputDecoder
     , jsonIndexingResultDecoder
     , jsonIndexingResultRootJsonDecoder
     , jsonIndexingStatisticDecoder
-    , jsonMergeJobUpdateOutputDecoder
+    , jsonMergeJobDecoder
+    , jsonMergeJobFinishOutputDecoder
+    , jsonMergeJobFinishedInputDecoder
+    , jsonMergeJobStartedInputDecoder
+    , jsonMergeJobStartedOutputDecoder
     , jsonMergeParametersDecoder
     , jsonMergeResultDecoder
-    , jsonMergeResultRootJsonDecoder
+    , jsonMergeResultFomDecoder
+    , jsonMergeResultInternalDecoder
+    , jsonMergeResultOuterShellDecoder
+    , jsonMergeResultShellDecoder
     , jsonMergeResultStateDoneDecoder
     , jsonMergeResultStateErrorDecoder
     , jsonMergeResultStateQueuedDecoder
     , jsonMergeResultStateRunningDecoder
     , jsonPolarisationDecoder
+    , jsonQueueMergeJobForDataSetInputDecoder
+    , jsonQueueMergeJobForDataSetOutputDecoder
     , jsonReadAnalysisResultsDecoder
     , jsonReadAttributiDecoder
     , jsonReadBeamtimeDecoder
@@ -351,15 +371,16 @@ module Api.Data exposing
     , jsonReadDataSetsDecoder
     , jsonReadEventsDecoder
     , jsonReadExperimentTypesDecoder
+    , jsonReadIndexingResultsOutputDecoder
+    , jsonReadMergeResultsOutputDecoder
     , jsonReadRunAnalysisDecoder
     , jsonReadRunsDecoder
     , jsonReadRunsBulkInputDecoder
     , jsonReadRunsBulkOutputDecoder
     , jsonRefinementResultDecoder
+    , jsonRefinementResultInternalDecoder
     , jsonRunDecoder
     , jsonRunAnalysisIndexingResultDecoder
-    , jsonStartMergeJobForDataSetInputDecoder
-    , jsonStartMergeJobForDataSetOutputDecoder
     , jsonStartRunOutputDecoder
     , jsonStopRunOutputDecoder
     , jsonUpdateAttributoConversionFlagsDecoder
@@ -376,11 +397,6 @@ module Api.Data exposing
     , jsonUserConfigurationSingleOutputDecoder
     , mergeModelDecoder
     , mergeNegativeHandlingDecoder
-    , mergeResultDecoder
-    , mergeResultFomDecoder
-    , mergeResultOuterShellDecoder
-    , mergeResultShellDecoder
-    , refinementResultDecoder
     , scaleIntensitiesDecoder
     , validationErrorDecoder
     )
@@ -428,6 +444,22 @@ chemicalTypeVariants : List ChemicalType
 chemicalTypeVariants =
     [ ChemicalTypeCrystal
     , ChemicalTypeSolution
+    ]
+
+
+{-| An enumeration.
+-}
+type DBJobStatus
+    = DBJobStatusQueued
+    | DBJobStatusRunning
+    | DBJobStatusDone
+
+
+dBJobStatusVariants : List DBJobStatus
+dBJobStatusVariants =
+    [ DBJobStatusQueued
+    , DBJobStatusRunning
+    , DBJobStatusDone
     ]
 
 
@@ -612,6 +644,8 @@ type alias JsonAttributoValue =
     { attributoId : Int
     , attributoValueStr : Maybe String
     , attributoValueInt : Maybe Int
+    , attributoValueChemical : Maybe Int
+    , attributoValueDatetime : Maybe Int
     , attributoValueFloat : Maybe Float
     , attributoValueBool : Maybe Bool
     , attributoValueListStr : Maybe ( List String )
@@ -660,7 +694,6 @@ type alias JsonBeamtimeScheduleRow =
 
 type alias JsonChangeRunExperimentType =
     { runInternalId : Int
-    , beamtimeId : Int
     , experimentTypeId : Maybe Int
     }
 
@@ -764,8 +797,6 @@ type alias JsonCreateChemicalOutput =
 
 type alias JsonCreateDataSetFromRun =
     { runInternalId : Int
-    , experimentTypeId : Int
-    , beamtimeId : Int
     }
 
 
@@ -775,8 +806,7 @@ type alias JsonCreateDataSetFromRunOutput =
 
 
 type alias JsonCreateDataSetInput =
-    { beamtimeId : Int
-    , experimentTypeId : Int
+    { experimentTypeId : Int
     , attributi : List JsonAttributoValue
     }
 
@@ -831,22 +861,6 @@ type alias JsonCreateOrUpdateRunOutput =
     , indexingResultId : Maybe Int
     , errorMessage : Maybe String
     , runInternalId : Maybe Int
-    }
-
-
-type alias JsonCreateRefinementResultInput =
-    { mergeResultId : Int
-    , pdbFileId : Int
-    , mtzFileId : Int
-    , rFree : Float
-    , rWork : Float
-    , rmsBondAngle : Float
-    , rmsBondLength : Float
-    }
-
-
-type alias JsonCreateRefinementResultOutput =
-    { id : Int
     }
 
 
@@ -980,6 +994,18 @@ type alias JsonIndexingFom =
     }
 
 
+type alias JsonIndexingJob =
+    { id : Int
+    , jobId : Maybe Int
+    , jobStatus : DBJobStatus
+    , streamFile : Maybe String
+    , cellDescription : String
+    , runInternalId : Int
+    , runExternalId : Int
+    , beamtime : JsonBeamtime
+    }
+
+
 type alias JsonIndexingJobUpdateOutput =
     { result : Bool
     }
@@ -998,6 +1024,8 @@ type alias JsonIndexingResult =
 
 type alias JsonIndexingResultRootJson =
     { error : Maybe String
+    , jobId : Maybe Int
+    , streamFile : Maybe String
     , result : Maybe JsonIndexingResult
     }
 
@@ -1011,14 +1039,42 @@ type alias JsonIndexingStatistic =
     }
 
 
-type alias JsonMergeJobUpdateOutput =
+type alias JsonMergeJob =
+    { id : Int
+    , jobId : Maybe Int
+    , jobStatus : DBJobStatus
+    , parameters : JsonMergeParameters
+    , indexingResults : List JsonIndexingJob
+    , filesFromIndexing : List JsonFileOutput
+    , cellDescription : Maybe String
+    , pointGroup : Maybe String
+    }
+
+
+type alias JsonMergeJobFinishOutput =
     { result : Bool
     }
 
 
+type alias JsonMergeJobFinishedInput =
+    { error : Maybe String
+    , result : Maybe JsonMergeResultInternal
+    }
+
+
+type alias JsonMergeJobStartedInput =
+    { jobId : Int
+    , time : Int
+    }
+
+
+type alias JsonMergeJobStartedOutput =
+    { time : Int
+    }
+
+
 type alias JsonMergeParameters =
-    { pointGroup : String
-    , cellDescription : String
+    { pointGroup : Maybe String
     , negativeHandling : Maybe MergeNegativeHandling
     , mergeModel : MergeModel
     , scaleIntensities : ScaleIntensities
@@ -1046,8 +1102,6 @@ type alias JsonMergeResult =
     { id : Int
     , created : Int
     , runs : List String
-    , cellDescription : String
-    , pointGroup : String
     , stateQueued : Maybe JsonMergeResultStateQueued
     , stateError : Maybe JsonMergeResultStateError
     , stateRunning : Maybe JsonMergeResultStateRunning
@@ -1057,16 +1111,77 @@ type alias JsonMergeResult =
     }
 
 
-type alias JsonMergeResultRootJson =
-    { error : Maybe String
-    , result : Maybe MergeResult
+type alias JsonMergeResultFom =
+    { snr : Float
+    , wilson : Maybe Float
+    , lnK : Maybe Float
+    , discardedReflections : Int
+    , oneOverDFrom : Float
+    , oneOverDTo : Float
+    , redundancy : Float
+    , completeness : Float
+    , measurementsTotal : Int
+    , reflectionsTotal : Int
+    , reflectionsPossible : Int
+    , rSplit : Float
+    , r1i : Float
+    , r2 : Float
+    , cc : Float
+    , ccstar : Float
+    , ccano : Maybe Float
+    , crdano : Maybe Float
+    , rano : Maybe Float
+    , ranoOverRSplit : Maybe Float
+    , d1sig : Float
+    , d2sig : Float
+    , outerShell : JsonMergeResultOuterShell
+    }
+
+
+type alias JsonMergeResultInternal =
+    { mtzFileId : Int
+    , fom : JsonMergeResultFom
+    , detailedFoms : List JsonMergeResultShell
+    , refinementResults : List JsonRefinementResultInternal
+    }
+
+
+type alias JsonMergeResultOuterShell =
+    { resolution : Float
+    , ccstar : Float
+    , rSplit : Float
+    , cc : Float
+    , uniqueReflections : Int
+    , completeness : Float
+    , redundancy : Float
+    , snr : Float
+    , minRes : Float
+    , maxRes : Float
+    }
+
+
+type alias JsonMergeResultShell =
+    { oneOverDCentre : Float
+    , nref : Int
+    , dOverA : Float
+    , minRes : Float
+    , maxRes : Float
+    , cc : Float
+    , ccstar : Float
+    , rSplit : Float
+    , reflectionsPossible : Int
+    , completeness : Float
+    , measurements : Int
+    , redundancy : Float
+    , snr : Float
+    , meanI : Float
     }
 
 
 type alias JsonMergeResultStateDone =
     { started : Int
     , stopped : Int
-    , result : MergeResult
+    , result : JsonMergeResultInternal
     }
 
 
@@ -1093,6 +1208,18 @@ type alias JsonMergeResultStateRunning =
 type alias JsonPolarisation =
     { angle : Int
     , percent : Int
+    }
+
+
+type alias JsonQueueMergeJobForDataSetInput =
+    { strictMode : Bool
+    , beamtimeId : Int
+    , mergeParameters : JsonMergeParameters
+    }
+
+
+type alias JsonQueueMergeJobForDataSetOutput =
+    { mergeResultId : Int
     }
 
 
@@ -1137,6 +1264,16 @@ type alias JsonReadExperimentTypes =
     { experimentTypes : List JsonExperimentType
     , attributi : List JsonAttributo
     , experimentTypeIdToRun : List JsonExperimentTypeAndRuns
+    }
+
+
+type alias JsonReadIndexingResultsOutput =
+    { indexingJobs : List JsonIndexingJob
+    }
+
+
+type alias JsonReadMergeResultsOutput =
+    { mergeJobs : List JsonMergeJob
     }
 
 
@@ -1188,6 +1325,17 @@ type alias JsonRefinementResult =
     }
 
 
+type alias JsonRefinementResultInternal =
+    { id : Maybe Int
+    , pdbFileId : Int
+    , mtzFileId : Int
+    , rFree : Float
+    , rWork : Float
+    , rmsBondAngle : Float
+    , rmsBondLength : Float
+    }
+
+
 type alias JsonRun =
     { id : Int
     , externalId : Int
@@ -1209,37 +1357,6 @@ type alias JsonRunAnalysisIndexingResult =
     }
 
 
-type alias JsonStartMergeJobForDataSetInput =
-    { strictMode : Bool
-    , beamtimeId : Int
-    , mergeModel : MergeModel
-    , scaleIntensities : ScaleIntensities
-    , postRefinement : Bool
-    , iterations : Int
-    , polarisation : Maybe JsonPolarisation
-    , negativeHandling : MergeNegativeHandling
-    , startAfter : Maybe Int
-    , stopAfter : Maybe Int
-    , relB : Float
-    , noPr : Bool
-    , forceBandwidth : Maybe Float
-    , forceRadius : Maybe Float
-    , forceLambda : Maybe Float
-    , noDeltaCcHalf : Bool
-    , maxAdu : Maybe Float
-    , minMeasurements : Int
-    , logs : Bool
-    , minRes : Maybe Float
-    , pushRes : Maybe Float
-    , w : Maybe String
-    }
-
-
-type alias JsonStartMergeJobForDataSetOutput =
-    { mergeResultId : Int
-    }
-
-
 type alias JsonStartRunOutput =
     { runInternalId : Int
     }
@@ -1256,8 +1373,7 @@ type alias JsonUpdateAttributoConversionFlags =
 
 
 type alias JsonUpdateAttributoInput =
-    { beamtimeId : Int
-    , attributo : JsonAttributo
+    { attributo : JsonAttributo
     , conversionFlags : JsonUpdateAttributoConversionFlags
     }
 
@@ -1292,7 +1408,6 @@ type alias JsonUpdateLiveStream =
 
 type alias JsonUpdateRun =
     { id : Int
-    , beamtimeId : Int
     , experimentTypeId : Int
     , attributi : List JsonAttributoValue
     }
@@ -1359,83 +1474,6 @@ mergeNegativeHandlingVariants =
     [ MergeNegativeHandlingIgnore
     , MergeNegativeHandlingZero
     ]
-
-
-type alias MergeResult =
-    { mtzFileId : Int
-    , fom : MergeResultFom
-    , detailedFoms : List MergeResultShell
-    , refinementResults : List RefinementResult
-    }
-
-
-type alias MergeResultFom =
-    { snr : Float
-    , wilson : Maybe Float
-    , lnK : Maybe Float
-    , discardedReflections : Int
-    , oneOverDFrom : Float
-    , oneOverDTo : Float
-    , redundancy : Float
-    , completeness : Float
-    , measurementsTotal : Int
-    , reflectionsTotal : Int
-    , reflectionsPossible : Int
-    , rSplit : Float
-    , r1i : Float
-    , r2 : Float
-    , cc : Float
-    , ccstar : Float
-    , ccano : Maybe Float
-    , crdano : Maybe Float
-    , rano : Maybe Float
-    , ranoOverRSplit : Maybe Float
-    , d1sig : Float
-    , d2sig : Float
-    , outerShell : MergeResultOuterShell
-    }
-
-
-type alias MergeResultOuterShell =
-    { resolution : Float
-    , ccstar : Float
-    , rSplit : Float
-    , cc : Float
-    , uniqueReflections : Int
-    , completeness : Float
-    , redundancy : Float
-    , snr : Float
-    , minRes : Float
-    , maxRes : Float
-    }
-
-
-type alias MergeResultShell =
-    { oneOverDCentre : Float
-    , nref : Int
-    , dOverA : Float
-    , minRes : Float
-    , maxRes : Float
-    , cc : Float
-    , ccstar : Float
-    , rSplit : Float
-    , reflectionsPossible : Int
-    , completeness : Float
-    , measurements : Int
-    , redundancy : Float
-    , snr : Float
-    , meanI : Float
-    }
-
-
-type alias RefinementResult =
-    { pdbFileId : Int
-    , mtzFileId : Int
-    , rFree : Float
-    , rWork : Float
-    , rmsBondAngle : Float
-    , rmsBondLength : Float
-    }
 
 
 {-| An enumeration.
@@ -1513,6 +1551,24 @@ stringFromChemicalType model =
 encodeChemicalType : ChemicalType -> Json.Encode.Value
 encodeChemicalType =
     Json.Encode.string << stringFromChemicalType
+
+
+stringFromDBJobStatus : DBJobStatus -> String
+stringFromDBJobStatus model =
+    case model of
+        DBJobStatusQueued ->
+            "queued"
+
+        DBJobStatusRunning ->
+            "running"
+
+        DBJobStatusDone ->
+            "done"
+
+
+encodeDBJobStatus : DBJobStatus -> Json.Encode.Value
+encodeDBJobStatus =
+    Json.Encode.string << stringFromDBJobStatus
 
 
 encodeHTTPValidationError : HTTPValidationError -> Json.Encode.Value
@@ -1906,6 +1962,8 @@ encodeJsonAttributoValuePairs model =
             [ encode "attributo_id" Json.Encode.int model.attributoId
             , maybeEncode "attributo_value_str" Json.Encode.string model.attributoValueStr
             , maybeEncode "attributo_value_int" Json.Encode.int model.attributoValueInt
+            , maybeEncode "attributo_value_chemical" Json.Encode.int model.attributoValueChemical
+            , maybeEncode "attributo_value_datetime" Json.Encode.int model.attributoValueDatetime
             , maybeEncode "attributo_value_float" Json.Encode.float model.attributoValueFloat
             , maybeEncode "attributo_value_bool" Json.Encode.bool model.attributoValueBool
             , maybeEncode "attributo_value_list_str" (Json.Encode.list Json.Encode.string) model.attributoValueListStr
@@ -2044,7 +2102,6 @@ encodeJsonChangeRunExperimentTypePairs model =
     let
         pairs =
             [ encode "run_internal_id" Json.Encode.int model.runInternalId
-            , encode "beamtime_id" Json.Encode.int model.beamtimeId
             , maybeEncode "experiment_type_id" Json.Encode.int model.experimentTypeId
             ]
     in
@@ -2358,8 +2415,6 @@ encodeJsonCreateDataSetFromRunPairs model =
     let
         pairs =
             [ encode "run_internal_id" Json.Encode.int model.runInternalId
-            , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
-            , encode "beamtime_id" Json.Encode.int model.beamtimeId
             ]
     in
     pairs
@@ -2399,8 +2454,7 @@ encodeJsonCreateDataSetInputPairs : JsonCreateDataSetInput -> List EncodedField
 encodeJsonCreateDataSetInputPairs model =
     let
         pairs =
-            [ encode "beamtime_id" Json.Encode.int model.beamtimeId
-            , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
+            [ encode "experiment_type_id" Json.Encode.int model.experimentTypeId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
             ]
     in
@@ -2560,52 +2614,6 @@ encodeJsonCreateOrUpdateRunOutputPairs model =
             , maybeEncode "indexing_result_id" Json.Encode.int model.indexingResultId
             , maybeEncode "error_message" Json.Encode.string model.errorMessage
             , maybeEncode "run_internal_id" Json.Encode.int model.runInternalId
-            ]
-    in
-    pairs
-
-
-encodeJsonCreateRefinementResultInput : JsonCreateRefinementResultInput -> Json.Encode.Value
-encodeJsonCreateRefinementResultInput =
-    encodeObject << encodeJsonCreateRefinementResultInputPairs
-
-
-encodeJsonCreateRefinementResultInputWithTag : ( String, String ) -> JsonCreateRefinementResultInput -> Json.Encode.Value
-encodeJsonCreateRefinementResultInputWithTag (tagField, tag) model =
-    encodeObject (encodeJsonCreateRefinementResultInputPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonCreateRefinementResultInputPairs : JsonCreateRefinementResultInput -> List EncodedField
-encodeJsonCreateRefinementResultInputPairs model =
-    let
-        pairs =
-            [ encode "merge_result_id" Json.Encode.int model.mergeResultId
-            , encode "pdb_file_id" Json.Encode.int model.pdbFileId
-            , encode "mtz_file_id" Json.Encode.int model.mtzFileId
-            , encode "r_free" Json.Encode.float model.rFree
-            , encode "r_work" Json.Encode.float model.rWork
-            , encode "rms_bond_angle" Json.Encode.float model.rmsBondAngle
-            , encode "rms_bond_length" Json.Encode.float model.rmsBondLength
-            ]
-    in
-    pairs
-
-
-encodeJsonCreateRefinementResultOutput : JsonCreateRefinementResultOutput -> Json.Encode.Value
-encodeJsonCreateRefinementResultOutput =
-    encodeObject << encodeJsonCreateRefinementResultOutputPairs
-
-
-encodeJsonCreateRefinementResultOutputWithTag : ( String, String ) -> JsonCreateRefinementResultOutput -> Json.Encode.Value
-encodeJsonCreateRefinementResultOutputWithTag (tagField, tag) model =
-    encodeObject (encodeJsonCreateRefinementResultOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonCreateRefinementResultOutputPairs : JsonCreateRefinementResultOutput -> List EncodedField
-encodeJsonCreateRefinementResultOutputPairs model =
-    let
-        pairs =
-            [ encode "id" Json.Encode.int model.id
             ]
     in
     pairs
@@ -3056,6 +3064,33 @@ encodeJsonIndexingFomPairs model =
     pairs
 
 
+encodeJsonIndexingJob : JsonIndexingJob -> Json.Encode.Value
+encodeJsonIndexingJob =
+    encodeObject << encodeJsonIndexingJobPairs
+
+
+encodeJsonIndexingJobWithTag : ( String, String ) -> JsonIndexingJob -> Json.Encode.Value
+encodeJsonIndexingJobWithTag (tagField, tag) model =
+    encodeObject (encodeJsonIndexingJobPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonIndexingJobPairs : JsonIndexingJob -> List EncodedField
+encodeJsonIndexingJobPairs model =
+    let
+        pairs =
+            [ encode "id" Json.Encode.int model.id
+            , maybeEncode "job_id" Json.Encode.int model.jobId
+            , encode "job_status" encodeDBJobStatus model.jobStatus
+            , maybeEncode "stream_file" Json.Encode.string model.streamFile
+            , encode "cell_description" Json.Encode.string model.cellDescription
+            , encode "run_internal_id" Json.Encode.int model.runInternalId
+            , encode "run_external_id" Json.Encode.int model.runExternalId
+            , encode "beamtime" encodeJsonBeamtime model.beamtime
+            ]
+    in
+    pairs
+
+
 encodeJsonIndexingJobUpdateOutput : JsonIndexingJobUpdateOutput -> Json.Encode.Value
 encodeJsonIndexingJobUpdateOutput =
     encodeObject << encodeJsonIndexingJobUpdateOutputPairs
@@ -3117,6 +3152,8 @@ encodeJsonIndexingResultRootJsonPairs model =
     let
         pairs =
             [ maybeEncode "error" Json.Encode.string model.error
+            , maybeEncode "job_id" Json.Encode.int model.jobId
+            , maybeEncode "stream_file" Json.Encode.string model.streamFile
             , maybeEncode "result" encodeJsonIndexingResult model.result
             ]
     in
@@ -3147,21 +3184,110 @@ encodeJsonIndexingStatisticPairs model =
     pairs
 
 
-encodeJsonMergeJobUpdateOutput : JsonMergeJobUpdateOutput -> Json.Encode.Value
-encodeJsonMergeJobUpdateOutput =
-    encodeObject << encodeJsonMergeJobUpdateOutputPairs
+encodeJsonMergeJob : JsonMergeJob -> Json.Encode.Value
+encodeJsonMergeJob =
+    encodeObject << encodeJsonMergeJobPairs
 
 
-encodeJsonMergeJobUpdateOutputWithTag : ( String, String ) -> JsonMergeJobUpdateOutput -> Json.Encode.Value
-encodeJsonMergeJobUpdateOutputWithTag (tagField, tag) model =
-    encodeObject (encodeJsonMergeJobUpdateOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+encodeJsonMergeJobWithTag : ( String, String ) -> JsonMergeJob -> Json.Encode.Value
+encodeJsonMergeJobWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeJobPairs model ++ [ encode tagField Json.Encode.string tag ])
 
 
-encodeJsonMergeJobUpdateOutputPairs : JsonMergeJobUpdateOutput -> List EncodedField
-encodeJsonMergeJobUpdateOutputPairs model =
+encodeJsonMergeJobPairs : JsonMergeJob -> List EncodedField
+encodeJsonMergeJobPairs model =
+    let
+        pairs =
+            [ encode "id" Json.Encode.int model.id
+            , maybeEncode "job_id" Json.Encode.int model.jobId
+            , encode "job_status" encodeDBJobStatus model.jobStatus
+            , encode "parameters" encodeJsonMergeParameters model.parameters
+            , encode "indexing_results" (Json.Encode.list encodeJsonIndexingJob) model.indexingResults
+            , encode "files_from_indexing" (Json.Encode.list encodeJsonFileOutput) model.filesFromIndexing
+            , maybeEncode "cell_description" Json.Encode.string model.cellDescription
+            , maybeEncode "point_group" Json.Encode.string model.pointGroup
+            ]
+    in
+    pairs
+
+
+encodeJsonMergeJobFinishOutput : JsonMergeJobFinishOutput -> Json.Encode.Value
+encodeJsonMergeJobFinishOutput =
+    encodeObject << encodeJsonMergeJobFinishOutputPairs
+
+
+encodeJsonMergeJobFinishOutputWithTag : ( String, String ) -> JsonMergeJobFinishOutput -> Json.Encode.Value
+encodeJsonMergeJobFinishOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeJobFinishOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonMergeJobFinishOutputPairs : JsonMergeJobFinishOutput -> List EncodedField
+encodeJsonMergeJobFinishOutputPairs model =
     let
         pairs =
             [ encode "result" Json.Encode.bool model.result
+            ]
+    in
+    pairs
+
+
+encodeJsonMergeJobFinishedInput : JsonMergeJobFinishedInput -> Json.Encode.Value
+encodeJsonMergeJobFinishedInput =
+    encodeObject << encodeJsonMergeJobFinishedInputPairs
+
+
+encodeJsonMergeJobFinishedInputWithTag : ( String, String ) -> JsonMergeJobFinishedInput -> Json.Encode.Value
+encodeJsonMergeJobFinishedInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeJobFinishedInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonMergeJobFinishedInputPairs : JsonMergeJobFinishedInput -> List EncodedField
+encodeJsonMergeJobFinishedInputPairs model =
+    let
+        pairs =
+            [ maybeEncode "error" Json.Encode.string model.error
+            , maybeEncode "result" encodeJsonMergeResultInternal model.result
+            ]
+    in
+    pairs
+
+
+encodeJsonMergeJobStartedInput : JsonMergeJobStartedInput -> Json.Encode.Value
+encodeJsonMergeJobStartedInput =
+    encodeObject << encodeJsonMergeJobStartedInputPairs
+
+
+encodeJsonMergeJobStartedInputWithTag : ( String, String ) -> JsonMergeJobStartedInput -> Json.Encode.Value
+encodeJsonMergeJobStartedInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeJobStartedInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonMergeJobStartedInputPairs : JsonMergeJobStartedInput -> List EncodedField
+encodeJsonMergeJobStartedInputPairs model =
+    let
+        pairs =
+            [ encode "job_id" Json.Encode.int model.jobId
+            , encode "time" Json.Encode.int model.time
+            ]
+    in
+    pairs
+
+
+encodeJsonMergeJobStartedOutput : JsonMergeJobStartedOutput -> Json.Encode.Value
+encodeJsonMergeJobStartedOutput =
+    encodeObject << encodeJsonMergeJobStartedOutputPairs
+
+
+encodeJsonMergeJobStartedOutputWithTag : ( String, String ) -> JsonMergeJobStartedOutput -> Json.Encode.Value
+encodeJsonMergeJobStartedOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeJobStartedOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonMergeJobStartedOutputPairs : JsonMergeJobStartedOutput -> List EncodedField
+encodeJsonMergeJobStartedOutputPairs model =
+    let
+        pairs =
+            [ encode "time" Json.Encode.int model.time
             ]
     in
     pairs
@@ -3181,8 +3307,7 @@ encodeJsonMergeParametersPairs : JsonMergeParameters -> List EncodedField
 encodeJsonMergeParametersPairs model =
     let
         pairs =
-            [ encode "point_group" Json.Encode.string model.pointGroup
-            , encode "cell_description" Json.Encode.string model.cellDescription
+            [ maybeEncode "point_group" Json.Encode.string model.pointGroup
             , maybeEncode "negative_handling" encodeMergeNegativeHandling model.negativeHandling
             , encode "merge_model" encodeMergeModel model.mergeModel
             , encode "scale_intensities" encodeScaleIntensities model.scaleIntensities
@@ -3225,8 +3350,6 @@ encodeJsonMergeResultPairs model =
             [ encode "id" Json.Encode.int model.id
             , encode "created" Json.Encode.int model.created
             , encode "runs" (Json.Encode.list Json.Encode.string) model.runs
-            , encode "cell_description" Json.Encode.string model.cellDescription
-            , encode "point_group" Json.Encode.string model.pointGroup
             , maybeEncode "state_queued" encodeJsonMergeResultStateQueued model.stateQueued
             , maybeEncode "state_error" encodeJsonMergeResultStateError model.stateError
             , maybeEncode "state_running" encodeJsonMergeResultStateRunning model.stateRunning
@@ -3238,22 +3361,128 @@ encodeJsonMergeResultPairs model =
     pairs
 
 
-encodeJsonMergeResultRootJson : JsonMergeResultRootJson -> Json.Encode.Value
-encodeJsonMergeResultRootJson =
-    encodeObject << encodeJsonMergeResultRootJsonPairs
+encodeJsonMergeResultFom : JsonMergeResultFom -> Json.Encode.Value
+encodeJsonMergeResultFom =
+    encodeObject << encodeJsonMergeResultFomPairs
 
 
-encodeJsonMergeResultRootJsonWithTag : ( String, String ) -> JsonMergeResultRootJson -> Json.Encode.Value
-encodeJsonMergeResultRootJsonWithTag (tagField, tag) model =
-    encodeObject (encodeJsonMergeResultRootJsonPairs model ++ [ encode tagField Json.Encode.string tag ])
+encodeJsonMergeResultFomWithTag : ( String, String ) -> JsonMergeResultFom -> Json.Encode.Value
+encodeJsonMergeResultFomWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeResultFomPairs model ++ [ encode tagField Json.Encode.string tag ])
 
 
-encodeJsonMergeResultRootJsonPairs : JsonMergeResultRootJson -> List EncodedField
-encodeJsonMergeResultRootJsonPairs model =
+encodeJsonMergeResultFomPairs : JsonMergeResultFom -> List EncodedField
+encodeJsonMergeResultFomPairs model =
     let
         pairs =
-            [ maybeEncode "error" Json.Encode.string model.error
-            , maybeEncode "result" encodeMergeResult model.result
+            [ encode "snr" Json.Encode.float model.snr
+            , maybeEncode "wilson" Json.Encode.float model.wilson
+            , maybeEncode "ln_k" Json.Encode.float model.lnK
+            , encode "discarded_reflections" Json.Encode.int model.discardedReflections
+            , encode "one_over_d_from" Json.Encode.float model.oneOverDFrom
+            , encode "one_over_d_to" Json.Encode.float model.oneOverDTo
+            , encode "redundancy" Json.Encode.float model.redundancy
+            , encode "completeness" Json.Encode.float model.completeness
+            , encode "measurements_total" Json.Encode.int model.measurementsTotal
+            , encode "reflections_total" Json.Encode.int model.reflectionsTotal
+            , encode "reflections_possible" Json.Encode.int model.reflectionsPossible
+            , encode "r_split" Json.Encode.float model.rSplit
+            , encode "r1i" Json.Encode.float model.r1i
+            , encode "r2" Json.Encode.float model.r2
+            , encode "cc" Json.Encode.float model.cc
+            , encode "ccstar" Json.Encode.float model.ccstar
+            , maybeEncode "ccano" Json.Encode.float model.ccano
+            , maybeEncode "crdano" Json.Encode.float model.crdano
+            , maybeEncode "rano" Json.Encode.float model.rano
+            , maybeEncode "rano_over_r_split" Json.Encode.float model.ranoOverRSplit
+            , encode "d1sig" Json.Encode.float model.d1sig
+            , encode "d2sig" Json.Encode.float model.d2sig
+            , encode "outer_shell" encodeJsonMergeResultOuterShell model.outerShell
+            ]
+    in
+    pairs
+
+
+encodeJsonMergeResultInternal : JsonMergeResultInternal -> Json.Encode.Value
+encodeJsonMergeResultInternal =
+    encodeObject << encodeJsonMergeResultInternalPairs
+
+
+encodeJsonMergeResultInternalWithTag : ( String, String ) -> JsonMergeResultInternal -> Json.Encode.Value
+encodeJsonMergeResultInternalWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeResultInternalPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonMergeResultInternalPairs : JsonMergeResultInternal -> List EncodedField
+encodeJsonMergeResultInternalPairs model =
+    let
+        pairs =
+            [ encode "mtz_file_id" Json.Encode.int model.mtzFileId
+            , encode "fom" encodeJsonMergeResultFom model.fom
+            , encode "detailed_foms" (Json.Encode.list encodeJsonMergeResultShell) model.detailedFoms
+            , encode "refinement_results" (Json.Encode.list encodeJsonRefinementResultInternal) model.refinementResults
+            ]
+    in
+    pairs
+
+
+encodeJsonMergeResultOuterShell : JsonMergeResultOuterShell -> Json.Encode.Value
+encodeJsonMergeResultOuterShell =
+    encodeObject << encodeJsonMergeResultOuterShellPairs
+
+
+encodeJsonMergeResultOuterShellWithTag : ( String, String ) -> JsonMergeResultOuterShell -> Json.Encode.Value
+encodeJsonMergeResultOuterShellWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeResultOuterShellPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonMergeResultOuterShellPairs : JsonMergeResultOuterShell -> List EncodedField
+encodeJsonMergeResultOuterShellPairs model =
+    let
+        pairs =
+            [ encode "resolution" Json.Encode.float model.resolution
+            , encode "ccstar" Json.Encode.float model.ccstar
+            , encode "r_split" Json.Encode.float model.rSplit
+            , encode "cc" Json.Encode.float model.cc
+            , encode "unique_reflections" Json.Encode.int model.uniqueReflections
+            , encode "completeness" Json.Encode.float model.completeness
+            , encode "redundancy" Json.Encode.float model.redundancy
+            , encode "snr" Json.Encode.float model.snr
+            , encode "min_res" Json.Encode.float model.minRes
+            , encode "max_res" Json.Encode.float model.maxRes
+            ]
+    in
+    pairs
+
+
+encodeJsonMergeResultShell : JsonMergeResultShell -> Json.Encode.Value
+encodeJsonMergeResultShell =
+    encodeObject << encodeJsonMergeResultShellPairs
+
+
+encodeJsonMergeResultShellWithTag : ( String, String ) -> JsonMergeResultShell -> Json.Encode.Value
+encodeJsonMergeResultShellWithTag (tagField, tag) model =
+    encodeObject (encodeJsonMergeResultShellPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonMergeResultShellPairs : JsonMergeResultShell -> List EncodedField
+encodeJsonMergeResultShellPairs model =
+    let
+        pairs =
+            [ encode "one_over_d_centre" Json.Encode.float model.oneOverDCentre
+            , encode "nref" Json.Encode.int model.nref
+            , encode "d_over_a" Json.Encode.float model.dOverA
+            , encode "min_res" Json.Encode.float model.minRes
+            , encode "max_res" Json.Encode.float model.maxRes
+            , encode "cc" Json.Encode.float model.cc
+            , encode "ccstar" Json.Encode.float model.ccstar
+            , encode "r_split" Json.Encode.float model.rSplit
+            , encode "reflections_possible" Json.Encode.int model.reflectionsPossible
+            , encode "completeness" Json.Encode.float model.completeness
+            , encode "measurements" Json.Encode.int model.measurements
+            , encode "redundancy" Json.Encode.float model.redundancy
+            , encode "snr" Json.Encode.float model.snr
+            , encode "mean_i" Json.Encode.float model.meanI
             ]
     in
     pairs
@@ -3275,7 +3504,7 @@ encodeJsonMergeResultStateDonePairs model =
         pairs =
             [ encode "started" Json.Encode.int model.started
             , encode "stopped" Json.Encode.int model.stopped
-            , encode "result" encodeMergeResult model.result
+            , encode "result" encodeJsonMergeResultInternal model.result
             ]
     in
     pairs
@@ -3362,6 +3591,48 @@ encodeJsonPolarisationPairs model =
         pairs =
             [ encode "angle" Json.Encode.int model.angle
             , encode "percent" Json.Encode.int model.percent
+            ]
+    in
+    pairs
+
+
+encodeJsonQueueMergeJobForDataSetInput : JsonQueueMergeJobForDataSetInput -> Json.Encode.Value
+encodeJsonQueueMergeJobForDataSetInput =
+    encodeObject << encodeJsonQueueMergeJobForDataSetInputPairs
+
+
+encodeJsonQueueMergeJobForDataSetInputWithTag : ( String, String ) -> JsonQueueMergeJobForDataSetInput -> Json.Encode.Value
+encodeJsonQueueMergeJobForDataSetInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonQueueMergeJobForDataSetInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonQueueMergeJobForDataSetInputPairs : JsonQueueMergeJobForDataSetInput -> List EncodedField
+encodeJsonQueueMergeJobForDataSetInputPairs model =
+    let
+        pairs =
+            [ encode "strict_mode" Json.Encode.bool model.strictMode
+            , encode "beamtime_id" Json.Encode.int model.beamtimeId
+            , encode "merge_parameters" encodeJsonMergeParameters model.mergeParameters
+            ]
+    in
+    pairs
+
+
+encodeJsonQueueMergeJobForDataSetOutput : JsonQueueMergeJobForDataSetOutput -> Json.Encode.Value
+encodeJsonQueueMergeJobForDataSetOutput =
+    encodeObject << encodeJsonQueueMergeJobForDataSetOutputPairs
+
+
+encodeJsonQueueMergeJobForDataSetOutputWithTag : ( String, String ) -> JsonQueueMergeJobForDataSetOutput -> Json.Encode.Value
+encodeJsonQueueMergeJobForDataSetOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonQueueMergeJobForDataSetOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonQueueMergeJobForDataSetOutputPairs : JsonQueueMergeJobForDataSetOutput -> List EncodedField
+encodeJsonQueueMergeJobForDataSetOutputPairs model =
+    let
+        pairs =
+            [ encode "merge_result_id" Json.Encode.int model.mergeResultId
             ]
     in
     pairs
@@ -3516,6 +3787,46 @@ encodeJsonReadExperimentTypesPairs model =
     pairs
 
 
+encodeJsonReadIndexingResultsOutput : JsonReadIndexingResultsOutput -> Json.Encode.Value
+encodeJsonReadIndexingResultsOutput =
+    encodeObject << encodeJsonReadIndexingResultsOutputPairs
+
+
+encodeJsonReadIndexingResultsOutputWithTag : ( String, String ) -> JsonReadIndexingResultsOutput -> Json.Encode.Value
+encodeJsonReadIndexingResultsOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadIndexingResultsOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadIndexingResultsOutputPairs : JsonReadIndexingResultsOutput -> List EncodedField
+encodeJsonReadIndexingResultsOutputPairs model =
+    let
+        pairs =
+            [ encode "indexing_jobs" (Json.Encode.list encodeJsonIndexingJob) model.indexingJobs
+            ]
+    in
+    pairs
+
+
+encodeJsonReadMergeResultsOutput : JsonReadMergeResultsOutput -> Json.Encode.Value
+encodeJsonReadMergeResultsOutput =
+    encodeObject << encodeJsonReadMergeResultsOutputPairs
+
+
+encodeJsonReadMergeResultsOutputWithTag : ( String, String ) -> JsonReadMergeResultsOutput -> Json.Encode.Value
+encodeJsonReadMergeResultsOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadMergeResultsOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadMergeResultsOutputPairs : JsonReadMergeResultsOutput -> List EncodedField
+encodeJsonReadMergeResultsOutputPairs model =
+    let
+        pairs =
+            [ encode "merge_jobs" (Json.Encode.list encodeJsonMergeJob) model.mergeJobs
+            ]
+    in
+    pairs
+
+
 encodeJsonReadRunAnalysis : JsonReadRunAnalysis -> Json.Encode.Value
 encodeJsonReadRunAnalysis =
     encodeObject << encodeJsonReadRunAnalysisPairs
@@ -3639,6 +3950,32 @@ encodeJsonRefinementResultPairs model =
     pairs
 
 
+encodeJsonRefinementResultInternal : JsonRefinementResultInternal -> Json.Encode.Value
+encodeJsonRefinementResultInternal =
+    encodeObject << encodeJsonRefinementResultInternalPairs
+
+
+encodeJsonRefinementResultInternalWithTag : ( String, String ) -> JsonRefinementResultInternal -> Json.Encode.Value
+encodeJsonRefinementResultInternalWithTag (tagField, tag) model =
+    encodeObject (encodeJsonRefinementResultInternalPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonRefinementResultInternalPairs : JsonRefinementResultInternal -> List EncodedField
+encodeJsonRefinementResultInternalPairs model =
+    let
+        pairs =
+            [ maybeEncode "id" Json.Encode.int model.id
+            , encode "pdb_file_id" Json.Encode.int model.pdbFileId
+            , encode "mtz_file_id" Json.Encode.int model.mtzFileId
+            , encode "r_free" Json.Encode.float model.rFree
+            , encode "r_work" Json.Encode.float model.rWork
+            , encode "rms_bond_angle" Json.Encode.float model.rmsBondAngle
+            , encode "rms_bond_length" Json.Encode.float model.rmsBondLength
+            ]
+    in
+    pairs
+
+
 encodeJsonRun : JsonRun -> Json.Encode.Value
 encodeJsonRun =
     encodeObject << encodeJsonRunPairs
@@ -3685,67 +4022,6 @@ encodeJsonRunAnalysisIndexingResultPairs model =
             [ encode "run_id" Json.Encode.int model.runId
             , encode "foms" (Json.Encode.list encodeJsonIndexingFom) model.foms
             , encode "indexing_statistics" (Json.Encode.list encodeJsonIndexingStatistic) model.indexingStatistics
-            ]
-    in
-    pairs
-
-
-encodeJsonStartMergeJobForDataSetInput : JsonStartMergeJobForDataSetInput -> Json.Encode.Value
-encodeJsonStartMergeJobForDataSetInput =
-    encodeObject << encodeJsonStartMergeJobForDataSetInputPairs
-
-
-encodeJsonStartMergeJobForDataSetInputWithTag : ( String, String ) -> JsonStartMergeJobForDataSetInput -> Json.Encode.Value
-encodeJsonStartMergeJobForDataSetInputWithTag (tagField, tag) model =
-    encodeObject (encodeJsonStartMergeJobForDataSetInputPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonStartMergeJobForDataSetInputPairs : JsonStartMergeJobForDataSetInput -> List EncodedField
-encodeJsonStartMergeJobForDataSetInputPairs model =
-    let
-        pairs =
-            [ encode "strict_mode" Json.Encode.bool model.strictMode
-            , encode "beamtime_id" Json.Encode.int model.beamtimeId
-            , encode "merge_model" encodeMergeModel model.mergeModel
-            , encode "scale_intensities" encodeScaleIntensities model.scaleIntensities
-            , encode "post_refinement" Json.Encode.bool model.postRefinement
-            , encode "iterations" Json.Encode.int model.iterations
-            , maybeEncode "polarisation" encodeJsonPolarisation model.polarisation
-            , encode "negative_handling" encodeMergeNegativeHandling model.negativeHandling
-            , maybeEncode "start_after" Json.Encode.int model.startAfter
-            , maybeEncode "stop_after" Json.Encode.int model.stopAfter
-            , encode "rel_b" Json.Encode.float model.relB
-            , encode "no_pr" Json.Encode.bool model.noPr
-            , maybeEncode "force_bandwidth" Json.Encode.float model.forceBandwidth
-            , maybeEncode "force_radius" Json.Encode.float model.forceRadius
-            , maybeEncode "force_lambda" Json.Encode.float model.forceLambda
-            , encode "no_delta_cc_half" Json.Encode.bool model.noDeltaCcHalf
-            , maybeEncode "max_adu" Json.Encode.float model.maxAdu
-            , encode "min_measurements" Json.Encode.int model.minMeasurements
-            , encode "logs" Json.Encode.bool model.logs
-            , maybeEncode "min_res" Json.Encode.float model.minRes
-            , maybeEncode "push_res" Json.Encode.float model.pushRes
-            , maybeEncode "w" Json.Encode.string model.w
-            ]
-    in
-    pairs
-
-
-encodeJsonStartMergeJobForDataSetOutput : JsonStartMergeJobForDataSetOutput -> Json.Encode.Value
-encodeJsonStartMergeJobForDataSetOutput =
-    encodeObject << encodeJsonStartMergeJobForDataSetOutputPairs
-
-
-encodeJsonStartMergeJobForDataSetOutputWithTag : ( String, String ) -> JsonStartMergeJobForDataSetOutput -> Json.Encode.Value
-encodeJsonStartMergeJobForDataSetOutputWithTag (tagField, tag) model =
-    encodeObject (encodeJsonStartMergeJobForDataSetOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonStartMergeJobForDataSetOutputPairs : JsonStartMergeJobForDataSetOutput -> List EncodedField
-encodeJsonStartMergeJobForDataSetOutputPairs model =
-    let
-        pairs =
-            [ encode "merge_result_id" Json.Encode.int model.mergeResultId
             ]
     in
     pairs
@@ -3825,8 +4101,7 @@ encodeJsonUpdateAttributoInputPairs : JsonUpdateAttributoInput -> List EncodedFi
 encodeJsonUpdateAttributoInputPairs model =
     let
         pairs =
-            [ encode "beamtime_id" Json.Encode.int model.beamtimeId
-            , encode "attributo" encodeJsonAttributo model.attributo
+            [ encode "attributo" encodeJsonAttributo model.attributo
             , encode "conversion_flags" encodeJsonUpdateAttributoConversionFlags model.conversionFlags
             ]
     in
@@ -3936,7 +4211,6 @@ encodeJsonUpdateRunPairs model =
     let
         pairs =
             [ encode "id" Json.Encode.int model.id
-            , encode "beamtime_id" Json.Encode.int model.beamtimeId
             , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
             ]
@@ -4086,158 +4360,6 @@ encodeMergeNegativeHandling =
     Json.Encode.string << stringFromMergeNegativeHandling
 
 
-encodeMergeResult : MergeResult -> Json.Encode.Value
-encodeMergeResult =
-    encodeObject << encodeMergeResultPairs
-
-
-encodeMergeResultWithTag : ( String, String ) -> MergeResult -> Json.Encode.Value
-encodeMergeResultWithTag (tagField, tag) model =
-    encodeObject (encodeMergeResultPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeMergeResultPairs : MergeResult -> List EncodedField
-encodeMergeResultPairs model =
-    let
-        pairs =
-            [ encode "mtz_file_id" Json.Encode.int model.mtzFileId
-            , encode "fom" encodeMergeResultFom model.fom
-            , encode "detailed_foms" (Json.Encode.list encodeMergeResultShell) model.detailedFoms
-            , encode "refinement_results" (Json.Encode.list encodeRefinementResult) model.refinementResults
-            ]
-    in
-    pairs
-
-
-encodeMergeResultFom : MergeResultFom -> Json.Encode.Value
-encodeMergeResultFom =
-    encodeObject << encodeMergeResultFomPairs
-
-
-encodeMergeResultFomWithTag : ( String, String ) -> MergeResultFom -> Json.Encode.Value
-encodeMergeResultFomWithTag (tagField, tag) model =
-    encodeObject (encodeMergeResultFomPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeMergeResultFomPairs : MergeResultFom -> List EncodedField
-encodeMergeResultFomPairs model =
-    let
-        pairs =
-            [ encode "snr" Json.Encode.float model.snr
-            , maybeEncode "wilson" Json.Encode.float model.wilson
-            , maybeEncode "ln_k" Json.Encode.float model.lnK
-            , encode "discarded_reflections" Json.Encode.int model.discardedReflections
-            , encode "one_over_d_from" Json.Encode.float model.oneOverDFrom
-            , encode "one_over_d_to" Json.Encode.float model.oneOverDTo
-            , encode "redundancy" Json.Encode.float model.redundancy
-            , encode "completeness" Json.Encode.float model.completeness
-            , encode "measurements_total" Json.Encode.int model.measurementsTotal
-            , encode "reflections_total" Json.Encode.int model.reflectionsTotal
-            , encode "reflections_possible" Json.Encode.int model.reflectionsPossible
-            , encode "r_split" Json.Encode.float model.rSplit
-            , encode "r1i" Json.Encode.float model.r1i
-            , encode "r2" Json.Encode.float model.r2
-            , encode "cc" Json.Encode.float model.cc
-            , encode "ccstar" Json.Encode.float model.ccstar
-            , maybeEncode "ccano" Json.Encode.float model.ccano
-            , maybeEncode "crdano" Json.Encode.float model.crdano
-            , maybeEncode "rano" Json.Encode.float model.rano
-            , maybeEncode "rano_over_r_split" Json.Encode.float model.ranoOverRSplit
-            , encode "d1sig" Json.Encode.float model.d1sig
-            , encode "d2sig" Json.Encode.float model.d2sig
-            , encode "outer_shell" encodeMergeResultOuterShell model.outerShell
-            ]
-    in
-    pairs
-
-
-encodeMergeResultOuterShell : MergeResultOuterShell -> Json.Encode.Value
-encodeMergeResultOuterShell =
-    encodeObject << encodeMergeResultOuterShellPairs
-
-
-encodeMergeResultOuterShellWithTag : ( String, String ) -> MergeResultOuterShell -> Json.Encode.Value
-encodeMergeResultOuterShellWithTag (tagField, tag) model =
-    encodeObject (encodeMergeResultOuterShellPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeMergeResultOuterShellPairs : MergeResultOuterShell -> List EncodedField
-encodeMergeResultOuterShellPairs model =
-    let
-        pairs =
-            [ encode "resolution" Json.Encode.float model.resolution
-            , encode "ccstar" Json.Encode.float model.ccstar
-            , encode "r_split" Json.Encode.float model.rSplit
-            , encode "cc" Json.Encode.float model.cc
-            , encode "unique_reflections" Json.Encode.int model.uniqueReflections
-            , encode "completeness" Json.Encode.float model.completeness
-            , encode "redundancy" Json.Encode.float model.redundancy
-            , encode "snr" Json.Encode.float model.snr
-            , encode "min_res" Json.Encode.float model.minRes
-            , encode "max_res" Json.Encode.float model.maxRes
-            ]
-    in
-    pairs
-
-
-encodeMergeResultShell : MergeResultShell -> Json.Encode.Value
-encodeMergeResultShell =
-    encodeObject << encodeMergeResultShellPairs
-
-
-encodeMergeResultShellWithTag : ( String, String ) -> MergeResultShell -> Json.Encode.Value
-encodeMergeResultShellWithTag (tagField, tag) model =
-    encodeObject (encodeMergeResultShellPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeMergeResultShellPairs : MergeResultShell -> List EncodedField
-encodeMergeResultShellPairs model =
-    let
-        pairs =
-            [ encode "one_over_d_centre" Json.Encode.float model.oneOverDCentre
-            , encode "nref" Json.Encode.int model.nref
-            , encode "d_over_a" Json.Encode.float model.dOverA
-            , encode "min_res" Json.Encode.float model.minRes
-            , encode "max_res" Json.Encode.float model.maxRes
-            , encode "cc" Json.Encode.float model.cc
-            , encode "ccstar" Json.Encode.float model.ccstar
-            , encode "r_split" Json.Encode.float model.rSplit
-            , encode "reflections_possible" Json.Encode.int model.reflectionsPossible
-            , encode "completeness" Json.Encode.float model.completeness
-            , encode "measurements" Json.Encode.int model.measurements
-            , encode "redundancy" Json.Encode.float model.redundancy
-            , encode "snr" Json.Encode.float model.snr
-            , encode "mean_i" Json.Encode.float model.meanI
-            ]
-    in
-    pairs
-
-
-encodeRefinementResult : RefinementResult -> Json.Encode.Value
-encodeRefinementResult =
-    encodeObject << encodeRefinementResultPairs
-
-
-encodeRefinementResultWithTag : ( String, String ) -> RefinementResult -> Json.Encode.Value
-encodeRefinementResultWithTag (tagField, tag) model =
-    encodeObject (encodeRefinementResultPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeRefinementResultPairs : RefinementResult -> List EncodedField
-encodeRefinementResultPairs model =
-    let
-        pairs =
-            [ encode "pdb_file_id" Json.Encode.int model.pdbFileId
-            , encode "mtz_file_id" Json.Encode.int model.mtzFileId
-            , encode "r_free" Json.Encode.float model.rFree
-            , encode "r_work" Json.Encode.float model.rWork
-            , encode "rms_bond_angle" Json.Encode.float model.rmsBondAngle
-            , encode "rms_bond_length" Json.Encode.float model.rmsBondLength
-            ]
-    in
-    pairs
-
-
 stringFromScaleIntensities : ScaleIntensities -> String
 stringFromScaleIntensities model =
     case model of
@@ -4338,6 +4460,26 @@ chemicalTypeDecoder =
 
                     "solution" ->
                         Json.Decode.succeed ChemicalTypeSolution
+
+                    other ->
+                        Json.Decode.fail <| "Unknown type: " ++ other
+            )
+
+
+dBJobStatusDecoder : Json.Decode.Decoder DBJobStatus
+dBJobStatusDecoder =
+    Json.Decode.string
+        |> Json.Decode.andThen
+            (\value ->
+                case value of
+                    "queued" ->
+                        Json.Decode.succeed DBJobStatusQueued
+
+                    "running" ->
+                        Json.Decode.succeed DBJobStatusRunning
+
+                    "done" ->
+                        Json.Decode.succeed DBJobStatusDone
 
                     other ->
                         Json.Decode.fail <| "Unknown type: " ++ other
@@ -4579,6 +4721,8 @@ jsonAttributoValueDecoder =
         |> decode "attributo_id" Json.Decode.int 
         |> maybeDecode "attributo_value_str" Json.Decode.string Nothing
         |> maybeDecode "attributo_value_int" Json.Decode.int Nothing
+        |> maybeDecode "attributo_value_chemical" Json.Decode.int Nothing
+        |> maybeDecode "attributo_value_datetime" Json.Decode.int Nothing
         |> maybeDecode "attributo_value_float" Json.Decode.float Nothing
         |> maybeDecode "attributo_value_bool" Json.Decode.bool Nothing
         |> maybeDecode "attributo_value_list_str" (Json.Decode.list Json.Decode.string) Nothing
@@ -4633,7 +4777,6 @@ jsonChangeRunExperimentTypeDecoder : Json.Decode.Decoder JsonChangeRunExperiment
 jsonChangeRunExperimentTypeDecoder =
     Json.Decode.succeed JsonChangeRunExperimentType
         |> decode "run_internal_id" Json.Decode.int 
-        |> decode "beamtime_id" Json.Decode.int 
         |> maybeDecode "experiment_type_id" Json.Decode.int Nothing
 
 
@@ -4751,8 +4894,6 @@ jsonCreateDataSetFromRunDecoder : Json.Decode.Decoder JsonCreateDataSetFromRun
 jsonCreateDataSetFromRunDecoder =
     Json.Decode.succeed JsonCreateDataSetFromRun
         |> decode "run_internal_id" Json.Decode.int 
-        |> decode "experiment_type_id" Json.Decode.int 
-        |> decode "beamtime_id" Json.Decode.int 
 
 
 jsonCreateDataSetFromRunOutputDecoder : Json.Decode.Decoder JsonCreateDataSetFromRunOutput
@@ -4764,7 +4905,6 @@ jsonCreateDataSetFromRunOutputDecoder =
 jsonCreateDataSetInputDecoder : Json.Decode.Decoder JsonCreateDataSetInput
 jsonCreateDataSetInputDecoder =
     Json.Decode.succeed JsonCreateDataSetInput
-        |> decode "beamtime_id" Json.Decode.int 
         |> decode "experiment_type_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
 
@@ -4827,24 +4967,6 @@ jsonCreateOrUpdateRunOutputDecoder =
         |> maybeDecode "indexing_result_id" Json.Decode.int Nothing
         |> maybeDecode "error_message" Json.Decode.string Nothing
         |> maybeDecode "run_internal_id" Json.Decode.int Nothing
-
-
-jsonCreateRefinementResultInputDecoder : Json.Decode.Decoder JsonCreateRefinementResultInput
-jsonCreateRefinementResultInputDecoder =
-    Json.Decode.succeed JsonCreateRefinementResultInput
-        |> decode "merge_result_id" Json.Decode.int 
-        |> decode "pdb_file_id" Json.Decode.int 
-        |> decode "mtz_file_id" Json.Decode.int 
-        |> decode "r_free" Json.Decode.float 
-        |> decode "r_work" Json.Decode.float 
-        |> decode "rms_bond_angle" Json.Decode.float 
-        |> decode "rms_bond_length" Json.Decode.float 
-
-
-jsonCreateRefinementResultOutputDecoder : Json.Decode.Decoder JsonCreateRefinementResultOutput
-jsonCreateRefinementResultOutputDecoder =
-    Json.Decode.succeed JsonCreateRefinementResultOutput
-        |> decode "id" Json.Decode.int 
 
 
 jsonDataSetDecoder : Json.Decode.Decoder JsonDataSet
@@ -4998,6 +5120,19 @@ jsonIndexingFomDecoder =
         |> maybeDecode "detector_shift_y_mm" Json.Decode.float Nothing
 
 
+jsonIndexingJobDecoder : Json.Decode.Decoder JsonIndexingJob
+jsonIndexingJobDecoder =
+    Json.Decode.succeed JsonIndexingJob
+        |> decode "id" Json.Decode.int 
+        |> maybeDecode "job_id" Json.Decode.int Nothing
+        |> decode "job_status" dBJobStatusDecoder 
+        |> maybeDecode "stream_file" Json.Decode.string Nothing
+        |> decode "cell_description" Json.Decode.string 
+        |> decode "run_internal_id" Json.Decode.int 
+        |> decode "run_external_id" Json.Decode.int 
+        |> decode "beamtime" jsonBeamtimeDecoder 
+
+
 jsonIndexingJobUpdateOutputDecoder : Json.Decode.Decoder JsonIndexingJobUpdateOutput
 jsonIndexingJobUpdateOutputDecoder =
     Json.Decode.succeed JsonIndexingJobUpdateOutput
@@ -5020,6 +5155,8 @@ jsonIndexingResultRootJsonDecoder : Json.Decode.Decoder JsonIndexingResultRootJs
 jsonIndexingResultRootJsonDecoder =
     Json.Decode.succeed JsonIndexingResultRootJson
         |> maybeDecode "error" Json.Decode.string Nothing
+        |> maybeDecode "job_id" Json.Decode.int Nothing
+        |> maybeDecode "stream_file" Json.Decode.string Nothing
         |> maybeDecode "result" jsonIndexingResultDecoder Nothing
 
 
@@ -5033,17 +5170,49 @@ jsonIndexingStatisticDecoder =
         |> decode "crystals" Json.Decode.int 
 
 
-jsonMergeJobUpdateOutputDecoder : Json.Decode.Decoder JsonMergeJobUpdateOutput
-jsonMergeJobUpdateOutputDecoder =
-    Json.Decode.succeed JsonMergeJobUpdateOutput
+jsonMergeJobDecoder : Json.Decode.Decoder JsonMergeJob
+jsonMergeJobDecoder =
+    Json.Decode.succeed JsonMergeJob
+        |> decode "id" Json.Decode.int 
+        |> maybeDecode "job_id" Json.Decode.int Nothing
+        |> decode "job_status" dBJobStatusDecoder 
+        |> decode "parameters" jsonMergeParametersDecoder 
+        |> decode "indexing_results" (Json.Decode.list jsonIndexingJobDecoder) 
+        |> decode "files_from_indexing" (Json.Decode.list jsonFileOutputDecoder) 
+        |> maybeDecode "cell_description" Json.Decode.string Nothing
+        |> maybeDecode "point_group" Json.Decode.string Nothing
+
+
+jsonMergeJobFinishOutputDecoder : Json.Decode.Decoder JsonMergeJobFinishOutput
+jsonMergeJobFinishOutputDecoder =
+    Json.Decode.succeed JsonMergeJobFinishOutput
         |> decode "result" Json.Decode.bool 
+
+
+jsonMergeJobFinishedInputDecoder : Json.Decode.Decoder JsonMergeJobFinishedInput
+jsonMergeJobFinishedInputDecoder =
+    Json.Decode.succeed JsonMergeJobFinishedInput
+        |> maybeDecode "error" Json.Decode.string Nothing
+        |> maybeDecode "result" jsonMergeResultInternalDecoder Nothing
+
+
+jsonMergeJobStartedInputDecoder : Json.Decode.Decoder JsonMergeJobStartedInput
+jsonMergeJobStartedInputDecoder =
+    Json.Decode.succeed JsonMergeJobStartedInput
+        |> decode "job_id" Json.Decode.int 
+        |> decode "time" Json.Decode.int 
+
+
+jsonMergeJobStartedOutputDecoder : Json.Decode.Decoder JsonMergeJobStartedOutput
+jsonMergeJobStartedOutputDecoder =
+    Json.Decode.succeed JsonMergeJobStartedOutput
+        |> decode "time" Json.Decode.int 
 
 
 jsonMergeParametersDecoder : Json.Decode.Decoder JsonMergeParameters
 jsonMergeParametersDecoder =
     Json.Decode.succeed JsonMergeParameters
-        |> decode "point_group" Json.Decode.string 
-        |> decode "cell_description" Json.Decode.string 
+        |> maybeDecode "point_group" Json.Decode.string Nothing
         |> maybeDecode "negative_handling" mergeNegativeHandlingDecoder Nothing
         |> decode "merge_model" mergeModelDecoder 
         |> decode "scale_intensities" scaleIntensitiesDecoder 
@@ -5072,8 +5241,6 @@ jsonMergeResultDecoder =
         |> decode "id" Json.Decode.int 
         |> decode "created" Json.Decode.int 
         |> decode "runs" (Json.Decode.list Json.Decode.string) 
-        |> decode "cell_description" Json.Decode.string 
-        |> decode "point_group" Json.Decode.string 
         |> maybeDecode "state_queued" jsonMergeResultStateQueuedDecoder Nothing
         |> maybeDecode "state_error" jsonMergeResultStateErrorDecoder Nothing
         |> maybeDecode "state_running" jsonMergeResultStateRunningDecoder Nothing
@@ -5082,11 +5249,75 @@ jsonMergeResultDecoder =
         |> decode "refinement_results" (Json.Decode.list jsonRefinementResultDecoder) 
 
 
-jsonMergeResultRootJsonDecoder : Json.Decode.Decoder JsonMergeResultRootJson
-jsonMergeResultRootJsonDecoder =
-    Json.Decode.succeed JsonMergeResultRootJson
-        |> maybeDecode "error" Json.Decode.string Nothing
-        |> maybeDecode "result" mergeResultDecoder Nothing
+jsonMergeResultFomDecoder : Json.Decode.Decoder JsonMergeResultFom
+jsonMergeResultFomDecoder =
+    Json.Decode.succeed JsonMergeResultFom
+        |> decode "snr" Json.Decode.float 
+        |> maybeDecode "wilson" Json.Decode.float Nothing
+        |> maybeDecode "ln_k" Json.Decode.float Nothing
+        |> decode "discarded_reflections" Json.Decode.int 
+        |> decode "one_over_d_from" Json.Decode.float 
+        |> decode "one_over_d_to" Json.Decode.float 
+        |> decode "redundancy" Json.Decode.float 
+        |> decode "completeness" Json.Decode.float 
+        |> decode "measurements_total" Json.Decode.int 
+        |> decode "reflections_total" Json.Decode.int 
+        |> decode "reflections_possible" Json.Decode.int 
+        |> decode "r_split" Json.Decode.float 
+        |> decode "r1i" Json.Decode.float 
+        |> decode "r2" Json.Decode.float 
+        |> decode "cc" Json.Decode.float 
+        |> decode "ccstar" Json.Decode.float 
+        |> maybeDecode "ccano" Json.Decode.float Nothing
+        |> maybeDecode "crdano" Json.Decode.float Nothing
+        |> maybeDecode "rano" Json.Decode.float Nothing
+        |> maybeDecode "rano_over_r_split" Json.Decode.float Nothing
+        |> decode "d1sig" Json.Decode.float 
+        |> decode "d2sig" Json.Decode.float 
+        |> decode "outer_shell" jsonMergeResultOuterShellDecoder 
+
+
+jsonMergeResultInternalDecoder : Json.Decode.Decoder JsonMergeResultInternal
+jsonMergeResultInternalDecoder =
+    Json.Decode.succeed JsonMergeResultInternal
+        |> decode "mtz_file_id" Json.Decode.int 
+        |> decode "fom" jsonMergeResultFomDecoder 
+        |> decode "detailed_foms" (Json.Decode.list jsonMergeResultShellDecoder) 
+        |> decode "refinement_results" (Json.Decode.list jsonRefinementResultInternalDecoder) 
+
+
+jsonMergeResultOuterShellDecoder : Json.Decode.Decoder JsonMergeResultOuterShell
+jsonMergeResultOuterShellDecoder =
+    Json.Decode.succeed JsonMergeResultOuterShell
+        |> decode "resolution" Json.Decode.float 
+        |> decode "ccstar" Json.Decode.float 
+        |> decode "r_split" Json.Decode.float 
+        |> decode "cc" Json.Decode.float 
+        |> decode "unique_reflections" Json.Decode.int 
+        |> decode "completeness" Json.Decode.float 
+        |> decode "redundancy" Json.Decode.float 
+        |> decode "snr" Json.Decode.float 
+        |> decode "min_res" Json.Decode.float 
+        |> decode "max_res" Json.Decode.float 
+
+
+jsonMergeResultShellDecoder : Json.Decode.Decoder JsonMergeResultShell
+jsonMergeResultShellDecoder =
+    Json.Decode.succeed JsonMergeResultShell
+        |> decode "one_over_d_centre" Json.Decode.float 
+        |> decode "nref" Json.Decode.int 
+        |> decode "d_over_a" Json.Decode.float 
+        |> decode "min_res" Json.Decode.float 
+        |> decode "max_res" Json.Decode.float 
+        |> decode "cc" Json.Decode.float 
+        |> decode "ccstar" Json.Decode.float 
+        |> decode "r_split" Json.Decode.float 
+        |> decode "reflections_possible" Json.Decode.int 
+        |> decode "completeness" Json.Decode.float 
+        |> decode "measurements" Json.Decode.int 
+        |> decode "redundancy" Json.Decode.float 
+        |> decode "snr" Json.Decode.float 
+        |> decode "mean_i" Json.Decode.float 
 
 
 jsonMergeResultStateDoneDecoder : Json.Decode.Decoder JsonMergeResultStateDone
@@ -5094,7 +5325,7 @@ jsonMergeResultStateDoneDecoder =
     Json.Decode.succeed JsonMergeResultStateDone
         |> decode "started" Json.Decode.int 
         |> decode "stopped" Json.Decode.int 
-        |> decode "result" mergeResultDecoder 
+        |> decode "result" jsonMergeResultInternalDecoder 
 
 
 jsonMergeResultStateErrorDecoder : Json.Decode.Decoder JsonMergeResultStateError
@@ -5125,6 +5356,20 @@ jsonPolarisationDecoder =
     Json.Decode.succeed JsonPolarisation
         |> decode "angle" Json.Decode.int 
         |> decode "percent" Json.Decode.int 
+
+
+jsonQueueMergeJobForDataSetInputDecoder : Json.Decode.Decoder JsonQueueMergeJobForDataSetInput
+jsonQueueMergeJobForDataSetInputDecoder =
+    Json.Decode.succeed JsonQueueMergeJobForDataSetInput
+        |> decode "strict_mode" Json.Decode.bool 
+        |> decode "beamtime_id" Json.Decode.int 
+        |> decode "merge_parameters" jsonMergeParametersDecoder 
+
+
+jsonQueueMergeJobForDataSetOutputDecoder : Json.Decode.Decoder JsonQueueMergeJobForDataSetOutput
+jsonQueueMergeJobForDataSetOutputDecoder =
+    Json.Decode.succeed JsonQueueMergeJobForDataSetOutput
+        |> decode "merge_result_id" Json.Decode.int 
 
 
 jsonReadAnalysisResultsDecoder : Json.Decode.Decoder JsonReadAnalysisResults
@@ -5176,6 +5421,18 @@ jsonReadExperimentTypesDecoder =
         |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
         |> decode "experiment_type_id_to_run" (Json.Decode.list jsonExperimentTypeAndRunsDecoder) 
+
+
+jsonReadIndexingResultsOutputDecoder : Json.Decode.Decoder JsonReadIndexingResultsOutput
+jsonReadIndexingResultsOutputDecoder =
+    Json.Decode.succeed JsonReadIndexingResultsOutput
+        |> decode "indexing_jobs" (Json.Decode.list jsonIndexingJobDecoder) 
+
+
+jsonReadMergeResultsOutputDecoder : Json.Decode.Decoder JsonReadMergeResultsOutput
+jsonReadMergeResultsOutputDecoder =
+    Json.Decode.succeed JsonReadMergeResultsOutput
+        |> decode "merge_jobs" (Json.Decode.list jsonMergeJobDecoder) 
 
 
 jsonReadRunAnalysisDecoder : Json.Decode.Decoder JsonReadRunAnalysis
@@ -5231,6 +5488,18 @@ jsonRefinementResultDecoder =
         |> decode "rms_bond_length" Json.Decode.float 
 
 
+jsonRefinementResultInternalDecoder : Json.Decode.Decoder JsonRefinementResultInternal
+jsonRefinementResultInternalDecoder =
+    Json.Decode.succeed JsonRefinementResultInternal
+        |> maybeDecode "id" Json.Decode.int Nothing
+        |> decode "pdb_file_id" Json.Decode.int 
+        |> decode "mtz_file_id" Json.Decode.int 
+        |> decode "r_free" Json.Decode.float 
+        |> decode "r_work" Json.Decode.float 
+        |> decode "rms_bond_angle" Json.Decode.float 
+        |> decode "rms_bond_length" Json.Decode.float 
+
+
 jsonRunDecoder : Json.Decode.Decoder JsonRun
 jsonRunDecoder =
     Json.Decode.succeed JsonRun
@@ -5254,39 +5523,6 @@ jsonRunAnalysisIndexingResultDecoder =
         |> decode "indexing_statistics" (Json.Decode.list jsonIndexingStatisticDecoder) 
 
 
-jsonStartMergeJobForDataSetInputDecoder : Json.Decode.Decoder JsonStartMergeJobForDataSetInput
-jsonStartMergeJobForDataSetInputDecoder =
-    Json.Decode.succeed JsonStartMergeJobForDataSetInput
-        |> decode "strict_mode" Json.Decode.bool 
-        |> decode "beamtime_id" Json.Decode.int 
-        |> decode "merge_model" mergeModelDecoder 
-        |> decode "scale_intensities" scaleIntensitiesDecoder 
-        |> decode "post_refinement" Json.Decode.bool 
-        |> decode "iterations" Json.Decode.int 
-        |> maybeDecode "polarisation" jsonPolarisationDecoder Nothing
-        |> decode "negative_handling" mergeNegativeHandlingDecoder 
-        |> maybeDecode "start_after" Json.Decode.int Nothing
-        |> maybeDecode "stop_after" Json.Decode.int Nothing
-        |> decode "rel_b" Json.Decode.float 
-        |> decode "no_pr" Json.Decode.bool 
-        |> maybeDecode "force_bandwidth" Json.Decode.float Nothing
-        |> maybeDecode "force_radius" Json.Decode.float Nothing
-        |> maybeDecode "force_lambda" Json.Decode.float Nothing
-        |> decode "no_delta_cc_half" Json.Decode.bool 
-        |> maybeDecode "max_adu" Json.Decode.float Nothing
-        |> decode "min_measurements" Json.Decode.int 
-        |> decode "logs" Json.Decode.bool 
-        |> maybeDecode "min_res" Json.Decode.float Nothing
-        |> maybeDecode "push_res" Json.Decode.float Nothing
-        |> maybeDecode "w" Json.Decode.string Nothing
-
-
-jsonStartMergeJobForDataSetOutputDecoder : Json.Decode.Decoder JsonStartMergeJobForDataSetOutput
-jsonStartMergeJobForDataSetOutputDecoder =
-    Json.Decode.succeed JsonStartMergeJobForDataSetOutput
-        |> decode "merge_result_id" Json.Decode.int 
-
-
 jsonStartRunOutputDecoder : Json.Decode.Decoder JsonStartRunOutput
 jsonStartRunOutputDecoder =
     Json.Decode.succeed JsonStartRunOutput
@@ -5308,7 +5544,6 @@ jsonUpdateAttributoConversionFlagsDecoder =
 jsonUpdateAttributoInputDecoder : Json.Decode.Decoder JsonUpdateAttributoInput
 jsonUpdateAttributoInputDecoder =
     Json.Decode.succeed JsonUpdateAttributoInput
-        |> decode "beamtime_id" Json.Decode.int 
         |> decode "attributo" jsonAttributoDecoder 
         |> decode "conversion_flags" jsonUpdateAttributoConversionFlagsDecoder 
 
@@ -5349,7 +5584,6 @@ jsonUpdateRunDecoder : Json.Decode.Decoder JsonUpdateRun
 jsonUpdateRunDecoder =
     Json.Decode.succeed JsonUpdateRun
         |> decode "id" Json.Decode.int 
-        |> decode "beamtime_id" Json.Decode.int 
         |> decode "experiment_type_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
 
@@ -5428,88 +5662,6 @@ mergeNegativeHandlingDecoder =
                     other ->
                         Json.Decode.fail <| "Unknown type: " ++ other
             )
-
-
-mergeResultDecoder : Json.Decode.Decoder MergeResult
-mergeResultDecoder =
-    Json.Decode.succeed MergeResult
-        |> decode "mtz_file_id" Json.Decode.int 
-        |> decode "fom" mergeResultFomDecoder 
-        |> decode "detailed_foms" (Json.Decode.list mergeResultShellDecoder) 
-        |> decode "refinement_results" (Json.Decode.list refinementResultDecoder) 
-
-
-mergeResultFomDecoder : Json.Decode.Decoder MergeResultFom
-mergeResultFomDecoder =
-    Json.Decode.succeed MergeResultFom
-        |> decode "snr" Json.Decode.float 
-        |> maybeDecode "wilson" Json.Decode.float Nothing
-        |> maybeDecode "ln_k" Json.Decode.float Nothing
-        |> decode "discarded_reflections" Json.Decode.int 
-        |> decode "one_over_d_from" Json.Decode.float 
-        |> decode "one_over_d_to" Json.Decode.float 
-        |> decode "redundancy" Json.Decode.float 
-        |> decode "completeness" Json.Decode.float 
-        |> decode "measurements_total" Json.Decode.int 
-        |> decode "reflections_total" Json.Decode.int 
-        |> decode "reflections_possible" Json.Decode.int 
-        |> decode "r_split" Json.Decode.float 
-        |> decode "r1i" Json.Decode.float 
-        |> decode "r2" Json.Decode.float 
-        |> decode "cc" Json.Decode.float 
-        |> decode "ccstar" Json.Decode.float 
-        |> maybeDecode "ccano" Json.Decode.float Nothing
-        |> maybeDecode "crdano" Json.Decode.float Nothing
-        |> maybeDecode "rano" Json.Decode.float Nothing
-        |> maybeDecode "rano_over_r_split" Json.Decode.float Nothing
-        |> decode "d1sig" Json.Decode.float 
-        |> decode "d2sig" Json.Decode.float 
-        |> decode "outer_shell" mergeResultOuterShellDecoder 
-
-
-mergeResultOuterShellDecoder : Json.Decode.Decoder MergeResultOuterShell
-mergeResultOuterShellDecoder =
-    Json.Decode.succeed MergeResultOuterShell
-        |> decode "resolution" Json.Decode.float 
-        |> decode "ccstar" Json.Decode.float 
-        |> decode "r_split" Json.Decode.float 
-        |> decode "cc" Json.Decode.float 
-        |> decode "unique_reflections" Json.Decode.int 
-        |> decode "completeness" Json.Decode.float 
-        |> decode "redundancy" Json.Decode.float 
-        |> decode "snr" Json.Decode.float 
-        |> decode "min_res" Json.Decode.float 
-        |> decode "max_res" Json.Decode.float 
-
-
-mergeResultShellDecoder : Json.Decode.Decoder MergeResultShell
-mergeResultShellDecoder =
-    Json.Decode.succeed MergeResultShell
-        |> decode "one_over_d_centre" Json.Decode.float 
-        |> decode "nref" Json.Decode.int 
-        |> decode "d_over_a" Json.Decode.float 
-        |> decode "min_res" Json.Decode.float 
-        |> decode "max_res" Json.Decode.float 
-        |> decode "cc" Json.Decode.float 
-        |> decode "ccstar" Json.Decode.float 
-        |> decode "r_split" Json.Decode.float 
-        |> decode "reflections_possible" Json.Decode.int 
-        |> decode "completeness" Json.Decode.float 
-        |> decode "measurements" Json.Decode.int 
-        |> decode "redundancy" Json.Decode.float 
-        |> decode "snr" Json.Decode.float 
-        |> decode "mean_i" Json.Decode.float 
-
-
-refinementResultDecoder : Json.Decode.Decoder RefinementResult
-refinementResultDecoder =
-    Json.Decode.succeed RefinementResult
-        |> decode "pdb_file_id" Json.Decode.int 
-        |> decode "mtz_file_id" Json.Decode.int 
-        |> decode "r_free" Json.Decode.float 
-        |> decode "r_work" Json.Decode.float 
-        |> decode "rms_bond_angle" Json.Decode.float 
-        |> decode "rms_bond_length" Json.Decode.float 
 
 
 scaleIntensitiesDecoder : Json.Decode.Decoder ScaleIntensities

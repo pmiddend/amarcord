@@ -445,7 +445,9 @@ predefined_args: None | bytes = None
 
 
 def retrieve_file(args: ParsedArgs, file_id: int, name: str) -> Path:
-    req = request.Request(f"{args.api_url}/api/files/{file_id}", method="GET")
+    url = f"{args.api_url}/api/files/{file_id}"
+    req = request.Request(url, method="GET")
+    logger.info(f"requesting file on {url}")
     with request.urlopen(req) as response:
         with Path(name).open("wb") as output_file:
             output_file.write(response.read())
@@ -454,8 +456,10 @@ def retrieve_file(args: ParsedArgs, file_id: int, name: str) -> Path:
 
 def upload_file(args: ParsedArgs, file_path: Path) -> int:
     with file_path.open("rb") as file_obj:
+        url = f"{args.api_url}/api/files/simple/{file_path.suffix.replace('.', '')}"
+        logger.info(f"uploading file to {url}")
         req = request.Request(
-            f"{args.api_url}/api/files/simple/{file_path.suffix.replace('.', '')}",
+            url,
             method="POST",
             data=file_obj,
         )
@@ -503,8 +507,11 @@ def write_output_json(
             allow_nan=False,
             indent=2,
         ).encode("utf-8")
+
+    url = f"{args.api_url}/api/merging/finish/{args.merge_result_id}"
+    logger.info(f"sending result to {url}")
     req = request.Request(
-        f"{args.api_url}/api/merging/{args.merge_result_id}",
+        url,
         data=result_json,
         method="POST",
     )

@@ -1,14 +1,18 @@
 import datetime
 import logging
+import math
 from dataclasses import dataclass
 from typing import Any
 from typing import Callable
+from typing import Mapping
 from typing import Type
 
 from pint import UnitRegistry
 from pydantic import BaseModel
 from pydantic import Field
 
+from amarcord.db import orm
+from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
@@ -20,7 +24,6 @@ from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
-from amarcord.db.dbattributo import DBAttributo
 from amarcord.json_schema import JSONSchemaArray
 from amarcord.json_schema import JSONSchemaArraySubtype
 from amarcord.json_schema import JSONSchemaBoolean
@@ -59,6 +62,10 @@ def schema_union_to_attributo_type(s: JSONSchemaUnion) -> AttributoType:
         schema_array=s if isinstance(s, JSONSchemaArray) else None,
         schema_string=s if isinstance(s, JSONSchemaString) else None,
     )
+
+
+def schema_dict_to_attributo_type(json_schema: dict[str, Any]) -> AttributoType:
+    return schema_union_to_attributo_type(parse_schema_type(json_schema))
 
 
 def schema_to_attributo_type(
@@ -179,13 +186,7 @@ def attributo_type_to_string(pt: AttributoType) -> str:
 
 def attributo_type_to_schema(
     rp: AttributoType,
-) -> (
-    JSONSchemaInteger
-    | JSONSchemaNumber
-    | JSONSchemaString
-    | JSONSchemaArray
-    | JSONSchemaBoolean
-):
+) -> JSONSchemaUnion:
     if isinstance(rp, AttributoTypeInt):
         return JSONSchemaInteger(type="integer", format=None)
     if isinstance(rp, AttributoTypeBoolean):
@@ -197,7 +198,6 @@ def attributo_type_to_schema(
         exclusiveMaximum: float | None
         if rp.range is not None:
             if rp.range.minimum is not None:
-                print(f"minimum is: {rp.range.minimum}, {rp.range.minimum_inclusive}")
                 if rp.range.minimum_inclusive:
                     minimum = rp.range.minimum
                     exclusiveMinimum = None
@@ -733,11 +733,6 @@ _conversion_matrix.update(
 )
 
 
-# This function is not really needed, but it's just nicer to have the attributo in the runs table sorted by...something predefined
-def attributo_sort_key(r: DBAttributo) -> tuple[int, str]:
-    return (0, r.name)
-
-
 def attributo_types_semantically_equivalent(a: AttributoType, b: AttributoType) -> bool:
     if isinstance(a, AttributoTypeDecimal) and isinstance(b, AttributoTypeDecimal):
         if a.standard_unit and b.standard_unit:
@@ -748,3 +743,124 @@ def attributo_types_semantically_equivalent(a: AttributoType, b: AttributoType) 
             return a.range == b.range
         return a.range == b.range and a.suffix == b.suffix
     return a == b
+
+
+def attributo_value_from_chemical_orm(
+    v: orm.ChemicalHasAttributoValue,
+) -> AttributoValue:
+    if v.integer_value is not None:
+        return v.integer_value
+    if v.float_value is not None:
+        return v.float_value
+    if v.string_value is not None:
+        return v.string_value
+    if v.bool_value is not None:
+        return v.bool_value
+    if v.datetime_value is not None:
+        return v.datetime_value
+    if v.list_value is not None:
+        assert isinstance(v.list_value, list)
+        return v.list_value
+    return None
+
+
+def attributo_value_from_run_or_ds_orm(
+    v: orm.RunHasAttributoValue | orm.DataSetHasAttributoValue,
+) -> AttributoValue:
+    if v.integer_value is not None:
+        return v.integer_value
+    if v.float_value is not None:
+        return v.float_value
+    if v.string_value is not None:
+        return v.string_value
+    if v.bool_value is not None:
+        return v.bool_value
+    if v.datetime_value is not None:
+        return v.datetime_value
+    if v.chemical_value is not None:
+        return v.chemical_value
+    if v.list_value is not None:
+        assert isinstance(v.list_value, list)
+        return v.list_value
+    return None
+
+
+def decimal_attributi_match(
+    run_value_type: AttributoTypeDecimal,
+    run_value: AttributoValue,
+    data_set_value: AttributoValue,
+) -> bool:
+    if run_value is None and data_set_value is None:
+        return True
+    # They can't be both None at once, and if either is None, we fail our matching criterion
+    if run_value is None or data_set_value is None:
+        return False
+    assert isinstance(
+        run_value, (float, int)
+    ), f"decimal run attributo is not int/float: {run_value}"
+    assert isinstance(
+        data_set_value, (float, int)
+    ), f"decimal data set attributo is not int/float: {data_set_value}"
+    if run_value_type.tolerance:
+        if run_value_type.tolerance_is_absolute:
+            if not math.isclose(
+                float(run_value),
+                float(data_set_value),
+                abs_tol=run_value_type.tolerance,
+            ):
+                return False
+        else:
+            if not math.isclose(
+                float(run_value),
+                float(data_set_value),
+                rel_tol=run_value_type.tolerance,
+            ):
+                return False
+    else:
+        # Use whatever math.isclose deems sensible for a float comparison.
+        if not math.isclose(float(run_value), float(data_set_value)):
+            return False
+    return True
+
+
+def run_matches_dataset(
+    attributi: Mapping[AttributoId, AttributoType],
+    run_attributi: Mapping[
+        AttributoId, None | orm.RunHasAttributoValue | orm.DataSetHasAttributoValue
+    ],
+    data_set_attributi: Mapping[
+        AttributoId, None | orm.DataSetHasAttributoValue | orm.DataSetHasAttributoValue
+    ],
+) -> bool:
+    for attributo_id, data_set_value in data_set_attributi.items():
+        run_value_type = attributi[attributo_id]
+        run_value = run_attributi.get(attributo_id)
+        if data_set_value is not None and data_set_value.bool_value is not None:
+            run_has_bool_value = (
+                run_value is not None and run_value.bool_value is not None
+            )
+            if not run_has_bool_value and data_set_value.bool_value is False:
+                continue
+            if not run_has_bool_value and data_set_value is True:
+                return False
+        if isinstance(run_value_type, AttributoTypeDecimal):
+            if not decimal_attributi_match(
+                run_value_type,
+                run_value.float_value if run_value is not None else None,
+                data_set_value.float_value if data_set_value is not None else None,
+            ):
+                return False
+        else:
+            resolved_run_value = (
+                attributo_value_from_run_or_ds_orm(run_value)
+                if run_value is not None
+                else None
+            )
+            resolved_ds_value = (
+                attributo_value_from_run_or_ds_orm(data_set_value)
+                if data_set_value is not None
+                else None
+            )
+            if resolved_run_value != resolved_ds_value:
+                return False
+    return True

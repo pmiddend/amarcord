@@ -15,6 +15,8 @@
 
 module Api.Request.Processing exposing
     ( indexingJobUpdateApiIndexingIndexingResultIdPost
+    , readIndexingJobsApiIndexingGet
+    , readMergeJobsApiMergingGet
     )
 
 import Api
@@ -34,4 +36,28 @@ indexingJobUpdateApiIndexingIndexingResultIdPost indexingResultId_path jsonIndex
         []
         (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonIndexingResultRootJson jsonIndexingResultRootJson_body)))
         Api.Data.jsonIndexingJobUpdateOutputDecoder
+
+
+readIndexingJobsApiIndexingGet : DBJobStatus -> Maybe Int -> Api.Request Api.Data.JsonReadIndexingResultsOutput
+readIndexingJobsApiIndexingGet status_query beamtimeId_query =
+    Api.request
+        "GET"
+        "/api/indexing"
+        []
+        [ ( "status", Just <| Api.Data.stringFromDBJobStatus status_query ), ( "beamtimeId", Maybe.map String.fromInt beamtimeId_query ) ]
+        []
+        Nothing
+        Api.Data.jsonReadIndexingResultsOutputDecoder
+
+
+readMergeJobsApiMergingGet : DBJobStatus -> Api.Request Api.Data.JsonReadMergeResultsOutput
+readMergeJobsApiMergingGet status_query =
+    Api.request
+        "GET"
+        "/api/merging"
+        []
+        [ ( "status", Just <| Api.Data.stringFromDBJobStatus status_query ) ]
+        []
+        Nothing
+        Api.Data.jsonReadMergeResultsOutputDecoder
 

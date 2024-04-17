@@ -2,15 +2,18 @@ import datetime
 from copy import copy
 from dataclasses import dataclass
 from typing import Any
-from typing import cast
 
 from openpyxl import Workbook
-from sqlalchemy import Connection
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import select
 
+from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.attributi import attributo_sort_key
 from amarcord.db.attributi import attributo_type_to_string
+from amarcord.db.attributi import attributo_value_from_chemical_orm
+from amarcord.db.attributi import attributo_value_from_run_or_ds_orm
+from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeChemical
 from amarcord.db.attributo_value import AttributoValue
@@ -21,7 +24,7 @@ from amarcord.util import datetime_to_local
 @dataclass(frozen=True)
 class WorkbookOutput:
     workbook: Workbook
-    files: set[int]
+    files: list[orm.File]
 
 
 # Any until openpyxl has official types
@@ -52,7 +55,7 @@ def attributo_value_to_spreadsheet_cell(
 
 
 async def create_workbook(
-    db: AsyncDB, conn: Connection, beamtime_id: BeamtimeId, with_events: bool
+    session: AsyncSession, beamtime_id: BeamtimeId, with_events: bool
 ) -> WorkbookOutput:
     wb = Workbook(iso_dates=True)
 
@@ -61,8 +64,15 @@ async def create_workbook(
     attributi_sheet = wb.create_sheet("Attributi")
     chemicals_sheet = wb.create_sheet("Chemicals")
 
-    attributi = await db.retrieve_attributi(conn, beamtime_id, associated_table=None)
-    attributi.sort(key=attributo_sort_key)
+    attributi = list(
+        (
+            await session.scalars(
+                select(orm.Attributo)
+                .where(orm.Attributo.beamtime_id == beamtime_id)
+                .order_by(orm.Attributo.name)
+            )
+        ).all()
+    )
 
     for attributo_column, attributo_header_name in enumerate(
         (
@@ -99,7 +109,9 @@ async def create_workbook(
         attributi_sheet.cell(  # pyright: ignore
             row=attributo_row_idx,
             column=5,
-            value=attributo_type_to_string(attributo.attributo_type),
+            value=attributo_type_to_string(
+                schema_dict_to_attributo_type(attributo.json_schema)
+            ),
         )
 
     chemical_attributi = [
@@ -115,8 +127,14 @@ async def create_workbook(
         new_font = copy(cell.font)  # pyright: ignore
         cell.font = new_font  # pyright: ignore
 
-    files_to_include: set[int] = set()
-    chemicals = await db.retrieve_chemicals(conn, beamtime_id, attributi)
+    files_to_include: list[orm.File] = []
+    chemicals = (
+        await session.scalars(
+            select(orm.Chemical)
+            .where(orm.Chemical.beamtime_id == beamtime_id)
+            .options(selectinload(orm.Chemical.attributo_values))
+        )
+    ).all()
     for chemical_row_idx, chemical in enumerate(chemicals, start=2):
         chemicals_sheet.cell(  # pyright: ignore
             row=chemical_row_idx,
@@ -132,8 +150,17 @@ async def create_workbook(
                 column=chemical_column_idx,
                 value=attributo_value_to_spreadsheet_cell(
                     chemical_id_to_name={},
-                    attributo_type=chemical_attributo.attributo_type,
-                    attributo_value=chemical.attributi.select(chemical_attributo.id),
+                    attributo_type=schema_dict_to_attributo_type(
+                        chemical_attributo.json_schema
+                    ),
+                    attributo_value=next(
+                        iter(
+                            attributo_value_from_chemical_orm(x)
+                            for x in chemical.attributo_values
+                            if x.attributo_id == chemical_attributo.id
+                        ),
+                        None,
+                    ),
                 ),
             )
         if chemical.files:
@@ -142,7 +169,7 @@ async def create_workbook(
                 column=2 + len(chemical_attributi),
                 value=", ".join(str(f.id) for f in chemical.files),
             )
-            files_to_include.update(cast(int, f.id) for f in chemical.files)
+            files_to_include.extend(chemical.files)
 
     run_attributi = [a for a in attributi if a.associated_table == AssociatedTable.RUN]
     for run_column, run_header_name in enumerate(
@@ -156,16 +183,34 @@ async def create_workbook(
         cell.font = new_font  # pyright: ignore
 
     chemical_id_to_name: dict[int, str] = {s.id: s.name for s in chemicals}
-    events = await db.retrieve_events(conn, beamtime_id, None)
+    events = (
+        await session.scalars(
+            select(orm.EventLog)
+            .where(orm.EventLog.beamtime_id == beamtime_id)
+            .order_by(orm.EventLog.created)
+            .options(selectinload(orm.EventLog.files))
+        )
+    ).all()
     event_iterator = 0
     run_row_idx = 2
-    for run in await db.retrieve_runs(conn, beamtime_id, attributi):
+    runs = (
+        await session.scalars(
+            select(orm.Run)
+            .where(orm.Run.beamtime_id == beamtime_id)
+            .order_by(orm.Run.started)
+            .options(selectinload(orm.Run.attributo_values))
+        )
+    ).all()
+
+    for run in runs:
         started = run.started
         event_start = event_iterator
+        # important here: we select events that started before the run we're outputting now.
+        # this means we also output events before the first run.
         while (
             with_events
             and event_iterator < len(events)
-            and events[event_iterator].created >= started
+            and events[event_iterator].created <= started
         ):
             event_iterator += 1
 
@@ -176,7 +221,7 @@ async def create_workbook(
                 event_text += (
                     " (file IDs: " + ", ".join(str(f.id) for f in event.files) + ")"
                 )
-                files_to_include.update(cast(int, f.id) for f in event.files)
+                files_to_include.extend(event.files)
             runs_sheet.cell(row=run_row_idx, column=4, value=event_text)
             run_row_idx += 1
 
@@ -201,10 +246,38 @@ async def create_workbook(
                 column=run_column_idx,
                 value=attributo_value_to_spreadsheet_cell(
                     chemical_id_to_name=chemical_id_to_name,
-                    attributo_type=run_attributo.attributo_type,
-                    attributo_value=run.attributi.select(run_attributo.id),
+                    attributo_type=schema_dict_to_attributo_type(
+                        run_attributo.json_schema
+                    ),
+                    attributo_value=next(
+                        iter(
+                            attributo_value_from_run_or_ds_orm(x)
+                            for x in run.attributo_values
+                            if x.attributo_id == run_attributo.id
+                        ),
+                        None,
+                    ),
                 ),
             )
         run_row_idx += 1
+
+    # Events after the last run must be treated specially
+    while (
+        runs
+        and with_events
+        and event_iterator < len(events)
+        and events[event_iterator].created > runs[0].started
+    ):
+        event = events[event_iterator]
+        runs_sheet.cell(row=run_row_idx, column=2, value=event.created)
+        event_text = f"{event.source}: {event.text}"
+        if event.files:
+            event_text += (
+                " (file IDs: " + ", ".join(str(f.id) for f in event.files) + ")"
+            )
+            files_to_include.extend(event.files)
+        runs_sheet.cell(row=run_row_idx, column=4, value=event_text)
+        run_row_idx += 1
+        event_iterator += 1
 
     return WorkbookOutput(wb, files_to_include)

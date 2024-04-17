@@ -1,14 +1,17 @@
-import pytest_asyncio
+from typing import AsyncGenerator
 
-from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.tables import create_tables_from_metadata
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from amarcord.db.orm_utils import migrate
 
 
 @pytest_asyncio.fixture
-async def db() -> AsyncDB:
-    context = AsyncDBContext("sqlite+aiosqlite://")
-    # pylint: disable=assigning-non-slot
-    result = AsyncDB(context, create_tables_from_metadata(context.metadata))
-    await result.migrate()
-    return result
+async def db() -> AsyncGenerator[AsyncSession, None]:
+    engine = create_async_engine("sqlite+aiosqlite://")
+    await migrate(engine)
+    async_session = async_sessionmaker(engine, expire_on_commit=False)
+    async with async_session() as session:
+        yield session

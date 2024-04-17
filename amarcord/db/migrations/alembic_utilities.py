@@ -3,8 +3,7 @@ import itertools
 
 from alembic import command
 from alembic.config import Config
-
-from amarcord.db.async_dbcontext import Connection
+from sqlalchemy import Connection
 
 
 def upgrade_to_connection(

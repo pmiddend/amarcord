@@ -30,6 +30,14 @@ _INDEXING_RE = re.compile(
 )
 
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
+)
+
+
+# This stuff is also in AMARCORD, but we need it here, too, since the
+# script should be independent of AMARCORD
 @dataclass(frozen=True, eq=True)
 class CrystFELCellFile:
     lattice_type: str
@@ -94,12 +102,6 @@ def write_cell_file(c: CrystFELCellFile, p: Path) -> None:
 def make_cell_file_name(c: CrystFELCellFile) -> str:
     ua = c.unique_axis if c.unique_axis else "noaxis"
     return f"chemical_{c.lattice_type}_{c.centering}_{ua}_{c.a}_{c.b}_{c.c}_{c.alpha}_{c.beta}_{c.gamma}_{int(time())}.cell"
-
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO
-)
 
 
 @dataclass(frozen=True)

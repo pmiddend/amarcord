@@ -13,10 +13,6 @@ This just takes a database URL and will run all migrations, in order to upgrade 
 
 Generate an `openapi.json` file to use, for example, to generate Elm code for the frontend. See the [OpenAPI section](OpenAPI) section for more information.
 
-## `experiment_simulator`
-
-This sets up an example database and simulates an experiment going on, with runs, chemicals, and so on. Quite fun to start and observe, try it out!
-
 ## `daemon`
 
 Meta-executable for all daemons.

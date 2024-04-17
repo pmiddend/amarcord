@@ -20,7 +20,7 @@ import Maybe exposing (withDefault)
 import Maybe.Extra exposing (isNothing, orElse, traverse, unwrap)
 import Set
 import String exposing (fromInt, join, split, toInt, trim)
-import Time exposing (Zone, millisToPosix, posixToMillis)
+import Time exposing (Zone)
 import Tuple exposing (second)
 
 
@@ -115,31 +115,31 @@ viewAttributoValue props zone chemicalIds type_ value =
             else
                 text "no"
 
+        ValueDateTime posix ->
+            text <|
+                (if props.shortDateTime then
+                    formatPosixTimeOfDayHumanFriendly
+
+                 else
+                    formatPosixHumanFriendly
+                )
+                    zone
+                    posix
+
+        ValueChemical int ->
+            if int == 0 then
+                text ""
+
+            else
+                case get int chemicalIds of
+                    Nothing ->
+                        text "invalid chemical ID"
+
+                    Just sid ->
+                        text sid
+
         ValueInt int ->
             case type_ of
-                ChemicalId ->
-                    if int == 0 then
-                        text ""
-
-                    else
-                        case get int chemicalIds of
-                            Nothing ->
-                                text "invalid chemical ID"
-
-                            Just sid ->
-                                text sid
-
-                DateTime ->
-                    text <|
-                        (if props.shortDateTime then
-                            formatPosixTimeOfDayHumanFriendly
-
-                         else
-                            formatPosixHumanFriendly
-                        )
-                            zone
-                            (millisToPosix int)
-
                 Number { suffix } ->
                     possiblyAddSuffix props (text (formatIntHumanFriendly int)) suffix
 
@@ -609,7 +609,7 @@ attributoValueToEditValue zone attributoId attributi value =
                 ( Int, ValueNone ) ->
                     Just (EditValueInt "")
 
-                ( ChemicalId, ValueInt x ) ->
+                ( ChemicalId, ValueChemical x ) ->
                     Just (EditValueChemicalId (Just x))
 
                 ( ChemicalId, ValueNone ) ->
@@ -621,8 +621,8 @@ attributoValueToEditValue zone attributoId attributi value =
                 ( String, ValueString x ) ->
                     Just (EditValueString x)
 
-                ( DateTime, ValueInt x ) ->
-                    Just (EditValueDateTime (formatPosixDateTimeCompatible zone (millisToPosix x)))
+                ( DateTime, ValueDateTime x ) ->
+                    Just (EditValueDateTime (formatPosixDateTimeCompatible zone x))
 
                 ( Choice { choiceValues }, ValueNone ) ->
                     Just (EditValueChoice { editValue = "", choiceValues = choiceValues })
@@ -729,10 +729,10 @@ editValueToValue zone x =
             Ok (ValueBoolean boolValue)
 
         EditValueDateTime string ->
-            Result.map (ValueInt << posixToMillis) (localDateTimeStringToPosix zone string)
+            Result.map ValueDateTime (localDateTimeStringToPosix zone string)
 
         EditValueChemicalId chemicalId ->
-            Ok (ValueInt (withDefault 0 chemicalId))
+            Ok (ValueChemical (withDefault 0 chemicalId))
 
         EditValueString string ->
             Ok (ValueString string)

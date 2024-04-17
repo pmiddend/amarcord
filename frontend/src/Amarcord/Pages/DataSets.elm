@@ -145,8 +145,7 @@ updateDataSet msg model =
                                     ( { model | createRequest = Loading }
                                     , send DataSetCreated
                                         (createDataSetApiDataSetsPost
-                                            { beamtimeId = model.beamtimeId
-                                            , experimentTypeId = experimentType.id
+                                            { experimentTypeId = experimentType.id
                                             , attributi = attributoMapToListOfAttributi editedAttributi
                                             }
                                         )

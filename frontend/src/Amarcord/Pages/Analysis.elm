@@ -14,9 +14,9 @@ import Amarcord.Html exposing (br_, div_, h5_, input_, li_, span_, tbody_, td_, 
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
 import Api exposing (send)
-import Api.Data exposing (JsonAnalysisDataSet, JsonDataSet, JsonExperimentType, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonReadAnalysisResults, JsonRefinementResult, JsonStartMergeJobForDataSetOutput, MergeResultFom, MergeResultShell, ScaleIntensities(..))
+import Api.Data exposing (JsonAnalysisDataSet, JsonDataSet, JsonExperimentType, JsonMergeParameters, JsonMergeResult, JsonMergeResultFom, JsonMergeResultShell, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobForDataSetOutput, JsonReadAnalysisResults, JsonRefinementResult, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet)
-import Api.Request.Merging exposing (startMergeJobForDataSetApiMergingDataSetIdStartPost)
+import Api.Request.Merging exposing (queueMergeJobForDataSetApiMergingQueueDataSetIdPost)
 import Dict exposing (Dict)
 import Dict.Extra
 import Html exposing (Html, a, abbr, button, dd, div, dl, dt, em, h2, h4, input, label, node, p, small, span, sup, table, td, text, th, tr, ul)
@@ -38,7 +38,7 @@ type Msg
     | QuickStartMerge DataSetId
     | CancelMerge
     | SubmitMerge DataSetId CrystFELMerge.Model
-    | MergeFinished (Result Http.Error JsonStartMergeJobForDataSetOutput)
+    | MergeFinished (Result Http.Error JsonQueueMergeJobForDataSetOutput)
     | Refresh Posix
     | OpenMergeResultDetail DetailMerge
     | CloseMergeResultDetail
@@ -77,12 +77,12 @@ type alias ActivatedMergeForm =
 
 
 type alias DetailMerge =
-    { id : Int, fom : MergeResultFom, shell_foms : List MergeResultShell, refinementResults : List JsonRefinementResult }
+    { id : Int, fom : JsonMergeResultFom, shell_foms : List JsonMergeResultShell, refinementResults : List JsonRefinementResult }
 
 
 type alias MergeRequest =
     { dataSetId : Int
-    , request : RemoteData Http.Error JsonStartMergeJobForDataSetOutput
+    , request : RemoteData Http.Error JsonQueueMergeJobForDataSetOutput
     }
 
 
@@ -867,10 +867,10 @@ modalMergeResultDetail m =
             text ""
 
 
-modalBodyShells : MergeResultFom -> List MergeResultShell -> List JsonRefinementResult -> Html Msg
+modalBodyShells : JsonMergeResultFom -> List JsonMergeResultShell -> List JsonRefinementResult -> Html Msg
 modalBodyShells fom shells refinementResults =
     let
-        singleShellRow : MergeResultShell -> Html Msg
+        singleShellRow : JsonMergeResultShell -> Html Msg
         singleShellRow shellRow =
             tr_
                 [ td_ [ text <| formatFloatHumanFriendly shellRow.minRes ++ "–" ++ formatFloatHumanFriendly shellRow.maxRes ]
@@ -1003,7 +1003,7 @@ update msg model =
 
         QuickStartMerge dataSetId ->
             ( { model | activatedMergeForm = Nothing, mergeRequest = Just { dataSetId = dataSetId, request = Loading } }
-            , send MergeFinished (startMergeJobForDataSetApiMergingDataSetIdStartPost dataSetId (CrystFELMerge.quickMergeParameters model.beamtimeId))
+            , send MergeFinished (queueMergeJobForDataSetApiMergingQueueDataSetIdPost dataSetId (CrystFELMerge.quickMergeParameters model.beamtimeId))
             )
 
         CancelMerge ->
@@ -1016,7 +1016,7 @@ update msg model =
 
                 Just _ ->
                     ( { model | mergeRequest = Just { dataSetId = dataSetId, request = Loading }, activatedMergeForm = Nothing }
-                    , send MergeFinished (startMergeJobForDataSetApiMergingDataSetIdStartPost dataSetId (modelToMergeParameters mergeParameters))
+                    , send MergeFinished (queueMergeJobForDataSetApiMergingQueueDataSetIdPost dataSetId (modelToMergeParameters mergeParameters))
                     )
 
         MergeFinished result ->

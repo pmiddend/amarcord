@@ -1,10 +1,9 @@
 import asyncio
 
+from sqlalchemy.ext.asyncio import create_async_engine
 from tap import Tap
 
-from amarcord.db.async_dbcontext import AsyncDBContext
-from amarcord.db.asyncdb import AsyncDB
-from amarcord.db.tables import create_tables_from_metadata
+from amarcord.db.orm_utils import migrate
 
 
 class Arguments(Tap):
@@ -14,9 +13,8 @@ class Arguments(Tap):
 
 
 async def _upgrade_db_to_latest(args: Arguments) -> None:
-    db_context = AsyncDBContext(args.db_connection_url)
-    db = AsyncDB(db_context, create_tables_from_metadata(db_context.metadata))
-    await db.migrate()
+    engine = create_async_engine(args.db_connection_url)
+    await migrate(engine)
     print(
         f"database at {args.db_connection_url} updated to latest version, it's now ready to use!"
     )

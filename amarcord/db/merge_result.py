@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 
-class MergeResultOuterShell(BaseModel):
+class JsonMergeResultOuterShell(BaseModel):
     resolution: float
     ccstar: float
     r_split: float
@@ -14,7 +14,7 @@ class MergeResultOuterShell(BaseModel):
     max_res: float
 
 
-class MergeResultFom(BaseModel):
+class JsonMergeResultFom(BaseModel):
     snr: float
     wilson: None | float
     ln_k: None | float
@@ -37,10 +37,10 @@ class MergeResultFom(BaseModel):
     rano_over_r_split: None | float
     d1sig: float
     d2sig: float
-    outer_shell: MergeResultOuterShell
+    outer_shell: JsonMergeResultOuterShell
 
 
-class MergeResultShell(BaseModel):
+class JsonMergeResultShell(BaseModel):
     one_over_d_centre: float
     nref: int
     d_over_a: float
@@ -57,7 +57,8 @@ class MergeResultShell(BaseModel):
     mean_i: float
 
 
-class RefinementResult(BaseModel):
+class JsonRefinementResultInternal(BaseModel):
+    id: None | int
     pdb_file_id: int
     mtz_file_id: int
     r_free: float
@@ -66,8 +67,22 @@ class RefinementResult(BaseModel):
     rms_bond_length: float
 
 
-class MergeResult(BaseModel):
+class JsonMergeResultInternal(BaseModel):
     mtz_file_id: int
-    fom: MergeResultFom
-    detailed_foms: list[MergeResultShell]
-    refinement_results: list[RefinementResult]
+    fom: JsonMergeResultFom
+    detailed_foms: list[JsonMergeResultShell]
+    refinement_results: list[JsonRefinementResultInternal]
+
+
+class JsonMergeJobFinishedInput(BaseModel):
+    error: None | str
+    result: None | JsonMergeResultInternal
+
+
+class JsonMergeJobStartedInput(BaseModel):
+    job_id: int
+    time: int
+
+
+class JsonMergeJobStartedOutput(BaseModel):
+    time: int

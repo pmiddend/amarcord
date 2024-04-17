@@ -20,6 +20,8 @@
       pypkgs-build-requirements = {
         structlog-overtime = [ "setuptools" ];
         fawltydeps = [ "poetry" ];
+        pyprojroot = [ "setuptools" ];
+        autoimport = [ "pdm-pep517" "pdm-backend" ];
         openpyxl-stubs = [ "setuptools" ];
         randomname = [ "setuptools" ];
         alabaster = [ "flit-core" ];

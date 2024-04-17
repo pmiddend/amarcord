@@ -3,8 +3,8 @@ from typing import Any
 
 import pytest
 
-from amarcord.db.associated_table import AssociatedTable
-from amarcord.db.attributi_map import AttributiMap
+from amarcord.db import orm
+from amarcord.db.attributi import attributo_type_to_schema
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import ArrayAttributoType
 from amarcord.db.attributo_type import AttributoType
@@ -14,10 +14,8 @@ from amarcord.db.attributo_type import AttributoTypeDecimal
 from amarcord.db.attributo_type import AttributoTypeList
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.beamtime_id import BeamtimeId
-from amarcord.db.dbattributo import DBAttributo
 from amarcord.db.run_external_id import RunExternalId
 from amarcord.db.run_internal_id import RunInternalId
-from amarcord.db.table_classes import DBRunOutput
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import compile_run_filter
 
@@ -154,31 +152,68 @@ def test_compile_run_filter(
         running_id += 1
 
     beamtime_id = BeamtimeId(1)
-    attributi_map = AttributiMap(
-        types_dict={
-            attributo_name_to_id[key]: DBAttributo(
-                id=attributo_name_to_id[key],
-                beamtime_id=beamtime_id,
-                name=key,
-                description="",
-                group="",
-                associated_table=AssociatedTable.RUN,
-                attributo_type=value,
-            )
-            for key, value in attributi_types.items()
-        },
-        impl={attributo_name_to_id[key]: value for key, value in attributi.items()},
-    )
     filter_input = FilterInput(
-        run=DBRunOutput(
+        run=orm.Run(
             id=run_id,
             external_id=RunExternalId(int(run_id)),
             beamtime_id=beamtime_id,
-            attributi=attributi_map,
             experiment_type_id=0,
-            files=[],
             started=datetime.datetime.now(),
             stopped=datetime.datetime.now(),
+            attributo_values=[
+                (
+                    orm.RunHasAttributoValue(
+                        attributo_id=attributo_name_to_id[attributo_name],
+                        chemical_value=value,
+                        attributo=orm.Attributo(
+                            json_schema=attributo_type_to_schema(
+                                attributi_types[attributo_name]
+                            )
+                        ),
+                    )
+                    if isinstance(
+                        attributi_types[attributo_name], AttributoTypeChemical
+                    )
+                    else (
+                        orm.RunHasAttributoValue(
+                            attributo_id=attributo_name_to_id[attributo_name],
+                            float_value=value,
+                            attributo=orm.Attributo(
+                                json_schema=attributo_type_to_schema(
+                                    attributi_types[attributo_name]
+                                )
+                            ),
+                        )
+                        if isinstance(
+                            attributi_types[attributo_name], AttributoTypeDecimal
+                        )
+                        else (
+                            orm.RunHasAttributoValue(
+                                attributo_id=attributo_name_to_id[attributo_name],
+                                bool_value=value,
+                                attributo=orm.Attributo(
+                                    json_schema=attributo_type_to_schema(
+                                        attributi_types[attributo_name]
+                                    )
+                                ),
+                            )
+                            if isinstance(
+                                attributi_types[attributo_name], AttributoTypeBoolean
+                            )
+                            else orm.RunHasAttributoValue(
+                                attributo_id=attributo_name_to_id[attributo_name],
+                                list_value=value,
+                                attributo=orm.Attributo(
+                                    json_schema=attributo_type_to_schema(
+                                        attributi_types[attributo_name]
+                                    )
+                                ),
+                            )
+                        )
+                    )
+                )
+                for attributo_name, value in attributi.items()
+            ],
         ),
         chemical_names={"lyso": 1},
         attributo_name_to_id=attributo_name_to_id,

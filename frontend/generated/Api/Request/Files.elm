@@ -27,15 +27,15 @@ import Json.Decode
 import Json.Encode
 import File exposing (File)
 
-createFileApiFilesPost : File -> String -> Api.Request Api.Data.JsonCreateFileOutput
-createFileApiFilesPost file description =
+createFileApiFilesPost : File -> String -> String -> Api.Request Api.Data.JsonCreateFileOutput
+createFileApiFilesPost file description deduplicate =
     Api.request
         "POST"
         "/api/files"
         []
         []
         []
-        (Just <| Http.multipartBody <| List.filterMap identity [ Just <| Http.filePart "file" file, Just <| Http.stringPart "description" description ])
+        (Just <| Http.multipartBody <| List.filterMap identity [ Just <| Http.filePart "file" file, Just <| Http.stringPart "description" description, Just <| Http.stringPart "deduplicate" deduplicate ])
         Api.Data.jsonCreateFileOutputDecoder
 
 

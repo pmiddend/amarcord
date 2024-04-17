@@ -3,7 +3,7 @@ module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, mo
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Html exposing (enumSelect, form_, h3_, input_, onFloatInput, onIntInput, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
-import Api.Data exposing (JsonPolarisation, JsonStartMergeJobForDataSetInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
+import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobForDataSetInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
 import Html exposing (Html, button, div, h2, label, span, text)
 import Html.Attributes exposing (checked, class, classList, disabled, for, id, type_, value)
 import Html.Events exposing (onClick)
@@ -232,7 +232,7 @@ type alias Model =
     }
 
 
-modelToMergeParameters : Model -> JsonStartMergeJobForDataSetInput
+modelToMergeParameters : Model -> JsonQueueMergeJobForDataSetInput
 modelToMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, beamtimeId } =
     let
         polarisationModelToPolarisation =
@@ -258,28 +258,31 @@ modelToMergeParameters { mergeModel, scaleIntensities, postRefinement, iteration
                 PolarisationCustom ->
                     Just polarisation
     in
-    { mergeModel = mergeModel
-    , beamtimeId = beamtimeId
-    , scaleIntensities = scaleIntensities
-    , postRefinement = postRefinement
-    , iterations = iterations
-    , polarisation = polarisationModelToPolarisation
-    , startAfter = startAfter
-    , stopAfter = stopAfter
-    , relB = relB
-    , forceBandwidth = forceBandwidth
-    , forceRadius = forceRadius
-    , forceLambda = forceLambda
-    , noPr = noPr
-    , noDeltaCcHalf = noDeltaCcHalf
-    , maxAdu = maxAdu
-    , minMeasurements = minMeasurements
-    , logs = logs
-    , minRes = minRes
-    , pushRes = pushRes
-    , w = Maybe.map pointGroupToString <| Maybe.andThen .chosenPointGroup w
-    , negativeHandling = MergeNegativeHandlingIgnore
+    { beamtimeId = beamtimeId
     , strictMode = False
+    , mergeParameters =
+        { mergeModel = mergeModel
+        , pointGroup = Nothing
+        , scaleIntensities = scaleIntensities
+        , postRefinement = postRefinement
+        , iterations = iterations
+        , polarisation = polarisationModelToPolarisation
+        , startAfter = startAfter
+        , stopAfter = stopAfter
+        , relB = relB
+        , forceBandwidth = forceBandwidth
+        , forceRadius = forceRadius
+        , forceLambda = forceLambda
+        , noPr = noPr
+        , noDeltaCcHalf = noDeltaCcHalf
+        , maxAdu = maxAdu
+        , minMeasurements = minMeasurements
+        , logs = logs
+        , minRes = minRes
+        , pushRes = pushRes
+        , w = Maybe.map pointGroupToString <| Maybe.andThen .chosenPointGroup w
+        , negativeHandling = Just MergeNegativeHandlingIgnore
+        }
     }
 
 
@@ -664,30 +667,33 @@ init beamtimeId =
     }
 
 
-quickMergeParameters : Int -> JsonStartMergeJobForDataSetInput
+quickMergeParameters : BeamtimeId -> JsonQueueMergeJobForDataSetInput
 quickMergeParameters beamtimeId =
-    { mergeModel = MergeModelUnity
-    , scaleIntensities = ScaleIntensitiesOff
-    , beamtimeId = beamtimeId
-    , postRefinement = False
+    { beamtimeId = beamtimeId
     , strictMode = False
-    , iterations = 3
-    , polarisation = Just horizontalEField
-    , startAfter = Nothing
-    , stopAfter = Nothing
-    , relB = 100.0
-    , noPr = False
-    , forceBandwidth = Nothing
-    , forceRadius = Nothing
-    , forceLambda = Nothing
-    , noDeltaCcHalf = True
-    , maxAdu = Nothing
-    , minMeasurements = 2
-    , logs = True
-    , minRes = Nothing
-    , pushRes = Nothing
-    , w = Nothing
-    , negativeHandling = MergeNegativeHandlingIgnore
+    , mergeParameters =
+        { mergeModel = MergeModelUnity
+        , pointGroup = Nothing
+        , scaleIntensities = ScaleIntensitiesOff
+        , postRefinement = False
+        , iterations = 3
+        , polarisation = Just horizontalEField
+        , startAfter = Nothing
+        , stopAfter = Nothing
+        , relB = 100.0
+        , noPr = False
+        , forceBandwidth = Nothing
+        , forceRadius = Nothing
+        , forceLambda = Nothing
+        , noDeltaCcHalf = True
+        , maxAdu = Nothing
+        , minMeasurements = 2
+        , logs = True
+        , minRes = Nothing
+        , pushRes = Nothing
+        , w = Nothing
+        , negativeHandling = Just MergeNegativeHandlingIgnore
+        }
     }
 
 

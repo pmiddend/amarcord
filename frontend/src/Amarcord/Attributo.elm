@@ -40,10 +40,13 @@ import Json.Decode.Extra as JsonExtra
 import List exposing (filterMap)
 import Maybe
 import Maybe.Extra as MaybeExtra
+import Time exposing (Posix, millisToPosix, posixToMillis)
 
 
 type AttributoValue
     = ValueInt Int
+    | ValueChemical Int
+    | ValueDateTime Posix
     | ValueString String
     | ValueList (List AttributoValue)
     | ValueNumber Float
@@ -65,6 +68,26 @@ attributoValueToInt : AttributoValue -> Maybe Int
 attributoValueToInt x =
     case x of
         ValueInt b ->
+            Just b
+
+        _ ->
+            Nothing
+
+
+attributoValueToDateTime : AttributoValue -> Maybe Posix
+attributoValueToDateTime x =
+    case x of
+        ValueDateTime b ->
+            Just b
+
+        _ ->
+            Nothing
+
+
+attributoValueToChemical : AttributoValue -> Maybe Int
+attributoValueToChemical x =
+    case x of
+        ValueChemical b ->
             Just b
 
         _ ->
@@ -127,6 +150,8 @@ attributoValueToJson aid a =
     , attributoValueBool = attributoValueToBool a
     , attributoValueFloat = attributoValueToFloat a
     , attributoValueInt = attributoValueToInt a
+    , attributoValueDatetime = Maybe.map posixToMillis (attributoValueToDateTime a)
+    , attributoValueChemical = attributoValueToChemical a
     , attributoValueListBool = attributoValueToListOfBool a
     , attributoValueListFloat = attributoValueToListOfFloat a
     , attributoValueListStr = attributoValueToListOfString a
@@ -150,6 +175,12 @@ prettyPrintAttributoValue x =
                 "false"
 
         ValueInt int ->
+            String.fromInt int
+
+        ValueDateTime posix ->
+            String.fromInt (posixToMillis posix)
+
+        ValueChemical int ->
             String.fromInt int
 
         ValueString string ->
@@ -446,6 +477,8 @@ convertAttributoValueFromApi v =
         [ Maybe.map ValueBoolean v.attributoValueBool
         , Maybe.map ValueNumber v.attributoValueFloat
         , Maybe.map ValueInt v.attributoValueInt
+        , Maybe.map ValueChemical v.attributoValueChemical
+        , Maybe.map (ValueDateTime << millisToPosix) v.attributoValueDatetime
         , Maybe.map (ValueList << List.map ValueBoolean) v.attributoValueListBool
         , Maybe.map (ValueList << List.map ValueNumber) v.attributoValueListFloat
         , Maybe.map (ValueList << List.map ValueString) v.attributoValueListStr
