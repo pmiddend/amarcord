@@ -26,7 +26,7 @@ METADATA_KEY_ASAPO_TOKEN_PATH = "beamtimeTokenPath"
 METADATA_KEY_BEAMTIME_ID = "beamtimeId"
 METADATA_KEY_CORE_PATH = "corePath"
 _INDEXING_RE = re.compile(
-    r"(\d+) images processed, (\d+) hits \([^)]+\), (\d+) indexable \([^)]+\), (\d+) crystals, .*"
+    r"(\d+) images processed, (\d+) hits \([^)]+\), (\d+) indexable \([^)]+\), (\d+) crystals.*"
 )
 
 
