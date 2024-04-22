@@ -49,7 +49,7 @@ nix-pin-latest:
   script:
     - nix build --out-link ~/pipeline-pins/amarcord-python-package .#amarcord-python-package
   only:
-    - master
+    - main
 
 nix-pin-latest-manual:
   script:
