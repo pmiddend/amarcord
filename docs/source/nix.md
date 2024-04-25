@@ -32,3 +32,15 @@ nix develop '..#frontend'
 ```
 
 For the CI build, we have an instance of gitlab-runner on `cfeld-vm04` using the shell executor right now.
+
+## Useful commands
+
+### Check dependencies and closure size
+
+Using
+
+```shell
+nix path-info --recursive --size --closure-size --human-readable .#amarcord-production-webserver
+```
+
+You can check which packages AMARCORD includes and see if there is anything out of the ordinary. The biggest packages are usually Python and glibc, and that cannot be avoided, really.
