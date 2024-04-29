@@ -63,7 +63,7 @@ async def create_file(
         with NamedTemporaryFile(mode="w+b") as temp_file:
             contents = file.file.read()
             sha256 = hashlib.sha256(contents).hexdigest()
-            if bool(deduplicate):
+            if deduplicate == "True":
                 existing_file = (
                     await session.scalars(
                         select(orm.File).where(
@@ -71,7 +71,7 @@ async def create_file(
                             & (orm.File.file_name == file_name)
                         )
                     )
-                ).one_or_none()
+                ).first()
                 if existing_file:
                     return JsonCreateFileOutput(
                         id=existing_file.id,
