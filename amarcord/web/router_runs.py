@@ -757,6 +757,7 @@ async def read_runs(
                 (orm.EventLog.beamtime_id == beamtimeId)
                 & (orm.EventLog.level == EventLogLevel.USER)
             )
+            .order_by(orm.EventLog.created.desc())
             .options(selectinload(orm.EventLog.files))
         )
     ).all()
