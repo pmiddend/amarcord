@@ -223,13 +223,18 @@ predefined_args: None | bytes = None
 
 
 def write_output_json(
-    args: ParsedArgs, error: None | str, result: None | dict[str, Any]
+    args: ParsedArgs,
+    stream_file: None | str,
+    error: None | str,
+    result: None | dict[str, Any],
 ) -> None:
     logger.info(f"contacting AMARCORD at {args.api_url} to send status")
     req = request.Request(
         f"{args.api_url}/api/indexing/{args.job_id}",
         data=json.dumps(
-            {"error": error, "result": result}, allow_nan=False, indent=2
+            {"stream_file": stream_file, "error": error, "result": result},
+            allow_nan=False,
+            indent=2,
         ).encode("utf-8"),
         method="POST",
     )
@@ -248,10 +253,13 @@ class IndexingFom:
     detector_shift_y_mm: None | float
 
 
-def write_status(args: ParsedArgs, line: IndexingFom, done: bool) -> None:
+def write_status(
+    args: ParsedArgs, stream_file: str, line: IndexingFom, done: bool
+) -> None:
     write_output_json(
         args,
         error=None,
+        stream_file=stream_file,
         result={
             "frames": line.frames,
             "hits": line.hits,
@@ -267,7 +275,7 @@ def write_status(args: ParsedArgs, line: IndexingFom, done: bool) -> None:
 def exit_with_error(args: None | ParsedArgs, message: str) -> NoReturn:
     logger.error(message)
     if args is not None:
-        write_output_json(args, error=message, result=None)
+        write_output_json(args, stream_file=None, error=message, result=None)
     sys.exit(1)
 
 
@@ -393,7 +401,11 @@ def parse_millepede_output(stdout: str) -> str | tuple[float, float]:
 
 
 def run_align_detector(
-    args: ParsedArgs, core_path: Path, geometry_path: str, last_fom: None | IndexingFom
+    args: ParsedArgs,
+    stream_file: str,
+    core_path: Path,
+    geometry_path: str,
+    last_fom: None | IndexingFom,
 ) -> None:
     with TemporaryDirectory() as tempdir:
         os.chdir(tempdir)
@@ -459,6 +471,7 @@ def run_align_detector(
 
                 write_status(
                     args,
+                    stream_file,
                     (
                         replace(
                             last_fom,
@@ -607,12 +620,14 @@ def run_indexamajig(
                     logger.info(f"writing {last_fom}")
                     write_status(
                         args,
+                        str(args.stream_file),
                         last_fom,
                         done=False,
                     )
                 logger.info(f"process done writing final fom: {last_fom}")
                 write_status(
                     args,
+                    str(args.stream_file),
                     (
                         last_fom
                         if last_fom is not None
@@ -637,7 +652,9 @@ def run_indexamajig(
             logger.info("not running align_detector: we have no indexed frames anyway")
         else:
             logger.info("running align_detector")
-            run_align_detector(args, core_path, geometry_path, last_fom)
+            run_align_detector(
+                args, str(args.stream_file), core_path, geometry_path, last_fom
+            )
     else:
         logger.info("not running align_detector, not activated")
 
