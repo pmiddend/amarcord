@@ -136,8 +136,9 @@ async def start_merge_job(
                 job_error=f"Indexing result {ir.id} is not finished yet! Status is {ir.job_status}",
                 time=datetime.datetime.utcnow(),
             )
-        assert ir.stream_file is not None
-        stream_files.append(ir.stream_file)
+        # The stream file could be None due to an error - skip this then
+        if ir.stream_file is not None:
+            stream_files.append(ir.stream_file)
     pdb_file_id: None | int = next(
         iter(
             f.id
