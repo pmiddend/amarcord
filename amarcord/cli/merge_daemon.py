@@ -10,6 +10,7 @@ from enum import IntEnum
 from enum import auto
 from io import StringIO
 from pathlib import Path
+from time import time
 from typing import Optional
 
 import aiohttp
@@ -45,6 +46,7 @@ logger = structlog.stdlib.get_logger(__name__)
 
 _SHORT_SLEEP_DURATION_SECONDS = 2.0
 _LONG_BREAK_DURATION_SECONDS = 10.0
+_ZOMBIE_TIME_SECONDS = 10
 
 
 class Arguments(Tap):
@@ -293,7 +295,10 @@ async def _start_new_jobs(
 
 
 async def _update_jobs(
-    session: aiohttp.ClientSession, workload_manager: WorkloadManager, args: Arguments
+    session: aiohttp.ClientSession,
+    workload_manager: WorkloadManager,
+    args: Arguments,
+    zombie_job_times: dict[int, float],
 ) -> None:
     async with session.get(
         f"{args.amarcord_url}/api/merging?status={DBJobStatus.RUNNING.value}"
@@ -317,13 +322,26 @@ async def _update_jobs(
             # Running job, let it keep running
             continue
 
+        job_first_seen = zombie_job_times.get(merge_result.job_id)
+        if job_first_seen is None:
+            bound_logger.info("job finished, marking as a zombie")
+            zombie_job_times[merge_result.job_id] = time()
+            continue
+
+        time_diff_s = time() - job_first_seen
+        if time_diff_s < _ZOMBIE_TIME_SECONDS:
+            bound_logger.info(
+                f"job is zombie for {time_diff_s}s, waiting {_ZOMBIE_TIME_SECONDS} to declare this thing done"
+            )
+            continue
+
         if workload_job is None:
             bound_logger.info("finished because not in SLURM REST job list anymore")
             job_error = "Job has finished on SLURM (not in job list anymore), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
         else:
-            job_error = f"Job has finished on SLURM (status {workload_job.status}), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
+            job_error = f"Job has finished on SLURM (status {workload_job.status.value}), but delivered no results. You can try running it again, but most likely, this is due to a programming bug, so please contact the software people!"
             bound_logger.info(
-                f"finished because SLURM REST job status is {workload_job.status}"
+                f"finished because SLURM REST job status is {workload_job.status.value}"
             )
 
         async with session.post(
@@ -334,14 +352,20 @@ async def _update_jobs(
 
     logger.info("merge jobs stati updated, take a (longer) break")
 
+    now = time()
+    for job_id in list(zombie_job_times):
+        if now - zombie_job_times[job_id] > _ZOMBIE_TIME_SECONDS:
+            zombie_job_times.pop(job_id)
+
 
 async def _merging_loop_iteration(
     session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
     args: Arguments,
+    zombie_job_times: dict[int, float],
 ) -> None:
     await _start_new_jobs(session, workload_manager, args)
-    await _update_jobs(session, workload_manager, args)
+    await _update_jobs(session, workload_manager, args, zombie_job_times)
 
     await asyncio.sleep(_SHORT_SLEEP_DURATION_SECONDS)
 
@@ -358,9 +382,12 @@ async def _merging_loop(args: Arguments) -> None:
     #
     # We could also just create a session over and over, but this seems a bit more clean
     connector = aiohttp.TCPConnector(force_close=True)
+    zombie_job_times: dict[int, float] = {}
     async with aiohttp.ClientSession(connector=connector) as session:
         while True:
-            await _merging_loop_iteration(session, workload_manager, args)
+            await _merging_loop_iteration(
+                session, workload_manager, args, zombie_job_times
+            )
 
 
 def main() -> None:
