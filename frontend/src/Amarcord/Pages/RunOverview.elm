@@ -17,7 +17,7 @@ import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
+import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
 import Api exposing (send)
 import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonChangeRunExperimentTypeOutput, JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonExperimentType, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
@@ -553,6 +553,15 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
                     ]
 
 
+posixDiffHumanFriendlyLongDurationsExact : Zone -> Posix -> Posix -> String
+posixDiffHumanFriendlyLongDurationsExact zone relative now =
+    if posixToMillis now - posixToMillis relative > 48 * 60 * 60 * 1000 then
+        formatPosixHumanFriendly zone relative
+
+    else
+        posixDiffHumanFriendly now relative ++ " ago "
+
+
 viewCurrentRun :
     Zone
     -> Posix
@@ -631,7 +640,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
 
                         Just realStoppedTime ->
                             [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ String.fromInt externalId ]
-                            , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendly (millisToPosix realStoppedTime) now ++ " ago " ]
+                            , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendlyLongDurationsExact zone (millisToPosix realStoppedTime) now ]
                             , p_ [ text <| "Duration " ++ posixDiffHumanFriendly (millisToPosix started) (millisToPosix realStoppedTime) ]
                             ]
 
