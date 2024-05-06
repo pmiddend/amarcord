@@ -19,6 +19,7 @@ type alias MenuLeaf =
 type MenuNode
     = Dropdown String String (List MenuLeaf)
     | Leaf MenuLeaf
+    | VerticalRule
 
 
 viewMenuNode : Route -> MenuNode -> Html msg
@@ -26,6 +27,9 @@ viewMenuNode modelRoute x =
     case x of
         Leaf leaf ->
             viewMenuLeaf modelRoute leaf
+
+        VerticalRule ->
+            div [ class "vr" ] []
 
         Dropdown description iconName leaves ->
             li [ class "nav-item dropdown" ]
@@ -69,7 +73,8 @@ menu bt =
         , { route = Route.Schedule bt, description = "Schedule", iconName = "calendar-week" }
         , { route = Route.EventLog bt, description = "Events", iconName = "book" }
         ]
-    , Leaf { route = Route.Root bt, description = "Help", iconName = "patch-question" }
+    , VerticalRule
+    , Leaf { route = Route.Root bt, description = "All Beamtimes", iconName = "globe" }
     ]
 
 
