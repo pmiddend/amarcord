@@ -1,8 +1,8 @@
-module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData, viewRemoteDataHttp)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewHelpButton, viewRemoteData, viewRemoteDataHttp)
 
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Html exposing (div_, h4_, p_)
-import Html exposing (Html, div, i, span, text)
+import Html exposing (Html, button, div, i, span, sup, text)
 import Html.Attributes exposing (attribute, class, classList)
 import Http
 import List
@@ -117,3 +117,15 @@ mimeTypeToIcon type_ =
                 _ ->
                     "question-diamond"
         }
+
+
+viewHelpButton : String -> Html msg
+viewHelpButton target =
+    sup []
+        [ button
+            [ class "btn btn-link rounded-circle"
+            , attribute "data-bs-toggle" "collapse"
+            , attribute "href" ("#" ++ target)
+            ]
+            [ icon { name = "patch-question-fill" } ]
+        ]

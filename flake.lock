@@ -2,21 +2,17 @@
   "nodes": {
     "elm-spa": {
       "inputs": {
-        "flake-utils": [
-          "mkElmDerivation",
-          "flake-utils"
-        ],
         "nixpkgs": [
           "mkElmDerivation",
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1680551213,
-        "narHash": "sha256-Sjrb0dwsEhSBqnylFl/dGThiR16QdrjEw3+bRdRTi5M=",
+        "lastModified": 1706301604,
+        "narHash": "sha256-n6LDjnPCTLbKTrRgeZhlLTfY6V45xNYcb4NYEMuO4jg=",
         "owner": "jeslie0",
         "repo": "elm-spa",
-        "rev": "cc3a5921367df5fd2c29397c7c51b559a5b784f2",
+        "rev": "4c82e18d5fcf9d4c027f0ef0e89204dd87584f7f",
         "type": "github"
       },
       "original": {
@@ -27,10 +23,6 @@
     },
     "elm-watch": {
       "inputs": {
-        "flake-utils": [
-          "mkElmDerivation",
-          "flake-utils"
-        ],
         "nixpkgs": [
           "mkElmDerivation",
           "nixpkgs"
@@ -39,74 +31,22 @@
         "npmlock2nix": "npmlock2nix"
       },
       "locked": {
-        "lastModified": 1681842996,
-        "narHash": "sha256-xJy/sARdwOn9YCIkuVQdPRZRlhRJhY+Bwpu2alys8nI=",
+        "lastModified": 1706304401,
+        "narHash": "sha256-992cypnhoRbsGkDc5/X241rafBML4EP0EuT6cBcaY/8=",
         "owner": "jeslie0",
         "repo": "elm-watch",
-        "rev": "5a358bf479f0ae3b5d7adb5c6f32bdf224cfe044",
+        "rev": "2f1c6c0e69b163c15e2ce66f543c38021b2a0ea3",
         "type": "github"
       },
       "original": {
         "owner": "jeslie0",
         "repo": "elm-watch",
-        "type": "github"
-      }
-    },
-    "elmSnapshot": {
-      "inputs": {
-        "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
-      },
-      "locked": {
-        "lastModified": 1687544254,
-        "narHash": "sha256-K8xwvBinOv3WdVFv+eMB1mla7mGKp0dzKvyP/aB00Ro=",
-        "owner": "jeslie0",
-        "repo": "ElmSnapshot",
-        "rev": "973f9b82c3735c98c22eb53a016cde7db7816721",
-        "type": "github"
-      },
-      "original": {
-        "owner": "jeslie0",
-        "repo": "ElmSnapshot",
         "type": "github"
       }
     },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
-      },
-      "locked": {
-        "lastModified": 1689068808,
-        "narHash": "sha256-6ixXo3wt24N/melDWjq70UuHQLxGV8jZvooRanIHXw0=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "919d646de7be200f3bf08cb76ae1f09402b6f9b4",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
-    "flake-utils_2": {
-      "locked": {
-        "lastModified": 1667395993,
-        "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
-    "flake-utils_3": {
-      "inputs": {
-        "systems": "systems_2"
       },
       "locked": {
         "lastModified": 1694529238,
@@ -126,18 +66,16 @@
       "inputs": {
         "elm-spa": "elm-spa",
         "elm-watch": "elm-watch",
-        "elmSnapshot": "elmSnapshot",
-        "flake-utils": "flake-utils_2",
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1693703026,
-        "narHash": "sha256-/gs5+AD9yg6QaTQOWJKnK8/JU/CEaS+U/ErRGQjv6nQ=",
+        "lastModified": 1714871380,
+        "narHash": "sha256-GubcHz7EAt+Q9cD54nxi7ND/wCNCg8Pkzv7s3Sd6c44=",
         "owner": "jeslie0",
         "repo": "mkElmDerivation",
-        "rev": "f5cad6375251d784f1f396d60de30a2cd4ddd12e",
+        "rev": "71c05ddde48fdac25de4900d4807af5fe598befa",
         "type": "github"
       },
       "original": {
@@ -169,7 +107,7 @@
     },
     "nix-npm-buildpackage": {
       "inputs": {
-        "nixpkgs": "nixpkgs_3"
+        "nixpkgs": "nixpkgs_2"
       },
       "locked": {
         "lastModified": 1666251292,
@@ -187,17 +125,17 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1692494774,
-        "narHash": "sha256-noGVoOTyZ2Kr5OFglzKYOX48cx3hggdCPbXrYMG2FDw=",
-        "owner": "nixos",
+        "lastModified": 1701019804,
+        "narHash": "sha256-8/yaKqfioMABTm5khTFC2M6DODGyic8T6EVhHVybcwk=",
+        "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "3476a10478587dec90acb14ec6bde0966c545cc0",
+        "rev": "17ee3bcc82adbe5666c42591f73eef41c4bd00f5",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
-        "ref": "nixpkgs-unstable",
+        "owner": "NixOS",
         "repo": "nixpkgs",
+        "rev": "17ee3bcc82adbe5666c42591f73eef41c4bd00f5",
         "type": "github"
       }
     },
@@ -218,22 +156,6 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1701019804,
-        "narHash": "sha256-8/yaKqfioMABTm5khTFC2M6DODGyic8T6EVhHVybcwk=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "17ee3bcc82adbe5666c42591f73eef41c4bd00f5",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "17ee3bcc82adbe5666c42591f73eef41c4bd00f5",
-        "type": "github"
-      }
-    },
-    "nixpkgs_3": {
-      "locked": {
         "lastModified": 1653917367,
         "narHash": "sha256-04MsJC0g9kE01nBuXThMppZK+yvCZECQnUaZKSU+HJo=",
         "owner": "NixOS",
@@ -246,7 +168,7 @@
         "type": "indirect"
       }
     },
-    "nixpkgs_4": {
+    "nixpkgs_3": {
       "locked": {
         "lastModified": 1668058645,
         "narHash": "sha256-vHAXeYfKVO6ZbDN0GquEPVFZ42LzlYoX4ZWuKteFzj0=",
@@ -262,11 +184,6 @@
     },
     "npm-fix": {
       "inputs": {
-        "flake-utils": [
-          "mkElmDerivation",
-          "elm-watch",
-          "flake-utils"
-        ],
         "nixpkgs": [
           "mkElmDerivation",
           "elm-watch",
@@ -274,11 +191,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1681681690,
-        "narHash": "sha256-mI2ND49vInMbeXSMQDp8y7Prjh53W4RlpixWRlH2Lio=",
+        "lastModified": 1706304213,
+        "narHash": "sha256-XN9ESRSOANR0iFbEMMY1C1jvgZlYJsXQYVAHxxRmn+c=",
         "owner": "jeslie0",
         "repo": "npm-lockfile-fix",
-        "rev": "1a3799d0b8b9ed5b51f39bd878a3ba2d8ac5656a",
+        "rev": "e9851274afa12b04d98e694ed089aa9cde8d7349",
         "type": "github"
       },
       "original": {
@@ -305,12 +222,12 @@
     },
     "poetry2nix": {
       "inputs": {
-        "flake-utils": "flake-utils_3",
+        "flake-utils": "flake-utils",
         "nix-github-actions": "nix-github-actions",
         "nixpkgs": [
           "nixpkgs"
         ],
-        "systems": "systems_3",
+        "systems": "systems_2",
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
@@ -331,7 +248,7 @@
     "root": {
       "inputs": {
         "mkElmDerivation": "mkElmDerivation",
-        "nixpkgs": "nixpkgs_2",
+        "nixpkgs": "nixpkgs",
         "nixpkgs-openapi-generator": "nixpkgs-openapi-generator",
         "poetry2nix": "poetry2nix",
         "uglymol": "uglymol"
@@ -353,21 +270,6 @@
       }
     },
     "systems_2": {
-      "locked": {
-        "lastModified": 1681028828,
-        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
-        "owner": "nix-systems",
-        "repo": "default",
-        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-systems",
-        "repo": "default",
-        "type": "github"
-      }
-    },
-    "systems_3": {
       "locked": {
         "lastModified": 1681028828,
         "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
@@ -405,7 +307,7 @@
     "uglymol": {
       "inputs": {
         "nix-npm-buildpackage": "nix-npm-buildpackage",
-        "nixpkgs": "nixpkgs_4"
+        "nixpkgs": "nixpkgs_3"
       },
       "locked": {
         "lastModified": 1668169700,

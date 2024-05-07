@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-cp ./*.css ./*.png ./*.js output/
+cp ./*.css ./*.svg ./*.png ./*.js output/
 cp -R fonts/ output/
 
 PATH="$PWD:${PATH}" npx elm-go src/Main.elm\

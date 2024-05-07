@@ -5,18 +5,18 @@ import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDat
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteDataHttp)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewHelpButton, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (Chemical, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm
-import Amarcord.Gauge exposing (gauge, thisFillColor, totalFillColor)
 import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
+import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
 import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
 import Api exposing (send)
 import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonChangeRunExperimentTypeOutput, JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonExperimentType, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput, JsonUserConfigurationSingleOutput)
@@ -25,7 +25,6 @@ import Api.Request.Datasets exposing (createDataSetFromRunApiDataSetsFromRunPost
 import Api.Request.Events exposing (deleteEventApiEventsDelete)
 import Api.Request.Experimenttypes exposing (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, updateRunApiRunsPatch)
-import Char exposing (fromCode)
 import Date
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tr, ul)
@@ -448,48 +447,6 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
 
                                     else
                                         Nothing
-
-                                -- case run.summary.indexingRate of
-                                --     Nothing ->
-                                --         Nothing
-                                --     Just ir ->
-                                --         case run.summary.hitRate of
-                                --             Nothing ->
-                                --                 Nothing
-                                --             Just hr ->
-                                --                 if ir > 0.01 && hr > 0.01 then
-                                --                     let
-                                --                         runExposureTime : Maybe Float
-                                --                         runExposureTime =
-                                --                             ListExtra.find
-                                --                                 (\a -> a.name == attributoExposureTime)
-                                --                                 rrc.attributi
-                                --                                 |> Maybe.andThen (\a -> retrieveFloatAttributoValue a.id run.attributi)
-                                --                     in
-                                --                     case runExposureTime of
-                                --                         Nothing ->
-                                --                             Nothing
-                                --                         Just realExposureTime ->
-                                --                             let
-                                --                                 remainingFrames =
-                                --                                     10000 - progressSummary.indexedFrames
-                                --                             in
-                                --                             if remainingFrames > 0 then
-                                --                                 let
-                                --                                     remainingFramesToCapture =
-                                --                                         round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
-                                --                                     framesPerSecond =
-                                --                                         1000 / (2 * realExposureTime)
-                                --                                     indexedFramesPerSecond =
-                                --                                         framesPerSecond * ir / 100.0 * hr / 100.0
-                                --                                     remainingTimeStr =
-                                --                                         secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
-                                --                                 in
-                                --                                 Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
-                                --                             else
-                                --                                 Nothing
-                                --                 else
-                                --                     Nothing
                             in
                             [ div [ class "d-flex justify-content-center" ]
                                 [ div [ class "progress", style "width" "80%" ]
@@ -515,33 +472,17 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
 
                                 Just eta ->
                                     div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ eta ] ]
+                            , div [ class "d-flex justify-content-center align-items-center" ]
+                                [ p [] [ text "What’s this?" ]
+                                , viewHelpButton "help-indexing-target"
+                                ]
+                            , div [ id "help-indexing-target", class "collapse text-bg-light p-2" ]
+                                [ p_ [ text "In general, you cannot collect too many indexed frames to build the electron density. Moreover, it’s hard to say when you have “enough” of these frames to even start merging the data." ]
+                                , p_ [ text "We’ve consulted with our crystallography experts on that, and came up with “shoot for 10k indexed frames”. This progress bar illustrates how far you are with that, and how long it will take to reach it, so you can decide if it’s feasible, or if you want to change parameters to increase indexing rate some more." ]
+                                ]
                             ]
-
-                        smallBox color =
-                            span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
-
-                        twoValueGauge : String -> Float -> Maybe Float -> List (Html msg)
-                        twoValueGauge title thisValue total =
-                            case total of
-                                Nothing ->
-                                    [ gauge (Just thisValue) total, div_ [ em [ class "amarcord-small-text" ] [ smallBox thisFillColor, text <| " " ++ title ++ " " ++ formatFloatHumanFriendly thisValue ++ "%" ] ] ]
-
-                                Just totalValue ->
-                                    [ gauge (Just thisValue) total
-                                    , div_
-                                        [ em [ class "amarcord-small-text" ]
-                                            [ smallBox thisFillColor
-                                            , text (" run: " ++ formatFloatHumanFriendly thisValue ++ "% | ")
-                                            , smallBox totalFillColor
-                                            , text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%"
-                                            ]
-                                        ]
-                                    ]
                     in
-                    [ div [ class "d-flex flex-row justify-content-evenly" ]
-                        [ div [ class "text-center" ] (twoValueGauge "Indexing rate" run.summary.indexingRate Nothing)
-                        , div [ class "text-center" ] (twoValueGauge "Hit rate" run.summary.hitRate Nothing)
-                        ]
+                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
                     , div [ class "mb-3" ] indexingProgress
                     , h3_ [ text "Data set" ]
                     , viewDataSetTable (List.map convertAttributoFromApi rrc.attributi)
@@ -583,8 +524,9 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                     [ div [ class "form-check form-switch mb-3" ]
                         [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.userConfig.autoPilot, onInput (always (ChangeAutoPilot (not rrc.userConfig.autoPilot))) ]
                         , label [ class "form-check-label", for "auto-pilot" ] [ text "Auto pilot" ]
-                        , div [ class "form-text" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
+                        , viewHelpButton "help-auto-pilot"
                         ]
+                    , div [ Html.Attributes.id "help-auto-pilot", class "collapse text-bg-light p-2" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
                     ]
 
                 onlineCrystFEL =

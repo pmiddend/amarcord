@@ -11,6 +11,7 @@ import String exposing (fromInt, padLeft)
 import Task
 import Time exposing (Month(..), Posix, Zone, here, now, posixToMillis, toDay, toHour, toMinute, toMonth, toSecond, toYear)
 import Time.Extra exposing (partsToPosix)
+import Tuple exposing (first, second)
 
 
 collectResults : List (Result e b) -> Result (List e) (List b)
@@ -343,3 +344,18 @@ listContainsBy f =
 forgetMsgInput : Result x b -> Result x {}
 forgetMsgInput =
     Result.map (always {})
+
+
+foldPairs : List a -> (( a, a ) -> b) -> List b
+foldPairs xs f =
+    let
+        transducer : a -> ( Maybe a, List b ) -> ( Maybe a, List b )
+        transducer new priorMaybeAndList =
+            case first priorMaybeAndList of
+                Nothing ->
+                    ( Just new, [] )
+
+                Just prior ->
+                    ( Just new, f ( prior, new ) :: second priorMaybeAndList )
+    in
+    second <| List.foldl transducer ( Nothing, [] ) xs

@@ -55,10 +55,12 @@ from amarcord.web.json_models import JsonAttributoBulkValue
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonCreateOrUpdateRun
 from amarcord.web.json_models import JsonCreateOrUpdateRunOutput
+from amarcord.web.json_models import JsonIndexingStatistic
 from amarcord.web.json_models import JsonReadRuns
 from amarcord.web.json_models import JsonReadRunsBulkInput
 from amarcord.web.json_models import JsonReadRunsBulkOutput
 from amarcord.web.json_models import JsonRun
+from amarcord.web.json_models import JsonRunAnalysisIndexingResult
 from amarcord.web.json_models import JsonStartRunOutput
 from amarcord.web.json_models import JsonStopRunOutput
 from amarcord.web.json_models import JsonUpdateRun
@@ -848,7 +850,34 @@ async def read_runs(
             )
         )
     ).one_or_none()
+    if all_runs:
+        latest_run = all_runs[0]
+        latest_indexing_results = await latest_run.awaitable_attrs.indexing_results
+        if latest_indexing_results:
+            latest_indexing_result_orm = latest_indexing_results[0]
+            latest_statistics_orm = (
+                await latest_indexing_result_orm.awaitable_attrs.statistics
+            )
+            latest_indexing_result = JsonRunAnalysisIndexingResult(
+                run_id=latest_run.id,
+                foms=[],
+                indexing_statistics=[
+                    JsonIndexingStatistic(
+                        time=datetime_to_attributo_int(stat.time),
+                        frames=stat.frames,
+                        hits=stat.hits,
+                        indexed=stat.indexed_frames,
+                        crystals=stat.indexed_crystals,
+                    )
+                    for stat in latest_statistics_orm
+                ],
+            )
+        else:
+            latest_indexing_result = None
+    else:
+        latest_indexing_result = None
     return JsonReadRuns(
+        latest_indexing_result=latest_indexing_result,
         live_stream_file_id=(
             live_stream_file.id if live_stream_file is not None else None
         ),

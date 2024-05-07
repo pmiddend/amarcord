@@ -1290,6 +1290,7 @@ type alias JsonReadRuns =
     , filterDates : List String
     , runs : List JsonRun
     , attributi : List JsonAttributo
+    , latestIndexingResult : Maybe JsonRunAnalysisIndexingResult
     , experimentTypes : List JsonExperimentType
     , dataSets : List JsonDataSet
     , events : List JsonEvent
@@ -3868,6 +3869,7 @@ encodeJsonReadRunsPairs model =
             , encode "filter_dates" (Json.Encode.list Json.Encode.string) model.filterDates
             , encode "runs" (Json.Encode.list encodeJsonRun) model.runs
             , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
+            , maybeEncode "latest_indexing_result" encodeJsonRunAnalysisIndexingResult model.latestIndexingResult
             , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
             , encode "data_sets" (Json.Encode.list encodeJsonDataSet) model.dataSets
             , encode "events" (Json.Encode.list encodeJsonEvent) model.events
@@ -5451,6 +5453,7 @@ jsonReadRunsDecoder =
         |> decode "filter_dates" (Json.Decode.list Json.Decode.string) 
         |> decode "runs" (Json.Decode.list jsonRunDecoder) 
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
+        |> maybeDecode "latest_indexing_result" jsonRunAnalysisIndexingResultDecoder Nothing
         |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
         |> decode "data_sets" (Json.Decode.list jsonDataSetDecoder) 
         |> decode "events" (Json.Decode.list jsonEventDecoder) 

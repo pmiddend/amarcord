@@ -458,6 +458,7 @@ class JsonReadRuns(BaseModel):
     filter_dates: list[str]
     runs: list[JsonRun]
     attributi: list[JsonAttributo]
+    latest_indexing_result: None | JsonRunAnalysisIndexingResult
     experiment_types: list[JsonExperimentType]
     data_sets: list[JsonDataSet]
     events: list[JsonEvent]

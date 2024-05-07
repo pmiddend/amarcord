@@ -6,16 +6,16 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, Attr
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (h1_)
+import Amarcord.Html exposing (h1_, h5_)
+import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
 import Amarcord.Util exposing (HereAndNow)
 import Api exposing (send)
 import Api.Data exposing (JsonAnalysisRun, JsonFileOutput, JsonIndexingFom, JsonIndexingStatistic, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult)
 import Api.Request.Analysis exposing (readRunAnalysisApiRunAnalysisBeamtimeIdGet)
 import Axis
 import Color
-import Html exposing (Html, br, div, h4, input, label, span, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (class, for, id, style, type_)
-import Html.Events exposing (onClick)
+import Html exposing (Html, br, div, h4, span, table, tbody, td, text, th, thead, tr)
+import Html.Attributes exposing (class, style)
 import Http
 import List exposing (head)
 import List.Extra as ListExtra
@@ -27,10 +27,9 @@ import Scale exposing (ContinuousScale)
 import Scale.Color
 import Segment
 import Shape
-import Stat
 import Statistics
 import SubPath
-import Tuple exposing (second)
+import Tuple
 import TypedSvg exposing (g, line, svg, text_)
 import TypedSvg.Attributes exposing (dominantBaseline, fill, stroke, strokeDasharray, textAnchor, transform, viewBox)
 import TypedSvg.Attributes.InPx exposing (fontSize, strokeWidth, x, x1, x2, y, y1, y2)
@@ -39,13 +38,11 @@ import TypedSvg.Types exposing (AnchorAlignment(..), DominantBaseline(..), Paint
 
 type Msg
     = RunAnalysisResultsReceived (Result Http.Error JsonReadRunAnalysis)
-    | BinningPeriodChange (Maybe Int)
 
 
 type alias Model =
     { hereAndNow : HereAndNow
     , analysisRequest : RemoteData Http.Error JsonReadRunAnalysis
-    , binningPeriod : Maybe Int
     , beamtimeId : BeamtimeId
     }
 
@@ -54,7 +51,6 @@ init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
 init hereAndNow beamtimeId =
     ( { hereAndNow = hereAndNow
       , analysisRequest = Loading
-      , binningPeriod = Nothing
       , beamtimeId = beamtimeId
       }
     , send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId)
@@ -247,213 +243,19 @@ hitRateColor =
     Color.red
 
 
-foldNeighbors : (Maybe a -> a -> b) -> List a -> List b
-foldNeighbors f xs =
-    let
-        transducer : a -> ( Maybe a, List b ) -> ( Maybe a, List b )
-        transducer newElement ( priorElement, priorList ) =
-            ( Just newElement, f priorElement newElement :: priorList )
-    in
-    second <| List.foldl transducer ( Nothing, [] ) xs
-
-
-viewRunStatistics : Maybe Int -> JsonIndexingStatistic -> List JsonIndexingStatistic -> Html msg
-viewRunStatistics binningPeriod firstStat originalStats =
-    let
-        convertStat : Maybe JsonIndexingStatistic -> JsonIndexingStatistic -> JsonIndexingStatistic
-        convertStat leftNeighbor element =
-            case leftNeighbor of
-                Nothing ->
-                    element
-
-                Just ln ->
-                    { element
-                        | frames = element.frames - ln.frames
-                        , hits = element.hits - ln.hits
-                        , indexed = element.indexed - ln.indexed
-                        , crystals = element.crystals - ln.crystals
-                    }
-
-        binStats : Int -> List JsonIndexingStatistic -> List JsonIndexingStatistic
-        binStats binSeconds =
-            let
-                transducer :
-                    JsonIndexingStatistic
-                    -> ( List JsonIndexingStatistic, List JsonIndexingStatistic )
-                    -> ( List JsonIndexingStatistic, List JsonIndexingStatistic )
-                transducer newElement ( oldBatch, oldList ) =
-                    case ListExtra.last oldBatch of
-                        Nothing ->
-                            ( [ newElement ], oldList )
-
-                        Just oldestElement ->
-                            if oldestElement.time - newElement.time > binSeconds * 1000 then
-                                let
-                                    compressedBatch =
-                                        { oldestElement
-                                            | frames = List.sum (List.map .frames oldBatch)
-                                            , hits = List.sum (List.map .hits oldBatch)
-                                            , indexed = List.sum (List.map .indexed oldBatch)
-                                            , crystals = List.sum (List.map .crystals oldBatch)
-                                        }
-                                in
-                                ( [ newElement ], compressedBatch :: oldList )
-
-                            else
-                                ( newElement :: oldBatch, oldList )
-            in
-            second << List.foldl transducer ( [], [] )
-
-        stats =
-            case binningPeriod of
-                Just binSeconds ->
-                    binStats binSeconds (foldNeighbors convertStat originalStats)
-
-                Nothing ->
-                    originalStats
-
-        w : Float
-        w =
-            900
-
-        h : Float
-        h =
-            450
-
-        padding : Float
-        padding =
-            60
-
-        statTime : JsonIndexingStatistic -> Int
-        statTime stat =
-            stat.time // 1000
-
-        relativeStatTime : JsonIndexingStatistic -> Int
-        relativeStatTime stat =
-            statTime stat - statTime firstStat
-
-        runTimeScale : ContinuousScale Float
-        runTimeScale =
-            stats
-                |> List.map (toFloat << relativeStatTime)
-                |> Statistics.extent
-                |> Maybe.withDefault ( 1, 2 )
-                |> Scale.linear ( 0.0, w - 2 * padding )
-
-        hitRateAccessor : JsonIndexingStatistic -> Float
-        hitRateAccessor stat =
-            if stat.frames > 0 then
-                toFloat stat.hits / toFloat stat.frames * 100.0
-
-            else
-                0
-
-        avgHitRate : Float
-        avgHitRate =
-            Maybe.withDefault 0.0 <| Stat.mean hitRateAccessor stats
-
-        hitRateScale : ContinuousScale Float
-        hitRateScale =
-            let
-                hitRates =
-                    avgHitRate :: List.map hitRateAccessor stats
-            in
-            hitRates
-                |> Statistics.extent
-                |> Maybe.map (\( _, maxHr ) -> ( 0, maxHr ))
-                |> Maybe.withDefault ( 0, 0 )
-                |> Scale.linear ( h - 2 * padding, 0 )
-
-        indexingRateAccessor : JsonIndexingStatistic -> Float
-        indexingRateAccessor stat =
-            if stat.hits > 0 then
-                toFloat stat.indexed / toFloat stat.hits * 100.0
-
-            else
-                0
-
-        avgIndexingRate : Float
-        avgIndexingRate =
-            Maybe.withDefault 0.0 <| Stat.mean indexingRateAccessor stats
-
-        indexingRateScale : ContinuousScale Float
-        indexingRateScale =
-            stats
-                |> List.map indexingRateAccessor
-                |> Statistics.extent
-                |> Maybe.withDefault ( 0, 0 )
-                |> Scale.linear ( h - 2 * padding, 0 )
-                |> Scale.nice 4
-
-        line : ContinuousScale Float -> (JsonIndexingStatistic -> Float) -> Path
-        line scale accessor =
-            List.map
-                (\stat ->
-                    Just
-                        ( Scale.convert runTimeScale (toFloat (relativeStatTime stat))
-                        , Scale.convert scale (accessor stat)
-                        )
-                )
-                stats
-                |> Shape.line Shape.linearCurve
-
-        rightSide =
-            padding + second (Scale.range runTimeScale) - 1.0
-    in
-    svg [ viewBox 0 0 w h ]
-        [ g [ transform [ Translate (padding - 1) (h - padding) ] ]
-            [ Axis.bottom [ Axis.tickCount 10 ] runTimeScale ]
-        , g [ transform [ Translate (padding - 1) padding ] ]
-            [ Axis.left [] hitRateScale
-            ]
-        , g [ transform [ Translate rightSide padding ] ]
-            [ Axis.right [] indexingRateScale
-            ]
-        , g [ transform [ Translate padding padding ] ]
-            [ Path.element (line hitRateScale hitRateAccessor)
-                [ stroke <| Paint <| hitRateColor
-                , strokeWidth 3
-                , fill PaintNone
-                ]
-            , Path.element (line indexingRateScale indexingRateAccessor)
-                [ stroke <| Paint <| indexingRateColor
-                , strokeWidth 3
-                , fill PaintNone
-                ]
-            ]
-        , g [ transform [ Translate 0 padding ] ]
-            [ SubPath.element
-                (SubPath.fromSegments
-                    [ Segment.line ( padding, Scale.convert hitRateScale avgHitRate ) ( rightSide, Scale.convert hitRateScale avgHitRate ) ]
-                )
-                [ stroke <| Paint <| hitRateColor
-                , strokeDasharray "5,5"
-                , strokeWidth 2
-                , fill PaintNone
-                ]
-            , SubPath.element
-                (SubPath.fromSegments
-                    [ Segment.line ( padding, Scale.convert indexingRateScale avgIndexingRate ) ( rightSide, Scale.convert indexingRateScale avgIndexingRate )
-                    ]
-                )
-                [ stroke <| Paint <| indexingRateColor
-                , strokeDasharray "10,10"
-                , strokeWidth 2
-                , fill PaintNone
-                ]
-            ]
-        ]
+viewRunStatistics : List JsonIndexingStatistic -> Html msg
+viewRunStatistics originalStats =
+    viewHitRateAndIndexingGraphs originalStats
 
 
 viewRunTableRow :
     HereAndNow
-    -> Maybe Int
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
     -> List JsonAnalysisRun
     -> JsonRunAnalysisIndexingResult
     -> Html msg
-viewRunTableRow hereAndNow binningPeriod attributi chemicals runs rar =
+viewRunTableRow hereAndNow attributi chemicals runs rar =
     let
         foundRun : Maybe JsonAnalysisRun
         foundRun =
@@ -464,55 +266,35 @@ viewRunTableRow hereAndNow binningPeriod attributi chemicals runs rar =
     in
     tr []
         [ td []
-            [ text (String.fromInt rar.runId)
+            [ h5_ [ text <| "Run " ++ String.fromInt rar.runId ]
             , br [] []
             , Maybe.withDefault (text "") <| Maybe.map viewRun foundRun
             ]
         , td []
-            [ case List.head rar.indexingStatistics of
-                Nothing ->
-                    text ""
-
-                Just first ->
-                    viewRunStatistics binningPeriod first rar.indexingStatistics
+            [ viewRunStatistics rar.indexingStatistics
             ]
         ]
 
 
 viewRunGraphs :
     HereAndNow
-    -> Maybe Int
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
     -> List JsonAnalysisRun
     -> List JsonRunAnalysisIndexingResult
     -> Html msg
-viewRunGraphs hereAndNow binningPeriod attributi chemicals runs rars =
+viewRunGraphs hereAndNow attributi chemicals runs rars =
     table [ class "table table-striped" ]
-        [ thead [] [ tr [] [ th [] [ text "Run ID" ], th [ style "width" "100%" ] [ text "Statistics" ] ] ]
-        , tbody [] (List.map (viewRunTableRow hereAndNow binningPeriod attributi chemicals runs) rars)
+        [ thead [] [ tr [] [ th [] [ text "Run Information" ], th [ style "width" "100%" ] [ text "Statistics" ] ] ]
+        , tbody [] (List.map (viewRunTableRow hereAndNow attributi chemicals runs) rars)
         ]
 
 
-viewInner : HereAndNow -> Maybe Int -> JsonReadRunAnalysis -> List (Html Msg)
-viewInner hereAndNow binningPeriod { runs, attributi, chemicals, indexingResultsByRunId } =
+viewInner : HereAndNow -> JsonReadRunAnalysis -> List (Html Msg)
+viewInner hereAndNow { runs, attributi, chemicals, indexingResultsByRunId } =
     [ h1_ [ text "Detector Shifts" ]
     , viewDetectorShifts indexingResultsByRunId
     , h1_ [ text "Online Indexing Statistics" ]
-    , div [ class "form-check mb-3" ]
-        [ input
-            [ class "form-check-input"
-            , type_ "checkbox"
-            , id "use-binning"
-            , onClick
-                (BinningPeriodChange <|
-                    MaybeExtra.unwrap (Just 20) (always Nothing) binningPeriod
-                )
-            ]
-            []
-        , label [ class "form-check-label", for "use-binning" ] [ text "Use binning" ]
-        , div [ class "form-text" ] [ text "This will show a binned (windowed) version of the indexing and hit rate graphs." ]
-        ]
     , div [ class "hstack gap-1" ]
         [ span [] [ span [ style "color" (Color.toCssString indexingRateColor) ] [ text "■" ], text " Indexing rate" ]
         , div [ class "vr" ] []
@@ -520,7 +302,6 @@ viewInner hereAndNow binningPeriod { runs, attributi, chemicals, indexingResults
         ]
     , viewRunGraphs
         hereAndNow
-        binningPeriod
         (List.map convertAttributoFromApi attributi)
         (List.map convertChemicalFromApi chemicals)
         runs
@@ -542,7 +323,7 @@ view model =
                 List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showHttpError e ]
 
             Success r ->
-                viewInner model.hereAndNow model.binningPeriod r
+                viewInner model.hereAndNow r
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -550,6 +331,3 @@ update msg model =
     case msg of
         RunAnalysisResultsReceived analysisResults ->
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
-
-        BinningPeriodChange newBinningPeriod ->
-            ( { model | binningPeriod = newBinningPeriod }, Cmd.none )
