@@ -913,10 +913,13 @@ modalBodyShells fom shells refinementResults =
         viewRefinementResult { id, pdbFileId, mtzFileId, rFree, rWork, rmsBondAngle, rmsBondLength } =
             div_
                 [ uglymol pdbFileId mtzFileId ("refinement-" ++ String.fromInt id)
-                , div [ class "d-flex" ]
-                    [ span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId) ] [ text "PDB" ] ]
+                , div [ class "hstack gap-3 mt-2" ]
+                    [ span_ [ text "Refinement files:" ]
+                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId) ] [ text "PDB" ] ]
+                    , div [ class "vr" ] []
                     , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink mtzFileId) ] [ text "MTZ" ] ]
                     ]
+                , p [ class "text-muted" ] [ text "Note: this MTZ file is different from the one in the overview. It was created during refinement, not by CrystFEL." ]
                 , div_
                     [ table [ class "table table-sm" ]
                         [ thead_
