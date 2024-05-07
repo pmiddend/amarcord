@@ -430,6 +430,7 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
                             { shortDateTime = False
                             , colorize = False
                             , withUnit = True
+                            , withTolerance = False
                             }
                             zone
                             Dict.empty

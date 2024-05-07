@@ -256,6 +256,7 @@ viewDataSet model =
                                 (chemicalIdDict (List.map convertChemicalFromApi chemicals))
                                 (convertAttributoMapFromApi ds.attributi)
                                 False
+                                False
                                 Nothing
                             ]
                         , td_ [ button [ class "btn btn-sm btn-danger", onClick (DataSetDeleteSubmit ds.id) ] [ icon { name = "trash" } ] ]

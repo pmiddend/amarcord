@@ -593,7 +593,15 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                         []
                     )
                     [ td_ [ text (String.fromInt dataSet.id) ]
-                    , td_ [ viewDataSetTable attributi hereAndNow.zone chemicalIdsToName (convertAttributoMapFromApi dataSet.attributi) False Nothing ]
+                    , td_
+                        [ viewDataSetTable attributi
+                            hereAndNow.zone
+                            chemicalIdsToName
+                            (convertAttributoMapFromApi dataSet.attributi)
+                            False
+                            False
+                            Nothing
+                        ]
                     , td_ (List.intersperse br_ <| List.map text experimentTypeResults.runs)
                     , td_
                         [ text <|

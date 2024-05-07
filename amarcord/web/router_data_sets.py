@@ -196,7 +196,8 @@ async def read_data_sets(
             encode_attributo(a)
             for a in await session.scalars(
                 select(orm.Attributo).where(
-                    orm.Attributo.associated_table == AssociatedTable.CHEMICAL
+                    (orm.Attributo.associated_table == AssociatedTable.RUN)
+                    & (orm.Attributo.beamtime_id == beamtimeId)
                 )
             )
         ],

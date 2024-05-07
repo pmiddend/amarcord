@@ -254,6 +254,7 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
                             { shortDateTime = True
                             , colorize = True
                             , withUnit = False
+                            , withTolerance = False
                             }
                             zone
                             chemicalIds
@@ -489,6 +490,7 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
                         zone
                         (chemicalIdDict (List.map convertChemicalFromApi rrc.chemicals))
                         (convertAttributoMapFromApi ds.attributi)
+                        True
                         True
                         Nothing
                     ]

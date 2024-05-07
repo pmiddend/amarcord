@@ -51,6 +51,7 @@ type alias ViewAttributoValueProperties =
     { shortDateTime : Bool
     , colorize : Bool
     , withUnit : Bool
+    , withTolerance : Bool
     }
 
 
@@ -166,15 +167,39 @@ viewAttributoValue props zone chemicalIds type_ value =
                     text "unsupported list type"
 
         ValueNumber float ->
-            possiblyAddSuffix props
-                (text (formatFloatHumanFriendly float))
-                (case type_ of
-                    Number { suffix } ->
-                        suffix
+            span_
+                [ possiblyAddSuffix props
+                    (text (formatFloatHumanFriendly float))
+                    (case type_ of
+                        Number { suffix } ->
+                            suffix
+
+                        _ ->
+                            Nothing
+                    )
+                , case type_ of
+                    Number { tolerance, toleranceIsAbsolute } ->
+                        case tolerance of
+                            Nothing ->
+                                text ""
+
+                            Just toleranceReal ->
+                                em []
+                                    [ text <|
+                                        " (±"
+                                            ++ formatFloatHumanFriendly toleranceReal
+                                            ++ (if toleranceIsAbsolute then
+                                                    ""
+
+                                                else
+                                                    "%"
+                                               )
+                                            ++ ")"
+                                    ]
 
                     _ ->
-                        Nothing
-                )
+                        text ""
+                ]
 
 
 formatIntHumanFriendly : Int -> String

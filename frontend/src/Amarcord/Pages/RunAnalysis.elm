@@ -262,7 +262,7 @@ viewRunTableRow hereAndNow attributi chemicals runs rar =
             ListExtra.find (\r -> r.id == rar.runId) runs
 
         viewRun r =
-            viewDataSetTable attributi hereAndNow.zone (chemicalIdDict chemicals) (convertAttributoMapFromApi r.attributi) False Nothing
+            viewDataSetTable attributi hereAndNow.zone (chemicalIdDict chemicals) (convertAttributoMapFromApi r.attributi) False False Nothing
     in
     tr []
         [ td []
