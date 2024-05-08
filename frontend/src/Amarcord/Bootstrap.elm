@@ -1,9 +1,9 @@
-module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewCloseHelpButton, viewHelpButton, viewRemoteData, viewRemoteDataHttp)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewCloseHelpButton, viewHelpButton, viewMarkdownSupportText, viewRemoteData, viewRemoteDataHttp)
 
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Html exposing (div_, h4_, p_)
-import Html exposing (Html, button, div, i, span, sup, text)
-import Html.Attributes exposing (attribute, class, classList)
+import Html exposing (Html, a, button, div, i, span, sup, text)
+import Html.Attributes exposing (attribute, class, classList, href)
 import Http
 import List
 import RemoteData exposing (RemoteData(..))
@@ -143,3 +143,8 @@ viewCloseHelpButton target =
             ]
             [ icon { name = "arrows-collapse" }, text " Close help" ]
         ]
+
+
+viewMarkdownSupportText : Html msg
+viewMarkdownSupportText =
+    div [ class "form-text" ] [ a [ href "https://github.github.com/gfm/" ] [ text "Markdown" ], text " is supported" ]

@@ -177,28 +177,32 @@ viewAttributoValue props zone chemicalIds type_ value =
                         _ ->
                             Nothing
                     )
-                , case type_ of
-                    Number { tolerance, toleranceIsAbsolute } ->
-                        case tolerance of
-                            Nothing ->
-                                text ""
+                , if props.withTolerance then
+                    case type_ of
+                        Number { tolerance, toleranceIsAbsolute } ->
+                            case tolerance of
+                                Nothing ->
+                                    text ""
 
-                            Just toleranceReal ->
-                                em []
-                                    [ text <|
-                                        " (±"
-                                            ++ formatFloatHumanFriendly toleranceReal
-                                            ++ (if toleranceIsAbsolute then
-                                                    ""
+                                Just toleranceReal ->
+                                    em []
+                                        [ text <|
+                                            " (±"
+                                                ++ formatFloatHumanFriendly toleranceReal
+                                                ++ (if toleranceIsAbsolute then
+                                                        ""
 
-                                                else
-                                                    "%"
-                                               )
-                                            ++ ")"
-                                    ]
+                                                    else
+                                                        "%"
+                                                   )
+                                                ++ ")"
+                                        ]
 
-                    _ ->
-                        text ""
+                        _ ->
+                            text ""
+
+                  else
+                    text ""
                 ]
 
 

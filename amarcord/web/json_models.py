@@ -464,6 +464,7 @@ class JsonReadRuns(BaseModel):
     events: list[JsonEvent]
     chemicals: list[JsonChemical]
     user_config: JsonUserConfig
+    current_beamtime_user: None | str
 
 
 class JsonCreateFileOutput(BaseModel):

@@ -1,4 +1,5 @@
 import datetime
+import re
 from dataclasses import dataclass
 from typing import Any
 from typing import Iterable
@@ -79,6 +80,7 @@ from amarcord.web.router_user_configuration import encode_user_configuration
 
 logger = structlog.stdlib.get_logger(__name__)
 router = APIRouter()
+_SHIFT_RE = re.compile(r"(\d{2}):(\d{2})-(\d{2}):(\d{2})")
 
 
 def extract_runs_and_event_dates(
@@ -705,6 +707,33 @@ async def update_runs_bulk(
         return JsonUpdateRunsBulkOutput(result=True)
 
 
+async def _find_schedule_entry(
+    session: AsyncSession, beamtime_id: BeamtimeId
+) -> None | orm.BeamtimeSchedule:
+    now = datetime.datetime.now()
+    minutes_since_midnight_now = now.hour * 60 + now.minute
+    for schedule_entry in await session.scalars(
+        select(orm.BeamtimeSchedule).where(
+            (orm.BeamtimeSchedule.beamtime_id == beamtime_id)
+        )
+    ):
+        entry_match = _SHIFT_RE.search(schedule_entry.shift)
+        if entry_match is not None:
+            minutes_since_midnight_from = int(entry_match.group(1)) * 60 + int(
+                entry_match.group(2)
+            )
+            minutes_since_midnight_to = int(entry_match.group(3)) * 60 + int(
+                entry_match.group(4)
+            )
+            if (
+                minutes_since_midnight_from
+                <= minutes_since_midnight_now
+                <= minutes_since_midnight_to
+            ):
+                return schedule_entry
+    return None
+
+
 @router.get(
     "/api/runs/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True
 )
@@ -876,7 +905,11 @@ async def read_runs(
             latest_indexing_result = None
     else:
         latest_indexing_result = None
+    found_schedule_entry = await _find_schedule_entry(session, beamtimeId)
     return JsonReadRuns(
+        current_beamtime_user=(
+            None if found_schedule_entry is None else found_schedule_entry.users
+        ),
         latest_indexing_result=latest_indexing_result,
         live_stream_file_id=(
             live_stream_file.id if live_stream_file is not None else None

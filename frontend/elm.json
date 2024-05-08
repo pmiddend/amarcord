@@ -34,7 +34,6 @@
             "gampleman/elm-visualization": "2.3.0",
             "justinmimbs/date": "4.0.1",
             "justinmimbs/time-extra": "1.1.1",
-            "kmbn/elm-hotkeys": "1.1.1",
             "krisajenkins/remotedata": "6.0.1",
             "terezka/elm-charts": "4.0.0"
         },

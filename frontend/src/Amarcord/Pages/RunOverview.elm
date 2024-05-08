@@ -1,7 +1,7 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId, experimentTypeIdDict)
-import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter(..), RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
+import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter, RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
@@ -12,7 +12,7 @@ import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm
-import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeFilesLink, makeLink)
@@ -30,7 +30,6 @@ import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tr, ul)
 import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Html.Events.Extra exposing (onEnter)
 import Http
 import List exposing (head)
 import List.Extra as ListExtra exposing (find)
@@ -39,7 +38,6 @@ import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import String
 import Time exposing (Posix, Zone, millisToPosix, posixToMillis)
-import Tuple exposing (first, second)
 
 
 type Msg
@@ -54,7 +52,6 @@ type Msg
     | RunEditFinished (Result Http.Error JsonUpdateRunOutput)
     | RunInitiateEdit JsonRun
     | RunEditCancel
-    | RunFilterSubMsg RunFilterMsg
     | Nop
     | SelectedExperimentTypeChanged String
     | ChangeCurrentExperimentType
@@ -97,13 +94,6 @@ type alias RunDateFilterInfo =
     { runDateFilter : RunEventDateFilter }
 
 
-type RunFilterMsg
-    = RunFilterEdit String
-    | RunFilterReset
-    | RunFilterSubmit
-    | RunFilterSubmitFinished (Result Http.Error JsonReadRuns)
-
-
 initRunFilter : RunFilterInfo
 initRunFilter =
     { runFilter = emptyRunFilter
@@ -118,68 +108,40 @@ initRunDateFilter =
     }
 
 
-viewRunFilter : RunFilterInfo -> Html RunFilterMsg
-viewRunFilter model =
-    form_
-        [ h5_ [ text "Run filter" ]
-        , div [ class "input-group mb-3" ]
-            [ input_
-                [ type_ "text"
-                , class "form-control"
-                , value model.nextRunFilter
-                , onInput RunFilterEdit
-                , disabled (isLoading model.runFilterRequest)
-                , onEnter RunFilterSubmit
-                ]
-            , button
-                [ class "btn btn-outline-secondary"
-                , onClick RunFilterReset
-                , type_ "button"
-                ]
-                [ text "Reset" ]
-            , button
-                [ class "btn btn-secondary"
-                , disabled (isLoading model.runFilterRequest)
-                , type_ "button"
-                , onClick RunFilterSubmit
-                ]
-                [ icon { name = "save" }, text " Update" ]
-            ]
-        , case model.runFilterRequest of
-            Failure e ->
-                div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ] ]
 
-            _ ->
-                text ""
-        ]
-
-
-updateRunFilter : BeamtimeId -> RunFilterInfo -> RunFilterMsg -> ( RunFilterInfo, Cmd RunFilterMsg )
-updateRunFilter beamtimeId model msg =
-    case msg of
-        RunFilterEdit newRunFilter ->
-            ( { model | nextRunFilter = newRunFilter }, Cmd.none )
-
-        RunFilterReset ->
-            ( { model | nextRunFilter = runFilterToString model.runFilter, runFilterRequest = NotAsked }, Cmd.none )
-
-        RunFilterSubmit ->
-            ( { model | runFilterRequest = Loading }
-            , send RunFilterSubmitFinished
-                (readRunsApiRunsBeamtimeIdGet
-                    beamtimeId
-                    (Maybe.map runEventDateToString <| runEventDateFilter <| emptyRunEventDateFilter)
-                    (Just model.nextRunFilter)
-                )
-            )
-
-        RunFilterSubmitFinished response ->
-            case response of
-                Err e ->
-                    ( { model | runFilterRequest = Failure e }, Cmd.none )
-
-                Ok v ->
-                    ( { model | runFilter = RunFilter model.nextRunFilter, runFilterRequest = Success v }, Cmd.none )
+-- viewRunFilter : RunFilterInfo -> Html RunFilterMsg
+-- viewRunFilter model =
+--     form_
+--         [ h5_ [ text "Run filter" ]
+--         , div [ class "input-group mb-3" ]
+--             [ input_
+--                 [ type_ "text"
+--                 , class "form-control"
+--                 , value model.nextRunFilter
+--                 , onInput RunFilterEdit
+--                 , disabled (isLoading model.runFilterRequest)
+--                 , onEnter RunFilterSubmit
+--                 ]
+--             , button
+--                 [ class "btn btn-outline-secondary"
+--                 , onClick RunFilterReset
+--                 , type_ "button"
+--                 ]
+--                 [ text "Reset" ]
+--             , button
+--                 [ class "btn btn-secondary"
+--                 , disabled (isLoading model.runFilterRequest)
+--                 , type_ "button"
+--                 , onClick RunFilterSubmit
+--                 ]
+--                 [ icon { name = "save" }, text " Update" ]
+--             ]
+--         , case model.runFilterRequest of
+--             Failure e ->
+--                 div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ] ]
+--             _ ->
+--                 text ""
+--         ]
 
 
 type alias Model =
@@ -209,7 +171,7 @@ init { zone, now } localStorage beamtimeId =
     ( { runs = Loading
       , myTimeZone = zone
       , refreshRequest = NotAsked
-      , eventForm = EventForm.init beamtimeId
+      , eventForm = EventForm.init beamtimeId "User"
       , now = now
       , runDates = []
       , runDateFilter = initRunDateFilter
@@ -818,66 +780,64 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
 
 viewInner : Model -> JsonReadRuns -> List (Html Msg)
 viewInner model rrc =
-    List.concat
-        [ [ div [ class "container" ]
-                [ div
-                    [ class "row" ]
-                    [ div [ class "col-lg-6" ]
-                        (viewCurrentRun
-                            model.myTimeZone
-                            model.beamtimeId
-                            model.now
-                            model.selectedExperimentType
-                            model.currentExperimentType
-                            model.changeExperimentTypeRequest
-                            model.dataSetFromRunRequest
-                            rrc
-                        )
-                    , div [ class "col-lg-6" ]
-                        (viewRunAttributiForm
-                            (model.currentExperimentType
-                                |> Maybe.andThen (\a -> ListExtra.find (\et -> et.id == a.id) rrc.experimentTypes)
-                                |> Maybe.map .attributi
-                            )
-                            (head rrc.runs)
-                            model.submitErrors
-                            model.runEditRequest
-                            (List.map convertChemicalFromApi rrc.chemicals)
-                            model.runEditInfo
-                            rrc.experimentTypes
-                        )
-                    ]
-                ]
-          , hr_
-          , Html.map EventFormMsg (EventForm.view model.eventForm)
-          , hr_
-          , case rrc.liveStreamFileId of
-                Nothing ->
-                    Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
+    [ div [ class "container" ]
+        [ div
+            [ class "row" ]
+            [ div [ class "col-lg-6" ]
+                (viewCurrentRun
+                    model.myTimeZone
+                    model.beamtimeId
+                    model.now
+                    model.selectedExperimentType
+                    model.currentExperimentType
+                    model.changeExperimentTypeRequest
+                    model.dataSetFromRunRequest
+                    rrc
+                )
+            , div [ class "col-lg-6" ]
+                (viewRunAttributiForm
+                    (model.currentExperimentType
+                        |> Maybe.andThen (\a -> ListExtra.find (\et -> et.id == a.id) rrc.experimentTypes)
+                        |> Maybe.map .attributi
+                    )
+                    (head rrc.runs)
+                    model.submitErrors
+                    model.runEditRequest
+                    (List.map convertChemicalFromApi rrc.chemicals)
+                    model.runEditInfo
+                    rrc.experimentTypes
+                )
+            ]
+        ]
+    , hr_
+    , case rrc.liveStreamFileId of
+        Nothing ->
+            Html.map EventFormMsg (EventForm.view model.eventForm)
 
-                Just jetStreamId ->
-                    div [ class "row" ]
-                        [ div [ class "col-lg-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
-                        , div [ class "col-lg-6 text-center" ]
-                            [ figure [ class "figure" ]
-                                [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
-                                , figcaption [ class "figure-caption" ]
-                                    [ text "Live stream image"
-                                    ]
-                                ]
+        Just jetStreamId ->
+            div [ class "row" ]
+                [ div [ class "col-lg-6" ] [ Html.map EventFormMsg (EventForm.view model.eventForm) ]
+                , div [ class "col-lg-6 text-center" ]
+                    [ figure [ class "figure" ]
+                        [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
+                        , figcaption [ class "figure-caption" ]
+                            [ text "Live stream image"
                             ]
                         ]
-          , hr_
-          , Html.map RunFilterSubMsg <| viewRunFilter model.runFilter
-          ]
-        , runDatesGroup model
-        , [ hr_
-          , div [ class "row" ]
-                [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ]
-                , viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc
+                    ]
                 ]
-          ]
+    , hr_
+
+    -- , Html.map RunFilterSubMsg <| viewRunFilter model.runFilter
+    , div [ class "row" ]
+        [ div [ class "col-6" ] (runDatesGroup model)
+        , div [ class "col-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
         ]
+    , div [ class "row" ]
+        [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ]
+        , viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc
+        ]
+    ]
 
 
 runDatesGroup : Model -> List (Html Msg)
@@ -1118,8 +1078,16 @@ update msg model =
                         Ok { liveStreamFileId } ->
                             MaybeExtra.isJust liveStreamFileId
 
+                shiftUser =
+                    case response of
+                        Ok { currentBeamtimeUser } ->
+                            currentBeamtimeUser
+
+                        _ ->
+                            Nothing
+
                 newEventForm =
-                    EventForm.updateLiveStream model.eventForm hasLiveStream
+                    EventForm.updateLiveStreamAndShiftUser model.eventForm hasLiveStream shiftUser
 
                 newCurrentExperimentType : Maybe JsonExperimentType
                 newCurrentExperimentType =
@@ -1437,21 +1405,3 @@ update msg model =
                       }
                     , retrieveRuns model
                     )
-
-        RunFilterSubMsg runFilterMsg ->
-            let
-                ( newRunFilter, cmds ) =
-                    updateRunFilter model.beamtimeId model.runFilter runFilterMsg
-
-                newModel =
-                    { model | runFilter = newRunFilter }
-
-                afterRunsResponse =
-                    case runFilterMsg of
-                        RunFilterSubmitFinished (Ok response) ->
-                            update (RunsReceived (Ok response)) newModel
-
-                        _ ->
-                            ( newModel, Cmd.none )
-            in
-            ( first afterRunsResponse, Cmd.batch [ second afterRunsResponse, Cmd.map RunFilterSubMsg cmds ] )

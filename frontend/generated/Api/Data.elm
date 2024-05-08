@@ -1296,6 +1296,7 @@ type alias JsonReadRuns =
     , events : List JsonEvent
     , chemicals : List JsonChemical
     , userConfig : JsonUserConfig
+    , currentBeamtimeUser : Maybe String
     }
 
 
@@ -3875,6 +3876,7 @@ encodeJsonReadRunsPairs model =
             , encode "events" (Json.Encode.list encodeJsonEvent) model.events
             , encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
             , encode "user_config" encodeJsonUserConfig model.userConfig
+            , maybeEncode "current_beamtime_user" Json.Encode.string model.currentBeamtimeUser
             ]
     in
     pairs
@@ -5459,6 +5461,7 @@ jsonReadRunsDecoder =
         |> decode "events" (Json.Decode.list jsonEventDecoder) 
         |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
         |> decode "user_config" jsonUserConfigDecoder 
+        |> maybeDecode "current_beamtime_user" Json.Decode.string Nothing
 
 
 jsonReadRunsBulkInputDecoder : Json.Decode.Decoder JsonReadRunsBulkInput
