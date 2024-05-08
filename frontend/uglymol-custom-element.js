@@ -101,6 +101,10 @@ customElements.define('uglymol-viewer',
             this.setContent();
         }
 
+	disconnectedCallback() {
+	    
+	}
+
         setContent() {
             if (this.getAttribute('idprefix') === null) {
                 return;

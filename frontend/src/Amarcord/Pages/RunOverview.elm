@@ -6,16 +6,16 @@ import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewHelpButton, viewRemoteDataHttp)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewCloseHelpButton, viewHelpButton, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (Chemical, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm
-import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_)
+import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
-import Amarcord.Route exposing (makeFilesLink)
+import Amarcord.Route exposing (Route(..), makeFilesLink, makeLink)
 import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
 import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
 import Api exposing (send)
@@ -364,12 +364,13 @@ viewRunsTable zone chosenColumns { runs, events, chemicals, experimentTypes } =
 
 dataSetInformation :
     Zone
+    -> BeamtimeId
     -> JsonRun
     -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
     -> Maybe JsonExperimentType
     -> JsonReadRuns
     -> List (Html Msg)
-dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc =
+dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTypeMaybe rrc =
     case currentExperimentTypeMaybe of
         Nothing ->
             [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
@@ -480,12 +481,69 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
                             , div [ id "help-indexing-target", class "collapse text-bg-light p-2" ]
                                 [ p_ [ text "In general, you cannot collect too many indexed frames to build the electron density. Moreover, it’s hard to say when you have “enough” of these frames to even start merging the data." ]
                                 , p_ [ text "We’ve consulted with our crystallography experts on that, and came up with “shoot for 10k indexed frames”. This progress bar illustrates how far you are with that, and how long it will take to reach it, so you can decide if it’s feasible, or if you want to change parameters to increase indexing rate some more." ]
+                                , viewCloseHelpButton "help-indexing-target"
                                 ]
                             ]
                     in
                     [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
                     , div [ class "mb-3" ] indexingProgress
-                    , h3_ [ text "Data set" ]
+                    , h3_ [ text "Data set", viewHelpButton "help-data-set" ]
+                    , div [ id "help-data-set", class "collapse text-bg-light p-2" ]
+                        [ p_
+                            [ em [] [ text "Data sets" ]
+                            , text " are a way to group runs according to common attributi. Each run has an associated "
+                            , em [] [ text "Experiment Type" ]
+                            , text ", which, in turn, consists of a set of attributi."
+                            ]
+                        , p_ [ text "For example, to group runs by the sample that was used and the detector distance, create an experiment type (say “SSD” for “Simple Structure Determination”) containing these two attributi, and acquire some runs:" ]
+                        , h5_ [ text "Experiment Types" ]
+                        , table [ class "table table-sm table-striped" ]
+                            [ thead_
+                                [ tr_
+                                    [ th_ [ text "ID" ]
+                                    , th_ [ text "Name" ]
+                                    , th_ [ text "Attributi" ]
+                                    ]
+                                ]
+                            , tbody_
+                                [ tr_ [ td_ [ text "1" ], td_ [ text "SSD" ], td_ [ text "Sample, Detector Distance" ] ]
+                                ]
+                            ]
+                        , h5_ [ text "Runs" ]
+                        , table [ class "table table-sm table-striped" ]
+                            [ thead_
+                                [ tr_
+                                    [ th_ [ text "Run ID" ]
+                                    , th_ [ text "Sample" ]
+                                    , th_ [ text "Detector Distance" ]
+                                    , th_ [ text "Exp. Type" ]
+                                    ]
+                                ]
+                            , tbody_
+                                [ tr_ [ td_ [ text "1" ], td_ [ text "Lysozyme" ], td_ [ text "200mm" ], td_ [ text "SSD" ] ]
+                                , tr_ [ td_ [ text "2" ], td_ [ text "Lysozyme" ], td_ [ text "200mm" ], td_ [ text "SSD" ] ]
+                                , tr_ [ td_ [ text "3" ], td_ [ text "Lactamase" ], td_ [ text "100mm" ], td_ [ text "SSD" ] ]
+                                , tr_ [ td_ [ text "4" ], td_ [ text "Lactamase" ], td_ [ text "200mm" ], td_ [ text "SSD" ] ]
+                                ]
+                            ]
+                        , p_ [ text "Note that we just have ", em [] [ text "runs" ], text " and one ", em [] [ text "Experiment Type" ], text " for now. We don't have data sets yet. These have to be created manually, either before the experiment (if you know what you’re going to measure), or during." ]
+                        , p_ [ text "To group runs and merge them, we create a data set, which is just an assignment of attributi to values. So, for example, we could create a data set for the “SSD” experiment type which sets “Detector Distance” to “200mm” and “Sample” to “Lysozyme”." ]
+                        , h5_ [ text "Data Sets" ]
+                        , table [ class "table table-sm table-striped" ]
+                            [ thead_
+                                [ tr_
+                                    [ th_ [ text "ID" ]
+                                    , th_ [ text "Attributi" ]
+                                    ]
+                                ]
+                            , tbody_
+                                [ tr_ [ td_ [ text "1" ], td_ [ em [] [ text "Sample" ], text ": Lysozyme, ", em [] [ text "Detector Distance" ], text ": 200mm" ] ]
+                                ]
+                            ]
+                        , p_ [ text "From here on out, all runs with these attributi values are part of data set 1. In the analysis view, you can now easily merge all of these runs." ]
+                        , p_ [ text "As described earlier, there are two ways to create data sets: either manually, on the ", a [ href (makeLink (DataSets beamtimeId)) ] [ icon { name = "arrow-right" }, text " Data Sets" ], text " page. But you can also create a Data Set from the current run, by clicking the button for that (it appears for runs which do not have a Data Set matching yet). This will take the run’s attributi and use them for the whole data set." ]
+                        , viewCloseHelpButton "help-data-set"
+                        ]
                     , viewDataSetTable (List.map convertAttributoFromApi rrc.attributi)
                         zone
                         (chemicalIdDict (List.map convertChemicalFromApi rrc.chemicals))
@@ -507,6 +565,7 @@ posixDiffHumanFriendlyLongDurationsExact zone relative now =
 
 viewCurrentRun :
     Zone
+    -> BeamtimeId
     -> Posix
     -> Maybe JsonExperimentType
     -> Maybe JsonExperimentType
@@ -514,7 +573,7 @@ viewCurrentRun :
     -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
     -> JsonReadRuns
     -> List (Html Msg)
-viewCurrentRun zone now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
+viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
     case head rrc.runs of
         Nothing ->
@@ -615,7 +674,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                         ]
                     ]
             in
-            header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation zone run dataSetFromRunRequest currentExperimentType rrc
+            header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentType rrc
 
 
 viewRunAttributiForm :
@@ -766,6 +825,7 @@ viewInner model rrc =
                     [ div [ class "col-lg-6" ]
                         (viewCurrentRun
                             model.myTimeZone
+                            model.beamtimeId
                             model.now
                             model.selectedExperimentType
                             model.currentExperimentType

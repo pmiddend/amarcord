@@ -1,4 +1,4 @@
-module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewHelpButton, viewRemoteData, viewRemoteDataHttp)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewCloseHelpButton, viewHelpButton, viewRemoteData, viewRemoteDataHttp)
 
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Html exposing (div_, h4_, p_)
@@ -128,4 +128,18 @@ viewHelpButton target =
             , attribute "href" ("#" ++ target)
             ]
             [ icon { name = "patch-question-fill" } ]
+        ]
+
+
+viewCloseHelpButton : String -> Html msg
+viewCloseHelpButton target =
+    div
+        [ class "d-flex flex-row-reverse"
+        ]
+        [ button
+            [ class "btn btn-link"
+            , attribute "data-bs-toggle" "collapse"
+            , attribute "href" ("#" ++ target)
+            ]
+            [ icon { name = "arrows-collapse" }, text " Close help" ]
         ]
