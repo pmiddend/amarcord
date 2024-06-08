@@ -715,6 +715,7 @@ async def _find_schedule_entry(
     for schedule_entry in await session.scalars(
         select(orm.BeamtimeSchedule).where(
             (orm.BeamtimeSchedule.beamtime_id == beamtime_id)
+            & (orm.BeamtimeSchedule.date == now.strftime("%Y-%m-%d"))
         )
     ):
         entry_match = _SHIFT_RE.search(schedule_entry.shift)
