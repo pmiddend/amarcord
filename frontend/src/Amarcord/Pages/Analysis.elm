@@ -663,13 +663,16 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                 Nothing ->
                                     text ""
 
-                                Just { request } ->
-                                    case request of
-                                        Failure e ->
-                                            div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                                Just { request, dataSetId } ->
+                                    if dataSetId == dataSet.id
+                                        then
+                                            case request of
+                                                Failure e ->
+                                                    div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
 
-                                        _ ->
-                                            text ""
+                                                _ ->
+                                                    text ""
+                                        else text ""
                             , table
                                 [ class "table table-sm text-muted", style "font-size" "0.8rem", style "margin-bottom" "4rem" ]
                                 [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) mergeRowHeaders) ]
