@@ -4,6 +4,7 @@ import Amarcord.Bootstrap exposing (viewCloseHelpButton, viewHelpButton)
 import Amarcord.Html exposing (h5_, p_)
 import Amarcord.Util exposing (foldPairs)
 import Api.Data exposing (JsonIndexingStatistic)
+import Basics.Extra exposing (safeDivide)
 import Chart as C
 import Chart.Attributes as CA
 import Html exposing (Html, div, em, img, text)
@@ -29,11 +30,12 @@ viewHitRateAndIndexingGraphs stats =
                 (\( prior, next ) ->
                     { time = next.time
                     , rate =
-                        if next.frames == prior.frames then
-                            0.0
+                        case safeDivide (toFloat <| accessor next - accessor prior) (toFloat <| next.frames - prior.frames) of
+                            Nothing ->
+                                0.0
 
-                        else
-                            (toFloat <| accessor next - accessor prior) / (toFloat <| next.frames - prior.frames) * 100.0
+                            Just divisionResult ->
+                                divisionResult * 100.0
                     }
                 )
     in

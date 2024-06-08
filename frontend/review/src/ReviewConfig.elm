@@ -16,6 +16,7 @@ import NoEtaReducibleLambdas
 import NoMissingTypeAnnotation
 import NoPrematureLetComputation
 import NoSinglePatternCase
+import NoUnsafeDivision
 import NoUnused.CustomTypeConstructors
 import NoUnused.Dependencies
 import NoUnused.Exports
@@ -37,6 +38,7 @@ config =
         , NoPrematureLetComputation.rule
         , NoSinglePatternCase.rule NoSinglePatternCase.fixInArgument
         , NoUnused.Dependencies.rule
+        , NoUnsafeDivision.rule
         , NoUnused.Variables.rule
         , NoUnused.CustomTypeConstructors.rule []
         , NoUnused.Exports.rule

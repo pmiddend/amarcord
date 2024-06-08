@@ -17,7 +17,7 @@ import Html.Events.Extra exposing (onEnter)
 import List exposing (intersperse)
 import List.Extra as List
 import Maybe exposing (withDefault)
-import Maybe.Extra exposing (isNothing, orElse, traverse, unwrap)
+import Maybe.Extra exposing (isNothing, orElse, unwrap)
 import Set
 import String exposing (fromInt, join, split, toInt, trim)
 import Time exposing (Zone)
@@ -783,7 +783,7 @@ editValueToValue zone x =
                         Ok (ValueList <| List.map ValueString parts)
 
                     Number _ ->
-                        unwrap (Err "invalid number in list") Ok <| Maybe.map ValueList <| traverse (String.toFloat >> Maybe.map ValueNumber) parts
+                        unwrap (Err "invalid number in list") Ok <| Maybe.map ValueList <| Maybe.Extra.combineMap (String.toFloat >> Maybe.map ValueNumber) parts
 
                     _ ->
                         Err "invalid list subtype"

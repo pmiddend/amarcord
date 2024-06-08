@@ -25,6 +25,7 @@ import Api.Request.Datasets exposing (createDataSetFromRunApiDataSetsFromRunPost
 import Api.Request.Events exposing (deleteEventApiEventsDelete)
 import Api.Request.Experimenttypes exposing (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, updateRunApiRunsPatch)
+import Basics.Extra exposing (safeDivide)
 import Date
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tr, ul)
@@ -392,16 +393,16 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                                                     if remainingFrames > 0 then
                                                         let
                                                             remainingFramesToCapture =
-                                                                round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
+                                                                round <| Maybe.withDefault 0.0 <| safeDivide (toFloat remainingFrames) (ir / 100.0 * hr / 100.0)
 
                                                             framesPerSecond =
-                                                                1000 / (2 * realExposureTime)
+                                                                Maybe.withDefault 0.0 <| safeDivide 100 (2 * realExposureTime)
 
                                                             indexedFramesPerSecond =
                                                                 framesPerSecond * ir / 100.0 * hr / 100.0
 
                                                             remainingTimeStr =
-                                                                secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
+                                                                secondsDiffHumanFriendly <| round <| Maybe.withDefault 0.0 <| safeDivide (toFloat remainingFrames) indexedFramesPerSecond
                                                         in
                                                         Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
 
