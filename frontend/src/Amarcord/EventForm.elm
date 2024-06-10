@@ -1,8 +1,8 @@
-module Amarcord.EventForm exposing (Model, Msg(..), init, update, updateLiveStream, view)
+module Amarcord.EventForm exposing (Model, Msg(..), init, update, updateLiveStreamAndShiftUser, view)
 
-import Amarcord.API.Requests exposing (BeamtimeId, IncludeLiveStream(..))
+import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.API.RequestsHtml exposing (showHttpError)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
 import Amarcord.Html exposing (form_, h5_, input_, tbody_, td_, th_, thead_, tr_)
 import Api exposing (send)
 import Api.Data exposing (JsonCreateFileOutput, JsonEventTopLevelOutput, JsonFileOutput)
@@ -10,9 +10,8 @@ import Api.Request.Events exposing (createEventApiEventsPost)
 import Api.Request.Files exposing (createFileApiFilesPost)
 import File as ElmFile
 import File.Select
-import Hotkeys exposing (onEnter)
-import Html exposing (Html, button, div, h4, label, p, table, text, tr)
-import Html.Attributes exposing (class, disabled, for, id, placeholder, style, type_, value)
+import Html exposing (Html, button, div, h4, input, label, p, table, text, textarea, tr)
+import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http
 import List
@@ -21,50 +20,68 @@ import String
 
 
 type alias Model =
-    { userName : String
+    { currentUserNameInput : String
+    , currentShiftUserName : Maybe String
     , message : String
     , files : List JsonFileOutput
     , fileUploadRequest : RemoteData Http.Error JsonCreateFileOutput
     , eventRequest : RemoteData Http.Error JsonEventTopLevelOutput
     , hasLiveStream : Bool
+    , postWithLiveStream : Bool
     , beamtimeId : BeamtimeId
     }
 
 
 type Msg
     = NewModel Model
-    | Submit IncludeLiveStream
+    | Submit
     | SubmitFinished (Result Http.Error JsonEventTopLevelOutput)
     | OpenSelector (List String)
     | NewFile ElmFile.File
     | FileUploadFinished (Result Http.Error JsonCreateFileOutput)
     | FileDelete Int
+    | TogglePostWithLiveStream
 
 
 modelValid : Model -> Bool
-modelValid { userName, message } =
-    userName /= "" && message /= ""
+modelValid { currentUserNameInput, message } =
+    currentUserNameInput /= "" && message /= ""
 
 
-updateLiveStream : Model -> Bool -> Model
-updateLiveStream m b =
-    { m | hasLiveStream = b }
+updateLiveStreamAndShiftUser : Model -> Bool -> Maybe String -> Model
+updateLiveStreamAndShiftUser m b currentShiftUserName =
+    let
+        newUser =
+            if currentShiftUserName /= m.currentShiftUserName then
+                case currentShiftUserName of
+                    Nothing ->
+                        m.currentUserNameInput
+
+                    Just newShiftUser ->
+                        newShiftUser
+
+            else
+                m.currentUserNameInput
+    in
+    { m | hasLiveStream = b, currentUserNameInput = newUser, currentShiftUserName = currentShiftUserName }
 
 
-init : BeamtimeId -> Model
-init beamtimeId =
-    { userName = "User"
+init : BeamtimeId -> String -> Model
+init beamtimeId currentUserNameInput =
+    { currentUserNameInput = currentUserNameInput
+    , currentShiftUserName = Nothing
     , message = ""
     , files = []
     , fileUploadRequest = NotAsked
     , eventRequest = NotAsked
     , hasLiveStream = False
     , beamtimeId = beamtimeId
+    , postWithLiveStream = False
     }
 
 
 view : Model -> Html Msg
-view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream, beamtimeId } =
+view { eventRequest, currentShiftUserName, currentUserNameInput, message, files, fileUploadRequest, hasLiveStream, beamtimeId, postWithLiveStream } =
     let
         eventError =
             case eventRequest of
@@ -100,97 +117,107 @@ view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream,
                 , td_ [ text file.description ]
                 , td_ [ button [ class "btn btn-danger btn-sm", type_ "button", onClick (FileDelete file.id) ] [ icon { name = "trash" } ] ]
                 ]
+
+        viewUserNameInput =
+            div [ class "form-floating" ]
+                [ input_
+                    [ value currentUserNameInput
+                    , type_ "text"
+                    , class "form-control form-control-sm"
+                    , placeholder "User name"
+                    , id "user-name"
+                    , onInput
+                        (\e ->
+                            NewModel
+                                { eventRequest = eventRequest
+                                , currentShiftUserName = currentShiftUserName
+                                , currentUserNameInput = e
+                                , message = message
+                                , files = files
+                                , fileUploadRequest = fileUploadRequest
+                                , hasLiveStream = hasLiveStream
+                                , postWithLiveStream = postWithLiveStream
+                                , beamtimeId = beamtimeId
+                                }
+                        )
+                    ]
+                , label [ for "user-name" ] [ text "User name" ]
+                , div [ class "form-text" ] [ text "If present, this name is filled in from the current schedule entry." ]
+                ]
+
+        viewTextInput =
+            div [ class "form-floating" ]
+                [ textarea
+                    [ id "event-text"
+                    , class "form-control"
+                    , style "height" "8em"
+                    , value message
+                    , onInput
+                        (\e ->
+                            NewModel
+                                { eventRequest = eventRequest
+                                , currentShiftUserName = currentShiftUserName
+                                , currentUserNameInput = currentUserNameInput
+                                , message = e
+                                , files = files
+                                , fileUploadRequest = fileUploadRequest
+                                , hasLiveStream = hasLiveStream
+                                , beamtimeId = beamtimeId
+                                , postWithLiveStream = postWithLiveStream
+                                }
+                        )
+                    ]
+                    []
+                , viewMarkdownSupportText
+                , label [ for "event-text" ] [ text "Logbook message" ]
+                ]
     in
     form_
         [ div [ class "row" ]
             [ div [ class "col" ]
-                [ h5_ [ text "Did something happen just now? Tell us!" ]
-                , div [ class "row g-2" ]
-                    [ div [ class "col-3" ]
-                        [ div [ class "form-floating" ]
-                            [ input_
-                                [ value userName
-                                , type_ "text"
-                                , class "form-control form-control-sm"
-                                , placeholder "User name"
-                                , id "user-name"
-                                , onInput
-                                    (\e ->
-                                        NewModel
-                                            { eventRequest = eventRequest
-                                            , userName = e
-                                            , message = message
-                                            , files = files
-                                            , fileUploadRequest = fileUploadRequest
-                                            , hasLiveStream = hasLiveStream
-                                            , beamtimeId = beamtimeId
-                                            }
-                                    )
-                                ]
-                            , label [ for "user-name" ] [ text "User name" ]
-                            ]
+                [ h5_ [ icon { name = "plus-lg" }, text " Add logbook entry" ]
+                , div [ class "mb-3" ] [ viewUserNameInput ]
+                , div [ class "mb-3" ] [ viewTextInput ]
+                , div [ class "hstack gap-1 mb-3" ]
+                    [ button
+                        [ type_ "button"
+                        , class "btn btn-outline-secondary"
+                        , onClick (OpenSelector [ "image/*" ])
+                        , style "white-space" "nowrap"
                         ]
-                    , div [ class "col-9" ]
-                        [ div
-                            [ class "input-group mb-3" ]
-                            [ div [ class "form-floating flex-grow-1" ]
-                                [ input_
-                                    [ value message
-                                    , type_ "text"
-                                    , class "form-control"
-                                    , id "event-text"
-                                    , onEnter (Submit NoLiveStream)
-                                    , onInput
-                                        (\e ->
-                                            NewModel
-                                                { eventRequest = eventRequest
-                                                , userName = userName
-                                                , message = e
-                                                , files = files
-                                                , fileUploadRequest = fileUploadRequest
-                                                , hasLiveStream = hasLiveStream
-                                                , beamtimeId = beamtimeId
-                                                }
-                                        )
-                                    ]
-                                , label [ for "event-text" ] [ text "What happened?" ]
+                        [ icon { name = "camera" }, text " Upload image" ]
+                    , button
+                        [ type_ "button"
+                        , class "btn btn-outline-secondary"
+                        , onClick (OpenSelector [])
+                        , style "white-space" "nowrap"
+                        ]
+                        [ icon { name = "upload" }, text " Upload file" ]
+                    ]
+                , div [ class "hstack gap-3" ]
+                    [ button
+                        [ onClick Submit
+                        , disabled (isLoading eventRequest || currentUserNameInput == "" || message == "")
+                        , type_ "button"
+                        , class "btn btn-primary"
+                        , style "white-space" "nowrap"
+                        ]
+                        [ icon { name = "send" }, text " Add log entry" ]
+                    , if hasLiveStream then
+                        div [ class "form-check form-switch" ]
+                            [ input
+                                [ class "form-check-input"
+                                , type_ "checkbox"
+                                , id "post-with-live-stream"
+                                , checked postWithLiveStream
+                                , onClick TogglePostWithLiveStream
                                 ]
-                            , button
-                                [ type_ "button"
-                                , class "btn btn-outline-secondary"
-                                , onClick (OpenSelector [ "image/*" ])
-                                , style "white-space" "nowrap"
-                                ]
-                                [ icon { name = "camera" }, text " Image" ]
-                            , button
-                                [ type_ "button"
-                                , class "btn btn-outline-secondary"
-                                , onClick (OpenSelector [])
-                                , style "white-space" "nowrap"
-                                ]
-                                [ icon { name = "upload" }, text " File" ]
-                            , button
-                                [ onClick (Submit NoLiveStream)
-                                , disabled (isLoading eventRequest || userName == "" || message == "")
-                                , type_ "button"
-                                , class "btn btn-primary"
-                                , style "white-space" "nowrap"
-                                ]
-                                [ icon { name = "send" }, text " Post" ]
-                            , if hasLiveStream then
-                                button
-                                    [ onClick (Submit WithLiveStream)
-                                    , disabled (isLoading eventRequest || userName == "" || message == "")
-                                    , type_ "button"
-                                    , class "btn btn-primary"
-                                    , style "white-space" "nowrap"
-                                    ]
-                                    [ icon { name = "camera-video-fill" }, text " Post with live stream" ]
+                                []
+                            , label [ class "form-check-label", for "post-with-live-stream" ] [ text "Attach live stream image" ]
+                            ]
 
-                              else
-                                text ""
-                            ]
-                        ]
+                      else
+                        text ""
                     ]
                 , eventError
                 , fileUploadError
@@ -220,23 +247,20 @@ view { eventRequest, userName, message, files, fileUploadRequest, hasLiveStream,
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        TogglePostWithLiveStream ->
+            ( { model | postWithLiveStream = not model.postWithLiveStream }, Cmd.none )
+
         NewModel newModel ->
             ( newModel, Cmd.none )
 
-        Submit includeStream ->
+        Submit ->
             if modelValid model then
                 ( { model | eventRequest = Loading }
                 , send SubmitFinished
                     (createEventApiEventsPost
                         { beamtimeId = model.beamtimeId
-                        , withLiveStream =
-                            case includeStream of
-                                NoLiveStream ->
-                                    False
-
-                                _ ->
-                                    True
-                        , event = { source = model.userName, text = model.message, fileIds = List.map .id model.files, level = "user" }
+                        , withLiveStream = model.postWithLiveStream
+                        , event = { source = model.currentUserNameInput, text = model.message, fileIds = List.map .id model.files, level = "user" }
                         }
                     )
                 )

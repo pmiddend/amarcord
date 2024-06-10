@@ -1,9 +1,9 @@
-module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteData, viewRemoteDataHttp)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewCloseHelpButton, viewHelpButton, viewMarkdownSupportText, viewRemoteData, viewRemoteDataHttp)
 
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Html exposing (div_, h4_, p_)
-import Html exposing (Html, div, i, span, text)
-import Html.Attributes exposing (attribute, class, classList)
+import Html exposing (Html, a, button, div, i, span, sup, text)
+import Html.Attributes exposing (attribute, class, classList, href)
 import Http
 import List
 import RemoteData exposing (RemoteData(..))
@@ -117,3 +117,34 @@ mimeTypeToIcon type_ =
                 _ ->
                     "question-diamond"
         }
+
+
+viewHelpButton : String -> Html msg
+viewHelpButton target =
+    sup []
+        [ button
+            [ class "btn btn-link rounded-circle"
+            , attribute "data-bs-toggle" "collapse"
+            , attribute "href" ("#" ++ target)
+            ]
+            [ icon { name = "patch-question-fill" } ]
+        ]
+
+
+viewCloseHelpButton : String -> Html msg
+viewCloseHelpButton target =
+    div
+        [ class "d-flex flex-row-reverse"
+        ]
+        [ button
+            [ class "btn btn-link"
+            , attribute "data-bs-toggle" "collapse"
+            , attribute "href" ("#" ++ target)
+            ]
+            [ icon { name = "arrows-collapse" }, text " Close help" ]
+        ]
+
+
+viewMarkdownSupportText : Html msg
+viewMarkdownSupportText =
+    div [ class "form-text" ] [ a [ href "https://github.github.com/gfm/" ] [ text "Markdown" ], text " is supported" ]

@@ -18,6 +18,7 @@ import Api.Data exposing (ChemicalType(..), JsonChemicalWithId, JsonChemicalWith
 import Api.Request.Chemicals exposing (createChemicalApiChemicalsPost, deleteChemicalApiChemicalsDelete, readChemicalsApiChemicalsBeamtimeIdGet, updateChemicalApiChemicalsPatch)
 import Api.Request.Files exposing (createFileApiFilesPost)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet)
+import Basics.Extra exposing (safeDivide)
 import Bytes
 import Dict
 import File as ElmFile
@@ -404,7 +405,7 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
             4
 
         attributoColumnsPercent =
-            String.fromFloat (100.0 / toFloat noAttributoColumns) ++ "%"
+            String.fromFloat (Maybe.withDefault 0.0 <| safeDivide 100.0 (toFloat noAttributoColumns)) ++ "%"
 
         viewAttributoGroupItem : Attributo AttributoType -> Html msg
         viewAttributoGroupItem attributo =
@@ -430,6 +431,7 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
                             { shortDateTime = False
                             , colorize = False
                             , withUnit = True
+                            , withTolerance = False
                             }
                             zone
                             Dict.empty

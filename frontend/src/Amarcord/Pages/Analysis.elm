@@ -593,7 +593,15 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                         []
                     )
                     [ td_ [ text (String.fromInt dataSet.id) ]
-                    , td_ [ viewDataSetTable attributi hereAndNow.zone chemicalIdsToName (convertAttributoMapFromApi dataSet.attributi) False Nothing ]
+                    , td_
+                        [ viewDataSetTable attributi
+                            hereAndNow.zone
+                            chemicalIdsToName
+                            (convertAttributoMapFromApi dataSet.attributi)
+                            False
+                            False
+                            Nothing
+                        ]
                     , td_ (List.intersperse br_ <| List.map text experimentTypeResults.runs)
                     , td_
                         [ text <|
@@ -655,13 +663,16 @@ viewResultsTableForSingleExperimentType attributi hereAndNow mergeRequest activa
                                 Nothing ->
                                     text ""
 
-                                Just { request } ->
-                                    case request of
-                                        Failure e ->
-                                            div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                                Just { request, dataSetId } ->
+                                    if dataSetId == dataSet.id
+                                        then
+                                            case request of
+                                                Failure e ->
+                                                    div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
 
-                                        _ ->
-                                            text ""
+                                                _ ->
+                                                    text ""
+                                        else text ""
                             , table
                                 [ class "table table-sm text-muted", style "font-size" "0.8rem", style "margin-bottom" "4rem" ]
                                 [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) mergeRowHeaders) ]
@@ -905,10 +916,13 @@ modalBodyShells fom shells refinementResults =
         viewRefinementResult { id, pdbFileId, mtzFileId, rFree, rWork, rmsBondAngle, rmsBondLength } =
             div_
                 [ uglymol pdbFileId mtzFileId ("refinement-" ++ String.fromInt id)
-                , div [ class "d-flex" ]
-                    [ span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId) ] [ text "PDB" ] ]
+                , div [ class "hstack gap-3 mt-2" ]
+                    [ span_ [ text "Refinement files:" ]
+                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId) ] [ text "PDB" ] ]
+                    , div [ class "vr" ] []
                     , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink mtzFileId) ] [ text "MTZ" ] ]
                     ]
+                , p [ class "text-muted" ] [ text "Note: this MTZ file is different from the one in the overview. It was created during refinement, not by CrystFEL." ]
                 , div_
                     [ table [ class "table table-sm" ]
                         [ thead_

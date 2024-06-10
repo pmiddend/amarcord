@@ -252,7 +252,7 @@ view columnChooser =
                     [ icon { name = "columns" }
                     , span [ class "ms-1" ]
                         [ text <|
-                            " Choose columns"
+                            " Choose columns to display"
                                 ++ (if hiddenColumnCount > 0 then
                                         " (" ++ String.fromInt hiddenColumnCount ++ " hidden)"
 

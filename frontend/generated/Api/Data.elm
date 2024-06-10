@@ -1290,11 +1290,13 @@ type alias JsonReadRuns =
     , filterDates : List String
     , runs : List JsonRun
     , attributi : List JsonAttributo
+    , latestIndexingResult : Maybe JsonRunAnalysisIndexingResult
     , experimentTypes : List JsonExperimentType
     , dataSets : List JsonDataSet
     , events : List JsonEvent
     , chemicals : List JsonChemical
     , userConfig : JsonUserConfig
+    , currentBeamtimeUser : Maybe String
     }
 
 
@@ -3868,11 +3870,13 @@ encodeJsonReadRunsPairs model =
             , encode "filter_dates" (Json.Encode.list Json.Encode.string) model.filterDates
             , encode "runs" (Json.Encode.list encodeJsonRun) model.runs
             , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
+            , maybeEncode "latest_indexing_result" encodeJsonRunAnalysisIndexingResult model.latestIndexingResult
             , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
             , encode "data_sets" (Json.Encode.list encodeJsonDataSet) model.dataSets
             , encode "events" (Json.Encode.list encodeJsonEvent) model.events
             , encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
             , encode "user_config" encodeJsonUserConfig model.userConfig
+            , maybeEncode "current_beamtime_user" Json.Encode.string model.currentBeamtimeUser
             ]
     in
     pairs
@@ -5451,11 +5455,13 @@ jsonReadRunsDecoder =
         |> decode "filter_dates" (Json.Decode.list Json.Decode.string) 
         |> decode "runs" (Json.Decode.list jsonRunDecoder) 
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
+        |> maybeDecode "latest_indexing_result" jsonRunAnalysisIndexingResultDecoder Nothing
         |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
         |> decode "data_sets" (Json.Decode.list jsonDataSetDecoder) 
         |> decode "events" (Json.Decode.list jsonEventDecoder) 
         |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
         |> decode "user_config" jsonUserConfigDecoder 
+        |> maybeDecode "current_beamtime_user" Json.Decode.string Nothing
 
 
 jsonReadRunsBulkInputDecoder : Json.Decode.Decoder JsonReadRunsBulkInput

@@ -1,7 +1,6 @@
 module Amarcord.API.Requests exposing
     ( BeamtimeId
     , ConversionFlags
-    , IncludeLiveStream(..)
     , RunEventDate(..)
     , RunEventDateFilter(..)
     , RunExternalId(..)
@@ -138,8 +137,3 @@ runEventDateFilter (RunEventDateFilter rdf) =
 runEventDateToString : RunEventDate -> String
 runEventDateToString (RunEventDate s) =
     s
-
-
-type IncludeLiveStream
-    = NoLiveStream
-    | WithLiveStream

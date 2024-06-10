@@ -1,4 +1,5 @@
 import datetime
+import re
 from dataclasses import dataclass
 from typing import Any
 from typing import Iterable
@@ -55,10 +56,12 @@ from amarcord.web.json_models import JsonAttributoBulkValue
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonCreateOrUpdateRun
 from amarcord.web.json_models import JsonCreateOrUpdateRunOutput
+from amarcord.web.json_models import JsonIndexingStatistic
 from amarcord.web.json_models import JsonReadRuns
 from amarcord.web.json_models import JsonReadRunsBulkInput
 from amarcord.web.json_models import JsonReadRunsBulkOutput
 from amarcord.web.json_models import JsonRun
+from amarcord.web.json_models import JsonRunAnalysisIndexingResult
 from amarcord.web.json_models import JsonStartRunOutput
 from amarcord.web.json_models import JsonStopRunOutput
 from amarcord.web.json_models import JsonUpdateRun
@@ -77,6 +80,7 @@ from amarcord.web.router_user_configuration import encode_user_configuration
 
 logger = structlog.stdlib.get_logger(__name__)
 router = APIRouter()
+_SHIFT_RE = re.compile(r"(\d{2}):(\d{2})-(\d{2}):(\d{2})")
 
 
 def extract_runs_and_event_dates(
@@ -703,6 +707,34 @@ async def update_runs_bulk(
         return JsonUpdateRunsBulkOutput(result=True)
 
 
+async def _find_schedule_entry(
+    session: AsyncSession, beamtime_id: BeamtimeId
+) -> None | orm.BeamtimeSchedule:
+    now = datetime.datetime.now()
+    minutes_since_midnight_now = now.hour * 60 + now.minute
+    for schedule_entry in await session.scalars(
+        select(orm.BeamtimeSchedule).where(
+            (orm.BeamtimeSchedule.beamtime_id == beamtime_id)
+            & (orm.BeamtimeSchedule.date == now.strftime("%Y-%m-%d"))
+        )
+    ):
+        entry_match = _SHIFT_RE.search(schedule_entry.shift)
+        if entry_match is not None:
+            minutes_since_midnight_from = int(entry_match.group(1)) * 60 + int(
+                entry_match.group(2)
+            )
+            minutes_since_midnight_to = int(entry_match.group(3)) * 60 + int(
+                entry_match.group(4)
+            )
+            if (
+                minutes_since_midnight_from
+                <= minutes_since_midnight_now
+                <= minutes_since_midnight_to
+            ):
+                return schedule_entry
+    return None
+
+
 @router.get(
     "/api/runs/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True
 )
@@ -848,7 +880,38 @@ async def read_runs(
             )
         )
     ).one_or_none()
+    if all_runs:
+        latest_run = all_runs[0]
+        latest_indexing_results = await latest_run.awaitable_attrs.indexing_results
+        if latest_indexing_results:
+            latest_indexing_result_orm = latest_indexing_results[0]
+            latest_statistics_orm = (
+                await latest_indexing_result_orm.awaitable_attrs.statistics
+            )
+            latest_indexing_result = JsonRunAnalysisIndexingResult(
+                run_id=latest_run.id,
+                foms=[],
+                indexing_statistics=[
+                    JsonIndexingStatistic(
+                        time=datetime_to_attributo_int(stat.time),
+                        frames=stat.frames,
+                        hits=stat.hits,
+                        indexed=stat.indexed_frames,
+                        crystals=stat.indexed_crystals,
+                    )
+                    for stat in latest_statistics_orm
+                ],
+            )
+        else:
+            latest_indexing_result = None
+    else:
+        latest_indexing_result = None
+    found_schedule_entry = await _find_schedule_entry(session, beamtimeId)
     return JsonReadRuns(
+        current_beamtime_user=(
+            None if found_schedule_entry is None else found_schedule_entry.users
+        ),
+        latest_indexing_result=latest_indexing_result,
         live_stream_file_id=(
             live_stream_file.id if live_stream_file is not None else None
         ),

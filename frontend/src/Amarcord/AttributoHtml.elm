@@ -17,7 +17,7 @@ import Html.Events.Extra exposing (onEnter)
 import List exposing (intersperse)
 import List.Extra as List
 import Maybe exposing (withDefault)
-import Maybe.Extra exposing (isNothing, orElse, traverse, unwrap)
+import Maybe.Extra exposing (isNothing, orElse, unwrap)
 import Set
 import String exposing (fromInt, join, split, toInt, trim)
 import Time exposing (Zone)
@@ -51,6 +51,7 @@ type alias ViewAttributoValueProperties =
     { shortDateTime : Bool
     , colorize : Bool
     , withUnit : Bool
+    , withTolerance : Bool
     }
 
 
@@ -166,15 +167,43 @@ viewAttributoValue props zone chemicalIds type_ value =
                     text "unsupported list type"
 
         ValueNumber float ->
-            possiblyAddSuffix props
-                (text (formatFloatHumanFriendly float))
-                (case type_ of
-                    Number { suffix } ->
-                        suffix
+            span_
+                [ possiblyAddSuffix props
+                    (text (formatFloatHumanFriendly float))
+                    (case type_ of
+                        Number { suffix } ->
+                            suffix
 
-                    _ ->
-                        Nothing
-                )
+                        _ ->
+                            Nothing
+                    )
+                , if props.withTolerance then
+                    case type_ of
+                        Number { tolerance, toleranceIsAbsolute } ->
+                            case tolerance of
+                                Nothing ->
+                                    text ""
+
+                                Just toleranceReal ->
+                                    em []
+                                        [ text <|
+                                            " (±"
+                                                ++ formatFloatHumanFriendly toleranceReal
+                                                ++ (if toleranceIsAbsolute then
+                                                        ""
+
+                                                    else
+                                                        "%"
+                                                   )
+                                                ++ ")"
+                                        ]
+
+                        _ ->
+                            text ""
+
+                  else
+                    text ""
+                ]
 
 
 formatIntHumanFriendly : Int -> String
@@ -754,7 +783,7 @@ editValueToValue zone x =
                         Ok (ValueList <| List.map ValueString parts)
 
                     Number _ ->
-                        unwrap (Err "invalid number in list") Ok <| Maybe.map ValueList <| traverse (String.toFloat >> Maybe.map ValueNumber) parts
+                        unwrap (Err "invalid number in list") Ok <| Maybe.map ValueList <| Maybe.Extra.combineMap (String.toFloat >> Maybe.map ValueNumber) parts
 
                     _ ->
                         Err "invalid list subtype"

@@ -2,7 +2,7 @@ module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg(..), init, update, 
 
 import Amarcord.API.Requests exposing (invalidBeamtimeId)
 import Amarcord.API.RequestsHtml exposing (showHttpError)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
 import Amarcord.Html exposing (div_, form_, h2_, h4_, strongText)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeLink)
@@ -278,7 +278,7 @@ viewEditForm bt =
                 ]
                 []
             , label [ for "beamtime-edit-comment" ] [ text "Comment" ]
-            , div [ class "form-text" ] [ a [ href "https://github.github.com/gfm/" ] [ text "Markdown" ], text " is supported" ]
+            , viewMarkdownSupportText
             ]
         , button
             [ class "btn btn-primary me-3 mb-3"

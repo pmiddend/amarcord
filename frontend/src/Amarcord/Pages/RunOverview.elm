@@ -1,23 +1,23 @@
 module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId, experimentTypeIdDict)
-import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter(..), RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
+import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter, RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewRemoteDataHttp)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewCloseHelpButton, viewHelpButton, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (Chemical, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm
-import Amarcord.Gauge exposing (gauge, thisFillColor, totalFillColor)
-import Amarcord.Html exposing (div_, form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_)
+import Amarcord.Html exposing (form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
-import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
+import Amarcord.Route exposing (Route(..), makeFilesLink, makeLink)
+import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
+import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
 import Api exposing (send)
 import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonChangeRunExperimentTypeOutput, JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonExperimentType, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
@@ -25,13 +25,12 @@ import Api.Request.Datasets exposing (createDataSetFromRunApiDataSetsFromRunPost
 import Api.Request.Events exposing (deleteEventApiEventsDelete)
 import Api.Request.Experimenttypes exposing (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, updateRunApiRunsPatch)
-import Char exposing (fromCode)
+import Basics.Extra exposing (safeDivide)
 import Date
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tr, ul)
 import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Html.Events.Extra exposing (onEnter)
 import Http
 import List exposing (head)
 import List.Extra as ListExtra exposing (find)
@@ -40,7 +39,6 @@ import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import String
 import Time exposing (Posix, Zone, millisToPosix, posixToMillis)
-import Tuple exposing (first, second)
 
 
 type Msg
@@ -55,7 +53,6 @@ type Msg
     | RunEditFinished (Result Http.Error JsonUpdateRunOutput)
     | RunInitiateEdit JsonRun
     | RunEditCancel
-    | RunFilterSubMsg RunFilterMsg
     | Nop
     | SelectedExperimentTypeChanged String
     | ChangeCurrentExperimentType
@@ -98,13 +95,6 @@ type alias RunDateFilterInfo =
     { runDateFilter : RunEventDateFilter }
 
 
-type RunFilterMsg
-    = RunFilterEdit String
-    | RunFilterReset
-    | RunFilterSubmit
-    | RunFilterSubmitFinished (Result Http.Error JsonReadRuns)
-
-
 initRunFilter : RunFilterInfo
 initRunFilter =
     { runFilter = emptyRunFilter
@@ -119,68 +109,40 @@ initRunDateFilter =
     }
 
 
-viewRunFilter : RunFilterInfo -> Html RunFilterMsg
-viewRunFilter model =
-    form_
-        [ h5_ [ text "Run filter" ]
-        , div [ class "input-group mb-3" ]
-            [ input_
-                [ type_ "text"
-                , class "form-control"
-                , value model.nextRunFilter
-                , onInput RunFilterEdit
-                , disabled (isLoading model.runFilterRequest)
-                , onEnter RunFilterSubmit
-                ]
-            , button
-                [ class "btn btn-outline-secondary"
-                , onClick RunFilterReset
-                , type_ "button"
-                ]
-                [ text "Reset" ]
-            , button
-                [ class "btn btn-secondary"
-                , disabled (isLoading model.runFilterRequest)
-                , type_ "button"
-                , onClick RunFilterSubmit
-                ]
-                [ icon { name = "save" }, text " Update" ]
-            ]
-        , case model.runFilterRequest of
-            Failure e ->
-                div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ] ]
 
-            _ ->
-                text ""
-        ]
-
-
-updateRunFilter : BeamtimeId -> RunFilterInfo -> RunFilterMsg -> ( RunFilterInfo, Cmd RunFilterMsg )
-updateRunFilter beamtimeId model msg =
-    case msg of
-        RunFilterEdit newRunFilter ->
-            ( { model | nextRunFilter = newRunFilter }, Cmd.none )
-
-        RunFilterReset ->
-            ( { model | nextRunFilter = runFilterToString model.runFilter, runFilterRequest = NotAsked }, Cmd.none )
-
-        RunFilterSubmit ->
-            ( { model | runFilterRequest = Loading }
-            , send RunFilterSubmitFinished
-                (readRunsApiRunsBeamtimeIdGet
-                    beamtimeId
-                    (Maybe.map runEventDateToString <| runEventDateFilter <| emptyRunEventDateFilter)
-                    (Just model.nextRunFilter)
-                )
-            )
-
-        RunFilterSubmitFinished response ->
-            case response of
-                Err e ->
-                    ( { model | runFilterRequest = Failure e }, Cmd.none )
-
-                Ok v ->
-                    ( { model | runFilter = RunFilter model.nextRunFilter, runFilterRequest = Success v }, Cmd.none )
+-- viewRunFilter : RunFilterInfo -> Html RunFilterMsg
+-- viewRunFilter model =
+--     form_
+--         [ h5_ [ text "Run filter" ]
+--         , div [ class "input-group mb-3" ]
+--             [ input_
+--                 [ type_ "text"
+--                 , class "form-control"
+--                 , value model.nextRunFilter
+--                 , onInput RunFilterEdit
+--                 , disabled (isLoading model.runFilterRequest)
+--                 , onEnter RunFilterSubmit
+--                 ]
+--             , button
+--                 [ class "btn btn-outline-secondary"
+--                 , onClick RunFilterReset
+--                 , type_ "button"
+--                 ]
+--                 [ text "Reset" ]
+--             , button
+--                 [ class "btn btn-secondary"
+--                 , disabled (isLoading model.runFilterRequest)
+--                 , type_ "button"
+--                 , onClick RunFilterSubmit
+--                 ]
+--                 [ icon { name = "save" }, text " Update" ]
+--             ]
+--         , case model.runFilterRequest of
+--             Failure e ->
+--                 div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ] ]
+--             _ ->
+--                 text ""
+--         ]
 
 
 type alias Model =
@@ -210,7 +172,7 @@ init { zone, now } localStorage beamtimeId =
     ( { runs = Loading
       , myTimeZone = zone
       , refreshRequest = NotAsked
-      , eventForm = EventForm.init beamtimeId
+      , eventForm = EventForm.init beamtimeId "User"
       , now = now
       , runDates = []
       , runDateFilter = initRunDateFilter
@@ -255,6 +217,7 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
                             { shortDateTime = True
                             , colorize = True
                             , withUnit = False
+                            , withTolerance = False
                             }
                             zone
                             chemicalIds
@@ -364,12 +327,13 @@ viewRunsTable zone chosenColumns { runs, events, chemicals, experimentTypes } =
 
 dataSetInformation :
     Zone
+    -> BeamtimeId
     -> JsonRun
     -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
     -> Maybe JsonExperimentType
     -> JsonReadRuns
     -> List (Html Msg)
-dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc =
+dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTypeMaybe rrc =
     case currentExperimentTypeMaybe of
         Nothing ->
             [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
@@ -429,16 +393,16 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
                                                     if remainingFrames > 0 then
                                                         let
                                                             remainingFramesToCapture =
-                                                                round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
+                                                                round <| Maybe.withDefault 0.0 <| safeDivide (toFloat remainingFrames) (ir / 100.0 * hr / 100.0)
 
                                                             framesPerSecond =
-                                                                1000 / (2 * realExposureTime)
+                                                                Maybe.withDefault 0.0 <| safeDivide 100 (2 * realExposureTime)
 
                                                             indexedFramesPerSecond =
                                                                 framesPerSecond * ir / 100.0 * hr / 100.0
 
                                                             remainingTimeStr =
-                                                                secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
+                                                                secondsDiffHumanFriendly <| round <| Maybe.withDefault 0.0 <| safeDivide (toFloat remainingFrames) indexedFramesPerSecond
                                                         in
                                                         Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
 
@@ -448,48 +412,6 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
 
                                     else
                                         Nothing
-
-                                -- case run.summary.indexingRate of
-                                --     Nothing ->
-                                --         Nothing
-                                --     Just ir ->
-                                --         case run.summary.hitRate of
-                                --             Nothing ->
-                                --                 Nothing
-                                --             Just hr ->
-                                --                 if ir > 0.01 && hr > 0.01 then
-                                --                     let
-                                --                         runExposureTime : Maybe Float
-                                --                         runExposureTime =
-                                --                             ListExtra.find
-                                --                                 (\a -> a.name == attributoExposureTime)
-                                --                                 rrc.attributi
-                                --                                 |> Maybe.andThen (\a -> retrieveFloatAttributoValue a.id run.attributi)
-                                --                     in
-                                --                     case runExposureTime of
-                                --                         Nothing ->
-                                --                             Nothing
-                                --                         Just realExposureTime ->
-                                --                             let
-                                --                                 remainingFrames =
-                                --                                     10000 - progressSummary.indexedFrames
-                                --                             in
-                                --                             if remainingFrames > 0 then
-                                --                                 let
-                                --                                     remainingFramesToCapture =
-                                --                                         round <| toFloat remainingFrames / (ir / 100.0 * hr / 100.0)
-                                --                                     framesPerSecond =
-                                --                                         1000 / (2 * realExposureTime)
-                                --                                     indexedFramesPerSecond =
-                                --                                         framesPerSecond * ir / 100.0 * hr / 100.0
-                                --                                     remainingTimeStr =
-                                --                                         secondsDiffHumanFriendly <| round (toFloat remainingFrames / indexedFramesPerSecond)
-                                --                                 in
-                                --                                 Just <| text <| "Remaining time: " ++ remainingTimeStr ++ ", remaining frames " ++ formatIntHumanFriendly remainingFramesToCapture
-                                --                             else
-                                --                                 Nothing
-                                --                 else
-                                --                     Nothing
                             in
                             [ div [ class "d-flex justify-content-center" ]
                                 [ div [ class "progress", style "width" "80%" ]
@@ -515,46 +437,98 @@ dataSetInformation zone run dataSetFromRunRequest currentExperimentTypeMaybe rrc
 
                                 Just eta ->
                                     div [ class "d-flex justify-content-center" ] [ em [ class "amarcord-small-text" ] [ eta ] ]
+                            , div [ class "d-flex justify-content-center align-items-center" ]
+                                [ p [] [ text "What’s this?" ]
+                                , viewHelpButton "help-indexing-target"
+                                ]
+                            , div [ id "help-indexing-target", class "collapse text-bg-light p-2" ]
+                                [ p_ [ text "In general, you cannot collect too many indexed frames to build the electron density. Moreover, it’s hard to say when you have “enough” of these frames to even start merging the data." ]
+                                , p_ [ text "We’ve consulted with our crystallography experts on that, and came up with “shoot for 10k indexed frames”. This progress bar illustrates how far you are with that, and how long it will take to reach it, so you can decide if it’s feasible, or if you want to change parameters to increase indexing rate some more." ]
+                                , viewCloseHelpButton "help-indexing-target"
+                                ]
                             ]
-
-                        smallBox color =
-                            span [ style "color" color ] [ text <| String.fromChar <| fromCode 9632 ]
-
-                        twoValueGauge : String -> Float -> Maybe Float -> List (Html msg)
-                        twoValueGauge title thisValue total =
-                            case total of
-                                Nothing ->
-                                    [ gauge (Just thisValue) total, div_ [ em [ class "amarcord-small-text" ] [ smallBox thisFillColor, text <| " " ++ title ++ " " ++ formatFloatHumanFriendly thisValue ++ "%" ] ] ]
-
-                                Just totalValue ->
-                                    [ gauge (Just thisValue) total
-                                    , div_
-                                        [ em [ class "amarcord-small-text" ]
-                                            [ smallBox thisFillColor
-                                            , text (" run: " ++ formatFloatHumanFriendly thisValue ++ "% | ")
-                                            , smallBox totalFillColor
-                                            , text <| " data set: " ++ formatFloatHumanFriendly totalValue ++ "%"
-                                            ]
-                                        ]
-                                    ]
                     in
-                    [ div [ class "d-flex flex-row justify-content-evenly" ]
-                        [ div [ class "text-center" ] (twoValueGauge "Indexing rate" run.summary.indexingRate Nothing)
-                        , div [ class "text-center" ] (twoValueGauge "Hit rate" run.summary.hitRate Nothing)
-                        ]
+                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
                     , div [ class "mb-3" ] indexingProgress
-                    , h3_ [ text "Data set" ]
+                    , h3_ [ text "Data set", viewHelpButton "help-data-set" ]
+                    , div [ id "help-data-set", class "collapse text-bg-light p-2" ]
+                        [ p_
+                            [ em [] [ text "Data sets" ]
+                            , text " are a way to group runs according to common attributi. Each run has an associated "
+                            , em [] [ text "Experiment Type" ]
+                            , text ", which, in turn, consists of a set of attributi."
+                            ]
+                        , p_ [ text "For example, to group runs by the sample that was used and the detector distance, create an experiment type (say “SSD” for “Simple Structure Determination”) containing these two attributi, and acquire some runs:" ]
+                        , h5_ [ text "Experiment Types" ]
+                        , table [ class "table table-sm table-striped" ]
+                            [ thead_
+                                [ tr_
+                                    [ th_ [ text "ID" ]
+                                    , th_ [ text "Name" ]
+                                    , th_ [ text "Attributi" ]
+                                    ]
+                                ]
+                            , tbody_
+                                [ tr_ [ td_ [ text "1" ], td_ [ text "SSD" ], td_ [ text "Sample, Detector Distance" ] ]
+                                ]
+                            ]
+                        , h5_ [ text "Runs" ]
+                        , table [ class "table table-sm table-striped" ]
+                            [ thead_
+                                [ tr_
+                                    [ th_ [ text "Run ID" ]
+                                    , th_ [ text "Sample" ]
+                                    , th_ [ text "Detector Distance" ]
+                                    , th_ [ text "Exp. Type" ]
+                                    ]
+                                ]
+                            , tbody_
+                                [ tr_ [ td_ [ text "1" ], td_ [ text "Lysozyme" ], td_ [ text "200mm" ], td_ [ text "SSD" ] ]
+                                , tr_ [ td_ [ text "2" ], td_ [ text "Lysozyme" ], td_ [ text "200mm" ], td_ [ text "SSD" ] ]
+                                , tr_ [ td_ [ text "3" ], td_ [ text "Lactamase" ], td_ [ text "100mm" ], td_ [ text "SSD" ] ]
+                                , tr_ [ td_ [ text "4" ], td_ [ text "Lactamase" ], td_ [ text "200mm" ], td_ [ text "SSD" ] ]
+                                ]
+                            ]
+                        , p_ [ text "Note that we just have ", em [] [ text "runs" ], text " and one ", em [] [ text "Experiment Type" ], text " for now. We don't have data sets yet. These have to be created manually, either before the experiment (if you know what you’re going to measure), or during." ]
+                        , p_ [ text "To group runs and merge them, we create a data set, which is just an assignment of attributi to values. So, for example, we could create a data set for the “SSD” experiment type which sets “Detector Distance” to “200mm” and “Sample” to “Lysozyme”." ]
+                        , h5_ [ text "Data Sets" ]
+                        , table [ class "table table-sm table-striped" ]
+                            [ thead_
+                                [ tr_
+                                    [ th_ [ text "ID" ]
+                                    , th_ [ text "Attributi" ]
+                                    ]
+                                ]
+                            , tbody_
+                                [ tr_ [ td_ [ text "1" ], td_ [ em [] [ text "Sample" ], text ": Lysozyme, ", em [] [ text "Detector Distance" ], text ": 200mm" ] ]
+                                ]
+                            ]
+                        , p_ [ text "From here on out, all runs with these attributi values are part of data set 1. In the analysis view, you can now easily merge all of these runs." ]
+                        , p_ [ text "As described earlier, there are two ways to create data sets: either manually, on the ", a [ href (makeLink (DataSets beamtimeId)) ] [ icon { name = "arrow-right" }, text " Data Sets" ], text " page. But you can also create a Data Set from the current run, by clicking the button for that (it appears for runs which do not have a Data Set matching yet). This will take the run’s attributi and use them for the whole data set." ]
+                        , viewCloseHelpButton "help-data-set"
+                        ]
                     , viewDataSetTable (List.map convertAttributoFromApi rrc.attributi)
                         zone
                         (chemicalIdDict (List.map convertChemicalFromApi rrc.chemicals))
                         (convertAttributoMapFromApi ds.attributi)
                         True
+                        True
                         Nothing
                     ]
 
 
+posixDiffHumanFriendlyLongDurationsExact : Zone -> Posix -> Posix -> String
+posixDiffHumanFriendlyLongDurationsExact zone relative now =
+    if posixToMillis now - posixToMillis relative > 48 * 60 * 60 * 1000 then
+        formatPosixHumanFriendly zone relative
+
+    else
+        posixDiffHumanFriendly now relative ++ " ago "
+
+
 viewCurrentRun :
     Zone
+    -> BeamtimeId
     -> Posix
     -> Maybe JsonExperimentType
     -> Maybe JsonExperimentType
@@ -562,7 +536,7 @@ viewCurrentRun :
     -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
     -> JsonReadRuns
     -> List (Html Msg)
-viewCurrentRun zone now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
+viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
     -- Here, we assume runs are ordered so the first one is the latest one.
     case head rrc.runs of
         Nothing ->
@@ -574,8 +548,9 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                     [ div [ class "form-check form-switch mb-3" ]
                         [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.userConfig.autoPilot, onInput (always (ChangeAutoPilot (not rrc.userConfig.autoPilot))) ]
                         , label [ class "form-check-label", for "auto-pilot" ] [ text "Auto pilot" ]
-                        , div [ class "form-text" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
+                        , viewHelpButton "help-auto-pilot"
                         ]
+                    , div [ Html.Attributes.id "help-auto-pilot", class "collapse text-bg-light p-2" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
                     ]
 
                 onlineCrystFEL =
@@ -631,7 +606,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
 
                         Just realStoppedTime ->
                             [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ String.fromInt externalId ]
-                            , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendly (millisToPosix realStoppedTime) now ++ " ago " ]
+                            , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendlyLongDurationsExact zone (millisToPosix realStoppedTime) now ]
                             , p_ [ text <| "Duration " ++ posixDiffHumanFriendly (millisToPosix started) (millisToPosix realStoppedTime) ]
                             ]
 
@@ -662,7 +637,7 @@ viewCurrentRun zone now selectedExperimentType currentExperimentType changeExper
                         ]
                     ]
             in
-            header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation zone run dataSetFromRunRequest currentExperimentType rrc
+            header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentType rrc
 
 
 viewRunAttributiForm :
@@ -806,65 +781,64 @@ viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList r
 
 viewInner : Model -> JsonReadRuns -> List (Html Msg)
 viewInner model rrc =
-    List.concat
-        [ [ div [ class "container" ]
-                [ div
-                    [ class "row" ]
-                    [ div [ class "col-lg-6" ]
-                        (viewCurrentRun
-                            model.myTimeZone
-                            model.now
-                            model.selectedExperimentType
-                            model.currentExperimentType
-                            model.changeExperimentTypeRequest
-                            model.dataSetFromRunRequest
-                            rrc
-                        )
-                    , div [ class "col-lg-6" ]
-                        (viewRunAttributiForm
-                            (model.currentExperimentType
-                                |> Maybe.andThen (\a -> ListExtra.find (\et -> et.id == a.id) rrc.experimentTypes)
-                                |> Maybe.map .attributi
-                            )
-                            (head rrc.runs)
-                            model.submitErrors
-                            model.runEditRequest
-                            (List.map convertChemicalFromApi rrc.chemicals)
-                            model.runEditInfo
-                            rrc.experimentTypes
-                        )
-                    ]
-                ]
-          , hr_
-          , Html.map EventFormMsg (EventForm.view model.eventForm)
-          , hr_
-          , case rrc.liveStreamFileId of
-                Nothing ->
-                    Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser)
+    [ div [ class "container" ]
+        [ div
+            [ class "row" ]
+            [ div [ class "col-lg-6" ]
+                (viewCurrentRun
+                    model.myTimeZone
+                    model.beamtimeId
+                    model.now
+                    model.selectedExperimentType
+                    model.currentExperimentType
+                    model.changeExperimentTypeRequest
+                    model.dataSetFromRunRequest
+                    rrc
+                )
+            , div [ class "col-lg-6" ]
+                (viewRunAttributiForm
+                    (model.currentExperimentType
+                        |> Maybe.andThen (\a -> ListExtra.find (\et -> et.id == a.id) rrc.experimentTypes)
+                        |> Maybe.map .attributi
+                    )
+                    (head rrc.runs)
+                    model.submitErrors
+                    model.runEditRequest
+                    (List.map convertChemicalFromApi rrc.chemicals)
+                    model.runEditInfo
+                    rrc.experimentTypes
+                )
+            ]
+        ]
+    , hr_
+    , case rrc.liveStreamFileId of
+        Nothing ->
+            Html.map EventFormMsg (EventForm.view model.eventForm)
 
-                Just jetStreamId ->
-                    div [ class "row" ]
-                        [ div [ class "col-lg-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
-                        , div [ class "col-lg-6 text-center" ]
-                            [ figure [ class "figure" ]
-                                [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
-                                , figcaption [ class "figure-caption" ]
-                                    [ text "Live stream image"
-                                    ]
-                                ]
+        Just jetStreamId ->
+            div [ class "row" ]
+                [ div [ class "col-lg-6" ] [ Html.map EventFormMsg (EventForm.view model.eventForm) ]
+                , div [ class "col-lg-6 text-center" ]
+                    [ figure [ class "figure" ]
+                        [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
+                        , figcaption [ class "figure-caption" ]
+                            [ text "Live stream image"
                             ]
                         ]
-          , hr_
-          , Html.map RunFilterSubMsg <| viewRunFilter model.runFilter
-          ]
-        , runDatesGroup model
-        , [ hr_
-          , div [ class "row" ]
-                [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ]
-                , viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc
+                    ]
                 ]
-          ]
+    , hr_
+
+    -- , Html.map RunFilterSubMsg <| viewRunFilter model.runFilter
+    , div [ class "row" ]
+        [ div [ class "col-6" ] (runDatesGroup model)
+        , div [ class "col-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
         ]
+    , div [ class "row" ]
+        [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ]
+        , viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc
+        ]
+    ]
 
 
 runDatesGroup : Model -> List (Html Msg)
@@ -1105,8 +1079,16 @@ update msg model =
                         Ok { liveStreamFileId } ->
                             MaybeExtra.isJust liveStreamFileId
 
+                shiftUser =
+                    case response of
+                        Ok { currentBeamtimeUser } ->
+                            currentBeamtimeUser
+
+                        _ ->
+                            Nothing
+
                 newEventForm =
-                    EventForm.updateLiveStream model.eventForm hasLiveStream
+                    EventForm.updateLiveStreamAndShiftUser model.eventForm hasLiveStream shiftUser
 
                 newCurrentExperimentType : Maybe JsonExperimentType
                 newCurrentExperimentType =
@@ -1424,21 +1406,3 @@ update msg model =
                       }
                     , retrieveRuns model
                     )
-
-        RunFilterSubMsg runFilterMsg ->
-            let
-                ( newRunFilter, cmds ) =
-                    updateRunFilter model.beamtimeId model.runFilter runFilterMsg
-
-                newModel =
-                    { model | runFilter = newRunFilter }
-
-                afterRunsResponse =
-                    case runFilterMsg of
-                        RunFilterSubmitFinished (Ok response) ->
-                            update (RunsReceived (Ok response)) newModel
-
-                        _ ->
-                            ( newModel, Cmd.none )
-            in
-            ( first afterRunsResponse, Cmd.batch [ second afterRunsResponse, Cmd.map RunFilterSubMsg cmds ] )

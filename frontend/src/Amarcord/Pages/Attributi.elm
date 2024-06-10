@@ -4,6 +4,7 @@ import Amarcord.API.Requests exposing (BeamtimeId, ConversionFlags)
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToApi, associatedTableToString)
 import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, attributoTypeToSchemaArray, attributoTypeToSchemaBoolean, attributoTypeToSchemaInt, attributoTypeToSchemaNumber, attributoTypeToSchemaString, convertAttributoFromApi, mapAttributo, mapAttributoMaybe)
+import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
@@ -438,6 +439,26 @@ attributoTypeToHtml x =
             [ text <| "one of: " ++ join ", " choiceValues ]
 
 
+attributoTypeToToleranceHtml : AttributoType -> List (Html msg)
+attributoTypeToToleranceHtml x =
+    case x of
+        Number { tolerance, toleranceIsAbsolute } ->
+            case Maybe.map formatFloatHumanFriendly tolerance of
+                Nothing ->
+                    []
+
+                Just toleranceReal ->
+                    [ if toleranceIsAbsolute then
+                        text ("±" ++ toleranceReal)
+
+                      else
+                        text (toleranceReal ++ "%")
+                    ]
+
+        _ ->
+            []
+
+
 viewAttributoRow : Attributo AttributoType -> Html Msg
 viewAttributoRow { id, name, description, group, associatedTable, type_ } =
     tr_
@@ -445,6 +466,7 @@ viewAttributoRow { id, name, description, group, associatedTable, type_ } =
         , td [ style "white-space" "nowrap" ] [ text group ]
         , td_ [ markupWithoutErrors description ]
         , td [ style "white-space" "nowrap" ] (attributoTypeToHtml type_)
+        , td [ style "white-space" "nowrap" ] (attributoTypeToToleranceHtml type_)
         , td [ style "white-space" "nowrap" ]
             [ button [ class "btn btn-sm btn-danger me-3", onClick (AskDelete id name) ] [ icon { name = "trash" } ]
             , button [ class "btn btn-sm btn-info", onClick (InitiateEdit name) ] [ icon { name = "pencil-square" } ]
@@ -1041,6 +1063,7 @@ viewInner model =
                         , th_ [ text "Group" ]
                         , th [ style "width" "100%" ] [ text "Description" ]
                         , th_ [ text "Type" ]
+                        , th_ [ text "Tolerance" ]
                         , th_ [ text "Actions" ]
                         ]
                     ]
