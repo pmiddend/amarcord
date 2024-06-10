@@ -38,7 +38,7 @@ async def create_event(
             level=EventLogLevel(event.level),
             source=event.source,
             text=event.text,
-            created=datetime.datetime.utcnow(),
+            created=datetime.datetime.now(datetime.timezone.utc),
         )
         new_event.files.extend(
             await session.scalars(
@@ -58,7 +58,7 @@ async def create_event(
                 new_file_name = live_stream_image_name(beamtime_id) + "-copy"
                 copied_live_stream = orm.File(
                     type=existing_live_stream.type,
-                    modified=datetime.datetime.utcnow(),
+                    modified=datetime.datetime.now(datetime.timezone.utc),
                     # The contents aren't loaded by default (since
                     # they might be huge). And we're risking OOM here
                     # for big files, since we're reading it in memory,

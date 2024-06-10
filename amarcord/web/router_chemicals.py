@@ -42,7 +42,7 @@ async def create_chemical(
             name=input_.name,
             responsible_person=input_.responsible_person,
             type=input_.chemical_type,
-            modified=datetime.datetime.utcnow(),
+            modified=datetime.datetime.now(datetime.timezone.utc),
         )
 
         attributi_by_id: dict[int, orm.Attributo] = {

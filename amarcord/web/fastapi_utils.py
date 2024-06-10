@@ -213,7 +213,7 @@ async def safe_create_new_event(
                 level=level,
                 source=source,
                 text=text,
-                created=datetime.datetime.utcnow(),
+                created=datetime.datetime.now(datetime.timezone.utc),
             )
         )
     except:

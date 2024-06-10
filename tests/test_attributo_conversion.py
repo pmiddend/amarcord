@@ -486,7 +486,7 @@ def test_attributo_chemical_to_chemical() -> None:
 
 
 def test_attributo_datetime_to_datetime() -> None:
-    d = datetime.datetime.utcnow()
+    d = datetime.datetime.now(datetime.timezone.utc)
     assert (
         convert_attributo_value(
             AttributoTypeDateTime(),
@@ -499,7 +499,7 @@ def test_attributo_datetime_to_datetime() -> None:
 
 
 def test_attributo_datetime_to_string() -> None:
-    d = datetime.datetime.utcnow()
+    d = datetime.datetime.now(datetime.timezone.utc)
     assert convert_attributo_value(
         AttributoTypeDateTime(),
         AttributoTypeString(),

@@ -77,7 +77,9 @@ class LocalWorkloadManager(WorkloadManager):
             script,
             [],
         )
-        self._processes.append(WrappedProcess(process, datetime.datetime.utcnow()))
+        self._processes.append(
+            WrappedProcess(process, datetime.datetime.now(datetime.timezone.utc))
+        )
         return JobStartResult(
             job_id=process.pid, metadata=JobMetadata({"pid": process.pid})
         )

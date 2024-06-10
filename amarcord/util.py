@@ -215,7 +215,9 @@ def group_by(xs: Iterable[T], key: Callable[[T], U]) -> dict[U, list[T]]:
 
 def now_utc_unix_integer_millis() -> int:
     return int(
-        datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).timestamp()
+        datetime.datetime.now(datetime.timezone.utc)
+        .replace(tzinfo=datetime.timezone.utc)
+        .timestamp()
         * 1000
     )
 

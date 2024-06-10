@@ -95,7 +95,7 @@ def create_file_in_db(
     description: str,
 ) -> orm.File:
     result = orm.File(
-        modified=datetime.datetime.utcnow(),
+        modified=datetime.datetime.now(datetime.timezone.utc),
         file_name=external_file_name,
         original_path=None,
         description=description,
@@ -109,7 +109,7 @@ def create_new_user_configuration(
 ) -> orm.UserConfiguration:
     return orm.UserConfiguration(
         beamtime_id=user_configuration.beamtime_id,
-        created=datetime.datetime.utcnow(),
+        created=datetime.datetime.now(datetime.timezone.utc),
         auto_pilot=user_configuration.auto_pilot,
         use_online_crystfel=user_configuration.use_online_crystfel,
         current_experiment_type_id=user_configuration.current_experiment_type_id,
@@ -123,7 +123,7 @@ async def duplicate_file(f: orm.File, new_file_name: str) -> orm.File:
         size_in_bytes=f.size_in_bytes,
         original_path=f.original_path,
         sha256=f.sha256,
-        modified=datetime.datetime.utcnow(),
+        modified=datetime.datetime.now(datetime.timezone.utc),
         contents=await f.awaitable_attrs.contents,
         description=f.description,
     )

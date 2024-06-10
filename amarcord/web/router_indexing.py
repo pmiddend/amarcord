@@ -135,7 +135,7 @@ async def indexing_job_update(
             session.add(
                 orm.IndexingResultHasStatistic(
                     indexing_result_id=current_indexing_result.id,
-                    time=datetime.datetime.utcnow(),
+                    time=datetime.datetime.now(datetime.timezone.utc),
                     frames=jr.frames,
                     hits=jr.hits,
                     indexed_frames=jr.indexed_frames,

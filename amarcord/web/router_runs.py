@@ -135,8 +135,8 @@ async def start_run(
             external_id=runExternalId,
             experiment_type_id=experiment_type_id,
             beamtime_id=beamtimeId,
-            started=datetime.datetime.utcnow(),
-            modified=datetime.datetime.utcnow(),
+            started=datetime.datetime.now(datetime.timezone.utc),
+            modified=datetime.datetime.now(datetime.timezone.utc),
         )
         if latest_config.auto_pilot:
             latest_run = await retrieve_latest_run(session, beamtimeId)
@@ -165,7 +165,7 @@ async def stop_latest_run(
         latest_run = await retrieve_latest_run(session, beamtimeId)
 
         if latest_run is not None:
-            latest_run.stopped = datetime.datetime.utcnow()
+            latest_run.stopped = datetime.datetime.now(datetime.timezone.utc)
             await session.commit()
             return JsonStopRunOutput(result=True)
 
@@ -212,7 +212,7 @@ async def create_or_update_run(
                 experiment_type_id=experiment_type_id,
                 beamtime_id=beamtime_id,
                 started=(
-                    datetime.datetime.utcnow()
+                    datetime.datetime.now(datetime.timezone.utc)
                     if input_.started is None
                     else datetime_from_attributo_int(input_.started)
                 ),
@@ -221,7 +221,7 @@ async def create_or_update_run(
                     if input_.stopped is None
                     else datetime_from_attributo_int(input_.stopped)
                 ),
-                modified=datetime.datetime.utcnow(),
+                modified=datetime.datetime.now(datetime.timezone.utc),
             )
             attributi_by_id: dict[int, orm.Attributo] = {
                 a.id: a
@@ -448,7 +448,7 @@ async def create_or_update_run(
             # Better to explicitly flush, creating the run and giving us the ID
             await session.flush()
             new_indexing_result = orm.IndexingResult(
-                created=datetime.datetime.utcnow(),
+                created=datetime.datetime.now(datetime.timezone.utc),
                 run_id=run_in_db.id,
                 frames=0,
                 hit_rate=0.0,
@@ -532,24 +532,24 @@ def encode_attributo_value(
             attributo_value if isinstance(attributo_value, bool) else None
         ),
         # we cannot thoroughly test the array for type-correctness (or we dont' want to, rather)
-        attributo_value_list_str=(
+        attributo_value_list_str=(  # pyright: ignore
             attributo_value
             if isinstance(attributo_value, list)
             and (not attributo_value or isinstance(attributo_value[0], str))
             else None
-        ),  # pyright: ignore[reportGeneralTypeIssues]
-        attributo_value_list_float=(
+        ),
+        attributo_value_list_float=(  # pyright: ignore
             attributo_value
             if isinstance(attributo_value, list)
             and (not attributo_value or isinstance(attributo_value[0], (int, float)))
             else None
-        ),  # pyright: ignore[reportGeneralTypeIssues]
-        attributo_value_list_bool=(
+        ),
+        attributo_value_list_bool=(  # pyright: ignore
             attributo_value
             if isinstance(attributo_value, list)
             and (not attributo_value or isinstance(attributo_value[0], bool))
             else None
-        ),  # pyright: ignore[reportGeneralTypeIssues]
+        ),
     )
 
 

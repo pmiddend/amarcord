@@ -252,7 +252,7 @@ async def merge_job_started(
         )
         await session.commit()
     return JsonMergeJobStartedOutput(
-        time=datetime_to_attributo_int(datetime.datetime.utcnow())
+        time=datetime_to_attributo_int(datetime.datetime.now(datetime.timezone.utc))
     )
 
 
@@ -296,7 +296,7 @@ async def merge_job_finished(
         else:
             recent_log = current_merge_result_status.recent_log
 
-        stopped_time = datetime.datetime.utcnow()
+        stopped_time = datetime.datetime.now(datetime.timezone.utc)
 
         beamtime_id = current_merge_result_status.indexing_results[0].run.beamtime_id
 
@@ -569,7 +569,7 @@ async def queue_merge_job_for_data_set(
             + " ,".join(str(ir.id) for ir in chosen_indexing_results)
         )
         new_merge_result = orm.MergeResult(
-            created=datetime.datetime.utcnow(),
+            created=datetime.datetime.now(datetime.timezone.utc),
             recent_log="",
             negative_handling=negative_handling,
             job_status=DBJobStatus.QUEUED,

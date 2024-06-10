@@ -1,11 +1,11 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=17ee3bcc82adbe5666c42591f73eef41c4bd00f5";
+  inputs.nixpkgs.url = "nixpkgs/nixos-24.05";
   # It's very important to have at least 7.3.0 of this generator - otherwise generating Python code doesn't work properly
   inputs.nixpkgs-openapi-generator.url = "github:NixOS/nixpkgs";
   inputs.poetry2nix = {
-    url = "github:nix-community/poetry2nix?rev=0b2bff39e9bd4e6db3208e09c276ca83a063b370";
+    url = "github:nix-community/poetry2nix";
     inputs.nixpkgs.follows = "nixpkgs";
   };
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
