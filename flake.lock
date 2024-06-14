@@ -308,11 +308,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1668169700,
-        "narHash": "sha256-IMK9OLQzyfVK9BTVefhfyJwhyeoWYca1OYdzZ5j2pgU=",
+        "lastModified": 1718370516,
+        "narHash": "sha256-ww8LdW/97xFv2vRkVTUC/i1n+UgPX/2fhKYM4/BH8gg=",
         "ref": "refs/heads/amarcord-fixes",
-        "rev": "a3c14a9e04f9c22f2363882f1dfac1554ed88d58",
-        "revCount": 365,
+        "rev": "fe2a0999ece19c199634e514aded77bfc85eb3db",
+        "revCount": 408,
         "type": "git",
         "url": "https://gitlab.desy.de/cfel-sc-public/uglymol.git"
       },
