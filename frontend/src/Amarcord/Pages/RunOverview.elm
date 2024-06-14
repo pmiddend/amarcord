@@ -811,18 +811,18 @@ viewInner model rrc =
             ]
         ]
     , hr_
-    , case rrc.liveStreamFileId of
+    , case rrc.liveStream of
         Nothing ->
             Html.map EventFormMsg (EventForm.view model.eventForm)
 
-        Just jetStreamId ->
+        Just { fileId, modified } ->
             div [ class "row" ]
                 [ div [ class "col-lg-6" ] [ Html.map EventFormMsg (EventForm.view model.eventForm) ]
                 , div [ class "col-lg-6 text-center" ]
                     [ figure [ class "figure" ]
-                        [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
+                        [ a [ href (makeFilesLink fileId) ] [ img_ [ src (makeFilesLink fileId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
                         , figcaption [ class "figure-caption" ]
-                            [ text "Live stream image"
+                            [ text <| "Live stream image (updated " ++ formatPosixHumanFriendly model.myTimeZone (millisToPosix modified) ++ ")"
                             ]
                         ]
                     ]
@@ -1076,8 +1076,8 @@ update msg model =
                         Err _ ->
                             False
 
-                        Ok { liveStreamFileId } ->
-                            MaybeExtra.isJust liveStreamFileId
+                        Ok { liveStream } ->
+                            MaybeExtra.isJust liveStream
 
                 shiftUser =
                     case response of

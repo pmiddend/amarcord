@@ -57,6 +57,7 @@ from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonCreateOrUpdateRun
 from amarcord.web.json_models import JsonCreateOrUpdateRunOutput
 from amarcord.web.json_models import JsonIndexingStatistic
+from amarcord.web.json_models import JsonLiveStream
 from amarcord.web.json_models import JsonReadRuns
 from amarcord.web.json_models import JsonReadRunsBulkInput
 from amarcord.web.json_models import JsonReadRunsBulkOutput
@@ -912,8 +913,13 @@ async def read_runs(
             None if found_schedule_entry is None else found_schedule_entry.users
         ),
         latest_indexing_result=latest_indexing_result,
-        live_stream_file_id=(
-            live_stream_file.id if live_stream_file is not None else None
+        live_stream=(
+            None
+            if live_stream_file is None
+            else JsonLiveStream(
+                file_id=live_stream_file.id,
+                modified=datetime_to_attributo_int(live_stream_file.modified),
+            )
         ),
         filter_dates=extract_runs_and_event_dates(all_runs, all_events),
         attributi=[encode_attributo(a) for a in attributi],

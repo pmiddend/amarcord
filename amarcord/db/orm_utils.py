@@ -86,6 +86,7 @@ def update_file_with_contents(f: orm.File, temp_file: Any) -> None:
     f.type = mime
     f.size_in_bytes = file_path.stat().st_size
     f.contents = temp_file.read()  # type: ignore
+    f.modified = datetime.datetime.now(datetime.timezone.utc)
 
 
 def create_file_in_db(

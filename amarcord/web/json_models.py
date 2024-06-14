@@ -453,8 +453,13 @@ class JsonUserConfig(BaseModel):
     current_experiment_type_id: None | int
 
 
+class JsonLiveStream(BaseModel):
+    file_id: int
+    modified: int
+
+
 class JsonReadRuns(BaseModel):
-    live_stream_file_id: None | int
+    live_stream: None | JsonLiveStream
     filter_dates: list[str]
     runs: list[JsonRun]
     attributi: list[JsonAttributo]

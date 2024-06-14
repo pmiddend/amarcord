@@ -87,6 +87,7 @@ module Api.Data exposing
     , JsonIndexingResult
     , JsonIndexingResultRootJson
     , JsonIndexingStatistic
+    , JsonLiveStream
     , JsonMergeJob
     , JsonMergeJobFinishOutput
     , JsonMergeJobFinishedInput
@@ -213,6 +214,7 @@ module Api.Data exposing
     , encodeJsonIndexingResult
     , encodeJsonIndexingResultRootJson
     , encodeJsonIndexingStatistic
+    , encodeJsonLiveStream
     , encodeJsonMergeJob
     , encodeJsonMergeJobFinishOutput
     , encodeJsonMergeJobFinishedInput
@@ -346,6 +348,7 @@ module Api.Data exposing
     , jsonIndexingResultDecoder
     , jsonIndexingResultRootJsonDecoder
     , jsonIndexingStatisticDecoder
+    , jsonLiveStreamDecoder
     , jsonMergeJobDecoder
     , jsonMergeJobFinishOutputDecoder
     , jsonMergeJobFinishedInputDecoder
@@ -1039,6 +1042,12 @@ type alias JsonIndexingStatistic =
     }
 
 
+type alias JsonLiveStream =
+    { fileId : Int
+    , modified : Int
+    }
+
+
 type alias JsonMergeJob =
     { id : Int
     , jobId : Maybe Int
@@ -1286,7 +1295,7 @@ type alias JsonReadRunAnalysis =
 
 
 type alias JsonReadRuns =
-    { liveStreamFileId : Maybe Int
+    { liveStream : Maybe JsonLiveStream
     , filterDates : List String
     , runs : List JsonRun
     , attributi : List JsonAttributo
@@ -3186,6 +3195,27 @@ encodeJsonIndexingStatisticPairs model =
     pairs
 
 
+encodeJsonLiveStream : JsonLiveStream -> Json.Encode.Value
+encodeJsonLiveStream =
+    encodeObject << encodeJsonLiveStreamPairs
+
+
+encodeJsonLiveStreamWithTag : ( String, String ) -> JsonLiveStream -> Json.Encode.Value
+encodeJsonLiveStreamWithTag (tagField, tag) model =
+    encodeObject (encodeJsonLiveStreamPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonLiveStreamPairs : JsonLiveStream -> List EncodedField
+encodeJsonLiveStreamPairs model =
+    let
+        pairs =
+            [ encode "file_id" Json.Encode.int model.fileId
+            , encode "modified" Json.Encode.int model.modified
+            ]
+    in
+    pairs
+
+
 encodeJsonMergeJob : JsonMergeJob -> Json.Encode.Value
 encodeJsonMergeJob =
     encodeObject << encodeJsonMergeJobPairs
@@ -3866,7 +3896,7 @@ encodeJsonReadRunsPairs : JsonReadRuns -> List EncodedField
 encodeJsonReadRunsPairs model =
     let
         pairs =
-            [ maybeEncode "live_stream_file_id" Json.Encode.int model.liveStreamFileId
+            [ maybeEncode "live_stream" encodeJsonLiveStream model.liveStream
             , encode "filter_dates" (Json.Encode.list Json.Encode.string) model.filterDates
             , encode "runs" (Json.Encode.list encodeJsonRun) model.runs
             , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
@@ -5174,6 +5204,13 @@ jsonIndexingStatisticDecoder =
         |> decode "crystals" Json.Decode.int 
 
 
+jsonLiveStreamDecoder : Json.Decode.Decoder JsonLiveStream
+jsonLiveStreamDecoder =
+    Json.Decode.succeed JsonLiveStream
+        |> decode "file_id" Json.Decode.int 
+        |> decode "modified" Json.Decode.int 
+
+
 jsonMergeJobDecoder : Json.Decode.Decoder JsonMergeJob
 jsonMergeJobDecoder =
     Json.Decode.succeed JsonMergeJob
@@ -5451,7 +5488,7 @@ jsonReadRunAnalysisDecoder =
 jsonReadRunsDecoder : Json.Decode.Decoder JsonReadRuns
 jsonReadRunsDecoder =
     Json.Decode.succeed JsonReadRuns
-        |> maybeDecode "live_stream_file_id" Json.Decode.int Nothing
+        |> maybeDecode "live_stream" jsonLiveStreamDecoder Nothing
         |> decode "filter_dates" (Json.Decode.list Json.Decode.string) 
         |> decode "runs" (Json.Decode.list jsonRunDecoder) 
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
