@@ -339,7 +339,7 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
             [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
 
         Just currentExperimentType ->
-            case find (\ds -> ds.experimentTypeId == currentExperimentType.id && List.member ds.id run.dataSets) rrc.dataSets of
+            case find (\ds -> List.member ds.dataSet.id run.dataSetIds) rrc.dataSetsWithFom of
                 Nothing ->
                     [ p [ class "text-muted" ]
                         [ text <| "Run is not part of any data set in \"" ++ currentExperimentType.name ++ "\". You can automatically create a data set that matches the current run's attributi."
@@ -354,17 +354,12 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                     , viewRemoteDataHttp "Data set created" dataSetFromRunRequest
                     ]
 
-                Just ds ->
+                Just dsWithFom ->
                     let
                         indexingProgress =
                             let
                                 progressSummary =
-                                    case ds.summary of
-                                        Nothing ->
-                                            run.summary
-
-                                        Just dsSummary ->
-                                            dsSummary
+                                    dsWithFom.fom
 
                                 etaFor10kFrames =
                                     let
@@ -510,7 +505,7 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                     , viewDataSetTable (List.map convertAttributoFromApi rrc.attributi)
                         zone
                         (chemicalIdDict (List.map convertChemicalFromApi rrc.chemicals))
-                        (convertAttributoMapFromApi ds.attributi)
+                        (convertAttributoMapFromApi dsWithFom.dataSet.attributi)
                         True
                         True
                         Nothing

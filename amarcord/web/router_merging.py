@@ -1,5 +1,4 @@
 import datetime
-from typing import Callable
 
 import structlog
 from fastapi import APIRouter
@@ -10,45 +9,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
-from amarcord.amici.crystfel.util import CrystFELCellFile
-from amarcord.amici.crystfel.util import coparse_cell_description
-from amarcord.amici.crystfel.util import parse_cell_description
 from amarcord.db import orm
 from amarcord.db.attributi import datetime_from_attributo_int
 from amarcord.db.attributi import datetime_to_attributo_int
-from amarcord.db.attributi import run_matches_dataset
-from amarcord.db.attributi import schema_dict_to_attributo_type
-from amarcord.db.attributo_id import AttributoId
-from amarcord.db.attributo_type import AttributoType
+from amarcord.db.constants import POINT_GROUP_ATTRIBUTO
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.merge_result import JsonMergeJobFinishedInput
 from amarcord.db.merge_result import JsonMergeJobStartedInput
 from amarcord.db.merge_result import JsonMergeJobStartedOutput
-from amarcord.db.merge_result import JsonMergeResultFom
-from amarcord.db.merge_result import JsonMergeResultInternal
-from amarcord.db.merge_result import JsonMergeResultOuterShell
-from amarcord.db.merge_result import JsonMergeResultShell
-from amarcord.db.merge_result import JsonRefinementResultInternal
-from amarcord.db.run_internal_id import RunInternalId
+from amarcord.db.orm_utils import determine_run_indexing_metadata
 from amarcord.db.scale_intensities import ScaleIntensities
-from amarcord.util import group_by
-from amarcord.web.fastapi_utils import format_run_id_intervals
 from amarcord.web.fastapi_utils import get_orm_db
+from amarcord.web.fastapi_utils import orm_encode_json_merge_parameters_to_json
+from amarcord.web.fastapi_utils import retrieve_runs_matching_data_set
 from amarcord.web.fastapi_utils import safe_create_new_event
 from amarcord.web.json_models import JsonMergeJob
 from amarcord.web.json_models import JsonMergeJobFinishOutput
-from amarcord.web.json_models import JsonMergeParameters
-from amarcord.web.json_models import JsonMergeResult
-from amarcord.web.json_models import JsonMergeResultStateDone
-from amarcord.web.json_models import JsonMergeResultStateError
-from amarcord.web.json_models import JsonMergeResultStateQueued
-from amarcord.web.json_models import JsonMergeResultStateRunning
-from amarcord.web.json_models import JsonPolarisation
-from amarcord.web.json_models import JsonQueueMergeJobForDataSetInput
-from amarcord.web.json_models import JsonQueueMergeJobForDataSetOutput
+from amarcord.web.json_models import JsonQueueMergeJobInput
+from amarcord.web.json_models import JsonQueueMergeJobOutput
 from amarcord.web.json_models import JsonReadMergeResultsOutput
-from amarcord.web.json_models import JsonRefinementResult
 from amarcord.web.router_files import encode_file_output
 from amarcord.web.router_indexing import json_indexing_job_from_orm
 
@@ -56,184 +36,14 @@ logger = structlog.stdlib.get_logger(__name__)
 router = APIRouter()
 
 
-def json_merge_parameters_from_orm(mr: orm.MergeResult) -> JsonMergeParameters:
-    return JsonMergeParameters(
-        point_group=mr.point_group,
-        negative_handling=mr.negative_handling,
-        merge_model=mr.input_merge_model,
-        scale_intensities=mr.input_scale_intensities,
-        post_refinement=mr.input_post_refinement,
-        iterations=mr.input_iterations,
-        polarisation=(
-            JsonPolarisation(
-                angle=mr.input_polarisation_angle,
-                percent=mr.input_polarisation_percent,
-            )
-            if mr.input_polarisation_angle is not None
-            and mr.input_polarisation_percent is not None
-            else None
-        ),
-        start_after=mr.input_start_after,
-        stop_after=mr.input_stop_after,
-        rel_b=mr.input_rel_b,
-        no_pr=mr.input_no_pr if mr.input_no_pr is not None else False,
-        force_bandwidth=mr.input_force_bandwidth,
-        force_radius=mr.input_force_radius,
-        force_lambda=mr.input_force_lambda,
-        no_delta_cc_half=mr.input_no_delta_cc_half,
-        max_adu=mr.input_max_adu,
-        min_measurements=mr.input_min_measurements,
-        logs=mr.input_logs,
-        min_res=mr.input_min_res,
-        push_res=mr.input_push_res,
-        w=mr.input_w,
-    )
-
-
-def encode_merge_result(
-    mr: orm.MergeResult,
-    run_id_formatter: None | Callable[[RunInternalId], int] = None,
-) -> JsonMergeResult:
-    result = JsonMergeResult(
-        id=mr.id,
-        created=datetime_to_attributo_int(mr.created),
-        # We don't export the indexing results here yet. No clear reason other than laziness
-        runs=format_run_id_intervals(
-            (run_id_formatter(ir.run_id) if run_id_formatter is not None else ir.run_id)
-            for ir in mr.indexing_results
-        ),
-        state_queued=(
-            JsonMergeResultStateQueued(queued=True)
-            if mr.job_status == DBJobStatus.QUEUED
-            else None
-        ),
-        state_running=(
-            JsonMergeResultStateRunning(
-                started=datetime_to_attributo_int(mr.started),
-                job_id=mr.job_id,
-                latest_log=mr.recent_log,
-            )
-            if mr.started is not None and mr.job_id is not None and mr.stopped is None
-            else None
-        ),
-        state_error=(
-            JsonMergeResultStateError(
-                started=datetime_to_attributo_int(mr.started),
-                stopped=datetime_to_attributo_int(mr.stopped),
-                error=mr.job_error,
-                latest_log=mr.recent_log,
-            )
-            if mr.started is not None
-            and mr.stopped is not None
-            and mr.job_error is not None
-            else None
-        ),
-        state_done=(
-            JsonMergeResultStateDone(
-                started=datetime_to_attributo_int(mr.started),
-                stopped=datetime_to_attributo_int(mr.stopped),
-                result=JsonMergeResultInternal(
-                    detailed_foms=[
-                        JsonMergeResultShell(
-                            one_over_d_centre=s.one_over_d_centre,
-                            nref=s.nref,
-                            d_over_a=s.d_over_a,
-                            min_res=s.min_res,
-                            max_res=s.max_res,
-                            cc=s.cc,
-                            ccstar=s.ccstar,
-                            r_split=s.r_split,
-                            reflections_possible=s.reflections_possible,
-                            completeness=s.completeness,
-                            measurements=s.measurements,
-                            redundancy=s.redundancy,
-                            snr=s.snr,
-                            mean_i=s.mean_i,
-                        )
-                        for s in mr.shell_foms
-                    ],
-                    refinement_results=[
-                        JsonRefinementResultInternal(
-                            id=rr.id,
-                            pdb_file_id=rr.pdb_file_id,
-                            mtz_file_id=rr.mtz_file_id,
-                            r_free=rr.r_free,
-                            r_work=rr.r_work,
-                            rms_bond_angle=rr.rms_bond_angle,
-                            rms_bond_length=rr.rms_bond_length,
-                        )
-                        for rr in mr.refinement_results
-                    ],
-                    mtz_file_id=mr.mtz_file_id,
-                    fom=JsonMergeResultFom(
-                        snr=mr.fom_snr,  # type: ignore
-                        wilson=mr.fom_wilson,
-                        ln_k=mr.fom_ln_k,
-                        discarded_reflections=mr.fom_discarded_reflections,  # type: ignore
-                        one_over_d_from=mr.fom_one_over_d_from,  # type: ignore
-                        one_over_d_to=mr.fom_one_over_d_to,  # type: ignore
-                        redundancy=mr.fom_redundancy,  # type: ignore
-                        completeness=mr.fom_completeness,  # type: ignore
-                        measurements_total=mr.fom_measurements_total,  # type: ignore
-                        reflections_total=mr.fom_reflections_total,  # type: ignore
-                        reflections_possible=mr.fom_reflections_possible,  # type: ignore
-                        r_split=mr.fom_r_split,  # type: ignore
-                        r1i=mr.fom_r1i,  # type: ignore
-                        r2=mr.fom_2,  # type: ignore
-                        cc=mr.fom_cc,  # type: ignore
-                        ccstar=mr.fom_ccstar,  # type: ignore
-                        ccano=mr.fom_ccano,
-                        crdano=mr.fom_crdano,
-                        rano=mr.fom_rano,
-                        rano_over_r_split=mr.fom_rano_over_r_split,
-                        d1sig=mr.fom_d1sig,  # type: ignore
-                        d2sig=mr.fom_d2sig,  # type: ignore
-                        outer_shell=JsonMergeResultOuterShell(
-                            resolution=mr.fom_outer_resolution,  # type: ignore
-                            ccstar=mr.fom_outer_ccstar,  # type: ignore
-                            r_split=mr.fom_outer_r_split,  # type: ignore
-                            cc=mr.fom_outer_cc,  # type: ignore
-                            unique_reflections=mr.fom_outer_unique_reflections,  # type: ignore
-                            completeness=mr.fom_outer_completeness,  # type: ignore
-                            redundancy=mr.fom_outer_redundancy,  # type: ignore
-                            snr=mr.fom_outer_snr,  # type: ignore
-                            min_res=mr.fom_outer_min_res,  # type: ignore
-                            max_res=mr.fom_outer_max_res,  # type: ignore
-                        ),
-                    ),
-                ),
-            )
-            if mr.started is not None
-            and mr.stopped is not None
-            and mr.fom_snr is not None
-            else None
-        ),
-        parameters=json_merge_parameters_from_orm(mr),
-        refinement_results=[
-            JsonRefinementResult(
-                id=rr.id,
-                merge_result_id=rr.merge_result_id,
-                pdb_file_id=rr.pdb_file_id,
-                mtz_file_id=rr.mtz_file_id,
-                r_free=rr.r_free,
-                r_work=rr.r_work,
-                rms_bond_angle=rr.rms_bond_angle,
-                rms_bond_length=rr.rms_bond_length,
-            )
-            for rr in mr.refinement_results
-        ],
-    )
-    return result
-
-
 @router.post(
-    "/api/merging/start/{mergeResultId}",
+    "/api/merging/{mergeResultId}/start",
     tags=["merging"],
     response_model_exclude_defaults=True,
 )
 async def merge_job_started(
     mergeResultId: int,
-    json_merge_result: JsonMergeJobStartedInput,
+    json_result: JsonMergeJobStartedInput,
     session: AsyncSession = Depends(get_orm_db),
 ) -> JsonMergeJobStartedOutput:
     job_logger = logger.bind(merge_result_id=mergeResultId)
@@ -244,11 +54,11 @@ async def merge_job_started(
                 select(orm.MergeResult).where(orm.MergeResult.id == mergeResultId)
             )
         ).one()
-        merge_result.job_id = json_merge_result.job_id
-        merge_result.started = datetime_from_attributo_int(json_merge_result.time)
+        merge_result.job_id = json_result.job_id
+        merge_result.started = datetime_from_attributo_int(json_result.time)
         merge_result.job_status = DBJobStatus.RUNNING
         job_logger.info(
-            f"merge result now has job id {json_merge_result.job_id}, is running"
+            f"merge result now has job id {json_result.job_id}, is running"
         )
         await session.commit()
     return JsonMergeJobStartedOutput(
@@ -257,13 +67,13 @@ async def merge_job_started(
 
 
 @router.post(
-    "/api/merging/finish/{mergeResultId}",
+    "/api/merging/{mergeResultId}/finish",
     tags=["merging"],
     response_model_exclude_defaults=True,
 )
 async def merge_job_finished(
     mergeResultId: int,
-    json_merge_result: JsonMergeJobFinishedInput,
+    json_result: JsonMergeJobFinishedInput,
     session: AsyncSession = Depends(get_orm_db),
 ) -> JsonMergeJobFinishOutput:
     job_logger = logger.bind(merge_result_id=mergeResultId)
@@ -307,25 +117,25 @@ async def merge_job_finished(
             current_merge_result_status.started = stopped_time
         current_merge_result_status.stopped = stopped_time
         current_merge_result_status.recent_log = recent_log
-        if json_merge_result.error is not None:
+        if json_result.error is not None:
             await safe_create_new_event(
                 job_logger,
                 session,
                 beamtime_id,
-                f"merge result {mergeResultId} finished with error `{json_merge_result.error}`",
+                f"merge result {mergeResultId} finished with error `{json_result.error}`",
                 EventLogLevel.INFO,
                 "API",
             )
             job_logger.error(
-                f"semantic error in json content: {json_merge_result.error}"
+                f"semantic error in json content: {json_result.error}"
             )
-            current_merge_result_status.job_error = json_merge_result.error
+            current_merge_result_status.job_error = json_result.error
             current_merge_result_status.job_status = DBJobStatus.DONE
             return JsonMergeJobFinishOutput(result=False)
 
         assert (
-            json_merge_result.result is not None
-        ), f"both error and result are none in output: {json_merge_result}"
+            json_result.result is not None
+        ), f"both error and result are none in output: {json_result}"
 
         await safe_create_new_event(
             job_logger,
@@ -339,7 +149,7 @@ async def merge_job_finished(
         current_merge_result_status.recent_log = recent_log
         current_merge_result_status.job_status = DBJobStatus.DONE
 
-        r = json_merge_result.result
+        r = json_result.result
         cmrs = current_merge_result_status
         cmrs.mtz_file_id = r.mtz_file_id
         cmrs.fom_snr = r.fom.snr
@@ -394,9 +204,10 @@ async def merge_job_finished(
                 )
             )
 
-        for rr in json_merge_result.result.refinement_results:
+        for rr in json_result.result.refinement_results:
             cmrs.refinement_results.append(
                 orm.RefinementResult(
+                    merge_result_id=current_merge_result_status.id,
                     pdb_file_id=rr.pdb_file_id,
                     mtz_file_id=rr.mtz_file_id,
                     r_free=rr.r_free,
@@ -405,207 +216,209 @@ async def merge_job_finished(
                     rms_bond_length=rr.rms_bond_length,
                 )
             )
-        await session.flush()
         return JsonMergeJobFinishOutput(result=True)
 
 
+async def determine_point_group_from_indexing_results(
+    session: AsyncSession,
+    beamtime_id: int,
+    indexing_results_matching_params: list[orm.IndexingResult],
+) -> str:
+    # get all chemicals in all runs related to the indexing results (attributo ID is not even important)
+    chemical_ids_in_runs = select(orm.RunHasAttributoValue.chemical_value).where(
+        (
+            orm.RunHasAttributoValue.run_id.in_(
+                ir.run_id for ir in indexing_results_matching_params
+            )
+        )
+        & (orm.RunHasAttributoValue.chemical_value.is_not(None))
+    )
+    # attributi, plural, but there should be only one since names are hopefully unique
+    point_group_chemical_attributi = (
+        select(orm.Attributo.id)
+        .where(
+            (orm.Attributo.name == POINT_GROUP_ATTRIBUTO)
+            & (orm.Attributo.beamtime_id == beamtime_id)
+        )
+        .scalar_subquery()
+    )
+    select_all_point_groups = select(orm.ChemicalHasAttributoValue.string_value).where(
+        (
+            (
+                orm.ChemicalHasAttributoValue.attributo_id
+                == point_group_chemical_attributi
+            )
+            & (orm.ChemicalHasAttributoValue.chemical_id.in_(chemical_ids_in_runs))
+        )
+    )
+    point_groups = set(
+        s.strip()
+        for s in (await session.scalars(select_all_point_groups.distinct()))
+        if s is not None and s.strip()
+    )
+
+    if len(point_groups) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Found more than one point group! The runs I chose have (internal) IDs "
+            + ", ".join(str(ir.run_id) for ir in indexing_results_matching_params)
+            + ", which results in the following point groups (determined by going through all chemicals in the runs): "
+            + ", ".join(point_groups)
+            + ". To correct this, you have to either specify a separate point group while merging, or (better choice, probably) take care of the point groups for your chemicals: you should have exactly one point group for all chemicals for all runs.",
+        )
+    if not point_groups:
+        raise HTTPException(
+            status_code=400,
+            detail="found no point groups at all! The runs I chose have (internal) IDs "
+            + ", ".join(str(ir.run_id) for ir in indexing_results_matching_params)
+            + ", which either have no chemicals attached, or the chemicals have no point group inside them.",
+        )
+    return next(iter(point_groups))
+
+
 @router.post(
-    "/api/merging/queue/{dataSetId}",
+    "/api/merging",
     tags=["merging"],
     response_model_exclude_defaults=True,
 )
-async def queue_merge_job_for_data_set(
-    dataSetId: int,
-    input_: JsonQueueMergeJobForDataSetInput,
+async def queue_merge_job(
+    input_: JsonQueueMergeJobInput,
     session: AsyncSession = Depends(get_orm_db),
-) -> JsonQueueMergeJobForDataSetOutput:
-    logger.info("start creating merge result for data set")
+) -> JsonQueueMergeJobOutput:
+    logger.info("start creating merge result")
     async with session.begin():
-        strict_mode = input_.strict_mode
-        beamtime_id = input_.beamtime_id
-        params = input_.merge_parameters
-        attributi = list(
-            (
-                await session.scalars(
-                    select(orm.Attributo).where(
-                        orm.Attributo.beamtime_id == beamtime_id
-                    )
-                )
-            ).all()
-        )
+        # First, we have to collect all indexing results that match
+        # the given indexing parameter ID and which also match the
+        # data set.
+        #
+        # For that, unfortunately, we have to collect all the runs
+        # that match the data set first, which is the most
+        # time-consuming step.
+        merge_params = input_.merge_parameters
         data_set = (
             await session.scalars(
-                select(orm.DataSet).where(orm.DataSet.id == dataSetId)
+                select(orm.DataSet).where(orm.DataSet.id == input_.data_set_id)
             )
         ).one_or_none()
         if data_set is None:
             raise HTTPException(
-                status_code=400, detail=f'Data set with ID "{dataSetId}" not found'
+                status_code=400,
+                detail=f'Data set with ID "{input_.data_set_id}" not found',
             )
-        all_runs = (
-            await session.scalars(
-                select(orm.Run).where(orm.Run.beamtime_id == beamtime_id)
-            )
-        ).all()
-        attributo_types: dict[AttributoId, AttributoType] = {
-            AttributoId(a.id): schema_dict_to_attributo_type(a.json_schema)
-            for a in attributi
-        }
-        run_attributi_maps: dict[
-            int, dict[AttributoId, None | orm.RunHasAttributoValue]
-        ] = {r.id: {ra.attributo_id: ra for ra in r.attributo_values} for r in all_runs}
-        data_set_attributi_map = {
-            dsa.attributo_id: dsa for dsa in data_set.attributo_values
-        }
-        runs = [
-            r
-            for r in all_runs
-            if r.experiment_type_id == data_set.experiment_type_id
-            and run_matches_dataset(
-                attributo_types, run_attributi_maps[r.id], data_set_attributi_map
-            )
-        ]
-        if not runs:
-            raise HTTPException(
-                status_code=400, detail=f"Data set with ID {dataSetId} has no runs!"
-            )
-        indexing_results_by_run_id: dict[int, list[orm.IndexingResult]] = group_by(
-            (
-                ir
-                for ir in (
-                    await session.scalars(
-                        select(orm.IndexingResult, orm.Run)
-                        .join(orm.IndexingResult.run)
-                        .where(orm.Run.beamtime_id == beamtime_id)
-                    )
-                )
-                if ir.job_status == DBJobStatus.DONE and ir.job_error is None
-            ),
-            lambda ir: ir.run_id,
+        beamtime_id = (await data_set.awaitable_attrs.experiment_type).beamtime_id
+        runs_matching_ds = await retrieve_runs_matching_data_set(
+            session, input_.data_set_id, beamtime_id
         )
-        chosen_indexing_results: list[orm.IndexingResult] = []
-        cell_descriptions: set[CrystFELCellFile] = set()
-        point_groups: set[str] = set()
-        for run in runs:
-            irs = sorted(
-                indexing_results_by_run_id.get(run.id, []),
-                key=lambda ir: ir.id,
-                reverse=True,
+        if not runs_matching_ds:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Data set with ID {input_.data_set_id} has no runs!",
             )
-            if not irs:
-                if strict_mode:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Run {run.id} has no indexing results and strict mode is on; cannot merge",
-                    )
-                continue
-            chosen_result = irs[0]
-            if chosen_result.cell_description:
-                parsed_description = parse_cell_description(
-                    chosen_result.cell_description
+        indexing_parameters = (
+            await session.scalars(
+                select(orm.IndexingParameters).where(
+                    orm.IndexingParameters.id == input_.indexing_parameters_id
                 )
-                if parsed_description is None:
-                    logger.warning(
-                        f"indexing result {irs[0].id} has an invalid cell description: {chosen_result.cell_description}, ignoring this result"
-                    )
-                else:
-                    cell_descriptions.add(parsed_description)
-            if chosen_result.point_group:
-                point_groups.add(chosen_result.point_group)
-            chosen_indexing_results.append(chosen_result)
-        if not chosen_indexing_results:
-            detail = "Found no indexing results for the runs " + ",".join(
-                str(r.id) for r in runs
             )
-            logger.error(detail)
+        ).one_or_none()
+        if indexing_parameters is None:
             raise HTTPException(
                 status_code=400,
-                detail=detail,
+                detail=f"Indexing parameters with ID {input_.indexing_parameters_id} not found!",
             )
-        # Shouldn't happen, since for each indexing result we
-        # automatically have a cell description and point group, but
-        # the type system is too clunky to express that easily.
-        if not cell_descriptions:
-            detail = "Found no cell descriptions for the runs " + ",".join(
-                str(r.id) for r in runs
+        indexing_results_matching_params: list[orm.IndexingResult] = [
+            ir
+            for ir in await session.scalars(
+                select(orm.IndexingResult)
+                .where(orm.IndexingResult.run_id.in_(r.id for r in runs_matching_ds))
+                .options(selectinload(orm.IndexingResult.indexing_parameters))
             )
-            logger.error(detail)
+            if orm.are_indexing_parameters_equal(
+                ir.indexing_parameters, indexing_parameters
+            )
+            and ir.job_status == DBJobStatus.DONE
+            and ir.job_error is None
+        ]
+        if not indexing_results_matching_params:
             raise HTTPException(
                 status_code=400,
-                detail=detail,
+                detail=f"No (finished) indexing results found for parameters ID {input_.indexing_parameters_id}!",
             )
-        if not point_groups:
-            detail = "Found no cell descriptions for the runs " + ",".join(
-                str(r.id) for r in runs
+        # The point group we either get from the user as an input, or
+        # from the chemicals attached to the runs, which are, in turn,
+        # attached to the indexing results.
+        if input_.merge_parameters.point_group:
+            point_group = input_.merge_parameters.point_group
+        else:
+            point_group = await determine_point_group_from_indexing_results(
+                session, beamtime_id, indexing_results_matching_params
             )
-            logger.error(detail)
+        # The cell description is easier to get than the point group,
+        # since it's already in the indexing parameters, and all of
+        # those parameters have to be the same amongst the indexing
+        # results, so we can just take the one we get as an input.
+        #
+        # However, the cell description is technically optional while
+        # indexing (you might want to find out what cell it is!) but
+        # for compare_hkl, you need it again. So we fail here, late,
+        # when we have none.
+        cell_description = (
+            input_.merge_parameters.cell_description
+            if input_.merge_parameters.cell_description
+            else indexing_parameters.cell_description
+        )
+
+        if not cell_description:
             raise HTTPException(
                 status_code=400,
-                detail=detail,
+                detail="Have no cell description in the indexing results, cannot start merging! I have chosen indexing results "
+                + ", ".join(str(ir.id) for ir in indexing_results_matching_params),
             )
-        if len(cell_descriptions) > 1:
-            detail = (
-                "We have more than one cell description and cannot merge: "
-                + ", ".join(coparse_cell_description(c) for c in cell_descriptions)
-            )
-            logger.error(detail)
-            raise HTTPException(
-                status_code=400,
-                detail=detail,
-            )
-        if len(point_groups) > 1:
-            detail = "We have more than one point group and cannot merge: " + ", ".join(
-                f for f in point_groups
-            )
-            logger.error(detail)
-            raise HTTPException(
-                status_code=400,
-                detail=detail,
-            )
-        negative_handling = params.negative_handling
-        polarisation = params.polarisation
+
+        negative_handling = merge_params.negative_handling
+        polarisation = merge_params.polarisation
         logger.info(
             "all checks passed, creating new merge result with indexing results "
-            + " ,".join(str(ir.id) for ir in chosen_indexing_results)
+            + ", ".join(str(ir.id) for ir in indexing_results_matching_params)
         )
         new_merge_result = orm.MergeResult(
             created=datetime.datetime.now(datetime.timezone.utc),
+            cell_description=cell_description,
             recent_log="",
             negative_handling=negative_handling,
             job_status=DBJobStatus.QUEUED,
             started=None,
             stopped=None,
-            point_group=next(iter(point_groups)),
-            cell_description=coparse_cell_description(next(iter(cell_descriptions))),
+            point_group=point_group,
             job_id=None,
             job_error=None,
             mtz_file_id=None,
-            input_merge_model=orm.MergeModel(params.merge_model),
-            input_scale_intensities=ScaleIntensities(params.scale_intensities),
-            input_post_refinement=params.post_refinement,
-            input_iterations=params.iterations,
+            input_merge_model=orm.MergeModel(merge_params.merge_model),
+            input_scale_intensities=ScaleIntensities(merge_params.scale_intensities),
+            input_post_refinement=merge_params.post_refinement,
+            input_iterations=merge_params.iterations,
             input_polarisation_angle=(
                 polarisation.angle if polarisation is not None else None
             ),
             input_polarisation_percent=(
                 polarisation.percent if polarisation is not None else None
             ),
-            input_start_after=params.start_after,
-            input_stop_after=params.stop_after,
-            input_rel_b=params.rel_b,
-            input_no_pr=params.no_pr,
-            input_force_bandwidth=params.force_bandwidth,
-            input_force_radius=params.force_radius,
-            input_force_lambda=params.force_lambda,
-            input_no_delta_cc_half=params.no_delta_cc_half,
-            input_max_adu=params.max_adu,
-            input_min_measurements=params.min_measurements,
-            input_logs=params.logs,
-            input_min_res=params.min_res,
-            input_push_res=params.push_res,
-            input_w=params.w,
+            input_start_after=merge_params.start_after,
+            input_stop_after=merge_params.stop_after,
+            input_rel_b=merge_params.rel_b,
+            input_no_pr=merge_params.no_pr,
+            input_force_bandwidth=merge_params.force_bandwidth,
+            input_force_radius=merge_params.force_radius,
+            input_force_lambda=merge_params.force_lambda,
+            input_no_delta_cc_half=merge_params.no_delta_cc_half,
+            input_max_adu=merge_params.max_adu,
+            input_min_measurements=merge_params.min_measurements,
+            input_logs=merge_params.logs,
+            input_min_res=merge_params.min_res,
+            input_push_res=merge_params.push_res,
+            input_w=merge_params.w,
         )
-        new_merge_result.indexing_results.extend(chosen_indexing_results)
+        new_merge_result.indexing_results.extend(indexing_results_matching_params)
         session.add(new_merge_result)
         await session.flush()
         await safe_create_new_event(
@@ -616,16 +429,34 @@ async def queue_merge_job_for_data_set(
             EventLogLevel.INFO,
             "API",
         )
-        return JsonQueueMergeJobForDataSetOutput(merge_result_id=new_merge_result.id)
+        return JsonQueueMergeJobOutput(merge_result_id=new_merge_result.id)
+
+
+async def _read_files_from_indexing_in_merge_result(
+    session: AsyncSession, mr: orm.MergeResult
+) -> list[orm.File]:
+    result: list[orm.File] = []
+    for indexing_result in mr.indexing_results:
+        run = indexing_result.run
+
+        indexing_metadata = await determine_run_indexing_metadata(session, run)
+
+        if isinstance(indexing_metadata, str):
+            raise Exception(
+                f"couldn't get indexing metadata for merge result {mr.id}, run {run.id} (external ID {run.external_id}): {indexing_metadata}"
+            )
+
+        result.extend(await indexing_metadata.chemical.awaitable_attrs.files)
+    return result
 
 
 @router.get(
     "/api/merging",
-    tags=["analysis", "processing"],
+    tags=["merging"],
     response_model_exclude_defaults=True,
 )
 async def read_merge_jobs(
-    status: None | DBJobStatus,
+    status: None | DBJobStatus = None,
     session: AsyncSession = Depends(get_orm_db),
 ) -> JsonReadMergeResultsOutput:
     async def encode_single_merge_job(mr: orm.MergeResult) -> JsonMergeJob:
@@ -634,33 +465,43 @@ async def read_merge_jobs(
             id=mr.id,
             job_id=mr.job_id,
             job_status=mr.job_status,
-            cell_description=mr.cell_description,
             point_group=mr.point_group,
-            parameters=json_merge_parameters_from_orm(mr),
+            cell_description=mr.cell_description,
+            parameters=orm_encode_json_merge_parameters_to_json(mr),
             indexing_results=[
-                json_indexing_job_from_orm(ir) for ir in mr.indexing_results
+                # File paths are not important in this request, we only need it for starting the indexing
+                await json_indexing_job_from_orm(ir, with_files=False)
+                for ir in mr.indexing_results
             ],
             # One of the rare instances where we're fetching something deliberately lazy, at least for now:
             # retrieve the files for all indexing results, getting the chemical first, then the files.
             # Let's see if performance holds up.
             files_from_indexing=[
                 encode_file_output(file)
-                for ir in mr.indexing_results
-                for file in await (
-                    await ir.awaitable_attrs.chemical
-                ).awaitable_attrs.files
+                for file in await _read_files_from_indexing_in_merge_result(session, mr)
             ],
         )
 
     result = JsonReadMergeResultsOutput(
         merge_jobs=[
-            await encode_single_merge_job(ij)
-            for ij in await session.scalars(
+            await encode_single_merge_job(mr)
+            for mr in await session.scalars(
                 select(orm.MergeResult)
                 .options(
                     selectinload(orm.MergeResult.indexing_results)
                     .selectinload(orm.IndexingResult.run)
                     .selectinload(orm.Run.beamtime)
+                )
+                .options(
+                    selectinload(orm.MergeResult.indexing_results).selectinload(
+                        orm.IndexingResult.indexing_parameters
+                    )
+                )
+                .options(
+                    selectinload(orm.MergeResult.indexing_results)
+                    .selectinload(orm.IndexingResult.run)
+                    .selectinload(orm.Run.attributo_values)
+                    .selectinload(orm.RunHasAttributoValue.attributo)
                 )
                 .where(
                     orm.MergeResult.job_status == status

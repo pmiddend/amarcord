@@ -27,6 +27,10 @@ In AMARCORD's flake, we have a `amarcord-frontend` derivation in which we `fetch
 
 ### `Main.elm` Structure
 
+### `elm-test`
+
+There are tests located in `frontend/tests`, written in [elm-test](https://package.elm-lang.org/packages/elm-explorations/test/2.2.0/), partially using fuzzing or [property-based tests](https://en.wikipedia.org/wiki/Software_testing#Property_testing). Call `elm-test` to run these tests. This is also done in CI.
+
 ### `elm-review`
 
 To ensure code quality in the frontend, we use the excellent [elm-review](https://package.elm-lang.org/packages/jfmengels/elm-review/latest/). To run it, just `cd` into `frontend` and do `npx elm-review` (here, we need NodeJS). It will show all the errors it finds. Note that in many cases, it can even correct mistakes. Try running it with the `--fix` or `--fix-all` command-line option!

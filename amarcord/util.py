@@ -261,3 +261,9 @@ def first(xs: Iterable[T]) -> Union[None, T]:
     for x in xs:
         return x
     return None
+
+
+def overwrite_interpreter(file_contents: str, interpreter: str) -> str:
+    lines = file_contents.split("\n")
+    lines[0] = interpreter
+    return "\n".join(lines)

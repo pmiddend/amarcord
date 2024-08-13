@@ -13,12 +13,15 @@ import Amarcord.API.Requests
         , runExternalIdToString
         )
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Html exposing (form_, h2_, hr_, input_, onIntInput)
+import Amarcord.CommandLineParser exposing (coparseCommandLine)
+import Amarcord.Html exposing (div_, form_, h2_, hr_, input_, onIntInput)
+import Amarcord.HttpError as HttpError
+import Amarcord.IndexingParameters as IndexingParameters
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput)
 import Api exposing (send)
-import Api.Data exposing (JsonReadRuns, JsonStartRunOutput, JsonStopRunOutput, JsonUserConfigurationSingleOutput)
-import Api.Request.Config exposing (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
+import Api.Data exposing (JsonIndexingParameters, JsonReadRuns, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
+import Api.Request.Config exposing (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet, updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch, updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
 import Html exposing (Html, a, button, div, form, h2, label, option, p, select, text)
 import Html.Attributes exposing (class, disabled, for, href, id, selected, type_, value)
@@ -38,6 +41,8 @@ type alias Model =
     , manualChange : Bool
     , bulkUpdateModel : RunsBulkUpdate.Model
     , beamtimeId : BeamtimeId
+    , onlineIndexingParameters : RemoteData HttpError.HttpError IndexingParameters.Model
+    , updateOnlineIndexingParameters : RemoteData HttpError.HttpError JsonUpdateOnlineIndexingParametersOutput
     }
 
 
@@ -47,11 +52,15 @@ type Msg
     | StopRun
     | StopRunFinished (Result Http.Error JsonStopRunOutput)
     | RunsReceived (Result Http.Error JsonReadRuns)
+    | IndexingParametersReceived (Result HttpError.HttpError JsonIndexingParameters)
     | Refresh Posix
     | RunIdChanged (Maybe Int)
     | RunsBulkUpdateMsg RunsBulkUpdate.Msg
     | CurrentExperimentTypeChanged Int
     | ExperimentIdChanged (Result Http.Error JsonUserConfigurationSingleOutput)
+    | IndexingParametersMsg IndexingParameters.Msg
+    | StartUpdateOnlineIndexingParameters
+    | UpdateOnlineIndexingParametersDone (Result HttpError.HttpError JsonUpdateOnlineIndexingParametersOutput)
 
 
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
@@ -64,10 +73,13 @@ init hereAndNow beamtimeId =
       , manualChange = False
       , bulkUpdateModel = RunsBulkUpdate.init hereAndNow beamtimeId
       , beamtimeId = beamtimeId
+      , onlineIndexingParameters = Loading
+      , updateOnlineIndexingParameters = NotAsked
       }
-    , send
-        RunsReceived
-        (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing)
+    , Cmd.batch
+        [ send RunsReceived (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing)
+        , HttpError.send IndexingParametersReceived (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtimeId)
+        ]
     )
 
 
@@ -106,12 +118,49 @@ calculateNextRunId currentRunId runResponse =
 
 
 receiveRuns : Model -> Cmd Msg
-receiveRuns model = send RunsReceived (readRunsApiRunsBeamtimeIdGet model.beamtimeId Nothing Nothing)
+receiveRuns model =
+    send RunsReceived (readRunsApiRunsBeamtimeIdGet model.beamtimeId Nothing Nothing)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        UpdateOnlineIndexingParametersDone result ->
+            ( { model | updateOnlineIndexingParameters = RemoteData.fromResult result }, Cmd.none )
+
+        StartUpdateOnlineIndexingParameters ->
+            case model.onlineIndexingParameters of
+                Success onlineIndexingParameters ->
+                    case IndexingParameters.toCommandLine onlineIndexingParameters of
+                        Err _ ->
+                            ( model, Cmd.none )
+
+                        Ok commandLine ->
+                            ( { model | updateOnlineIndexingParameters = Loading }
+                            , HttpError.send UpdateOnlineIndexingParametersDone
+                                (updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch model.beamtimeId
+                                    { commandLine = coparseCommandLine commandLine
+                                    , geometryFile = onlineIndexingParameters.geometryFile
+                                    , source = onlineIndexingParameters.source
+                                    }
+                                )
+                            )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        IndexingParametersMsg paramsMsg ->
+            case model.onlineIndexingParameters of
+                Success onlineIndexingParameters ->
+                    let
+                        ( updatedIndexingParams, cmd ) =
+                            IndexingParameters.update paramsMsg onlineIndexingParameters
+                    in
+                    ( { model | onlineIndexingParameters = Success updatedIndexingParams }, Cmd.map IndexingParametersMsg cmd )
+
+                _ ->
+                    ( model, Cmd.none )
+
         ExperimentIdChanged _ ->
             ( model, Cmd.none )
 
@@ -119,6 +168,22 @@ update msg model =
             ( model
             , send ExperimentIdChanged (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch model.beamtimeId "current-experiment-type-id" (String.fromInt newExperimentTypeId))
             )
+
+        IndexingParametersReceived response ->
+            case response of
+                Err requestError ->
+                    ( { model | onlineIndexingParameters = Failure requestError }, Cmd.none )
+
+                Ok { commandLine } ->
+                    -- Deliberately init "sources" empty, because then
+                    -- we'll get an input field instead of a dropdown,
+                    -- which makes sense. We don't know the source with online indexing yet
+                    case IndexingParameters.convertCommandLineToModel (IndexingParameters.init [] "" "" False) commandLine of
+                        Err e ->
+                            ( { model | onlineIndexingParameters = Failure (HttpError.BadJson e) }, Cmd.none )
+
+                        Ok ipModel ->
+                            ( { model | onlineIndexingParameters = Success ipModel }, Cmd.none )
 
         RunsReceived response ->
             ( { model
@@ -211,9 +276,9 @@ viewChangeExperimentType model =
             text "Waiting for runs"
 
 
-view : Model -> Html Msg
-view model =
-    div [ class "container" ]
+viewRunControls : Model -> Html Msg
+viewRunControls model =
+    div_
         [ h2_ [ icon { name = "arrow-left-right" }, text " Run controls" ]
         , p [ class "lead" ] [ text "Explicitly start and stop runs. Normally not needed, only in emergencies." ]
         , form [ class "mb-3" ]
@@ -232,6 +297,47 @@ view model =
             , button [ type_ "button", class "btn btn-secondary", disabled (not model.isRunning || isLoading model.startOrStopRequest), onClick StopRun ]
                 [ icon { name = "stop" }, text " Stop Run" ]
             ]
+        ]
+
+
+viewOnlineIndexingParameters : Model -> Html Msg
+viewOnlineIndexingParameters model =
+    div_
+        [ h2_ [ icon { name = "briefcase" }, text " Online Indexing" ]
+        , p [ class "lead" ] [ text "These parameters will be used for every new run if CrystFEL online is activated." ]
+        , case model.onlineIndexingParameters of
+            Loading ->
+                text ""
+
+            NotAsked ->
+                text ""
+
+            Failure e ->
+                HttpError.showError e
+
+            Success indexingParamFormModel ->
+                div_
+                    [ Html.map IndexingParametersMsg <| IndexingParameters.view indexingParamFormModel
+                    , div [ class "mb-3 hstack gap-3" ]
+                        [ button [ type_ "button", class "btn btn-primary", onClick StartUpdateOnlineIndexingParameters ]
+                            [ icon { name = "send" }, text " Update parameters" ]
+                        ]
+                    , case model.updateOnlineIndexingParameters of
+                        Success _ ->
+                            div [ class "badge text-bg-success" ] [ text "Parameters changed!" ]
+
+                        _ ->
+                            text ""
+                    ]
+        ]
+
+
+view : Model -> Html Msg
+view model =
+    div [ class "container" ]
+        [ viewRunControls model
+        , hr_
+        , viewOnlineIndexingParameters model
         , hr_
         , h2_ [ icon { name = "alt" }, text " Change current experiment type" ]
         , viewChangeExperimentType model

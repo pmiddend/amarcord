@@ -44,12 +44,13 @@ async def _main_loop(args: Arguments) -> None:
         name=args.name,
         script=f"""#!/bin/sh
 
-        set -eu
-        set -o pipefail
+set -eu
+set -o pipefail
 
-        {args.executable} {shlex.join(args.command_line)}
+{args.executable} {shlex.join(args.command_line)}
         """,
         time_limit=timedelta(minutes=args.time_limit_minutes),
+        environment={},
         stdout=args.stdout,
         stderr=args.stderr,
     )

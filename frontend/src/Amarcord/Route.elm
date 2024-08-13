@@ -1,6 +1,6 @@
 module Amarcord.Route exposing (..)
 
-import Amarcord.API.Requests exposing (BeamtimeId, beamtimeIdToString)
+import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, beamtimeIdToString)
 import Url
 import Url.Parser exposing ((</>), Parser, int, map, oneOf, parse, s, top)
 
@@ -15,7 +15,7 @@ type Route
     | RunOverview BeamtimeId
     | Attributi BeamtimeId
     | AdvancedControls BeamtimeId
-    | Analysis BeamtimeId
+    | Analysis (Maybe ExperimentTypeId) BeamtimeId
     | RunAnalysis BeamtimeId
     | EventLog BeamtimeId
 
@@ -50,7 +50,7 @@ beamtimeIdInRoute x =
         AdvancedControls btid ->
             Just btid
 
-        Analysis btid ->
+        Analysis _ btid ->
             Just btid
 
         RunAnalysis btid ->
@@ -118,8 +118,17 @@ makeLink x =
         Chemicals beamtimeId ->
             routePrefix ++ "/chemicals/" ++ beamtimeIdToString beamtimeId
 
-        Analysis beamtimeId ->
-            routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
+        Analysis experimentTypeIdMaybe beamtimeId ->
+            let
+                prefix =
+                    routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
+            in
+            case experimentTypeIdMaybe of
+                Nothing ->
+                    prefix
+
+                Just experimentTypeId ->
+                    prefix ++ "/" ++ String.fromInt experimentTypeId
 
         RunAnalysis beamtimeId ->
             routePrefix ++ "/runanalysis/" ++ beamtimeIdToString beamtimeId
@@ -142,6 +151,16 @@ makeFilesLink id =
     "api/files/" ++ String.fromInt id
 
 
+makeIndexingIdLogLink : Int -> String
+makeIndexingIdLogLink id =
+    "api/indexing/" ++ String.fromInt id ++ "/log"
+
+
+makeIndexingIdErrorLogLink : Int -> String
+makeIndexingIdErrorLogLink id =
+    "api/indexing/" ++ String.fromInt id ++ "/errorlog"
+
+
 matchRoute : Parser (Route -> a) a
 matchRoute =
     oneOf
@@ -154,7 +173,8 @@ matchRoute =
         , map Schedule (s "schedule" </> int)
         , map EventLog (s "event-log" </> int)
         , map AdvancedControls (s "advancedcontrols" </> int)
-        , map Analysis (s "analysis" </> int)
+        , map (\btId etId -> Analysis (Just etId) btId) (s "analysis" </> int </> int)
+        , map (Analysis Nothing) (s "analysis" </> int)
         , map RunAnalysis (s "runanalysis" </> int)
         , map DataSets (s "datasets" </> int)
         , map ExperimentTypes (s "experimenttypes" </> int)

@@ -2,18 +2,40 @@
 # pylint: disable=redefined-outer-name
 
 import asyncio
+import hashlib
 import os
+from dataclasses import replace
+from functools import partial
 from io import BytesIO
 from pathlib import Path
+from typing import Any
+from typing import AsyncGenerator
 from typing import Generator
 from unittest import TestCase
 from zipfile import ZipFile
 
+import aiohttp
 import pytest
+from aiohttp import web
+from fastapi import UploadFile
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from amarcord.amici.workload_manager.dummy_workload_manager import DummyWorkloadManager
+from amarcord.amici.workload_manager.job import JobMetadata
+from amarcord.amici.workload_manager.job_status import JobStatus
+from amarcord.amici.workload_manager.workload_manager import JobStartResult
+from amarcord.cli import indexing_daemon
+from amarcord.cli import merge_daemon
+from amarcord.cli.indexing_daemon import (
+    INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR,
+)
+from amarcord.cli.indexing_daemon import indexing_loop_iteration
+from amarcord.cli.merge_daemon import MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR
+from amarcord.cli.merge_daemon import MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR
+from amarcord.cli.merge_daemon import merging_loop_iteration
 from amarcord.cli.webserver import app
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.beamtime_id import BeamtimeId
@@ -32,9 +54,11 @@ from amarcord.db.merge_result import JsonRefinementResultInternal
 from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
 from amarcord.db.orm_utils import live_stream_image_name
 from amarcord.db.orm_utils import migrate
+from amarcord.db.run_internal_id import RunInternalId
 from amarcord.db.scale_intensities import ScaleIntensities
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaString
+from amarcord.web.fastapi_utils import get_orm_sessionmaker_with_url
 from amarcord.web.json_models import JsonAttributiIdAndRole
 from amarcord.web.json_models import JsonAttributo
 from amarcord.web.json_models import JsonAttributoValue
@@ -62,6 +86,8 @@ from amarcord.web.json_models import JsonCreateDataSetOutput
 from amarcord.web.json_models import JsonCreateExperimentTypeInput
 from amarcord.web.json_models import JsonCreateExperimentTypeOutput
 from amarcord.web.json_models import JsonCreateFileOutput
+from amarcord.web.json_models import JsonCreateIndexingForDataSetInput
+from amarcord.web.json_models import JsonCreateIndexingForDataSetOutput
 from amarcord.web.json_models import JsonCreateLiveStreamSnapshotOutput
 from amarcord.web.json_models import JsonCreateOrUpdateRun
 from amarcord.web.json_models import JsonCreateOrUpdateRunOutput
@@ -79,13 +105,14 @@ from amarcord.web.json_models import JsonEventInput
 from amarcord.web.json_models import JsonEventTopLevelInput
 from amarcord.web.json_models import JsonEventTopLevelOutput
 from amarcord.web.json_models import JsonIndexingJobUpdateOutput
-from amarcord.web.json_models import JsonIndexingResult
-from amarcord.web.json_models import JsonIndexingResultRootJson
+from amarcord.web.json_models import JsonIndexingResultFinishSuccessfully
+from amarcord.web.json_models import JsonIndexingResultFinishWithError
+from amarcord.web.json_models import JsonIndexingResultStillRunning
 from amarcord.web.json_models import JsonMergeJobFinishOutput
 from amarcord.web.json_models import JsonMergeParameters
 from amarcord.web.json_models import JsonPolarisation
-from amarcord.web.json_models import JsonQueueMergeJobForDataSetInput
-from amarcord.web.json_models import JsonQueueMergeJobForDataSetOutput
+from amarcord.web.json_models import JsonQueueMergeJobInput
+from amarcord.web.json_models import JsonQueueMergeJobOutput
 from amarcord.web.json_models import JsonReadAnalysisResults
 from amarcord.web.json_models import JsonReadAttributi
 from amarcord.web.json_models import JsonReadBeamtime
@@ -112,6 +139,13 @@ from amarcord.web.json_models import JsonUpdateRunOutput
 from amarcord.web.json_models import JsonUpdateRunsBulkInput
 from amarcord.web.json_models import JsonUpdateRunsBulkOutput
 from amarcord.web.json_models import JsonUserConfigurationSingleOutput
+from amarcord.web.router_files import create_file
+from amarcord.web.router_indexing import indexing_job_finish_with_error
+from amarcord.web.router_indexing import indexing_job_still_running
+from amarcord.web.router_indexing import read_indexing_jobs
+from amarcord.web.router_merging import merge_job_finished
+from amarcord.web.router_merging import merge_job_started
+from amarcord.web.router_merging import read_merge_jobs
 
 IN_MEMORY_DB_URL = "sqlite+aiosqlite://"
 
@@ -124,6 +158,24 @@ TEST_CHEMICAL_RESPONSIBLE_PERSON = "Rosalind Franklin"
 async def init_db(url: str) -> None:
     engine = create_async_engine(url)
     await migrate(engine)
+
+
+@pytest.fixture
+async def async_session(tmp_path: Path) -> AsyncGenerator[AsyncSession, None]:
+    url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
+    os.environ["DB_URL"] = url
+    await init_db(url)
+
+    try:
+        result = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+
+        async with result() as session:
+            print("------------------- yielding session")
+            yield session
+        print("------------------- yielding session done")
+
+    except:
+        pass
 
 
 @pytest.fixture
@@ -457,6 +509,152 @@ def second_lyso_chemical_id(
     )
     assert response.id > 0
     return response.id
+
+
+@pytest.fixture
+def simple_run_id(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    run_channel_1_chemical_attributo_id: int,
+    chemical_experiment_type_id: int,
+    lyso_chemical_id: int,
+) -> RunInternalId:
+    external_run_id = 1000
+
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    create_run_response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                # Important for our indexing job tests: we cannot start an offline indexing job without files (i.e. images).
+                files=["/tmp/test-input-file"],
+                beamtime_id=beamtime_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    )
+                ],
+                started=1,
+                stopped=None,
+            ).dict(),
+        ).json()
+    )
+
+    assert create_run_response.run_internal_id is not None
+    return create_run_response.run_internal_id
+
+
+@pytest.fixture
+def run_without_files_id(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    run_channel_1_chemical_attributo_id: int,
+    chemical_experiment_type_id: int,
+    lyso_chemical_id: int,
+) -> RunInternalId:
+    external_run_id = 1000
+
+    set_current_experiment_type(client, beamtime_id, chemical_experiment_type_id)
+
+    create_run_response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                # Important for our indexing job tests: we cannot start an offline indexing job without files (i.e. images).
+                files=[],
+                beamtime_id=beamtime_id,
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    )
+                ],
+                started=1,
+                stopped=None,
+            ).dict(),
+        ).json()
+    )
+
+    assert create_run_response.run_internal_id is not None
+    return create_run_response.run_internal_id
+
+
+@pytest.fixture
+def simple_data_set_id(client: TestClient, simple_run_id: RunInternalId) -> int:
+    create_data_set_response = JsonCreateDataSetFromRunOutput(
+        **client.post(
+            "/api/data-sets/from-run",
+            json=JsonCreateDataSetFromRun(
+                run_internal_id=simple_run_id,
+            ).dict(),
+        ).json()
+    )
+
+    assert create_data_set_response.data_set_id > 0
+    return create_data_set_response.data_set_id
+
+
+@pytest.fixture
+def simple_indexing_result_id(
+    client: TestClient, simple_data_set_id: RunInternalId
+) -> int:
+    create_indexing_response = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=simple_data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_file="/mock/geometry.geom",
+                command_line="",
+                source="raw",
+            ).dict(),
+        ).json()
+    )
+
+    client.post(
+        f"/api/indexing/{create_indexing_response.indexing_result_id}/success",
+        json=JsonIndexingResultFinishSuccessfully(
+            workload_manager_job_id=1,
+            stream_file="/tmp/some-file.stream",
+            program_version="",
+            geometry_file="/tmp/some.geom",
+            geometry_hash=hashlib.sha256(b"").hexdigest(),
+            # More or less random values, we don't care about the specifics here
+            frames=200,
+            # Hit rate 50%
+            hits=100,
+            # Indexing rate 20%
+            indexed_frames=20,
+            indexed_crystals=25,
+            detector_shift_x_mm=0.5,
+            detector_shift_y_mm=-0.5,
+            generated_geometry_file="",
+            unit_cell_histograms_id=None,
+            latest_log="",
+        ).dict(),
+    )
+
+    return create_indexing_response.indexing_result_id
+
+
+@pytest.fixture
+def run_without_files_data_set_id(
+    client: TestClient, run_without_files_id: RunInternalId
+) -> int:
+    create_data_set_response = JsonCreateDataSetFromRunOutput(
+        **client.post(
+            "/api/data-sets/from-run",
+            json=JsonCreateDataSetFromRun(
+                run_internal_id=run_without_files_id,
+            ).dict(),
+        ).json()
+    )
+
+    assert create_data_set_response.data_set_id > 0
+    return create_data_set_response.data_set_id
 
 
 def test_read_single_beamtime(client: TestClient, beamtime_id: BeamtimeId) -> None:
@@ -903,6 +1101,7 @@ def test_create_or_update_run_fails_without_experiment_type(
         f"/api/runs/{external_run_id}",
         json=JsonCreateOrUpdateRun(
             beamtime_id=beamtime_id,
+            files=[],
             attributi=[
                 JsonAttributoValue(
                     attributo_id=run_string_attributo_id,
@@ -965,6 +1164,7 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
                 beamtime_id=beamtime_id,
+                files=[],
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_string_attributo_id,
@@ -990,7 +1190,6 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
     assert run.stopped is None
     assert run.started == 1
     assert run.experiment_type_id == chemical_experiment_type_id
-    assert not run.data_sets
     assert not run.running_indexing_jobs
     assert len(run.attributi) == 1
     attributo = run.attributi[0]
@@ -1003,6 +1202,7 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
                 beamtime_id=beamtime_id,
+                files=[],
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_string_attributo_id,
@@ -1034,7 +1234,6 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
     assert run.stopped == 2
     assert run.started == 1
     assert run.experiment_type_id == chemical_experiment_type_id
-    assert not run.data_sets
     assert not run.running_indexing_jobs
     assert len(run.attributi) == 1
     attributo = run.attributi[0]
@@ -1063,6 +1262,7 @@ def test_create_and_update_run_after_setting_experiment_type_crystfel_online(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
                 beamtime_id=beamtime_id,
+                files=[],
                 attributi=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
@@ -1113,6 +1313,7 @@ def test_create_and_update_run_with_patch(
     update_run_raw_output = client.post(
         f"/api/runs/{external_run_id}",
         json=JsonCreateOrUpdateRun(
+            files=[],
             beamtime_id=beamtime_id,
             attributi=[
                 # we don't even mention the second run attributo here, since we're going to add it later and test if that works
@@ -1183,6 +1384,7 @@ def test_create_and_stop_run(
         **client.post(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
+                files=[],
                 beamtime_id=beamtime_id,
                 attributi=[
                     # we don't even mention the second run attributo here, since we're going to add it later and test if that works
@@ -1226,6 +1428,7 @@ def test_update_indexing_job(
         **client.post(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
+                files=[],
                 beamtime_id=beamtime_id,
                 attributi=[
                     JsonAttributoValue(
@@ -1247,23 +1450,25 @@ def test_update_indexing_job(
 
     update_indexing_job_response = JsonIndexingJobUpdateOutput(
         **client.post(
-            f"/api/indexing/{create_run_response.indexing_result_id}",
-            json=JsonIndexingResultRootJson(
-                error=None,
-                job_id=None,
+            f"/api/indexing/{create_run_response.indexing_result_id}/success",
+            json=JsonIndexingResultFinishSuccessfully(
+                workload_manager_job_id=1,
                 stream_file="/tmp/some-file.stream",
-                result=JsonIndexingResult(
-                    # More or less random values, we don't care about the specifics here
-                    frames=200,
-                    # Hit rate 50%
-                    hits=100,
-                    # Indexing rate 20%
-                    indexed_frames=20,
-                    indexed_crystals=25,
-                    done=True,
-                    detector_shift_x_mm=0.5,
-                    detector_shift_y_mm=-0.5,
-                ),
+                program_version="",
+                geometry_file="/tmp/some.geom",
+                geometry_hash=hashlib.sha256(b"").hexdigest(),
+                # More or less random values, we don't care about the specifics here
+                frames=200,
+                # Hit rate 50%
+                hits=100,
+                # Indexing rate 20%
+                indexed_frames=20,
+                indexed_crystals=25,
+                detector_shift_x_mm=0.5,
+                detector_shift_y_mm=-0.5,
+                generated_geometry_file="",
+                unit_cell_histograms_id=None,
+                latest_log="",
             ).dict(),
         ).json()
     )
@@ -1286,18 +1491,17 @@ def test_update_indexing_job(
     assert create_data_set_response.data_set_id > 0
 
     read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
-    assert len(read_runs_output.data_sets) == 1
-    assert read_runs_output.data_sets[0].id == create_data_set_response.data_set_id
-    assert read_runs_output.data_sets[0].attributi == [
+    assert len(read_runs_output.data_sets_with_fom) == 1
+    first_ds = read_runs_output.data_sets_with_fom[0].data_set
+    assert first_ds.id == create_data_set_response.data_set_id
+    assert first_ds.attributi == [
         JsonAttributoValue(
             attributo_id=run_channel_1_chemical_attributo_id,
             attributo_value_chemical=lyso_chemical_id,
         )
     ]
-    assert (
-        read_runs_output.data_sets[0].experiment_type_id == chemical_experiment_type_id
-    )
-    summary = read_runs_output.data_sets[0].summary
+    assert first_ds.experiment_type_id == chemical_experiment_type_id
+    summary = read_runs_output.data_sets_with_fom[0].fom
     assert summary is not None
     assert summary.hit_rate == pytest.approx(50, 0.01)
     assert summary.indexing_rate == pytest.approx(20, 0.01)
@@ -1306,19 +1510,23 @@ def test_update_indexing_job(
 
     # Another place is the analysis view
     analysis_response = JsonReadAnalysisResults(
-        **client.get(f"/api/analysis/analysis-results/{beamtime_id}").json()
+        **client.get(
+            f"/api/analysis/analysis-results/{beamtime_id}/{chemical_experiment_type_id}"
+        ).json()
     )
 
     assert len(analysis_response.data_sets) == 1
-    assert analysis_response.data_sets[0].experiment_type == chemical_experiment_type_id
-    assert len(analysis_response.data_sets[0].data_sets) == 1
     assert (
-        analysis_response.data_sets[0].data_sets[0].data_set.id
+        analysis_response.data_sets[0].data_set.experiment_type_id
+        == chemical_experiment_type_id
+    )
+    assert (
+        analysis_response.data_sets[0].data_set.id
         == create_data_set_response.data_set_id
     )
-    assert len(analysis_response.data_sets[0].data_sets[0].runs) == 1
-    assert analysis_response.data_sets[0].data_sets[0].runs[0] == str(external_run_id)
-    assert analysis_response.data_sets[0].data_sets[0].number_of_indexing_results == 1
+    assert len(analysis_response.data_sets[0].runs) == 1
+    assert analysis_response.data_sets[0].runs[0] == str(external_run_id)
+    assert len(analysis_response.data_sets[0].indexing_results) == 1
 
 
 def test_change_run_experiment_type(
@@ -1338,6 +1546,7 @@ def test_change_run_experiment_type(
         **client.post(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
+                files=[],
                 beamtime_id=beamtime_id,
                 attributi=[
                     # we don't even mention the second run attributo
@@ -1362,6 +1571,7 @@ def test_change_run_experiment_type(
         **client.post(
             f"/api/runs/{external_run_id_2}",
             json=JsonCreateOrUpdateRun(
+                files=[],
                 beamtime_id=beamtime_id,
                 attributi=[
                     JsonAttributoValue(
@@ -1473,6 +1683,7 @@ def test_queue_then_start_then_finish_merge_job(
         **client.post(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
+                files=[],
                 beamtime_id=beamtime_id,
                 attributi=[
                     JsonAttributoValue(
@@ -1494,23 +1705,25 @@ def test_queue_then_start_then_finish_merge_job(
 
     assert JsonIndexingJobUpdateOutput(
         **client.post(
-            f"/api/indexing/{create_run_response.indexing_result_id}",
-            json=JsonIndexingResultRootJson(
-                error=None,
-                job_id=None,
-                stream_file=None,
-                result=JsonIndexingResult(
-                    # More or less random values, we don't care about the specifics here
-                    frames=200,
-                    # Hit rate 50%
-                    hits=100,
-                    # Indexing rate 20%
-                    indexed_frames=20,
-                    indexed_crystals=25,
-                    done=True,
-                    detector_shift_x_mm=0.5,
-                    detector_shift_y_mm=-0.5,
-                ),
+            f"/api/indexing/{create_run_response.indexing_result_id}/success",
+            json=JsonIndexingResultFinishSuccessfully(
+                stream_file="/tmp/some-file.stream",
+                program_version="",
+                geometry_file="/tmp/some.geom",
+                geometry_hash=hashlib.sha256(b"").hexdigest(),
+                workload_manager_job_id=1,
+                # More or less random values, we don't care about the specifics here
+                frames=200,
+                # Hit rate 50%
+                hits=100,
+                # Indexing rate 20%
+                indexed_frames=20,
+                indexed_crystals=25,
+                detector_shift_x_mm=0.5,
+                detector_shift_y_mm=-0.5,
+                unit_cell_histograms_id=None,
+                generated_geometry_file="",
+                latest_log="",
             ).dict(),
         ).json()
     ).result
@@ -1532,14 +1745,16 @@ def test_queue_then_start_then_finish_merge_job(
 
     assert create_data_set_response.data_set_id > 0
 
-    queue_merge_job_response = JsonQueueMergeJobForDataSetOutput(
+    queue_merge_job_response = JsonQueueMergeJobOutput(
         **client.post(
-            f"/api/merging/queue/{create_data_set_response.data_set_id}",
-            json=JsonQueueMergeJobForDataSetInput(
-                # Literally random stuff here, doesn't matter.
+            "/api/merging",
+            json=JsonQueueMergeJobInput(
                 strict_mode=False,
-                beamtime_id=beamtime_id,
+                data_set_id=create_data_set_response.data_set_id,
+                # Literally random stuff here, doesn't matter.
+                indexing_parameters_id=1,
                 merge_parameters=JsonMergeParameters(
+                    cell_description=LYSO_CELL_DESCRIPTION,
                     point_group=LYSO_POINT_GROUP,
                     merge_model=MergeModel.UNITY,
                     scale_intensities=ScaleIntensities.OFF,
@@ -1576,7 +1791,7 @@ def test_queue_then_start_then_finish_merge_job(
     # Now simulate that some daemon actually started the merge job
     start_merge_job_response = JsonMergeJobStartedOutput(
         **client.post(
-            f"/api/merging/start/{queue_merge_job_response.merge_result_id}",
+            f"/api/merging/{queue_merge_job_response.merge_result_id}/start",
             # job ID is the SLURM (or similar) job ID, so it's random
             json=JsonMergeJobStartedInput(job_id=1337, time=10).dict(),
         ).json()
@@ -1665,7 +1880,7 @@ def test_queue_then_start_then_finish_merge_job(
     # Now finish merge job
     finish_merge_job_response = JsonMergeJobFinishOutput(
         **client.post(
-            f"/api/merging/finish/{queue_merge_job_response.merge_result_id}",
+            f"/api/merging/{queue_merge_job_response.merge_result_id}/finish",
             json=JsonMergeJobFinishedInput(
                 error=None,
                 result=merge_result,
@@ -1677,19 +1892,22 @@ def test_queue_then_start_then_finish_merge_job(
 
     # Get the analysis view and find our result!
     analysis_response = JsonReadAnalysisResults(
-        **client.get(f"/api/analysis/analysis-results/{beamtime_id}").json()
+        **client.get(
+            f"/api/analysis/analysis-results/{beamtime_id}/{chemical_experiment_type_id}"
+        ).json()
     )
 
     assert len(analysis_response.data_sets) == 1
     first_ds = analysis_response.data_sets[0]
-    assert len(first_ds.data_sets) == 1
-    first_ds_ds = first_ds.data_sets[0]
-    assert len(first_ds_ds.merge_results) == 1
-    first_mr = first_ds_ds.merge_results[0]
+    assert len(first_ds.indexing_results) == 1
+    first_ir = first_ds.indexing_results[0]
+    assert len(first_ir.merge_results) == 1
+    first_mr = first_ir.merge_results[0]
     assert first_mr.id == queue_merge_job_response.merge_result_id
     assert first_mr.runs == [str(external_run_id)]
     assert first_mr.parameters == JsonMergeParameters(
         point_group=LYSO_POINT_GROUP,
+        cell_description=LYSO_CELL_DESCRIPTION,
         negative_handling=MergeNegativeHandling.IGNORE,
         merge_model=MergeModel.UNITY,
         scale_intensities=ScaleIntensities.OFF,
@@ -1870,6 +2088,7 @@ def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(
         **client.post(
             f"/api/runs/{second_external_run_id}",
             json=JsonCreateOrUpdateRun(
+                files=[],
                 beamtime_id=beamtime_id,
                 # neither automatic nor manual attributi are present here, deliberately. We expect the automatic one to
                 # not appear, but the manual one should.
@@ -1952,6 +2171,7 @@ def test_read_and_update_runs_bulk(
                     ),
                     started=1,
                     stopped=None,
+                    files=[],
                 ).dict(),
             ).json()
         )
@@ -2509,6 +2729,7 @@ def test_download_spreadsheet(
         **client.post(
             f"/api/runs/{external_run_id}",
             json=JsonCreateOrUpdateRun(
+                files=[],
                 beamtime_id=beamtime_id,
                 attributi=[
                     JsonAttributoValue(
@@ -2632,3 +2853,549 @@ def test_create_two_compatible_data_sets(
         ).dict(),
     )
     assert second_create_response.status_code // 100 == 4
+
+
+async def read_indexing_jobs_wrapper(
+    tmp_path: Path, request: web.Request
+) -> web.Response:
+    url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
+    os.environ["DB_URL"] = url
+    await init_db(url)
+
+    result = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+
+    async with result() as web_async_session:
+        status = request.query.get("status")
+        beamtimeId = request.query.get("beamtimeId")
+        result = await read_indexing_jobs(
+            status=DBJobStatus(status) if status is not None else None,
+            beamtimeId=int(beamtimeId) if beamtimeId is not None else None,
+            withFiles=request.query.get("withFiles") == "True",
+            session=web_async_session,
+        )
+        return web.json_response(result.dict())
+
+
+async def read_merge_jobs_wrapper(tmp_path: Path, request: web.Request) -> web.Response:
+    url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
+    os.environ["DB_URL"] = url
+    await init_db(url)
+
+    result = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+
+    async with result() as web_async_session:
+        status = request.query.get("status")
+        result = await read_merge_jobs(
+            status=DBJobStatus(status) if status is not None else None,
+            session=web_async_session,
+        )
+        print(result)
+        return web.json_response(result.dict())
+
+
+async def create_file_wrapper(tmp_path: Path, request: web.Request) -> web.Response:
+    url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
+    os.environ["DB_URL"] = url
+    await init_db(url)
+
+    result = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+
+    async with result() as web_async_session:
+        data = await request.post()
+        description = data["description"]
+        assert isinstance(description, str)
+        deduplicate = data["deduplicate"]
+        assert isinstance(deduplicate, str)
+        file = data["file"]
+        assert isinstance(file, web.FileField)
+        print(f"creating file {file}")
+        result = await create_file(
+            file=UploadFile(filename=file.filename, file=file.file),
+            description=description,
+            deduplicate=deduplicate,
+            session=web_async_session,
+        )
+        return web.json_response(result.dict())
+
+
+async def indexing_job_still_running_wrapper(
+    tmp_path: Path, request: web.Request
+) -> web.Response:
+    url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
+    os.environ["DB_URL"] = url
+    await init_db(url)
+
+    result = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+
+    async with result() as web_async_session:
+        result = await indexing_job_still_running(
+            indexingResultId=int(request.match_info["indexingResultId"]),
+            json_result=JsonIndexingResultStillRunning(**await request.json()),
+            session=web_async_session,
+        )
+        return web.json_response(result.dict())
+
+
+async def merge_job_started_wrapper(
+    tmp_path: Path, request: web.Request
+) -> web.Response:
+    url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
+    os.environ["DB_URL"] = url
+    await init_db(url)
+
+    result = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+
+    async with result() as web_async_session:
+        result = await merge_job_started(
+            mergeResultId=int(request.match_info["mergeResultId"]),
+            json_result=JsonMergeJobStartedInput(**await request.json()),
+            session=web_async_session,
+        )
+        return web.json_response(result.dict())
+
+
+async def merge_job_finished_wrapper(
+    tmp_path: Path, request: web.Request
+) -> web.Response:
+    url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
+    os.environ["DB_URL"] = url
+    await init_db(url)
+
+    result = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+
+    async with result() as web_async_session:
+        result = await merge_job_finished(
+            mergeResultId=int(request.match_info["mergeResultId"]),
+            json_result=JsonMergeJobFinishedInput(**await request.json()),
+            session=web_async_session,
+        )
+        return web.json_response(result.dict())
+
+
+async def indexing_job_finish_with_error_wrapper(
+    tmp_path: Path, request: web.Request
+) -> web.Response:
+    url = f"{IN_MEMORY_DB_URL}/{tmp_path}/db"
+    os.environ["DB_URL"] = url
+    await init_db(url)
+
+    result = get_orm_sessionmaker_with_url(os.environ["DB_URL"])
+
+    async with result() as web_async_session:
+        result = await indexing_job_finish_with_error(
+            indexingResultId=int(request.match_info["indexingResultId"]),
+            json_result=JsonIndexingResultFinishWithError(**await request.json()),
+            session=web_async_session,
+        )
+        return web.json_response(result.dict())
+
+
+@pytest.fixture
+async def daemon_session(aiohttp_client: Any, tmp_path: Path) -> aiohttp.ClientSession:
+    """Create a test aiohttp HTTP server (one that doesn't run on a
+    port on the host) and connect it to the real FastAPI handler
+    functions in order to have semi-realistic testing of both the web
+    server and the daemons
+    """
+    app = web.Application()
+    app.router.add_get("/api/indexing", partial(read_indexing_jobs_wrapper, tmp_path))
+    app.router.add_get("/api/merging", partial(read_merge_jobs_wrapper, tmp_path))
+    app.router.add_post(
+        "/api/merging/{mergeResultId}/start",
+        partial(merge_job_started_wrapper, tmp_path),
+    )
+    app.router.add_post(
+        "/api/merging/{mergeResultId}/finish",
+        partial(merge_job_finished_wrapper, tmp_path),
+    )
+    app.router.add_post("/api/files", partial(create_file_wrapper, tmp_path))
+    app.router.add_post(
+        "/api/indexing/{indexingResultId}/still-running",
+        partial(indexing_job_still_running_wrapper, tmp_path),
+    )
+    app.router.add_post(
+        "/api/indexing/{indexingResultId}/finish-with-error",
+        partial(indexing_job_finish_with_error_wrapper, tmp_path),
+    )
+    return await aiohttp_client(app)
+
+
+async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
+    client: TestClient,
+    daemon_session: aiohttp.ClientSession,
+    simple_data_set_id: int,
+) -> None:
+    os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
+    client.post(
+        "/api/indexing",
+        json=JsonCreateIndexingForDataSetInput(
+            data_set_id=simple_data_set_id,
+            is_online=False,
+            cell_description="",
+            geometry_file="/mock/geometry.geom",
+            command_line="",
+            source="raw",
+        ).dict(),
+    )
+
+    workload_manager = DummyWorkloadManager()
+    args = indexing_daemon.Arguments()
+    # This path isn't really used, because we don't start jobs. The indexing daemon has no access to the file system.
+    args.output_base_directory = Path("/tmp")
+    # Important for the test scenario: no absolute paths allowed, so this is "mockable"
+    args.amarcord_url = ""
+    # Also not really important, we don't actually start CrystFEL
+    args.crystfel_path = Path("/usr/bin")
+
+    workload_manager.job_start_results.append(
+        JobStartResult(job_id=1337, metadata=JobMetadata({}))
+    )
+    # start the job
+    await indexing_loop_iteration(
+        workload_manager, daemon_session, args, start_new_jobs=True
+    )
+
+    # Remove the job from the workload manager
+    workload_manager.jobs.clear()
+
+    await indexing_loop_iteration(
+        workload_manager, daemon_session, args, start_new_jobs=False
+    )
+
+    # Now get the indexing job from the DB and check that its status is indeed failed
+    # Check the DB again
+    indexing_jobs_result = JsonReadIndexingResultsOutput(
+        **client.get("/api/indexing").json()
+    )
+    assert len(indexing_jobs_result.indexing_jobs) == 1
+    assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.DONE
+    assert indexing_jobs_result.indexing_jobs[0].started is not None
+    assert indexing_jobs_result.indexing_jobs[0].stopped is not None
+
+
+async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
+    client: TestClient,
+    daemon_session: aiohttp.ClientSession,
+    run_without_files_data_set_id: int,
+) -> None:
+    os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
+    client.post(
+        "/api/indexing",
+        json=JsonCreateIndexingForDataSetInput(
+            data_set_id=run_without_files_data_set_id,
+            is_online=False,
+            cell_description="",
+            geometry_file="",
+            command_line="",
+            source="raw",
+        ).dict(),
+    )
+
+    workload_manager = DummyWorkloadManager()
+    args = indexing_daemon.Arguments()
+    # This path isn't really used, because we don't start jobs. The indexing daemon has no access to the file system.
+    args.output_base_directory = Path("/tmp")
+    # Important for the test scenario: no absolute paths allowed, so this is "mockable"
+    args.amarcord_url = ""
+    # Also not really important, we don't actually start CrystFEL
+    args.crystfel_path = Path("/usr/bin")
+
+    workload_manager.job_start_results.append(
+        JobStartResult(job_id=1337, metadata=JobMetadata({}))
+    )
+
+    # Now start jobs
+    await indexing_loop_iteration(
+        workload_manager, daemon_session, args, start_new_jobs=True
+    )
+
+    assert not workload_manager.job_starts
+    assert not list(await workload_manager.list_jobs())
+
+
+async def test_merge_daemon(
+    client: TestClient,
+    daemon_session: aiohttp.ClientSession,
+    simple_data_set_id: int,
+    # the indexing result must be created, but we create the merge result indirectly by specifying the data set ID
+    # pylint: disable=unused-argument
+    simple_indexing_result_id: int,
+) -> None:
+    os.environ[MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
+    os.environ[MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
+    workload_manager = DummyWorkloadManager()
+    args = merge_daemon.Arguments()
+    # This path isn't really used, because we don't start jobs. The indexing daemon has no access to the file system.
+    args.output_base_directory = Path("/tmp")
+    # Important for the test scenario: no absolute paths allowed, so this is "mockable"
+    args.amarcord_url = ""
+    # Also not really important, we don't actually start CrystFEL
+    args.crystfel_path = Path("/usr/bin")
+    args.ccp4_path = ""
+
+    queue_merge_job_response = JsonQueueMergeJobOutput(
+        **client.post(
+            "/api/merging",
+            json=JsonQueueMergeJobInput(
+                strict_mode=False,
+                data_set_id=simple_data_set_id,
+                # Literally random stuff here, doesn't matter.
+                indexing_parameters_id=1,
+                merge_parameters=JsonMergeParameters(
+                    cell_description=LYSO_CELL_DESCRIPTION,
+                    point_group=LYSO_POINT_GROUP,
+                    merge_model=MergeModel.UNITY,
+                    scale_intensities=ScaleIntensities.OFF,
+                    post_refinement=False,
+                    iterations=3,
+                    polarisation=JsonPolarisation(angle=30, percent=50),
+                    negative_handling=MergeNegativeHandling.IGNORE,
+                    start_after=None,
+                    stop_after=None,
+                    rel_b=1.0,
+                    no_pr=False,
+                    force_bandwidth=None,
+                    force_radius=None,
+                    force_lambda=None,
+                    no_delta_cc_half=False,
+                    max_adu=None,
+                    min_measurements=1,
+                    logs=False,
+                    min_res=None,
+                    push_res=None,
+                    w=None,
+                ),
+            ).dict(),
+        ).json()
+    )
+
+    workload_manager.job_start_results.append(
+        JobStartResult(job_id=1337, metadata=JobMetadata({}))
+    )
+
+    # One iteration, should start the job on the workload manager
+    await merging_loop_iteration(
+        daemon_session, workload_manager, args, zombie_job_times={}
+    )
+
+    assert workload_manager.job_starts
+
+    queued_merge_results = JsonReadMergeResultsOutput(
+        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json()
+    )
+
+    assert len(queued_merge_results.merge_jobs) == 1
+    assert (
+        queued_merge_results.merge_jobs[0].id
+        == queue_merge_job_response.merge_result_id
+    )
+
+    # Remove the job from the workload manager
+    workload_manager.jobs.clear()
+
+    # Since we have the "zombie" mechanic, we actually wait a bit for
+    # the job to complete, so here we set the zombie job times (noting
+    # when a job was first not seen anymore) as empty and expect the
+    # job to still be running.
+    await merging_loop_iteration(
+        daemon_session, workload_manager, args, zombie_job_times={}
+    )
+
+    queued_merge_results = JsonReadMergeResultsOutput(
+        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json()
+    )
+
+    assert len(queued_merge_results.merge_jobs) == 1
+
+    # Now we set the job to be "long gone"
+    await merging_loop_iteration(
+        daemon_session, workload_manager, args, zombie_job_times={1337: 0.0}
+    )
+
+    queued_merge_results = JsonReadMergeResultsOutput(
+        **client.get(f"/api/merging?status={DBJobStatus.RUNNING.value}").json()
+    )
+
+    assert not queued_merge_results.merge_jobs
+    # indexing_jobs_result = JsonReadIndexingResultsOutput(
+    #     **client.get("/api/indexing").json()
+    # )
+    # assert len(indexing_jobs_result.indexing_jobs) == 1
+    # assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.QUEUED
+    # assert indexing_jobs_result.indexing_jobs[0].stopped is None
+
+    # print("second iteration, should start a job now")
+
+    # # Now start jobs
+    # await indexing_loop_iteration(
+    #     workload_manager, daemon_session, args, start_new_jobs=True
+    # )
+
+    # assert len(workload_manager.job_starts) == 1
+    # assert len(list(await workload_manager.list_jobs())) == 1
+    # workload_manager.job_starts.clear()
+
+    # # Check the DB again
+    # indexing_jobs_result = JsonReadIndexingResultsOutput(
+    #     **client.get("/api/indexing").json()
+    # )
+    # assert len(indexing_jobs_result.indexing_jobs) == 1
+    # assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.RUNNING
+    # assert indexing_jobs_result.indexing_jobs[0].started is not None
+    # assert indexing_jobs_result.indexing_jobs[0].stopped is None
+
+    # print("third iteration, should _not_ start a job again")
+
+    # # To be sure: another start iteration shouldn't do anything now
+    # await indexing_loop_iteration(
+    #     workload_manager, daemon_session, args, start_new_jobs=True
+    # )
+
+    # assert not workload_manager.job_starts
+    # assert len(list(await workload_manager.list_jobs())) == 1
+
+    # # Again, to be sure: another update shouldn't do anything
+    # await indexing_loop_iteration(
+    #     workload_manager, daemon_session, args, start_new_jobs=False
+    # )
+
+    # # Now we just assume the job we just started failed on the workload manager (i.e. SLURM)
+    # workload_manager.jobs[0] = replace(
+    #     # we say successful, but if the job didn't produce a result in time, that doesn't matter
+    #     workload_manager.jobs[0],
+    #     status=JobStatus.SUCCESSFUL,
+    # )
+
+    # print(
+    #     "fourth iteration, job should be marked as failed, because it quit unexpectedly"
+    # )
+
+    # await indexing_loop_iteration(
+    #     workload_manager, daemon_session, args, start_new_jobs=False
+    # )
+
+    # # Now get the indexing job from the DB and check that its status is indeed failed
+    # # Check the DB again
+    # indexing_jobs_result = JsonReadIndexingResultsOutput(
+    #     **client.get("/api/indexing").json()
+    # )
+    # assert len(indexing_jobs_result.indexing_jobs) == 1
+    # assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.DONE
+    # assert indexing_jobs_result.indexing_jobs[0].started is not None
+    # assert indexing_jobs_result.indexing_jobs[0].stopped is not None
+
+
+async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
+    client: TestClient,
+    daemon_session: aiohttp.ClientSession,
+    simple_data_set_id: int,
+) -> None:
+    os.environ[INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR] = "0.01"
+    create_response = JsonCreateIndexingForDataSetOutput(
+        **client.post(
+            "/api/indexing",
+            json=JsonCreateIndexingForDataSetInput(
+                data_set_id=simple_data_set_id,
+                is_online=False,
+                cell_description="",
+                geometry_file="/mock/geometry.geom",
+                command_line="",
+                source="raw",
+            ).dict(),
+        ).json()
+    )
+
+    assert len(create_response.jobs_started_run_external_ids) == 1
+    assert create_response.data_set_id == simple_data_set_id
+    assert create_response.indexing_parameters_id > 0
+
+    workload_manager = DummyWorkloadManager()
+    args = indexing_daemon.Arguments()
+    # This path isn't really used, because we don't start jobs. The indexing daemon has no access to the file system.
+    args.output_base_directory = Path("/tmp")
+    # Important for the test scenario: no absolute paths allowed, so this is "mockable"
+    args.amarcord_url = ""
+    # Also not really important, we don't actually start CrystFEL
+    args.crystfel_path = Path("/usr/bin")
+
+    # One iteration without starting jobs => shouldn't start jobs!
+    await indexing_loop_iteration(
+        workload_manager, daemon_session, args, start_new_jobs=False
+    )
+
+    print(
+        "first iteration, should not do anything because it's just an update iteration"
+    )
+
+    assert not workload_manager.job_starts
+
+    workload_manager.job_start_results.append(
+        JobStartResult(job_id=1337, metadata=JobMetadata({}))
+    )
+
+    indexing_jobs_result = JsonReadIndexingResultsOutput(
+        **client.get("/api/indexing").json()
+    )
+    assert len(indexing_jobs_result.indexing_jobs) == 1
+    assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.QUEUED
+    assert indexing_jobs_result.indexing_jobs[0].stopped is None
+
+    print("second iteration, should start a job now")
+
+    # Now start jobs
+    await indexing_loop_iteration(
+        workload_manager, daemon_session, args, start_new_jobs=True
+    )
+
+    assert len(workload_manager.job_starts) == 1
+    assert len(list(await workload_manager.list_jobs())) == 1
+    workload_manager.job_starts.clear()
+
+    # Check the DB again
+    indexing_jobs_result = JsonReadIndexingResultsOutput(
+        **client.get("/api/indexing").json()
+    )
+    assert len(indexing_jobs_result.indexing_jobs) == 1
+    assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.RUNNING
+    assert indexing_jobs_result.indexing_jobs[0].started is not None
+    assert indexing_jobs_result.indexing_jobs[0].stopped is None
+
+    print("third iteration, should _not_ start a job again")
+
+    # To be sure: another start iteration shouldn't do anything now
+    await indexing_loop_iteration(
+        workload_manager, daemon_session, args, start_new_jobs=True
+    )
+
+    assert not workload_manager.job_starts
+    assert len(list(await workload_manager.list_jobs())) == 1
+
+    # Again, to be sure: another update shouldn't do anything
+    await indexing_loop_iteration(
+        workload_manager, daemon_session, args, start_new_jobs=False
+    )
+
+    # Now we just assume the job we just started failed on the workload manager (i.e. SLURM)
+    workload_manager.jobs[0] = replace(
+        # we say successful, but if the job didn't produce a result in time, that doesn't matter
+        workload_manager.jobs[0],
+        status=JobStatus.SUCCESSFUL,
+    )
+
+    print(
+        "fourth iteration, job should be marked as failed, because it quit unexpectedly"
+    )
+
+    await indexing_loop_iteration(
+        workload_manager, daemon_session, args, start_new_jobs=False
+    )
+
+    # Now get the indexing job from the DB and check that its status is indeed failed
+    # Check the DB again
+    indexing_jobs_result = JsonReadIndexingResultsOutput(
+        **client.get("/api/indexing").json()
+    )
+    assert len(indexing_jobs_result.indexing_jobs) == 1
+    assert indexing_jobs_result.indexing_jobs[0].job_status == DBJobStatus.DONE
+    assert indexing_jobs_result.indexing_jobs[0].started is not None
+    assert indexing_jobs_result.indexing_jobs[0].stopped is not None

@@ -14,9 +14,14 @@
 
 
 module Api.Request.Processing exposing
-    ( indexingJobUpdateApiIndexingIndexingResultIdPost
+    ( indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost
+    , indexingJobFinishWithErrorApiIndexingIndexingResultIdFinishWithErrorPost
+    , indexingJobGetErrorlogApiIndexingIndexingResultIdErrorlogGet
+    , indexingJobGetLogApiIndexingIndexingResultIdLogGet
+    , indexingJobQueueForDataSetApiIndexingPost
+    , indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost
     , readIndexingJobsApiIndexingGet
-    , readMergeJobsApiMergingGet
+    , readIndexingParametersApiIndexingParametersDataSetIdGet
     )
 
 import Api
@@ -26,38 +31,98 @@ import Http
 import Json.Decode
 import Json.Encode
 
-indexingJobUpdateApiIndexingIndexingResultIdPost : Int -> Api.Data.JsonIndexingResultRootJson -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
-indexingJobUpdateApiIndexingIndexingResultIdPost indexingResultId_path jsonIndexingResultRootJson_body =
+indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost : Int -> Api.Data.JsonIndexingResultFinishSuccessfully -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
+indexingJobFinishSuccessfullyApiIndexingIndexingResultIdSuccessPost indexingResultId_path jsonIndexingResultFinishSuccessfully_body =
     Api.request
         "POST"
-        "/api/indexing/{indexingResultId}"
+        "/api/indexing/{indexingResultId}/success"
         [ ( "indexingResultId", String.fromInt indexingResultId_path ) ]
         []
         []
-        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonIndexingResultRootJson jsonIndexingResultRootJson_body)))
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonIndexingResultFinishSuccessfully jsonIndexingResultFinishSuccessfully_body)))
         Api.Data.jsonIndexingJobUpdateOutputDecoder
 
 
-readIndexingJobsApiIndexingGet : DBJobStatus -> Maybe Int -> Api.Request Api.Data.JsonReadIndexingResultsOutput
-readIndexingJobsApiIndexingGet status_query beamtimeId_query =
+indexingJobFinishWithErrorApiIndexingIndexingResultIdFinishWithErrorPost : Int -> Api.Data.JsonIndexingResultFinishWithError -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
+indexingJobFinishWithErrorApiIndexingIndexingResultIdFinishWithErrorPost indexingResultId_path jsonIndexingResultFinishWithError_body =
+    Api.request
+        "POST"
+        "/api/indexing/{indexingResultId}/finish-with-error"
+        [ ( "indexingResultId", String.fromInt indexingResultId_path ) ]
+        []
+        []
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonIndexingResultFinishWithError jsonIndexingResultFinishWithError_body)))
+        Api.Data.jsonIndexingJobUpdateOutputDecoder
+
+
+indexingJobGetErrorlogApiIndexingIndexingResultIdErrorlogGet : Int -> Api.Request String
+indexingJobGetErrorlogApiIndexingIndexingResultIdErrorlogGet indexingResultId_path =
+    Api.request
+        "GET"
+        "/api/indexing/{indexingResultId}/errorlog"
+        [ ( "indexingResultId", String.fromInt indexingResultId_path ) ]
+        []
+        []
+        Nothing
+        Json.Decode.string
+
+
+indexingJobGetLogApiIndexingIndexingResultIdLogGet : Int -> Api.Request String
+indexingJobGetLogApiIndexingIndexingResultIdLogGet indexingResultId_path =
+    Api.request
+        "GET"
+        "/api/indexing/{indexingResultId}/log"
+        [ ( "indexingResultId", String.fromInt indexingResultId_path ) ]
+        []
+        []
+        Nothing
+        Json.Decode.string
+
+
+indexingJobQueueForDataSetApiIndexingPost : Api.Data.JsonCreateIndexingForDataSetInput -> Api.Request Api.Data.JsonCreateIndexingForDataSetOutput
+indexingJobQueueForDataSetApiIndexingPost jsonCreateIndexingForDataSetInput_body =
+    Api.request
+        "POST"
+        "/api/indexing"
+        []
+        []
+        []
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonCreateIndexingForDataSetInput jsonCreateIndexingForDataSetInput_body)))
+        Api.Data.jsonCreateIndexingForDataSetOutputDecoder
+
+
+indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost : Int -> Api.Data.JsonIndexingResultStillRunning -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
+indexingJobStillRunningApiIndexingIndexingResultIdStillRunningPost indexingResultId_path jsonIndexingResultStillRunning_body =
+    Api.request
+        "POST"
+        "/api/indexing/{indexingResultId}/still-running"
+        [ ( "indexingResultId", String.fromInt indexingResultId_path ) ]
+        []
+        []
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonIndexingResultStillRunning jsonIndexingResultStillRunning_body)))
+        Api.Data.jsonIndexingJobUpdateOutputDecoder
+
+
+readIndexingJobsApiIndexingGet : Maybe DBJobStatus -> Maybe Int -> Maybe Bool -> Api.Request Api.Data.JsonReadIndexingResultsOutput
+readIndexingJobsApiIndexingGet status_query beamtimeId_query withFiles_query =
     Api.request
         "GET"
         "/api/indexing"
         []
-        [ ( "status", Just <| Api.Data.stringFromDBJobStatus status_query ), ( "beamtimeId", Maybe.map String.fromInt beamtimeId_query ) ]
+        [ ( "status", Maybe.map Api.Data.stringFromDBJobStatus status_query ), ( "beamtimeId", Maybe.map String.fromInt beamtimeId_query ), ( "withFiles", Maybe.map (\val -> if val then "true" else "false") withFiles_query ) ]
         []
         Nothing
         Api.Data.jsonReadIndexingResultsOutputDecoder
 
 
-readMergeJobsApiMergingGet : DBJobStatus -> Api.Request Api.Data.JsonReadMergeResultsOutput
-readMergeJobsApiMergingGet status_query =
+readIndexingParametersApiIndexingParametersDataSetIdGet : Int -> Api.Request Api.Data.JsonReadIndexingParametersOutput
+readIndexingParametersApiIndexingParametersDataSetIdGet dataSetId_path =
     Api.request
         "GET"
-        "/api/merging"
+        "/api/indexing-parameters/{dataSetId}"
+        [ ( "dataSetId", String.fromInt dataSetId_path ) ]
         []
-        [ ( "status", Just <| Api.Data.stringFromDBJobStatus status_query ) ]
         []
         Nothing
-        Api.Data.jsonReadMergeResultsOutputDecoder
+        Api.Data.jsonReadIndexingParametersOutputDecoder
 

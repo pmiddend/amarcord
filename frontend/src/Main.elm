@@ -33,7 +33,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Http
 import RemoteData exposing (RemoteData(..))
-import String exposing (contains)
+import String exposing (contains, endsWith)
 import Task
 import Time exposing (Posix)
 import Url as URL exposing (Url)
@@ -197,7 +197,7 @@ buildTitle model =
                         Route.AdvancedControls _ ->
                             "Advanced — "
 
-                        Route.Analysis _ ->
+                        Route.Analysis _ _ ->
                             "Analysis by Experiment Type — "
 
                         Route.RunAnalysis _ ->
@@ -542,7 +542,7 @@ updateInner hereAndNow msg model =
                 Browser.Internal url ->
                     -- Special case here; if this wasn't present, we'd try to open the /api prefix stuff and the
                     -- routing would fail.
-                    if contains "api/files/" url.path || contains "spreadsheet.zip" url.path then
+                    if contains "api/files/" url.path || endsWith "/log" url.path || endsWith "/errorlog" url.path || contains "spreadsheet.zip" url.path then
                         ( model, Nav.load (URL.toString url) )
 
                     else
@@ -633,10 +633,10 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
 
-                Route.Analysis beamtimeId ->
+                Route.Analysis experimentTypeIdMaybe beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Analysis.init hereAndNow beamtimeId
+                            Analysis.init model.navKey hereAndNow beamtimeId experimentTypeIdMaybe
                     in
                     ( AnalysisPage pageModel, Cmd.map AnalysisPageMsg pageCmds )
 

@@ -14,7 +14,6 @@ from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.beamtime_id import BeamtimeId
-from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.json_schema import JSONSchemaBoolean
 from amarcord.web.fastapi_utils import encode_data_set_attributo_value
 from amarcord.web.fastapi_utils import get_orm_db
@@ -30,7 +29,6 @@ from amarcord.web.json_models import JsonReadDataSets
 from amarcord.web.router_attributi import encode_attributo
 from amarcord.web.router_chemicals import encode_chemical
 from amarcord.web.router_experiment_types import encode_experiment_type
-from amarcord.web.router_indexing import encode_summary
 
 router = APIRouter()
 
@@ -50,12 +48,11 @@ def _run_has_attributo_to_data_set_has_attributo(
     )
 
 
-def encode_data_set(a: orm.DataSet, summary: DBIndexingFOM | None) -> JsonDataSet:
+def encode_orm_data_set_to_json(a: orm.DataSet) -> JsonDataSet:
     return JsonDataSet(
         id=a.id,
         experiment_type_id=a.experiment_type_id,
         attributi=[encode_data_set_attributo_value(v) for v in a.attributo_values],
-        summary=encode_summary(summary) if summary is not None else None,
     )
 
 
@@ -177,7 +174,7 @@ async def read_data_sets(
 ) -> JsonReadDataSets:
     return JsonReadDataSets(
         data_sets=[
-            encode_data_set(a, summary=None)
+            encode_orm_data_set_to_json(a)
             for a in await session.scalars(
                 select(orm.DataSet, orm.ExperimentType)
                 .join(orm.DataSet.experiment_type)

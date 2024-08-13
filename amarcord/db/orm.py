@@ -6,9 +6,11 @@ import sqlalchemy as sa
 from sqlalchemy import ForeignKey
 from sqlalchemy import String
 from sqlalchemy.dialects.mysql import LONGBLOB
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import MappedAsDataclass
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import Column
@@ -39,7 +41,7 @@ def keyvalgen(obj: Any) -> Generator[tuple[str, Any], None, None]:
             yield k, v
 
 
-class Base(AsyncAttrs, DeclarativeBase):
+class Base(AsyncAttrs, DeclarativeBase, MappedAsDataclass):
     # See https://stackoverflow.com/questions/75379948/what-is-correct-mapped-annotation-for-json-in-sqlalchemy-2-x-version
     type_annotation_map = {dict[str, Any]: JSON}
 
@@ -62,7 +64,7 @@ class Beamtime(Base):
     __tablename__ = "Beamtime"
 
     # Real attributes
-    id: Mapped[BeamtimeId] = mapped_column(primary_key=True)
+    id: Mapped[BeamtimeId] = mapped_column(init=False, primary_key=True)
     external_id: Mapped[str] = mapped_column(sa.String(length=255))
     proposal: Mapped[str] = mapped_column(sa.String(length=255))
     beamline: Mapped[str] = mapped_column(sa.String(length=255))
@@ -73,25 +75,39 @@ class Beamtime(Base):
 
     # Relationships
     experiment_types: Mapped[list["ExperimentType"]] = relationship(
-        back_populates="beamtime", cascade="all, delete, delete-orphan"
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     configurations: Mapped[list["UserConfiguration"]] = relationship(
-        back_populates="beamtime", cascade="all, delete, delete-orphan"
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     attributi: Mapped[list["Attributo"]] = relationship(
-        back_populates="beamtime", cascade="all, delete, delete-orphan"
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     schedules: Mapped[list["BeamtimeSchedule"]] = relationship(
-        back_populates="beamtime", cascade="all, delete, delete-orphan"
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     chemicals: Mapped[list["Chemical"]] = relationship(
-        back_populates="beamtime", cascade="all, delete, delete-orphan"
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     events: Mapped[list["EventLog"]] = relationship(
-        back_populates="beamtime", cascade="all, delete, delete-orphan"
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     runs: Mapped[list["Run"]] = relationship(
-        back_populates="beamtime", cascade="all, delete, delete-orphan"
+        back_populates="beamtime",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
 
 
@@ -99,47 +115,33 @@ class ExperimentType(Base):
     __tablename__ = "ExperimentType"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
     beamtime_id: Mapped[BeamtimeId] = mapped_column(
         ForeignKey("Beamtime.id", ondelete="cascade")
     )
     name: Mapped[str] = mapped_column(sa.String(length=255))
 
     # Relationship
-    beamtime: Mapped[Beamtime] = relationship(back_populates="experiment_types")
-    runs: Mapped[list["Run"]] = relationship(back_populates="experiment_type")
+    beamtime: Mapped[Beamtime] = relationship(
+        back_populates="experiment_types", init=False
+    )
+    runs: Mapped[list["Run"]] = relationship(
+        back_populates="experiment_type", default_factory=list
+    )
     # an experiment type without attributes is pretty useless, so it makes sense to always load them together
     attributi: Mapped[list["ExperimentHasAttributo"]] = relationship(
-        back_populates="experiment_type", lazy="selectin"
+        back_populates="experiment_type", lazy="selectin", default_factory=list
     )
     data_sets: Mapped[list["DataSet"]] = relationship(
-        back_populates="experiment_type", cascade="all, delete, delete-orphan"
+        back_populates="experiment_type",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     configurations: Mapped[list["UserConfiguration"]] = relationship(
-        back_populates="current_experiment_type", cascade="all, delete, delete-orphan"
+        back_populates="current_experiment_type",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
-
-
-class UserConfiguration(Base):
-    __tablename__ = "UserConfiguration"
-
-    # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
-    beamtime_id: Mapped[BeamtimeId] = mapped_column(
-        ForeignKey("Beamtime.id", ondelete="cascade")
-    )
-    created: Mapped[datetime] = mapped_column()
-    auto_pilot: Mapped[bool] = mapped_column()
-    use_online_crystfel: Mapped[bool] = mapped_column()
-    current_experiment_type_id: Mapped[None | int] = mapped_column(
-        ForeignKey("ExperimentType.id", ondelete="cascade")
-    )
-
-    # Relationships
-    current_experiment_type: Mapped[None | ExperimentType] = relationship(
-        back_populates="configurations"
-    )
-    beamtime: Mapped[Beamtime] = relationship(back_populates="configurations")
 
 
 class Attributo(Base):
@@ -149,7 +151,7 @@ class Attributo(Base):
     beamtime_id: Mapped[BeamtimeId] = mapped_column(
         ForeignKey("Beamtime.id", ondelete="cascade")
     )
-    id: Mapped[AttributoId] = mapped_column(primary_key=True)
+    id: Mapped[AttributoId] = mapped_column(init=False, primary_key=True)
     name: Mapped[str] = mapped_column(String(length=255))
     description: Mapped[str] = mapped_column(String(length=255))
     group: Mapped[str] = mapped_column(String(length=255))
@@ -157,18 +159,26 @@ class Attributo(Base):
     json_schema: Mapped[dict[str, Any]] = mapped_column(JSON)
 
     # Relationships
-    beamtime: Mapped[Beamtime] = relationship(back_populates="attributi")
+    beamtime: Mapped[Beamtime] = relationship(back_populates="attributi", init=False)
     experiment_types: Mapped[list["ExperimentHasAttributo"]] = relationship(
-        back_populates="attributo", cascade="all, delete, delete-orphan"
+        back_populates="attributo",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     chemical_values: Mapped[list["ChemicalHasAttributoValue"]] = relationship(
-        back_populates="attributo", cascade="all,delete,delete-orphan"
+        back_populates="attributo",
+        cascade="all,delete,delete-orphan",
+        default_factory=list,
     )
     run_values: Mapped[list["RunHasAttributoValue"]] = relationship(
-        back_populates="attributo", cascade="all,delete,delete-orphan"
+        back_populates="attributo",
+        cascade="all,delete,delete-orphan",
+        default_factory=list,
     )
     data_set_values: Mapped[list["DataSetHasAttributoValue"]] = relationship(
-        back_populates="attributo", cascade="all,delete,delete-orphan"
+        back_populates="attributo",
+        cascade="all,delete,delete-orphan",
+        default_factory=list,
     )
 
 
@@ -191,7 +201,7 @@ class File(Base):
     __tablename__ = "File"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
     type: Mapped[str] = mapped_column(sa.String(length=255))
     file_name: Mapped[str] = mapped_column(sa.String(length=255))
     size_in_bytes: Mapped[int] = mapped_column()
@@ -211,7 +221,7 @@ class File(Base):
 
     # Relationships
     chemicals: Mapped[list["Chemical"]] = relationship(
-        secondary=chemical_has_file, back_populates="files"
+        secondary=chemical_has_file, back_populates="files", default_factory=list
     )
     # This gives some weird errors, and the relationship isn't that important either
     # merge_result_mtz_files: Mapped[list["MergeResult"]] = relationship(
@@ -224,7 +234,7 @@ class File(Base):
     #     back_populates="pdb_file"
     # )
     events: Mapped[list["EventLog"]] = relationship(
-        back_populates="files", secondary=event_has_file
+        back_populates="files", secondary=event_has_file, default_factory=list
     )
 
 
@@ -245,7 +255,7 @@ class BeamtimeSchedule(Base):
     __tablename__ = "BeamtimeSchedule"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
     beamtime_id: Mapped[BeamtimeId] = mapped_column(
         ForeignKey("Beamtime.id", ondelete="cascade")
     )
@@ -260,15 +270,16 @@ class BeamtimeSchedule(Base):
         secondary=beamtime_schedule_has_chemical,
         back_populates="schedule_items",
         lazy="selectin",
+        default_factory=list,
     )
-    beamtime: Mapped[Beamtime] = relationship(back_populates="schedules")
+    beamtime: Mapped[Beamtime] = relationship(back_populates="schedules", init=False)
 
 
 class Chemical(Base):
     __tablename__ = "Chemical"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
     beamtime_id: Mapped[BeamtimeId] = mapped_column(
         ForeignKey("Beamtime.id", ondelete="cascade")
     )
@@ -278,17 +289,20 @@ class Chemical(Base):
     type: Mapped[ChemicalType] = mapped_column(sa.Enum(ChemicalType))
 
     # Relationships
-    beamtime: Mapped[Beamtime] = relationship(back_populates="chemicals")
-    files: Mapped[list[File]] = relationship(secondary=chemical_has_file)
+    beamtime: Mapped[Beamtime] = relationship(back_populates="chemicals", init=False)
+    files: Mapped[list[File]] = relationship(
+        secondary=chemical_has_file, default_factory=list
+    )
     schedule_items: Mapped[list[BeamtimeSchedule]] = relationship(
-        secondary=beamtime_schedule_has_chemical, back_populates="chemicals"
+        secondary=beamtime_schedule_has_chemical,
+        back_populates="chemicals",
+        default_factory=list,
     )
     attributo_values: Mapped[list["ChemicalHasAttributoValue"]] = relationship(
-        back_populates="chemical", cascade="all, delete", lazy="selectin"
-    )
-    indexing_results: Mapped["IndexingResult"] = relationship(
         back_populates="chemical",
         cascade="all, delete",
+        lazy="selectin",
+        default_factory=list,
     )
 
 
@@ -297,7 +311,7 @@ class ChemicalHasAttributoValue(Base):
 
     # Real attributes
     chemical_id: Mapped[int] = mapped_column(
-        ForeignKey("Chemical.id", ondelete="cascade"), primary_key=True
+        ForeignKey("Chemical.id", ondelete="cascade"), primary_key=True, init=False
     )
     attributo_id: Mapped[int] = mapped_column(
         ForeignKey("Attributo.id", ondelete="cascade"), primary_key=True
@@ -310,15 +324,19 @@ class ChemicalHasAttributoValue(Base):
     list_value: Mapped[None | list[Any]] = mapped_column(sa.JSON, nullable=True)
 
     # Relationships
-    chemical: Mapped[Chemical] = relationship(back_populates="attributo_values")
-    attributo: Mapped[Attributo] = relationship(back_populates="chemical_values")
+    chemical: Mapped[Chemical] = relationship(
+        back_populates="attributo_values", init=False
+    )
+    attributo: Mapped[Attributo] = relationship(
+        back_populates="chemical_values", init=False
+    )
 
 
 class Run(Base):
     __tablename__ = "Run"
 
     # Real attributes
-    id: Mapped[RunInternalId] = mapped_column(primary_key=True)
+    id: Mapped[RunInternalId] = mapped_column(primary_key=True, init=False)
     external_id: Mapped[RunExternalId] = mapped_column()
     beamtime_id: Mapped[BeamtimeId] = mapped_column(
         ForeignKey("Beamtime.id", ondelete="cascade")
@@ -331,14 +349,37 @@ class Run(Base):
     )
 
     # Relationships
-    beamtime: Mapped[Beamtime] = relationship(back_populates="runs")
-    experiment_type: Mapped[ExperimentType] = relationship(back_populates="runs")
+    beamtime: Mapped[Beamtime] = relationship(back_populates="runs", init=False)
+    experiment_type: Mapped[ExperimentType] = relationship(
+        back_populates="runs", init=False
+    )
     indexing_results: Mapped[list["IndexingResult"]] = relationship(
-        back_populates="run"
+        back_populates="run", default_factory=list
     )
     attributo_values: Mapped[list["RunHasAttributoValue"]] = relationship(
-        back_populates="run", cascade="all, delete, delete-orphan", lazy="selectin"
+        back_populates="run",
+        cascade="all, delete, delete-orphan",
+        lazy="selectin",
+        default_factory=list,
     )
+    files: Mapped[list["RunHasFiles"]] = relationship(
+        back_populates="run", default_factory=list
+    )
+
+
+class RunHasFiles(Base):
+    __tablename__ = "RunHasFiles"
+
+    # Real attributes
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("Run.id", ondelete="cascade"), init=False
+    )
+    glob: Mapped[str] = mapped_column()
+    source: Mapped[str] = mapped_column(String(length=255))
+
+    # Relationships
+    run: Mapped[Run] = relationship(back_populates="files", init=False)
 
 
 class RunHasAttributoValue(Base):
@@ -346,7 +387,7 @@ class RunHasAttributoValue(Base):
 
     # Real attributes
     run_id: Mapped[RunInternalId] = mapped_column(
-        ForeignKey("Run.id", ondelete="cascade"), primary_key=True
+        ForeignKey("Run.id", ondelete="cascade"), primary_key=True, init=False
     )
     attributo_id: Mapped[AttributoId] = mapped_column(
         ForeignKey("Attributo.id", ondelete="cascade"), primary_key=True
@@ -362,9 +403,9 @@ class RunHasAttributoValue(Base):
     )
 
     # Relationships
-    run: Mapped[Run] = relationship(back_populates="attributo_values")
-    attributo: Mapped[Attributo] = relationship(back_populates="run_values")
-    chemical: Mapped[None | Chemical] = relationship()
+    run: Mapped[Run] = relationship(back_populates="attributo_values", init=False)
+    attributo: Mapped[Attributo] = relationship(back_populates="run_values", init=False)
+    chemical: Mapped[None | Chemical] = relationship(init=False)
 
 
 class ExperimentHasAttributo(Base):
@@ -372,7 +413,7 @@ class ExperimentHasAttributo(Base):
 
     # Real attributes
     experiment_type_id: Mapped[int] = mapped_column(
-        ForeignKey("ExperimentType.id"), primary_key=True
+        ForeignKey("ExperimentType.id"), primary_key=True, init=False
     )
     attributo_id: Mapped[int] = mapped_column(
         ForeignKey("Attributo.id"), primary_key=True
@@ -381,22 +422,29 @@ class ExperimentHasAttributo(Base):
 
     # Relationships
     experiment_type: Mapped[ExperimentType] = relationship(
-        back_populates="attributi", foreign_keys=[experiment_type_id]
+        back_populates="attributi", foreign_keys=[experiment_type_id], init=False
     )
-    attributo: Mapped["Attributo"] = relationship(back_populates="experiment_types")
+    attributo: Mapped["Attributo"] = relationship(
+        back_populates="experiment_types", init=False
+    )
 
 
 class DataSet(Base):
     __tablename__ = "DataSet"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
     experiment_type_id: Mapped[int] = mapped_column(ForeignKey("ExperimentType.id"))
 
     # Relationships
-    experiment_type: Mapped[ExperimentType] = relationship(back_populates="data_sets")
+    experiment_type: Mapped[ExperimentType] = relationship(
+        back_populates="data_sets", init=False
+    )
     attributo_values: Mapped[list["DataSetHasAttributoValue"]] = relationship(
-        back_populates="data_set", cascade="all,delete,delete-orphan", lazy="selectin"
+        back_populates="data_set",
+        cascade="all,delete,delete-orphan",
+        lazy="selectin",
+        default_factory=list,
     )
 
 
@@ -407,6 +455,7 @@ class DataSetHasAttributoValue(Base):
     data_set_id: Mapped[int] = mapped_column(
         ForeignKey("DataSet.id", ondelete="cascade"),
         primary_key=True,
+        init=False,
     )
     attributo_id: Mapped[AttributoId] = mapped_column(
         ForeignKey("Attributo.id", ondelete="cascade"),
@@ -424,15 +473,20 @@ class DataSetHasAttributoValue(Base):
     )
 
     # Relationships
-    data_set: Mapped[DataSet] = relationship(back_populates="attributo_values")
-    attributo: Mapped[Attributo] = relationship(back_populates="data_set_values")
+    data_set: Mapped[DataSet] = relationship(
+        back_populates="attributo_values", init=False
+    )
+    attributo: Mapped[Attributo] = relationship(
+        back_populates="data_set_values", init=False
+    )
+    chemical: Mapped[None | Chemical] = relationship(init=False)
 
 
 class EventLog(Base):
     __tablename__ = "EventLog"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
     beamtime_id: Mapped[BeamtimeId] = mapped_column(
         ForeignKey("Beamtime.id", ondelete="cascade")
     )
@@ -442,9 +496,9 @@ class EventLog(Base):
     text: Mapped[str] = mapped_column(sa.Text)
 
     # Relationships
-    beamtime: Mapped[Beamtime] = relationship(back_populates="events")
+    beamtime: Mapped[Beamtime] = relationship(back_populates="events", init=False)
     files: Mapped[list[File]] = relationship(
-        back_populates="events", secondary=event_has_file
+        back_populates="events", secondary=event_has_file, default_factory=list
     )
 
 
@@ -458,43 +512,117 @@ merge_result_has_indexing_result = Table(
 )
 
 
+class IndexingParameters(Base):
+    __tablename__ = "IndexingParameters"
+
+    # Real attributes
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
+    is_online: Mapped[bool] = mapped_column()
+    cell_description: Mapped[None | str] = mapped_column(sa.String(length=255))
+    geometry_file: Mapped[None | str] = mapped_column(sa.Text)
+    command_line: Mapped[str] = mapped_column(sa.Text)
+    source: Mapped[str] = mapped_column(sa.String(length=255))
+
+    # Relationships
+    indexing_results: Mapped[list["IndexingResult"]] = relationship(
+        back_populates="indexing_parameters", default_factory=list
+    )
+    configurations: Mapped[list["UserConfiguration"]] = relationship(
+        back_populates="current_online_indexing_parameters", default_factory=list
+    )
+
+
+def are_indexing_parameters_equal(a: IndexingParameters, b: IndexingParameters) -> bool:
+    return (a.id is not None and a.id == b.id) or (  # type: ignore
+        a.is_online == b.is_online
+        and a.cell_description == b.cell_description
+        and a.command_line == b.command_line
+        and a.geometry_file == b.geometry_file
+        and a.source == b.source
+    )
+
+
+class UserConfiguration(Base):
+    __tablename__ = "UserConfiguration"
+
+    # Real attributes
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    beamtime_id: Mapped[BeamtimeId] = mapped_column(
+        ForeignKey("Beamtime.id", ondelete="cascade")
+    )
+    created: Mapped[datetime] = mapped_column()
+    auto_pilot: Mapped[bool] = mapped_column()
+    use_online_crystfel: Mapped[bool] = mapped_column()
+    current_experiment_type_id: Mapped[None | int] = mapped_column(
+        ForeignKey("ExperimentType.id", ondelete="cascade")
+    )
+    current_online_indexing_parameters_id: Mapped[None | int] = mapped_column(
+        ForeignKey("IndexingParameters.id", ondelete="cascade")
+    )
+
+    # Relationships
+    current_experiment_type: Mapped[None | ExperimentType] = relationship(
+        back_populates="configurations", init=False
+    )
+    beamtime: Mapped[Beamtime] = relationship(
+        back_populates="configurations", init=False
+    )
+    current_online_indexing_parameters: Mapped[None | IndexingParameters] = (
+        relationship(back_populates="configurations", init=False)
+    )
+
+
 class IndexingResult(Base):
     __tablename__ = "IndexingResult"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(init=False, primary_key=True)
     created: Mapped[datetime] = mapped_column()
     run_id: Mapped[RunInternalId] = mapped_column(
         ForeignKey("Run.id", ondelete="cascade")
     )
     stream_file: Mapped[None | str] = mapped_column(sa.Text)
-    cell_description: Mapped[str] = mapped_column(sa.String(length=255))
-    point_group: Mapped[str] = mapped_column(sa.String(length=32))
-    chemical_id: Mapped[None | int] = mapped_column(
-        ForeignKey("Chemical.id", ondelete="cascade")
-    )
+    program_version: Mapped[None | str] = mapped_column(sa.String(length=255))
     frames: Mapped[None | int] = mapped_column()
     hits: Mapped[None | int] = mapped_column()
-    not_indexed_frames: Mapped[None | int] = mapped_column()
-    hit_rate: Mapped[float] = mapped_column()
-    indexing_rate: Mapped[float] = mapped_column()
     indexed_frames: Mapped[int] = mapped_column()
     detector_shift_x_mm: Mapped[None | float] = mapped_column()
     detector_shift_y_mm: Mapped[None | float] = mapped_column()
+    geometry_file: Mapped[None | str] = mapped_column()
+    geometry_hash: Mapped[None | str] = mapped_column()
+    generated_geometry_file: Mapped[None | str] = mapped_column()
+    # In some of AMARCORD's code, this will be called "workload
+    # manager job ID" (see workload managers in the docs)
     job_id: Mapped[None | int] = mapped_column()
     job_status: Mapped[DBJobStatus] = mapped_column(sa.Enum(DBJobStatus))
-    job_error: Mapped[None | str] = mapped_column(sa.Text)
+    job_error: Mapped[None | str] = mapped_column(
+        sa.Text().with_variant(LONGTEXT, "mysql")
+    )
+    job_latest_log: Mapped[None | str] = mapped_column(sa.Text)
+    job_started: Mapped[None | datetime] = mapped_column()
+    job_stopped: Mapped[None | datetime] = mapped_column()
+    indexing_parameters_id: Mapped[int] = mapped_column(
+        ForeignKey("IndexingParameters.id", ondelete="cascade")
+    )
+    unit_cell_histograms_file_id: Mapped[None | int] = mapped_column(
+        ForeignKey("File.id", ondelete="cascade")
+    )
 
     # Relationships
     merge_results: Mapped[list["MergeResult"]] = relationship(
         back_populates="indexing_results",
         secondary=merge_result_has_indexing_result,
         cascade="all, delete",
+        default_factory=list,
     )
-    run: Mapped[Run] = relationship(back_populates="indexing_results")
-    chemical: Mapped[Chemical] = relationship(back_populates="indexing_results")
+    run: Mapped[Run] = relationship(back_populates="indexing_results", init=False)
     statistics: Mapped[list["IndexingResultHasStatistic"]] = relationship(
-        back_populates="indexing_result", cascade="all, delete, delete-orphan"
+        back_populates="indexing_result",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
+    )
+    indexing_parameters: Mapped[IndexingParameters] = relationship(
+        back_populates="indexing_results", init=False
     )
 
 
@@ -512,14 +640,16 @@ class IndexingResultHasStatistic(Base):
     indexed_crystals: Mapped[int] = mapped_column()
 
     # Relationships
-    indexing_result: Mapped[IndexingResult] = relationship(back_populates="statistics")
+    indexing_result: Mapped[IndexingResult] = relationship(
+        back_populates="statistics", init=False
+    )
 
 
 class MergeResult(Base):
     __tablename__ = "MergeResult"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
     created: Mapped[datetime] = mapped_column()
     recent_log: Mapped[str] = mapped_column(sa.Text)
     negative_handling: Mapped[None | MergeNegativeHandling] = mapped_column(
@@ -528,8 +658,8 @@ class MergeResult(Base):
     job_status: Mapped[DBJobStatus] = mapped_column(sa.Enum(DBJobStatus))
     started: Mapped[None | datetime] = mapped_column()
     stopped: Mapped[None | datetime] = mapped_column()
-    point_group: Mapped[None | str] = mapped_column(sa.String(length=32))
-    cell_description: Mapped[None | str] = mapped_column(sa.String(length=255))
+    point_group: Mapped[str] = mapped_column(sa.String(length=32))
+    cell_description: Mapped[str] = mapped_column(sa.String(length=255))
     job_id: Mapped[None | int] = mapped_column()
     job_error: Mapped[None | str] = mapped_column(sa.Text)
     mtz_file_id: Mapped[None | int] = mapped_column(
@@ -557,52 +687,57 @@ class MergeResult(Base):
     input_min_res: Mapped[None | float] = mapped_column()
     input_push_res: Mapped[None | float] = mapped_column()
     input_w: Mapped[None | str] = mapped_column(sa.String(length=255))
-    fom_snr: Mapped[None | float] = mapped_column()
-    fom_wilson: Mapped[None | float] = mapped_column()
-    fom_ln_k: Mapped[None | float] = mapped_column()
-    fom_discarded_reflections: Mapped[None | int] = mapped_column()
-    fom_one_over_d_from: Mapped[None | float] = mapped_column()
-    fom_one_over_d_to: Mapped[None | float] = mapped_column()
-    fom_redundancy: Mapped[None | float] = mapped_column()
-    fom_completeness: Mapped[None | float] = mapped_column()
-    fom_measurements_total: Mapped[None | int] = mapped_column()
-    fom_reflections_total: Mapped[None | int] = mapped_column()
-    fom_reflections_possible: Mapped[None | int] = mapped_column()
-    fom_r_split: Mapped[None | float] = mapped_column()
-    fom_r1i: Mapped[None | float] = mapped_column()
-    fom_2: Mapped[None | float] = mapped_column()
-    fom_cc: Mapped[None | float] = mapped_column()
-    fom_ccstar: Mapped[None | float] = mapped_column()
-    fom_ccano: Mapped[None | float] = mapped_column()
-    fom_crdano: Mapped[None | float] = mapped_column()
-    fom_rano: Mapped[None | float] = mapped_column()
-    fom_rano_over_r_split: Mapped[None | float] = mapped_column()
-    fom_d1sig: Mapped[None | float] = mapped_column()
-    fom_d2sig: Mapped[None | float] = mapped_column()
-    fom_outer_resolution: Mapped[None | float] = mapped_column()
-    fom_outer_ccstar: Mapped[None | float] = mapped_column()
-    fom_outer_r_split: Mapped[None | float] = mapped_column()
-    fom_outer_cc: Mapped[None | float] = mapped_column()
-    fom_outer_unique_reflections: Mapped[None | int] = mapped_column()
-    fom_outer_completeness: Mapped[None | float] = mapped_column()
-    fom_outer_redundancy: Mapped[None | float] = mapped_column()
-    fom_outer_snr: Mapped[None | float] = mapped_column()
-    fom_outer_min_res: Mapped[None | float] = mapped_column()
-    fom_outer_max_res: Mapped[None | float] = mapped_column()
+    fom_snr: Mapped[None | float] = mapped_column(init=False)
+    fom_wilson: Mapped[None | float] = mapped_column(init=False)
+    fom_ln_k: Mapped[None | float] = mapped_column(init=False)
+    fom_discarded_reflections: Mapped[None | int] = mapped_column(init=False)
+    fom_one_over_d_from: Mapped[None | float] = mapped_column(init=False)
+    fom_one_over_d_to: Mapped[None | float] = mapped_column(init=False)
+    fom_redundancy: Mapped[None | float] = mapped_column(init=False)
+    fom_completeness: Mapped[None | float] = mapped_column(init=False)
+    fom_measurements_total: Mapped[None | int] = mapped_column(init=False)
+    fom_reflections_total: Mapped[None | int] = mapped_column(init=False)
+    fom_reflections_possible: Mapped[None | int] = mapped_column(init=False)
+    fom_r_split: Mapped[None | float] = mapped_column(init=False)
+    fom_r1i: Mapped[None | float] = mapped_column(init=False)
+    fom_2: Mapped[None | float] = mapped_column(init=False)
+    fom_cc: Mapped[None | float] = mapped_column(init=False)
+    fom_ccstar: Mapped[None | float] = mapped_column(init=False)
+    fom_ccano: Mapped[None | float] = mapped_column(init=False)
+    fom_crdano: Mapped[None | float] = mapped_column(init=False)
+    fom_rano: Mapped[None | float] = mapped_column(init=False)
+    fom_rano_over_r_split: Mapped[None | float] = mapped_column(init=False)
+    fom_d1sig: Mapped[None | float] = mapped_column(init=False)
+    fom_d2sig: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_resolution: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_ccstar: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_r_split: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_cc: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_unique_reflections: Mapped[None | int] = mapped_column(init=False)
+    fom_outer_completeness: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_redundancy: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_snr: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_min_res: Mapped[None | float] = mapped_column(init=False)
+    fom_outer_max_res: Mapped[None | float] = mapped_column(init=False)
 
     # Relationships
-    mtz_file: Mapped[None | File] = relationship()
+    mtz_file: Mapped[None | File] = relationship(init=False)
     refinement_results: Mapped[list["RefinementResult"]] = relationship(
-        back_populates="merge_result", cascade="all, delete, delete-orphan"
+        back_populates="merge_result",
+        cascade="all, delete, delete-orphan",
+        default_factory=list,
     )
     # These belong together, always
     shell_foms: Mapped[list["MergeResultShellFom"]] = relationship(
         back_populates="merge_result",
         cascade="all, delete, delete-orphan",
         lazy="selectin",
+        default_factory=list,
     )
     indexing_results: Mapped[list["IndexingResult"]] = relationship(
-        secondary=merge_result_has_indexing_result, back_populates="merge_results"
+        secondary=merge_result_has_indexing_result,
+        back_populates="merge_results",
+        default_factory=list,
     )
 
 
@@ -610,9 +745,9 @@ class MergeResultShellFom(Base):
     __tablename__ = "MergeResultShellFom"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
     merge_result_id: Mapped[int] = mapped_column(
-        ForeignKey("MergeResult.id", ondelete="cascade")
+        ForeignKey("MergeResult.id", ondelete="cascade"), init=False
     )
     one_over_d_centre: Mapped[float] = mapped_column()
     nref: Mapped[int] = mapped_column()
@@ -630,14 +765,16 @@ class MergeResultShellFom(Base):
     mean_i: Mapped[float] = mapped_column()
 
     # Relationships
-    merge_result: Mapped["MergeResult"] = relationship(back_populates="shell_foms")
+    merge_result: Mapped["MergeResult"] = relationship(
+        back_populates="shell_foms", init=False
+    )
 
 
 class RefinementResult(Base):
     __tablename__ = "RefinementResult"
 
     # Real attributes
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, init=False)
     merge_result_id: Mapped[int] = mapped_column(
         ForeignKey("MergeResult.id", ondelete="cascade")
     )
@@ -650,7 +787,7 @@ class RefinementResult(Base):
 
     # Relationships
     merge_result: Mapped["MergeResult"] = relationship(
-        back_populates="refinement_results"
+        back_populates="refinement_results", init=False
     )
-    pdb_file: Mapped[File] = relationship(foreign_keys=[pdb_file_id])
-    mtz_file: Mapped[File] = relationship(foreign_keys=[mtz_file_id])
+    pdb_file: Mapped[File] = relationship(foreign_keys=[pdb_file_id], init=False)
+    mtz_file: Mapped[File] = relationship(foreign_keys=[mtz_file_id], init=False)

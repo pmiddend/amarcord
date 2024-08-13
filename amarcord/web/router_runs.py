@@ -13,9 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
-from amarcord.amici.crystfel.util import CrystFELCellFile
-from amarcord.amici.crystfel.util import coparse_cell_description
-from amarcord.amici.crystfel.util import parse_cell_description
+from amarcord.cli.crystfel_index import coparse_cell_description
 from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import datetime_from_attributo_int
@@ -26,12 +24,13 @@ from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.beamtime_id import BeamtimeId
-from amarcord.db.chemical_type import ChemicalType
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.event_log_level import EventLogLevel
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.orm_utils import ATTRIBUTO_GROUP_MANUAL
+from amarcord.db.orm_utils import default_online_indexing_parameters
+from amarcord.db.orm_utils import determine_run_indexing_metadata
 from amarcord.db.orm_utils import duplicate_run_attributo
 from amarcord.db.orm_utils import live_stream_image_name
 from amarcord.db.orm_utils import retrieve_latest_config
@@ -43,8 +42,7 @@ from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
 from amarcord.util import group_by
-from amarcord.web.fastapi_utils import DATE_FORMAT
-from amarcord.web.fastapi_utils import ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS
+from amarcord.web.constants import DATE_FORMAT
 from amarcord.web.fastapi_utils import encode_run_attributo_value
 from amarcord.web.fastapi_utils import event_has_date
 from amarcord.web.fastapi_utils import get_orm_db
@@ -56,6 +54,7 @@ from amarcord.web.json_models import JsonAttributoBulkValue
 from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonCreateOrUpdateRun
 from amarcord.web.json_models import JsonCreateOrUpdateRunOutput
+from amarcord.web.json_models import JsonDataSetWithFom
 from amarcord.web.json_models import JsonIndexingStatistic
 from amarcord.web.json_models import JsonLiveStream
 from amarcord.web.json_models import JsonReadRuns
@@ -71,10 +70,10 @@ from amarcord.web.json_models import JsonUpdateRunsBulkInput
 from amarcord.web.json_models import JsonUpdateRunsBulkOutput
 from amarcord.web.router_attributi import encode_attributo
 from amarcord.web.router_chemicals import encode_chemical
-from amarcord.web.router_data_sets import encode_data_set
+from amarcord.web.router_data_sets import encode_orm_data_set_to_json
 from amarcord.web.router_events import encode_event
 from amarcord.web.router_experiment_types import encode_experiment_type
-from amarcord.web.router_indexing import encode_summary
+from amarcord.web.router_indexing import encode_indexing_fom_to_json
 from amarcord.web.router_indexing import fom_for_indexing_result
 from amarcord.web.router_indexing import summary_from_foms
 from amarcord.web.router_user_configuration import encode_user_configuration
@@ -137,6 +136,7 @@ async def start_run(
             experiment_type_id=experiment_type_id,
             beamtime_id=beamtimeId,
             started=datetime.datetime.now(datetime.timezone.utc),
+            stopped=None,
             modified=datetime.datetime.now(datetime.timezone.utc),
         )
         if latest_config.auto_pilot:
@@ -225,12 +225,13 @@ async def create_or_update_run(
                 modified=datetime.datetime.now(datetime.timezone.utc),
             )
             attributi_by_id: dict[int, orm.Attributo] = {
-                a.id: a
-                for a in (
+                orm_attributo.id: orm_attributo
+                for orm_attributo in (
                     await session.scalars(
                         select(orm.Attributo).where(
                             orm.Attributo.id.in_(
-                                a.attributo_id for a in input_.attributi
+                                input_attributo.attributo_id
+                                for input_attributo in input_.attributi
                             )
                             & (orm.Attributo.associated_table == AssociatedTable.RUN)
                         )
@@ -248,7 +249,7 @@ async def create_or_update_run(
                     new_attributo, attributo_type
                 )
                 run_logger.info(
-                    f"validating type of {new_attributo.attributo_id}: type is {attributo_type}: {validation_result}"
+                    f"validating type of {new_attributo.attributo_id}: type is {attributo_type.json_schema}: {validation_result}"
                 )
                 if validation_result is not None:
                     raise HTTPException(
@@ -268,7 +269,14 @@ async def create_or_update_run(
                             run_in_db.attributo_values.append(
                                 duplicate_run_attributo(latest_run_attributo)
                             )
+            # For now, let's say files can only be added when creating the run, and only here.
+            # This will have to change later though.
+            for file_glob in input_.files:
+                run_in_db.files.append(orm.RunHasFiles(glob=file_glob, source="raw"))
             session.add(run_in_db)
+            # we might have a new run, and added a chemical to it, but the chemical relationship hasn't been loaded
+            # for that. That we do here by flushing
+            await session.flush()
         else:
             run_logger.info("run in DB, updating attributes")
             await update_attributi_from_json(
@@ -318,157 +326,70 @@ async def create_or_update_run(
             indexing_result_id = None
         else:
             run_logger.info("adding CrystFEL online job")
-            attributi = list(
-                (
-                    await session.scalars(
-                        select(orm.Attributo)
-                        .where(orm.Attributo.beamtime_id == beamtime_id)
-                        .order_by(orm.Attributo.name)
-                    )
-                ).all()
+
+            run_indexing_metadata = await determine_run_indexing_metadata(
+                session, run_in_db
             )
-            point_group_attributo = next(
-                iter(a for a in attributi if a.name == "point group"), None
-            )
-            if point_group_attributo is None:
-                message = "cannot start CrystFEL online: have no point group attributo"
+
+            if isinstance(run_indexing_metadata, str):
+                message = f"cannot start CrystFEL online: {run_indexing_metadata}"
                 await _inner_create_new_event(message)
                 raise HTTPException(
                     status_code=400,
                     detail=message,
                 )
-            cell_description_attributo = next(
-                iter(a for a in attributi if a.name == "cell description"), None
-            )
-            if cell_description_attributo is None:
-                message = (
-                    "cannot start CrystFEL online: have no cell description attributo"
-                )
-                await _inner_create_new_event(message)
-                raise HTTPException(
-                    status_code=400,
-                    detail=message,
-                )
-            point_group: None | str = None
-            cell_description_str: None | str = None
-            channel_chemical: None | orm.Chemical = None
-            # For indexing, we need to provide one chemical ID that serves as _the_ chemical ID for the indexing job
-            # (kind of a bug right now). So, if we don't find any chemicals with cell information, we just use the first
-            # one which is of type "crystal". Since it's totally valid to leave out cell information for crystals, for
-            # example in the case where you actually don't know that and want to find out.
-            crystal_chemicals: list[orm.Chemical] = []
-            for channel in range(1, ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS + 1):
-                run_logger.info(
-                    f"run attributo values are: {run_in_db.attributo_values}"
-                )
-                async for this_channel_chemical in (
-                    (
-                        await session.scalars(
-                            select(orm.Chemical).where(
-                                orm.Chemical.id == attributo_value.chemical_value
-                            )
-                        )
-                    ).one()
-                    for attributo_value in run_in_db.attributo_values
-                    if attributo_value.chemical_value is not None
-                    and attributo_value.attributo.name
-                    == f"channel_{channel}_chemical_id"
-                ):
-                    run_logger.info(
-                        f"got a chemical for the channel {channel}: {this_channel_chemical.id}"
-                    )
-                    if this_channel_chemical.type == ChemicalType.CRYSTAL:
-                        crystal_chemicals.append(this_channel_chemical)
-                    this_point_group = next(
-                        iter(
-                            attributo_value.string_value
-                            for attributo_value in this_channel_chemical.attributo_values
-                            if attributo_value.attributo_id == point_group_attributo.id
-                        ),
-                        None,
-                    )
-                    this_cell_description = next(
-                        iter(
-                            attributo_value.string_value
-                            for attributo_value in this_channel_chemical.attributo_values
-                            if attributo_value.attributo_id
-                            == cell_description_attributo.id
-                        ),
-                        None,
-                    )
-                    if (
-                        this_point_group is not None
-                        and this_cell_description is not None
-                    ):
-                        point_group = this_point_group
-                        cell_description_str = this_cell_description
-                        channel_chemical = this_channel_chemical
-                        break
-
-            if channel_chemical is None:
-                if not crystal_chemicals:
-                    error_message = (
-                        "cannot start CrystFEL online: no chemicals with cell information and none "
-                        + 'of type "crystal" detected'
-                    )
-                    await _inner_create_new_event(error_message)
-                    run_logger.warning(error_message)
-                    return JsonCreateOrUpdateRunOutput(
-                        run_created=False,
-                        indexing_result_id=None,
-                        error_message=error_message,
-                        run_internal_id=None,
-                    )
-                channel_chemical = crystal_chemicals[0]
-                info_message = (
-                    "no chemicals with cell information found, taking the first chemical of type "
-                    + f' "crystal": {channel_chemical.name} (id {channel_chemical.id})'
-                )
-                await _inner_create_new_event(info_message)
-                run_logger.info(info_message)
-
-            cell_description: None | CrystFELCellFile
-            if cell_description_str is not None:
-                cell_description = parse_cell_description(cell_description_str)
-                if cell_description is None:
-                    error_message = f"cannot start indexing job, cell description is invalid: {cell_description_str}"
-                    await _inner_create_new_event(error_message)
-                    logger.error(error_message)
-                    return JsonCreateOrUpdateRunOutput(
-                        run_created=False,
-                        indexing_result_id=None,
-                        error_message=error_message,
-                        run_internal_id=None,
-                    )
-            else:
-                cell_description = None
 
             run_logger.info(
-                f"creating CrystFEL online job for chemical {channel_chemical}"
+                f"creating CrystFEL online job for chemical {run_indexing_metadata.chemical.id}"
             )
+            latest_user_config = await retrieve_latest_config(session, beamtime_id)
+            current_online_indexing_parameters = (
+                await latest_user_config.awaitable_attrs.current_online_indexing_parameters
+            )
+            if current_online_indexing_parameters is None:
+                current_online_indexing_parameters = (
+                    default_online_indexing_parameters()
+                )
+            # We _could_ re-use the same indexing parameters from the configuration each time. But
+            # if we don't have one set in the config, then we'd have to create it here, and I was
+            # too lazy to figure out the consequences.
+            new_indexing_result_parameters = orm.IndexingParameters(
+                is_online=True,
+                cell_description=(
+                    coparse_cell_description(run_indexing_metadata.cell_description)
+                    if run_indexing_metadata.cell_description is not None
+                    else None
+                ),
+                command_line=current_online_indexing_parameters.command_line,
+                geometry_file=current_online_indexing_parameters.geometry_file,
+                source=current_online_indexing_parameters.source,
+            )
+            session.add(new_indexing_result_parameters)
             # Better to explicitly flush, creating the run and giving us the ID
             await session.flush()
             new_indexing_result = orm.IndexingResult(
                 created=datetime.datetime.now(datetime.timezone.utc),
                 run_id=run_in_db.id,
+                stream_file=None,
+                # program version will be determined by the job itself and sent back
+                program_version="",
                 frames=0,
-                hit_rate=0.0,
-                indexing_rate=0.0,
                 hits=0,
-                not_indexed_frames=0,
                 indexed_frames=0,
+                detector_shift_x_mm=None,
+                detector_shift_y_mm=None,
+                # autodetect geometry file for online indexing
+                geometry_file=None,
+                geometry_hash="",
+                generated_geometry_file=None,
+                unit_cell_histograms_file_id=None,
+                job_id=None,
                 job_status=DBJobStatus.QUEUED,
-                point_group=(
-                    point_group
-                    if point_group is not None and point_group.strip()
-                    else None
-                ),
-                cell_description=(
-                    coparse_cell_description(cell_description)
-                    if cell_description is not None
-                    else None
-                ),
-                chemical_id=channel_chemical.id,
+                job_error=None,
+                job_latest_log="",
+                job_started=None,
+                job_stopped=None,
+                indexing_parameters_id=new_indexing_result_parameters.id,
             )
             session.add(new_indexing_result)
             await session.flush()
@@ -736,6 +657,15 @@ async def _find_schedule_entry(
     return None
 
 
+def encode_data_set_with_fom(
+    ds: orm.DataSet, fom: None | DBIndexingFOM
+) -> JsonDataSetWithFom:
+    return JsonDataSetWithFom(
+        data_set=encode_orm_data_set_to_json(ds),
+        fom=encode_indexing_fom_to_json(fom if fom is not None else empty_indexing_fom),
+    )
+
+
 @router.get(
     "/api/runs/{beamtimeId}", tags=["runs"], response_model_exclude_defaults=True
 )
@@ -834,6 +764,7 @@ async def read_runs(
             select(orm.IndexingResult, orm.Run)
             .join(orm.IndexingResult.run)
             .where(orm.Run.beamtime_id == beamtimeId)
+            .options(selectinload(orm.IndexingResult.indexing_parameters))
         )
     ).all()
     indexing_results_for_runs: dict[RunInternalId, list[orm.IndexingResult]] = group_by(
@@ -927,8 +858,8 @@ async def read_runs(
         chemicals=[encode_chemical(a) for a in chemicals],
         user_config=encode_user_configuration(user_configuration),
         experiment_types=[encode_experiment_type(a) for a in experiment_types],
-        data_sets=[
-            encode_data_set(a, data_set_id_to_grouped.get(a.id, None))
+        data_sets_with_fom=[
+            encode_data_set_with_fom(a, data_set_id_to_grouped.get(a.id, None))
             for a in data_sets
         ],
         runs=[
@@ -943,9 +874,11 @@ async def read_runs(
                     else None
                 ),
                 files=[],
-                summary=encode_summary(run_foms.get(r.id, empty_indexing_fom)),
+                summary=encode_indexing_fom_to_json(
+                    run_foms.get(r.id, empty_indexing_fom)
+                ),
                 experiment_type_id=r.experiment_type_id,
-                data_sets=[
+                data_set_ids=[
                     ds.id
                     for ds in data_sets
                     if r.experiment_type_id == ds.experiment_type_id
@@ -958,7 +891,9 @@ async def read_runs(
                 running_indexing_jobs=[
                     ir.id
                     for ir in indexing_results
-                    if ir.run_id == r.id and ir.job_status == DBJobStatus.RUNNING
+                    if ir.run_id == r.id
+                    and ir.job_status == DBJobStatus.RUNNING
+                    and ir.indexing_parameters.is_online
                 ],
             )
             for r in runs

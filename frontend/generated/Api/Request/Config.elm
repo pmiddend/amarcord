@@ -14,7 +14,9 @@
 
 
 module Api.Request.Config exposing
-    ( readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet
+    ( readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet
+    , readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet
+    , updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch
     , updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch
     )
 
@@ -24,6 +26,18 @@ import Dict
 import Http
 import Json.Decode
 import Json.Encode
+
+readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet : Int -> Api.Request Api.Data.JsonIndexingParameters
+readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtimeId_path =
+    Api.request
+        "GET"
+        "/api/user-config/{beamtimeId}/online-indexing-parameters"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonIndexingParametersDecoder
+
 
 readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet : Int -> String -> Api.Request Api.Data.JsonUserConfigurationSingleOutput
 readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet beamtimeId_path key_path =
@@ -35,6 +49,18 @@ readUserConfigurationSingleApiUserConfigBeamtimeIdKeyGet beamtimeId_path key_pat
         []
         Nothing
         Api.Data.jsonUserConfigurationSingleOutputDecoder
+
+
+updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch : Int -> Api.Data.JsonUpdateOnlineIndexingParametersInput -> Api.Request Api.Data.JsonUpdateOnlineIndexingParametersOutput
+updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch beamtimeId_path jsonUpdateOnlineIndexingParametersInput_body =
+    Api.request
+        "PATCH"
+        "/api/user-config/{beamtimeId}/online-indexing-parameters"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
+        []
+        []
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonUpdateOnlineIndexingParametersInput jsonUpdateOnlineIndexingParametersInput_body)))
+        Api.Data.jsonUpdateOnlineIndexingParametersOutputDecoder
 
 
 updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch : Int -> String -> String -> Api.Request Api.Data.JsonUserConfigurationSingleOutput

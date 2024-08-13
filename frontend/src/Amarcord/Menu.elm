@@ -62,7 +62,7 @@ menu bt =
         ]
     , Dropdown "Analysis"
         "bar-chart-steps"
-        [ { route = Route.Analysis bt, description = "By Experiment Type", iconName = "clipboard-check" }
+        [ { route = Route.Analysis Nothing bt, description = "By Experiment Type", iconName = "clipboard-check" }
         , { route = Route.RunAnalysis bt, description = "By Run", iconName = "card-list" }
         ]
     , Dropdown "Admin"

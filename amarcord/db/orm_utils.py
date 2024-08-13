@@ -1,12 +1,16 @@
 import datetime
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import magic
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
 
+from amarcord.cli.crystfel_index import CrystFELCellFile
+from amarcord.cli.crystfel_index import parse_cell_description
 from amarcord.db import orm
 from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributo_type import AttributoType
@@ -19,8 +23,12 @@ from amarcord.db.attributo_type import AttributoTypeInt
 from amarcord.db.attributo_type import AttributoTypeString
 from amarcord.db.attributo_value import AttributoValue
 from amarcord.db.beamtime_id import BeamtimeId
+from amarcord.db.chemical_type import ChemicalType
+from amarcord.db.constants import CELL_DESCRIPTION_ATTRIBUTO
+from amarcord.db.constants import POINT_GROUP_ATTRIBUTO
 from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.util import sha256_file
+from amarcord.web.constants import ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS
 from amarcord.web.json_models import JsonAttributoValue
 
 ATTRIBUTO_GROUP_MANUAL = "manual"
@@ -32,10 +40,26 @@ def live_stream_image_name(beamtime_id: int) -> str:
 
 def default_user_configuration(beamtime_id: int) -> orm.UserConfiguration:
     return orm.UserConfiguration(
-        beamtime_id=beamtime_id,
+        beamtime_id=BeamtimeId(beamtime_id),
         auto_pilot=False,
         use_online_crystfel=False,
         current_experiment_type_id=None,
+        created=datetime.datetime.now(tz=datetime.timezone.utc),
+        current_online_indexing_parameters_id=None,
+    )
+
+
+def default_online_indexing_parameters() -> orm.IndexingParameters:
+    return orm.IndexingParameters(
+        is_online=True,
+        cell_description="",
+        # empty means look for it in the current beam time
+        geometry_file="",
+        command_line="--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2"
+        + " --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3"
+        + " --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+        # source is empty for online indexing, since then it can be determined by the daemon
+        source="",
     )
 
 
@@ -96,10 +120,14 @@ def create_file_in_db(
     description: str,
 ) -> orm.File:
     result = orm.File(
+        type="placeholder",
+        size_in_bytes=0,
         modified=datetime.datetime.now(datetime.timezone.utc),
         file_name=external_file_name,
         original_path=None,
         description=description,
+        sha256="",
+        contents=b"",
     )
     update_file_with_contents(result, temp_file)
     return result
@@ -114,6 +142,7 @@ def create_new_user_configuration(
         auto_pilot=user_configuration.auto_pilot,
         use_online_crystfel=user_configuration.use_online_crystfel,
         current_experiment_type_id=user_configuration.current_experiment_type_id,
+        current_online_indexing_parameters_id=user_configuration.current_online_indexing_parameters_id,
     )
 
 
@@ -368,3 +397,94 @@ def validate_json_attributo_return_error(
                 + f"value is {v}"
             )
     return None
+
+
+@dataclass(frozen=True)
+class RunIndexingMetadata:
+    point_group: None | str
+    cell_description: None | CrystFELCellFile
+    chemical: orm.Chemical
+    log_messages: list[str]
+
+
+async def determine_run_indexing_metadata(
+    session: AsyncSession,
+    r: orm.Run,
+) -> str | RunIndexingMetadata:
+    point_group: None | str = None
+    cell_description_str: None | str = None
+    channel_chemical: None | orm.Chemical = None
+    # For indexing, we need to provide one chemical ID that serves as _the_ chemical ID for the indexing job
+    # (kind of a bug right now). So, if we don't find any chemicals with cell information, we just use the first
+    # one which is of type "crystal". Since it's totally valid to leave out cell information for crystals, for
+    # example in the case where you actually don't know that and want to find out.
+    crystal_chemicals: list[orm.Chemical] = []
+    # "protein" is for old beamtimes and acts as a fallback for now. Not a good solution, we know.
+    crystal_attributo_names = [
+        f"channel_{channel}_chemical_id"
+        for channel in range(1, ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS + 1)
+    ] + ["protein"]
+    async for this_channel_chemical in (
+        (
+            await session.scalars(
+                select(orm.Chemical)
+                .where(orm.Chemical.id == attributo_value.chemical_value)
+                .options(
+                    selectinload(orm.Chemical.attributo_values).selectinload(
+                        orm.ChemicalHasAttributoValue.attributo
+                    )
+                )
+            )
+        ).one()
+        for attributo_value in r.attributo_values
+        if attributo_value.chemical_value is not None
+        and attributo_value.attributo.name in crystal_attributo_names
+    ):
+        if this_channel_chemical.type == ChemicalType.CRYSTAL:
+            crystal_chemicals.append(this_channel_chemical)
+        this_point_group = next(
+            iter(
+                attributo_value.string_value
+                for attributo_value in this_channel_chemical.attributo_values
+                if attributo_value.attributo.name == POINT_GROUP_ATTRIBUTO
+            ),
+            None,
+        )
+        this_cell_description = next(
+            iter(
+                attributo_value.string_value
+                for attributo_value in this_channel_chemical.attributo_values
+                if attributo_value.attributo.name == CELL_DESCRIPTION_ATTRIBUTO
+            ),
+            None,
+        )
+        if this_point_group is not None and this_cell_description is not None:
+            point_group = this_point_group
+            cell_description_str = this_cell_description
+            channel_chemical = this_channel_chemical
+            break
+
+    log_messages: list[str] = []
+    if channel_chemical is None:
+        if not crystal_chemicals:
+            return 'no chemicals with cell information and none of type "crystal" in run detected'
+        channel_chemical = crystal_chemicals[0]
+        log_messages.append(
+            "no chemicals with cell information found, taking the first chemical of type "
+            + f' "crystal": {channel_chemical.name} (id {channel_chemical.id})'
+        )
+
+    cell_description: None | CrystFELCellFile
+    if cell_description_str is not None:
+        cell_description = parse_cell_description(cell_description_str)
+        if cell_description is None:
+            return f"cell description is invalid: {cell_description_str}"
+    else:
+        cell_description = None
+
+    return RunIndexingMetadata(
+        point_group=point_group,
+        cell_description=cell_description,
+        chemical=channel_chemical,
+        log_messages=log_messages,
+    )

@@ -216,6 +216,9 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
         self._additional_ssh_options = additional_ssh_options
         self._explicit_node = explicit_node
 
+    def name(self) -> str:
+        return "Slurm SSH"
+
     async def list_jobs(self) -> Iterable[Job]:
         return await run_remote_list_jobs(
             logger, self._metadata, self._additional_ssh_options
@@ -227,9 +230,13 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
         script: str,
         name: str,
         time_limit: datetime.timedelta,
+        environment: dict[str, str],
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
+        assert (
+            not environment
+        ), f"environment options are not supoprted with the slurm remote sbatch manager yet, got {environment}"
         try:
             job_id = await run_remote_sbatch(
                 parent_logger=logger,

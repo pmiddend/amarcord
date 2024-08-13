@@ -25,8 +25,6 @@ module Api.Data exposing
     , JSONSchemaInteger, JSONSchemaIntegerType(..), jSONSchemaIntegerTypeVariants, JSONSchemaIntegerFormat(..), jSONSchemaIntegerFormatVariants
     , JSONSchemaNumber, JSONSchemaNumberType(..), jSONSchemaNumberTypeVariants, JSONSchemaNumberFormat(..), jSONSchemaNumberFormatVariants
     , JSONSchemaString, JSONSchemaStringType(..), jSONSchemaStringTypeVariants
-    , JsonAnalysisDataSet
-    , JsonAnalysisExperimentType
     , JsonAnalysisRun
     , JsonAttributiIdAndRole
     , JsonAttributo
@@ -58,10 +56,14 @@ module Api.Data exposing
     , JsonCreateExperimentTypeInput
     , JsonCreateExperimentTypeOutput
     , JsonCreateFileOutput
+    , JsonCreateIndexingForDataSetInput
+    , JsonCreateIndexingForDataSetOutput
     , JsonCreateLiveStreamSnapshotOutput
     , JsonCreateOrUpdateRun
     , JsonCreateOrUpdateRunOutput
     , JsonDataSet
+    , JsonDataSetWithFom
+    , JsonDataSetWithIndexingResults
     , JsonDeleteAttributoInput
     , JsonDeleteAttributoOutput
     , JsonDeleteChemicalInput
@@ -74,6 +76,7 @@ module Api.Data exposing
     , JsonDeleteExperimentTypeOutput
     , JsonDeleteFileInput
     , JsonDeleteFileOutput
+    , JsonDetectorShift
     , JsonEvent
     , JsonEventInput
     , JsonEventTopLevelInput
@@ -84,8 +87,12 @@ module Api.Data exposing
     , JsonIndexingFom
     , JsonIndexingJob
     , JsonIndexingJobUpdateOutput
+    , JsonIndexingParameters
+    , JsonIndexingParametersWithResults
     , JsonIndexingResult
-    , JsonIndexingResultRootJson
+    , JsonIndexingResultFinishSuccessfully
+    , JsonIndexingResultFinishWithError
+    , JsonIndexingResultStillRunning
     , JsonIndexingStatistic
     , JsonLiveStream
     , JsonMergeJob
@@ -104,15 +111,17 @@ module Api.Data exposing
     , JsonMergeResultStateQueued
     , JsonMergeResultStateRunning
     , JsonPolarisation
-    , JsonQueueMergeJobForDataSetInput
-    , JsonQueueMergeJobForDataSetOutput
+    , JsonQueueMergeJobInput
+    , JsonQueueMergeJobOutput
     , JsonReadAnalysisResults
     , JsonReadAttributi
     , JsonReadBeamtime
+    , JsonReadBeamtimeGeometryDetails
     , JsonReadChemicals
     , JsonReadDataSets
     , JsonReadEvents
     , JsonReadExperimentTypes
+    , JsonReadIndexingParametersOutput
     , JsonReadIndexingResultsOutput
     , JsonReadMergeResultsOutput
     , JsonReadRunAnalysis
@@ -123,6 +132,7 @@ module Api.Data exposing
     , JsonRefinementResultInternal
     , JsonRun
     , JsonRunAnalysisIndexingResult
+    , JsonRunId
     , JsonStartRunOutput
     , JsonStopRunOutput
     , JsonUpdateAttributoConversionFlags
@@ -131,6 +141,8 @@ module Api.Data exposing
     , JsonUpdateBeamtimeInput
     , JsonUpdateBeamtimeScheduleInput
     , JsonUpdateLiveStream
+    , JsonUpdateOnlineIndexingParametersInput
+    , JsonUpdateOnlineIndexingParametersOutput
     , JsonUpdateRun
     , JsonUpdateRunOutput
     , JsonUpdateRunsBulkInput
@@ -152,8 +164,6 @@ module Api.Data exposing
     , encodeJSONSchemaInteger
     , encodeJSONSchemaNumber
     , encodeJSONSchemaString
-    , encodeJsonAnalysisDataSet
-    , encodeJsonAnalysisExperimentType
     , encodeJsonAnalysisRun
     , encodeJsonAttributiIdAndRole
     , encodeJsonAttributo
@@ -185,10 +195,14 @@ module Api.Data exposing
     , encodeJsonCreateExperimentTypeInput
     , encodeJsonCreateExperimentTypeOutput
     , encodeJsonCreateFileOutput
+    , encodeJsonCreateIndexingForDataSetInput
+    , encodeJsonCreateIndexingForDataSetOutput
     , encodeJsonCreateLiveStreamSnapshotOutput
     , encodeJsonCreateOrUpdateRun
     , encodeJsonCreateOrUpdateRunOutput
     , encodeJsonDataSet
+    , encodeJsonDataSetWithFom
+    , encodeJsonDataSetWithIndexingResults
     , encodeJsonDeleteAttributoInput
     , encodeJsonDeleteAttributoOutput
     , encodeJsonDeleteChemicalInput
@@ -201,6 +215,7 @@ module Api.Data exposing
     , encodeJsonDeleteExperimentTypeOutput
     , encodeJsonDeleteFileInput
     , encodeJsonDeleteFileOutput
+    , encodeJsonDetectorShift
     , encodeJsonEvent
     , encodeJsonEventInput
     , encodeJsonEventTopLevelInput
@@ -211,8 +226,12 @@ module Api.Data exposing
     , encodeJsonIndexingFom
     , encodeJsonIndexingJob
     , encodeJsonIndexingJobUpdateOutput
+    , encodeJsonIndexingParameters
+    , encodeJsonIndexingParametersWithResults
     , encodeJsonIndexingResult
-    , encodeJsonIndexingResultRootJson
+    , encodeJsonIndexingResultFinishSuccessfully
+    , encodeJsonIndexingResultFinishWithError
+    , encodeJsonIndexingResultStillRunning
     , encodeJsonIndexingStatistic
     , encodeJsonLiveStream
     , encodeJsonMergeJob
@@ -231,15 +250,17 @@ module Api.Data exposing
     , encodeJsonMergeResultStateQueued
     , encodeJsonMergeResultStateRunning
     , encodeJsonPolarisation
-    , encodeJsonQueueMergeJobForDataSetInput
-    , encodeJsonQueueMergeJobForDataSetOutput
+    , encodeJsonQueueMergeJobInput
+    , encodeJsonQueueMergeJobOutput
     , encodeJsonReadAnalysisResults
     , encodeJsonReadAttributi
     , encodeJsonReadBeamtime
+    , encodeJsonReadBeamtimeGeometryDetails
     , encodeJsonReadChemicals
     , encodeJsonReadDataSets
     , encodeJsonReadEvents
     , encodeJsonReadExperimentTypes
+    , encodeJsonReadIndexingParametersOutput
     , encodeJsonReadIndexingResultsOutput
     , encodeJsonReadMergeResultsOutput
     , encodeJsonReadRunAnalysis
@@ -250,6 +271,7 @@ module Api.Data exposing
     , encodeJsonRefinementResultInternal
     , encodeJsonRun
     , encodeJsonRunAnalysisIndexingResult
+    , encodeJsonRunId
     , encodeJsonStartRunOutput
     , encodeJsonStopRunOutput
     , encodeJsonUpdateAttributoConversionFlags
@@ -258,6 +280,8 @@ module Api.Data exposing
     , encodeJsonUpdateBeamtimeInput
     , encodeJsonUpdateBeamtimeScheduleInput
     , encodeJsonUpdateLiveStream
+    , encodeJsonUpdateOnlineIndexingParametersInput
+    , encodeJsonUpdateOnlineIndexingParametersOutput
     , encodeJsonUpdateRun
     , encodeJsonUpdateRunOutput
     , encodeJsonUpdateRunsBulkInput
@@ -286,8 +310,6 @@ module Api.Data exposing
     , jSONSchemaIntegerDecoder
     , jSONSchemaNumberDecoder
     , jSONSchemaStringDecoder
-    , jsonAnalysisDataSetDecoder
-    , jsonAnalysisExperimentTypeDecoder
     , jsonAnalysisRunDecoder
     , jsonAttributiIdAndRoleDecoder
     , jsonAttributoDecoder
@@ -319,10 +341,14 @@ module Api.Data exposing
     , jsonCreateExperimentTypeInputDecoder
     , jsonCreateExperimentTypeOutputDecoder
     , jsonCreateFileOutputDecoder
+    , jsonCreateIndexingForDataSetInputDecoder
+    , jsonCreateIndexingForDataSetOutputDecoder
     , jsonCreateLiveStreamSnapshotOutputDecoder
     , jsonCreateOrUpdateRunDecoder
     , jsonCreateOrUpdateRunOutputDecoder
     , jsonDataSetDecoder
+    , jsonDataSetWithFomDecoder
+    , jsonDataSetWithIndexingResultsDecoder
     , jsonDeleteAttributoInputDecoder
     , jsonDeleteAttributoOutputDecoder
     , jsonDeleteChemicalInputDecoder
@@ -335,6 +361,7 @@ module Api.Data exposing
     , jsonDeleteExperimentTypeOutputDecoder
     , jsonDeleteFileInputDecoder
     , jsonDeleteFileOutputDecoder
+    , jsonDetectorShiftDecoder
     , jsonEventDecoder
     , jsonEventInputDecoder
     , jsonEventTopLevelInputDecoder
@@ -345,8 +372,12 @@ module Api.Data exposing
     , jsonIndexingFomDecoder
     , jsonIndexingJobDecoder
     , jsonIndexingJobUpdateOutputDecoder
+    , jsonIndexingParametersDecoder
+    , jsonIndexingParametersWithResultsDecoder
     , jsonIndexingResultDecoder
-    , jsonIndexingResultRootJsonDecoder
+    , jsonIndexingResultFinishSuccessfullyDecoder
+    , jsonIndexingResultFinishWithErrorDecoder
+    , jsonIndexingResultStillRunningDecoder
     , jsonIndexingStatisticDecoder
     , jsonLiveStreamDecoder
     , jsonMergeJobDecoder
@@ -365,15 +396,17 @@ module Api.Data exposing
     , jsonMergeResultStateQueuedDecoder
     , jsonMergeResultStateRunningDecoder
     , jsonPolarisationDecoder
-    , jsonQueueMergeJobForDataSetInputDecoder
-    , jsonQueueMergeJobForDataSetOutputDecoder
+    , jsonQueueMergeJobInputDecoder
+    , jsonQueueMergeJobOutputDecoder
     , jsonReadAnalysisResultsDecoder
     , jsonReadAttributiDecoder
     , jsonReadBeamtimeDecoder
+    , jsonReadBeamtimeGeometryDetailsDecoder
     , jsonReadChemicalsDecoder
     , jsonReadDataSetsDecoder
     , jsonReadEventsDecoder
     , jsonReadExperimentTypesDecoder
+    , jsonReadIndexingParametersOutputDecoder
     , jsonReadIndexingResultsOutputDecoder
     , jsonReadMergeResultsOutputDecoder
     , jsonReadRunAnalysisDecoder
@@ -384,6 +417,7 @@ module Api.Data exposing
     , jsonRefinementResultInternalDecoder
     , jsonRunDecoder
     , jsonRunAnalysisIndexingResultDecoder
+    , jsonRunIdDecoder
     , jsonStartRunOutputDecoder
     , jsonStopRunOutputDecoder
     , jsonUpdateAttributoConversionFlagsDecoder
@@ -392,6 +426,8 @@ module Api.Data exposing
     , jsonUpdateBeamtimeInputDecoder
     , jsonUpdateBeamtimeScheduleInputDecoder
     , jsonUpdateLiveStreamDecoder
+    , jsonUpdateOnlineIndexingParametersInputDecoder
+    , jsonUpdateOnlineIndexingParametersOutputDecoder
     , jsonUpdateRunDecoder
     , jsonUpdateRunOutputDecoder
     , jsonUpdateRunsBulkInputDecoder
@@ -597,22 +633,9 @@ jSONSchemaStringTypeVariants =
     ]
 
 
-type alias JsonAnalysisDataSet =
-    { dataSet : JsonDataSet
-    , runs : List String
-    , numberOfIndexingResults : Int
-    , mergeResults : List JsonMergeResult
-    }
-
-
-type alias JsonAnalysisExperimentType =
-    { experimentType : Int
-    , dataSets : List JsonAnalysisDataSet
-    }
-
-
 type alias JsonAnalysisRun =
     { id : Int
+    , externalId : Int
     , attributi : List JsonAttributoValue
     }
 
@@ -841,6 +864,24 @@ type alias JsonCreateFileOutput =
     }
 
 
+type alias JsonCreateIndexingForDataSetInput =
+    { dataSetId : Int
+    , isOnline : Bool
+    , cellDescription : String
+    , geometryFile : String
+    , commandLine : String
+    , source : String
+    }
+
+
+type alias JsonCreateIndexingForDataSetOutput =
+    { jobsStartedRunExternalIds : List Int
+    , indexingResultId : Int
+    , dataSetId : Int
+    , indexingParametersId : Int
+    }
+
+
 type alias JsonCreateLiveStreamSnapshotOutput =
     { id : Int
     , fileName : String
@@ -854,6 +895,7 @@ type alias JsonCreateLiveStreamSnapshotOutput =
 type alias JsonCreateOrUpdateRun =
     { beamtimeId : Int
     , attributi : List JsonAttributoValue
+    , files : List String
     , started : Maybe Int
     , stopped : Maybe Int
     }
@@ -871,7 +913,20 @@ type alias JsonDataSet =
     { id : Int
     , experimentTypeId : Int
     , attributi : List JsonAttributoValue
-    , summary : Maybe JsonIndexingFom
+    }
+
+
+type alias JsonDataSetWithFom =
+    { dataSet : JsonDataSet
+    , fom : JsonIndexingFom
+    }
+
+
+type alias JsonDataSetWithIndexingResults =
+    { dataSet : JsonDataSet
+    , internalRunIds : List Int
+    , runs : List String
+    , indexingResults : List JsonIndexingParametersWithResults
     }
 
 
@@ -932,6 +987,13 @@ type alias JsonDeleteFileInput =
 
 type alias JsonDeleteFileOutput =
     { id : Int
+    }
+
+
+type alias JsonDetectorShift =
+    { runExternalId : Int
+    , shiftXMm : Float
+    , shiftYMm : Float
     }
 
 
@@ -1001,11 +1063,19 @@ type alias JsonIndexingJob =
     { id : Int
     , jobId : Maybe Int
     , jobStatus : DBJobStatus
+    , started : Maybe Int
+    , stopped : Maybe Int
+    , isOnline : Bool
     , streamFile : Maybe String
-    , cellDescription : String
+    , source : String
+    , cellDescription : Maybe String
+    , geometryFileInput : String
+    , geometryFileOutput : String
+    , commandLine : String
     , runInternalId : Int
     , runExternalId : Int
     , beamtime : JsonBeamtime
+    , inputFileGlobs : List String
     }
 
 
@@ -1014,22 +1084,84 @@ type alias JsonIndexingJobUpdateOutput =
     }
 
 
-type alias JsonIndexingResult =
-    { frames : Int
-    , hits : Int
-    , indexedFrames : Int
-    , indexedCrystals : Int
-    , done : Bool
-    , detectorShiftXMm : Maybe Float
-    , detectorShiftYMm : Maybe Float
+type alias JsonIndexingParameters =
+    { id : Maybe Int
+    , cellDescription : Maybe String
+    , isOnline : Bool
+    , commandLine : String
+    , geometryFile : String
     }
 
 
-type alias JsonIndexingResultRootJson =
-    { error : Maybe String
-    , jobId : Maybe Int
-    , streamFile : Maybe String
-    , result : Maybe JsonIndexingResult
+type alias JsonIndexingParametersWithResults =
+    { parameters : JsonIndexingParameters
+    , indexingResults : List JsonIndexingResult
+    , mergeResults : List JsonMergeResult
+    }
+
+
+type alias JsonIndexingResult =
+    { id : Int
+    , created : Int
+    , started : Maybe Int
+    , stopped : Maybe Int
+    , parameters : JsonIndexingParameters
+    , programVersion : String
+    , runInternalId : Int
+    , runExternalId : Int
+    , frames : Int
+    , hits : Int
+    , indexedFrames : Int
+    , indexedCrystals : Int
+    , status : DBJobStatus
+    , detectorShiftXMm : Maybe Float
+    , detectorShiftYMm : Maybe Float
+    , geometryFile : String
+    , geometryHash : String
+    , generatedGeometryFile : String
+    , unitCellHistogramsFileId : Maybe Int
+    , hasError : Bool
+    }
+
+
+type alias JsonIndexingResultFinishSuccessfully =
+    { workloadManagerJobId : Int
+    , streamFile : String
+    , programVersion : String
+    , frames : Int
+    , hits : Int
+    , indexedFrames : Int
+    , indexedCrystals : Int
+    , detectorShiftXMm : Maybe Float
+    , detectorShiftYMm : Maybe Float
+    , geometryFile : String
+    , geometryHash : String
+    , generatedGeometryFile : String
+    , unitCellHistogramsId : Maybe Int
+    , latestLog : Maybe String
+    }
+
+
+type alias JsonIndexingResultFinishWithError =
+    { errorMessage : String
+    , latestLog : String
+    , workloadManagerJobId : Maybe Int
+    }
+
+
+type alias JsonIndexingResultStillRunning =
+    { workloadManagerJobId : Int
+    , streamFile : String
+    , frames : Int
+    , hits : Int
+    , indexedFrames : Int
+    , indexedCrystals : Int
+    , detectorShiftXMm : Maybe Float
+    , detectorShiftYMm : Maybe Float
+    , geometryFile : String
+    , geometryHash : String
+    , jobStarted : Maybe Int
+    , latestLog : Maybe String
     }
 
 
@@ -1055,8 +1187,8 @@ type alias JsonMergeJob =
     , parameters : JsonMergeParameters
     , indexingResults : List JsonIndexingJob
     , filesFromIndexing : List JsonFileOutput
-    , cellDescription : Maybe String
-    , pointGroup : Maybe String
+    , pointGroup : String
+    , cellDescription : String
     }
 
 
@@ -1083,7 +1215,8 @@ type alias JsonMergeJobStartedOutput =
 
 
 type alias JsonMergeParameters =
-    { pointGroup : Maybe String
+    { pointGroup : String
+    , cellDescription : String
     , negativeHandling : Maybe MergeNegativeHandling
     , mergeModel : MergeModel
     , scaleIntensities : ScaleIntensities
@@ -1111,6 +1244,7 @@ type alias JsonMergeResult =
     { id : Int
     , created : Int
     , runs : List String
+    , indexingResultIds : List Int
     , stateQueued : Maybe JsonMergeResultStateQueued
     , stateError : Maybe JsonMergeResultStateError
     , stateRunning : Maybe JsonMergeResultStateRunning
@@ -1220,14 +1354,15 @@ type alias JsonPolarisation =
     }
 
 
-type alias JsonQueueMergeJobForDataSetInput =
+type alias JsonQueueMergeJobInput =
     { strictMode : Bool
-    , beamtimeId : Int
+    , indexingParametersId : Int
+    , dataSetId : Int
     , mergeParameters : JsonMergeParameters
     }
 
 
-type alias JsonQueueMergeJobForDataSetOutput =
+type alias JsonQueueMergeJobOutput =
     { mergeResultId : Int
     }
 
@@ -1235,8 +1370,8 @@ type alias JsonQueueMergeJobForDataSetOutput =
 type alias JsonReadAnalysisResults =
     { attributi : List JsonAttributo
     , chemicalIdToName : List JsonChemicalIdAndName
-    , experimentTypes : List JsonExperimentType
-    , dataSets : List JsonAnalysisExperimentType
+    , experimentType : JsonExperimentType
+    , dataSets : List JsonDataSetWithIndexingResults
     }
 
 
@@ -1247,6 +1382,11 @@ type alias JsonReadAttributi =
 
 type alias JsonReadBeamtime =
     { beamtimes : List JsonBeamtime
+    }
+
+
+type alias JsonReadBeamtimeGeometryDetails =
+    { detectorShifts : List JsonDetectorShift
     }
 
 
@@ -1276,6 +1416,13 @@ type alias JsonReadExperimentTypes =
     }
 
 
+type alias JsonReadIndexingParametersOutput =
+    { dataSetId : Int
+    , cellDescription : String
+    , sources : List String
+    }
+
+
 type alias JsonReadIndexingResultsOutput =
     { indexingJobs : List JsonIndexingJob
     }
@@ -1289,8 +1436,9 @@ type alias JsonReadMergeResultsOutput =
 type alias JsonReadRunAnalysis =
     { chemicals : List JsonChemical
     , attributi : List JsonAttributo
-    , runs : List JsonAnalysisRun
-    , indexingResultsByRunId : List JsonRunAnalysisIndexingResult
+    , run : Maybe JsonAnalysisRun
+    , runIds : List JsonRunId
+    , indexingResults : List JsonRunAnalysisIndexingResult
     }
 
 
@@ -1301,7 +1449,7 @@ type alias JsonReadRuns =
     , attributi : List JsonAttributo
     , latestIndexingResult : Maybe JsonRunAnalysisIndexingResult
     , experimentTypes : List JsonExperimentType
-    , dataSets : List JsonDataSet
+    , dataSetsWithFom : List JsonDataSetWithFom
     , events : List JsonEvent
     , chemicals : List JsonChemical
     , userConfig : JsonUserConfig
@@ -1356,7 +1504,7 @@ type alias JsonRun =
     , files : List JsonFileOutput
     , summary : JsonIndexingFom
     , experimentTypeId : Int
-    , dataSets : List Int
+    , dataSetIds : List Int
     , runningIndexingJobs : List Int
     }
 
@@ -1365,6 +1513,12 @@ type alias JsonRunAnalysisIndexingResult =
     { runId : Int
     , foms : List JsonIndexingFom
     , indexingStatistics : List JsonIndexingStatistic
+    }
+
+
+type alias JsonRunId =
+    { internalRunId : Int
+    , externalRunId : Int
     }
 
 
@@ -1417,6 +1571,18 @@ type alias JsonUpdateLiveStream =
     }
 
 
+type alias JsonUpdateOnlineIndexingParametersInput =
+    { commandLine : String
+    , geometryFile : String
+    , source : String
+    }
+
+
+type alias JsonUpdateOnlineIndexingParametersOutput =
+    { success : Bool
+    }
+
+
 type alias JsonUpdateRun =
     { id : Int
     , experimentTypeId : Int
@@ -1446,6 +1612,7 @@ type alias JsonUserConfig =
     { onlineCrystfel : Bool
     , autoPilot : Bool
     , currentExperimentTypeId : Maybe Int
+    , currentOnlineIndexingParametersId : Maybe Int
     }
 
 
@@ -1820,50 +1987,6 @@ encodeJSONSchemaStringType =
 
 
 
-encodeJsonAnalysisDataSet : JsonAnalysisDataSet -> Json.Encode.Value
-encodeJsonAnalysisDataSet =
-    encodeObject << encodeJsonAnalysisDataSetPairs
-
-
-encodeJsonAnalysisDataSetWithTag : ( String, String ) -> JsonAnalysisDataSet -> Json.Encode.Value
-encodeJsonAnalysisDataSetWithTag (tagField, tag) model =
-    encodeObject (encodeJsonAnalysisDataSetPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonAnalysisDataSetPairs : JsonAnalysisDataSet -> List EncodedField
-encodeJsonAnalysisDataSetPairs model =
-    let
-        pairs =
-            [ encode "data_set" encodeJsonDataSet model.dataSet
-            , encode "runs" (Json.Encode.list Json.Encode.string) model.runs
-            , encode "number_of_indexing_results" Json.Encode.int model.numberOfIndexingResults
-            , encode "merge_results" (Json.Encode.list encodeJsonMergeResult) model.mergeResults
-            ]
-    in
-    pairs
-
-
-encodeJsonAnalysisExperimentType : JsonAnalysisExperimentType -> Json.Encode.Value
-encodeJsonAnalysisExperimentType =
-    encodeObject << encodeJsonAnalysisExperimentTypePairs
-
-
-encodeJsonAnalysisExperimentTypeWithTag : ( String, String ) -> JsonAnalysisExperimentType -> Json.Encode.Value
-encodeJsonAnalysisExperimentTypeWithTag (tagField, tag) model =
-    encodeObject (encodeJsonAnalysisExperimentTypePairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonAnalysisExperimentTypePairs : JsonAnalysisExperimentType -> List EncodedField
-encodeJsonAnalysisExperimentTypePairs model =
-    let
-        pairs =
-            [ encode "experiment_type" Json.Encode.int model.experimentType
-            , encode "data_sets" (Json.Encode.list encodeJsonAnalysisDataSet) model.dataSets
-            ]
-    in
-    pairs
-
-
 encodeJsonAnalysisRun : JsonAnalysisRun -> Json.Encode.Value
 encodeJsonAnalysisRun =
     encodeObject << encodeJsonAnalysisRunPairs
@@ -1879,6 +2002,7 @@ encodeJsonAnalysisRunPairs model =
     let
         pairs =
             [ encode "id" Json.Encode.int model.id
+            , encode "external_id" Json.Encode.int model.externalId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
             ]
     in
@@ -2559,6 +2683,54 @@ encodeJsonCreateFileOutputPairs model =
     pairs
 
 
+encodeJsonCreateIndexingForDataSetInput : JsonCreateIndexingForDataSetInput -> Json.Encode.Value
+encodeJsonCreateIndexingForDataSetInput =
+    encodeObject << encodeJsonCreateIndexingForDataSetInputPairs
+
+
+encodeJsonCreateIndexingForDataSetInputWithTag : ( String, String ) -> JsonCreateIndexingForDataSetInput -> Json.Encode.Value
+encodeJsonCreateIndexingForDataSetInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonCreateIndexingForDataSetInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonCreateIndexingForDataSetInputPairs : JsonCreateIndexingForDataSetInput -> List EncodedField
+encodeJsonCreateIndexingForDataSetInputPairs model =
+    let
+        pairs =
+            [ encode "data_set_id" Json.Encode.int model.dataSetId
+            , encode "is_online" Json.Encode.bool model.isOnline
+            , encode "cell_description" Json.Encode.string model.cellDescription
+            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encode "command_line" Json.Encode.string model.commandLine
+            , encode "source" Json.Encode.string model.source
+            ]
+    in
+    pairs
+
+
+encodeJsonCreateIndexingForDataSetOutput : JsonCreateIndexingForDataSetOutput -> Json.Encode.Value
+encodeJsonCreateIndexingForDataSetOutput =
+    encodeObject << encodeJsonCreateIndexingForDataSetOutputPairs
+
+
+encodeJsonCreateIndexingForDataSetOutputWithTag : ( String, String ) -> JsonCreateIndexingForDataSetOutput -> Json.Encode.Value
+encodeJsonCreateIndexingForDataSetOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonCreateIndexingForDataSetOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonCreateIndexingForDataSetOutputPairs : JsonCreateIndexingForDataSetOutput -> List EncodedField
+encodeJsonCreateIndexingForDataSetOutputPairs model =
+    let
+        pairs =
+            [ encode "jobs_started_run_external_ids" (Json.Encode.list Json.Encode.int) model.jobsStartedRunExternalIds
+            , encode "indexing_result_id" Json.Encode.int model.indexingResultId
+            , encode "data_set_id" Json.Encode.int model.dataSetId
+            , encode "indexing_parameters_id" Json.Encode.int model.indexingParametersId
+            ]
+    in
+    pairs
+
+
 encodeJsonCreateLiveStreamSnapshotOutput : JsonCreateLiveStreamSnapshotOutput -> Json.Encode.Value
 encodeJsonCreateLiveStreamSnapshotOutput =
     encodeObject << encodeJsonCreateLiveStreamSnapshotOutputPairs
@@ -2600,6 +2772,7 @@ encodeJsonCreateOrUpdateRunPairs model =
         pairs =
             [ encode "beamtime_id" Json.Encode.int model.beamtimeId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
+            , encode "files" (Json.Encode.list Json.Encode.string) model.files
             , maybeEncode "started" Json.Encode.int model.started
             , maybeEncode "stopped" Json.Encode.int model.stopped
             ]
@@ -2647,7 +2820,50 @@ encodeJsonDataSetPairs model =
             [ encode "id" Json.Encode.int model.id
             , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
-            , maybeEncode "summary" encodeJsonIndexingFom model.summary
+            ]
+    in
+    pairs
+
+
+encodeJsonDataSetWithFom : JsonDataSetWithFom -> Json.Encode.Value
+encodeJsonDataSetWithFom =
+    encodeObject << encodeJsonDataSetWithFomPairs
+
+
+encodeJsonDataSetWithFomWithTag : ( String, String ) -> JsonDataSetWithFom -> Json.Encode.Value
+encodeJsonDataSetWithFomWithTag (tagField, tag) model =
+    encodeObject (encodeJsonDataSetWithFomPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonDataSetWithFomPairs : JsonDataSetWithFom -> List EncodedField
+encodeJsonDataSetWithFomPairs model =
+    let
+        pairs =
+            [ encode "data_set" encodeJsonDataSet model.dataSet
+            , encode "fom" encodeJsonIndexingFom model.fom
+            ]
+    in
+    pairs
+
+
+encodeJsonDataSetWithIndexingResults : JsonDataSetWithIndexingResults -> Json.Encode.Value
+encodeJsonDataSetWithIndexingResults =
+    encodeObject << encodeJsonDataSetWithIndexingResultsPairs
+
+
+encodeJsonDataSetWithIndexingResultsWithTag : ( String, String ) -> JsonDataSetWithIndexingResults -> Json.Encode.Value
+encodeJsonDataSetWithIndexingResultsWithTag (tagField, tag) model =
+    encodeObject (encodeJsonDataSetWithIndexingResultsPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonDataSetWithIndexingResultsPairs : JsonDataSetWithIndexingResults -> List EncodedField
+encodeJsonDataSetWithIndexingResultsPairs model =
+    let
+        pairs =
+            [ encode "data_set" encodeJsonDataSet model.dataSet
+            , encode "internal_run_ids" (Json.Encode.list Json.Encode.int) model.internalRunIds
+            , encode "runs" (Json.Encode.list Json.Encode.string) model.runs
+            , encode "indexing_results" (Json.Encode.list encodeJsonIndexingParametersWithResults) model.indexingResults
             ]
     in
     pairs
@@ -2893,6 +3109,28 @@ encodeJsonDeleteFileOutputPairs model =
     pairs
 
 
+encodeJsonDetectorShift : JsonDetectorShift -> Json.Encode.Value
+encodeJsonDetectorShift =
+    encodeObject << encodeJsonDetectorShiftPairs
+
+
+encodeJsonDetectorShiftWithTag : ( String, String ) -> JsonDetectorShift -> Json.Encode.Value
+encodeJsonDetectorShiftWithTag (tagField, tag) model =
+    encodeObject (encodeJsonDetectorShiftPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonDetectorShiftPairs : JsonDetectorShift -> List EncodedField
+encodeJsonDetectorShiftPairs model =
+    let
+        pairs =
+            [ encode "run_external_id" Json.Encode.int model.runExternalId
+            , encode "shift_x_mm" Json.Encode.float model.shiftXMm
+            , encode "shift_y_mm" Json.Encode.float model.shiftYMm
+            ]
+    in
+    pairs
+
+
 encodeJsonEvent : JsonEvent -> Json.Encode.Value
 encodeJsonEvent =
     encodeObject << encodeJsonEventPairs
@@ -3092,11 +3330,19 @@ encodeJsonIndexingJobPairs model =
             [ encode "id" Json.Encode.int model.id
             , maybeEncode "job_id" Json.Encode.int model.jobId
             , encode "job_status" encodeDBJobStatus model.jobStatus
+            , maybeEncode "started" Json.Encode.int model.started
+            , maybeEncode "stopped" Json.Encode.int model.stopped
+            , encode "is_online" Json.Encode.bool model.isOnline
             , maybeEncode "stream_file" Json.Encode.string model.streamFile
-            , encode "cell_description" Json.Encode.string model.cellDescription
+            , encode "source" Json.Encode.string model.source
+            , maybeEncode "cell_description" Json.Encode.string model.cellDescription
+            , encode "geometry_file_input" Json.Encode.string model.geometryFileInput
+            , encode "geometry_file_output" Json.Encode.string model.geometryFileOutput
+            , encode "command_line" Json.Encode.string model.commandLine
             , encode "run_internal_id" Json.Encode.int model.runInternalId
             , encode "run_external_id" Json.Encode.int model.runExternalId
             , encode "beamtime" encodeJsonBeamtime model.beamtime
+            , encode "input_file_globs" (Json.Encode.list Json.Encode.string) model.inputFileGlobs
             ]
     in
     pairs
@@ -3122,6 +3368,52 @@ encodeJsonIndexingJobUpdateOutputPairs model =
     pairs
 
 
+encodeJsonIndexingParameters : JsonIndexingParameters -> Json.Encode.Value
+encodeJsonIndexingParameters =
+    encodeObject << encodeJsonIndexingParametersPairs
+
+
+encodeJsonIndexingParametersWithTag : ( String, String ) -> JsonIndexingParameters -> Json.Encode.Value
+encodeJsonIndexingParametersWithTag (tagField, tag) model =
+    encodeObject (encodeJsonIndexingParametersPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonIndexingParametersPairs : JsonIndexingParameters -> List EncodedField
+encodeJsonIndexingParametersPairs model =
+    let
+        pairs =
+            [ maybeEncode "id" Json.Encode.int model.id
+            , maybeEncode "cell_description" Json.Encode.string model.cellDescription
+            , encode "is_online" Json.Encode.bool model.isOnline
+            , encode "command_line" Json.Encode.string model.commandLine
+            , encode "geometry_file" Json.Encode.string model.geometryFile
+            ]
+    in
+    pairs
+
+
+encodeJsonIndexingParametersWithResults : JsonIndexingParametersWithResults -> Json.Encode.Value
+encodeJsonIndexingParametersWithResults =
+    encodeObject << encodeJsonIndexingParametersWithResultsPairs
+
+
+encodeJsonIndexingParametersWithResultsWithTag : ( String, String ) -> JsonIndexingParametersWithResults -> Json.Encode.Value
+encodeJsonIndexingParametersWithResultsWithTag (tagField, tag) model =
+    encodeObject (encodeJsonIndexingParametersWithResultsPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonIndexingParametersWithResultsPairs : JsonIndexingParametersWithResults -> List EncodedField
+encodeJsonIndexingParametersWithResultsPairs model =
+    let
+        pairs =
+            [ encode "parameters" encodeJsonIndexingParameters model.parameters
+            , encode "indexing_results" (Json.Encode.list encodeJsonIndexingResult) model.indexingResults
+            , encode "merge_results" (Json.Encode.list encodeJsonMergeResult) model.mergeResults
+            ]
+    in
+    pairs
+
+
 encodeJsonIndexingResult : JsonIndexingResult -> Json.Encode.Value
 encodeJsonIndexingResult =
     encodeObject << encodeJsonIndexingResultPairs
@@ -3136,36 +3428,112 @@ encodeJsonIndexingResultPairs : JsonIndexingResult -> List EncodedField
 encodeJsonIndexingResultPairs model =
     let
         pairs =
-            [ encode "frames" Json.Encode.int model.frames
+            [ encode "id" Json.Encode.int model.id
+            , encode "created" Json.Encode.int model.created
+            , maybeEncode "started" Json.Encode.int model.started
+            , maybeEncode "stopped" Json.Encode.int model.stopped
+            , encode "parameters" encodeJsonIndexingParameters model.parameters
+            , encode "program_version" Json.Encode.string model.programVersion
+            , encode "run_internal_id" Json.Encode.int model.runInternalId
+            , encode "run_external_id" Json.Encode.int model.runExternalId
+            , encode "frames" Json.Encode.int model.frames
             , encode "hits" Json.Encode.int model.hits
             , encode "indexed_frames" Json.Encode.int model.indexedFrames
             , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
-            , encode "done" Json.Encode.bool model.done
+            , encode "status" encodeDBJobStatus model.status
             , maybeEncode "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
             , maybeEncode "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
+            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encode "geometry_hash" Json.Encode.string model.geometryHash
+            , encode "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
+            , maybeEncode "unit_cell_histograms_file_id" Json.Encode.int model.unitCellHistogramsFileId
+            , encode "has_error" Json.Encode.bool model.hasError
             ]
     in
     pairs
 
 
-encodeJsonIndexingResultRootJson : JsonIndexingResultRootJson -> Json.Encode.Value
-encodeJsonIndexingResultRootJson =
-    encodeObject << encodeJsonIndexingResultRootJsonPairs
+encodeJsonIndexingResultFinishSuccessfully : JsonIndexingResultFinishSuccessfully -> Json.Encode.Value
+encodeJsonIndexingResultFinishSuccessfully =
+    encodeObject << encodeJsonIndexingResultFinishSuccessfullyPairs
 
 
-encodeJsonIndexingResultRootJsonWithTag : ( String, String ) -> JsonIndexingResultRootJson -> Json.Encode.Value
-encodeJsonIndexingResultRootJsonWithTag (tagField, tag) model =
-    encodeObject (encodeJsonIndexingResultRootJsonPairs model ++ [ encode tagField Json.Encode.string tag ])
+encodeJsonIndexingResultFinishSuccessfullyWithTag : ( String, String ) -> JsonIndexingResultFinishSuccessfully -> Json.Encode.Value
+encodeJsonIndexingResultFinishSuccessfullyWithTag (tagField, tag) model =
+    encodeObject (encodeJsonIndexingResultFinishSuccessfullyPairs model ++ [ encode tagField Json.Encode.string tag ])
 
 
-encodeJsonIndexingResultRootJsonPairs : JsonIndexingResultRootJson -> List EncodedField
-encodeJsonIndexingResultRootJsonPairs model =
+encodeJsonIndexingResultFinishSuccessfullyPairs : JsonIndexingResultFinishSuccessfully -> List EncodedField
+encodeJsonIndexingResultFinishSuccessfullyPairs model =
     let
         pairs =
-            [ maybeEncode "error" Json.Encode.string model.error
-            , maybeEncode "job_id" Json.Encode.int model.jobId
-            , maybeEncode "stream_file" Json.Encode.string model.streamFile
-            , maybeEncode "result" encodeJsonIndexingResult model.result
+            [ encode "workload_manager_job_id" Json.Encode.int model.workloadManagerJobId
+            , encode "stream_file" Json.Encode.string model.streamFile
+            , encode "program_version" Json.Encode.string model.programVersion
+            , encode "frames" Json.Encode.int model.frames
+            , encode "hits" Json.Encode.int model.hits
+            , encode "indexed_frames" Json.Encode.int model.indexedFrames
+            , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
+            , maybeEncode "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
+            , maybeEncode "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
+            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encode "geometry_hash" Json.Encode.string model.geometryHash
+            , encode "generated_geometry_file" Json.Encode.string model.generatedGeometryFile
+            , maybeEncode "unit_cell_histograms_id" Json.Encode.int model.unitCellHistogramsId
+            , maybeEncode "latest_log" Json.Encode.string model.latestLog
+            ]
+    in
+    pairs
+
+
+encodeJsonIndexingResultFinishWithError : JsonIndexingResultFinishWithError -> Json.Encode.Value
+encodeJsonIndexingResultFinishWithError =
+    encodeObject << encodeJsonIndexingResultFinishWithErrorPairs
+
+
+encodeJsonIndexingResultFinishWithErrorWithTag : ( String, String ) -> JsonIndexingResultFinishWithError -> Json.Encode.Value
+encodeJsonIndexingResultFinishWithErrorWithTag (tagField, tag) model =
+    encodeObject (encodeJsonIndexingResultFinishWithErrorPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonIndexingResultFinishWithErrorPairs : JsonIndexingResultFinishWithError -> List EncodedField
+encodeJsonIndexingResultFinishWithErrorPairs model =
+    let
+        pairs =
+            [ encode "error_message" Json.Encode.string model.errorMessage
+            , encode "latest_log" Json.Encode.string model.latestLog
+            , maybeEncode "workload_manager_job_id" Json.Encode.int model.workloadManagerJobId
+            ]
+    in
+    pairs
+
+
+encodeJsonIndexingResultStillRunning : JsonIndexingResultStillRunning -> Json.Encode.Value
+encodeJsonIndexingResultStillRunning =
+    encodeObject << encodeJsonIndexingResultStillRunningPairs
+
+
+encodeJsonIndexingResultStillRunningWithTag : ( String, String ) -> JsonIndexingResultStillRunning -> Json.Encode.Value
+encodeJsonIndexingResultStillRunningWithTag (tagField, tag) model =
+    encodeObject (encodeJsonIndexingResultStillRunningPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonIndexingResultStillRunningPairs : JsonIndexingResultStillRunning -> List EncodedField
+encodeJsonIndexingResultStillRunningPairs model =
+    let
+        pairs =
+            [ encode "workload_manager_job_id" Json.Encode.int model.workloadManagerJobId
+            , encode "stream_file" Json.Encode.string model.streamFile
+            , encode "frames" Json.Encode.int model.frames
+            , encode "hits" Json.Encode.int model.hits
+            , encode "indexed_frames" Json.Encode.int model.indexedFrames
+            , encode "indexed_crystals" Json.Encode.int model.indexedCrystals
+            , maybeEncode "detector_shift_x_mm" Json.Encode.float model.detectorShiftXMm
+            , maybeEncode "detector_shift_y_mm" Json.Encode.float model.detectorShiftYMm
+            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encode "geometry_hash" Json.Encode.string model.geometryHash
+            , maybeEncode "job_started" Json.Encode.int model.jobStarted
+            , maybeEncode "latest_log" Json.Encode.string model.latestLog
             ]
     in
     pairs
@@ -3236,8 +3604,8 @@ encodeJsonMergeJobPairs model =
             , encode "parameters" encodeJsonMergeParameters model.parameters
             , encode "indexing_results" (Json.Encode.list encodeJsonIndexingJob) model.indexingResults
             , encode "files_from_indexing" (Json.Encode.list encodeJsonFileOutput) model.filesFromIndexing
-            , maybeEncode "cell_description" Json.Encode.string model.cellDescription
-            , maybeEncode "point_group" Json.Encode.string model.pointGroup
+            , encode "point_group" Json.Encode.string model.pointGroup
+            , encode "cell_description" Json.Encode.string model.cellDescription
             ]
     in
     pairs
@@ -3339,7 +3707,8 @@ encodeJsonMergeParametersPairs : JsonMergeParameters -> List EncodedField
 encodeJsonMergeParametersPairs model =
     let
         pairs =
-            [ maybeEncode "point_group" Json.Encode.string model.pointGroup
+            [ encode "point_group" Json.Encode.string model.pointGroup
+            , encode "cell_description" Json.Encode.string model.cellDescription
             , maybeEncode "negative_handling" encodeMergeNegativeHandling model.negativeHandling
             , encode "merge_model" encodeMergeModel model.mergeModel
             , encode "scale_intensities" encodeScaleIntensities model.scaleIntensities
@@ -3382,6 +3751,7 @@ encodeJsonMergeResultPairs model =
             [ encode "id" Json.Encode.int model.id
             , encode "created" Json.Encode.int model.created
             , encode "runs" (Json.Encode.list Json.Encode.string) model.runs
+            , encode "indexing_result_ids" (Json.Encode.list Json.Encode.int) model.indexingResultIds
             , maybeEncode "state_queued" encodeJsonMergeResultStateQueued model.stateQueued
             , maybeEncode "state_error" encodeJsonMergeResultStateError model.stateError
             , maybeEncode "state_running" encodeJsonMergeResultStateRunning model.stateRunning
@@ -3628,40 +3998,41 @@ encodeJsonPolarisationPairs model =
     pairs
 
 
-encodeJsonQueueMergeJobForDataSetInput : JsonQueueMergeJobForDataSetInput -> Json.Encode.Value
-encodeJsonQueueMergeJobForDataSetInput =
-    encodeObject << encodeJsonQueueMergeJobForDataSetInputPairs
+encodeJsonQueueMergeJobInput : JsonQueueMergeJobInput -> Json.Encode.Value
+encodeJsonQueueMergeJobInput =
+    encodeObject << encodeJsonQueueMergeJobInputPairs
 
 
-encodeJsonQueueMergeJobForDataSetInputWithTag : ( String, String ) -> JsonQueueMergeJobForDataSetInput -> Json.Encode.Value
-encodeJsonQueueMergeJobForDataSetInputWithTag (tagField, tag) model =
-    encodeObject (encodeJsonQueueMergeJobForDataSetInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+encodeJsonQueueMergeJobInputWithTag : ( String, String ) -> JsonQueueMergeJobInput -> Json.Encode.Value
+encodeJsonQueueMergeJobInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonQueueMergeJobInputPairs model ++ [ encode tagField Json.Encode.string tag ])
 
 
-encodeJsonQueueMergeJobForDataSetInputPairs : JsonQueueMergeJobForDataSetInput -> List EncodedField
-encodeJsonQueueMergeJobForDataSetInputPairs model =
+encodeJsonQueueMergeJobInputPairs : JsonQueueMergeJobInput -> List EncodedField
+encodeJsonQueueMergeJobInputPairs model =
     let
         pairs =
             [ encode "strict_mode" Json.Encode.bool model.strictMode
-            , encode "beamtime_id" Json.Encode.int model.beamtimeId
+            , encode "indexing_parameters_id" Json.Encode.int model.indexingParametersId
+            , encode "data_set_id" Json.Encode.int model.dataSetId
             , encode "merge_parameters" encodeJsonMergeParameters model.mergeParameters
             ]
     in
     pairs
 
 
-encodeJsonQueueMergeJobForDataSetOutput : JsonQueueMergeJobForDataSetOutput -> Json.Encode.Value
-encodeJsonQueueMergeJobForDataSetOutput =
-    encodeObject << encodeJsonQueueMergeJobForDataSetOutputPairs
+encodeJsonQueueMergeJobOutput : JsonQueueMergeJobOutput -> Json.Encode.Value
+encodeJsonQueueMergeJobOutput =
+    encodeObject << encodeJsonQueueMergeJobOutputPairs
 
 
-encodeJsonQueueMergeJobForDataSetOutputWithTag : ( String, String ) -> JsonQueueMergeJobForDataSetOutput -> Json.Encode.Value
-encodeJsonQueueMergeJobForDataSetOutputWithTag (tagField, tag) model =
-    encodeObject (encodeJsonQueueMergeJobForDataSetOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+encodeJsonQueueMergeJobOutputWithTag : ( String, String ) -> JsonQueueMergeJobOutput -> Json.Encode.Value
+encodeJsonQueueMergeJobOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonQueueMergeJobOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
 
 
-encodeJsonQueueMergeJobForDataSetOutputPairs : JsonQueueMergeJobForDataSetOutput -> List EncodedField
-encodeJsonQueueMergeJobForDataSetOutputPairs model =
+encodeJsonQueueMergeJobOutputPairs : JsonQueueMergeJobOutput -> List EncodedField
+encodeJsonQueueMergeJobOutputPairs model =
     let
         pairs =
             [ encode "merge_result_id" Json.Encode.int model.mergeResultId
@@ -3686,8 +4057,8 @@ encodeJsonReadAnalysisResultsPairs model =
         pairs =
             [ encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
             , encode "chemical_id_to_name" (Json.Encode.list encodeJsonChemicalIdAndName) model.chemicalIdToName
-            , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
-            , encode "data_sets" (Json.Encode.list encodeJsonAnalysisExperimentType) model.dataSets
+            , encode "experiment_type" encodeJsonExperimentType model.experimentType
+            , encode "data_sets" (Json.Encode.list encodeJsonDataSetWithIndexingResults) model.dataSets
             ]
     in
     pairs
@@ -3728,6 +4099,26 @@ encodeJsonReadBeamtimePairs model =
     let
         pairs =
             [ encode "beamtimes" (Json.Encode.list encodeJsonBeamtime) model.beamtimes
+            ]
+    in
+    pairs
+
+
+encodeJsonReadBeamtimeGeometryDetails : JsonReadBeamtimeGeometryDetails -> Json.Encode.Value
+encodeJsonReadBeamtimeGeometryDetails =
+    encodeObject << encodeJsonReadBeamtimeGeometryDetailsPairs
+
+
+encodeJsonReadBeamtimeGeometryDetailsWithTag : ( String, String ) -> JsonReadBeamtimeGeometryDetails -> Json.Encode.Value
+encodeJsonReadBeamtimeGeometryDetailsWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadBeamtimeGeometryDetailsPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadBeamtimeGeometryDetailsPairs : JsonReadBeamtimeGeometryDetails -> List EncodedField
+encodeJsonReadBeamtimeGeometryDetailsPairs model =
+    let
+        pairs =
+            [ encode "detector_shifts" (Json.Encode.list encodeJsonDetectorShift) model.detectorShifts
             ]
     in
     pairs
@@ -3819,6 +4210,28 @@ encodeJsonReadExperimentTypesPairs model =
     pairs
 
 
+encodeJsonReadIndexingParametersOutput : JsonReadIndexingParametersOutput -> Json.Encode.Value
+encodeJsonReadIndexingParametersOutput =
+    encodeObject << encodeJsonReadIndexingParametersOutputPairs
+
+
+encodeJsonReadIndexingParametersOutputWithTag : ( String, String ) -> JsonReadIndexingParametersOutput -> Json.Encode.Value
+encodeJsonReadIndexingParametersOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadIndexingParametersOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadIndexingParametersOutputPairs : JsonReadIndexingParametersOutput -> List EncodedField
+encodeJsonReadIndexingParametersOutputPairs model =
+    let
+        pairs =
+            [ encode "data_set_id" Json.Encode.int model.dataSetId
+            , encode "cell_description" Json.Encode.string model.cellDescription
+            , encode "sources" (Json.Encode.list Json.Encode.string) model.sources
+            ]
+    in
+    pairs
+
+
 encodeJsonReadIndexingResultsOutput : JsonReadIndexingResultsOutput -> Json.Encode.Value
 encodeJsonReadIndexingResultsOutput =
     encodeObject << encodeJsonReadIndexingResultsOutputPairs
@@ -3875,8 +4288,9 @@ encodeJsonReadRunAnalysisPairs model =
         pairs =
             [ encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
             , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
-            , encode "runs" (Json.Encode.list encodeJsonAnalysisRun) model.runs
-            , encode "indexing_results_by_run_id" (Json.Encode.list encodeJsonRunAnalysisIndexingResult) model.indexingResultsByRunId
+            , maybeEncode "run" encodeJsonAnalysisRun model.run
+            , encode "run_ids" (Json.Encode.list encodeJsonRunId) model.runIds
+            , encode "indexing_results" (Json.Encode.list encodeJsonRunAnalysisIndexingResult) model.indexingResults
             ]
     in
     pairs
@@ -3902,7 +4316,7 @@ encodeJsonReadRunsPairs model =
             , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
             , maybeEncode "latest_indexing_result" encodeJsonRunAnalysisIndexingResult model.latestIndexingResult
             , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
-            , encode "data_sets" (Json.Encode.list encodeJsonDataSet) model.dataSets
+            , encode "data_sets_with_fom" (Json.Encode.list encodeJsonDataSetWithFom) model.dataSetsWithFom
             , encode "events" (Json.Encode.list encodeJsonEvent) model.events
             , encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
             , encode "user_config" encodeJsonUserConfig model.userConfig
@@ -4032,7 +4446,7 @@ encodeJsonRunPairs model =
             , encode "files" (Json.Encode.list encodeJsonFileOutput) model.files
             , encode "summary" encodeJsonIndexingFom model.summary
             , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
-            , encode "data_sets" (Json.Encode.list Json.Encode.int) model.dataSets
+            , encode "data_set_ids" (Json.Encode.list Json.Encode.int) model.dataSetIds
             , encode "running_indexing_jobs" (Json.Encode.list Json.Encode.int) model.runningIndexingJobs
             ]
     in
@@ -4056,6 +4470,27 @@ encodeJsonRunAnalysisIndexingResultPairs model =
             [ encode "run_id" Json.Encode.int model.runId
             , encode "foms" (Json.Encode.list encodeJsonIndexingFom) model.foms
             , encode "indexing_statistics" (Json.Encode.list encodeJsonIndexingStatistic) model.indexingStatistics
+            ]
+    in
+    pairs
+
+
+encodeJsonRunId : JsonRunId -> Json.Encode.Value
+encodeJsonRunId =
+    encodeObject << encodeJsonRunIdPairs
+
+
+encodeJsonRunIdWithTag : ( String, String ) -> JsonRunId -> Json.Encode.Value
+encodeJsonRunIdWithTag (tagField, tag) model =
+    encodeObject (encodeJsonRunIdPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonRunIdPairs : JsonRunId -> List EncodedField
+encodeJsonRunIdPairs model =
+    let
+        pairs =
+            [ encode "internal_run_id" Json.Encode.int model.internalRunId
+            , encode "external_run_id" Json.Encode.int model.externalRunId
             ]
     in
     pairs
@@ -4230,6 +4665,48 @@ encodeJsonUpdateLiveStreamPairs model =
     pairs
 
 
+encodeJsonUpdateOnlineIndexingParametersInput : JsonUpdateOnlineIndexingParametersInput -> Json.Encode.Value
+encodeJsonUpdateOnlineIndexingParametersInput =
+    encodeObject << encodeJsonUpdateOnlineIndexingParametersInputPairs
+
+
+encodeJsonUpdateOnlineIndexingParametersInputWithTag : ( String, String ) -> JsonUpdateOnlineIndexingParametersInput -> Json.Encode.Value
+encodeJsonUpdateOnlineIndexingParametersInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonUpdateOnlineIndexingParametersInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonUpdateOnlineIndexingParametersInputPairs : JsonUpdateOnlineIndexingParametersInput -> List EncodedField
+encodeJsonUpdateOnlineIndexingParametersInputPairs model =
+    let
+        pairs =
+            [ encode "command_line" Json.Encode.string model.commandLine
+            , encode "geometry_file" Json.Encode.string model.geometryFile
+            , encode "source" Json.Encode.string model.source
+            ]
+    in
+    pairs
+
+
+encodeJsonUpdateOnlineIndexingParametersOutput : JsonUpdateOnlineIndexingParametersOutput -> Json.Encode.Value
+encodeJsonUpdateOnlineIndexingParametersOutput =
+    encodeObject << encodeJsonUpdateOnlineIndexingParametersOutputPairs
+
+
+encodeJsonUpdateOnlineIndexingParametersOutputWithTag : ( String, String ) -> JsonUpdateOnlineIndexingParametersOutput -> Json.Encode.Value
+encodeJsonUpdateOnlineIndexingParametersOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonUpdateOnlineIndexingParametersOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonUpdateOnlineIndexingParametersOutputPairs : JsonUpdateOnlineIndexingParametersOutput -> List EncodedField
+encodeJsonUpdateOnlineIndexingParametersOutputPairs model =
+    let
+        pairs =
+            [ encode "success" Json.Encode.bool model.success
+            ]
+    in
+    pairs
+
+
 encodeJsonUpdateRun : JsonUpdateRun -> Json.Encode.Value
 encodeJsonUpdateRun =
     encodeObject << encodeJsonUpdateRunPairs
@@ -4332,6 +4809,7 @@ encodeJsonUserConfigPairs model =
             [ encode "online_crystfel" Json.Encode.bool model.onlineCrystfel
             , encode "auto_pilot" Json.Encode.bool model.autoPilot
             , maybeEncode "current_experiment_type_id" Json.Encode.int model.currentExperimentTypeId
+            , maybeEncode "current_online_indexing_parameters_id" Json.Encode.int model.currentOnlineIndexingParametersId
             ]
     in
     pairs
@@ -4697,26 +5175,11 @@ jSONSchemaStringTypeDecoder =
 
 
 
-jsonAnalysisDataSetDecoder : Json.Decode.Decoder JsonAnalysisDataSet
-jsonAnalysisDataSetDecoder =
-    Json.Decode.succeed JsonAnalysisDataSet
-        |> decode "data_set" jsonDataSetDecoder 
-        |> decode "runs" (Json.Decode.list Json.Decode.string) 
-        |> decode "number_of_indexing_results" Json.Decode.int 
-        |> decode "merge_results" (Json.Decode.list jsonMergeResultDecoder) 
-
-
-jsonAnalysisExperimentTypeDecoder : Json.Decode.Decoder JsonAnalysisExperimentType
-jsonAnalysisExperimentTypeDecoder =
-    Json.Decode.succeed JsonAnalysisExperimentType
-        |> decode "experiment_type" Json.Decode.int 
-        |> decode "data_sets" (Json.Decode.list jsonAnalysisDataSetDecoder) 
-
-
 jsonAnalysisRunDecoder : Json.Decode.Decoder JsonAnalysisRun
 jsonAnalysisRunDecoder =
     Json.Decode.succeed JsonAnalysisRun
         |> decode "id" Json.Decode.int 
+        |> decode "external_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
 
 
@@ -4974,6 +5437,26 @@ jsonCreateFileOutputDecoder =
         |> maybeDecode "original_path" Json.Decode.string Nothing
 
 
+jsonCreateIndexingForDataSetInputDecoder : Json.Decode.Decoder JsonCreateIndexingForDataSetInput
+jsonCreateIndexingForDataSetInputDecoder =
+    Json.Decode.succeed JsonCreateIndexingForDataSetInput
+        |> decode "data_set_id" Json.Decode.int 
+        |> decode "is_online" Json.Decode.bool 
+        |> decode "cell_description" Json.Decode.string 
+        |> decode "geometry_file" Json.Decode.string 
+        |> decode "command_line" Json.Decode.string 
+        |> decode "source" Json.Decode.string 
+
+
+jsonCreateIndexingForDataSetOutputDecoder : Json.Decode.Decoder JsonCreateIndexingForDataSetOutput
+jsonCreateIndexingForDataSetOutputDecoder =
+    Json.Decode.succeed JsonCreateIndexingForDataSetOutput
+        |> decode "jobs_started_run_external_ids" (Json.Decode.list Json.Decode.int) 
+        |> decode "indexing_result_id" Json.Decode.int 
+        |> decode "data_set_id" Json.Decode.int 
+        |> decode "indexing_parameters_id" Json.Decode.int 
+
+
 jsonCreateLiveStreamSnapshotOutputDecoder : Json.Decode.Decoder JsonCreateLiveStreamSnapshotOutput
 jsonCreateLiveStreamSnapshotOutputDecoder =
     Json.Decode.succeed JsonCreateLiveStreamSnapshotOutput
@@ -4990,6 +5473,7 @@ jsonCreateOrUpdateRunDecoder =
     Json.Decode.succeed JsonCreateOrUpdateRun
         |> decode "beamtime_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
+        |> decode "files" (Json.Decode.list Json.Decode.string) 
         |> maybeDecode "started" Json.Decode.int Nothing
         |> maybeDecode "stopped" Json.Decode.int Nothing
 
@@ -5009,7 +5493,22 @@ jsonDataSetDecoder =
         |> decode "id" Json.Decode.int 
         |> decode "experiment_type_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
-        |> maybeDecode "summary" jsonIndexingFomDecoder Nothing
+
+
+jsonDataSetWithFomDecoder : Json.Decode.Decoder JsonDataSetWithFom
+jsonDataSetWithFomDecoder =
+    Json.Decode.succeed JsonDataSetWithFom
+        |> decode "data_set" jsonDataSetDecoder 
+        |> decode "fom" jsonIndexingFomDecoder 
+
+
+jsonDataSetWithIndexingResultsDecoder : Json.Decode.Decoder JsonDataSetWithIndexingResults
+jsonDataSetWithIndexingResultsDecoder =
+    Json.Decode.succeed JsonDataSetWithIndexingResults
+        |> decode "data_set" jsonDataSetDecoder 
+        |> decode "internal_run_ids" (Json.Decode.list Json.Decode.int) 
+        |> decode "runs" (Json.Decode.list Json.Decode.string) 
+        |> decode "indexing_results" (Json.Decode.list jsonIndexingParametersWithResultsDecoder) 
 
 
 jsonDeleteAttributoInputDecoder : Json.Decode.Decoder JsonDeleteAttributoInput
@@ -5082,6 +5581,14 @@ jsonDeleteFileOutputDecoder : Json.Decode.Decoder JsonDeleteFileOutput
 jsonDeleteFileOutputDecoder =
     Json.Decode.succeed JsonDeleteFileOutput
         |> decode "id" Json.Decode.int 
+
+
+jsonDetectorShiftDecoder : Json.Decode.Decoder JsonDetectorShift
+jsonDetectorShiftDecoder =
+    Json.Decode.succeed JsonDetectorShift
+        |> decode "run_external_id" Json.Decode.int 
+        |> decode "shift_x_mm" Json.Decode.float 
+        |> decode "shift_y_mm" Json.Decode.float 
 
 
 jsonEventDecoder : Json.Decode.Decoder JsonEvent
@@ -5160,11 +5667,19 @@ jsonIndexingJobDecoder =
         |> decode "id" Json.Decode.int 
         |> maybeDecode "job_id" Json.Decode.int Nothing
         |> decode "job_status" dBJobStatusDecoder 
+        |> maybeDecode "started" Json.Decode.int Nothing
+        |> maybeDecode "stopped" Json.Decode.int Nothing
+        |> decode "is_online" Json.Decode.bool 
         |> maybeDecode "stream_file" Json.Decode.string Nothing
-        |> decode "cell_description" Json.Decode.string 
+        |> decode "source" Json.Decode.string 
+        |> maybeDecode "cell_description" Json.Decode.string Nothing
+        |> decode "geometry_file_input" Json.Decode.string 
+        |> decode "geometry_file_output" Json.Decode.string 
+        |> decode "command_line" Json.Decode.string 
         |> decode "run_internal_id" Json.Decode.int 
         |> decode "run_external_id" Json.Decode.int 
         |> decode "beamtime" jsonBeamtimeDecoder 
+        |> decode "input_file_globs" (Json.Decode.list Json.Decode.string) 
 
 
 jsonIndexingJobUpdateOutputDecoder : Json.Decode.Decoder JsonIndexingJobUpdateOutput
@@ -5173,25 +5688,91 @@ jsonIndexingJobUpdateOutputDecoder =
         |> decode "result" Json.Decode.bool 
 
 
+jsonIndexingParametersDecoder : Json.Decode.Decoder JsonIndexingParameters
+jsonIndexingParametersDecoder =
+    Json.Decode.succeed JsonIndexingParameters
+        |> maybeDecode "id" Json.Decode.int Nothing
+        |> maybeDecode "cell_description" Json.Decode.string Nothing
+        |> decode "is_online" Json.Decode.bool 
+        |> decode "command_line" Json.Decode.string 
+        |> decode "geometry_file" Json.Decode.string 
+
+
+jsonIndexingParametersWithResultsDecoder : Json.Decode.Decoder JsonIndexingParametersWithResults
+jsonIndexingParametersWithResultsDecoder =
+    Json.Decode.succeed JsonIndexingParametersWithResults
+        |> decode "parameters" jsonIndexingParametersDecoder 
+        |> decode "indexing_results" (Json.Decode.list jsonIndexingResultDecoder) 
+        |> decode "merge_results" (Json.Decode.list jsonMergeResultDecoder) 
+
+
 jsonIndexingResultDecoder : Json.Decode.Decoder JsonIndexingResult
 jsonIndexingResultDecoder =
     Json.Decode.succeed JsonIndexingResult
+        |> decode "id" Json.Decode.int 
+        |> decode "created" Json.Decode.int 
+        |> maybeDecode "started" Json.Decode.int Nothing
+        |> maybeDecode "stopped" Json.Decode.int Nothing
+        |> decode "parameters" jsonIndexingParametersDecoder 
+        |> decode "program_version" Json.Decode.string 
+        |> decode "run_internal_id" Json.Decode.int 
+        |> decode "run_external_id" Json.Decode.int 
         |> decode "frames" Json.Decode.int 
         |> decode "hits" Json.Decode.int 
         |> decode "indexed_frames" Json.Decode.int 
         |> decode "indexed_crystals" Json.Decode.int 
-        |> decode "done" Json.Decode.bool 
+        |> decode "status" dBJobStatusDecoder 
         |> maybeDecode "detector_shift_x_mm" Json.Decode.float Nothing
         |> maybeDecode "detector_shift_y_mm" Json.Decode.float Nothing
+        |> decode "geometry_file" Json.Decode.string 
+        |> decode "geometry_hash" Json.Decode.string 
+        |> decode "generated_geometry_file" Json.Decode.string 
+        |> maybeDecode "unit_cell_histograms_file_id" Json.Decode.int Nothing
+        |> decode "has_error" Json.Decode.bool 
 
 
-jsonIndexingResultRootJsonDecoder : Json.Decode.Decoder JsonIndexingResultRootJson
-jsonIndexingResultRootJsonDecoder =
-    Json.Decode.succeed JsonIndexingResultRootJson
-        |> maybeDecode "error" Json.Decode.string Nothing
-        |> maybeDecode "job_id" Json.Decode.int Nothing
-        |> maybeDecode "stream_file" Json.Decode.string Nothing
-        |> maybeDecode "result" jsonIndexingResultDecoder Nothing
+jsonIndexingResultFinishSuccessfullyDecoder : Json.Decode.Decoder JsonIndexingResultFinishSuccessfully
+jsonIndexingResultFinishSuccessfullyDecoder =
+    Json.Decode.succeed JsonIndexingResultFinishSuccessfully
+        |> decode "workload_manager_job_id" Json.Decode.int 
+        |> decode "stream_file" Json.Decode.string 
+        |> decode "program_version" Json.Decode.string 
+        |> decode "frames" Json.Decode.int 
+        |> decode "hits" Json.Decode.int 
+        |> decode "indexed_frames" Json.Decode.int 
+        |> decode "indexed_crystals" Json.Decode.int 
+        |> maybeDecode "detector_shift_x_mm" Json.Decode.float Nothing
+        |> maybeDecode "detector_shift_y_mm" Json.Decode.float Nothing
+        |> decode "geometry_file" Json.Decode.string 
+        |> decode "geometry_hash" Json.Decode.string 
+        |> decode "generated_geometry_file" Json.Decode.string 
+        |> maybeDecode "unit_cell_histograms_id" Json.Decode.int Nothing
+        |> maybeDecode "latest_log" Json.Decode.string Nothing
+
+
+jsonIndexingResultFinishWithErrorDecoder : Json.Decode.Decoder JsonIndexingResultFinishWithError
+jsonIndexingResultFinishWithErrorDecoder =
+    Json.Decode.succeed JsonIndexingResultFinishWithError
+        |> decode "error_message" Json.Decode.string 
+        |> decode "latest_log" Json.Decode.string 
+        |> maybeDecode "workload_manager_job_id" Json.Decode.int Nothing
+
+
+jsonIndexingResultStillRunningDecoder : Json.Decode.Decoder JsonIndexingResultStillRunning
+jsonIndexingResultStillRunningDecoder =
+    Json.Decode.succeed JsonIndexingResultStillRunning
+        |> decode "workload_manager_job_id" Json.Decode.int 
+        |> decode "stream_file" Json.Decode.string 
+        |> decode "frames" Json.Decode.int 
+        |> decode "hits" Json.Decode.int 
+        |> decode "indexed_frames" Json.Decode.int 
+        |> decode "indexed_crystals" Json.Decode.int 
+        |> maybeDecode "detector_shift_x_mm" Json.Decode.float Nothing
+        |> maybeDecode "detector_shift_y_mm" Json.Decode.float Nothing
+        |> decode "geometry_file" Json.Decode.string 
+        |> decode "geometry_hash" Json.Decode.string 
+        |> maybeDecode "job_started" Json.Decode.int Nothing
+        |> maybeDecode "latest_log" Json.Decode.string Nothing
 
 
 jsonIndexingStatisticDecoder : Json.Decode.Decoder JsonIndexingStatistic
@@ -5220,8 +5801,8 @@ jsonMergeJobDecoder =
         |> decode "parameters" jsonMergeParametersDecoder 
         |> decode "indexing_results" (Json.Decode.list jsonIndexingJobDecoder) 
         |> decode "files_from_indexing" (Json.Decode.list jsonFileOutputDecoder) 
-        |> maybeDecode "cell_description" Json.Decode.string Nothing
-        |> maybeDecode "point_group" Json.Decode.string Nothing
+        |> decode "point_group" Json.Decode.string 
+        |> decode "cell_description" Json.Decode.string 
 
 
 jsonMergeJobFinishOutputDecoder : Json.Decode.Decoder JsonMergeJobFinishOutput
@@ -5253,7 +5834,8 @@ jsonMergeJobStartedOutputDecoder =
 jsonMergeParametersDecoder : Json.Decode.Decoder JsonMergeParameters
 jsonMergeParametersDecoder =
     Json.Decode.succeed JsonMergeParameters
-        |> maybeDecode "point_group" Json.Decode.string Nothing
+        |> decode "point_group" Json.Decode.string 
+        |> decode "cell_description" Json.Decode.string 
         |> maybeDecode "negative_handling" mergeNegativeHandlingDecoder Nothing
         |> decode "merge_model" mergeModelDecoder 
         |> decode "scale_intensities" scaleIntensitiesDecoder 
@@ -5282,6 +5864,7 @@ jsonMergeResultDecoder =
         |> decode "id" Json.Decode.int 
         |> decode "created" Json.Decode.int 
         |> decode "runs" (Json.Decode.list Json.Decode.string) 
+        |> decode "indexing_result_ids" (Json.Decode.list Json.Decode.int) 
         |> maybeDecode "state_queued" jsonMergeResultStateQueuedDecoder Nothing
         |> maybeDecode "state_error" jsonMergeResultStateErrorDecoder Nothing
         |> maybeDecode "state_running" jsonMergeResultStateRunningDecoder Nothing
@@ -5399,17 +5982,18 @@ jsonPolarisationDecoder =
         |> decode "percent" Json.Decode.int 
 
 
-jsonQueueMergeJobForDataSetInputDecoder : Json.Decode.Decoder JsonQueueMergeJobForDataSetInput
-jsonQueueMergeJobForDataSetInputDecoder =
-    Json.Decode.succeed JsonQueueMergeJobForDataSetInput
+jsonQueueMergeJobInputDecoder : Json.Decode.Decoder JsonQueueMergeJobInput
+jsonQueueMergeJobInputDecoder =
+    Json.Decode.succeed JsonQueueMergeJobInput
         |> decode "strict_mode" Json.Decode.bool 
-        |> decode "beamtime_id" Json.Decode.int 
+        |> decode "indexing_parameters_id" Json.Decode.int 
+        |> decode "data_set_id" Json.Decode.int 
         |> decode "merge_parameters" jsonMergeParametersDecoder 
 
 
-jsonQueueMergeJobForDataSetOutputDecoder : Json.Decode.Decoder JsonQueueMergeJobForDataSetOutput
-jsonQueueMergeJobForDataSetOutputDecoder =
-    Json.Decode.succeed JsonQueueMergeJobForDataSetOutput
+jsonQueueMergeJobOutputDecoder : Json.Decode.Decoder JsonQueueMergeJobOutput
+jsonQueueMergeJobOutputDecoder =
+    Json.Decode.succeed JsonQueueMergeJobOutput
         |> decode "merge_result_id" Json.Decode.int 
 
 
@@ -5418,8 +6002,8 @@ jsonReadAnalysisResultsDecoder =
     Json.Decode.succeed JsonReadAnalysisResults
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
         |> decode "chemical_id_to_name" (Json.Decode.list jsonChemicalIdAndNameDecoder) 
-        |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
-        |> decode "data_sets" (Json.Decode.list jsonAnalysisExperimentTypeDecoder) 
+        |> decode "experiment_type" jsonExperimentTypeDecoder 
+        |> decode "data_sets" (Json.Decode.list jsonDataSetWithIndexingResultsDecoder) 
 
 
 jsonReadAttributiDecoder : Json.Decode.Decoder JsonReadAttributi
@@ -5432,6 +6016,12 @@ jsonReadBeamtimeDecoder : Json.Decode.Decoder JsonReadBeamtime
 jsonReadBeamtimeDecoder =
     Json.Decode.succeed JsonReadBeamtime
         |> decode "beamtimes" (Json.Decode.list jsonBeamtimeDecoder) 
+
+
+jsonReadBeamtimeGeometryDetailsDecoder : Json.Decode.Decoder JsonReadBeamtimeGeometryDetails
+jsonReadBeamtimeGeometryDetailsDecoder =
+    Json.Decode.succeed JsonReadBeamtimeGeometryDetails
+        |> decode "detector_shifts" (Json.Decode.list jsonDetectorShiftDecoder) 
 
 
 jsonReadChemicalsDecoder : Json.Decode.Decoder JsonReadChemicals
@@ -5464,6 +6054,14 @@ jsonReadExperimentTypesDecoder =
         |> decode "experiment_type_id_to_run" (Json.Decode.list jsonExperimentTypeAndRunsDecoder) 
 
 
+jsonReadIndexingParametersOutputDecoder : Json.Decode.Decoder JsonReadIndexingParametersOutput
+jsonReadIndexingParametersOutputDecoder =
+    Json.Decode.succeed JsonReadIndexingParametersOutput
+        |> decode "data_set_id" Json.Decode.int 
+        |> decode "cell_description" Json.Decode.string 
+        |> decode "sources" (Json.Decode.list Json.Decode.string) 
+
+
 jsonReadIndexingResultsOutputDecoder : Json.Decode.Decoder JsonReadIndexingResultsOutput
 jsonReadIndexingResultsOutputDecoder =
     Json.Decode.succeed JsonReadIndexingResultsOutput
@@ -5481,8 +6079,9 @@ jsonReadRunAnalysisDecoder =
     Json.Decode.succeed JsonReadRunAnalysis
         |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
-        |> decode "runs" (Json.Decode.list jsonAnalysisRunDecoder) 
-        |> decode "indexing_results_by_run_id" (Json.Decode.list jsonRunAnalysisIndexingResultDecoder) 
+        |> maybeDecode "run" jsonAnalysisRunDecoder Nothing
+        |> decode "run_ids" (Json.Decode.list jsonRunIdDecoder) 
+        |> decode "indexing_results" (Json.Decode.list jsonRunAnalysisIndexingResultDecoder) 
 
 
 jsonReadRunsDecoder : Json.Decode.Decoder JsonReadRuns
@@ -5494,7 +6093,7 @@ jsonReadRunsDecoder =
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
         |> maybeDecode "latest_indexing_result" jsonRunAnalysisIndexingResultDecoder Nothing
         |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
-        |> decode "data_sets" (Json.Decode.list jsonDataSetDecoder) 
+        |> decode "data_sets_with_fom" (Json.Decode.list jsonDataSetWithFomDecoder) 
         |> decode "events" (Json.Decode.list jsonEventDecoder) 
         |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
         |> decode "user_config" jsonUserConfigDecoder 
@@ -5554,7 +6153,7 @@ jsonRunDecoder =
         |> decode "files" (Json.Decode.list jsonFileOutputDecoder) 
         |> decode "summary" jsonIndexingFomDecoder 
         |> decode "experiment_type_id" Json.Decode.int 
-        |> decode "data_sets" (Json.Decode.list Json.Decode.int) 
+        |> decode "data_set_ids" (Json.Decode.list Json.Decode.int) 
         |> decode "running_indexing_jobs" (Json.Decode.list Json.Decode.int) 
 
 
@@ -5564,6 +6163,13 @@ jsonRunAnalysisIndexingResultDecoder =
         |> decode "run_id" Json.Decode.int 
         |> decode "foms" (Json.Decode.list jsonIndexingFomDecoder) 
         |> decode "indexing_statistics" (Json.Decode.list jsonIndexingStatisticDecoder) 
+
+
+jsonRunIdDecoder : Json.Decode.Decoder JsonRunId
+jsonRunIdDecoder =
+    Json.Decode.succeed JsonRunId
+        |> decode "internal_run_id" Json.Decode.int 
+        |> decode "external_run_id" Json.Decode.int 
 
 
 jsonStartRunOutputDecoder : Json.Decode.Decoder JsonStartRunOutput
@@ -5623,6 +6229,20 @@ jsonUpdateLiveStreamDecoder =
         |> decode "id" Json.Decode.int 
 
 
+jsonUpdateOnlineIndexingParametersInputDecoder : Json.Decode.Decoder JsonUpdateOnlineIndexingParametersInput
+jsonUpdateOnlineIndexingParametersInputDecoder =
+    Json.Decode.succeed JsonUpdateOnlineIndexingParametersInput
+        |> decode "command_line" Json.Decode.string 
+        |> decode "geometry_file" Json.Decode.string 
+        |> decode "source" Json.Decode.string 
+
+
+jsonUpdateOnlineIndexingParametersOutputDecoder : Json.Decode.Decoder JsonUpdateOnlineIndexingParametersOutput
+jsonUpdateOnlineIndexingParametersOutputDecoder =
+    Json.Decode.succeed JsonUpdateOnlineIndexingParametersOutput
+        |> decode "success" Json.Decode.bool 
+
+
 jsonUpdateRunDecoder : Json.Decode.Decoder JsonUpdateRun
 jsonUpdateRunDecoder =
     Json.Decode.succeed JsonUpdateRun
@@ -5658,6 +6278,7 @@ jsonUserConfigDecoder =
         |> decode "online_crystfel" Json.Decode.bool 
         |> decode "auto_pilot" Json.Decode.bool 
         |> maybeDecode "current_experiment_type_id" Json.Decode.int Nothing
+        |> maybeDecode "current_online_indexing_parameters_id" Json.Decode.int Nothing
 
 
 jsonUserConfigurationSingleOutputDecoder : Json.Decode.Decoder JsonUserConfigurationSingleOutput

@@ -67,13 +67,15 @@ async def update_beamtime_schedule(
                     # probably super slow, because one select per
                     # shift, but this is just a beamtime schedule, nobody
                     # cares...
-                    chemicals=(
-                        await session.scalars(
-                            select(orm.Chemical).where(
-                                orm.Chemical.id.in_(shift_dict.chemicals)
+                    chemicals=list(
+                        (
+                            await session.scalars(
+                                select(orm.Chemical).where(
+                                    orm.Chemical.id.in_(shift_dict.chemicals)
+                                )
                             )
-                        )
-                    ).all(),
+                        ).all()
+                    ),
                 )
             )
         await session.commit()

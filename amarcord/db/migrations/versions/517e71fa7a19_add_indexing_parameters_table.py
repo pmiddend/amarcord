@@ -1,0 +1,1458 @@
+"""add indexing parameters table
+
+Revision ID: 517e71fa7a19
+Revises: 341b2d1ddb48
+Create Date: 2024-06-10 09:26:30.143862
+
+"""
+
+import sqlalchemy as sa
+from alembic import op
+from sqlalchemy.dialects.mysql import LONGTEXT
+from sqlalchemy.sql import delete
+from sqlalchemy.sql import select
+
+# revision identifiers, used by Alembic.
+revision = "517e71fa7a19"
+down_revision = "341b2d1ddb48"
+branch_labels = None
+depends_on = None
+
+ATTRIBUTO_TABLE = sa.sql.table(
+    "Attributo",
+    sa.column("name", sa.String),
+)
+RUN_TABLE = sa.sql.table(
+    "Run",
+    sa.column("id", sa.Integer),
+    sa.column("external_id", sa.Integer),
+    sa.column("beamtime_id", sa.Integer),
+    sa.column("started", sa.DateTime),
+)
+BEAMTIME_TABLE = sa.sql.table(
+    "Beamtime",
+    sa.column("id", sa.Integer),
+    sa.column("external_id", sa.String),
+)
+RUN_HAS_FILES_TABLE = sa.sql.table(
+    "RunHasFiles",
+    sa.column("id", sa.Integer),
+    sa.column("run_id", sa.Integer),
+    sa.column("source", sa.String(length=255)),
+    sa.column("glob", sa.Text),
+)
+PARAMETERS_TABLE = sa.sql.table(
+    "IndexingParameters",
+    sa.column("id", sa.Integer),
+    sa.column("is_online", sa.Boolean),
+    sa.column("cell_description", sa.String),
+    sa.column("command_line", sa.Text),
+    sa.column("geometry_file", sa.Text),
+    sa.column("source", sa.String),
+)
+
+INDEXING_RESULT_TABLE = sa.sql.table(
+    "IndexingResult",
+    sa.column("indexing_parameters_id", sa.Integer),
+    sa.column("id", sa.Integer),
+    sa.column("cell_description", sa.String),
+    sa.column("stream_file", sa.Text),
+    sa.column("run_id", sa.Integer),
+    sa.column("hits", sa.Integer),
+    sa.column("frames", sa.Integer),
+    sa.column("indexed_frames", sa.Integer),
+    sa.column("job_error", sa.Text),
+    sa.column("geometry_hash", sa.String),
+    sa.column("geometry_file", sa.String),
+    sa.column("program_version", sa.String),
+)
+
+RUN_RANGES_WITH_PARAMETERS = [
+    {
+        "run_ranges": [(12430, 12431)],
+        "crystfel_version": "0.10.1-166-g9e8e95ef",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015430/shared/eiger16M-11015430-v1.geom",
+        "geometry_hash": "a920e0a88175c8ae9bc7f60832142b3da3def44de922845233b51937f6569a12",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --push-res=1",
+    },
+    {
+        "run_ranges": [(12428, 12429)],
+        "crystfel_version": "0.10.1-166-g9e8e95ef",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015430/shared/eiger16M-11015430-v1.geom",
+        "geometry_hash": "a920e0a88175c8ae9bc7f60832142b3da3def44de922845233b51937f6569a12",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --push-res=1",
+    },
+    {
+        "run_ranges": [(12432, 12434), (12424, 12426)],
+        "crystfel_version": "0.10.1-166-g9e8e95ef",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015430/shared/eiger16M-11015449-v6.geom",
+        "geometry_hash": "370e0afb8ebe7a60c974d40a449f0dda50e831b54ac1ff6b27cd1e8ccc7b13cb",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --push-res=1",
+    },
+    {
+        "run_ranges": [(12435, 12438)],
+        "crystfel_version": "0.10.1-167-g5634993",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015430/shared/eiger16M-11015449-v6.geom",
+        "geometry_hash": "370e0afb8ebe7a60c974d40a449f0dda50e831b54ac1ff6b27cd1e8ccc7b13cb",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --push-res=1",
+    },
+    {
+        "run_ranges": [(12451, 12466)],
+        "crystfel_version": "0.10.1-168-gdcd12ce",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015430/shared/eiger16M-11015430-v2.geom",
+        "geometry_hash": "36b4ed400da356c0b5c6e38813b550efed35db26b86cc2b043bb8c0d96e18966",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12447, 12450)],
+        "crystfel_version": "0.10.1-168-gdcd12ce",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015430/shared/eiger16M-11015430-v2.geom",
+        "geometry_hash": "36b4ed400da356c0b5c6e38813b550efed35db26b86cc2b043bb8c0d96e18966",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --push-res=1",
+    },
+    {
+        "run_ranges": [(12561, 12561), (12507, 12556), (12496, 12505), (12467, 12489)],
+        "crystfel_version": "0.10.1-170-g0ba3e55",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015430/shared/eiger16M-11015430-v2.geom",
+        "geometry_hash": "36b4ed400da356c0b5c6e38813b550efed35db26b86cc2b043bb8c0d96e18966",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12506, 12506)],
+        "crystfel_version": "0.10.1-170-g0ba3e55",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015430/shared/eiger16M-11015430-v2.geom",
+        "geometry_hash": "36b4ed400da356c0b5c6e38813b550efed35db26b86cc2b043bb8c0d96e18966",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=8 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12591, 12598)],
+        "crystfel_version": "0.10.1-168-gbfd7c16a",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015490/shared/eiger16M-11015490-v4.geom",
+        "geometry_hash": "34d65482aaaff057b1b1dc5d8481033169d778436746d31d713e637df0204948",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12611, 12623), (12599, 12608)],
+        "crystfel_version": "0.10.1-168-gbfd7c16a",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015490/shared/eiger16M-11015490-v5.geom",
+        "geometry_hash": "5b6460fc3d3c267937b20f86f09c2d83f94d499401ea79e9ebf99628945e279a",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12624, 12652)],
+        "crystfel_version": "0.10.1-168-gbfd7c16a",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015490/shared/eiger16M-11015490-v6.geom",
+        "geometry_hash": "3227b8913207a743f1f95e1558324f20891f96b8854eb6a7bfe3446db98c1d87",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12658, 12672)],
+        "crystfel_version": "0.10.1-168-gbfd7c16a",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015490/shared/eiger16M-11015490-v7.geom",
+        "geometry_hash": "1621ae78d66e00dc8783b3faec0489a81acc280f1d19a78db0bdf9a76fab8864",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12698, 12712), (12673, 12676)],
+        "crystfel_version": "0.10.1-170-g4d142e5c",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015490/shared/eiger16M-11015490-v7.geom",
+        "geometry_hash": "1621ae78d66e00dc8783b3faec0489a81acc280f1d19a78db0bdf9a76fab8864",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12713, 12715)],
+        "crystfel_version": "0.10.1-170-g4d142e5c",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015490/shared/eiger16M-11015490-v8.geom",
+        "geometry_hash": "3c4cccae072dc133507d908e59628352b4fda081bf0d3e865e037a2f4818ab48",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12716, 12726)],
+        "crystfel_version": "0.10.1-170-g4d142e5c",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015490/shared/eiger16M-11015490-v9.geom",
+        "geometry_hash": "1621ae78d66e00dc8783b3faec0489a81acc280f1d19a78db0bdf9a76fab8864",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12677, 12696)],
+        "crystfel_version": "0.10.1-170-g4d142e5c",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2022/data/11015490/shared/eiger16M-11015490-v7.geom",
+        "geometry_hash": "1621ae78d66e00dc8783b3faec0489a81acc280f1d19a78db0bdf9a76fab8864",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --multi --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12729, 12732)],
+        "crystfel_version": "0.10.2-54-g1d1a2a70+",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016853/shared/geometry-v3.geom",
+        "geometry_hash": "b1278526e744c07f027709d613dc77fe2f8c9f8b71c9cddf15af44a644c76201",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12733, 12734)],
+        "crystfel_version": "0.10.2-55-ge03b82dd+",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016853/shared/geometry-v3.geom",
+        "geometry_hash": "b1278526e744c07f027709d613dc77fe2f8c9f8b71c9cddf15af44a644c76201",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12753, 12757), (12735, 12751)],
+        "crystfel_version": "0.10.2-57-g101c5ca2+",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016853/shared/geometry-v3.geom",
+        "geometry_hash": "b1278526e744c07f027709d613dc77fe2f8c9f8b71c9cddf15af44a644c76201",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12758, 12777)],
+        "crystfel_version": "0.10.2-57-g187600a9+",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016853/shared/geometry-v3.geom",
+        "geometry_hash": "b1278526e744c07f027709d613dc77fe2f8c9f8b71c9cddf15af44a644c76201",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12793, 12844), (12785, 12791)],
+        "crystfel_version": "0.10.2-62-g50bb229a+",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016853/shared/geometry-v3.geom",
+        "geometry_hash": "b1278526e744c07f027709d613dc77fe2f8c9f8b71c9cddf15af44a644c76201",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12864, 12867)],
+        "crystfel_version": "0.10.2-242-g9838a9f",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016848/shared/geometry-v5.geom",
+        "geometry_hash": "6b915f65faee8480035c6d0c9e763a6243ec5f6516eb0c8bb1d9c66c40e04ec3",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry",
+    },
+    {
+        "run_ranges": [(12868, 12872)],
+        "crystfel_version": "0.10.2-242-g9838a9f",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016848/shared/geometry-v5.geom",
+        "geometry_hash": "6b915f65faee8480035c6d0c9e763a6243ec5f6516eb0c8bb1d9c66c40e04ec3",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(12943, 12970), (12873, 12940)],
+        "crystfel_version": "0.10.2-243-g50e7588",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016848/shared/geometry-v5.geom",
+        "geometry_hash": "6b915f65faee8480035c6d0c9e763a6243ec5f6516eb0c8bb1d9c66c40e04ec3",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(12971, 12999)],
+        "crystfel_version": "0.10.2-246-g048fea1",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016848/shared/geometry-v5.geom",
+        "geometry_hash": "6b915f65faee8480035c6d0c9e763a6243ec5f6516eb0c8bb1d9c66c40e04ec3",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(13000, 13057)],
+        "crystfel_version": "0.10.2-248-g1a0580e",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2023/data/11016848/shared/geometry-v5.geom",
+        "geometry_hash": "6b915f65faee8480035c6d0c9e763a6243ec5f6516eb0c8bb1d9c66c40e04ec3",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(13160, 13175), (13154, 13158)],
+        "crystfel_version": "0.10.2-302-g0007475",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2024/data/11017935/shared/geometry-v9.geom",
+        "geometry_hash": "a012bfa3dd2324dfbdc4b658f565f8107b1faf1f086cb355cf5b27eed69aaff9",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(13228, 13299), (13189, 13226), (13184, 13187), (13176, 13180)],
+        "crystfel_version": "0.10.2-305-g489a4fd",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2024/data/11017935/shared/geometry-v9.geom",
+        "geometry_hash": "a012bfa3dd2324dfbdc4b658f565f8107b1faf1f086cb355cf5b27eed69aaff9",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(13362, 13415), (13336, 13360)],
+        "crystfel_version": "0.11.0-187-ge95b575",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2024/data/11019260/shared/geometry-v3.geom",
+        "geometry_hash": "e7dbfbd862d157f6fabe925c33565f4cf2a1f6926e3f242d1ff1bf019184cb66",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(13330, 13333), (13307, 13324)],
+        "crystfel_version": "0.11.0",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2024/data/11019287/shared/geometry-v11.geom",
+        "geometry_hash": "cb7fb5a5e63c57bbfab9d7ec662696dced651e20698d1582bbd82b290602a107",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(13306, 13306)],
+        "crystfel_version": "0.11.0-172-gaecd2dc",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2024/data/11019287/shared/geometry-v11.geom",
+        "geometry_hash": "cb7fb5a5e63c57bbfab9d7ec662696dced651e20698d1582bbd82b290602a107",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(13325, 13326)],
+        "crystfel_version": "0.11.0-174-g58b495b",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2024/data/11019287/shared/geometry-v11.geom",
+        "geometry_hash": "cb7fb5a5e63c57bbfab9d7ec662696dced651e20698d1582bbd82b290602a107",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+    {
+        "run_ranges": [(13327, 13329)],
+        "crystfel_version": "0.11.0-175-g30d1a56",
+        "geometry_file": "/asap3/petra3/gpfs/p11/2024/data/11019287/shared/geometry-v11.geom",
+        "geometry_hash": "cb7fb5a5e63c57bbfab9d7ec662696dced651e20698d1582bbd82b290602a107",
+        "command_line": "--peaks=peakfinder8 --min-snr=5 --min-res=50 --threshold=4 --min-pix-count=2 --max-pix-count=50 --peakfinder8-fast --min-peaks=10 --local-bg-radius=3 --int-radius=4,5,7 --indexing=asdf --asdf-fast --no-retry --mille",
+    },
+]
+INDEXING_RESULTS_WITH_PARAMETERS = {
+    12550: {"images": 200000, "hits": 8337, "indexed": 195},
+    12537: {"images": 200000, "hits": 87348, "indexed": 2147},
+    12435: {"images": 169167, "hits": 28407, "indexed": 17176},
+    12511: {"images": 400000, "hits": 6687, "indexed": 1839},
+    12469: {"images": 93864, "hits": 8016, "indexed": 2053},
+    12488: {"images": 200000, "hits": 3952, "indexed": 1409},
+    12453: {"images": 166072, "hits": 4415, "indexed": 753},
+    12528: {"images": 126738, "hits": 51737, "indexed": 10360},
+    12507: {"images": 0, "hits": 0, "indexed": 0},
+    12472: {"images": 97857, "hits": 7516, "indexed": 1527},
+    12543: {"images": 200000, "hits": 747, "indexed": 0},
+    12481: {"images": 200000, "hits": 8571, "indexed": 2698},
+    12516: {"images": 280459, "hits": 2528, "indexed": 778},
+    12499: {"images": 200000, "hits": 46675, "indexed": 0},
+    12554: {"images": 96218, "hits": 14715, "indexed": 1538},
+    12480: {"images": 94480, "hits": 1434, "indexed": 543},
+    12452: {"images": 1061, "hits": 36, "indexed": 0},
+    12531: {"images": 44145, "hits": 2526, "indexed": 0},
+    12457: {"images": 166227, "hits": 2747, "indexed": 265},
+    12541: {"images": 200000, "hits": 4593, "indexed": 2833},
+    12525: {"images": 64331, "hits": 41037, "indexed": 12068},
+    12520: {"images": 176830, "hits": 2210, "indexed": 0},
+    12424: {"images": 4999, "hits": 2523, "indexed": 1263},
+    12526: {"images": 85343, "hits": 24996, "indexed": 10224},
+    12505: {"images": 200000, "hits": 5695, "indexed": 0},
+    12459: {"images": 0, "hits": 0, "indexed": 0},
+    12521: {"images": 1165, "hits": 265, "indexed": 0},
+    12455: {"images": 172160, "hits": 3452, "indexed": 387},
+    12451: {"images": 85603, "hits": 2638, "indexed": 572},
+    12534: {"images": 69816, "hits": 2910, "indexed": 0},
+    12556: {"images": 163258, "hits": 2846, "indexed": 53},
+    12471: {"images": 97009, "hits": 8283, "indexed": 1911},
+    12474: {"images": 23238, "hits": 4449, "indexed": 112},
+    12533: {"images": 133615, "hits": 3, "indexed": 0},
+    12434: {"images": 200000, "hits": 7111, "indexed": 3786},
+    12540: {"images": 181988, "hits": 24440, "indexed": 819},
+    12463: {"images": 38065, "hits": 4673, "indexed": 539},
+    12428: {"images": 0, "hits": 0, "indexed": 0},
+    12436: {"images": 5192, "hits": 194, "indexed": 108},
+    12432: {"images": 5000, "hits": 181, "indexed": 48},
+    12552: {"images": 200000, "hits": 4094, "indexed": 1751},
+    12449: {"images": 200000, "hits": 5250, "indexed": 1253},
+    12547: {"images": 199816, "hits": 872, "indexed": 0},
+    12502: {"images": 33403, "hits": 438, "indexed": 0},
+    12551: {"images": 151547, "hits": 3760, "indexed": 69},
+    12522: {"images": 977, "hits": 355, "indexed": 127},
+    12465: {"images": 49874, "hits": 2671, "indexed": 581},
+    12538: {"images": 200000, "hits": 189503, "indexed": 4545},
+    12536: {"images": 200000, "hits": 121266, "indexed": 3863},
+    12487: {"images": 200000, "hits": 4977, "indexed": 1736},
+    12482: {"images": 193982, "hits": 8269, "indexed": 2842},
+    12456: {"images": 165392, "hits": 2850, "indexed": 319},
+    12489: {"images": 200000, "hits": 4428, "indexed": 1602},
+    12486: {"images": 87223, "hits": 2227, "indexed": 155},
+    12447: {"images": 200000, "hits": 4746, "indexed": 1112},
+    12512: {"images": 400000, "hits": 5274, "indexed": 1668},
+    12509: {"images": 100000, "hits": 3145, "indexed": 270},
+    12460: {"images": 174982, "hits": 6344, "indexed": 1557},
+    12532: {"images": 65135, "hits": 0, "indexed": 0},
+    12450: {"images": 200000, "hits": 5039, "indexed": 1262},
+    12462: {"images": 9993, "hits": 3136, "indexed": 0},
+    12504: {"images": 200000, "hits": 2491, "indexed": 0},
+    12545: {"images": 51883, "hits": 13341, "indexed": 0},
+    12477: {"images": 96388, "hits": 3906, "indexed": 1700},
+    12454: {"images": 165230, "hits": 3293, "indexed": 694},
+    12503: {"images": 200000, "hits": 7009, "indexed": 0},
+    12514: {"images": 306666, "hits": 3305, "indexed": 1235},
+    12553: {"images": 107331, "hits": 2929, "indexed": 220},
+    12519: {"images": 200000, "hits": 732, "indexed": 0},
+    12496: {"images": 200000, "hits": 48568, "indexed": 0},
+    12437: {"images": 165889, "hits": 9862, "indexed": 2408},
+    12475: {"images": 94295, "hits": 6613, "indexed": 1432},
+    12530: {"images": 18273, "hits": 1165, "indexed": 0},
+    12510: {"images": 200000, "hits": 4976, "indexed": 944},
+    12479: {"images": 193653, "hits": 4751, "indexed": 1851},
+    12518: {"images": 258143, "hits": 408, "indexed": 197},
+    12429: {"images": 0, "hits": 0, "indexed": 0},
+    12517: {"images": 400000, "hits": 1279, "indexed": 687},
+    12508: {"images": 100000, "hits": 4109, "indexed": 79},
+    12535: {"images": 21752, "hits": 384, "indexed": 0},
+    12425: {"images": 5000, "hits": 2682, "indexed": 1262},
+    12542: {"images": 7414, "hits": 1615, "indexed": 0},
+    12500: {"images": 200000, "hits": 50243, "indexed": 0},
+    12473: {"images": 94404, "hits": 4154, "indexed": 1373},
+    12426: {"images": 5000, "hits": 2790, "indexed": 1337},
+    12431: {"images": 49561, "hits": 0, "indexed": 0},
+    12497: {"images": 200000, "hits": 47650, "indexed": 0},
+    12464: {"images": 50000, "hits": 1692, "indexed": 270},
+    12501: {"images": 200000, "hits": 52144, "indexed": 0},
+    12438: {"images": 169500, "hits": 10845, "indexed": 4212},
+    12430: {"images": 2000, "hits": 0, "indexed": 0},
+    12524: {"images": 132202, "hits": 48602, "indexed": 10607},
+    12478: {"images": 194384, "hits": 7053, "indexed": 2723},
+    12467: {"images": 50000, "hits": 4063, "indexed": 314},
+    12513: {"images": 400000, "hits": 3777, "indexed": 1357},
+    12448: {"images": 200000, "hits": 5048, "indexed": 1314},
+    12433: {"images": 178384, "hits": 29853, "indexed": 17999},
+    12506: {"images": 41344, "hits": 0, "indexed": 0},
+    12529: {"images": 177841, "hits": 13, "indexed": 0},
+    12498: {"images": 200000, "hits": 47703, "indexed": 0},
+    12476: {"images": 94060, "hits": 4213, "indexed": 2195},
+    12483: {"images": 197367, "hits": 23477, "indexed": 7866},
+    12466: {"images": 43708, "hits": 2328, "indexed": 577},
+    12527: {"images": 172639, "hits": 66868, "indexed": 10459},
+    12544: {"images": 184920, "hits": 4227, "indexed": 0},
+    12555: {"images": 68498, "hits": 5194, "indexed": 270},
+    12484: {"images": 200000, "hits": 20205, "indexed": 6412},
+    12468: {"images": 100000, "hits": 8429, "indexed": 1027},
+    12539: {"images": 200000, "hits": 171263, "indexed": 2653},
+    12458: {"images": 0, "hits": 0, "indexed": 0},
+    12548: {"images": 56041, "hits": 394, "indexed": 0},
+    12485: {"images": 423, "hits": 0, "indexed": 0},
+    12515: {"images": 400000, "hits": 3978, "indexed": 2463},
+    12523: {"images": 108932, "hits": 23650, "indexed": 11342},
+    12461: {"images": 1000, "hits": 57, "indexed": 23},
+    12546: {"images": 191557, "hits": 625, "indexed": 1},
+    12549: {"images": 200000, "hits": 8655, "indexed": 242},
+    12470: {"images": 93527, "hits": 8254, "indexed": 1951},
+    12561: {"images": 1000, "hits": 0, "indexed": 0},
+    12684: {"images": 200000, "hits": 8209, "indexed": 2445},
+    12594: {"images": 10000, "hits": 231, "indexed": 60},
+    12667: {"images": 100000, "hits": 14174, "indexed": 5197},
+    12683: {"images": 0, "hits": 0, "indexed": 0},
+    12647: {"images": 200000, "hits": 4867, "indexed": 125},
+    12595: {"images": 1456, "hits": 47, "indexed": 9},
+    12643: {"images": 95696, "hits": 29582, "indexed": 6477},
+    12601: {"images": 0, "hits": 0, "indexed": 0},
+    12642: {"images": 200000, "hits": 99890, "indexed": 16080},
+    12669: {"images": 200000, "hits": 28215, "indexed": 7149},
+    12629: {"images": 100000, "hits": 785, "indexed": 229},
+    12674: {"images": 200000, "hits": 17061, "indexed": 2888},
+    12671: {"images": 562, "hits": 36, "indexed": 1},
+    12634: {"images": 100000, "hits": 11235, "indexed": 4790},
+    12611: {"images": 2000, "hits": 0, "indexed": 0},
+    12597: {"images": 50000, "hits": 26204, "indexed": 10202},
+    12703: {"images": 171639, "hits": 15066, "indexed": 7527},
+    12705: {"images": 157614, "hits": 16803, "indexed": 10068},
+    12625: {"images": 17769, "hits": 1181, "indexed": 418},
+    12627: {"images": 100000, "hits": 1555, "indexed": 0},
+    12706: {"images": 145083, "hits": 55599, "indexed": 35660},
+    12632: {"images": 100000, "hits": 5857, "indexed": 1786},
+    12633: {"images": 100000, "hits": 11510, "indexed": 4097},
+    12624: {"images": 10000, "hits": 509, "indexed": 131},
+    12658: {"images": 10000, "hits": 0, "indexed": 0},
+    12606: {"images": 200000, "hits": 16873, "indexed": 2222},
+    12599: {"images": 50000, "hits": 11703, "indexed": 6790},
+    12607: {"images": 83093, "hits": 95, "indexed": 22},
+    12637: {"images": 100000, "hits": 95455, "indexed": 5068},
+    12688: {"images": 200000, "hits": 5291, "indexed": 882},
+    12641: {"images": 52136, "hits": 21165, "indexed": 3570},
+    12698: {"images": 0, "hits": 0, "indexed": 0},
+    12690: {"images": 200000, "hits": 2207, "indexed": 0},
+    12721: {"images": 79288, "hits": 10629, "indexed": 2983},
+    12628: {"images": 100000, "hits": 1034, "indexed": 372},
+    12619: {"images": 0, "hits": 0, "indexed": 0},
+    12720: {"images": 98436, "hits": 7255, "indexed": 153},
+    12673: {"images": 198670, "hits": 83861, "indexed": 4083},
+    12638: {"images": 5399, "hits": 5100, "indexed": 289},
+    12726: {"images": 11439, "hits": 667, "indexed": 11},
+    12596: {"images": 50000, "hits": 992, "indexed": 100},
+    12672: {"images": 8857, "hits": 514, "indexed": 29},
+    12711: {"images": 127098, "hits": 10912, "indexed": 4952},
+    12618: {"images": 0, "hits": 0, "indexed": 0},
+    12621: {"images": 170550, "hits": 22866, "indexed": 7815},
+    12614: {"images": 10000, "hits": 5625, "indexed": 1573},
+    12709: {"images": 104847, "hits": 15009, "indexed": 7039},
+    12710: {"images": 54294, "hits": 3464, "indexed": 1316},
+    12707: {"images": 10211, "hits": 162, "indexed": 86},
+    12598: {"images": 50000, "hits": 38971, "indexed": 12453},
+    12713: {"images": 200000, "hits": 11041, "indexed": 5876},
+    12635: {"images": 100000, "hits": 60523, "indexed": 10439},
+    12678: {"images": 178226, "hits": 170237, "indexed": 5545},
+    12693: {"images": 21440, "hits": 298, "indexed": 22},
+    12715: {"images": 200000, "hits": 60353, "indexed": 45316},
+    12592: {"images": 20000, "hits": 813, "indexed": 271},
+    12708: {"images": 119505, "hits": 18279, "indexed": 6932},
+    12676: {"images": 51156, "hits": 36515, "indexed": 2016},
+    12696: {"images": 200000, "hits": 7878, "indexed": 3344},
+    12666: {"images": 100000, "hits": 13999, "indexed": 4114},
+    12695: {"images": 53, "hits": 0, "indexed": 0},
+    12593: {"images": 1395, "hits": 50, "indexed": 15},
+    12662: {"images": 100000, "hits": 3162, "indexed": 955},
+    12718: {"images": 8723, "hits": 0, "indexed": 0},
+    12664: {"images": 100000, "hits": 1862, "indexed": 629},
+    12660: {"images": 10000, "hits": 53, "indexed": 0},
+    12716: {"images": 200000, "hits": 11971, "indexed": 7},
+    12649: {"images": 200000, "hits": 106, "indexed": 7},
+    12605: {"images": 98500, "hits": 8107, "indexed": 1263},
+    12699: {"images": 32124, "hits": 300, "indexed": 1},
+    12712: {"images": 72919, "hits": 3896, "indexed": 0},
+    12680: {"images": 105941, "hits": 74314, "indexed": 6402},
+    12665: {"images": 100000, "hits": 3779, "indexed": 1321},
+    12608: {"images": 172912, "hits": 41930, "indexed": 16860},
+    12689: {"images": 10000, "hits": 197, "indexed": 63},
+    12687: {"images": 200000, "hits": 14686, "indexed": 2199},
+    12714: {"images": 63892, "hits": 7233, "indexed": 4398},
+    12620: {"images": 0, "hits": 0, "indexed": 0},
+    12604: {"images": 20000, "hits": 1609, "indexed": 316},
+    12626: {"images": 100000, "hits": 454, "indexed": 125},
+    12700: {"images": 0, "hits": 0, "indexed": 0},
+    12702: {"images": 200000, "hits": 36086, "indexed": 11719},
+    12612: {"images": 2000, "hits": 53, "indexed": 7},
+    12591: {"images": 5000, "hits": 255, "indexed": 97},
+    12639: {"images": 100000, "hits": 97402, "indexed": 8214},
+    12617: {"images": 26078, "hits": 923, "indexed": 304},
+    12659: {"images": 10000, "hits": 1, "indexed": 0},
+    12675: {"images": 132779, "hits": 109849, "indexed": 2050},
+    12600: {"images": 50000, "hits": 41060, "indexed": 12247},
+    12645: {"images": 200000, "hits": 289, "indexed": 1},
+    12717: {"images": 68082, "hits": 189, "indexed": 8},
+    12651: {"images": 0, "hits": 0, "indexed": 0},
+    12630: {"images": 100000, "hits": 25342, "indexed": 7107},
+    12692: {"images": 8636, "hits": 13, "indexed": 5},
+    12681: {"images": 30186, "hits": 4129, "indexed": 745},
+    12602: {"images": 10000, "hits": 3983, "indexed": 1694},
+    12631: {"images": 100000, "hits": 30561, "indexed": 7419},
+    12623: {"images": 50000, "hits": 27018, "indexed": 7303},
+    12677: {"images": 81505, "hits": 74175, "indexed": 5676},
+    12644: {"images": 200000, "hits": 13574, "indexed": 4693},
+    12691: {"images": 26290, "hits": 201, "indexed": 20},
+    12682: {"images": 85197, "hits": 11511, "indexed": 3414},
+    12722: {"images": 147359, "hits": 9204, "indexed": 1115},
+    12725: {"images": 113132, "hits": 56741, "indexed": 20978},
+    12646: {"images": 119033, "hits": 12, "indexed": 0},
+    12719: {"images": 82138, "hits": 2619, "indexed": 627},
+    12603: {"images": 0, "hits": 0, "indexed": 0},
+    12679: {"images": 83018, "hits": 79505, "indexed": 5250},
+    12686: {"images": 197677, "hits": 15532, "indexed": 1824},
+    12701: {"images": 156243, "hits": 586, "indexed": 32},
+    12670: {"images": 129338, "hits": 12373, "indexed": 3802},
+    12622: {"images": 18073, "hits": 1457, "indexed": 504},
+    12694: {"images": 482, "hits": 0, "indexed": 0},
+    12704: {"images": 110285, "hits": 5779, "indexed": 3180},
+    12615: {"images": 200000, "hits": 54371, "indexed": 18165},
+    12724: {"images": 191223, "hits": 39834, "indexed": 12478},
+    12661: {"images": 10000, "hits": 58, "indexed": 35},
+    12668: {"images": 100000, "hits": 11942, "indexed": 4222},
+    12640: {"images": 100000, "hits": 89378, "indexed": 7182},
+    12648: {"images": 200000, "hits": 4712, "indexed": 5},
+    12650: {"images": 0, "hits": 0, "indexed": 0},
+    12613: {"images": 2000, "hits": 384, "indexed": 160},
+    12663: {"images": 100000, "hits": 2890, "indexed": 776},
+    12616: {"images": 38056, "hits": 3045, "indexed": 1178},
+    12636: {"images": 100000, "hits": 91045, "indexed": 7267},
+    12652: {"images": 1246, "hits": 382, "indexed": 208},
+    12723: {"images": 200000, "hits": 27884, "indexed": 10875},
+    12685: {"images": 100000, "hits": 5426, "indexed": 587},
+    12831: {"images": 200000, "hits": 45477, "indexed": 11274},
+    12814: {"images": 200000, "hits": 69728, "indexed": 16268},
+    12830: {"images": 200000, "hits": 13121, "indexed": 4182},
+    12738: {"images": 1, "hits": 0, "indexed": 0},
+    12768: {"images": 200000, "hits": 5352, "indexed": 445},
+    12816: {"images": 200000, "hits": 18069, "indexed": 2246},
+    12821: {"images": 72604, "hits": 36998, "indexed": 5119},
+    12803: {"images": 200000, "hits": 36852, "indexed": 3286},
+    12764: {"images": 49135, "hits": 7613, "indexed": 522},
+    12818: {"images": 23281, "hits": 3308, "indexed": 472},
+    12788: {"images": 30165, "hits": 23257, "indexed": 390},
+    12796: {"images": 1, "hits": 0, "indexed": 0},
+    12744: {"images": 2000, "hits": 0, "indexed": 0},
+    12804: {"images": 106103, "hits": 68612, "indexed": 6243},
+    12750: {"images": 2000, "hits": 1, "indexed": 0},
+    12739: {"images": 1, "hits": 0, "indexed": 0},
+    12785: {"images": 200000, "hits": 17106, "indexed": 8629},
+    12753: {"images": 5000, "hits": 533, "indexed": 7},
+    12757: {"images": 45465, "hits": 3773, "indexed": 89},
+    12743: {"images": 2000, "hits": 1687, "indexed": 0},
+    12762: {"images": 100000, "hits": 17450, "indexed": 1065},
+    12765: {"images": 199999, "hits": 25912, "indexed": 1786},
+    12799: {"images": 150331, "hits": 630, "indexed": 0},
+    12790: {"images": 0, "hits": 0, "indexed": 0},
+    12801: {"images": 13134, "hits": 12620, "indexed": 1031},
+    12805: {"images": 200000, "hits": 113124, "indexed": 1743},
+    12775: {"images": 200000, "hits": 22711, "indexed": 3293},
+    12770: {"images": 200000, "hits": 5236, "indexed": 444},
+    12835: {"images": 1822, "hits": 32, "indexed": 0},
+    12837: {"images": 200000, "hits": 24266, "indexed": 1373},
+    12759: {"images": 200000, "hits": 17570, "indexed": 796},
+    12820: {"images": 6389, "hits": 55, "indexed": 1},
+    12791: {"images": 0, "hits": 0, "indexed": 0},
+    12761: {"images": 200000, "hits": 35723, "indexed": 2606},
+    12802: {"images": 157613, "hits": 156025, "indexed": 9625},
+    12819: {"images": 98050, "hits": 16941, "indexed": 6373},
+    12773: {"images": 0, "hits": 0, "indexed": 0},
+    12755: {"images": 200000, "hits": 19676, "indexed": 459},
+    12745: {"images": 2000, "hits": 0, "indexed": 0},
+    12797: {"images": 402, "hits": 9, "indexed": 0},
+    12825: {"images": 200000, "hits": 41408, "indexed": 7009},
+    12840: {"images": 200000, "hits": 9228, "indexed": 640},
+    12737: {"images": 2000, "hits": 0, "indexed": 0},
+    12749: {"images": 2000, "hits": 10, "indexed": 0},
+    12823: {"images": 35862, "hits": 28423, "indexed": 6501},
+    12772: {"images": 2345, "hits": 0, "indexed": 0},
+    12843: {"images": 400000, "hits": 190912, "indexed": 5900},
+    12813: {"images": 40553, "hits": 12051, "indexed": 5371},
+    12742: {"images": 2000, "hits": 1538, "indexed": 0},
+    12842: {"images": 173162, "hits": 66542, "indexed": 1071},
+    12729: {"images": 0, "hits": 0, "indexed": 0},
+    12809: {"images": 200000, "hits": 67203, "indexed": 1766},
+    12748: {"images": 2000, "hits": 3, "indexed": 0},
+    12771: {"images": 200000, "hits": 6120, "indexed": 151},
+    12793: {"images": 1, "hits": 0, "indexed": 0},
+    12811: {"images": 61900, "hits": 2301, "indexed": 0},
+    12741: {"images": 1, "hits": 1, "indexed": 0},
+    12746: {"images": 2000, "hits": 0, "indexed": 0},
+    12807: {"images": 96310, "hits": 225, "indexed": 30},
+    12786: {"images": 197956, "hits": 11825, "indexed": 2757},
+    12827: {"images": 200000, "hits": 18128, "indexed": 1123},
+    12795: {"images": 1, "hits": 0, "indexed": 0},
+    12754: {"images": 21442, "hits": 2279, "indexed": 36},
+    12812: {"images": 43475, "hits": 508, "indexed": 0},
+    12836: {"images": 20397, "hits": 458, "indexed": 1},
+    12834: {"images": 100785, "hits": 2874, "indexed": 0},
+    12763: {"images": 100000, "hits": 18973, "indexed": 1620},
+    12756: {"images": 200000, "hits": 14070, "indexed": 240},
+    12806: {"images": 127463, "hits": 21294, "indexed": 375},
+    12822: {"images": 46562, "hits": 33283, "indexed": 6868},
+    12766: {"images": 39972, "hits": 5523, "indexed": 419},
+    12733: {"images": 414, "hits": 0, "indexed": 0},
+    12767: {"images": 36026, "hits": 1250, "indexed": 0},
+    12844: {"images": 51837, "hits": 5551, "indexed": 598},
+    12758: {"images": 116779, "hits": 8948, "indexed": 268},
+    12839: {"images": 44669, "hits": 620, "indexed": 89},
+    12787: {"images": 199999, "hits": 117139, "indexed": 2589},
+    12828: {"images": 2988, "hits": 163, "indexed": 21},
+    12730: {"images": 0, "hits": 0, "indexed": 0},
+    12798: {"images": 27075, "hits": 3328, "indexed": 234},
+    12824: {"images": 61378, "hits": 38041, "indexed": 14053},
+    12789: {"images": 151474, "hits": 8603, "indexed": 677},
+    12732: {"images": 0, "hits": 0, "indexed": 0},
+    12751: {"images": 2000, "hits": 2, "indexed": 0},
+    12747: {"images": 2000, "hits": 0, "indexed": 0},
+    12734: {"images": 388, "hits": 0, "indexed": 0},
+    12838: {"images": 200000, "hits": 184935, "indexed": 4837},
+    12829: {"images": 199999, "hits": 16116, "indexed": 4818},
+    12826: {"images": 200000, "hits": 40149, "indexed": 8211},
+    12833: {"images": 200000, "hits": 22226, "indexed": 999},
+    12740: {"images": 1, "hits": 1, "indexed": 0},
+    12800: {"images": 113849, "hits": 74969, "indexed": 9750},
+    12817: {"images": 129175, "hits": 32159, "indexed": 4260},
+    12841: {"images": 61771, "hits": 4430, "indexed": 132},
+    12774: {"images": 93507, "hits": 10551, "indexed": 1463},
+    12735: {"images": 1569, "hits": 0, "indexed": 0},
+    12794: {"images": 1, "hits": 0, "indexed": 0},
+    12808: {"images": 138925, "hits": 2115, "indexed": 565},
+    12760: {"images": 76989, "hits": 10151, "indexed": 845},
+    12776: {"images": 200000, "hits": 22032, "indexed": 3110},
+    12777: {"images": 27262, "hits": 7685, "indexed": 1022},
+    12815: {"images": 200000, "hits": 60317, "indexed": 14322},
+    12769: {"images": 200000, "hits": 7658, "indexed": 906},
+    12810: {"images": 200000, "hits": 15633, "indexed": 791},
+    12832: {"images": 200000, "hits": 17696, "indexed": 1026},
+    12736: {"images": 2000, "hits": 0, "indexed": 0},
+    12731: {"images": 0, "hits": 0, "indexed": 0},
+    12955: {"images": 60182, "hits": 23439, "indexed": 3923},
+    12875: {"images": 10000, "hits": 1866, "indexed": 255},
+    12938: {"images": 100000, "hits": 1974, "indexed": 5},
+    12954: {"images": 100000, "hits": 37921, "indexed": 6186},
+    13002: {"images": 199999, "hits": 133150, "indexed": 5150},
+    13023: {"images": 200000, "hits": 80953, "indexed": 7325},
+    13041: {"images": 199998, "hits": 50052, "indexed": 6480},
+    12886: {"images": 5000, "hits": 403, "indexed": 96},
+    13012: {"images": 199999, "hits": 97510, "indexed": 10809},
+    13022: {"images": 200000, "hits": 93383, "indexed": 7342},
+    12940: {"images": 100000, "hits": 10492, "indexed": 23},
+    12945: {"images": 18995, "hits": 3535, "indexed": 516},
+    12927: {"images": 100000, "hits": 98204, "indexed": 2256},
+    13009: {"images": 199998, "hits": 143986, "indexed": 4231},
+    12896: {"images": 10000, "hits": 2958, "indexed": 1020},
+    12880: {"images": 10000, "hits": 5556, "indexed": 589},
+    13018: {"images": 96937, "hits": 65316, "indexed": 23070},
+    13016: {"images": 21326, "hits": 7126, "indexed": 3592},
+    13036: {"images": 199998, "hits": 28068, "indexed": 2812},
+    12920: {"images": 7411, "hits": 5496, "indexed": 1124},
+    12974: {"images": 920, "hits": 1, "indexed": 0},
+    12928: {"images": 99999, "hits": 12023, "indexed": 4254},
+    12976: {"images": 53605, "hits": 0, "indexed": 0},
+    12893: {"images": 5000, "hits": 1154, "indexed": 245},
+    12870: {"images": 10000, "hits": 102, "indexed": 35},
+    13014: {"images": 74571, "hits": 5591, "indexed": 2120},
+    12882: {"images": 5000, "hits": 1884, "indexed": 608},
+    12905: {"images": 6564, "hits": 142, "indexed": 108},
+    12977: {"images": 336, "hits": 0, "indexed": 0},
+    13020: {"images": 42876, "hits": 16370, "indexed": 2073},
+    12900: {"images": 10000, "hits": 5879, "indexed": 910},
+    12923: {"images": 100000, "hits": 36468, "indexed": 5701},
+    13003: {"images": 47099, "hits": 31229, "indexed": 1092},
+    12872: {"images": 10000, "hits": 73, "indexed": 12},
+    13030: {"images": 92628, "hits": 16215, "indexed": 3133},
+    13006: {"images": 199990, "hits": 61043, "indexed": 3151},
+    12925: {"images": 100000, "hits": 48713, "indexed": 6082},
+    13050: {"images": 3391, "hits": 20, "indexed": 3},
+    12879: {"images": 5000, "hits": 2807, "indexed": 223},
+    12929: {"images": 99999, "hits": 26402, "indexed": 3544},
+    12888: {"images": 5000, "hits": 498, "indexed": 105},
+    13048: {"images": 140589, "hits": 1347, "indexed": 324},
+    12959: {"images": 80994, "hits": 28326, "indexed": 4293},
+    12884: {"images": 5000, "hits": 2543, "indexed": 584},
+    12969: {"images": 100000, "hits": 939, "indexed": 160},
+    12961: {"images": 784, "hits": 176, "indexed": 16},
+    12894: {"images": 10000, "hits": 7571, "indexed": 1492},
+    12992: {"images": 199998, "hits": 301, "indexed": 130},
+    12911: {"images": 100000, "hits": 70437, "indexed": 24965},
+    13029: {"images": 199996, "hits": 44409, "indexed": 7242},
+    12914: {"images": 16066, "hits": 6888, "indexed": 2303},
+    12991: {"images": 199998, "hits": 90, "indexed": 26},
+    12944: {"images": 11302, "hits": 2516, "indexed": 299},
+    13034: {"images": 199999, "hits": 9088, "indexed": 1779},
+    13021: {"images": 199997, "hits": 71471, "indexed": 7605},
+    13011: {"images": 199998, "hits": 171292, "indexed": 5456},
+    12997: {"images": 199991, "hits": 77979, "indexed": 6703},
+    12916: {"images": 1042, "hits": 0, "indexed": 0},
+    12926: {"images": 100000, "hits": 18411, "indexed": 5798},
+    12998: {"images": 199999, "hits": 101392, "indexed": 8877},
+    12943: {"images": 76896, "hits": 1207, "indexed": 162},
+    12982: {"images": 100000, "hits": 245, "indexed": 148},
+    13000: {"images": 199999, "hits": 132859, "indexed": 5527},
+    13027: {"images": 199997, "hits": 26317, "indexed": 5376},
+    12885: {"images": 5000, "hits": 220, "indexed": 83},
+    12866: {"images": 10000, "hits": 18, "indexed": 11},
+    12878: {"images": 5000, "hits": 4498, "indexed": 169},
+    12980: {"images": 100000, "hits": 136, "indexed": 66},
+    12906: {"images": 100000, "hits": 10163, "indexed": 4795},
+    12981: {"images": 99999, "hits": 75, "indexed": 29},
+    12978: {"images": 492, "hits": 0, "indexed": 0},
+    12984: {"images": 99999, "hits": 165, "indexed": 96},
+    12921: {"images": 100000, "hits": 60981, "indexed": 6302},
+    12949: {"images": 20152, "hits": 3296, "indexed": 582},
+    12964: {"images": 100000, "hits": 26741, "indexed": 3494},
+    12881: {"images": 5000, "hits": 2015, "indexed": 258},
+    12986: {"images": 199996, "hits": 272, "indexed": 130},
+    12979: {"images": 99998, "hits": 80, "indexed": 44},
+    12903: {"images": 10000, "hits": 142, "indexed": 44},
+    12947: {"images": 81691, "hits": 13167, "indexed": 2051},
+    13054: {"images": 399995, "hits": 98126, "indexed": 5852},
+    12967: {"images": 100000, "hits": 5199, "indexed": 807},
+    12937: {"images": 5663, "hits": 0, "indexed": 0},
+    12966: {"images": 29502, "hits": 590, "indexed": 75},
+    13037: {"images": 199994, "hits": 24967, "indexed": 4248},
+    13015: {"images": 200000, "hits": 64793, "indexed": 28966},
+    13026: {"images": 177958, "hits": 61224, "indexed": 8038},
+    12933: {"images": 100000, "hits": 53389, "indexed": 14414},
+    13008: {"images": 199999, "hits": 140628, "indexed": 4751},
+    12989: {"images": 199992, "hits": 113, "indexed": 22},
+    12917: {"images": 100000, "hits": 80388, "indexed": 14150},
+    12935: {"images": 8233, "hits": 92, "indexed": 0},
+    13056: {"images": 400000, "hits": 21126, "indexed": 3038},
+    12902: {"images": 10000, "hits": 429, "indexed": 156},
+    13057: {"images": 287073, "hits": 155143, "indexed": 36483},
+    12999: {"images": 199998, "hits": 127075, "indexed": 6235},
+    12931: {"images": 90079, "hits": 60264, "indexed": 12442},
+    12987: {"images": 199997, "hits": 239, "indexed": 105},
+    13032: {"images": 200000, "hits": 23835, "indexed": 2111},
+    12970: {"images": 38321, "hits": 3, "indexed": 0},
+    12983: {"images": 99996, "hits": 313, "indexed": 179},
+    12908: {"images": 100000, "hits": 29114, "indexed": 9926},
+    12951: {"images": 90673, "hits": 23628, "indexed": 3632},
+    12919: {"images": 100000, "hits": 87315, "indexed": 9448},
+    13019: {"images": 2726, "hits": 288, "indexed": 46},
+    13040: {"images": 199999, "hits": 58169, "indexed": 11174},
+    12936: {"images": 0, "hits": 0, "indexed": 0},
+    12904: {"images": 13531, "hits": 781, "indexed": 634},
+    12960: {"images": 935, "hits": 415, "indexed": 83},
+    13007: {"images": 200000, "hits": 63034, "indexed": 2773},
+    12958: {"images": 100000, "hits": 22859, "indexed": 2911},
+    12985: {"images": 99999, "hits": 147, "indexed": 86},
+    12912: {"images": 100000, "hits": 31811, "indexed": 8569},
+    12877: {"images": 36713, "hits": 15935, "indexed": 1745},
+    12971: {"images": 7447, "hits": 0, "indexed": 0},
+    13052: {"images": 42535, "hits": 324, "indexed": 40},
+    12973: {"images": 2808, "hits": 0, "indexed": 0},
+    12897: {"images": 20000, "hits": 4120, "indexed": 1539},
+    12868: {"images": 10000, "hits": 26, "indexed": 4},
+    13017: {"images": 10364, "hits": 8386, "indexed": 2608},
+    12865: {"images": 10000, "hits": 25, "indexed": 19},
+    12895: {"images": 10000, "hits": 3976, "indexed": 1061},
+    12930: {"images": 89754, "hits": 28616, "indexed": 12229},
+    12946: {"images": 100000, "hits": 18351, "indexed": 3152},
+    13044: {"images": 200000, "hits": 13339, "indexed": 5087},
+    13053: {"images": 400000, "hits": 140323, "indexed": 6571},
+    12876: {"images": 10000, "hits": 1388, "indexed": 219},
+    12968: {"images": 48092, "hits": 729, "indexed": 115},
+    12901: {"images": 10000, "hits": 36, "indexed": 22},
+    12988: {"images": 199998, "hits": 263, "indexed": 85},
+    13033: {"images": 200000, "hits": 24826, "indexed": 3371},
+    12963: {"images": 66486, "hits": 20634, "indexed": 2835},
+    12910: {"images": 14980, "hits": 10482, "indexed": 4777},
+    13001: {"images": 199997, "hits": 135193, "indexed": 5599},
+    12952: {"images": 100000, "hits": 19340, "indexed": 2831},
+    12909: {"images": 63000, "hits": 19389, "indexed": 4815},
+    12869: {"images": 10000, "hits": 175, "indexed": 25},
+    12922: {"images": 74518, "hits": 38437, "indexed": 6998},
+    12948: {"images": 100000, "hits": 14825, "indexed": 2524},
+    12874: {"images": 10000, "hits": 313, "indexed": 73},
+    13035: {"images": 200000, "hits": 11586, "indexed": 2149},
+    12873: {"images": 10000, "hits": 83, "indexed": 39},
+    13043: {"images": 199998, "hits": 8202, "indexed": 2343},
+    12891: {"images": 5000, "hits": 3211, "indexed": 491},
+    12899: {"images": 10000, "hits": 2541, "indexed": 630},
+    13049: {"images": 1358, "hits": 6, "indexed": 0},
+    12871: {"images": 10000, "hits": 0, "indexed": 0},
+    12962: {"images": 100000, "hits": 37471, "indexed": 5854},
+    13055: {"images": 399993, "hits": 120107, "indexed": 7245},
+    12953: {"images": 82744, "hits": 26573, "indexed": 4508},
+    12993: {"images": 145831, "hits": 6, "indexed": 0},
+    12996: {"images": 29829, "hits": 16326, "indexed": 0},
+    12907: {"images": 100000, "hits": 26414, "indexed": 9840},
+    12990: {"images": 199999, "hits": 118, "indexed": 33},
+    12950: {"images": 100000, "hits": 19920, "indexed": 3113},
+    13024: {"images": 199997, "hits": 114286, "indexed": 18975},
+    13051: {"images": 8611, "hits": 35, "indexed": 14},
+    13039: {"images": 76728, "hits": 5419, "indexed": 1164},
+    12957: {"images": 34119, "hits": 12314, "indexed": 1511},
+    12972: {"images": 4137, "hits": 0, "indexed": 0},
+    12924: {"images": 100000, "hits": 64230, "indexed": 3869},
+    13005: {"images": 200000, "hits": 126351, "indexed": 5111},
+    12915: {"images": 39788, "hits": 15610, "indexed": 2721},
+    12889: {"images": 5000, "hits": 697, "indexed": 286},
+    12898: {"images": 5000, "hits": 515, "indexed": 280},
+    12965: {"images": 100000, "hits": 43863, "indexed": 7710},
+    12887: {"images": 5000, "hits": 249, "indexed": 52},
+    13025: {"images": 150634, "hits": 64042, "indexed": 8313},
+    12975: {"images": 789, "hits": 0, "indexed": 0},
+    13028: {"images": 200000, "hits": 66324, "indexed": 9219},
+    12867: {"images": 10000, "hits": 33, "indexed": 23},
+    13004: {"images": 199993, "hits": 134859, "indexed": 5178},
+    12995: {"images": 4914, "hits": 0, "indexed": 0},
+    12918: {"images": 100000, "hits": 82612, "indexed": 15132},
+    13013: {"images": 200000, "hits": 82435, "indexed": 10432},
+    13046: {"images": 15234, "hits": 2562, "indexed": 729},
+    13042: {"images": 199998, "hits": 20694, "indexed": 1130},
+    12932: {"images": 45145, "hits": 12014, "indexed": 5026},
+    13047: {"images": 25433, "hits": 148, "indexed": 30},
+    13038: {"images": 200000, "hits": 16167, "indexed": 2856},
+    12939: {"images": 30503, "hits": 2837, "indexed": 1},
+    13031: {"images": 199996, "hits": 25957, "indexed": 4639},
+    12864: {"images": 0, "hits": 0, "indexed": 0},
+    12913: {"images": 100000, "hits": 46183, "indexed": 16352},
+    12934: {"images": 100000, "hits": 2055, "indexed": 0},
+    12994: {"images": 26753, "hits": 0, "indexed": 0},
+    12956: {"images": 100000, "hits": 65809, "indexed": 7872},
+    12892: {"images": 5000, "hits": 1519, "indexed": 344},
+    13045: {"images": 199999, "hits": 14773, "indexed": 4798},
+    12883: {"images": 5000, "hits": 1731, "indexed": 338},
+    12890: {"images": 5000, "hits": 4266, "indexed": 864},
+    13010: {"images": 199999, "hits": 160381, "indexed": 4706},
+    13272: {"images": 127, "hits": 4, "indexed": 0},
+    13174: {"images": 50000, "hits": 17337, "indexed": 2139},
+    13208: {"images": 100000, "hits": 66279, "indexed": 2695},
+    13255: {"images": 50000, "hits": 31659, "indexed": 1458},
+    13266: {"images": 100000, "hits": 1350, "indexed": 545},
+    13224: {"images": 100000, "hits": 395, "indexed": 0},
+    13231: {"images": 100000, "hits": 64751, "indexed": 8118},
+    13295: {"images": 11049, "hits": 637, "indexed": 0},
+    13226: {"images": 100000, "hits": 3296, "indexed": 0},
+    13281: {"images": 99998, "hits": 1300, "indexed": 326},
+    13268: {"images": 100000, "hits": 1244, "indexed": 454},
+    13196: {"images": 61851, "hits": 45668, "indexed": 1707},
+    13293: {"images": 99996, "hits": 114, "indexed": 50},
+    13194: {"images": 100000, "hits": 24552, "indexed": 1340},
+    13232: {"images": 100000, "hits": 52937, "indexed": 7426},
+    13235: {"images": 100000, "hits": 58620, "indexed": 16014},
+    13178: {"images": 10000, "hits": 1610, "indexed": 293},
+    13290: {"images": 67948, "hits": 11650, "indexed": 1582},
+    13240: {"images": 100000, "hits": 49638, "indexed": 15111},
+    13284: {"images": 87639, "hits": 0, "indexed": 0},
+    13236: {"images": 67216, "hits": 32020, "indexed": 10672},
+    13161: {"images": 10000, "hits": 2091, "indexed": 3},
+    13261: {"images": 100000, "hits": 348, "indexed": 109},
+    13239: {"images": 100000, "hits": 31183, "indexed": 10724},
+    13285: {"images": 4584, "hits": 0, "indexed": 0},
+    13207: {"images": 100000, "hits": 69047, "indexed": 2679},
+    13267: {"images": 100000, "hits": 668, "indexed": 280},
+    13191: {"images": 100000, "hits": 32631, "indexed": 3115},
+    13162: {"images": 10000, "hits": 1711, "indexed": 52},
+    13175: {"images": 49840, "hits": 12509, "indexed": 1134},
+    13250: {"images": 50000, "hits": 39366, "indexed": 2161},
+    13265: {"images": 100000, "hits": 1972, "indexed": 735},
+    13210: {"images": 99999, "hits": 71686, "indexed": 2677},
+    13242: {"images": 11142, "hits": 3886, "indexed": 1617},
+    13214: {"images": 6528, "hits": 885, "indexed": 46},
+    13201: {"images": 100000, "hits": 43314, "indexed": 2229},
+    13238: {"images": 100000, "hits": 61152, "indexed": 18784},
+    13249: {"images": 50000, "hits": 43240, "indexed": 2077},
+    13246: {"images": 50000, "hits": 38579, "indexed": 2303},
+    13279: {"images": 57200, "hits": 3056, "indexed": 461},
+    13205: {"images": 99993, "hits": 50398, "indexed": 2263},
+    13215: {"images": 100000, "hits": 71299, "indexed": 2470},
+    13186: {"images": 69477, "hits": 2332, "indexed": 567},
+    13291: {"images": 41897, "hits": 9646, "indexed": 2667},
+    13270: {"images": 19171, "hits": 3991, "indexed": 147},
+    13195: {"images": 78244, "hits": 17500, "indexed": 762},
+    13216: {"images": 99998, "hits": 69330, "indexed": 2569},
+    13225: {"images": 99999, "hits": 136, "indexed": 0},
+    13287: {"images": 16318, "hits": 517, "indexed": 0},
+    13275: {"images": 49505, "hits": 5276, "indexed": 1051},
+    13262: {"images": 100000, "hits": 323, "indexed": 86},
+    13190: {"images": 100000, "hits": 48844, "indexed": 4433},
+    13254: {"images": 50000, "hits": 40134, "indexed": 1657},
+    13251: {"images": 50000, "hits": 40323, "indexed": 2187},
+    13243: {"images": 100000, "hits": 8091, "indexed": 2417},
+    13172: {"images": 50000, "hits": 28965, "indexed": 1915},
+    13294: {"images": 99996, "hits": 710, "indexed": 277},
+    13177: {"images": 4866, "hits": 341, "indexed": 79},
+    13167: {"images": 10000, "hits": 1935, "indexed": 39},
+    13219: {"images": 100000, "hits": 521, "indexed": 0},
+    13280: {"images": 199993, "hits": 9524, "indexed": 1389},
+    13233: {"images": 100000, "hits": 61697, "indexed": 5477},
+    13277: {"images": 1243, "hits": 22, "indexed": 0},
+    13155: {"images": 9860, "hits": 309, "indexed": 24},
+    13271: {"images": 93355, "hits": 12173, "indexed": 3673},
+    13163: {"images": 10000, "hits": 1874, "indexed": 69},
+    13222: {"images": 100000, "hits": 69, "indexed": 0},
+    13221: {"images": 100000, "hits": 6, "indexed": 0},
+    13212: {"images": 99999, "hits": 80806, "indexed": 2554},
+    13185: {"images": 100000, "hits": 4862, "indexed": 911},
+    13259: {"images": 100000, "hits": 453, "indexed": 155},
+    13245: {"images": 10000, "hits": 8657, "indexed": 667},
+    13244: {"images": 74971, "hits": 64004, "indexed": 4584},
+    13296: {"images": 4161, "hits": 399, "indexed": 0},
+    13211: {"images": 99999, "hits": 82075, "indexed": 2605},
+    13173: {"images": 0, "hits": 0, "indexed": 0},
+    13156: {"images": 9739, "hits": 968, "indexed": 50},
+    13187: {"images": 18783, "hits": 0, "indexed": 0},
+    13282: {"images": 99998, "hits": 2145, "indexed": 233},
+    13217: {"images": 100000, "hits": 71028, "indexed": 2798},
+    13184: {"images": 99998, "hits": 16064, "indexed": 3600},
+    13203: {"images": 100000, "hits": 36182, "indexed": 1794},
+    13269: {"images": 99997, "hits": 5761, "indexed": 2271},
+    13257: {"images": 100000, "hits": 1422, "indexed": 442},
+    13292: {"images": 99996, "hits": 100, "indexed": 48},
+    13180: {"images": 10000, "hits": 3512, "indexed": 327},
+    13223: {"images": 100000, "hits": 435, "indexed": 0},
+    13253: {"images": 50000, "hits": 36016, "indexed": 1383},
+    13197: {"images": 84624, "hits": 46698, "indexed": 2841},
+    13278: {"images": 199995, "hits": 14409, "indexed": 1942},
+    13165: {"images": 10000, "hits": 1076, "indexed": 147},
+    13241: {"images": 100000, "hits": 71379, "indexed": 19280},
+    13298: {"images": 8190, "hits": 0, "indexed": 0},
+    13209: {"images": 2028, "hits": 920, "indexed": 31},
+    13283: {"images": 97657, "hits": 15171, "indexed": 2883},
+    13299: {"images": 12795, "hits": 4, "indexed": 0},
+    13276: {"images": 163124, "hits": 17643, "indexed": 3060},
+    13256: {"images": 19438, "hits": 5050, "indexed": 1327},
+    13237: {"images": 36866, "hits": 21787, "indexed": 6701},
+    13199: {"images": 9879, "hits": 2779, "indexed": 122},
+    13204: {"images": 100000, "hits": 47100, "indexed": 2021},
+    13229: {"images": 46104, "hits": 22833, "indexed": 1724},
+    13168: {"images": 49998, "hits": 14903, "indexed": 600},
+    13234: {"images": 100000, "hits": 65141, "indexed": 6799},
+    13202: {"images": 100000, "hits": 40417, "indexed": 2244},
+    13264: {"images": 99999, "hits": 129, "indexed": 23},
+    13193: {"images": 100000, "hits": 31817, "indexed": 2757},
+    13248: {"images": 50000, "hits": 40626, "indexed": 2751},
+    13192: {"images": 100000, "hits": 27323, "indexed": 2660},
+    13179: {"images": 10000, "hits": 2760, "indexed": 433},
+    13170: {"images": 50000, "hits": 19777, "indexed": 83},
+    13160: {"images": 9919, "hits": 2346, "indexed": 25},
+    13176: {"images": 10000, "hits": 322, "indexed": 54},
+    13258: {"images": 100000, "hits": 846, "indexed": 270},
+    13169: {"images": 50000, "hits": 14608, "indexed": 1445},
+    13286: {"images": 99999, "hits": 988, "indexed": 0},
+    13297: {"images": 2698, "hits": 71, "indexed": 0},
+    13154: {"images": 0, "hits": 0, "indexed": 0},
+    13289: {"images": 86885, "hits": 1699, "indexed": 0},
+    13164: {"images": 10000, "hits": 133, "indexed": 23},
+    13247: {"images": 50000, "hits": 35195, "indexed": 2281},
+    13260: {"images": 100000, "hits": 454, "indexed": 118},
+    13228: {"images": 99999, "hits": 62452, "indexed": 4276},
+    13263: {"images": 100000, "hits": 387, "indexed": 107},
+    13157: {"images": 9954, "hits": 1055, "indexed": 21},
+    13288: {"images": 99997, "hits": 1791, "indexed": 0},
+    13230: {"images": 100000, "hits": 29261, "indexed": 2689},
+    13158: {"images": 9990, "hits": 3684, "indexed": 16},
+    13218: {"images": 100000, "hits": 69617, "indexed": 2290},
+    13166: {"images": 10000, "hits": 892, "indexed": 78},
+    13274: {"images": 99997, "hits": 10034, "indexed": 1594},
+    13198: {"images": 100000, "hits": 36230, "indexed": 2295},
+    13200: {"images": 100000, "hits": 36325, "indexed": 2174},
+    13171: {"images": 50000, "hits": 17213, "indexed": 1222},
+    13213: {"images": 100000, "hits": 82236, "indexed": 2562},
+    13189: {"images": 55664, "hits": 21301, "indexed": 2283},
+    13206: {"images": 100000, "hits": 46462, "indexed": 1907},
+    13252: {"images": 50000, "hits": 38843, "indexed": 1611},
+    13220: {"images": 69630, "hits": 67, "indexed": 0},
+    13273: {"images": 99997, "hits": 10833, "indexed": 2807},
+    13363: {"images": 94906, "hits": 37139, "indexed": 7861},
+    13354: {"images": 100000, "hits": 1630, "indexed": 56},
+    13390: {"images": 99998, "hits": 37, "indexed": 0},
+    13388: {"images": 16449, "hits": 40, "indexed": 0},
+    13339: {"images": 100000, "hits": 7505, "indexed": 2948},
+    13356: {"images": 99997, "hits": 7539, "indexed": 848},
+    13374: {"images": 100000, "hits": 35920, "indexed": 7210},
+    13412: {"images": 100000, "hits": 599, "indexed": 7},
+    13407: {"images": 100000, "hits": 11, "indexed": 0},
+    13411: {"images": 40316, "hits": 704, "indexed": 0},
+    13381: {"images": 100000, "hits": 889, "indexed": 0},
+    13372: {"images": 99999, "hits": 35698, "indexed": 6134},
+    13353: {"images": 45606, "hits": 2022, "indexed": 110},
+    13368: {"images": 100000, "hits": 32435, "indexed": 5640},
+    13338: {"images": 99999, "hits": 10974, "indexed": 4473},
+    13371: {"images": 72056, "hits": 23217, "indexed": 4860},
+    13409: {"images": 19688, "hits": 315, "indexed": 0},
+    13404: {"images": 100000, "hits": 4192, "indexed": 0},
+    13408: {"images": 100000, "hits": 299, "indexed": 0},
+    13397: {"images": 99998, "hits": 1767, "indexed": 0},
+    13380: {"images": 65273, "hits": 1524, "indexed": 0},
+    13382: {"images": 100000, "hits": 54, "indexed": 2},
+    13355: {"images": 100000, "hits": 1406, "indexed": 8},
+    13373: {"images": 57741, "hits": 19656, "indexed": 3997},
+    13337: {"images": 92450, "hits": 22588, "indexed": 9276},
+    13405: {"images": 99999, "hits": 3887, "indexed": 0},
+    13342: {"images": 99997, "hits": 19991, "indexed": 3510},
+    13348: {"images": 99999, "hits": 20817, "indexed": 3905},
+    13340: {"images": 99999, "hits": 7044, "indexed": 2816},
+    13403: {"images": 36642, "hits": 1582, "indexed": 0},
+    13341: {"images": 100000, "hits": 19502, "indexed": 3121},
+    13345: {"images": 3157, "hits": 853, "indexed": 176},
+    13364: {"images": 99998, "hits": 34761, "indexed": 3090},
+    13395: {"images": 99998, "hits": 1258, "indexed": 0},
+    13415: {"images": 99999, "hits": 2113, "indexed": 3},
+    13393: {"images": 100000, "hits": 1177, "indexed": 0},
+    13362: {"images": 100000, "hits": 17531, "indexed": 5815},
+    13414: {"images": 99998, "hits": 552, "indexed": 5},
+    13370: {"images": 99998, "hits": 29065, "indexed": 5920},
+    13384: {"images": 99999, "hits": 397, "indexed": 59},
+    13352: {"images": 99999, "hits": 11940, "indexed": 1161},
+    13378: {"images": 99999, "hits": 3021, "indexed": 0},
+    13379: {"images": 100000, "hits": 3797, "indexed": 0},
+    13366: {"images": 15743, "hits": 10610, "indexed": 939},
+    13358: {"images": 100000, "hits": 6780, "indexed": 0},
+    13336: {"images": 79761, "hits": 47635, "indexed": 10983},
+    13406: {"images": 3210, "hits": 36, "indexed": 0},
+    13386: {"images": 60262, "hits": 280, "indexed": 11},
+    13398: {"images": 100000, "hits": 988, "indexed": 0},
+    13396: {"images": 100000, "hits": 1619, "indexed": 0},
+    13413: {"images": 35272, "hits": 562, "indexed": 0},
+    13383: {"images": 100000, "hits": 162, "indexed": 26},
+    13369: {"images": 100000, "hits": 31632, "indexed": 5932},
+    13350: {"images": 100000, "hits": 27021, "indexed": 5362},
+    13402: {"images": 99999, "hits": 425, "indexed": 3},
+    13347: {"images": 3601, "hits": 780, "indexed": 155},
+    13359: {"images": 99998, "hits": 5768, "indexed": 0},
+    13377: {"images": 42748, "hits": 15139, "indexed": 3031},
+    13401: {"images": 100000, "hits": 418, "indexed": 0},
+    13391: {"images": 100000, "hits": 442, "indexed": 0},
+    13387: {"images": 0, "hits": 0, "indexed": 0},
+    13392: {"images": 99999, "hits": 989, "indexed": 0},
+    13389: {"images": 99999, "hits": 113, "indexed": 0},
+    13400: {"images": 2788, "hits": 87, "indexed": 0},
+    13385: {"images": 100000, "hits": 99, "indexed": 8},
+    13357: {"images": 60283, "hits": 17380, "indexed": 1842},
+    13410: {"images": 99999, "hits": 3322, "indexed": 0},
+    13351: {"images": 10947, "hits": 2898, "indexed": 307},
+    13399: {"images": 14121, "hits": 120, "indexed": 0},
+    13365: {"images": 55103, "hits": 14608, "indexed": 2177},
+    13394: {"images": 100000, "hits": 177, "indexed": 0},
+    13344: {"images": 99999, "hits": 28137, "indexed": 4556},
+    13349: {"images": 99998, "hits": 21668, "indexed": 4261},
+    13367: {"images": 1610, "hits": 566, "indexed": 80},
+    13376: {"images": 99999, "hits": 39185, "indexed": 8351},
+    13360: {"images": 99997, "hits": 3204, "indexed": 0},
+    13343: {"images": 99999, "hits": 24220, "indexed": 3682},
+    13375: {"images": 34573, "hits": 13461, "indexed": 2858},
+    13346: {"images": 1062, "hits": 260, "indexed": 45},
+    13331: {"images": 200000, "hits": 45224, "indexed": 3567},
+    13326: {"images": 199998, "hits": 114958, "indexed": 18551},
+    13319: {"images": 200000, "hits": 13480, "indexed": 1288},
+    13327: {"images": 200743, "hits": 140473, "indexed": 41521},
+    13312: {"images": 99999, "hits": 83701, "indexed": 6220},
+    13322: {"images": 46591, "hits": 30887, "indexed": 12016},
+    13330: {"images": 37460, "hits": 9485, "indexed": 173},
+    13315: {"images": 100000, "hits": 33136, "indexed": 1624},
+    13325: {"images": 200000, "hits": 144975, "indexed": 21056},
+    13313: {"images": 99998, "hits": 53916, "indexed": 3407},
+    13318: {"images": 100000, "hits": 9820, "indexed": 1067},
+    13314: {"images": 99999, "hits": 9654, "indexed": 649},
+    13310: {"images": 100000, "hits": 92839, "indexed": 4973},
+    13309: {"images": 100000, "hits": 94330, "indexed": 3969},
+    13328: {"images": 79445, "hits": 18034, "indexed": 2107},
+    13320: {"images": 200000, "hits": 26606, "indexed": 1910},
+    13306: {"images": 56277, "hits": 56219, "indexed": 111},
+    13308: {"images": 100000, "hits": 90741, "indexed": 2596},
+    13329: {"images": 200222, "hits": 11545, "indexed": 1146},
+    13324: {"images": 37, "hits": 18, "indexed": 0},
+    13333: {"images": 200000, "hits": 32698, "indexed": 4485},
+    13317: {"images": 90980, "hits": 71046, "indexed": 26050},
+    13323: {"images": 12968, "hits": 5922, "indexed": 2094},
+    13332: {"images": 0, "hits": 0, "indexed": 0},
+    13316: {"images": 37282, "hits": 1946, "indexed": 211},
+    13311: {"images": 5208, "hits": 5037, "indexed": 218},
+    13321: {"images": 91484, "hits": 8632, "indexed": 228},
+    13307: {"images": 99997, "hits": 82456, "indexed": 1369},
+}
+
+
+def upgrade() -> None:
+    op.create_table(
+        "RunHasFiles",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "run_id",
+            sa.Integer,
+            sa.ForeignKey("Run.id", ondelete="cascade", name="run_has_files_run_id_pk"),
+            nullable=False,
+        ),
+        sa.Column(
+            "source",
+            sa.String(length=255),
+            nullable=False,
+        ),
+        sa.Column(
+            "glob",
+            sa.Text,
+            nullable=False,
+        ),
+    )
+    connection = op.get_bind()
+
+    # We used to store raw file paths in an attributo instead of in a seprate table. Revert that here.
+    connection.execute(
+        delete(ATTRIBUTO_TABLE).where(
+            ATTRIBUTO_TABLE.c.name.in_(("raw_files", "raw_file_path"))
+        )
+    )
+
+    for beamtime_id, run_external_id, started, run_internal_id in connection.execute(
+        select(
+            RUN_TABLE.c.beamtime_id,
+            RUN_TABLE.c.external_id,
+            RUN_TABLE.c.started,
+            RUN_TABLE.c.id,
+        )
+    ).fetchall():  # pragma: no cover
+        beamtime = connection.execute(
+            select(BEAMTIME_TABLE.c.external_id).where(
+                BEAMTIME_TABLE.c.id == beamtime_id
+            )
+        ).fetchall()[0]
+        beamtime_year = started.year
+        if beamtime_id in (110, 111, 112):
+            # These were still done with the Eiger file writer
+            run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/raw/scan_frames/{run_external_id}/{run_external_id}_data_*.h5"
+            values = [
+                {
+                    "run_id": run_internal_id,
+                    "source": "raw",
+                    "glob": run_glob,
+                }
+            ]
+        elif beamtime_id == 113:
+            run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/{run_external_id}_master.nx5"
+            values = [
+                {
+                    "run_id": run_internal_id,
+                    "source": "raw",
+                    "glob": run_glob,
+                }
+            ]
+        elif beamtime_id == 114:
+            run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/nexus-files/{run_external_id}/{run_external_id}_master.nx5"
+            values = [
+                {
+                    "run_id": run_internal_id,
+                    "source": "raw",
+                    "glob": run_glob,
+                }
+            ]
+        elif beamtime_id == 115:
+            # This we just add as a test for the "source" parameter
+            if run_internal_id == 12778:
+                values = [
+                    {
+                        "run_id": run_internal_id,
+                        "source": "raw",
+                        "glob": f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/nexus-files/{run_external_id}/haspp11e16m-100g/{run_external_id}_master.nx5",
+                    },
+                    {
+                        "run_id": run_internal_id,
+                        "source": "eiger_binned",
+                        "glob": f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/nexus-files/{run_external_id}/eiger_binned/{run_external_id}_master.nx5",
+                    },
+                ]
+            else:
+                values = [
+                    {
+                        "run_id": run_internal_id,
+                        "source": "raw",
+                        "glob": f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/nexus-files/{run_external_id}/{run_external_id}_master.nx5",
+                    }
+                ]
+        elif beamtime_id == 116:
+            run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/processed/nexus-files/{run_external_id}/haspp11e16m-100g/{run_external_id}_master.nx5"
+            values = [
+                {
+                    "run_id": run_internal_id,
+                    "source": "raw",
+                    "glob": run_glob,
+                }
+            ]
+        elif beamtime_id in (120, 122):
+            run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/raw/nexus-files/{run_external_id}/haspp11e16m-100g/{run_external_id}_master.nx5"
+            values = [
+                {
+                    "run_id": run_internal_id,
+                    "source": "raw",
+                    "glob": run_glob,
+                }
+            ]
+        elif beamtime_id == 121:
+            if run_external_id <= 7:
+                # Some mishap during that beamtime with the raw files
+                run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/raw/nexus-files/{run_external_id}_master.nx5"
+            else:
+                run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/raw/nexus-files/{run_external_id}/haspp11e16m-100g/{run_external_id}_master.nx5"
+            values = [
+                {
+                    "run_id": run_internal_id,
+                    "source": "raw",
+                    "glob": run_glob,
+                }
+            ]
+        else:
+            beamtime_year = started.year
+            run_glob = f"/asap3/petra3/gpfs/p11/{beamtime_year}/data/{beamtime[0]}/raw/nexus-files/{run_external_id}/haspp11e16m-100g/*nx5"
+            values = []
+        if not values:
+            if beamtime_id == 119:
+                continue
+            raise Exception(
+                f"{beamtime_id=}, {run_external_id=}, {started=}, {run_internal_id=} has no match"
+            )
+        connection.execute(RUN_HAS_FILES_TABLE.insert().values(values))  # type: ignore
+
+    op.create_table(
+        "IndexingParameters",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "is_online",
+            sa.Boolean,
+            nullable=False,
+        ),
+        sa.Column(
+            "cell_description",
+            sa.String(length=255),
+            nullable=True,
+        ),
+        sa.Column(
+            "command_line",
+            sa.Text,
+            nullable=False,
+        ),
+        sa.Column(
+            "geometry_file",
+            sa.Text,
+            nullable=False,
+        ),
+        sa.Column(
+            "source",
+            sa.String(length=255),
+            nullable=False,
+        ),
+    )
+
+    with op.batch_alter_table("UserConfiguration") as batch_op:  # type: ignore
+        batch_op.add_column(
+            sa.Column(
+                "current_online_indexing_parameters_id",
+                sa.Integer,
+                sa.ForeignKey(
+                    "IndexingParameters.id",
+                    ondelete="cascade",
+                    name="user_configuration_has_indexing_parameters",
+                ),
+                nullable=True,
+            )
+        )
+
+    with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
+        batch_op.add_column(
+            sa.Column(
+                "indexing_parameters_id",
+                sa.Integer,
+                sa.ForeignKey(
+                    "IndexingParameters.id",
+                    ondelete="cascade",
+                    name="indexing_result_has_indexing_parameters",
+                ),
+                nullable=True,
+            )
+        )
+        batch_op.add_column(sa.Column("geometry_file", sa.Text))
+        batch_op.add_column(sa.Column("generated_geometry_file", sa.Text))
+        batch_op.add_column(sa.Column("program_version", sa.String(length=255)))
+        batch_op.add_column(sa.Column("geometry_hash", sa.String(length=255)))
+        batch_op.add_column(
+            sa.Column("job_latest_log", sa.Text().with_variant(LONGTEXT, "mysql"))
+        )
+        batch_op.add_column(sa.Column("job_started", sa.DateTime))
+        batch_op.alter_column(
+            "job_error",
+            existing_type=sa.Text,
+            existing_nullable=True,
+            existing_server_default=None,
+            type_=sa.Text().with_variant(LONGTEXT, "mysql"),
+        )
+        batch_op.add_column(sa.Column("job_stopped", sa.DateTime))
+        batch_op.add_column(
+            sa.Column(
+                "unit_cell_histograms_file_id",
+                sa.Integer,
+                sa.ForeignKey(
+                    "File.id",
+                    ondelete="cascade",
+                    name="indexing_result_unit_cell_histogram",
+                ),
+                nullable=True,
+            )
+        )
+
+    # strange outliers
+    for ir_id in (
+        9708,
+        9411,
+        9415,
+        9427,
+        9428,
+        9429,
+        9430,
+        9431,
+        9432,
+        9433,
+        9544,
+        9545,
+    ):
+        connection.execute(
+            INDEXING_RESULT_TABLE.update()
+            .where(INDEXING_RESULT_TABLE.c.id == ir_id)
+            .values({"job_error": "unknown error"})
+        )
+    connection.execute(
+        INDEXING_RESULT_TABLE.update()
+        .where(INDEXING_RESULT_TABLE.c.stream_file.like("%11015449%"))
+        .values({"job_error": "not restaged yet"})
+    )
+    # mock test beamtime
+    connection.execute(
+        INDEXING_RESULT_TABLE.update()
+        .where(
+            (INDEXING_RESULT_TABLE.c.run_id >= 13058)
+            & (INDEXING_RESULT_TABLE.c.run_id <= 13188)
+        )
+        .values({"job_error": "unknown error"})
+    )
+
+    for indexing_result_id, run_id, cell_description, job_error in connection.execute(
+        select(
+            INDEXING_RESULT_TABLE.c.id,
+            INDEXING_RESULT_TABLE.c.run_id,
+            INDEXING_RESULT_TABLE.c.cell_description,
+            INDEXING_RESULT_TABLE.c.job_error,
+        )
+    ).fetchall():  # pragma: no cover
+        corresponding_parameters = None
+        for run_with_parameters in RUN_RANGES_WITH_PARAMETERS:
+            for run_range in run_with_parameters["run_ranges"]:
+                if run_range[0] <= run_id <= run_range[1]:
+                    corresponding_parameters = run_with_parameters
+                    break
+            if corresponding_parameters is not None:
+                break
+
+        if corresponding_parameters is None:
+            if not job_error:
+                raise Exception(
+                    f"cannot find parameters for indexing result ID {indexing_result_id}, run {run_id} (and job error is empty)"
+                )
+            corresponding_parameters = {
+                "command_line": "",
+                "geometry_file": "",
+                "geometry_hash": "",
+                "crystfel_version": "",
+            }
+
+        prior_parameters_insert = connection.execute(  # type: ignore
+            PARAMETERS_TABLE.insert().values(
+                {
+                    "is_online": True,
+                    "cell_description": cell_description,
+                    "command_line": corresponding_parameters["command_line"],
+                    "geometry_file": corresponding_parameters["geometry_file"],
+                    "source": "raw",
+                }
+            )
+        )
+        # For some reason, at least for sqlite, this doesn't work. It returns an empty tuple.
+        # online_parameters_id: int = prior_parameters_insert.inserted_primary_key[0]
+        # print(online_parameters_id)
+        # This works, but only for certain backends. But our backends are among it, so should be fine.
+        inserted_parameters_id: int = prior_parameters_insert.lastrowid
+
+        assert (
+            inserted_parameters_id is not None
+        ), f"indexing result {indexing_result_id} has no valid parameters inserted for some reason"
+
+        run_foms = INDEXING_RESULTS_WITH_PARAMETERS.get(run_id)
+
+        connection.execute(
+            INDEXING_RESULT_TABLE.update()
+            .where(INDEXING_RESULT_TABLE.c.id == indexing_result_id)
+            .values(
+                {
+                    "indexing_parameters_id": inserted_parameters_id,
+                    "geometry_file": corresponding_parameters["geometry_file"],
+                    "geometry_hash": corresponding_parameters["geometry_hash"],
+                    "program_version": corresponding_parameters["crystfel_version"],
+                }
+                | (
+                    {}
+                    if run_foms is None
+                    else {
+                        "frames": run_foms["images"],
+                        "hits": run_foms["hits"],
+                        "indexed_frames": run_foms["indexed"],
+                    }
+                )
+            )
+        )
+
+    for ir_id, indexing_parameters_id in connection.execute(
+        select(
+            INDEXING_RESULT_TABLE.c.id,
+            INDEXING_RESULT_TABLE.c.indexing_parameters_id,
+        )
+    ).fetchall():
+        assert indexing_parameters_id is not None, f"IR {ir_id} has no parameters yet"
+
+    with op.batch_alter_table("IndexingResult") as batch_op:  # type: ignore
+        batch_op.alter_column(
+            "indexing_parameters_id", existing_type=sa.Integer, nullable=False
+        )
+        batch_op.drop_constraint("indexing_result_has_chemical_fk", "foreignkey")
+        for col in (
+            "cell_description",
+            "point_group",
+            "chemical_id",
+            "not_indexed_frames",
+            "hit_rate",
+            "indexing_rate",
+        ):
+            batch_op.drop_column(col)
+
+
+def downgrade() -> None:
+    pass

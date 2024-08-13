@@ -1,4 +1,4 @@
-module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewCloseHelpButton, viewHelpButton, viewMarkdownSupportText, viewRemoteData, viewRemoteDataHttp)
+module Amarcord.Bootstrap exposing (AlertProperty(..), Icon, icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewAlert, viewCloseHelpButton, viewHelpButton, viewMarkdownSupportText, viewRemoteData, viewRemoteDataHttp)
 
 import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Html exposing (div_, h4_, p_)
@@ -46,6 +46,11 @@ alertPropToCss x =
 
         AlertDanger ->
             "alert-danger"
+
+
+viewAlert : List AlertProperty -> List (Html msg) -> Html msg
+viewAlert =
+    makeAlert
 
 
 makeAlert : List AlertProperty -> List (Html msg) -> Html msg

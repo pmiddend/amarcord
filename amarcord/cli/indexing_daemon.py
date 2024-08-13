@@ -1,10 +1,12 @@
 import asyncio
+import datetime
 import inspect
 import json
-from base64 import b64encode
+import os
 from datetime import timedelta
 from pathlib import Path
 from typing import Optional
+from typing import cast
 
 import aiohttp
 import structlog
@@ -14,6 +16,9 @@ from tap import Tap
 import amarcord.cli.crystfel_index
 from amarcord.amici.crystfel.util import determine_output_directory
 from amarcord.amici.workload_manager.job_status import JobStatus
+from amarcord.amici.workload_manager.slurm_rest_workload_manager import (
+    SlurmRestWorkloadManager,
+)
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
 from amarcord.amici.workload_manager.workload_manager_factory import (
@@ -22,109 +27,283 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
 from amarcord.amici.workload_manager.workload_manager_factory import (
     parse_workload_manager_config,
 )
+from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingResultDone
 from amarcord.db.indexing_result import DBIndexingResultRunning
-from amarcord.db.indexing_result import DBIndexingResultRuntimeStatus
 from amarcord.db.indexing_result import empty_indexing_fom
+from amarcord.util import overwrite_interpreter
 from amarcord.web.json_models import JsonIndexingJob
-from amarcord.web.json_models import JsonIndexingResultRootJson
+from amarcord.web.json_models import JsonIndexingResultFinishWithError
+from amarcord.web.json_models import JsonIndexingResultStillRunning
 from amarcord.web.json_models import JsonReadIndexingResultsOutput
-from amarcord.web.json_models import empty_json_indexing_result
 
 logger = structlog.stdlib.get_logger(__name__)
 
-_LONG_BREAK_DURATION_SECONDS = 5
+INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR = (
+    "INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS"
+)
+
+
+def _long_break_duration_seconds() -> float:
+    return float(
+        os.environ.get(INDEXING_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR, "5")
+    )
+
+
+# For now, hard-code the time-limit for all (offline/online) jobs.
+_GLOBAL_JOB_TIME_LIMIT = timedelta(days=1)
 
 
 class Arguments(Tap):
-    amarcord_url: str
+    amarcord_url: str  # URL the daemon uses to look up indexing jobs in the DB
     # pylint: disable=consider-alternative-union-syntax
-    amarcord_url_for_maxwell_job: Optional[str] = None
-    output_base_directory: Path
-    crystfel_path: Path
-    use_auto_geom_refinement: bool = False
+    overwrite_interpreter: Optional[  # Rewrite the first (shebang) line of the indexing script to find the Python interpreter
+        str
+    ] = None
     # pylint: disable=consider-alternative-union-syntax
-    dummy_h5_input: Optional[str] = None
+    amarcord_url_for_spawned_job: Optional[  # URL to give to jobs spawned by the daemon in order to contact AMARCORD for updates
+        str
+    ] = None
+    output_base_directory: Path  # Where to put the outputs of the jobs started (at DESY, this will be "processed/...")
+    crystfel_path: (  # Where the CrystFEL binaries are located (without the /bin suffix!)
+        Path
+    )
     # pylint: disable=consider-alternative-union-syntax
-    beamtime_id: Optional[int] = None
-    workload_manager_uri: str
-    asapo_source: str
+    gnuplot_path: Optional[  # The path to the gnuplot binary, for histogram generation (if missing, no histograms will be generated)
+        Path
+    ] = None
     # pylint: disable=consider-alternative-union-syntax
-    cpu_count_multiplier: Optional[float] = None
+    beamtime_id: Optional[int] = None  # Can be used to filter indexing jobs by beamtime
+    workload_manager_uri: str  # Determines how and where jobs are started; refer to the manual on how this URL should look like
+    asapo_source: str  # The default source given to online indexing jobs
+    # pylint: disable=consider-alternative-union-syntax
+    cpu_count_multiplier: Optional[  # Constant to give a multiplier to the number of CPUs in started jobs
+        float
+    ] = None
 
 
-async def start_indexing_job(
+def _get_indexing_job_source_code(overwrite_interpreter_str: None | str) -> str:
+    with Path(inspect.getfile(amarcord.cli.crystfel_index)).open(
+        "r", encoding="utf-8"
+    ) as source_code_obj:
+        source_code = source_code_obj.read()
+        if overwrite_interpreter_str is not None:
+            source_code = overwrite_interpreter(source_code, overwrite_interpreter_str)
+        return source_code
+
+
+async def start_offline_indexing_job(
     bound_logger: BoundLogger,
     workload_manager: WorkloadManager,
     args: Arguments,
     indexing_result: JsonIndexingJob,
-) -> DBIndexingResultRuntimeStatus:
-    bound_logger.info("starting indexing job")
+) -> DBIndexingResultRunning | DBIndexingResultDone:
+    bound_logger.info("starting offline indexing job")
 
     job_base_directory = determine_output_directory(
         indexing_result.beamtime, args.output_base_directory, {}
     )
 
-    output_base_name = (
-        f"run-{indexing_result.run_external_id}-indexing-{indexing_result.id}"
+    output_base_name = _build_output_base_name(indexing_result)
+    stream_file = job_base_directory / f"{output_base_name}.stream"
+
+    if not indexing_result.input_file_globs:
+        bound_logger.error(
+            f"cannot start indexing job {indexing_result.id}: no input files"
+        )
+        return DBIndexingResultDone(
+            stream_file=stream_file,
+            job_error="no input file glob",
+            fom=empty_indexing_fom,
+        )
+
+    try:
+        indexing_job_source_code = _get_indexing_job_source_code(
+            args.overwrite_interpreter
+        )
+
+        job_environment: dict[str, str] = {
+            # General parameters
+            # Refer to the docs for a general explanation of how this job
+            # style works. Basically, we submit one script for both online,
+            # offline and "offline secondary" tasks.
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_JOB_STYLE: amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_JOB_STYLE_PRIMARY,
+            # This is a bit "unabstracted": whether we use SLURM to start
+            # job arrays (if so, see the token below), or if we use the
+            # local machine and start a child process for analysis.
+            #
+            # These are the two options. If there's more, we need to think
+            # about something more abstract and clean  than this.
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_USE_SLURM: (
+                "True"
+                if isinstance(workload_manager, SlurmRestWorkloadManager)
+                else "False"
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_STREAM_FILE: str(stream_file),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID: str(
+                indexing_result.id
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_AMARCORD_API_URL: (
+                args.amarcord_url_for_spawned_job
+                if args.amarcord_url_for_spawned_job is not None
+                else args.amarcord_url
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_CRYSTFEL_PATH: str(
+                args.crystfel_path
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS: indexing_result.command_line,
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GNUPLOT_PATH: (
+                str(args.gnuplot_path) if args.gnuplot_path is not None else ""
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_CELL_DESCRIPTION: (
+                indexing_result.cell_description
+                if indexing_result.cell_description is not None
+                else ""
+            ),
+            # Offline-specific parameters
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_INPUT_FILE_GLOBS: json.dumps(
+                indexing_result.input_file_globs
+            ),
+        }
+        # An explicit geometry file may be missing for a new job - it
+        # will then be found dynamically in the beamtime directory.
+        if indexing_result.geometry_file_input:
+            job_environment[
+                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
+            ] = indexing_result.geometry_file_input
+        # Offline indexing jobs, if configured that way, can emit
+        # other jobs in a job array. For that, we need the SLURM REST
+        # token again, so we transmit it here.
+        if isinstance(workload_manager, SlurmRestWorkloadManager):
+            job_environment["SLURM_TOKEN"] = await workload_manager.get_token()
+            job_environment[
+                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE
+            ] = workload_manager.partition
+        bound_logger.info("environment for this job is " + " ".join(job_environment))
+        job_start_result = await workload_manager.start_job(
+            working_directory=job_base_directory,
+            name=f"ix_run_{indexing_result.run_external_id}_{indexing_result.id}",
+            script=indexing_job_source_code,
+            time_limit=_GLOBAL_JOB_TIME_LIMIT,
+            environment=job_environment,
+            stdout=job_base_directory / f"{output_base_name}-stdout.txt",
+            stderr=job_base_directory / f"{output_base_name}-stderr.txt",
+        )
+        bound_logger.info(
+            "job start successful", indexing_job_id=job_start_result.job_id
+        )
+        return DBIndexingResultRunning(
+            stream_file=stream_file,
+            job_id=job_start_result.job_id,
+            fom=empty_indexing_fom,
+        )
+    except JobStartError as e:
+        bound_logger.error(f"job start errored: {e}")
+        return DBIndexingResultDone(
+            stream_file=stream_file,
+            job_error=e.message,
+            fom=empty_indexing_fom,
+        )
+
+
+def _build_output_base_name(indexing_result: JsonIndexingJob) -> str:
+    return f"run-{indexing_result.run_external_id}-indexing-{indexing_result.id}"
+
+
+async def start_online_indexing_job(
+    bound_logger: BoundLogger,
+    workload_manager: WorkloadManager,
+    args: Arguments,
+    indexing_result: JsonIndexingJob,
+) -> DBIndexingResultRunning | DBIndexingResultDone:
+    bound_logger.info("starting online indexing job")
+
+    job_base_directory = determine_output_directory(
+        indexing_result.beamtime, args.output_base_directory, {}
     )
+
+    output_base_name = _build_output_base_name(indexing_result)
     stream_file = job_base_directory / f"{output_base_name}.stream"
 
     try:
-        with Path(inspect.getfile(amarcord.cli.crystfel_index)).open(
-            "r", encoding="utf-8"
-        ) as merge_file:
-            predefined_args = {
-                # We could give CrystFEL the internal ID as well, and
-                # it wouldn't matter (the run ID isn't really used in
-                # the logic of the indexing script, just for output),
-                # but the user expects the external, beamtime-specific
-                # one.
-                "run-id": indexing_result.run_external_id,
-                "job-id": indexing_result.id,
-                "asapo-source": args.asapo_source,
-                "cpu-count-multiplier": (
-                    args.cpu_count_multiplier if args.cpu_count_multiplier else 0.5
-                ),
-                "api-url": (
-                    args.amarcord_url
-                    if args.amarcord_url_for_maxwell_job is None
-                    else args.amarcord_url_for_maxwell_job
-                ),
-                "stream-file": str(stream_file),
-                "dummy-h5-input": args.dummy_h5_input,
-                "crystfel-path": str(args.crystfel_path),
-                "use-auto-geom-refinement": args.use_auto_geom_refinement,
-                "cell-description": indexing_result.cell_description,
-            }
-            bound_logger.info(
-                "command line for this job is " + " ".join(predefined_args)
-            )
-            predefined_args_b64 = b64encode(
-                json.dumps(predefined_args, allow_nan=False).encode("utf-8")
-            ).decode("utf-8")
-            indexing_file_contents = merge_file.read().replace(
-                "predefined_args: None | bytes = None",
-                f'predefined_args = "{predefined_args_b64}"',
-            )
-            job_start_result = await workload_manager.start_job(
-                working_directory=job_base_directory,
-                name=f"ix_run_{indexing_result.run_external_id}",
-                script=indexing_file_contents,
-                time_limit=timedelta(days=1),
-                stdout=job_base_directory / f"{output_base_name}-stdout.txt",
-                stderr=job_base_directory / f"{output_base_name}-stderr.txt",
-            )
-            bound_logger.info(
-                "job start successful", indexing_job_id=job_start_result.job_id
-            )
-            return DBIndexingResultRunning(
-                stream_file=stream_file,
-                job_id=job_start_result.job_id,
-                fom=empty_indexing_fom,
-            )
+        indexing_job_source_code = _get_indexing_job_source_code(
+            args.overwrite_interpreter
+        )
+
+        job_environment: dict[str, str] = {
+            # General parameters
+            # Refer to the docs for a general explanation of how this job style works. Basically, we submit
+            # one script for both online, offline and "offline secondary" tasks.
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_JOB_STYLE: amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_JOB_STYLE_ONLINE,
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_USE_SLURM: (
+                "True"
+                if isinstance(workload_manager, SlurmRestWorkloadManager)
+                else "False"
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GNUPLOT_PATH: (
+                str(args.gnuplot_path) if args.gnuplot_path is not None else ""
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_STREAM_FILE: str(stream_file),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_AMARCORD_INDEXING_RESULT_ID: str(
+                indexing_result.id
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_CRYSTFEL_PATH: str(
+                args.crystfel_path
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_AMARCORD_API_URL: (
+                args.amarcord_url
+                if args.amarcord_url_for_spawned_job is None
+                else args.amarcord_url_for_spawned_job
+            ),
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS: indexing_result.command_line,
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_CELL_DESCRIPTION: (
+                indexing_result.cell_description
+                if indexing_result.cell_description is not None
+                else ""
+            ),
+            # Online-specific parameters
+            amarcord.cli.crystfel_index.ON_INDEX_ENVIRON_ASAPO_SOURCE: (
+                # The user can specify a source explicitly (in the
+                # online indexing default parameters), but if it's
+                # blank, we use the default source.
+                indexing_result.source
+                if indexing_result.source.strip()
+                else args.asapo_source
+            ),
+            amarcord.cli.crystfel_index.ON_INDEX_ENVIRON_AMARCORD_CPU_COUNT_MULTIPLIER: str(
+                args.cpu_count_multiplier if args.cpu_count_multiplier else 0.5
+            ),
+            # This we need to ask asapo for the correct stream.
+            amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_RUN_ID: str(
+                indexing_result.run_external_id
+            ),
+        }
+        # An explicit geometry file may be missing for a new job - it
+        # will then be found dynamically in the beamtime directory.
+        if indexing_result.geometry_file_input:
+            job_environment[
+                amarcord.cli.crystfel_index.OFF_INDEX_ENVIRON_GEOMETRY_FILE
+            ] = indexing_result.geometry_file_input
+        bound_logger.info("environment for this job is " + " ".join(job_environment))
+        job_start_result = await workload_manager.start_job(
+            working_directory=job_base_directory,
+            name=f"oix_run_{indexing_result.run_external_id}_{indexing_result.id}",
+            script=indexing_job_source_code,
+            time_limit=_GLOBAL_JOB_TIME_LIMIT,
+            environment=job_environment,
+            stdout=job_base_directory / f"{output_base_name}-stdout.txt",
+            stderr=job_base_directory / f"{output_base_name}-stderr.txt",
+        )
+        bound_logger.info(
+            "job start successful", indexing_job_id=job_start_result.job_id
+        )
+        return DBIndexingResultRunning(
+            stream_file=stream_file,
+            job_id=job_start_result.job_id,
+            fom=empty_indexing_fom,
+        )
     except JobStartError as e:
         bound_logger.error(f"job start errored: {e}")
         return DBIndexingResultDone(
@@ -137,13 +316,20 @@ async def start_indexing_job(
 async def _start_new_jobs(
     session: aiohttp.ClientSession, workload_manager: WorkloadManager, args: Arguments
 ) -> None:
+    # withFiles means "also include the file path for every result". This is needed for the "offline indexing"
+    # part of the job running. We need to give the offline indexing run the list of files to process.
+    #
+    # For online indexing, this is precisely not needed, of course.
     async with session.get(
-        f"{args.amarcord_url}/api/indexing?status={DBJobStatus.QUEUED.value}"
+        f"{args.amarcord_url}/api/indexing?status={DBJobStatus.QUEUED.value}&withFiles=True"
         + (f"&beamtimeId={args.beamtime_id}" if args.beamtime_id is not None else "")
     ) as response:
         indexing_results = JsonReadIndexingResultsOutput(
             **await response.json()
         ).indexing_jobs
+
+    if indexing_results:
+        logger.info(f"there are {len(indexing_results)} job(s) to start")
 
     number_of_started_jobs = 0
     for indexing_result in indexing_results:
@@ -152,42 +338,71 @@ async def _start_new_jobs(
             run_external_id=indexing_result.run_external_id,
             indexing_result_id=indexing_result.id,
         )
-        new_status = await start_indexing_job(
-            bound_logger, workload_manager, args, indexing_result
+        new_status = (
+            await start_online_indexing_job(
+                bound_logger, workload_manager, args, indexing_result
+            )
+            if indexing_result.is_online
+            else await start_offline_indexing_job(
+                bound_logger, workload_manager, args, indexing_result
+            )
         )
         number_of_started_jobs += 1
         assert new_status is not None
 
         if isinstance(new_status, DBIndexingResultDone):
-            update_request = JsonIndexingResultRootJson(
-                error=new_status.job_error,
-                job_id=None,
-                stream_file=str(new_status.stream_file),
-                result=empty_json_indexing_result(done=True),
-            )
+            async with session.post(
+                f"{args.amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
+                json=JsonIndexingResultFinishWithError(
+                    # If we start a job and it's immediately finished, then we must have an error
+                    error_message=cast(str, new_status.job_error),
+                    workload_manager_job_id=indexing_result.job_id,
+                    latest_log="",
+                ).dict(),
+            ) as update_response:
+                bound_logger.info(f"indexing job errored, result: {update_response}")
         else:
-            update_request = JsonIndexingResultRootJson(
-                error=None,
-                job_id=new_status.job_id,
+            update_request = JsonIndexingResultStillRunning(
+                workload_manager_job_id=new_status.job_id,
                 stream_file=str(new_status.stream_file),
-                result=empty_json_indexing_result(done=False),
+                hits=0,
+                frames=0,
+                indexed_frames=0,
+                indexed_crystals=0,
+                detector_shift_x_mm=None,
+                detector_shift_y_mm=None,
+                geometry_file="",
+                geometry_hash="",
+                job_started=datetime_to_attributo_int(
+                    datetime.datetime.now(tz=datetime.timezone.utc)
+                ),
+                # Initialize log with the empty string (None would have indicated "no change")
+                latest_log="",
             )
 
-        async with session.post(
-            f"{args.amarcord_url}/api/indexing/{indexing_result.id}",
-            json=update_request.dict(),
-        ) as update_response:
-            bound_logger.info(f"new indexing job started, result: {update_response}")
+            async with session.post(
+                f"{args.amarcord_url}/api/indexing/{indexing_result.id}/still-running",
+                json=update_request.dict(),
+            ) as update_response:
+                if update_response.status // 200 != 1:
+                    bound_logger.error(
+                        f"didn't receive status 200 but {update_response.status}"
+                    )
+                else:
+                    bound_logger.info(
+                        f"new indexing job started, result: {update_response}"
+                    )
 
         bound_logger.info(
-            f"new indexing job submitted, taking a {_LONG_BREAK_DURATION_SECONDS}s break"
+            f"new indexing job submitted, taking a {_long_break_duration_seconds()}s break"
         )
-        await asyncio.sleep(_LONG_BREAK_DURATION_SECONDS)
+        await asyncio.sleep(_long_break_duration_seconds())
     if number_of_started_jobs == 0:
-        logger.info(
-            f"no new queued jobs, waiting for {_LONG_BREAK_DURATION_SECONDS}s until next iteration"
-        )
-        await asyncio.sleep(_LONG_BREAK_DURATION_SECONDS)
+        # Usually too spammy
+        # logger.info(
+        #     f"no new queued jobs, waiting for {_long_break_duration_seconds()}s until next iteration"
+        # )
+        await asyncio.sleep(_long_break_duration_seconds())
 
 
 async def _update_jobs(
@@ -215,7 +430,7 @@ async def _update_jobs(
             run_external_id=indexing_result.run_external_id,
         )
 
-        bound_logger.info("job still running, checking on SLURM")
+        bound_logger.info("job still running, checking on workload manager")
 
         workload_job = jobs_on_workload_manager.get(indexing_result.job_id)
         if workload_job is not None and workload_job.status not in (
@@ -223,36 +438,36 @@ async def _update_jobs(
             JobStatus.SUCCESSFUL,
         ):
             bound_logger.info(
-                f"job still running on slurm, status {workload_job.status}"
+                f"job still running on workload manager, status {workload_job.status}"
             )
             # Running job, let it keep running
             continue
 
         if workload_job is None:
-            bound_logger.info("finished because not in SLURM REST job list anymore")
-            job_error = "job has finished on SLURM (not in job list anymore), but delivered no results"
+            bound_logger.info("finished because not in job list anymore")
+            job_error = f"job has finished on {workload_manager.name()} (not in job list anymore), but delivered no results"
         else:
-            job_error = f"job has finished on SLURM (status {workload_job.status}), but delivered no results"
+            job_error = f"job has finished on {workload_manager.name()} (status {workload_job.status}), but delivered no results"
             bound_logger.info(
-                f"finished because SLURM REST job status is {workload_job.status}"
+                f"finished because {workload_manager.name()} job status is {workload_job.status}"
             )
 
         async with session.post(
-            f"{amarcord_url}/api/indexing/{indexing_result.id}",
-            json=JsonIndexingResultRootJson(
-                error=job_error,
-                job_id=indexing_result.job_id,
-                stream_file=indexing_result.stream_file,
-                result=empty_json_indexing_result(done=False),
+            f"{amarcord_url}/api/indexing/{indexing_result.id}/finish-with-error",
+            json=JsonIndexingResultFinishWithError(
+                error_message=job_error,
+                workload_manager_job_id=indexing_result.job_id,
+                latest_log="",
             ).dict(),
         ) as update_response:
             bound_logger.info(f"indexing job finished, result: {update_response}")
 
-    logger.info("indexing jobs stati updated, take a (longer) break")
-    await asyncio.sleep(_LONG_BREAK_DURATION_SECONDS)
+    # this is usually too spammy
+    # logger.info("indexing jobs stati updated, take a (longer) break")
+    await asyncio.sleep(_long_break_duration_seconds())
 
 
-async def _indexing_loop_iteration(
+async def indexing_loop_iteration(
     workload_manager: WorkloadManager,
     session: aiohttp.ClientSession,
     args: Arguments,
@@ -272,8 +487,9 @@ async def _indexing_loop_iteration(
         )
 
 
-async def _indexing_loop(args: Arguments) -> None:
-    logger.info("starting Online CrystFEL indexing loop")
+# We can't really test this code, it's pure glue
+async def _indexing_loop(args: Arguments) -> None:  # pragma: no cover
+    logger.info("starting CrystFEL indexing loop")
 
     workload_manager = create_workload_manager(
         parse_workload_manager_config(args.workload_manager_uri)
@@ -287,18 +503,23 @@ async def _indexing_loop(args: Arguments) -> None:
     # We could also just create a session over and over, but this seems a bit more clean
     connector = aiohttp.TCPConnector(force_close=True)
     async with aiohttp.ClientSession(connector=connector) as session:
+        # This is the heart of the daemon: a simple loop that
+        # interleaves two operations: starting new runs, and checking
+        # if any of the existing runs changed their status. To
+        # implement these two operations, we have an infinite ocunter
+        # and check the modulus.
         counter = 0
         while True:
-            await _indexing_loop_iteration(
+            await indexing_loop_iteration(
                 workload_manager, session, args, counter % 10 != 0
             )
 
             counter += 1
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     asyncio.run(_indexing_loop(Arguments(underscores_to_dashes=True).parse_args()))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

@@ -1966,6 +1966,25 @@ tomli = {version = ">=1", markers = "python_version < \"3.11\""}
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "pygments (>=2.7.2)", "requests", "setuptools", "xmlschema"]
 
 [[package]]
+name = "pytest-aiohttp"
+version = "1.0.5"
+description = "Pytest plugin for aiohttp support"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "pytest-aiohttp-1.0.5.tar.gz", hash = "sha256:880262bc5951e934463b15e3af8bb298f11f7d4d3ebac970aab425aff10a780a"},
+    {file = "pytest_aiohttp-1.0.5-py3-none-any.whl", hash = "sha256:63a5360fd2f34dda4ab8e6baee4c5f5be4cd186a403cabd498fced82ac9c561e"},
+]
+
+[package.dependencies]
+aiohttp = ">=3.8.1"
+pytest = ">=6.1.0"
+pytest-asyncio = ">=0.17.2"
+
+[package.extras]
+testing = ["coverage (==6.2)", "mypy (==0.931)"]
+
+[[package]]
 name = "pytest-asyncio"
 version = "0.23.7"
 description = "Pytest support for asyncio"
@@ -3234,4 +3253,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9, <3.12"
-content-hash = "8dbe74d0f7ec1bdb92b9693d4fe7fa3c15f88111707ac75346ce0d1f80cbfca9"
+content-hash = "940731d1a3898fb9e4d40c6e7a06c3a72fb830882b61ece8e95b706c30a051e7"

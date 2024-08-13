@@ -83,6 +83,7 @@ async def test_slurm_rest_job_controller_start_job() -> None:
         working_directory=Path("test"),
         name="test",
         script='#!/bin/sh\n\necho "Done"',
+        environment={},
         time_limit=_TIME_LIMIT,
     )
 

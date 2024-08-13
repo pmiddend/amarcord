@@ -26,6 +26,10 @@ elm-review:
   script:
     - ci/elm-review.sh
 
+elm-test:
+  script:
+    - ci/elm-test.sh
+
 frontend-check-openapi:
   script:
     - nix develop --command ci/check-generated-elm-code.sh
@@ -59,12 +63,16 @@ nix-pin-latest-manual:
 check-requirements:
    script:
      - nix develop --command ./ci/check-requirements.sh
+
 tests:
   script:
     - nix develop --command ci/run-tests.sh
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
+    when: always
     reports:
+      # see https://docs.gitlab.com/ee/ci/testing/unit_test_report_examples.html
+      junit: report.xml
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml

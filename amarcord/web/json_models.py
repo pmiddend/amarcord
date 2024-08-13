@@ -221,7 +221,13 @@ class JsonPolarisation(BaseModel):
 
 
 class JsonMergeParameters(BaseModel):
-    point_group: None | str
+    # Beware: this can be empty, in the case of the creation of a new merge job.
+    # Then we take the point group from the chemical information.
+    #
+    # We could have made this "None | str" but that complicates things. For now, do it this way.
+    point_group: str
+    # Same as point_group comment above.
+    cell_description: str
     negative_handling: None | MergeNegativeHandling
     merge_model: MergeModel
     scale_intensities: ScaleIntensities
@@ -248,6 +254,7 @@ class JsonMergeResult(BaseModel):
     id: int
     created: int
     runs: list[str]
+    indexing_result_ids: list[int]
     state_queued: None | JsonMergeResultStateQueued
     state_error: None | JsonMergeResultStateError
     state_running: None | JsonMergeResultStateRunning
@@ -274,33 +281,106 @@ class JsonReadChemicals(BaseModel):
     attributi: list[JsonAttributo]
 
 
+class JsonIndexingParameters(BaseModel):
+    id: None | int
+    cell_description: None | str
+    is_online: bool
+    command_line: str
+    geometry_file: str
+
+
+class JsonUpdateOnlineIndexingParametersInput(BaseModel):
+    command_line: str
+    geometry_file: str
+    source: str
+
+
+class JsonUpdateOnlineIndexingParametersOutput(BaseModel):
+    success: bool
+
+
 class JsonIndexingResult(BaseModel):
+    id: int
+    created: int
+    started: None | int
+    stopped: None | int
+    parameters: JsonIndexingParameters
+    program_version: str
+    run_internal_id: int
+    run_external_id: int
     frames: int
     hits: int
     indexed_frames: int
     indexed_crystals: int
-    done: bool
+    status: DBJobStatus
     detector_shift_x_mm: None | float
     detector_shift_y_mm: None | float
+    geometry_file: str
+    geometry_hash: str
+    generated_geometry_file: str
+    unit_cell_histograms_file_id: None | int
+    has_error: bool
+    # Commented out, we retrieve the log separately
+    # latest_log: str
 
 
-def empty_json_indexing_result(done: bool) -> JsonIndexingResult:
-    return JsonIndexingResult(
-        frames=0,
-        hits=0,
-        indexed_frames=0,
-        indexed_crystals=0,
-        done=done,
-        detector_shift_x_mm=None,
-        detector_shift_y_mm=None,
-    )
+class JsonCreateIndexingForDataSetInput(BaseModel):
+    data_set_id: int
+    is_online: bool
+    cell_description: str
+    geometry_file: str
+    command_line: str
+    source: str
 
 
-class JsonIndexingResultRootJson(BaseModel):
-    error: None | str
-    job_id: None | int
-    stream_file: None | str
-    result: None | JsonIndexingResult
+class JsonReadIndexingParametersOutput(BaseModel):
+    data_set_id: int
+    cell_description: str
+    sources: list[str]
+
+
+class JsonCreateIndexingForDataSetOutput(BaseModel):
+    jobs_started_run_external_ids: list[int]
+    indexing_result_id: int
+    # used to display "job submitted" only on the specific data set
+    data_set_id: int
+    # we use that to scroll to the indexing job just created (and expand it)
+    indexing_parameters_id: int
+
+
+class JsonIndexingJobCreateInput(BaseModel):
+    run_internal_id: int
+
+
+class JsonIndexingJobCreateOutput(BaseModel):
+    indexing_result_id: int
+
+
+class JsonIndexingResultFinishSuccessfully(BaseModel):
+    workload_manager_job_id: int
+    stream_file: str
+    program_version: str
+    frames: int
+    hits: int
+    indexed_frames: int
+    indexed_crystals: int
+    detector_shift_x_mm: None | float
+    detector_shift_y_mm: None | float
+    geometry_file: str
+    geometry_hash: str
+    generated_geometry_file: str
+    unit_cell_histograms_id: None | int
+
+    # None, in this case, means "don't change/append to the log"
+    latest_log: None | str
+
+
+class JsonIndexingResultFinishWithError(BaseModel):
+    error_message: str
+    latest_log: str
+    # The job might fail even before it gets to the workload manager (Slurm), in which case
+    # we have no job ID.
+    workload_manager_job_id: None | int
 
 
 class JsonIndexingJobUpdateOutput(BaseModel):
@@ -311,13 +391,14 @@ class JsonMergeJobFinishOutput(BaseModel):
     result: bool
 
 
-class JsonQueueMergeJobForDataSetInput(BaseModel):
+class JsonQueueMergeJobInput(BaseModel):
     strict_mode: bool
-    beamtime_id: BeamtimeId
+    indexing_parameters_id: int
+    data_set_id: int
     merge_parameters: JsonMergeParameters
 
 
-class JsonQueueMergeJobForDataSetOutput(BaseModel):
+class JsonQueueMergeJobOutput(BaseModel):
     merge_result_id: int
 
 
@@ -332,6 +413,7 @@ class JsonStopRunOutput(BaseModel):
 class JsonCreateOrUpdateRun(BaseModel):
     beamtime_id: BeamtimeId
     attributi: list[JsonAttributoValue]
+    files: list[str]
     started: None | int = None
     stopped: None | int = None
 
@@ -395,6 +477,7 @@ class JsonUpdateRunsBulkOutput(BaseModel):
 
 class JsonAnalysisRun(BaseModel):
     id: int
+    external_id: int
     attributi: list[JsonAttributoValue]
 
 
@@ -404,6 +487,23 @@ class JsonIndexingFom(BaseModel):
     indexed_frames: int
     detector_shift_x_mm: None | float
     detector_shift_y_mm: None | float
+
+
+class JsonIndexingResultStillRunning(BaseModel):
+    workload_manager_job_id: int
+    stream_file: str
+    frames: int
+    hits: int
+    indexed_frames: int
+    indexed_crystals: int
+    detector_shift_x_mm: None | float
+    detector_shift_y_mm: None | float
+    geometry_file: str
+    geometry_hash: str
+    # can be missing, in case we don't have that information but still want to signal progress
+    job_started: None | int
+    # None, in this case, means "don't change/append to the log"
+    latest_log: None | str
 
 
 class JsonIndexingStatistic(BaseModel):
@@ -420,18 +520,33 @@ class JsonRunAnalysisIndexingResult(BaseModel):
     indexing_statistics: list[JsonIndexingStatistic]
 
 
+class JsonDetectorShift(BaseModel):
+    run_external_id: int
+    shift_x_mm: float
+    shift_y_mm: float
+
+
+class JsonReadBeamtimeGeometryDetails(BaseModel):
+    detector_shifts: list[JsonDetectorShift]
+
+
+class JsonRunId(BaseModel):
+    internal_run_id: int
+    external_run_id: int
+
+
 class JsonReadRunAnalysis(BaseModel):
     chemicals: list[JsonChemical]
     attributi: list[JsonAttributo]
-    runs: list[JsonAnalysisRun]
-    indexing_results_by_run_id: list[JsonRunAnalysisIndexingResult]
+    run: None | JsonAnalysisRun
+    run_ids: list[JsonRunId]
+    indexing_results: list[JsonRunAnalysisIndexingResult]
 
 
 class JsonDataSet(BaseModel):
     id: int
     experiment_type_id: int
     attributi: list[JsonAttributoValue]
-    summary: None | JsonIndexingFom
 
 
 class JsonRun(BaseModel):
@@ -443,7 +558,7 @@ class JsonRun(BaseModel):
     files: list[JsonFileOutput]
     summary: JsonIndexingFom
     experiment_type_id: int
-    data_sets: list[int]
+    data_set_ids: list[int]
     running_indexing_jobs: list[int]
 
 
@@ -451,11 +566,17 @@ class JsonUserConfig(BaseModel):
     online_crystfel: bool
     auto_pilot: bool
     current_experiment_type_id: None | int
+    current_online_indexing_parameters_id: None | int
 
 
 class JsonLiveStream(BaseModel):
     file_id: int
     modified: int
+
+
+class JsonDataSetWithFom(BaseModel):
+    data_set: JsonDataSet
+    fom: JsonIndexingFom
 
 
 class JsonReadRuns(BaseModel):
@@ -465,7 +586,7 @@ class JsonReadRuns(BaseModel):
     attributi: list[JsonAttributo]
     latest_indexing_result: None | JsonRunAnalysisIndexingResult
     experiment_types: list[JsonExperimentType]
-    data_sets: list[JsonDataSet]
+    data_sets_with_fom: list[JsonDataSetWithFom]
     events: list[JsonEvent]
     chemicals: list[JsonChemical]
     user_config: JsonUserConfig
@@ -683,23 +804,26 @@ class JsonCheckStandardUnitOutput(BaseModel):
     normalized: None | str
 
 
-class JsonAnalysisDataSet(BaseModel):
-    data_set: JsonDataSet
-    runs: list[str]
-    number_of_indexing_results: int
+class JsonIndexingParametersWithResults(BaseModel):
+    parameters: JsonIndexingParameters
+    indexing_results: list[JsonIndexingResult]
     merge_results: list[JsonMergeResult]
 
 
-class JsonAnalysisExperimentType(BaseModel):
-    experiment_type: int
-    data_sets: list[JsonAnalysisDataSet]
+class JsonDataSetWithIndexingResults(BaseModel):
+    data_set: JsonDataSet
+    # To start indexing jobs
+    internal_run_ids: list[int]
+    # For display
+    runs: list[str]
+    indexing_results: list[JsonIndexingParametersWithResults]
 
 
 class JsonReadAnalysisResults(BaseModel):
     attributi: list[JsonAttributo]
     chemical_id_to_name: list[JsonChemicalIdAndName]
-    experiment_types: list[JsonExperimentType]
-    data_sets: list[JsonAnalysisExperimentType]
+    experiment_type: JsonExperimentType
+    data_sets: list[JsonDataSetWithIndexingResults]
 
 
 class JsonCreateLiveStreamSnapshotOutput(BaseModel):
@@ -718,11 +842,19 @@ class JsonIndexingJob(BaseModel):
     id: int
     job_id: None | int
     job_status: DBJobStatus
+    started: None | int
+    stopped: None | int
+    is_online: bool
     stream_file: None | str
-    cell_description: str
+    source: str
+    cell_description: None | str
+    geometry_file_input: str
+    geometry_file_output: str
+    command_line: str
     run_internal_id: int
     run_external_id: int
     beamtime: JsonBeamtime
+    input_file_globs: list[str]
 
 
 class JsonReadIndexingResultsOutput(BaseModel):
@@ -736,8 +868,8 @@ class JsonMergeJob(BaseModel):
     parameters: JsonMergeParameters
     indexing_results: list[JsonIndexingJob]
     files_from_indexing: list[JsonFileOutput]
-    cell_description: None | str
-    point_group: None | str
+    point_group: str
+    cell_description: str
 
 
 class JsonReadMergeResultsOutput(BaseModel):

@@ -1,11 +1,14 @@
 import asyncio
 import datetime
 import logging
+import os
 import shutil
 import stat
 from asyncio.subprocess import Process
 from dataclasses import dataclass
 from pathlib import Path
+from time import time
+from typing import Any
 from typing import Iterable
 
 from amarcord.amici.workload_manager.job import Job
@@ -21,16 +24,20 @@ logger = logging.getLogger(__name__)
 class WrappedProcess:
     process: Process
     started: datetime.datetime
+    script_path: Path
 
 
 async def start_process_locally(
     output_base_dir_str: str,
     script: str,
+    environment: dict[str, str],
     extra_file_paths_str: list[str],
-) -> tuple[Process, Path]:
+    stdout: None | Path = None,
+    stderr: None | Path = None,
+) -> tuple[Process, Path, Path]:
     output_base_dir = Path(output_base_dir_str)
 
-    script_path = output_base_dir / "script"
+    script_path = output_base_dir / f"{time()}-amarcord-script.sh"
     with script_path.open("w", encoding="utf-8") as f:
         f.write(script)
 
@@ -49,13 +56,47 @@ async def start_process_locally(
         )
         shutil.copyfile(extra_file, process_dir / extra_file.name)
 
-    proc = await asyncio.create_subprocess_shell(
-        str(script_path),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
+    # Without this, we wouldn't even have PATH, which constrains usefulness of this workload manager
+    sub_environ = os.environ.copy()
+    sub_environ.update(environment)
 
-    return proc, process_dir
+    async def create_subprocess(stdout: Any, stderr: Any) -> Any:
+        return await asyncio.create_subprocess_shell(
+            str(script_path),
+            stdout=stdout,
+            stderr=stderr,
+            env=sub_environ,
+            cwd=output_base_dir_str,
+        )
+
+    if stdout is not None:
+        if stderr is not None:
+            with stdout.open("w") as stdout_obj:
+                with stderr.open("w") as stderr_obj:
+                    proc = await create_subprocess(
+                        stdout=stdout_obj,
+                        stderr=stderr_obj,
+                    )
+        else:
+            with stdout.open("w") as stdout_obj:
+                proc = await create_subprocess(
+                    stdout=stdout_obj,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+    else:
+        if stderr is not None:
+            with stderr.open("w") as stderr_obj:
+                proc = await create_subprocess(
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=stderr_obj,
+                )
+        else:
+            proc = await create_subprocess(
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+    return proc, process_dir, script_path
 
 
 class LocalWorkloadManager(WorkloadManager):
@@ -63,22 +104,31 @@ class LocalWorkloadManager(WorkloadManager):
     def __init__(self) -> None:
         self._processes: list[WrappedProcess] = []
 
+    def name(self) -> str:
+        return "local processes"
+
     async def start_job(
         self,
         working_directory: Path,
         script: str,
         name: str,
         time_limit: datetime.timedelta,
+        environment: dict[str, str],
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
-        process, _ = await start_process_locally(
-            str(working_directory),
-            script,
-            [],
+        process, _, script_path = await start_process_locally(
+            output_base_dir_str=str(working_directory),
+            script=script,
+            environment=environment,
+            extra_file_paths_str=[],
+            stdout=stdout,
+            stderr=stderr,
         )
         self._processes.append(
-            WrappedProcess(process, datetime.datetime.now(datetime.timezone.utc))
+            WrappedProcess(
+                process, datetime.datetime.now(datetime.timezone.utc), script_path
+            )
         )
         return JobStartResult(
             job_id=process.pid, metadata=JobMetadata({"pid": process.pid})
@@ -88,6 +138,8 @@ class LocalWorkloadManager(WorkloadManager):
         result: list[Job] = []
         for wrapped_process in self._processes:
             rc = wrapped_process.process.returncode
+            if rc is not None:
+                wrapped_process.script_path.unlink(missing_ok=True)
             result.append(
                 Job(
                     id=wrapped_process.process.pid,

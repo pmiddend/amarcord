@@ -1,10 +1,9 @@
 module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, modelToMergeParameters, quickMergeParameters, update, view)
 
-import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.Html exposing (enumSelect, form_, h3_, input_, onFloatInput, onIntInput, sup_)
+import Amarcord.Html exposing (enumSelect, input_, onFloatInput, onIntInput, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
-import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobForDataSetInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
-import Html exposing (Html, button, div, h2, label, span, text)
+import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
+import Html exposing (Html, button, div, form, h2, label, span, text)
 import Html.Attributes exposing (checked, class, classList, disabled, for, id, type_, value)
 import Html.Events exposing (onClick)
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
@@ -208,7 +207,9 @@ polarisationPresetToDescription x =
 
 
 type alias Model =
-    { mergeModel : MergeModel
+    { dataSetId : Int
+    , indexingParametersId : Int
+    , mergeModel : MergeModel
     , scaleIntensities : ScaleIntensities
     , postRefinement : Bool
     , iterations : Int
@@ -228,12 +229,11 @@ type alias Model =
     , minRes : Maybe Float
     , pushRes : Maybe Float
     , w : Maybe PointGroupChooser.Model
-    , beamtimeId : BeamtimeId
     }
 
 
-modelToMergeParameters : Model -> JsonQueueMergeJobForDataSetInput
-modelToMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w, beamtimeId } =
+modelToMergeParameters : Model -> JsonQueueMergeJobInput
+modelToMergeParameters { dataSetId, indexingParametersId, mergeModel, scaleIntensities, postRefinement, iterations, polarisationPreset, polarisation, startAfter, stopAfter, relB, noPr, forceBandwidth, forceRadius, forceLambda, noDeltaCcHalf, maxAdu, minMeasurements, logs, minRes, pushRes, w } =
     let
         polarisationModelToPolarisation =
             case polarisationPreset of
@@ -258,11 +258,18 @@ modelToMergeParameters { mergeModel, scaleIntensities, postRefinement, iteration
                 PolarisationCustom ->
                     Just polarisation
     in
-    { beamtimeId = beamtimeId
-    , strictMode = False
+    { strictMode = False
+    , indexingParametersId = indexingParametersId
+    , dataSetId = dataSetId
     , mergeParameters =
         { mergeModel = mergeModel
-        , pointGroup = Nothing
+
+        -- FIXME: take point group from user or leave it empty to auto-detect
+        , pointGroup = ""
+
+        -- Here it's fine to leave it empty, we don't want it user-defined and it will be filled by the server.
+        -- The only reason this is here is because we have only one class for merge parameters (for input and output).
+        , cellDescription = ""
         , scaleIntensities = scaleIntensities
         , postRefinement = postRefinement
         , iterations = iterations
@@ -621,9 +628,8 @@ view model =
                     ]
                 ]
     in
-    form_
-        [ h3_ [ text "Merge Parameters" ]
-        , modelSelect
+    form [ class "p-3" ]
+        [ modelSelect
         , scalingAndRefinementCheckboxes
         , iterationsRow
         , polarisationRow
@@ -641,9 +647,11 @@ view model =
         ]
 
 
-init : BeamtimeId -> Model
-init beamtimeId =
-    { mergeModel = MergeModelUnity
+init : Int -> Int -> Model
+init dataSetId indexingParametersId =
+    { dataSetId = dataSetId
+    , indexingParametersId = indexingParametersId
+    , mergeModel = MergeModelUnity
     , scaleIntensities = ScaleIntensitiesOff
     , postRefinement = False
     , iterations = 3
@@ -659,7 +667,6 @@ init beamtimeId =
     , noDeltaCcHalf = True
     , maxAdu = Nothing
     , minMeasurements = 2
-    , beamtimeId = beamtimeId
     , logs = True
     , minRes = Nothing
     , pushRes = Nothing
@@ -667,13 +674,19 @@ init beamtimeId =
     }
 
 
-quickMergeParameters : BeamtimeId -> JsonQueueMergeJobForDataSetInput
-quickMergeParameters beamtimeId =
-    { beamtimeId = beamtimeId
+quickMergeParameters : Int -> Int -> JsonQueueMergeJobInput
+quickMergeParameters dataSetId indexingParametersId =
+    { dataSetId = dataSetId
+    , indexingParametersId = indexingParametersId
     , strictMode = False
     , mergeParameters =
         { mergeModel = MergeModelUnity
-        , pointGroup = Nothing
+
+        -- Auto-detect from chemicals
+        , pointGroup = ""
+
+        -- See below for an explanation
+        , cellDescription = ""
         , scaleIntensities = ScaleIntensitiesOff
         , postRefinement = False
         , iterations = 3

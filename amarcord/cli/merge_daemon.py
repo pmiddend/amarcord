@@ -2,12 +2,11 @@ import asyncio
 import datetime
 import inspect
 import json
+import os
 import shlex
 from base64 import b64encode
 from dataclasses import dataclass
 from datetime import timedelta
-from enum import IntEnum
-from enum import auto
 from io import StringIO
 from pathlib import Path
 from time import time
@@ -19,10 +18,7 @@ from structlog.stdlib import BoundLogger
 from tap import Tap
 
 import amarcord.cli.crystfel_merge
-from amarcord.amici.crystfel.util import coparse_cell_file
 from amarcord.amici.crystfel.util import determine_output_directory
-from amarcord.amici.crystfel.util import make_cell_file_name
-from amarcord.amici.crystfel.util import parse_cell_description
 from amarcord.amici.workload_manager.job_status import JobStatus
 from amarcord.amici.workload_manager.workload_manager import JobStartError
 from amarcord.amici.workload_manager.workload_manager import WorkloadManager
@@ -32,11 +28,15 @@ from amarcord.amici.workload_manager.workload_manager_factory import (
 from amarcord.amici.workload_manager.workload_manager_factory import (
     parse_workload_manager_config,
 )
+from amarcord.cli.crystfel_index import CrystFELCellFile
+from amarcord.cli.crystfel_index import coparse_cell_file
+from amarcord.cli.crystfel_index import parse_cell_description
 from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.merge_result import JsonMergeJobFinishedInput
 from amarcord.db.merge_result import JsonMergeJobStartedInput
 from amarcord.db.scale_intensities import ScaleIntensities
+from amarcord.util import overwrite_interpreter
 from amarcord.web.json_models import JsonCreateFileOutput
 from amarcord.web.json_models import JsonMergeJob
 from amarcord.web.json_models import JsonMergeParameters
@@ -44,18 +44,47 @@ from amarcord.web.json_models import JsonReadMergeResultsOutput
 
 logger = structlog.stdlib.get_logger(__name__)
 
-_SHORT_SLEEP_DURATION_SECONDS = 2.0
-_LONG_BREAK_DURATION_SECONDS = 10.0
+MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR = (
+    "MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS"
+)
+
+MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR = (
+    "MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS"
+)
+
+
+def _long_break_duration_seconds() -> float:
+    return float(os.environ.get(MERGE_DAEMON_LONG_BREAK_DURATION_SECONDS_ENV_VAR, "10"))
+
+
+def _short_break_duration_seconds() -> float:
+    return float(
+        os.environ.get(MERGE_DAEMON_SHORT_BREAK_DURATION_SECONDS_ENV_VAR, "10")
+    )
+
+
 _ZOMBIE_TIME_SECONDS = 10
 
 
 class Arguments(Tap):
-    workload_manager_uri: str
-    output_base_directory: Path
-    amarcord_url: str
+    workload_manager_uri: str  # Determines how and where jobs are started; refer to the manual on how this URL should look like
+    output_base_directory: Path  # Where to put the outputs of the jobs started (at DESY, this will be "processed/...")
+    amarcord_url: str  # URL the daemon uses to look up indexing jobs in the DB
     # pylint: disable=consider-alternative-union-syntax
-    amarcord_url_for_maxwell_job: Optional[str] = None
-    crystfel_path: Path
+    ccp4_path: Optional[  # Path to the ccp4 installation (if available); if this is given, we will use "dimple" and a given .pdb file to try an initial refinement
+        str
+    ] = None
+    # pylint: disable=consider-alternative-union-syntax
+    overwrite_interpreter: Optional[  # Rewrite the first (shebang) line of the indexing script to find the Python interpreter
+        str
+    ] = None
+    # pylint: disable=consider-alternative-union-syntax
+    amarcord_url_for_spawned_job: Optional[  # URL to give to jobs spawned by the daemon in order to contact AMARCORD for updates
+        str
+    ] = None
+    crystfel_path: (  # Where the CrystFEL binaries are located (without the /bin suffix!)
+        Path
+    )
 
 
 def merge_parameters_to_crystfel_parameters(p: JsonMergeParameters) -> list[str]:
@@ -117,6 +146,11 @@ class MergeJobStartSuccess:
     time: datetime.datetime
 
 
+def make_cell_file_name(c: CrystFELCellFile) -> str:
+    ua = c.unique_axis if c.unique_axis else "noaxis"
+    return f"chemical_{c.lattice_type}_{c.centering}_{ua}_{c.a}_{c.b}_{c.c}_{c.alpha}_{c.beta}_{c.gamma}_{int(time())}.cell"
+
+
 async def start_merge_job(
     session: aiohttp.ClientSession,
     parent_logger: BoundLogger,
@@ -167,7 +201,7 @@ async def start_merge_job(
 
     assert (
         parsed_cell_description is not None
-    ), f"the merge result {merge_result.id} has no valid cell description: {merge_result.cell_description}"
+    ), f'the merge result {merge_result.id} has no valid cell description: "{merge_result.cell_description}"'
 
     cell_file_contents = StringIO()
     coparse_cell_file(parsed_cell_description, cell_file_contents)
@@ -196,12 +230,13 @@ async def start_merge_job(
                 "stream-files": stream_files,
                 "api-url": (
                     args.amarcord_url
-                    if args.amarcord_url_for_maxwell_job is None
-                    else args.amarcord_url_for_maxwell_job
+                    if args.amarcord_url_for_spawned_job is None
+                    else args.amarcord_url_for_spawned_job
                 ),
                 "merge-result-id": merge_result.id,
                 "cell-file-id": cell_file_id,
                 "point-group": merge_result.point_group,
+                "ccp4-path": args.ccp4_path,
                 "partialator-additional": shlex.join(
                     merge_parameters_to_crystfel_parameters(merge_result.parameters)
                 ),
@@ -220,6 +255,10 @@ async def start_merge_job(
                 "predefined_args: None | bytes = None",
                 f'predefined_args = "{predefined_args_b64}"',
             )
+            if args.overwrite_interpreter is not None:
+                merge_file_contents = overwrite_interpreter(
+                    merge_file_contents, args.overwrite_interpreter
+                )
             beamtime = merge_result.indexing_results[0].beamtime
             job_base_directory = determine_output_directory(
                 beamtime,
@@ -231,6 +270,7 @@ async def start_merge_job(
                 name=f"mg_{merge_result.id}",
                 script=merge_file_contents,
                 time_limit=timedelta(days=1),
+                environment={},
                 stdout=job_base_directory / f"{merge_result.id}_stdout.txt",
                 stderr=job_base_directory / f"{merge_result.id}_stderr.txt",
             )
@@ -246,11 +286,6 @@ async def start_merge_job(
         return MergeJobStartError(
             job_error=e.message, time=datetime.datetime.now(datetime.timezone.utc)
         )
-
-
-class CheckResult(IntEnum):
-    CHECK_ACTION = auto()
-    CHECK_NO_ACTION = auto()
 
 
 async def _start_new_jobs(
@@ -271,30 +306,40 @@ async def _start_new_jobs(
 
         if isinstance(start_result, MergeJobStartSuccess):
             async with session.post(
-                f"{args.amarcord_url}/api/merging/start/{merge_result.id}",
+                f"{args.amarcord_url}/api/merging/{merge_result.id}/start",
                 json=JsonMergeJobStartedInput(
                     job_id=start_result.job_id,
                     time=datetime_to_attributo_int(start_result.time),
                 ).dict(),
             ) as start_response:
-                bound_logger.info(
-                    f"new merge job started request sent, result: {start_response}"
-                )
+                if start_response.status // 200 != 1:
+                    bound_logger.error(
+                        f"error starting merge job: {start_response.status}"
+                    )
+                else:
+                    bound_logger.info(
+                        f"new merge job started request sent, result: {start_response}"
+                    )
         else:
             async with session.post(
-                f"{args.amarcord_url}/api/merging/finish/{merge_result.id}",
+                f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
                 json=JsonMergeJobFinishedInput(
                     error=start_result.job_error, result=None
                 ).dict(),
             ) as update_response:
-                bound_logger.info(
-                    f"merge job finished with error sent, result: {update_response}"
-                )
+                if update_response.status // 200 != 1:
+                    bound_logger.error(
+                        f"merge job finished erroneously: {update_response.status}"
+                    )
+                else:
+                    bound_logger.info(
+                        f"merge job finished with error sent, result: {update_response}"
+                    )
 
         bound_logger.info(
-            f"new merge job submitted, taking a {_LONG_BREAK_DURATION_SECONDS}s break"
+            f"new merge job submitted, taking a {_long_break_duration_seconds()}s break"
         )
-        await asyncio.sleep(_LONG_BREAK_DURATION_SECONDS)
+        await asyncio.sleep(_long_break_duration_seconds())
 
 
 async def _update_jobs(
@@ -348,10 +393,15 @@ async def _update_jobs(
             )
 
         async with session.post(
-            f"{args.amarcord_url}/api/merging/finish/{merge_result.id}",
+            f"{args.amarcord_url}/api/merging/{merge_result.id}/finish",
             json=JsonMergeJobFinishedInput(error=job_error, result=None).dict(),
-        ):
-            bound_logger.info("sent request to finish with error")
+        ) as finish_request:
+            if finish_request.status // 200 != 1:
+                bound_logger.info(
+                    f"sent request to finish with error, failed: {finish_request.status}"
+                )
+            else:
+                bound_logger.error("sent request to finish with error")
 
     logger.info("merge jobs stati updated, take a (longer) break")
 
@@ -361,7 +411,7 @@ async def _update_jobs(
             zombie_job_times.pop(job_id)
 
 
-async def _merging_loop_iteration(
+async def merging_loop_iteration(
     session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
     args: Arguments,
@@ -370,10 +420,11 @@ async def _merging_loop_iteration(
     await _start_new_jobs(session, workload_manager, args)
     await _update_jobs(session, workload_manager, args, zombie_job_times)
 
-    await asyncio.sleep(_SHORT_SLEEP_DURATION_SECONDS)
+    await asyncio.sleep(_short_break_duration_seconds())
 
 
-async def _merging_loop(args: Arguments) -> None:
+# We can't really cover this code, it's pure glue
+async def _merging_loop(args: Arguments) -> None:  # pragma: no cover
     logger.info("starting CrystFEL merging loop")
     workload_manager = create_workload_manager(
         parse_workload_manager_config(args.workload_manager_uri)
@@ -388,14 +439,14 @@ async def _merging_loop(args: Arguments) -> None:
     zombie_job_times: dict[int, float] = {}
     async with aiohttp.ClientSession(connector=connector) as session:
         while True:
-            await _merging_loop_iteration(
+            await merging_loop_iteration(
                 session, workload_manager, args, zombie_job_times
             )
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     asyncio.run(_merging_loop(Arguments(underscores_to_dashes=True).parse_args()))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

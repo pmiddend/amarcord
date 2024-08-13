@@ -21,12 +21,15 @@ module Amarcord.API.Requests exposing
     , runInternalIdToInt
     , runInternalIdToString
     , specificRunEventDateFilter
+    , ExperimentTypeId
     )
 
 
 type alias BeamtimeId =
     Int
 
+type alias ExperimentTypeId =
+    Int
 
 beamtimeIdToString : BeamtimeId -> String
 beamtimeIdToString =

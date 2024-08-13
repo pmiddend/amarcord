@@ -69,6 +69,7 @@ sphinx = "7.2.6"
 myst-parser = "2.0.0"
 sphinxcontrib-mermaid = "0.9.2"
 sphinx-autobuild = "2024.2.4"
+pytest-aiohttp = "1.0.5"
 sphinxcontrib-spelling = "8.0.0"
 black = '24.4.2'
 types-pytz = "2024.1.0.20240417"
@@ -212,7 +213,8 @@ omit = [
   "amarcord/cli/generate_openapi_schema.py",
   "amarcord/cli/migrate.py",
   "amarcord/cli/slurm_runner.py",
-  "amarcord/cli/upgrade_db_to_latest.py"
+  "amarcord/cli/upgrade_db_to_latest.py",
+  "amarcord/cli/offline_index_test_scenario.py"
   ]
 # tbh, I don't completely know why we need this. However, if we omit this, or use either just "thread" or "greenlet", then the coverage report
 # for the web server will not work correctly. There will be lines shown as "not covered" which have clearly been covered. See also this

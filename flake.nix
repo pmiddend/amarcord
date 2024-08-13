@@ -194,6 +194,7 @@
                 pkgs.elmPackages.elm-review
                 pkgs.elmPackages.elm-format
                 pkgs.elmPackages.elm-json
+                pkgs.elmPackages.elm-test
                 elm-language-server
                 pkgs.nodejs
                 pkgs.elm2nix
