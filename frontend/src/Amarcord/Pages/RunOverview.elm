@@ -2,7 +2,6 @@ module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId, experimentTypeIdDict)
 import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter, RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
@@ -13,12 +12,12 @@ import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiG
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm
 import Amarcord.Html exposing (form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeFilesLink, makeLink)
 import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
 import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
-import Api exposing (send)
 import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonChangeRunExperimentTypeOutput, JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonExperimentType, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
 import Api.Request.Datasets exposing (createDataSetFromRunApiDataSetsFromRunPost)
@@ -31,7 +30,6 @@ import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tr, ul)
 import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List exposing (head)
 import List.Extra as ListExtra exposing (find)
 import Maybe
@@ -42,15 +40,15 @@ import Time exposing (Posix, Zone, millisToPosix, posixToMillis)
 
 
 type Msg
-    = RunsReceived (Result Http.Error JsonReadRuns)
+    = RunsReceived (Result HttpError JsonReadRuns)
     | Refresh Posix
     | EventDelete Int
-    | EventDeleteFinished (Result Http.Error JsonDeleteEventOutput)
+    | EventDeleteFinished (Result HttpError JsonDeleteEventOutput)
     | EventFormMsg EventForm.Msg
     | RunEditInfoValueUpdate AttributoNameWithValueUpdate
     | RunEditInfoExperimentTypeIdChanged Int
     | RunEditSubmit
-    | RunEditFinished (Result Http.Error JsonUpdateRunOutput)
+    | RunEditFinished (Result HttpError JsonUpdateRunOutput)
     | RunInitiateEdit JsonRun
     | RunEditCancel
     | Nop
@@ -60,11 +58,11 @@ type Msg
     | ChangeAutoPilot Bool
     | ChangeOnlineCrystFEL Bool
     | ChangeShowAllAttributi Bool
-    | AutoPilotToggled (Result Http.Error JsonUserConfigurationSingleOutput)
-    | OnlineCrystFELToggled (Result Http.Error JsonUserConfigurationSingleOutput)
+    | AutoPilotToggled (Result HttpError JsonUserConfigurationSingleOutput)
+    | OnlineCrystFELToggled (Result HttpError JsonUserConfigurationSingleOutput)
     | CreateDataSetFromRun RunInternalId
-    | CreateDataSetFromRunFinished (Result Http.Error JsonCreateDataSetFromRunOutput)
-    | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result Http.Error JsonChangeRunExperimentTypeOutput)
+    | CreateDataSetFromRunFinished (Result HttpError JsonCreateDataSetFromRunOutput)
+    | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result HttpError JsonChangeRunExperimentTypeOutput)
     | ResetDate
     | SetRunDateFilter RunEventDate
 
@@ -87,7 +85,7 @@ type alias RunEditInfo =
 type alias RunFilterInfo =
     { runFilter : RunFilter
     , nextRunFilter : String
-    , runFilterRequest : RemoteData Http.Error JsonReadRuns
+    , runFilterRequest : RemoteData HttpError JsonReadRuns
     }
 
 
@@ -139,30 +137,30 @@ initRunDateFilter =
 --             ]
 --         , case model.runFilterRequest of
 --             Failure e ->
---                 div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ] ]
+--                 div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showError e ] ] ]
 --             _ ->
 --                 text ""
 --         ]
 
 
 type alias Model =
-    { runs : RemoteData Http.Error JsonReadRuns
+    { runs : RemoteData HttpError JsonReadRuns
     , myTimeZone : Zone
-    , refreshRequest : RemoteData Http.Error ()
+    , refreshRequest : RemoteData HttpError ()
     , eventForm : EventForm.Model
     , now : Posix
     , runDateFilter : RunDateFilterInfo
     , runDates : List RunEventDate
     , runEditInfo : Maybe RunEditInfo
-    , runEditRequest : RemoteData Http.Error JsonUpdateRunOutput
+    , runEditRequest : RemoteData HttpError JsonUpdateRunOutput
     , runFilter : RunFilterInfo
     , submitErrors : List String
     , currentExperimentType : Maybe JsonExperimentType
     , selectedExperimentType : Maybe JsonExperimentType
     , columnChooser : ColumnChooser.Model
     , localStorage : Maybe LocalStorage
-    , dataSetFromRunRequest : RemoteData Http.Error JsonCreateDataSetFromRunOutput
-    , changeExperimentTypeRequest : RemoteData Http.Error JsonChangeRunExperimentTypeOutput
+    , dataSetFromRunRequest : RemoteData HttpError JsonCreateDataSetFromRunOutput
+    , changeExperimentTypeRequest : RemoteData HttpError JsonChangeRunExperimentTypeOutput
     , beamtimeId : BeamtimeId
     }
 
@@ -329,7 +327,7 @@ dataSetInformation :
     Zone
     -> BeamtimeId
     -> JsonRun
-    -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
+    -> RemoteData HttpError JsonCreateDataSetFromRunOutput
     -> Maybe JsonExperimentType
     -> JsonReadRuns
     -> List (Html Msg)
@@ -527,8 +525,8 @@ viewCurrentRun :
     -> Posix
     -> Maybe JsonExperimentType
     -> Maybe JsonExperimentType
-    -> RemoteData Http.Error JsonChangeRunExperimentTypeOutput
-    -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
+    -> RemoteData HttpError JsonChangeRunExperimentTypeOutput
+    -> RemoteData HttpError JsonCreateDataSetFromRunOutput
     -> JsonReadRuns
     -> List (Html Msg)
 viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
@@ -639,7 +637,7 @@ viewRunAttributiForm :
     Maybe (List JsonAttributiIdAndRole)
     -> Maybe JsonRun
     -> List String
-    -> RemoteData Http.Error JsonUpdateRunOutput
+    -> RemoteData HttpError JsonUpdateRunOutput
     -> List (Chemical Int a b)
     -> Maybe RunEditInfo
     -> List JsonExperimentType
@@ -914,7 +912,7 @@ view model =
                 List.singleton <| loadingBar "Loading runs..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ], showHttpError e ]
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ], showError e ]
 
             Success a ->
                 case model.refreshRequest of
@@ -968,7 +966,7 @@ updateRunEditInfoFromContent zone runEditInfoRaw { runs, attributi } =
                         )
 
 
-updateRunEditInfo : Zone -> Maybe RunEditInfo -> Result Http.Error JsonReadRuns -> Maybe RunEditInfo
+updateRunEditInfo : Zone -> Maybe RunEditInfo -> Result HttpError JsonReadRuns -> Maybe RunEditInfo
 updateRunEditInfo zone runEditInfoRaw responseRaw =
     case responseRaw of
         Ok content ->
@@ -983,7 +981,7 @@ virtualExperimentTypeAttributoName =
     "experiment_type"
 
 
-updateColumnChooser : Maybe LocalStorage -> ColumnChooser.Model -> RemoteData Http.Error JsonReadRuns -> Result Http.Error JsonReadRuns -> ColumnChooser.Model
+updateColumnChooser : Maybe LocalStorage -> ColumnChooser.Model -> RemoteData HttpError JsonReadRuns -> Result HttpError JsonReadRuns -> ColumnChooser.Model
 updateColumnChooser localStorage ccm currentRuns runsResponse =
     case ( currentRuns, runsResponse ) of
         ( _, Ok { attributi } ) ->
@@ -1004,7 +1002,7 @@ updateColumnChooser localStorage ccm currentRuns runsResponse =
             ColumnChooser.init localStorage []
 
 
-extractRunDates : Result Http.Error JsonReadRuns -> List RunEventDate
+extractRunDates : Result HttpError JsonReadRuns -> List RunEventDate
 extractRunDates runDates =
     case runDates of
         Err _ ->

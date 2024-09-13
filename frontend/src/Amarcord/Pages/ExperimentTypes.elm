@@ -2,19 +2,17 @@ module Amarcord.Pages.ExperimentTypes exposing (..)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoType, attributoIsChemicalId, convertAttributoFromApi)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (chemicalTypeFromApi, chemicalTypeToString)
 import Amarcord.Html exposing (br_, div_, form_, h1_, h5_, input_, li_, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Util exposing (forgetMsgInput)
-import Api exposing (send)
 import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonCreateExperimentTypeOutput, JsonDeleteExperimentTypeOutput, JsonExperimentType, JsonExperimentTypeAndRuns, JsonReadExperimentTypes)
 import Api.Request.Experimenttypes exposing (createExperimentTypeApiExperimentTypesPost, deleteExperimentTypeApiExperimentTypesDelete, readExperimentTypesApiExperimentTypesBeamtimeIdGet)
 import Html exposing (Html, button, div, h4, input, label, table, td, text)
 import Html.Attributes exposing (checked, class, disabled, for, id, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List.Extra as ListExtra
 import RemoteData exposing (RemoteData(..), fromResult)
 import Set exposing (Set)
@@ -22,9 +20,9 @@ import String
 
 
 type ExperimentTypeMsg
-    = ExperimentTypeCreated (Result Http.Error JsonCreateExperimentTypeOutput)
-    | ExperimentTypeDeleted (Result Http.Error JsonDeleteExperimentTypeOutput)
-    | ExperimentTypesReceived (Result Http.Error JsonReadExperimentTypes)
+    = ExperimentTypeCreated (Result HttpError JsonCreateExperimentTypeOutput)
+    | ExperimentTypeDeleted (Result HttpError JsonDeleteExperimentTypeOutput)
+    | ExperimentTypesReceived (Result HttpError JsonReadExperimentTypes)
     | ExperimentTypeNameChange String
     | ExperimentTypeDeleteSubmit ExperimentTypeId
     | ExperimentTypeAttributoRoleChange AttributoId ChemicalType
@@ -38,13 +36,13 @@ type alias NewExperimentType =
     { name : String
     , attributi : List AttributoId
     , solutionAttributi : Set AttributoId
-    , createRequest : RemoteData Http.Error {}
+    , createRequest : RemoteData HttpError {}
     }
 
 
 type alias ExperimentTypeModel =
-    { deleteRequest : RemoteData Http.Error {}
-    , experimentTypes : RemoteData Http.Error JsonReadExperimentTypes
+    { deleteRequest : RemoteData HttpError {}
+    , experimentTypes : RemoteData HttpError JsonReadExperimentTypes
     , newExperimentType : Maybe NewExperimentType
     , beamtimeId : BeamtimeId
     }
@@ -314,7 +312,10 @@ viewExperimentType model =
     , viewRemoteDataHttp "Deletion successful!" model.deleteRequest
     , case model.experimentTypes of
         Failure e ->
-            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ], showHttpError e ]
+            makeAlert [ AlertDanger ] <|
+                [ h4 [ class "alert-heading" ] [ text "Failed to retrieve experiment types" ]
+                , showError e
+                ]
 
         Success experimentTypesResponse ->
             table [ class "table table-striped" ]

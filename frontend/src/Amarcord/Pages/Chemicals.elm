@@ -1,7 +1,6 @@
 module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, init, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
 import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractInt)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
@@ -10,10 +9,10 @@ import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, c
 import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.Util exposing (HereAndNow, scrollToTop)
-import Api exposing (send)
 import Api.Data exposing (ChemicalType(..), JsonChemicalWithId, JsonChemicalWithoutId, JsonCreateFileOutput, JsonDeleteChemicalInput, JsonDeleteChemicalOutput, JsonFileOutput, JsonReadChemicals, JsonReadRuns, JsonRun)
 import Api.Request.Chemicals exposing (createChemicalApiChemicalsPost, deleteChemicalApiChemicalsDelete, readChemicalsApiChemicalsBeamtimeIdGet, updateChemicalApiChemicalsPatch)
 import Api.Request.Files exposing (createFileApiFilesPost)
@@ -26,7 +25,6 @@ import File.Select
 import Html exposing (..)
 import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List exposing (isEmpty, length, singleton)
 import List.Extra as ListExtra
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
@@ -57,13 +55,13 @@ type alias NewFileUpload =
 
 
 type alias Model =
-    { chemicals : RemoteData Http.Error ChemicalsAndAttributi
+    { chemicals : RemoteData HttpError ChemicalsAndAttributi
     , chemicalsUsedInRuns : Set ChemicalId
     , deleteModalOpen : Maybe ( String, ChemicalId )
-    , chemicalDeleteRequest : RemoteData Http.Error ()
-    , fileUploadRequest : RemoteData Http.Error ()
+    , chemicalDeleteRequest : RemoteData HttpError ()
+    , fileUploadRequest : RemoteData HttpError ()
     , editChemical : Maybe (Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput)
-    , modifyRequest : RemoteData Http.Error ()
+    , modifyRequest : RemoteData HttpError ()
     , myTimeZone : Zone
     , submitErrors : List (Html Msg)
     , newFileUpload : NewFileUpload
@@ -74,8 +72,8 @@ type alias Model =
 
 
 type Msg
-    = ChemicalsReceived (Result Http.Error JsonReadChemicals)
-    | RunsReceived (Result Http.Error JsonReadRuns)
+    = ChemicalsReceived (Result HttpError JsonReadChemicals)
+    | RunsReceived (Result HttpError JsonReadRuns)
     | CancelDelete
     | AskDelete String ChemicalId
     | InitiateEdit (Chemical Int (AttributoMap AttributoValue) JsonFileOutput)
@@ -83,16 +81,16 @@ type Msg
     | AddChemical ChemicalType
     | EditChemicalName String
     | EditChemicalResponsiblePerson String
-    | ChemicalDeleteFinished (Result Http.Error JsonDeleteChemicalOutput)
+    | ChemicalDeleteFinished (Result HttpError JsonDeleteChemicalOutput)
     | EditChemicalSubmit
     | EditChemicalCancel
-    | EditChemicalFinished (Result Http.Error {})
+    | EditChemicalFinished (Result HttpError {})
     | EditChemicalAttributo AttributoNameWithValueUpdate
     | EditNewFileDescription String
     | EditNewFileFile ElmFile.File
     | EditNewFileWithBytes FileWithBytes
     | EditFileUpload
-    | EditFileUploadFinished (Result Http.Error JsonCreateFileOutput)
+    | EditFileUploadFinished (Result HttpError JsonCreateFileOutput)
     | EditFileDelete Int
     | EditResetNewFileUpload
     | EditNewFileOpenSelector
@@ -129,7 +127,7 @@ getChemicalsAndRuns beamtimeId =
         ]
 
 
-viewFiles : RemoteData Http.Error () -> NewFileUpload -> List JsonFileOutput -> List (Html Msg)
+viewFiles : RemoteData HttpError () -> NewFileUpload -> List JsonFileOutput -> List (Html Msg)
 viewFiles fileUploadError newFile files =
     let
         viewFileRow : JsonFileOutput -> Html Msg
@@ -211,7 +209,7 @@ viewFiles fileUploadError newFile files =
         filesTable ++ uploadForm
 
 
-viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput) -> RemoteData Http.Error () -> List (Html Msg) -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput -> Html Msg
+viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput) -> RemoteData HttpError () -> List (Html Msg) -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput -> Html Msg
 viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingChemical =
     let
         attributoFormMsgToMsg : AttributoFormMsg -> Msg
@@ -596,7 +594,7 @@ viewInner model =
             singleton <| loadingBar "Loading chemicals..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ], showHttpError e ]
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ], showError e ]
 
         Success { chemicals, attributi } ->
             let
@@ -621,7 +619,7 @@ viewInner model =
                             p [] [ text "Request in progress..." ]
 
                         Failure e ->
-                            div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                            div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -637,7 +635,7 @@ viewInner model =
                             p [] [ text "Request in progress..." ]
 
                         Failure e ->
-                            div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                            div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]

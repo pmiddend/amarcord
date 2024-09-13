@@ -2,22 +2,20 @@ module Amarcord.Pages.DataSets exposing (..)
 
 import Amarcord.API.ExperimentType exposing (ExperimentType)
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Attributo exposing (Attributo, AttributoType, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (Chemical, chemicalIdDict, chemicalTypeFromApi, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (form_, h1_, h5_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Util exposing (HereAndNow, listContainsBy)
-import Api exposing (send)
 import Api.Data exposing (ChemicalType(..), JsonCreateDataSetOutput, JsonDataSet, JsonDeleteDataSetOutput, JsonExperimentType, JsonReadDataSets)
 import Api.Request.Datasets exposing (createDataSetApiDataSetsPost, deleteDataSetApiDataSetsDelete, readDataSetsApiDataSetsBeamtimeIdGet)
 import Dict
 import Html exposing (Html, button, div, h4, option, select, table, text)
 import Html.Attributes exposing (class, disabled, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List.Extra as ListExtra exposing (find)
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult)
@@ -26,9 +24,9 @@ import Time exposing (Zone)
 
 
 type Msg
-    = DataSetCreated (Result Http.Error JsonCreateDataSetOutput)
-    | DataSetDeleted (Result Http.Error JsonDeleteDataSetOutput)
-    | DataSetsReceived (Result Http.Error JsonReadDataSets)
+    = DataSetCreated (Result HttpError JsonCreateDataSetOutput)
+    | DataSetDeleted (Result HttpError JsonDeleteDataSetOutput)
+    | DataSetsReceived (Result HttpError JsonReadDataSets)
     | DataSetDeleteSubmit Int
     | DataSetExperimentTypeChange String
     | DataSetAttributiChange AttributoNameWithValueUpdate
@@ -59,10 +57,10 @@ type alias NewDataSet =
 
 
 type alias DataSetModel =
-    { createRequest : RemoteData Http.Error JsonCreateDataSetOutput
-    , deleteRequest : RemoteData Http.Error JsonDeleteDataSetOutput
+    { createRequest : RemoteData HttpError JsonCreateDataSetOutput
+    , deleteRequest : RemoteData HttpError JsonDeleteDataSetOutput
     , newDataSet : Maybe NewDataSet
-    , dataSets : RemoteData Http.Error JsonReadDataSets
+    , dataSets : RemoteData HttpError JsonReadDataSets
     , submitErrors : List String
     , zone : Zone
     , beamtimeId : BeamtimeId
@@ -235,7 +233,7 @@ viewDataSet model =
             List.singleton <|
                 makeAlert [ AlertDanger ] <|
                     [ h4 [ class "alert-heading" ] [ text "Failed to retrieve data sets" ]
-                    , showHttpError e
+                    , showError e
                     ]
 
         Success { chemicals, attributi, dataSets, experimentTypes } ->

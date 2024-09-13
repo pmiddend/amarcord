@@ -1,19 +1,17 @@
 module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.Requests exposing (invalidBeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
 import Amarcord.Html exposing (div_, form_, h2_, h4_, strongText)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeLink)
 import Amarcord.Util exposing (HereAndNow, formatPosixDateTimeCompatible, formatPosixHumanFriendly, localDateTimeStringToPosix, scrollToTop)
-import Api exposing (send)
 import Api.Data exposing (JsonBeamtime, JsonReadBeamtime)
 import Api.Request.Beamtimes exposing (createBeamtimeApiBeamtimesPost, readBeamtimesApiBeamtimesGet, updateBeamtimeApiBeamtimesPatch)
 import Html exposing (Html, a, button, div, input, label, li, p, span, table, tbody, td, text, textarea, th, thead, tr, ul)
 import Html.Attributes as Attrs exposing (attribute, class, for, href, id, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List exposing (sort)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Result.Extra as ResultExtra
@@ -21,22 +19,22 @@ import Time exposing (Zone, millisToPosix, posixToMillis, utc)
 
 
 type alias Model =
-    { beamtimeResult : RemoteData Http.Error (List JsonBeamtime)
+    { beamtimeResult : RemoteData HttpError (List JsonBeamtime)
     , beamtimeEdit : Maybe JsonBeamtime
-    , modifyRequest : RemoteData Http.Error ()
+    , modifyRequest : RemoteData HttpError ()
     , zone : Zone
     }
 
 
 type Msg
-    = BeamtimesReceived (Result Http.Error JsonReadBeamtime)
+    = BeamtimesReceived (Result HttpError JsonReadBeamtime)
     | AddBeamtime
     | Nop
     | EditBeamtimeStart JsonBeamtime
     | EditBeamtimeSubmit
     | ChangeEditBeamtime (JsonBeamtime -> JsonBeamtime)
     | EditBeamtimeCancel
-    | EditBeamtimeFinished (Result Http.Error {})
+    | EditBeamtimeFinished (Result HttpError {})
 
 
 init : HereAndNow -> ( Model, Cmd Msg )
@@ -325,7 +323,7 @@ view model =
                 p [] [ text "Request in progress..." ]
 
             Failure e ->
-                div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
 
             Success _ ->
                 div [ class "mt-3", id "beamtime-edit-success-alert" ]
@@ -336,7 +334,7 @@ view model =
                 viewBeamtimes model.zone beamtimes
 
             Failure e ->
-                div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
 
             _ ->
                 text "Loading..."

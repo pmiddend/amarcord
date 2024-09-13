@@ -7,6 +7,7 @@ module Main exposing (main)
 import Amarcord.Bootstrap exposing (viewRemoteDataHttp)
 import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Html exposing (h1_, img_)
+import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
@@ -24,14 +25,12 @@ import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (version)
-import Api exposing (send)
 import Api.Data exposing (JsonBeamtime)
 import Api.Request.Beamtimes exposing (readBeamtimeApiBeamtimesBeamtimeIdGet)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Http
 import RemoteData exposing (RemoteData(..))
 import String exposing (contains, endsWith)
 import Task
@@ -77,7 +76,7 @@ type Msg
     | UrlChanged Url
     | RefreshMsg Posix
     | HereAndNowReceived HereAndNow
-    | BeamtimeReceived (Result Http.Error JsonBeamtime)
+    | BeamtimeReceived (Result HttpError JsonBeamtime)
 
 
 type Page
@@ -105,7 +104,7 @@ type alias Model =
 
 type alias Metadata =
     { hereAndNow : Maybe HereAndNow
-    , beamtimeRequest : RemoteData Http.Error JsonBeamtime
+    , beamtimeRequest : RemoteData HttpError JsonBeamtime
     , localStorage : Maybe LocalStorage
     }
 

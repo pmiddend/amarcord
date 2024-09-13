@@ -6,7 +6,7 @@ import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAle
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (div_, h1_, h5_, input_)
-import Amarcord.HttpError as HttpError
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
 import Amarcord.Util exposing (HereAndNow)
 import Api.Data exposing (JsonAnalysisRun, JsonDetectorShift, JsonFileOutput, JsonIndexingStatistic, JsonReadBeamtimeGeometryDetails, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult)
@@ -36,8 +36,8 @@ import TypedSvg.Types exposing (AnchorAlignment(..), DominantBaseline(..), Paint
 
 
 type Msg
-    = GeometryDetailsReceived (Result HttpError.HttpError JsonReadBeamtimeGeometryDetails)
-    | RunAnalysisResultsReceived (Result HttpError.HttpError JsonReadRunAnalysis)
+    = GeometryDetailsReceived (Result HttpError JsonReadBeamtimeGeometryDetails)
+    | RunAnalysisResultsReceived (Result HttpError JsonReadRunAnalysis)
     | ChangeRunId (Int -> Int)
     | ChangeRunIdText String
     | ConfirmRunIdText
@@ -46,8 +46,8 @@ type Msg
 type alias Model =
     { hereAndNow : HereAndNow
     , runIdInput : String
-    , runAnalysisRequest : RemoteData HttpError.HttpError JsonReadRunAnalysis
-    , geometryDetailsRequest : RemoteData HttpError.HttpError JsonReadBeamtimeGeometryDetails
+    , runAnalysisRequest : RemoteData HttpError JsonReadRunAnalysis
+    , geometryDetailsRequest : RemoteData HttpError JsonReadBeamtimeGeometryDetails
     , beamtimeId : BeamtimeId
     }
 
@@ -61,8 +61,8 @@ init hereAndNow beamtimeId =
       , beamtimeId = beamtimeId
       }
     , Cmd.batch
-        [ HttpError.send GeometryDetailsReceived (readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet beamtimeId)
-        , HttpError.send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId Nothing)
+        [ send GeometryDetailsReceived (readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet beamtimeId)
+        , send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId Nothing)
         ]
       -- ,
     )
@@ -303,7 +303,7 @@ viewInner hereAndNow { detectorShifts } model =
             loadingBar "Loading analysis results..."
 
         Failure e ->
-            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve run analysis" ], HttpError.showError e ]
+            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve run analysis" ], showError e ]
 
         Success { attributi, chemicals, run, indexingResults } ->
             viewRunGraphs
@@ -327,7 +327,7 @@ view model =
                 List.singleton <| loadingBar "Loading analysis results..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], HttpError.showError e ]
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showError e ]
 
             Success r ->
                 viewInner model.hereAndNow r model
@@ -356,7 +356,7 @@ update msg model =
                             in
                             case ListExtra.find (\runIdIntExt -> runIdIntExt.externalRunId == newRunId) runIds of
                                 Just { internalRunId } ->
-                                    ( { model | runIdInput = String.fromInt newRunId }, HttpError.send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId)) )
+                                    ( { model | runIdInput = String.fromInt newRunId }, send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId)) )
 
                                 Nothing ->
                                     ( model, Cmd.none )
@@ -380,7 +380,7 @@ update msg model =
                                     ( model, Cmd.none )
 
                                 Just { internalRunId } ->
-                                    ( model, HttpError.send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId)) )
+                                    ( model, send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId)) )
 
                 _ ->
                     ( model, Cmd.none )

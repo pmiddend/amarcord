@@ -15,52 +15,50 @@ import Amarcord.API.Requests
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
 import Amarcord.Html exposing (div_, form_, h2_, hr_, input_, onIntInput)
-import Amarcord.HttpError as HttpError
+import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput)
-import Api exposing (send)
 import Api.Data exposing (JsonIndexingParameters, JsonReadRuns, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet, updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch, updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
 import Html exposing (Html, a, button, div, form, h2, label, option, p, select, text)
 import Html.Attributes exposing (class, disabled, for, href, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import Maybe.Extra as MaybeExtra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
 import Time exposing (Posix)
 
 
 type alias Model =
-    { runs : RemoteData Http.Error JsonReadRuns
-    , refreshRequest : RemoteData Http.Error ()
-    , startOrStopRequest : RemoteData Http.Error {}
+    { runs : RemoteData HttpError JsonReadRuns
+    , refreshRequest : RemoteData HttpError ()
+    , startOrStopRequest : RemoteData HttpError {}
     , nextRunId : RunExternalId
     , isRunning : Bool
     , manualChange : Bool
     , bulkUpdateModel : RunsBulkUpdate.Model
     , beamtimeId : BeamtimeId
-    , onlineIndexingParameters : RemoteData HttpError.HttpError IndexingParameters.Model
-    , updateOnlineIndexingParameters : RemoteData HttpError.HttpError JsonUpdateOnlineIndexingParametersOutput
+    , onlineIndexingParameters : RemoteData HttpError IndexingParameters.Model
+    , updateOnlineIndexingParameters : RemoteData HttpError JsonUpdateOnlineIndexingParametersOutput
     }
 
 
 type Msg
     = StartRun
-    | StartRunFinished (Result Http.Error JsonStartRunOutput)
+    | StartRunFinished (Result HttpError JsonStartRunOutput)
     | StopRun
-    | StopRunFinished (Result Http.Error JsonStopRunOutput)
-    | RunsReceived (Result Http.Error JsonReadRuns)
-    | IndexingParametersReceived (Result HttpError.HttpError JsonIndexingParameters)
+    | StopRunFinished (Result HttpError JsonStopRunOutput)
+    | RunsReceived (Result HttpError JsonReadRuns)
+    | IndexingParametersReceived (Result HttpError JsonIndexingParameters)
     | Refresh Posix
     | RunIdChanged (Maybe Int)
     | RunsBulkUpdateMsg RunsBulkUpdate.Msg
     | CurrentExperimentTypeChanged Int
-    | ExperimentIdChanged (Result Http.Error JsonUserConfigurationSingleOutput)
+    | ExperimentIdChanged (Result HttpError JsonUserConfigurationSingleOutput)
     | IndexingParametersMsg IndexingParameters.Msg
     | StartUpdateOnlineIndexingParameters
-    | UpdateOnlineIndexingParametersDone (Result HttpError.HttpError JsonUpdateOnlineIndexingParametersOutput)
+    | UpdateOnlineIndexingParametersDone (Result HttpError JsonUpdateOnlineIndexingParametersOutput)
 
 
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
@@ -78,12 +76,12 @@ init hereAndNow beamtimeId =
       }
     , Cmd.batch
         [ send RunsReceived (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing)
-        , HttpError.send IndexingParametersReceived (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtimeId)
+        , send IndexingParametersReceived (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtimeId)
         ]
     )
 
 
-calculateIsRunning : Result Http.Error JsonReadRuns -> Bool
+calculateIsRunning : Result HttpError JsonReadRuns -> Bool
 calculateIsRunning runResponse =
     case runResponse of
         Ok { runs } ->
@@ -98,7 +96,7 @@ calculateIsRunning runResponse =
             False
 
 
-calculateNextRunId : RunExternalId -> Result Http.Error JsonReadRuns -> RunExternalId
+calculateNextRunId : RunExternalId -> Result HttpError JsonReadRuns -> RunExternalId
 calculateNextRunId currentRunId runResponse =
     case runResponse of
         Ok { runs } ->
@@ -137,7 +135,7 @@ update msg model =
 
                         Ok commandLine ->
                             ( { model | updateOnlineIndexingParameters = Loading }
-                            , HttpError.send UpdateOnlineIndexingParametersDone
+                            , send UpdateOnlineIndexingParametersDone
                                 (updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch model.beamtimeId
                                     { commandLine = coparseCommandLine commandLine
                                     , geometryFile = onlineIndexingParameters.geometryFile
@@ -180,7 +178,7 @@ update msg model =
                     -- which makes sense. We don't know the source with online indexing yet
                     case IndexingParameters.convertCommandLineToModel (IndexingParameters.init [] "" "" False) commandLine of
                         Err e ->
-                            ( { model | onlineIndexingParameters = Failure (HttpError.BadJson e) }, Cmd.none )
+                            ( { model | onlineIndexingParameters = Failure (BadJson e) }, Cmd.none )
 
                         Ok ipModel ->
                             ( { model | onlineIndexingParameters = Success ipModel }, Cmd.none )
@@ -313,7 +311,7 @@ viewOnlineIndexingParameters model =
                 text ""
 
             Failure e ->
-                HttpError.showError e
+                showError e
 
             Success indexingParamFormModel ->
                 div_

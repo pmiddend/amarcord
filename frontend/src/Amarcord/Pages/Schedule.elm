@@ -5,8 +5,8 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, Attr
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Chemical exposing (Chemical, ChemicalId)
 import Amarcord.Html exposing (input_, li_)
+import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.Pages.Chemicals exposing (convertChemicalsResponse)
-import Api exposing (send)
 import Api.Data exposing (JsonBeamtimeSchedule, JsonBeamtimeScheduleOutput, JsonBeamtimeScheduleRow, JsonFileOutput, JsonReadChemicals)
 import Api.Request.Chemicals exposing (readChemicalsApiChemicalsBeamtimeIdGet)
 import Api.Request.Schedule exposing (getBeamtimeScheduleApiScheduleBeamtimeIdGet, updateBeamtimeScheduleApiSchedulePost)
@@ -15,15 +15,14 @@ import Dict exposing (Dict)
 import Html exposing (Html, button, div, em, h3, input, label, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes exposing (attribute, checked, class, disabled, for, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List.Extra
 import Regex
 import RemoteData exposing (RemoteData(..), fromResult)
 
 
 type ScheduleMsg
-    = ScheduleUpdated (Result Http.Error JsonBeamtimeScheduleOutput)
-    | ScheduleReceived (Result Http.Error JsonBeamtimeSchedule)
+    = ScheduleUpdated (Result HttpError JsonBeamtimeScheduleOutput)
+    | ScheduleReceived (Result HttpError JsonBeamtimeSchedule)
     | SubmitShift
     | ModifyShift ShiftId
     | SubmitModifiedShift ShiftId
@@ -35,7 +34,7 @@ type ScheduleMsg
     | UpdateToModifyShiftChemical String
     | ResetToModifyShift
     | ResetToDeleteShift
-    | ChemicalsReceived (Result Http.Error JsonReadChemicals)
+    | ChemicalsReceived (Result HttpError JsonReadChemicals)
 
 
 type ChemicalDropdownMode
@@ -62,7 +61,7 @@ type alias ScheduleModel =
     , newJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRow
     , editingJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowToModify
     , deletingJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowToModify
-    , chemicals : RemoteData Http.Error ChemicalsAndAttributi
+    , chemicals : RemoteData HttpError ChemicalsAndAttributi
     , beamtimeId : BeamtimeId
     }
 

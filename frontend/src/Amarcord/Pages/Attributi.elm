@@ -1,7 +1,6 @@
 module Amarcord.Pages.Attributi exposing (Model, Msg, init, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId, ConversionFlags)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToApi, associatedTableToString)
 import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoName, AttributoType(..), attributoIsNumber, attributoIsString, attributoTypeToSchemaArray, attributoTypeToSchemaBoolean, attributoTypeToSchemaInt, attributoTypeToSchemaNumber, attributoTypeToSchemaString, convertAttributoFromApi, mapAttributo, mapAttributoMaybe)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly)
@@ -9,18 +8,17 @@ import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAle
 import Amarcord.Constants exposing (manualAttributiGroup)
 import Amarcord.Dialog as Dialog
 import Amarcord.Html exposing (div_, em_, form_, h4_, h5_, input_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.NumericRange exposing (NumericRange, coparseRange, emptyNumericRange, isEmptyNumericRange, numericRangeToString, parseRange)
 import Amarcord.Parser exposing (deadEndsToHtml)
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput, scrollToTop)
-import Api exposing (send)
 import Api.Data exposing (JsonAttributo, JsonCheckStandardUnitOutput, JsonCreateAttributoInput, JsonReadAttributi)
 import Api.Request.Attributi exposing (createAttributoApiAttributiPost, deleteAttributoApiAttributiDelete, readAttributiApiAttributiBeamtimeIdGet, updateAttributoApiAttributiPatch)
 import Api.Request.Default exposing (checkStandardUnitApiUnitPost)
 import Html exposing (..)
 import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, scope, selected, step, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List exposing (singleton)
 import List.Extra exposing (find)
 import Maybe exposing (withDefault)
@@ -310,7 +308,7 @@ attributoAugTypeToType x =
 
 
 type Msg
-    = AttributiReceived (Result Http.Error JsonReadAttributi)
+    = AttributiReceived (Result HttpError JsonReadAttributi)
     | AddAttributo
     | EditAttributoAssociatedTable AssociatedTable
     | ToleranceCheckerChangeDs String
@@ -323,12 +321,12 @@ type Msg
     | EditAttributoGroup String
     | EditConversionFlags ConversionFlags
     | EditAttributoAugChange AttributoTypeAug
-    | EditSubmitFinished (Result Http.Error {})
-    | CheckStandardUnitFinished (Result Http.Error JsonCheckStandardUnitOutput)
+    | EditSubmitFinished (Result HttpError {})
+    | CheckStandardUnitFinished (Result HttpError JsonCheckStandardUnitOutput)
     | AskDelete AttributoId AttributoName
     | ConfirmDelete AttributoId
     | CancelDelete
-    | DeleteFinished (Result Http.Error {})
+    | DeleteFinished (Result HttpError {})
     | InitiateEdit AttributoName
     | Nop
 
@@ -338,14 +336,14 @@ type alias ToleranceChecker =
 
 
 type alias Model =
-    { attributiList : RemoteData Http.Error (List (Attributo AttributoType))
+    { attributiList : RemoteData HttpError (List (Attributo AttributoType))
     , editAttributo : Maybe (Attributo AttributoTypeAug)
     , editAttributoOriginalName : Maybe AttributoName
     , conversionFlags : ConversionFlags
-    , modifyRequest : RemoteData Http.Error {}
-    , deleteRequest : RemoteData Http.Error {}
+    , modifyRequest : RemoteData HttpError {}
+    , deleteRequest : RemoteData HttpError {}
     , deleteModalOpen : Maybe ( AttributoId, AttributoName )
-    , unitValidationRequest : RemoteData Http.Error {}
+    , unitValidationRequest : RemoteData HttpError {}
     , toleranceChecker : ToleranceChecker
     , beamtimeId : BeamtimeId
     }
@@ -985,7 +983,13 @@ viewInner model =
             singleton <| loadingBar "Loading attributi..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showHttpError e ]
+            singleton <|
+                makeAlert [ AlertDanger ] <|
+                    [ h4 [ class "alert-heading" ]
+                        [ text "Failed to retrieve Attributi"
+                        ]
+                    , showError e
+                    ]
 
         Success attributiListReal ->
             let
@@ -1029,7 +1033,7 @@ viewInner model =
                             p_ [ text "Request in progress..." ]
 
                         Failure e ->
-                            div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                            div_ [ makeAlert [ AlertDanger ] [ showError e ] ]
 
                         Success _ ->
                             div [ class "mt-3", id "attributi-modify-request-alert" ]
@@ -1045,7 +1049,7 @@ viewInner model =
                             p_ [ text "Request in progress..." ]
 
                         Failure e ->
-                            div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                            div_ [ makeAlert [ AlertDanger ] [ showError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]

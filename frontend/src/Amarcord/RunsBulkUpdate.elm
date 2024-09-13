@@ -6,15 +6,14 @@ import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithV
 import Amarcord.Bootstrap exposing (icon, viewRemoteData)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, convertChemicalFromApi)
 import Amarcord.Html exposing (form_, h3_, hr_, input_, li_, onIntInput, p_, strongText)
+import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.Util exposing (HereAndNow)
-import Api exposing (send)
 import Api.Data exposing (ChemicalType(..), JsonExperimentType, JsonFileOutput, JsonReadRunsBulkOutput, JsonUpdateRunsBulkOutput)
 import Api.Request.Runs exposing (readRunsBulkApiRunsBulkPost, updateRunsBulkApiRunsBulkPatch)
 import Dict
 import Html exposing (Html, button, div, label, option, p, select, text, ul)
 import Html.Attributes exposing (class, disabled, for, id, placeholder, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import Maybe.Extra as MaybeExtra
 import Parser exposing ((|.), (|=))
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
@@ -32,8 +31,8 @@ type alias EditableAttributiData =
 type alias Model =
     { hereAndNow : HereAndNow
     , runsInputField : String
-    , runsBulkGetRequest : RemoteData Http.Error EditableAttributiData
-    , runsBulkUpdateRequest : RemoteData Http.Error JsonUpdateRunsBulkOutput
+    , runsBulkGetRequest : RemoteData HttpError EditableAttributiData
+    , runsBulkUpdateRequest : RemoteData HttpError JsonUpdateRunsBulkOutput
     , submitErrors : List String
     , beamtimeId : BeamtimeId
     }
@@ -43,8 +42,8 @@ type Msg
     = RunsInputFieldChanged String
     | SubmitRunRange
     | SubmitBulkChange
-    | RunsBulkGetResponseReceived (Result Http.Error JsonReadRunsBulkOutput)
-    | RunsBulkUpdateResponseReceived (Result Http.Error JsonUpdateRunsBulkOutput)
+    | RunsBulkGetResponseReceived (Result HttpError JsonReadRunsBulkOutput)
+    | RunsBulkUpdateResponseReceived (Result HttpError JsonUpdateRunsBulkOutput)
     | RunsBulkChangeExperimentType Int
     | AttributoChange AttributoNameWithValueUpdate
 
@@ -59,7 +58,7 @@ singletonElement xs =
             Nothing
 
 
-viewBulkAttributiForm : RemoteData Http.Error JsonUpdateRunsBulkOutput -> List String -> EditableAttributiData -> Html Msg
+viewBulkAttributiForm : RemoteData HttpError JsonUpdateRunsBulkOutput -> List String -> EditableAttributiData -> Html Msg
 viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAttributi, experimentTypeIds, experimentTypes, selectedExperimentType } =
     let
         submitErrors =
