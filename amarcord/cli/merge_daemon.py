@@ -271,8 +271,8 @@ async def start_merge_job(
                 script=merge_file_contents,
                 time_limit=timedelta(days=1),
                 environment={},
-                stdout=job_base_directory / f"{merge_result.id}_stdout.txt",
-                stderr=job_base_directory / f"{merge_result.id}_stderr.txt",
+                stdout=job_base_directory / f"merging-{merge_result.id}-stdout.txt",
+                stderr=job_base_directory / f"merging-{merge_result.id}-stderr.txt",
             )
 
         job_logger = parent_logger.bind(job_id=job_start_result.job_id)
