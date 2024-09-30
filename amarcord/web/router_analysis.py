@@ -27,12 +27,15 @@ from amarcord.web.json_models import JsonAnalysisRun
 from amarcord.web.json_models import JsonChemicalIdAndName
 from amarcord.web.json_models import JsonDataSet
 from amarcord.web.json_models import JsonDataSetWithIndexingResults
+from amarcord.web.json_models import JsonDataSetWithoutIndexingResults
 from amarcord.web.json_models import JsonDetectorShift
 from amarcord.web.json_models import JsonIndexingParametersWithResults
 from amarcord.web.json_models import JsonIndexingStatistic
 from amarcord.web.json_models import JsonReadAnalysisResults
 from amarcord.web.json_models import JsonReadBeamtimeGeometryDetails
 from amarcord.web.json_models import JsonReadRunAnalysis
+from amarcord.web.json_models import JsonReadSingleDataSetResults
+from amarcord.web.json_models import JsonReadSingleMergeResult
 from amarcord.web.json_models import JsonRunAnalysisIndexingResult
 from amarcord.web.json_models import JsonRunId
 from amarcord.web.router_attributi import encode_attributo
@@ -221,9 +224,6 @@ async def read_analysis_results(
             )
         )
     }
-    run_external_id_for_internal_id: dict[int, int] = {
-        r.id: r.external_id for r in runs.values()
-    }
     run_attributi_maps: dict[
         RunInternalId,
         dict[AttributoId, None | orm.RunHasAttributoValue],
@@ -254,6 +254,100 @@ async def read_analysis_results(
         ]
         for ds in data_sets
     }
+
+    def _build_data_set_result(ds: orm.DataSet) -> JsonDataSetWithoutIndexingResults:
+        runs_in_ds: list[orm.Run] = data_set_to_runs.get(ds.id, [])
+
+        return JsonDataSetWithoutIndexingResults(
+            data_set=JsonDataSet(
+                id=ds.id,
+                experiment_type_id=ds.experiment_type_id,
+                attributi=[
+                    encode_data_set_attributo_value(v) for v in ds.attributo_values
+                ],
+            ),
+            internal_run_ids=[r.id for r in runs_in_ds],
+            runs=format_run_id_intervals(r.external_id for r in runs_in_ds),
+        )
+
+    return JsonReadAnalysisResults(
+        attributi=[encode_attributo(a) for a in attributi],
+        chemical_id_to_name=chemical_id_to_name,
+        experiment_type=experiment_type,
+        data_sets=[_build_data_set_result(ds) for ds in data_sets],
+    )
+
+
+@router.get(
+    "/api/analysis/single-data-set/{beamtimeId}/{dataSetId}",
+    tags=["analysis"],
+    response_model_exclude_defaults=True,
+)
+async def read_single_data_set_results(
+    beamtimeId: BeamtimeId,
+    dataSetId: int,
+    session: AsyncSession = Depends(get_orm_db),
+) -> JsonReadSingleDataSetResults:
+    attributi = list(
+        (
+            await session.scalars(
+                select(orm.Attributo)
+                .where(orm.Attributo.beamtime_id == beamtimeId)
+                .order_by(orm.Attributo.name)
+            )
+        ).all()
+    )
+
+    chemical_id_to_name = [
+        JsonChemicalIdAndName(chemical_id=x.id, name=x.name)
+        for x in await session.scalars(
+            select(orm.Chemical).where(orm.Chemical.beamtime_id == beamtimeId)
+        )
+    ]
+
+    data_set = (
+        await session.scalars(
+            select(orm.DataSet)
+            .join(orm.DataSet.experiment_type)
+            .where(orm.DataSet.id == dataSetId)
+        )
+    ).one()
+
+    # We have to explicitly get runs, because we cannot, with the DB,
+    # associate runs to a data set. We have to do it in software.
+    runs = {
+        r.id: r
+        for r in await session.scalars(
+            select(orm.Run).where(
+                (orm.Run.beamtime_id == beamtimeId)
+                & (orm.Run.experiment_type_id == data_set.experiment_type_id)
+            )
+        )
+    }
+    run_external_id_for_internal_id: dict[int, int] = {
+        r.id: r.external_id for r in runs.values()
+    }
+    run_attributi_maps: dict[
+        RunInternalId,
+        dict[AttributoId, None | orm.RunHasAttributoValue],
+    ] = {
+        r.id: {ra.attributo_id: ra for ra in r.attributo_values} for r in runs.values()
+    }
+    ds_attributi_map: dict[AttributoId, None | orm.DataSetHasAttributoValue] = {
+        dsa.attributo_id: dsa for dsa in data_set.attributo_values
+    }
+    attributo_types: dict[AttributoId, AttributoType] = {
+        a.id: schema_dict_to_attributo_type(a.json_schema) for a in attributi
+    }
+
+    relevant_runs: list[orm.Run] = [
+        r
+        for r in runs.values()
+        if r.experiment_type_id == data_set.experiment_type_id
+        and run_matches_dataset(
+            attributo_types, run_attributi_maps[r.id], ds_attributi_map
+        )
+    ]
     indexing_results_for_runs: dict[RunInternalId, list[orm.IndexingResult]] = group_by(
         await session.scalars(
             select(orm.IndexingResult)
@@ -268,12 +362,11 @@ async def read_analysis_results(
         for run_results in indexing_results_for_runs.values()
         for x in run_results
     )
-    merge_results_per_data_set: dict[tuple[int, int], list[orm.MergeResult]] = {
-        (ds.id, ip_id): [] for ds in data_sets for ip_id in indexing_parameter_ids
+    merge_results_per_data_set: dict[int, list[orm.MergeResult]] = {
+        ip_id: [] for ip_id in indexing_parameter_ids
     }
-    data_set_to_run_ids: dict[int, set[int]] = {
-        ds_id: set(r.id for r in runs) for ds_id, runs in data_set_to_runs.items()
-    }
+    data_set_run_ids: set[int] = set(r.id for r in relevant_runs)
+
     # Super hard to wrap your head around this, so let me explain:
     #
     # A merge result has a list of indexing results. Each indexing result belongs to exactly one run.
@@ -301,23 +394,19 @@ async def read_analysis_results(
         runs_in_merge_result: set[RunInternalId] = set(
             ir.run_id for ir in merge_result.indexing_results
         )
-        for ds_id, run_ids in data_set_to_run_ids.items():
-            if run_ids.issuperset(runs_in_merge_result):
-                for ir in merge_result.indexing_results:
-                    merge_results = merge_results_per_data_set[
-                        (ds_id, ir.indexing_parameters_id)
-                    ]
-                    if merge_result.id not in (mr.id for mr in merge_results):
-                        merge_results.append(merge_result)
+        if data_set_run_ids.issuperset(runs_in_merge_result):
+            for ir in merge_result.indexing_results:
+                merge_results = merge_results_per_data_set[ir.indexing_parameters_id]
+                if merge_result.id not in (mr.id for mr in merge_results):
+                    merge_results.append(merge_result)
 
     def _build_data_set_result(ds: orm.DataSet) -> JsonDataSetWithIndexingResults:
-        runs_in_ds: list[orm.Run] = data_set_to_runs.get(ds.id, [])
         # In the code that follows: ip is "indexing parameters"
         ip_and_ix_results: list[
             tuple[orm.IndexingParameters, list[orm.IndexingResult]]
         ] = []
 
-        for run in runs_in_ds:
+        for run in relevant_runs:
             for new_result in indexing_results_for_runs.get(run.id, []):
                 new_ip = new_result.indexing_parameters
                 # Check if this parameter is already captured. If so,
@@ -344,8 +433,8 @@ async def read_analysis_results(
                     encode_data_set_attributo_value(v) for v in ds.attributo_values
                 ],
             ),
-            internal_run_ids=[r.id for r in runs_in_ds],
-            runs=format_run_id_intervals(r.external_id for r in runs_in_ds),
+            internal_run_ids=[r.id for r in relevant_runs],
+            runs=format_run_id_intervals(r.external_id for r in relevant_runs),
             indexing_results=[
                 JsonIndexingParametersWithResults(
                     parameters=orm_indexing_parameters_to_json(ip),
@@ -359,16 +448,55 @@ async def read_analysis_results(
                                 id
                             ],
                         )
-                        for mr in merge_results_per_data_set.get((ds.id, ip.id), [])
+                        for mr in merge_results_per_data_set.get(ip.id, [])
                     ],
                 )
                 for ip, results in ip_and_ix_results
             ],
         )
 
-    return JsonReadAnalysisResults(
+    return JsonReadSingleDataSetResults(
         attributi=[encode_attributo(a) for a in attributi],
         chemical_id_to_name=chemical_id_to_name,
+        experiment_type=encode_experiment_type(
+            await data_set.awaitable_attrs.experiment_type
+        ),
+        data_set=_build_data_set_result(data_set),
+    )
+
+
+@router.get(
+    "/api/analysis/merge-result/{beamtimeId}/{experimentTypeId}/{mergeResultId}",
+    tags=["analysis"],
+    response_model_exclude_defaults=True,
+)
+async def read_single_merge_result(
+    # pylint: disable=unused-argument
+    beamtimeId: BeamtimeId,
+    experimentTypeId: int,
+    mergeResultId: int,
+    session: AsyncSession = Depends(get_orm_db),
+) -> JsonReadSingleMergeResult:
+    merge_result = (
+        await session.scalars(
+            select(orm.MergeResult)
+            .where(orm.MergeResult.id == mergeResultId)
+            .options(selectinload(orm.MergeResult.indexing_results))
+            .options(selectinload(orm.MergeResult.refinement_results))
+        )
+    ).one()
+
+    experiment_type = encode_experiment_type(
+        (
+            await session.scalars(
+                select(orm.ExperimentType).where(
+                    orm.ExperimentType.id == experimentTypeId
+                )
+            )
+        ).one()
+    )
+
+    return JsonReadSingleMergeResult(
+        result=orm_encode_merge_result_to_json(merge_result),
         experiment_type=experiment_type,
-        data_sets=[_build_data_set_result(ds) for ds in data_sets],
     )

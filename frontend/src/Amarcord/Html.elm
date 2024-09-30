@@ -12,6 +12,11 @@ br_ =
     Html.br [] []
 
 
+small_ : List (Html msg) -> Html msg
+small_ =
+    Html.small []
+
+
 th_ : List (Html msg) -> Html msg
 th_ x =
     th [] x

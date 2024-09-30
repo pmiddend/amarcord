@@ -17,6 +17,8 @@ module Api.Request.Analysis exposing
     ( readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet
     , readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet
     , readRunAnalysisApiRunAnalysisBeamtimeIdGet
+    , readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet
+    , readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet
     )
 
 import Api
@@ -60,4 +62,28 @@ readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId_path runId_query =
         []
         Nothing
         Api.Data.jsonReadRunAnalysisDecoder
+
+
+readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet : Int -> Int -> Api.Request Api.Data.JsonReadSingleDataSetResults
+readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet beamtimeId_path dataSetId_path =
+    Api.request
+        "GET"
+        "/api/analysis/single-data-set/{beamtimeId}/{dataSetId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ), ( "dataSetId", String.fromInt dataSetId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonReadSingleDataSetResultsDecoder
+
+
+readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet : Int -> Int -> Int -> Api.Request Api.Data.JsonReadSingleMergeResult
+readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet beamtimeId_path experimentTypeId_path mergeResultId_path =
+    Api.request
+        "GET"
+        "/api/analysis/merge-result/{beamtimeId}/{experimentTypeId}/{mergeResultId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ), ( "experimentTypeId", String.fromInt experimentTypeId_path ), ( "mergeResultId", String.fromInt mergeResultId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonReadSingleMergeResultDecoder
 

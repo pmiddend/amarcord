@@ -1,35 +1,29 @@
-module Amarcord.Pages.Analysis exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.SingleDataSet exposing (Model, Msg(..), init, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
-import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
-import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoType, AttributoValue, attributoIsChemicalId, convertAttributoFromApi, convertAttributoMapFromApi, convertAttributoValueFromApi, prettyPrintAttributoValue)
+import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId)
+import Amarcord.Attributo exposing (Attributo, AttributoType, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert, viewHelpButton)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
 import Amarcord.CrystFELMerge as CrystFELMerge exposing (mergeModelToString, modelToMergeParameters)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (br_, code_, div_, em_, h5_, hr_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
-import Amarcord.Route as Route exposing (makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink)
-import Amarcord.Util exposing (HereAndNow, none, posixDiffHumanFriendly, posixDiffMinutes)
-import Api.Data exposing (DBJobStatus(..), JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultFom, JsonMergeResultShell, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadAnalysisResults, JsonReadExperimentTypes, JsonReadIndexingParametersOutput, JsonRefinementResult, ScaleIntensities(..))
-import Api.Request.Analysis exposing (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet)
-import Api.Request.Experimenttypes exposing (readExperimentTypesApiExperimentTypesBeamtimeIdGet)
+import Amarcord.Route exposing (Route(..), makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink)
+import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
+import Api.Data exposing (DBJobStatus(..), JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, ScaleIntensities(..))
+import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
 import Api.Request.Merging exposing (queueMergeJobApiMergingPost)
 import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPost, readIndexingParametersApiIndexingParametersDataSetIdGet)
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
 import Dict exposing (Dict)
-import Dict.Extra
-import Html exposing (Html, a, button, dd, div, dl, dt, em, form, h4, img, input, label, node, p, small, span, sup, table, td, text, th, tr, ul)
-import Html.Attributes exposing (attribute, checked, class, colspan, disabled, for, href, id, src, style, type_)
-import Html.Events exposing (onClick, onInput)
-import List.Extra
+import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, p, small, span, sup, table, td, text, tr)
+import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
+import Html.Events exposing (onClick)
 import Maybe
-import Maybe.Extra
 import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Result.Extra
 import Scroll exposing (scrollY)
@@ -50,16 +44,13 @@ type alias ProcessingParametersInput =
 
 
 type Msg
-    = AnalysisResultsReceived (Result HttpError JsonReadAnalysisResults)
+    = AnalysisResultsReceived (Result HttpError JsonReadSingleDataSetResults)
     | OpenMergeForm DataSetId IndexingParametersId
-    | OpenDataSet DataSetId
     | OpenProcessingFormWithExisting JsonIndexingParameters DataSetId
-    | CloseDataSet
     | ToggleIndexingParameterExpansion Int
     | IndexingParametersMsg IndexingParameters.Msg
     | ProcessingParametersWithExistingReceived JsonIndexingParameters DataSetId (Result HttpError JsonReadIndexingParametersOutput)
     | ProcessingParametersReceived (Result HttpError JsonReadIndexingParametersOutput)
-    | ExperimentTypesReceived (Result HttpError JsonReadExperimentTypes)
     | SubmitQuickMerge DataSetId IndexingParametersId
     | ProcessingSubmitted (Result HttpError JsonCreateIndexingForDataSetOutput)
     | CloseMergeForm
@@ -68,28 +59,14 @@ type Msg
     | MergeFinished (Result HttpError JsonQueueMergeJobOutput)
     | Refresh Posix
     | ScrollDone
-    | OpenMergeResultDetail DetailMerge
-    | CloseMergeResultDetail
     | CrystFELMergeMessage CrystFELMerge.Msg
     | ToggleAccordionShowModelParameters MergeResultId
-    | SortDataSetsAscending
-    | SetFilterExperimentType ExperimentTypeId
-    | SetFilterMergeStatus (Maybe MergeStatus)
-    | SetFilterExperimentTypeAttributo ExperimentTypeAttributoFilter String
-    | SetFilterExperimentTypeAllAttributi (List ExperimentTypeAttributoFilter)
-    | SetFilterExperimentTypeNoneAttributi (List ExperimentTypeAttributoFilter)
     | OpenProcessingForm Int
     | CancelProcessing
 
 
-type MergeStatus
-    = Merged
-    | Unmerged
-
-
 type SelectedMergeResult
     = NoMergeResultSelected
-    | MergeResultSelected DetailMerge
 
 
 type alias MergeResultId =
@@ -105,10 +82,6 @@ type alias ActivatedMergeForm =
     }
 
 
-type alias DetailMerge =
-    { id : Int, fom : JsonMergeResultFom, shell_foms : List JsonMergeResultShell, refinementResults : List JsonRefinementResult }
-
-
 type alias MergeRequest =
     { dataSetId : Int
     , indexingParametersId : Int
@@ -116,108 +89,41 @@ type alias MergeRequest =
     }
 
 
-type alias ExperimentTypeAttributoFilter =
-    { attrId : AttributoId, attrValue : AttributoValue }
-
-
 type alias Model =
     { hereAndNow : HereAndNow
     , navKey : Nav.Key
-    , experimentTypesRequest : RemoteData HttpError JsonReadExperimentTypes
     , processingParametersRequest : RemoteData HttpError JsonReadIndexingParametersOutput
     , submitProcessingRequest : RemoteData HttpError JsonCreateIndexingForDataSetOutput
-    , analysisRequest : RemoteData HttpError JsonReadAnalysisResults
-    , selectedExperimentTypeId : Maybe Int
+    , analysisRequest : RemoteData HttpError JsonReadSingleDataSetResults
     , activatedMergeForm : Maybe ActivatedMergeForm
     , mergeRequest : Maybe MergeRequest
     , selectedMergeResult : SelectedMergeResult
     , expandedMergeResultIds : Set MergeResultId
-    , hiddenExperimentTypeAttributiFilters : List ExperimentTypeAttributoFilter
-    , selectMergeStatus : Maybe MergeStatus
-    , dataSetsSortingAscending : Bool
     , beamtimeId : BeamtimeId
+    , dataSetId : DataSetId
     , currentProcessingParameters : Maybe ProcessingParametersInput
-    , selectedDataSetId : Maybe Int
     , expandedIndexingParameterIds : Set Int
     }
 
 
-init : Nav.Key -> HereAndNow -> BeamtimeId -> Maybe ExperimentTypeId -> ( Model, Cmd Msg )
-init navKey hereAndNow beamtimeId experimentTypeId =
+init : Nav.Key -> HereAndNow -> BeamtimeId -> DataSetId -> ( Model, Cmd Msg )
+init navKey hereAndNow beamtimeId dataSetId =
     ( { hereAndNow = hereAndNow
       , navKey = navKey
-      , analysisRequest = NotAsked
+      , analysisRequest = Loading
       , activatedMergeForm = Nothing
-      , experimentTypesRequest = Loading
       , processingParametersRequest = NotAsked
       , mergeRequest = Nothing
       , submitProcessingRequest = NotAsked
       , selectedMergeResult = NoMergeResultSelected
-      , selectedExperimentTypeId = experimentTypeId
+      , dataSetId = dataSetId
       , expandedMergeResultIds = Set.empty
-      , hiddenExperimentTypeAttributiFilters = []
-      , selectMergeStatus = Nothing
-      , dataSetsSortingAscending = True
       , beamtimeId = beamtimeId
       , currentProcessingParameters = Nothing
-      , selectedDataSetId = Nothing
       , expandedIndexingParameterIds = Set.empty
       }
-    , send ExperimentTypesReceived (readExperimentTypesApiExperimentTypesBeamtimeIdGet beamtimeId)
+    , send AnalysisResultsReceived (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet beamtimeId dataSetId)
     )
-
-
-viewFilters : Maybe MergeStatus -> Html Msg
-viewFilters mergeStatus =
-    let
-        mergeFilterId =
-            "merge_results_filter"
-
-        mergeResultPresentFilter =
-            let
-                btnInput ms labelText =
-                    input_
-                        [ type_ "radio"
-                        , class "btn-check"
-                        , id <| mergeFilterId ++ "_" ++ String.toLower labelText
-                        , checked (mergeStatus == ms)
-                        , onClick (SetFilterMergeStatus ms)
-                        ]
-
-                btnLabel labelText =
-                    label
-                        [ class "btn btn-outline-primary"
-                        , style "border-color" "black"
-                        , for <| mergeFilterId ++ "_" ++ String.toLower labelText
-                        ]
-                        [ small [] [ text labelText ] ]
-
-                btnCombi ms labelText =
-                    [ btnInput ms labelText, btnLabel labelText ]
-            in
-            div [ class "btn-group mb-1", id mergeFilterId ]
-                ((btnCombi Nothing "All"
-                    ++ btnCombi (Just Merged) "Merged"
-                 )
-                    ++ btnCombi (Just Unmerged) "Unmerged"
-                )
-    in
-    div []
-        [ div_
-            [ label [ style "width" "10rem", for mergeFilterId ] [ icon { name = "diagram-2" }, text " Merge Status " ]
-            , mergeResultPresentFilter
-            ]
-        ]
-
-
-viewInner : Model -> JsonReadAnalysisResults -> Html Msg
-viewInner model { attributi, chemicalIdToName, dataSets, experimentType } =
-    viewResultsTableForSingleExperimentType
-        model
-        (List.map convertAttributoFromApi attributi)
-        (List.foldr (\{ chemicalId, name } -> Dict.insert chemicalId name) Dict.empty chemicalIdToName)
-        experimentType
-        dataSets
 
 
 type MergeResultStateUnion
@@ -334,8 +240,8 @@ viewMergeParameters { mergeModel, scaleIntensities, postRefinement, iterations, 
         ]
 
 
-viewMergeResultRow : List (Html msg) -> HereAndNow -> MergeResultWrapper -> Html Msg
-viewMergeResultRow mergeRowHeaders hereAndNow mrw =
+viewMergeResultRow : List (Html msg) -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultWrapper -> Html Msg
+viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSetId mrw =
     let
         remainingHeaders =
             List.length mergeRowHeaders - 1
@@ -412,9 +318,6 @@ viewMergeResultRow mergeRowHeaders hereAndNow mrw =
 
                     Just (MergeResultStateDone { started, stopped, result }) ->
                         let
-                            refinementResults =
-                                mrw.mergeResult.refinementResults
-
                             floatWithShell overall outer =
                                 td_ [ text <| formatFloatHumanFriendly overall ++ " (" ++ formatFloatHumanFriendly outer ++ ")" ]
 
@@ -423,9 +326,6 @@ viewMergeResultRow mergeRowHeaders hereAndNow mrw =
 
                             mtzFileId =
                                 result.mtzFileId
-
-                            shells =
-                                result.detailedFoms
                         in
                         [ td_ [ text <| String.fromInt <| posixDiffMinutes (millisToPosix stopped) (millisToPosix started) ]
                         , td_
@@ -450,11 +350,7 @@ viewMergeResultRow mergeRowHeaders hereAndNow mrw =
                             ]
                         , td_
                             [ icon { name = "card-list" }
-                            , a
-                                [ class "link-primary"
-                                , onClick (OpenMergeResultDetail { id = id, fom = fom, shell_foms = shells, refinementResults = refinementResults })
-                                ]
-                                [ text "Details" ]
+                            , a [ href (makeLink (MergeResult beamtimeId experimentTypeId dataSetId mrw.mergeResult.id)) ] [ text "Details" ]
                             ]
                         ]
 
@@ -504,7 +400,7 @@ viewIndexingResults now results =
     let
         tableHeaders : List String
         tableHeaders =
-            [ "ID", "Run", "Status", "Frames", "Hits", "Ixed", "Other" ]
+            [ "IID", "Run", "Status", "Frames", "Hits", "Ixed", "Other" ]
 
         viewHistogram fileId =
             div [ class "col" ]
@@ -682,8 +578,8 @@ createRunRanges =
         << List.sort
 
 
-viewSingleIndexingResultRow : Model -> JsonDataSet -> JsonIndexingParametersWithResults -> List (Html Msg)
-viewSingleIndexingResultRow model dataSet ({ parameters, indexingResults, mergeResults } as p) =
+viewSingleIndexingResultRow : Model -> JsonExperimentType -> JsonDataSet -> JsonIndexingParametersWithResults -> List (Html Msg)
+viewSingleIndexingResultRow model experimentType dataSet ({ parameters, indexingResults, mergeResults } as p) =
     let
         detailsExpanded parametersId =
             Set.member parametersId model.expandedIndexingParameterIds
@@ -769,7 +665,7 @@ viewSingleIndexingResultRow model dataSet ({ parameters, indexingResults, mergeR
             , tr_
                 [ td [ colspan (List.length indexingAndMergeResultHeaders) ]
                     [ h5_ [ text "Merge Results" ]
-                    , viewMergeResults model dataSet parameters mergeResults
+                    , viewMergeResults model experimentType dataSet parameters mergeResults
                     ]
                 ]
             ]
@@ -777,20 +673,20 @@ viewSingleIndexingResultRow model dataSet ({ parameters, indexingResults, mergeR
 
 indexingAndMergeResultHeaders : List (Html msg)
 indexingAndMergeResultHeaders =
-    List.map text [ "ID", "Runs", "Frames", "Hits", "Ixed" ]
+    List.map text [ "PID", "Runs", "Frames", "Hits", "Ixed" ]
 
 
-viewIndexingAndMergeResultsTable : Model -> JsonDataSet -> List JsonIndexingParametersWithResults -> Html Msg
-viewIndexingAndMergeResultsTable model dataSet indexingParametersAndResults =
+viewIndexingAndMergeResultsTable : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> Html Msg
+viewIndexingAndMergeResultsTable model experimentType dataSet indexingParametersAndResults =
     table
-        [ class "table table-borderless shadow-sm border p-3" ]
+        [ class "table table-borderless p-3 amarcord-table-fix-head" ]
         [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) indexingAndMergeResultHeaders) ]
-        , tbody_ <| List.concatMap (viewSingleIndexingResultRow model dataSet) indexingParametersAndResults
+        , tbody_ <| List.concatMap (viewSingleIndexingResultRow model experimentType dataSet) indexingParametersAndResults
         ]
 
 
-viewMergeResultsTable : Model -> List JsonMergeResult -> Html Msg
-viewMergeResultsTable model mergeResults =
+viewMergeResultsTable : Model -> JsonExperimentType -> List JsonMergeResult -> Html Msg
+viewMergeResultsTable model experimentType mergeResults =
     if List.isEmpty mergeResults then
         text ""
 
@@ -798,7 +694,7 @@ viewMergeResultsTable model mergeResults =
         let
             mergeRowHeaders : List (Html msg)
             mergeRowHeaders =
-                [ text "ID"
+                [ text "MRID"
                 , text "Parameters"
                 , text "Runs"
                 , text "Time (min)"
@@ -821,15 +717,17 @@ viewMergeResultsTable model mergeResults =
         table
             [ class "table table-sm text-muted", style "font-size" "0.8rem", style "margin-bottom" "4rem" ]
             [ thead_ <| [ tr_ (List.map (\header -> th_ [ header ]) mergeRowHeaders) ]
-            , tbody_ <| List.map (viewMergeResultRow mergeRowHeaders model.hereAndNow) mergeResultWrappers
+            , tbody_ <| List.map (viewMergeResultRow mergeRowHeaders model.hereAndNow model.beamtimeId experimentType.id model.dataSetId) mergeResultWrappers
             ]
 
 
-viewMergeResults : Model -> JsonDataSet -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
-viewMergeResults model dataSet indexingParameters mergeResults =
+viewMergeResults : Model -> JsonExperimentType -> JsonDataSet -> JsonIndexingParameters -> List JsonMergeResult -> Html Msg
+viewMergeResults model experimentType dataSet indexingParameters mergeResults =
     div_ <|
         [ case model.activatedMergeForm of
             Just { mergeParameters } ->
+              if Just mergeParameters.indexingParametersId == indexingParameters.id
+              then
                 div_
                     [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
                     , div [ class "mb-3 hstack gap-3" ]
@@ -839,7 +737,7 @@ viewMergeResults model dataSet indexingParameters mergeResults =
                             [ icon { name = "x-lg" }, text " Cancel" ]
                         ]
                     ]
-
+              else text ""
             Nothing ->
                 text ""
         , Maybe.withDefault (text "") <| Maybe.map (mergeActions dataSet model.mergeRequest) indexingParameters.id
@@ -858,7 +756,7 @@ viewMergeResults model dataSet indexingParameters mergeResults =
 
                 else
                     text ""
-        , viewMergeResultsTable model mergeResults
+        , viewMergeResultsTable model experimentType mergeResults
         ]
 
 
@@ -900,14 +798,17 @@ viewSingleIndexing model dataSet { parameters, indexingResults } =
                 ]
             ]
         , p_ [ strongText "Command line: ", br_, code_ [ text parameters.commandLine ] ]
-        , button
-            [ class "btn btn-sm btn-dark mb-3"
-            , type_ "button"
-            , onClick
-                (OpenProcessingFormWithExisting parameters dataSet.id)
+        , div_
+            [ button
+                [ class "btn btn-sm btn-dark"
+                , type_ "button"
+                , onClick
+                    (OpenProcessingFormWithExisting parameters dataSet.id)
+                ]
+                [ icon { name = "back" }, text " Open processing form with these parameters" ]
+            , div [ class "form-text mb-3" ] [ small [] [ text "If you want to reprocess with slightly different parameters, instead of starting from scratch, this button is the right one for you." ] ]
             ]
-            [ icon { name = "back" }, text " Open processing form with these parameters" ]
-        , h5_ [ text "Indexing Results" ]
+        , h5_ [ text "Indexing Results per Run" ]
         , viewIndexingResults model.hereAndNow.now indexingResults
         ]
 
@@ -977,7 +878,7 @@ viewDataSetProcessingButtons model dataSet =
         Nothing ->
             div_
                 [ button
-                    [ class "btn btn-primary mb-1"
+                    [ class "btn btn-primary btn-sm mb-1"
                     , type_ "button"
                     , onClick (OpenProcessingForm dataSet.id)
                     , disabled (isLoading model.processingParametersRequest)
@@ -985,16 +886,15 @@ viewDataSetProcessingButtons model dataSet =
                     [ viewSpinnerOrIcon model.processingParametersRequest
                     , text " Start new processing job"
                     ]
-                , hr_
                 ]
 
         Just _ ->
             text ""
 
 
-viewProcessingResultsForDataSet : Model -> JsonDataSet -> List JsonIndexingParametersWithResults -> Html Msg
-viewProcessingResultsForDataSet model dataSet indexingResults =
-    div [ class "bg-light border shadow-sm p-3" ]
+viewProcessingResultsForDataSet : Model -> JsonExperimentType -> JsonDataSet -> List JsonIndexingParametersWithResults -> Html Msg
+viewProcessingResultsForDataSet model experimentType dataSet indexingResults =
+    div_
         [ viewDataSetProcessingButtons model dataSet
         , case model.processingParametersRequest of
             Failure e ->
@@ -1023,21 +923,23 @@ viewProcessingResultsForDataSet model dataSet indexingResults =
 
             Just currentProcessingParameters ->
                 viewProcessingParameterForm model currentProcessingParameters
-        , div_ [ viewIndexingAndMergeResultsTable model dataSet indexingResults ]
+        , div_ [ viewIndexingAndMergeResultsTable model experimentType dataSet indexingResults ]
         ]
 
 
 viewDataSet :
     Model
+    -> JsonExperimentType
     -> List (Attributo AttributoType)
     -> Dict Int String
     -> JsonDataSetWithIndexingResults
     -> List (Html Msg)
-viewDataSet model attributi chemicalIdsToName { dataSet, runs, indexingResults } =
-    [ tr []
-        [ td_ [ text (String.fromInt dataSet.id) ]
-        , td_
-            [ viewDataSetTable attributi
+viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults } =
+    [ h4 [ class "mt-3" ] [ text "Data Set Metadata" ]
+    , div [ class "row" ]
+        [ div [ class "col-6" ]
+            [ viewDataSetTable
+                attributi
                 model.hereAndNow.zone
                 chemicalIdsToName
                 (convertAttributoMapFromApi dataSet.attributi)
@@ -1045,479 +947,93 @@ viewDataSet model attributi chemicalIdsToName { dataSet, runs, indexingResults }
                 False
                 Nothing
             ]
-        , td_ (List.intersperse br_ <| List.map text runs)
-        ]
-    , tr []
-        [ td [ colspan 4 ]
-            [ let
-                dataSetHasJobsInProgress =
-                    List.any
-                        (\indexingResultsAndMergeResults ->
-                            List.any (\{ status } -> status == DBJobStatusRunning || status == DBJobStatusQueued) indexingResultsAndMergeResults.indexingResults
-                                || List.any (\{ stateRunning, stateQueued } -> Maybe.Extra.isJust stateRunning || Maybe.Extra.isJust stateQueued) indexingResultsAndMergeResults.mergeResults
-                        )
-                        indexingResults
-
-                processingInProgressButton =
-                    if dataSetHasJobsInProgress then
-                        button
-                            [ disabled True, class "btn btn-outline-secondary" ]
-                            [ div [ class "spinner-border text-secondary spinner-border-sm" ] [] ]
-
-                    else
-                        text ""
-              in
-              if model.selectedDataSetId == Just dataSet.id then
-                div_
-                    [ div [ class "btn-group" ]
-                        [ button [ class "btn btn-secondary", style "border-radius" "0", type_ "button", onClick CloseDataSet ]
-                            [ icon { name = "arrows-angle-contract" }
-                            , text <|
-                                " "
-                                    ++ (if List.isEmpty indexingResults then
-                                            "not processed yet"
-
-                                        else
-                                            String.fromInt (List.length indexingResults) ++ " processing result(s)"
-                                       )
-                            ]
-                        , processingInProgressButton
-                        ]
-                    , viewProcessingResultsForDataSet model dataSet indexingResults
-                    ]
-
-              else
-                div [ class "btn-group" ]
-                    [ button [ class "btn btn-secondary", style "border-radius" "0", type_ "button", onClick (OpenDataSet dataSet.id) ]
-                        [ icon { name = "arrows-angle-expand" }
-                        , text <|
-                            " "
-                                ++ (if List.isEmpty indexingResults then
-                                        "not processed yet"
-
-                                    else
-                                        String.fromInt (List.length indexingResults) ++ " processing result(s)"
-                                   )
-                        ]
-                    , processingInProgressButton
-                    ]
+        , div [ class "col-6 text-center" ]
+            [ h5_ [ text "Runs" ]
+            , p_ (List.intersperse br_ <| List.map text runs)
             ]
         ]
+    , h4 [ class "mt-3" ] [ text "Processing Results", viewHelpButton "help-processing-results" ]
+    , div [ id "help-processing-results", class "collapse text-bg-light p-2" ]
+        [ p_
+            [ text "Below you will find processing results for different parameter combinations. The parameters have a number ", em_ [ text "PID" ], text " to differentiate them in the database." ]
+        , p_
+            [ text "Indexing is done on a per-run basis, so for each "
+            , em_ [ text "Run ID" ]
+            , text " and each indexing parameter "
+            , em_ [ text "PID" ]
+            , text " you have zero or more indexing result IDs: "
+            , em_ [ text "IID." ]
+            ]
+        , p_ [ text "Merge jobs merge indexing results with the same parameters, and are identified by an ID as well: ", em_ [ text "MRID." ] ]
+        , figure [ class "figure" ]
+            [ img [ src "help-processing-results.svg", class "img-fluid mb-2 mt-2" ] []
+            , figcaption [ class "figure-caption" ] [ text "In this sample scenario, we have two runs, which were processed using a parameter set with PID 1, and the result is indexing reults IID 1 and 2. Those were then merged in two different ways, resulting in MRID 1 and 2. Moreover, we tried to reprocess the runs using different parameters (PID 2 and IID 3), but the results were not convincing." ]
+            ]
+        ]
+    , viewProcessingResultsForDataSet model experimentType dataSet indexingResults
     ]
-
-
-viewResultsTableForSingleExperimentType :
-    Model
-    -> List (Attributo AttributoType)
-    -> Dict Int String
-    -> JsonExperimentType
-    -> List JsonDataSetWithIndexingResults
-    -> Html Msg
-viewResultsTableForSingleExperimentType model attributi chemicalIdsToName experimentType dataSets =
-    let
-        experimentTypeAttributi : Set AttributoId
-        experimentTypeAttributi =
-            Set.fromList <| List.map .id experimentType.attributi
-
-        attributoValueSelector : AttributoId -> AttributoValue -> String
-        attributoValueSelector attrId attrValue =
-            case List.Extra.find (\a -> a.id == attrId) attributi of
-                Nothing ->
-                    "what is this? " ++ String.fromInt attrId
-
-                Just attr ->
-                    if attributoIsChemicalId attr.type_ then
-                        case String.toInt (prettyPrintAttributoValue attrValue) of
-                            Nothing ->
-                                prettyPrintAttributoValue attrValue
-
-                            Just chemicalId ->
-                                case Dict.get chemicalId chemicalIdsToName of
-                                    Nothing ->
-                                        prettyPrintAttributoValue attrValue
-
-                                    Just ch ->
-                                        ch
-
-                    else
-                        prettyPrintAttributoValue attrValue
-
-        checkAttributeFilterIsPresent : ExperimentTypeAttributoFilter -> List ExperimentTypeAttributoFilter -> Bool
-        checkAttributeFilterIsPresent { attrId, attrValue } hiddenFilters =
-            List.member { attrId = attrId, attrValue = attrValue } hiddenFilters
-
-        allNoneResetCheckButton : AttributoId -> List AttributoValue -> Html Msg
-        allNoneResetCheckButton attributoId valuesForAttributo =
-            let
-                filterFromAttributoPair : AttributoId -> AttributoValue -> ExperimentTypeAttributoFilter
-                filterFromAttributoPair aid avalue =
-                    { attrId = aid, attrValue = avalue }
-
-                attrFilters : List ExperimentTypeAttributoFilter
-                attrFilters =
-                    List.map
-                        (filterFromAttributoPair attributoId)
-                        valuesForAttributo
-            in
-            li_
-                [ div [ class "dropdown-item btn-group" ]
-                    [ button
-                        [ type_ "button"
-                        , class "btn btn-sm btn-outline-primary"
-                        , onClick (SetFilterExperimentTypeAllAttributi attrFilters)
-                        ]
-                        [ text "All" ]
-                    , button
-                        [ type_ "button"
-                        , class "btn btn-sm btn-outline-secondary"
-                        , onClick (SetFilterExperimentTypeNoneAttributi attrFilters)
-                        ]
-                        [ text "None" ]
-                    ]
-                ]
-
-        checkboxForOneAttributoValue : ( AttributoId, AttributoValue ) -> Html Msg
-        checkboxForOneAttributoValue ( attrId, attrValue ) =
-            let
-                selectedAttributoValue =
-                    { attrId = attrId, attrValue = attrValue }
-            in
-            li_
-                [ div [ class "dropdown-item" ]
-                    [ div [ class "form-check" ]
-                        [ input
-                            [ class "form-check-input"
-                            , type_ "checkbox"
-                            , for (String.fromInt attrId)
-                            , onInput (SetFilterExperimentTypeAttributo selectedAttributoValue)
-                            , checked <| not <| checkAttributeFilterIsPresent selectedAttributoValue model.hiddenExperimentTypeAttributiFilters
-                            ]
-                            []
-                        , label [ class "form-check-label" ] [ text <| attributoValueSelector attrId attrValue ]
-                        ]
-                    ]
-                ]
-
-        dataSetMatchesAttributoFilter : JsonDataSet -> ExperimentTypeAttributoFilter -> Bool
-        dataSetMatchesAttributoFilter ds { attrId, attrValue } =
-            case List.Extra.find (\{ attributoId } -> attributoId == attrId) ds.attributi of
-                -- can't find the attributo in the data set
-                Nothing ->
-                    False
-
-                Just attributoInDs ->
-                    attrValue == convertAttributoValueFromApi attributoInDs
-
-        dataSetMatchesAttributiFilters : JsonDataSetWithIndexingResults -> Bool
-        dataSetMatchesAttributiFilters { dataSet } =
-            -- A little subltety here: we define the _hidden_
-            -- attributi, so we want to match all data sets where
-            -- _none_ of the filters match for it to be _not_ hidden.
-            none (dataSetMatchesAttributoFilter dataSet) model.hiddenExperimentTypeAttributiFilters
-
-        dictMapValues : (b -> c) -> Dict a b -> Dict a c
-        dictMapValues f =
-            Dict.map (\_ -> f)
-
-        dictAttrIdValues : Dict AttributoId (List AttributoValue)
-        dictAttrIdValues =
-            List.concatMap (Dict.toList << convertAttributoMapFromApi << .attributi << .dataSet) dataSets
-                |> List.Extra.unique
-                |> Dict.Extra.groupBy Tuple.first
-                |> dictMapValues (List.map Tuple.second)
-
-        dropdownForAttributo : Attributo AttributoType -> Html Msg
-        dropdownForAttributo attributo =
-            let
-                attributoValueCheckBoxes : AttributoId -> List AttributoValue -> List (Html Msg)
-                attributoValueCheckBoxes attrName attrValues =
-                    List.map (\v -> checkboxForOneAttributoValue ( attrName, v )) attrValues
-            in
-            case Dict.get attributo.id dictAttrIdValues of
-                Nothing ->
-                    span_ []
-
-                Just listValues ->
-                    let
-                        checkBoxes =
-                            attributoValueCheckBoxes attributo.id listValues
-                    in
-                    if List.length checkBoxes > 1 then
-                        span [ class "dropdown px-1" ]
-                            [ button
-                                [ class "btn btn-sm  btn-outline-secondary dropdown-toggle dropdown-toggle-split"
-                                , attribute "data-bs-toggle" "dropdown"
-                                , attribute "data-bs-auto-close" "outside"
-                                ]
-                                [ text (attributo.name ++ " ") ]
-                            , ul [ class "dropdown-menu" ] <|
-                                allNoneResetCheckButton attributo.id listValues
-                                    :: checkBoxes
-                            ]
-
-                    else
-                        span_ []
-
-        attributiFilters : List (Html Msg)
-        attributiFilters =
-            List.map dropdownForAttributo <| List.filterMap (\aid -> List.Extra.find (\a -> a.id == aid) attributi) <| Set.toList experimentTypeAttributi
-    in
-    div_
-        [ div
-            [ class "pb-3"
-            , style "border-bottom" "1pt solid lightgray"
-            ]
-          <|
-            label [ style "width" "10rem" ] [ icon { name = "card-list" }, text " Attributi Filter " ]
-                :: attributiFilters
-        , table [ class "table amarcord-table-fix-head table-borderless" ]
-            [ thead_
-                [ tr_
-                    [ th [ onClick SortDataSetsAscending ]
-                        [ text "ID"
-                        , icon
-                            { name =
-                                if model.dataSetsSortingAscending then
-                                    "caret-down-fill"
-
-                                else
-                                    "caret-up-fill"
-                            }
-                        ]
-                    , th_ [ text "Attributi" ]
-                    , th_ [ text "Runs" ]
-                    ]
-                ]
-            , let
-                filteredDataSets : List JsonDataSetWithIndexingResults
-                filteredDataSets =
-                    List.filter dataSetMatchesAttributiFilters dataSets
-
-                sortedDatasets =
-                    List.sortWith (\a b -> compare a.dataSet.id b.dataSet.id) filteredDataSets
-
-                requestedSortedDatasets : List JsonDataSetWithIndexingResults
-                requestedSortedDatasets =
-                    if model.dataSetsSortingAscending then
-                        List.reverse <| sortedDatasets
-
-                    else
-                        sortedDatasets
-              in
-              tbody_ <|
-                List.concatMap
-                    (viewDataSet
-                        model
-                        attributi
-                        chemicalIdsToName
-                    )
-                    requestedSortedDatasets
-            ]
-        ]
 
 
 modalMergeResultDetail : Model -> Html Msg
 modalMergeResultDetail m =
     case m.selectedMergeResult of
-        MergeResultSelected mr ->
-            Dialog.view
-                (Just <|
-                    { header = Just (span_ [ text "Merge results overview - ID: ", text <| String.fromInt mr.id ])
-                    , body = Just <| span_ [ modalBodyShells mr.fom mr.shell_foms mr.refinementResults ]
-                    , closeMessage = Just CloseMergeResultDetail
-                    , containerClass = Nothing
-                    , modalDialogClass = Just "modal-dialog modal-xl"
-                    , footer = Nothing
-                    }
-                )
-
         NoMergeResultSelected ->
             text ""
-
-
-modalBodyShells : JsonMergeResultFom -> List JsonMergeResultShell -> List JsonRefinementResult -> Html Msg
-modalBodyShells fom shells refinementResults =
-    let
-        singleShellRow : JsonMergeResultShell -> Html Msg
-        singleShellRow shellRow =
-            tr_
-                [ td_ [ text <| formatFloatHumanFriendly shellRow.minRes ++ "–" ++ formatFloatHumanFriendly shellRow.maxRes ]
-                , td_ [ text <| formatIntHumanFriendly shellRow.nref ]
-                , td_ [ text <| formatIntHumanFriendly shellRow.reflectionsPossible ]
-                , td_ [ text <| formatFloatHumanFriendly shellRow.completeness ]
-                , td_ [ text <| formatFloatHumanFriendly shellRow.redundancy ]
-                , td_ [ text <| formatFloatHumanFriendly shellRow.snr ]
-                , td_ [ text <| formatFloatHumanFriendly shellRow.rSplit ]
-                , td_ [ text <| formatFloatHumanFriendly shellRow.cc ]
-                , td_ [ text <| formatFloatHumanFriendly shellRow.ccstar ]
-                ]
-
-        overallRow =
-            tr [ class "table-success" ]
-                [ td_ [ text <| formatFloatHumanFriendly fom.oneOverDFrom ++ "–" ++ formatFloatHumanFriendly fom.oneOverDTo ]
-                , td_ [ text <| formatIntHumanFriendly fom.reflectionsTotal ]
-                , td_ [ text <| formatIntHumanFriendly fom.reflectionsPossible ]
-                , td_ [ text <| formatFloatHumanFriendly fom.completeness ]
-                , td_ [ text <| formatFloatHumanFriendly fom.redundancy ]
-                , td_ [ text <| formatFloatHumanFriendly fom.snr ]
-                , td_ [ text <| formatFloatHumanFriendly fom.rSplit ]
-                , td_ [ text <| formatFloatHumanFriendly fom.cc ]
-                , td_ [ text <| formatFloatHumanFriendly fom.ccstar ]
-                ]
-
-        uglymol : Int -> Int -> String -> Html msg
-        uglymol pdbId mtzId prefix =
-            node "uglymol-viewer" [ attribute "pdbid" (String.fromInt pdbId), attribute "mtzid" (String.fromInt mtzId), attribute "idprefix" prefix ] []
-
-        viewRefinementResult : JsonRefinementResult -> Html msg
-        viewRefinementResult { id, pdbFileId, mtzFileId, rFree, rWork, rmsBondAngle, rmsBondLength } =
-            div_
-                [ uglymol pdbFileId mtzFileId ("refinement-" ++ String.fromInt id)
-                , div [ class "hstack gap-3 mt-2" ]
-                    [ span_ [ text "Refinement files:" ]
-                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId) ] [ text "PDB" ] ]
-                    , div [ class "vr" ] []
-                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink mtzFileId) ] [ text "MTZ" ] ]
-                    ]
-                , p [ class "text-muted" ] [ text "Note: this MTZ file is different from the one in the overview. It was created during refinement, not by CrystFEL." ]
-                , div_
-                    [ table [ class "table table-sm" ]
-                        [ thead_
-                            [ tr_
-                                [ th_ [ text "R", Html.sub [] [ text "free" ] ]
-                                , th_ [ text "R", Html.sub [] [ text "work" ] ]
-                                , th_ [ text "RMS Bond Angle" ]
-                                , th_ [ text "RMS Bond Length" ]
-                                ]
-                            ]
-                        , tbody_
-                            [ tr_
-                                [ td_ [ text (formatFloatHumanFriendly rFree) ]
-                                , td_ [ text (formatFloatHumanFriendly rWork) ]
-                                , td_ [ text (formatFloatHumanFriendly rmsBondAngle) ]
-                                , td_ [ text (formatFloatHumanFriendly rmsBondLength) ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-    in
-    div_ <|
-        [ h5_ [ text "Figures of merit" ]
-        , table [ class "table table-striped table-sm" ]
-            [ thead_
-                [ tr_
-                    [ th_ [ text "Resolution (Å)" ]
-                    , th_ [ text "Reflections" ]
-                    , th_ [ text "Possible reflections" ]
-                    , th_ [ text "Completeness (%)" ]
-                    , th_ [ text "Multiplicity" ]
-                    , th_ [ text "SNR" ]
-                    , th_ [ text "R", Html.sub [] [ text "split" ] ]
-                    , th_ [ text "CC", Html.sub [] [ text "1/2" ] ]
-                    , th_ [ text "CC", sup [] [ text "*" ] ]
-                    ]
-                ]
-            , tbody_ (List.append (List.map singleShellRow (List.sortBy .oneOverDCentre shells)) [ overallRow ])
-            ]
-        ]
-            ++ (if List.isEmpty refinementResults then
-                    []
-
-                else
-                    [ h5_ [ text "Refinement results" ]
-                    , p [ class "text-muted" ] [ text "The view below controls just like Coot! However, sulphur is more green, and here we also have colors for Mg, P, Cl, Ca, Mn, Fe, Ni." ]
-                    ]
-                        ++ List.map viewRefinementResult refinementResults
-               )
-
-
-viewExperimentTypeFilter : Maybe Int -> JsonReadExperimentTypes -> List (Html Msg)
-viewExperimentTypeFilter selectedExperimentType r =
-    let
-        makeRadio : JsonExperimentType -> Html Msg
-        makeRadio et =
-            div_
-                [ input_
-                    [ type_ "radio"
-                    , class "btn-check"
-                    , id ("et" ++ String.fromInt et.id)
-                    , checked (selectedExperimentType == Just et.id)
-                    , onClick (SetFilterExperimentType et.id)
-                    ]
-                , label
-                    [ for ("et" ++ String.fromInt et.id)
-                    , class "btn btn-outline-primary"
-                    , style "border-color" "black"
-                    ]
-                    [ text et.name ]
-                ]
-    in
-    [ h5_
-        [ icon { name = "clipboard-check" }
-        , text " Experiment Type"
-        ]
-    , div [ class "btn-group" ] (List.map makeRadio r.experimentTypes)
-    , hr_
-    ]
 
 
 view : Model -> Html Msg
 view model =
     div [ class "container" ] <|
-        case model.experimentTypesRequest of
+        case model.analysisRequest of
             NotAsked ->
                 List.singleton <| text ""
 
             Loading ->
-                List.singleton <| loadingBar "Loading experiment types..."
+                List.singleton <| loadingBar "Loading data set..."
 
             Failure e ->
                 List.singleton <|
                     viewAlert [ AlertDanger ] <|
                         [ h4 [ class "alert-heading" ]
-                            [ text "Failed to retrieve experiment types. Try reloading and if that doesn't work, contact the admins." ]
+                            [ text "Failed to retrieve data set. Try reloading and if that doesn't work, contact the admins"
+                            ]
                         , showError e
                         ]
 
-            Success experimentTypeResult ->
-                viewExperimentTypeFilter model.selectedExperimentTypeId experimentTypeResult
-                    ++ (case model.analysisRequest of
-                            NotAsked ->
-                                List.singleton <| text ""
-
-                            Loading ->
-                                List.singleton <| loadingBar "Loading analysis results..."
-
-                            Failure e ->
-                                List.singleton <|
-                                    viewAlert [ AlertDanger ] <|
-                                        [ h4 [ class "alert-heading" ]
-                                            [ text "Failed to retrieve analysis results. Try reloading and if that doesn't work, contact the admins"
-                                            ]
-                                        , showError e
-                                        ]
-
-                            Success r ->
-                                [ modalMergeResultDetail model
-                                , viewFilters model.selectMergeStatus
-                                , viewInner model r
+            Success { attributi, dataSet, chemicalIdToName, experimentType } ->
+                [ nav []
+                    [ ol [ class "breadcrumb" ]
+                        [ li [ class "breadcrumb-item active" ]
+                            [ text "/ ", a [ href (makeLink (AnalysisOverview model.beamtimeId)) ] [ text "Analysis Overview" ] ]
+                        , li [ class "breadcrumb-item active" ]
+                            [ a
+                                [ href
+                                    (makeLink (AnalysisExperimentType model.beamtimeId experimentType.id))
                                 ]
-                       )
+                                [ text experimentType.name ]
+                            ]
+                        , li [ class "breadcrumb-item" ] [ text <| "Data Set ID " ++ String.fromInt model.dataSetId ]
+                        ]
+                    ]
+                , modalMergeResultDetail model
+                , div_
+                    (viewDataSet
+                        model
+                        experimentType
+                        (List.map convertAttributoFromApi attributi)
+                        (List.foldr (\{ chemicalId, name } -> Dict.insert chemicalId name) Dict.empty chemicalIdToName)
+                        dataSet
+                    )
+                ]
 
 
 possiblyRefresh : Model -> Cmd Msg
 possiblyRefresh model =
-    case model.selectedExperimentTypeId of
-        Nothing ->
-            Cmd.none
-
-        Just etId ->
-            send AnalysisResultsReceived
-                (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet
-                    model.beamtimeId
-                    etId
-                )
+    send AnalysisResultsReceived
+        (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet
+            model.beamtimeId
+            model.dataSetId
+        )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -1536,12 +1052,6 @@ update msg model =
 
         ScrollDone ->
             ( model, Cmd.none )
-
-        OpenDataSet dataSetId ->
-            ( { model | selectedDataSetId = Just dataSetId }, Cmd.none )
-
-        CloseDataSet ->
-            ( { model | selectedDataSetId = Nothing }, Cmd.none )
 
         IndexingParametersMsg paramsMsg ->
             case model.currentProcessingParameters of
@@ -1672,11 +1182,6 @@ update msg model =
                                 )
                             )
 
-        ExperimentTypesReceived experimentTypes ->
-            ( { model | experimentTypesRequest = fromResult experimentTypes }
-            , possiblyRefresh model
-            )
-
         AnalysisResultsReceived analysisResults ->
             ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
 
@@ -1742,12 +1247,6 @@ update msg model =
             , possiblyRefresh model
             )
 
-        OpenMergeResultDetail mr ->
-            ( { model | selectedMergeResult = MergeResultSelected mr }, Cmd.none )
-
-        CloseMergeResultDetail ->
-            ( { model | selectedMergeResult = NoMergeResultSelected }, Cmd.none )
-
         CrystFELMergeMessage cfMsg ->
             case model.activatedMergeForm of
                 Nothing ->
@@ -1773,66 +1272,3 @@ update msg model =
 
             else
                 ( { model | expandedMergeResultIds = Set.insert mrid model.expandedMergeResultIds }, Cmd.none )
-
-        SortDataSetsAscending ->
-            let
-                dss =
-                    model.dataSetsSortingAscending
-            in
-            ( { model | dataSetsSortingAscending = not dss }, Cmd.none )
-
-        SetFilterExperimentType experimentTypeId ->
-            let
-                newModel =
-                    { model | selectedExperimentTypeId = Just experimentTypeId }
-            in
-            ( newModel
-            , Cmd.batch
-                [ possiblyRefresh newModel
-                , Nav.pushUrl
-                    model.navKey
-                    (Route.makeLink (Route.Analysis (Just experimentTypeId) model.beamtimeId))
-                ]
-            )
-
-        SetFilterMergeStatus ms ->
-            ( { model | selectMergeStatus = ms }, Cmd.none )
-
-        SetFilterExperimentTypeAttributo attrFilter _ ->
-            let
-                hlfs =
-                    model.hiddenExperimentTypeAttributiFilters
-            in
-            if List.member attrFilter model.hiddenExperimentTypeAttributiFilters then
-                ( { model
-                    | hiddenExperimentTypeAttributiFilters =
-                        List.Extra.unique <|
-                            List.Extra.remove attrFilter hlfs
-                  }
-                , Cmd.none
-                )
-
-            else
-                ( { model | hiddenExperimentTypeAttributiFilters = List.Extra.unique (attrFilter :: hlfs) }, Cmd.none )
-
-        SetFilterExperimentTypeAllAttributi attrFilters ->
-            let
-                hlfs =
-                    model.hiddenExperimentTypeAttributiFilters
-
-                newHlfs =
-                    List.filter (\af -> List.Extra.notMember af attrFilters) hlfs
-            in
-            ( { model | hiddenExperimentTypeAttributiFilters = List.Extra.unique <| newHlfs }, Cmd.none )
-
-        SetFilterExperimentTypeNoneAttributi attrFilters ->
-            let
-                hlfs =
-                    model.hiddenExperimentTypeAttributiFilters
-
-                newHlfs =
-                    List.Extra.unique (hlfs ++ attrFilters)
-            in
-            ( { model | hiddenExperimentTypeAttributiFilters = List.Extra.unique <| newHlfs }
-            , Cmd.none
-            )

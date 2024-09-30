@@ -125,6 +125,7 @@ from amarcord.web.json_models import JsonReadMergeResultsOutput
 from amarcord.web.json_models import JsonReadRuns
 from amarcord.web.json_models import JsonReadRunsBulkInput
 from amarcord.web.json_models import JsonReadRunsBulkOutput
+from amarcord.web.json_models import JsonReadSingleDataSetResults
 from amarcord.web.json_models import JsonRefinementResult
 from amarcord.web.json_models import JsonStartRunOutput
 from amarcord.web.json_models import JsonStopRunOutput
@@ -1526,7 +1527,15 @@ def test_update_indexing_job(
     )
     assert len(analysis_response.data_sets[0].runs) == 1
     assert analysis_response.data_sets[0].runs[0] == str(external_run_id)
-    assert len(analysis_response.data_sets[0].indexing_results) == 1
+
+    # Another place is the analysis view
+    single_data_set_result = JsonReadSingleDataSetResults(
+        **client.get(
+            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.data_sets[0].data_set.id}"
+        ).json()
+    )
+
+    assert len(single_data_set_result.data_set.indexing_results) == 1
 
 
 def test_change_run_experiment_type(
@@ -1898,7 +1907,16 @@ def test_queue_then_start_then_finish_merge_job(
     )
 
     assert len(analysis_response.data_sets) == 1
-    first_ds = analysis_response.data_sets[0]
+
+    # Another place is the analysis view
+    single_data_set_result = JsonReadSingleDataSetResults(
+        **client.get(
+            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.data_sets[0].data_set.id}"
+        ).json()
+    )
+
+
+    first_ds = single_data_set_result.data_set
     assert len(first_ds.indexing_results) == 1
     first_ir = first_ds.indexing_results[0]
     assert len(first_ir.merge_results) == 1

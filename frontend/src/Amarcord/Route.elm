@@ -1,6 +1,7 @@
 module Amarcord.Route exposing (..)
 
-import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, beamtimeIdToString)
+import Amarcord.API.DataSet exposing (DataSetId)
+import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, MergeResultId, beamtimeIdToString)
 import Url
 import Url.Parser exposing ((</>), Parser, int, map, oneOf, parse, s, top)
 
@@ -15,7 +16,10 @@ type Route
     | RunOverview BeamtimeId
     | Attributi BeamtimeId
     | AdvancedControls BeamtimeId
-    | Analysis (Maybe ExperimentTypeId) BeamtimeId
+    | AnalysisOverview BeamtimeId
+    | AnalysisExperimentType BeamtimeId ExperimentTypeId
+    | AnalysisDataSet BeamtimeId Int
+    | MergeResult BeamtimeId ExperimentTypeId DataSetId MergeResultId
     | RunAnalysis BeamtimeId
     | EventLog BeamtimeId
 
@@ -27,6 +31,9 @@ beamtimeIdInRoute x =
             Nothing
 
         Root btid ->
+            Just btid
+
+        MergeResult btid _ _ _ ->
             Just btid
 
         Chemicals btid ->
@@ -50,7 +57,13 @@ beamtimeIdInRoute x =
         AdvancedControls btid ->
             Just btid
 
-        Analysis _ btid ->
+        AnalysisOverview btId ->
+            Just btId
+
+        AnalysisExperimentType btid _ ->
+            Just btid
+
+        AnalysisDataSet btid _ ->
             Just btid
 
         RunAnalysis btid ->
@@ -118,23 +131,31 @@ makeLink x =
         Chemicals beamtimeId ->
             routePrefix ++ "/chemicals/" ++ beamtimeIdToString beamtimeId
 
-        Analysis experimentTypeIdMaybe beamtimeId ->
-            let
-                prefix =
-                    routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
-            in
-            case experimentTypeIdMaybe of
-                Nothing ->
-                    prefix
+        AnalysisOverview beamtimeId ->
+            routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
 
-                Just experimentTypeId ->
-                    prefix ++ "/" ++ String.fromInt experimentTypeId
+        AnalysisExperimentType beamtimeId etId ->
+            routePrefix ++ "/data-sets/" ++ beamtimeIdToString beamtimeId ++ "/" ++ String.fromInt etId
+
+        AnalysisDataSet beamtimeId dsId ->
+            routePrefix ++ "/data-set/" ++ beamtimeIdToString beamtimeId ++ "/" ++ String.fromInt dsId
 
         RunAnalysis beamtimeId ->
             routePrefix ++ "/runanalysis/" ++ beamtimeIdToString beamtimeId
 
         DataSets beamtimeId ->
             routePrefix ++ "/datasets/" ++ beamtimeIdToString beamtimeId
+
+        MergeResult beamtimeId etId dsId mergeResultId ->
+            routePrefix
+                ++ "/mergeresult/"
+                ++ beamtimeIdToString beamtimeId
+                ++ "/"
+                ++ String.fromInt etId
+                ++ "/"
+                ++ String.fromInt dsId
+                ++ "/"
+                ++ String.fromInt mergeResultId
 
         ExperimentTypes beamtimeId ->
             routePrefix ++ "/experimenttypes/" ++ beamtimeIdToString beamtimeId
@@ -165,16 +186,16 @@ matchRoute : Parser (Route -> a) a
 matchRoute =
     oneOf
         [ map BeamtimeSelection top
-
-        -- , map Root int
         , map Attributi (s "attributi" </> int)
         , map Chemicals (s "chemicals" </> int)
         , map RunOverview (s "runoverview" </> int)
         , map Schedule (s "schedule" </> int)
         , map EventLog (s "event-log" </> int)
         , map AdvancedControls (s "advancedcontrols" </> int)
-        , map (\btId etId -> Analysis (Just etId) btId) (s "analysis" </> int </> int)
-        , map (Analysis Nothing) (s "analysis" </> int)
+        , map AnalysisOverview (s "analysis" </> int)
+        , map AnalysisExperimentType (s "data-sets" </> int </> int)
+        , map AnalysisDataSet (s "data-set" </> int </> int)
+        , map MergeResult (s "mergeresult" </> int </> int </> int </> int)
         , map RunAnalysis (s "runanalysis" </> int)
         , map DataSets (s "datasets" </> int)
         , map ExperimentTypes (s "experimenttypes" </> int)

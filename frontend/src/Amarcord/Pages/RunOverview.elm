@@ -443,7 +443,7 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                     in
                     [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
                     , div [ class "mb-3" ] indexingProgress
-                    , h3_ [ text "Data set", viewHelpButton "help-data-set" ]
+                    , h3_ [ text "Data Set", viewHelpButton "help-data-set" ]
                     , div [ id "help-data-set", class "collapse text-bg-light p-2" ]
                         [ p_
                             [ em [] [ text "Data sets" ]
@@ -507,6 +507,11 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                         True
                         True
                         Nothing
+                    , a
+                        [ href
+                            (makeLink (AnalysisDataSet beamtimeId dsWithFom.dataSet.id))
+                        ]
+                        [ text "→ Go to processing results" ]
                     ]
 
 

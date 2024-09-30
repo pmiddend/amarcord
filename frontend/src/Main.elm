@@ -11,7 +11,8 @@ import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
-import Amarcord.Pages.Analysis as Analysis
+import Amarcord.Pages.AnalysisExperimentType as AnalysisExperimentType
+import Amarcord.Pages.AnalysisOverview as AnalysisOverview
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.BeamtimeSelection as BeamtimeSelection
 import Amarcord.Pages.Chemicals as Chemicals
@@ -19,9 +20,11 @@ import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
 import Amarcord.Pages.Help as Help
+import Amarcord.Pages.MergeResult as MergeResult
 import Amarcord.Pages.RunAnalysis as RunAnalysis
 import Amarcord.Pages.RunOverview as RunOverview
 import Amarcord.Pages.Schedule as Schedule
+import Amarcord.Pages.SingleDataSet as SingleDataSet
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (version)
@@ -63,12 +66,15 @@ main =
 type Msg
     = AttributiPageMsg Attributi.Msg
     | ChemicalsPageMsg Chemicals.Msg
+    | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
     | BeamtimeSelectionPageMsg BeamtimeSelection.Msg
     | DataSetsMsg DataSets.Msg
     | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
-    | AnalysisPageMsg Analysis.Msg
+    | AnalysisOverviewPageMsg AnalysisOverview.Msg
+    | AnalysisExperimentTypePageMsg AnalysisExperimentType.Msg
+    | SingleDataSetPageMsg SingleDataSet.Msg
     | RunAnalysisPageMsg RunAnalysis.Msg
     | ScheduleMsg Schedule.ScheduleMsg
     | EventLogMsg EventLog.Msg
@@ -83,6 +89,7 @@ type Page
     = RootPage
     | AttributiPage Attributi.Model
     | ChemicalsPage Chemicals.Model
+    | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
     | AdvancedControlsPage AdvancedControls.Model
     | BeamtimeSelectionPage BeamtimeSelection.Model
@@ -90,7 +97,9 @@ type Page
     | SchedulePage Schedule.ScheduleModel
     | EventLogPage EventLog.Model
     | ExperimentTypesPage ExperimentTypes.ExperimentTypeModel
-    | AnalysisPage Analysis.Model
+    | AnalysisOverviewPage AnalysisOverview.Model
+    | AnalysisExperimentTypePage AnalysisExperimentType.Model
+    | SingleDataSetPage SingleDataSet.Model
     | RunAnalysisPage RunAnalysis.Model
 
 
@@ -167,6 +176,9 @@ buildTitle model =
                         Route.ExperimentTypes _ ->
                             "Experiment Types — "
 
+                        Route.MergeResult _ _ _ mrId ->
+                            "Merge Result " ++ String.fromInt mrId ++ " — "
+
                         Route.RunOverview _ ->
                             case model.page of
                                 RunOverviewPage runOverviewModel ->
@@ -196,8 +208,14 @@ buildTitle model =
                         Route.AdvancedControls _ ->
                             "Advanced — "
 
-                        Route.Analysis _ _ ->
-                            "Analysis by Experiment Type — "
+                        Route.AnalysisOverview _ ->
+                            "Analysis Overview — "
+
+                        Route.AnalysisExperimentType _ etId ->
+                            "Experiment Type " ++ String.fromInt etId ++ " — "
+
+                        Route.AnalysisDataSet _ dsId ->
+                            "Data Set " ++ String.fromInt dsId ++ " — "
 
                         Route.RunAnalysis _ ->
                             "Analysis by Run — "
@@ -307,16 +325,34 @@ currentView model =
                     |> Html.map ChemicalsPageMsg
                 ]
 
+        MergeResultPage pageModel ->
+            div []
+                [ MergeResult.view pageModel
+                    |> Html.map MergeResultPageMsg
+                ]
+
         RunOverviewPage pageModel ->
             div []
                 [ RunOverview.view pageModel
                     |> Html.map RunOverviewPageMsg
                 ]
 
-        AnalysisPage pageModel ->
+        AnalysisOverviewPage pageModel ->
             div []
-                [ Analysis.view pageModel
-                    |> Html.map AnalysisPageMsg
+                [ AnalysisOverview.view pageModel
+                    |> Html.map AnalysisOverviewPageMsg
+                ]
+
+        AnalysisExperimentTypePage pageModel ->
+            div []
+                [ AnalysisExperimentType.view pageModel
+                    |> Html.map AnalysisExperimentTypePageMsg
+                ]
+
+        SingleDataSetPage pageModel ->
+            div []
+                [ SingleDataSet.view pageModel
+                    |> Html.map SingleDataSetPageMsg
                 ]
 
         RunAnalysisPage pageModel ->
@@ -428,6 +464,15 @@ updateInner hereAndNow msg model =
             , Cmd.map ChemicalsPageMsg updatedCmd
             )
 
+        ( MergeResultPageMsg subMsg, MergeResultPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    MergeResult.update subMsg pageModel
+            in
+            ( { model | page = MergeResultPage updatedPageModel }
+            , Cmd.map MergeResultPageMsg updatedCmd
+            )
+
         ( ScheduleMsg scheduleMsg, SchedulePage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -482,13 +527,31 @@ updateInner hereAndNow msg model =
             , Cmd.map ExperimentTypesMsg updatedCmd
             )
 
-        ( AnalysisPageMsg subMsg, AnalysisPage pageModel ) ->
+        ( AnalysisOverviewPageMsg subMsg, AnalysisOverviewPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
-                    Analysis.update subMsg pageModel
+                    AnalysisOverview.update subMsg pageModel
             in
-            ( { model | page = AnalysisPage updatedPageModel }
-            , Cmd.map AnalysisPageMsg updatedCmd
+            ( { model | page = AnalysisOverviewPage updatedPageModel }
+            , Cmd.map AnalysisOverviewPageMsg updatedCmd
+            )
+
+        ( AnalysisExperimentTypePageMsg subMsg, AnalysisExperimentTypePage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    AnalysisExperimentType.update subMsg pageModel
+            in
+            ( { model | page = AnalysisExperimentTypePage updatedPageModel }
+            , Cmd.map AnalysisExperimentTypePageMsg updatedCmd
+            )
+
+        ( SingleDataSetPageMsg subMsg, SingleDataSetPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    SingleDataSet.update subMsg pageModel
+            in
+            ( { model | page = SingleDataSetPage updatedPageModel }
+            , Cmd.map SingleDataSetPageMsg updatedCmd
             )
 
         ( RunAnalysisPageMsg subMsg, RunAnalysisPage pageModel ) ->
@@ -500,13 +563,31 @@ updateInner hereAndNow msg model =
             , Cmd.map RunAnalysisPageMsg updatedCmd
             )
 
-        ( RefreshMsg t, AnalysisPage pageModel ) ->
+        ( RefreshMsg t, AnalysisOverviewPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
-                    Analysis.update (Analysis.Refresh t) pageModel
+                    AnalysisOverview.update (AnalysisOverview.Refresh t) pageModel
             in
-            ( { model | page = AnalysisPage updatedPageModel }
-            , Cmd.map AnalysisPageMsg updatedCmd
+            ( { model | page = AnalysisOverviewPage updatedPageModel }
+            , Cmd.map AnalysisOverviewPageMsg updatedCmd
+            )
+
+        ( RefreshMsg t, AnalysisExperimentTypePage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    AnalysisExperimentType.update (AnalysisExperimentType.Refresh t) pageModel
+            in
+            ( { model | page = AnalysisExperimentTypePage updatedPageModel }
+            , Cmd.map AnalysisExperimentTypePageMsg updatedCmd
+            )
+
+        ( RefreshMsg t, SingleDataSetPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    SingleDataSet.update (SingleDataSet.Refresh t) pageModel
+            in
+            ( { model | page = SingleDataSetPage updatedPageModel }
+            , Cmd.map SingleDataSetPageMsg updatedCmd
             )
 
         ( RefreshMsg t, EventLogPage pageModel ) ->
@@ -557,6 +638,9 @@ updateInner hereAndNow msg model =
                     ( model, Nav.load url )
 
         ( UrlChanged url, _ ) ->
+            -- Here our URL changed. We might have switched beam times
+            -- (if we came from the overview, or something), so here
+            -- we have to check if we need another beam time request.
             let
                 newRoute =
                     Route.parseUrlFragment url
@@ -564,13 +648,25 @@ updateInner hereAndNow msg model =
                 beamtimeIdInRoute =
                     Route.beamtimeIdInRoute newRoute
 
+                oldBeamtimeId =
+                    case model.metadata.beamtimeRequest of
+                        Success { id } ->
+                            Just id
+
+                        _ ->
+                            Nothing
+
                 newBeamtimeRequest =
                     case beamtimeIdInRoute of
                         Nothing ->
                             NotAsked
 
-                        Just _ ->
-                            Loading
+                        Just newBeamtimeId ->
+                            if Just newBeamtimeId == oldBeamtimeId then
+                                model.metadata.beamtimeRequest
+
+                            else
+                                Loading
 
                 retrieveRouteBeamtimeCmd : Cmd Msg
                 retrieveRouteBeamtimeCmd =
@@ -579,7 +675,11 @@ updateInner hereAndNow msg model =
                             Cmd.none
 
                         Just btId ->
-                            send BeamtimeReceived (readBeamtimeApiBeamtimesBeamtimeIdGet btId)
+                            if Just btId == oldBeamtimeId then
+                                Cmd.none
+
+                            else
+                                send BeamtimeReceived (readBeamtimeApiBeamtimesBeamtimeIdGet btId)
 
                 oldMetadata =
                     model.metadata
@@ -587,7 +687,8 @@ updateInner hereAndNow msg model =
                 newMetadata =
                     { oldMetadata | beamtimeRequest = newBeamtimeRequest }
             in
-            ( { model | route = newRoute, metadata = newMetadata }, retrieveRouteBeamtimeCmd ) |> initCurrentPage model.metadata.localStorage hereAndNow
+            ( { model | route = newRoute, metadata = newMetadata }, retrieveRouteBeamtimeCmd )
+                |> initCurrentPage model.metadata.localStorage hereAndNow
 
         _ ->
             ( model, Cmd.none )
@@ -625,6 +726,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( ChemicalsPage pageModel, Cmd.map ChemicalsPageMsg pageCmds )
 
+                Route.MergeResult beamtimeId experimentTypeId dataSetId mergeResultId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            MergeResult.init model.navKey hereAndNow beamtimeId experimentTypeId dataSetId mergeResultId
+                    in
+                    ( MergeResultPage pageModel, Cmd.map MergeResultPageMsg pageCmds )
+
                 Route.RunOverview beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
@@ -632,12 +740,26 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
 
-                Route.Analysis experimentTypeIdMaybe beamtimeId ->
+                Route.AnalysisOverview beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Analysis.init model.navKey hereAndNow beamtimeId experimentTypeIdMaybe
+                            AnalysisOverview.init model.navKey hereAndNow beamtimeId
                     in
-                    ( AnalysisPage pageModel, Cmd.map AnalysisPageMsg pageCmds )
+                    ( AnalysisOverviewPage pageModel, Cmd.map AnalysisOverviewPageMsg pageCmds )
+
+                Route.AnalysisExperimentType beamtimeId etId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            AnalysisExperimentType.init model.navKey hereAndNow beamtimeId etId
+                    in
+                    ( AnalysisExperimentTypePage pageModel, Cmd.map AnalysisExperimentTypePageMsg pageCmds )
+
+                Route.AnalysisDataSet beamtimeId dsId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            SingleDataSet.init model.navKey hereAndNow beamtimeId dsId
+                    in
+                    ( SingleDataSetPage pageModel, Cmd.map SingleDataSetPageMsg pageCmds )
 
                 Route.RunAnalysis beamtimeId ->
                     let

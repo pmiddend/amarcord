@@ -1,6 +1,8 @@
 module Amarcord.API.Requests exposing
     ( BeamtimeId
     , ConversionFlags
+    , ExperimentTypeId
+    , MergeResultId
     , RunEventDate(..)
     , RunEventDateFilter(..)
     , RunExternalId(..)
@@ -21,15 +23,20 @@ module Amarcord.API.Requests exposing
     , runInternalIdToInt
     , runInternalIdToString
     , specificRunEventDateFilter
-    , ExperimentTypeId
     )
 
 
 type alias BeamtimeId =
     Int
 
+
 type alias ExperimentTypeId =
     Int
+
+
+type alias MergeResultId =
+    Int
+
 
 beamtimeIdToString : BeamtimeId -> String
 beamtimeIdToString =

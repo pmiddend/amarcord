@@ -629,12 +629,14 @@ class JsonChangeRunExperimentTypeOutput(BaseModel):
 class JsonExperimentTypeAndRuns(BaseModel):
     id: int
     runs: list[str]
+    number_of_runs: int
 
 
 class JsonReadExperimentTypes(BaseModel):
     experiment_types: list[JsonExperimentType]
     attributi: list[JsonAttributo]
     experiment_type_id_to_run: list[JsonExperimentTypeAndRuns]
+    current_experiment_type_id: None | int
 
 
 class JsonDeleteExperimentType(BaseModel):
@@ -809,6 +811,12 @@ class JsonIndexingParametersWithResults(BaseModel):
     indexing_results: list[JsonIndexingResult]
     merge_results: list[JsonMergeResult]
 
+class JsonDataSetWithoutIndexingResults(BaseModel):
+    data_set: JsonDataSet
+    # To start indexing jobs
+    internal_run_ids: list[int]
+    # For display
+    runs: list[str]
 
 class JsonDataSetWithIndexingResults(BaseModel):
     data_set: JsonDataSet
@@ -823,7 +831,17 @@ class JsonReadAnalysisResults(BaseModel):
     attributi: list[JsonAttributo]
     chemical_id_to_name: list[JsonChemicalIdAndName]
     experiment_type: JsonExperimentType
-    data_sets: list[JsonDataSetWithIndexingResults]
+    data_sets: list[JsonDataSetWithoutIndexingResults]
+
+class JsonReadSingleDataSetResults(BaseModel):
+    attributi: list[JsonAttributo]
+    chemical_id_to_name: list[JsonChemicalIdAndName]
+    experiment_type: JsonExperimentType
+    data_set: JsonDataSetWithIndexingResults
+
+class JsonReadSingleMergeResult(BaseModel):
+    experiment_type: JsonExperimentType
+    result: JsonMergeResult
 
 
 class JsonCreateLiveStreamSnapshotOutput(BaseModel):

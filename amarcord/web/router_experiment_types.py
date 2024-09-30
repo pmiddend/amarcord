@@ -140,13 +140,16 @@ async def read_experiment_types(
             .options(selectinload(orm.ExperimentType.runs))
         )
     ).all()
+    current_config = await retrieve_latest_config(session, beamtimeId)
     return JsonReadExperimentTypes(
         experiment_types=[encode_experiment_type(a) for a in experiment_types],
         attributi=[encode_attributo(a) for a in attributi],
+        current_experiment_type_id=current_config.current_experiment_type_id,
         experiment_type_id_to_run=[
             JsonExperimentTypeAndRuns(
                 id=et.id,
                 runs=format_run_id_intervals(r.external_id for r in et.runs),
+                number_of_runs=len(et.runs)
             )
             for et in experiment_types
         ],
