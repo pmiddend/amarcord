@@ -13,6 +13,7 @@ type Route
     | DataSets BeamtimeId
     | Schedule BeamtimeId
     | ExperimentTypes BeamtimeId
+    | Runs BeamtimeId
     | RunOverview BeamtimeId
     | Attributi BeamtimeId
     | AdvancedControls BeamtimeId
@@ -46,6 +47,9 @@ beamtimeIdInRoute x =
             Just btid
 
         ExperimentTypes btid ->
+            Just btid
+
+        Runs btid ->
             Just btid
 
         RunOverview btid ->
@@ -122,6 +126,9 @@ makeLink x =
         Attributi beamtimeId ->
             routePrefix ++ "/attributi/" ++ beamtimeIdToString beamtimeId
 
+        Runs beamtimeId ->
+            routePrefix ++ "/runs/" ++ beamtimeIdToString beamtimeId
+
         RunOverview beamtimeId ->
             routePrefix ++ "/runoverview/" ++ beamtimeIdToString beamtimeId
 
@@ -189,6 +196,7 @@ matchRoute =
         , map Attributi (s "attributi" </> int)
         , map Chemicals (s "chemicals" </> int)
         , map RunOverview (s "runoverview" </> int)
+        , map Runs (s "runs" </> int)
         , map Schedule (s "schedule" </> int)
         , map EventLog (s "event-log" </> int)
         , map AdvancedControls (s "advancedcontrols" </> int)

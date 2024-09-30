@@ -21,7 +21,6 @@ module Amarcord.API.Requests exposing
     , runExternalIdToString
     , runFilterToString
     , runInternalIdToInt
-    , runInternalIdToString
     , specificRunEventDateFilter
     )
 
@@ -55,11 +54,6 @@ type RunInternalId
 runInternalIdToInt : RunInternalId -> Int
 runInternalIdToInt (RunInternalId x) =
     x
-
-
-runInternalIdToString : RunInternalId -> String
-runInternalIdToString (RunInternalId x) =
-    String.fromInt x
 
 
 type RunExternalId

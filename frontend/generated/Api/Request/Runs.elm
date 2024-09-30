@@ -17,6 +17,7 @@ module Api.Request.Runs exposing
     ( createOrUpdateRunApiRunsRunExternalIdPost
     , readRunsApiRunsBeamtimeIdGet
     , readRunsBulkApiRunsBulkPost
+    , readRunsOverviewApiRunsOverviewBeamtimeIdGet
     , startRunApiRunsRunExternalIdStartBeamtimeIdGet
     , stopLatestRunApiRunsStopLatestBeamtimeIdGet
     , updateRunApiRunsPatch
@@ -64,6 +65,18 @@ readRunsBulkApiRunsBulkPost jsonReadRunsBulkInput_body =
         []
         (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonReadRunsBulkInput jsonReadRunsBulkInput_body)))
         Api.Data.jsonReadRunsBulkOutputDecoder
+
+
+readRunsOverviewApiRunsOverviewBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadRunsOverview
+readRunsOverviewApiRunsOverviewBeamtimeIdGet beamtimeId_path =
+    Api.request
+        "GET"
+        "/api/runs-overview/{beamtimeId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonReadRunsOverviewDecoder
 
 
 startRunApiRunsRunExternalIdStartBeamtimeIdGet : Int -> Int -> Api.Request Api.Data.JsonStartRunOutput

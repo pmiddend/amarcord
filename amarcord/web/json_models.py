@@ -516,7 +516,7 @@ class JsonIndexingStatistic(BaseModel):
 
 class JsonRunAnalysisIndexingResult(BaseModel):
     run_id: int
-    foms: list[JsonIndexingFom]
+    foms: JsonIndexingFom
     indexing_statistics: list[JsonIndexingStatistic]
 
 
@@ -558,8 +558,6 @@ class JsonRun(BaseModel):
     files: list[JsonFileOutput]
     summary: JsonIndexingFom
     experiment_type_id: int
-    data_set_ids: list[int]
-    running_indexing_jobs: list[int]
 
 
 class JsonUserConfig(BaseModel):
@@ -580,13 +578,22 @@ class JsonDataSetWithFom(BaseModel):
 
 
 class JsonReadRuns(BaseModel):
-    live_stream: None | JsonLiveStream
     filter_dates: list[str]
     runs: list[JsonRun]
     attributi: list[JsonAttributo]
-    latest_indexing_result: None | JsonRunAnalysisIndexingResult
     experiment_types: list[JsonExperimentType]
-    data_sets_with_fom: list[JsonDataSetWithFom]
+    events: list[JsonEvent]
+    chemicals: list[JsonChemical]
+
+
+class JsonReadRunsOverview(BaseModel):
+    live_stream: None | JsonLiveStream
+    attributi: list[JsonAttributo]
+    latest_indexing_result: None | JsonRunAnalysisIndexingResult
+    latest_run: None | JsonRun
+    foms_for_this_data_set: None | JsonDataSetWithFom
+    # for the "choose ET" dropdown
+    experiment_types: list[JsonExperimentType]
     events: list[JsonEvent]
     chemicals: list[JsonChemical]
     user_config: JsonUserConfig
@@ -811,12 +818,14 @@ class JsonIndexingParametersWithResults(BaseModel):
     indexing_results: list[JsonIndexingResult]
     merge_results: list[JsonMergeResult]
 
+
 class JsonDataSetWithoutIndexingResults(BaseModel):
     data_set: JsonDataSet
     # To start indexing jobs
     internal_run_ids: list[int]
     # For display
     runs: list[str]
+
 
 class JsonDataSetWithIndexingResults(BaseModel):
     data_set: JsonDataSet
@@ -833,11 +842,13 @@ class JsonReadAnalysisResults(BaseModel):
     experiment_type: JsonExperimentType
     data_sets: list[JsonDataSetWithoutIndexingResults]
 
+
 class JsonReadSingleDataSetResults(BaseModel):
     attributi: list[JsonAttributo]
     chemical_id_to_name: list[JsonChemicalIdAndName]
     experiment_type: JsonExperimentType
     data_set: JsonDataSetWithIndexingResults
+
 
 class JsonReadSingleMergeResult(BaseModel):
     experiment_type: JsonExperimentType

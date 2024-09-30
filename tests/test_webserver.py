@@ -125,6 +125,7 @@ from amarcord.web.json_models import JsonReadMergeResultsOutput
 from amarcord.web.json_models import JsonReadRuns
 from amarcord.web.json_models import JsonReadRunsBulkInput
 from amarcord.web.json_models import JsonReadRunsBulkOutput
+from amarcord.web.json_models import JsonReadRunsOverview
 from amarcord.web.json_models import JsonReadSingleDataSetResults
 from amarcord.web.json_models import JsonRefinementResult
 from amarcord.web.json_models import JsonStartRunOutput
@@ -1191,7 +1192,6 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
     assert run.stopped is None
     assert run.started == 1
     assert run.experiment_type_id == chemical_experiment_type_id
-    assert not run.running_indexing_jobs
     assert len(run.attributi) == 1
     attributo = run.attributi[0]
     assert attributo.attributo_id == run_string_attributo_id
@@ -1235,7 +1235,6 @@ def test_create_and_update_run_after_setting_experiment_type_no_crystfel_online(
     assert run.stopped == 2
     assert run.started == 1
     assert run.experiment_type_id == chemical_experiment_type_id
-    assert not run.running_indexing_jobs
     assert len(run.attributi) == 1
     attributo = run.attributi[0]
     assert attributo.attributo_id == run_string_attributo_id
@@ -1491,9 +1490,11 @@ def test_update_indexing_job(
 
     assert create_data_set_response.data_set_id > 0
 
-    read_runs_output = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
-    assert len(read_runs_output.data_sets_with_fom) == 1
-    first_ds = read_runs_output.data_sets_with_fom[0].data_set
+    read_runs_output = JsonReadRunsOverview(
+        **client.get(f"/api/runs-overview/{beamtime_id}").json()
+    )
+    assert read_runs_output.foms_for_this_data_set is not None
+    first_ds = read_runs_output.foms_for_this_data_set.data_set
     assert first_ds.id == create_data_set_response.data_set_id
     assert first_ds.attributi == [
         JsonAttributoValue(
@@ -1502,7 +1503,7 @@ def test_update_indexing_job(
         )
     ]
     assert first_ds.experiment_type_id == chemical_experiment_type_id
-    summary = read_runs_output.data_sets_with_fom[0].fom
+    summary = read_runs_output.foms_for_this_data_set.fom
     assert summary is not None
     assert summary.hit_rate == pytest.approx(50, 0.01)
     assert summary.indexing_rate == pytest.approx(20, 0.01)
@@ -1914,7 +1915,6 @@ def test_queue_then_start_then_finish_merge_job(
             f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.data_sets[0].data_set.id}"
         ).json()
     )
-
 
     first_ds = single_data_set_result.data_set
     assert len(first_ds.indexing_results) == 1

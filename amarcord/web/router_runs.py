@@ -41,7 +41,6 @@ from amarcord.db.run_internal_id import RunInternalId
 from amarcord.filter_expression import FilterInput
 from amarcord.filter_expression import FilterParseError
 from amarcord.filter_expression import compile_run_filter
-from amarcord.util import group_by
 from amarcord.web.constants import DATE_FORMAT
 from amarcord.web.fastapi_utils import encode_run_attributo_value
 from amarcord.web.fastapi_utils import event_has_date
@@ -60,6 +59,7 @@ from amarcord.web.json_models import JsonLiveStream
 from amarcord.web.json_models import JsonReadRuns
 from amarcord.web.json_models import JsonReadRunsBulkInput
 from amarcord.web.json_models import JsonReadRunsBulkOutput
+from amarcord.web.json_models import JsonReadRunsOverview
 from amarcord.web.json_models import JsonRun
 from amarcord.web.json_models import JsonRunAnalysisIndexingResult
 from amarcord.web.json_models import JsonStartRunOutput
@@ -699,13 +699,6 @@ async def read_runs(
             )
         )
     ).all()
-    data_sets = (
-        await session.scalars(
-            select(orm.DataSet, orm.ExperimentType)
-            .join(orm.DataSet.experiment_type)
-            .where(orm.ExperimentType.beamtime_id == beamtimeId)
-        )
-    ).all()
     all_runs = (
         await session.scalars(
             select(orm.Run).where(orm.Run.beamtime_id == beamtimeId)
@@ -759,109 +752,12 @@ async def read_runs(
         else all_events
     )
 
-    indexing_results = (
-        await session.scalars(
-            select(orm.IndexingResult, orm.Run)
-            .join(orm.IndexingResult.run)
-            .where(orm.Run.beamtime_id == beamtimeId)
-            .options(selectinload(orm.IndexingResult.indexing_parameters))
-        )
-    ).all()
-    indexing_results_for_runs: dict[RunInternalId, list[orm.IndexingResult]] = group_by(
-        indexing_results, lambda ir: ir.run_id
-    )
-    run_foms: dict[RunInternalId, DBIndexingFOM] = {
-        r.id: indexing_fom_for_run(indexing_results_for_runs, r) for r in runs
-    }
-    attributo_types: dict[AttributoId, AttributoType] = {
-        AttributoId(a.id): schema_dict_to_attributo_type(a.json_schema)
-        for a in attributi
-    }
-    run_attributi_maps: dict[
-        int,
-        dict[AttributoId, None | orm.RunHasAttributoValue],
-    ] = {r.id: {ra.attributo_id: ra for ra in r.attributo_values} for r in all_runs}
-    data_set_attributi_maps: dict[
-        int,
-        dict[AttributoId, None | orm.DataSetHasAttributoValue],
-    ] = {
-        ds.id: {dsa.attributo_id: dsa for dsa in ds.attributo_values}
-        for ds in data_sets
-    }
-    data_set_id_to_grouped: dict[int, DBIndexingFOM] = {
-        ds.id: summary_from_foms(
-            [
-                run_foms.get(r.id, empty_indexing_fom)
-                for r in runs
-                if r.experiment_type_id == ds.experiment_type_id
-                and run_matches_dataset(
-                    attributo_types,
-                    run_attributi_maps[r.id],
-                    data_set_attributi_maps[ds.id],
-                )
-            ]
-        )
-        for ds in data_sets
-    }
-
-    user_configuration = await retrieve_latest_config(session, beamtimeId)
-    live_stream_file = (
-        await session.scalars(
-            select(orm.File).where(
-                orm.File.file_name == live_stream_image_name(beamtimeId)
-            )
-        )
-    ).one_or_none()
-    if all_runs:
-        latest_run = all_runs[0]
-        latest_indexing_results = await latest_run.awaitable_attrs.indexing_results
-        if latest_indexing_results:
-            latest_indexing_result_orm = latest_indexing_results[0]
-            latest_statistics_orm = (
-                await latest_indexing_result_orm.awaitable_attrs.statistics
-            )
-            latest_indexing_result = JsonRunAnalysisIndexingResult(
-                run_id=latest_run.id,
-                foms=[],
-                indexing_statistics=[
-                    JsonIndexingStatistic(
-                        time=datetime_to_attributo_int(stat.time),
-                        frames=stat.frames,
-                        hits=stat.hits,
-                        indexed=stat.indexed_frames,
-                        crystals=stat.indexed_crystals,
-                    )
-                    for stat in latest_statistics_orm
-                ],
-            )
-        else:
-            latest_indexing_result = None
-    else:
-        latest_indexing_result = None
-    found_schedule_entry = await _find_schedule_entry(session, beamtimeId)
     return JsonReadRuns(
-        current_beamtime_user=(
-            None if found_schedule_entry is None else found_schedule_entry.users
-        ),
-        latest_indexing_result=latest_indexing_result,
-        live_stream=(
-            None
-            if live_stream_file is None
-            else JsonLiveStream(
-                file_id=live_stream_file.id,
-                modified=datetime_to_attributo_int(live_stream_file.modified),
-            )
-        ),
         filter_dates=extract_runs_and_event_dates(all_runs, all_events),
         attributi=[encode_attributo(a) for a in attributi],
         events=[encode_event(e) for e in events],
         chemicals=[encode_chemical(a) for a in chemicals],
-        user_config=encode_user_configuration(user_configuration),
         experiment_types=[encode_experiment_type(a) for a in experiment_types],
-        data_sets_with_fom=[
-            encode_data_set_with_fom(a, data_set_id_to_grouped.get(a.id, None))
-            for a in data_sets
-        ],
         runs=[
             JsonRun(
                 id=r.id,
@@ -874,28 +770,224 @@ async def read_runs(
                     else None
                 ),
                 files=[],
-                summary=encode_indexing_fom_to_json(
-                    run_foms.get(r.id, empty_indexing_fom)
-                ),
+                summary=encode_indexing_fom_to_json(empty_indexing_fom),
                 experiment_type_id=r.experiment_type_id,
-                data_set_ids=[
-                    ds.id
-                    for ds in data_sets
-                    if r.experiment_type_id == ds.experiment_type_id
-                    and run_matches_dataset(
-                        attributo_types,
-                        run_attributi_maps[r.id],
-                        data_set_attributi_maps[ds.id],
-                    )
-                ],
-                running_indexing_jobs=[
-                    ir.id
-                    for ir in indexing_results
-                    if ir.run_id == r.id
-                    and ir.job_status == DBJobStatus.RUNNING
-                    and ir.indexing_parameters.is_online
-                ],
             )
             for r in runs
         ],
+    )
+
+
+@router.get(
+    "/api/runs-overview/{beamtimeId}",
+    tags=["runs"],
+    response_model_exclude_defaults=True,
+)
+async def read_runs_overview(
+    beamtimeId: BeamtimeId,
+    session: AsyncSession = Depends(get_orm_db),
+) -> JsonReadRunsOverview:
+    attributi = list(
+        (
+            await session.scalars(
+                select(orm.Attributo)
+                .where(orm.Attributo.beamtime_id == beamtimeId)
+                .order_by(orm.Attributo.name)
+            )
+        ).all()
+    )
+    chemicals = (
+        await session.scalars(
+            select(orm.Chemical)
+            .where(orm.Chemical.beamtime_id == beamtimeId)
+            .options(selectinload(orm.Chemical.files))
+        )
+    ).all()
+    experiment_types = (
+        await session.scalars(
+            select(orm.ExperimentType).where(
+                orm.ExperimentType.beamtime_id == beamtimeId
+            )
+        )
+    ).all()
+    data_sets = (
+        await session.scalars(
+            select(orm.DataSet, orm.ExperimentType)
+            .join(orm.DataSet.experiment_type)
+            .where(orm.ExperimentType.beamtime_id == beamtimeId)
+        )
+    ).all()
+    latest_run = (
+        await session.scalars(
+            select(orm.Run)
+            .where(orm.Run.beamtime_id == beamtimeId)
+            # Sort by inverse chronological order
+            .order_by(orm.Run.started.desc())
+            .limit(1)
+            .options(
+                selectinload(orm.Run.indexing_results).selectinload(
+                    orm.IndexingResult.indexing_parameters
+                )
+            )
+        )
+    ).one_or_none()
+    events = (
+        await session.scalars(
+            select(orm.EventLog)
+            .where(
+                (orm.EventLog.beamtime_id == beamtimeId)
+                & (orm.EventLog.level == EventLogLevel.USER)
+            )
+            .order_by(orm.EventLog.created.desc())
+            .options(selectinload(orm.EventLog.files))
+        )
+    ).all()
+
+    attributo_types: dict[AttributoId, AttributoType] = {
+        AttributoId(a.id): schema_dict_to_attributo_type(a.json_schema)
+        for a in attributi
+    }
+    run_attributi_map: dict[AttributoId, None | orm.RunHasAttributoValue] = {
+        ra.attributo_id: ra
+        for ra in (latest_run.attributo_values if latest_run is not None else [])
+    }
+    data_set_attributi_maps: dict[
+        int,
+        dict[AttributoId, None | orm.DataSetHasAttributoValue],
+    ] = {
+        ds.id: {dsa.attributo_id: dsa for dsa in ds.attributo_values}
+        for ds in data_sets
+    }
+    data_set_for_latest_run: None | orm.DataSet = next(
+        iter(
+            ds
+            for ds in data_sets
+            if latest_run is not None
+            and ds.experiment_type_id == latest_run.experiment_type_id
+            and run_matches_dataset(
+                attributo_types, run_attributi_map, data_set_attributi_maps[ds.id]
+            )
+        ),
+        None,
+    )
+
+    foms_in_this_ds: list[DBIndexingFOM] = []
+    if latest_run is not None and data_set_for_latest_run is not None:
+        # Now we know the run and its data set. Unforunately, we have to
+        # now query _all_ runs, so we can show full-dataset statistics.
+        other_runs = (
+            await session.scalars(
+                select(orm.Run)
+                .where(
+                    (orm.Run.beamtime_id == beamtimeId)
+                    & (orm.Run.experiment_type_id == latest_run.experiment_type_id)
+                )
+                .options(selectinload(orm.Run.indexing_results))
+            )
+        ).all()
+
+        other_runs_in_ds = [
+            r
+            for r in other_runs
+            if run_matches_dataset(
+                attributo_types,
+                {ra.attributo_id: ra for ra in r.attributo_values},
+                data_set_attributi_maps[data_set_for_latest_run.id],
+            )
+        ]
+
+        foms_in_this_ds: list[DBIndexingFOM] = []
+        for r in other_runs_in_ds:
+            try:
+                max_ir = max(r.indexing_results, key=lambda ir: ir.indexed_frames)
+                foms_in_this_ds.append(fom_for_indexing_result(max_ir))
+            except:
+                # No indexing results in this run. Fine.
+                pass
+
+    user_configuration = await retrieve_latest_config(session, beamtimeId)
+    live_stream_file = (
+        await session.scalars(
+            select(orm.File).where(
+                orm.File.file_name == live_stream_image_name(beamtimeId)
+            )
+        )
+    ).one_or_none()
+    latest_indexing_results = [
+        o
+        for o in (latest_run.indexing_results if latest_run is not None else [])
+        if o.indexing_parameters.is_online
+    ]
+    if latest_run is not None and latest_indexing_results:
+        latest_indexing_result_orm = latest_indexing_results[0]
+        latest_statistics_orm = (
+            await latest_indexing_result_orm.awaitable_attrs.statistics
+        )
+        latest_indexing_result = JsonRunAnalysisIndexingResult(
+            run_id=latest_run.id,
+            foms=encode_indexing_fom_to_json(
+                fom_for_indexing_result(latest_indexing_result_orm)
+            ),
+            indexing_statistics=[
+                JsonIndexingStatistic(
+                    time=datetime_to_attributo_int(stat.time),
+                    frames=stat.frames,
+                    hits=stat.hits,
+                    indexed=stat.indexed_frames,
+                    crystals=stat.indexed_crystals,
+                )
+                for stat in latest_statistics_orm
+            ],
+        )
+    else:
+        latest_indexing_result = None
+    found_schedule_entry = await _find_schedule_entry(session, beamtimeId)
+    r = latest_run
+    this_run_fom = (
+        fom_for_indexing_result(latest_indexing_results[0])
+        if latest_indexing_results
+        else empty_indexing_fom
+    )
+    latest_run_json = (
+        JsonRun(
+            id=r.id,
+            external_id=r.external_id,
+            attributi=[encode_run_attributo_value(v) for v in r.attributo_values],
+            started=datetime_to_attributo_int(r.started),
+            stopped=(
+                datetime_to_attributo_int(r.stopped) if r.stopped is not None else None
+            ),
+            files=[],
+            summary=encode_indexing_fom_to_json(this_run_fom),
+            experiment_type_id=r.experiment_type_id,
+        )
+        if r is not None
+        else None
+    )
+    return JsonReadRunsOverview(
+        current_beamtime_user=(
+            None if found_schedule_entry is None else found_schedule_entry.users
+        ),
+        latest_run=latest_run_json,
+        latest_indexing_result=latest_indexing_result,
+        live_stream=(
+            None
+            if live_stream_file is None
+            else JsonLiveStream(
+                file_id=live_stream_file.id,
+                modified=datetime_to_attributo_int(live_stream_file.modified),
+            )
+        ),
+        attributi=[encode_attributo(a) for a in attributi],
+        events=[encode_event(e) for e in events],
+        chemicals=[encode_chemical(a) for a in chemicals],
+        user_config=encode_user_configuration(user_configuration),
+        experiment_types=[encode_experiment_type(a) for a in experiment_types],
+        foms_for_this_data_set=(
+            encode_data_set_with_fom(
+                data_set_for_latest_run, summary_from_foms(foms_in_this_ds)
+            )
+            if data_set_for_latest_run
+            else None
+        ),
     )

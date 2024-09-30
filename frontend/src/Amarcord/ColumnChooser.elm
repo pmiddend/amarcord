@@ -21,6 +21,7 @@ type Msg
     | ColumnChooserToggleColumn String Bool
     | ColumnChooserToggle
     | ColumnChooserDragDrop DnDList.Msg
+    | ColumnChooserBulk Bool
 
 
 type alias ToggledAttributo =
@@ -275,6 +276,20 @@ view columnChooser =
                 ]
                 [ div [ class "accordion-body" ]
                     [ p [ class "lead" ] [ text "Click to enable/disable columns, then press \"Confirm\".", br_, text "Press and hold ", icon { name = "grip-vertical" }, text " to drag and drop to change order." ]
+                    , div [ class "btn-group mb-1" ]
+                        [ button
+                            [ class "btn btn-outline-secondary btn-sm"
+                            , type_ "button"
+                            , onClick (ColumnChooserBulk False)
+                            ]
+                            [ text "Deselect all" ]
+                        , button
+                            [ class "btn btn-outline-secondary btn-sm"
+                            , type_ "button"
+                            , onClick (ColumnChooserBulk True)
+                            ]
+                            [ text "Select all" ]
+                        ]
                     , ul [ class "list-group mb-3" ] (List.indexedMap viewAttributoListItem columnChooser.editingColumns)
                     , ghostView
 
@@ -303,6 +318,25 @@ makeLocalStorageColumns =
 update : Model -> Msg -> ( Model, Cmd Msg )
 update model message =
     case message of
+        ColumnChooserBulk newOn ->
+            let
+                newColumnChooser =
+                    { allColumns = model.allColumns
+                    , editingColumns =
+                        List.map
+                            (\{ attributo } ->
+                                { attributo = attributo
+                                , isOn = newOn
+                                }
+                            )
+                            model.editingColumns
+                    , open = True
+                    , localStorage = model.localStorage
+                    , dnd = model.dnd
+                    }
+            in
+            ( newColumnChooser, Cmd.none )
+
         ColumnChooserSubmit ->
             let
                 newColumnChooser =

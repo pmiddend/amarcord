@@ -5,7 +5,6 @@
 module Main exposing (main)
 
 import Amarcord.Bootstrap exposing (viewRemoteDataHttp)
-import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Html exposing (h1_, img_)
 import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
@@ -23,6 +22,7 @@ import Amarcord.Pages.Help as Help
 import Amarcord.Pages.MergeResult as MergeResult
 import Amarcord.Pages.RunAnalysis as RunAnalysis
 import Amarcord.Pages.RunOverview as RunOverview
+import Amarcord.Pages.Runs as Runs
 import Amarcord.Pages.Schedule as Schedule
 import Amarcord.Pages.SingleDataSet as SingleDataSet
 import Amarcord.Route as Route exposing (Route)
@@ -41,11 +41,11 @@ import Time exposing (Posix)
 import Url as URL exposing (Url)
 
 
-maybeColumnChooser : Model -> List (Sub Msg)
-maybeColumnChooser rootModel =
+pageSubscriptions : Model -> List (Sub Msg)
+pageSubscriptions rootModel =
     case rootModel.page of
-        RunOverviewPage runOverviewModel ->
-            [ ColumnChooser.subscriptions runOverviewModel.columnChooser (RunOverviewPageMsg << RunOverview.ColumnChooserMessage) ]
+        RunsPage runOverviewModel ->
+            List.map (Sub.map RunsPageMsg) (Runs.subscriptions runOverviewModel)
 
         _ ->
             []
@@ -57,7 +57,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \model -> Sub.batch (Time.every 10000 RefreshMsg :: maybeColumnChooser model)
+        , subscriptions = \model -> Sub.batch (Time.every 10000 RefreshMsg :: pageSubscriptions model)
         , onUrlRequest = LinkClicked
         , onUrlChange = UrlChanged
         }
@@ -68,6 +68,7 @@ type Msg
     | ChemicalsPageMsg Chemicals.Msg
     | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | RunsPageMsg Runs.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
     | BeamtimeSelectionPageMsg BeamtimeSelection.Msg
     | DataSetsMsg DataSets.Msg
@@ -91,6 +92,7 @@ type Page
     | ChemicalsPage Chemicals.Model
     | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
+    | RunsPage Runs.Model
     | AdvancedControlsPage AdvancedControls.Model
     | BeamtimeSelectionPage BeamtimeSelection.Model
     | DataSetsPage DataSets.DataSetModel
@@ -179,22 +181,15 @@ buildTitle model =
                         Route.MergeResult _ _ _ mrId ->
                             "Merge Result " ++ String.fromInt mrId ++ " — "
 
+                        Route.Runs _ ->
+                            "Run Overview — "
+
                         Route.RunOverview _ ->
                             case model.page of
                                 RunOverviewPage runOverviewModel ->
-                                    case runOverviewModel.runs of
-                                        Success { runs } ->
-                                            case List.head runs of
-                                                Nothing ->
-                                                    "Runs — "
-
-                                                Just { externalId, stopped } ->
-                                                    case stopped of
-                                                        Nothing ->
-                                                            "🏃 Run " ++ String.fromInt externalId ++ " — "
-
-                                                        _ ->
-                                                            "Run " ++ String.fromInt externalId ++ " — "
+                                    case RunOverview.retrieveLatestRunExternalId runOverviewModel of
+                                        Just externalId ->
+                                            "Run " ++ String.fromInt externalId ++ " — "
 
                                         _ ->
                                             "Runs — "
@@ -329,6 +324,12 @@ currentView model =
             div []
                 [ MergeResult.view pageModel
                     |> Html.map MergeResultPageMsg
+                ]
+
+        RunsPage pageModel ->
+            div []
+                [ Runs.view pageModel
+                    |> Html.map RunsPageMsg
                 ]
 
         RunOverviewPage pageModel ->
@@ -491,6 +492,15 @@ updateInner hereAndNow msg model =
             , Cmd.map EventLogMsg updatedCmd
             )
 
+        ( RunsPageMsg subMsg, RunsPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Runs.update subMsg pageModel
+            in
+            ( { model | page = RunsPage updatedPageModel }
+            , Cmd.map RunsPageMsg updatedCmd
+            )
+
         ( RunOverviewPageMsg subMsg, RunOverviewPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -606,6 +616,15 @@ updateInner hereAndNow msg model =
             in
             ( { model | page = RunOverviewPage updatedPageModel }
             , Cmd.map RunOverviewPageMsg updatedCmd
+            )
+
+        ( RefreshMsg t, RunsPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Runs.update (Runs.Refresh t) pageModel
+            in
+            ( { model | page = RunsPage updatedPageModel }
+            , Cmd.map RunsPageMsg updatedCmd
             )
 
         ( RefreshMsg t, AdvancedControlsPage pageModel ) ->
@@ -732,6 +751,13 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             MergeResult.init model.navKey hereAndNow beamtimeId experimentTypeId dataSetId mergeResultId
                     in
                     ( MergeResultPage pageModel, Cmd.map MergeResultPageMsg pageCmds )
+
+                Route.Runs beamtimeId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Runs.init hereAndNow localStorage beamtimeId
+                    in
+                    ( RunsPage pageModel, Cmd.map RunsPageMsg pageCmds )
 
                 Route.RunOverview beamtimeId ->
                     let

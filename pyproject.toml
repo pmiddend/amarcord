@@ -227,7 +227,7 @@ concurrency = ["greenlet", "thread"]
 [tool.pytest.ini_options]
 # not sure if this is really needed
 asyncio_mode = "auto"
-log_cli = true
+log_cli = false
 # This will run tests in parallel
 # addopts = "-n auto"
 

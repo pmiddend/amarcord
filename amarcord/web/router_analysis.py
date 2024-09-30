@@ -147,7 +147,7 @@ async def read_run_analysis(
             JsonRunAnalysisIndexingResult(
                 run_id=run.external_id if run is not None else 0,
                 # foms = figures of merit
-                foms=[encode_indexing_fom_to_json(extract_summary(indexing_result))],
+                foms=encode_indexing_fom_to_json(extract_summary(indexing_result)),
                 indexing_statistics=[
                     JsonIndexingStatistic(
                         time=datetime_to_attributo_int(stat.time),

@@ -14,14 +14,14 @@ import Amarcord.API.Requests
         )
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
-import Amarcord.Html exposing (div_, form_, h2_, hr_, input_, onIntInput)
+import Amarcord.Html exposing (div_, em_, form_, h2_, hr_, input_, onIntInput, p_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
 import Amarcord.RunsBulkUpdate as RunsBulkUpdate
 import Amarcord.Util exposing (HereAndNow, forgetMsgInput)
-import Api.Data exposing (JsonIndexingParameters, JsonReadRuns, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
+import Api.Data exposing (JsonIndexingParameters, JsonReadRunsOverview, JsonStartRunOutput, JsonStopRunOutput, JsonUpdateOnlineIndexingParametersOutput, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet, updateOnlineIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersPatch, updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
-import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
+import Api.Request.Runs exposing (readRunsOverviewApiRunsOverviewBeamtimeIdGet, startRunApiRunsRunExternalIdStartBeamtimeIdGet, stopLatestRunApiRunsStopLatestBeamtimeIdGet)
 import Html exposing (Html, a, button, div, form, h2, label, option, p, select, text)
 import Html.Attributes exposing (class, disabled, for, href, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
@@ -31,7 +31,7 @@ import Time exposing (Posix)
 
 
 type alias Model =
-    { runs : RemoteData HttpError JsonReadRuns
+    { runs : RemoteData HttpError JsonReadRunsOverview
     , refreshRequest : RemoteData HttpError ()
     , startOrStopRequest : RemoteData HttpError {}
     , nextRunId : RunExternalId
@@ -49,7 +49,7 @@ type Msg
     | StartRunFinished (Result HttpError JsonStartRunOutput)
     | StopRun
     | StopRunFinished (Result HttpError JsonStopRunOutput)
-    | RunsReceived (Result HttpError JsonReadRuns)
+    | RunsReceived (Result HttpError JsonReadRunsOverview)
     | IndexingParametersReceived (Result HttpError JsonIndexingParameters)
     | Refresh Posix
     | RunIdChanged (Maybe Int)
@@ -75,19 +75,19 @@ init hereAndNow beamtimeId =
       , updateOnlineIndexingParameters = NotAsked
       }
     , Cmd.batch
-        [ send RunsReceived (readRunsApiRunsBeamtimeIdGet beamtimeId Nothing Nothing)
+        [ send RunsReceived (readRunsOverviewApiRunsOverviewBeamtimeIdGet beamtimeId)
         , send IndexingParametersReceived (readIndexingParametersApiUserConfigBeamtimeIdOnlineIndexingParametersGet beamtimeId)
         ]
     )
 
 
-calculateIsRunning : Result HttpError JsonReadRuns -> Bool
+calculateIsRunning : Result HttpError JsonReadRunsOverview -> Bool
 calculateIsRunning runResponse =
     case runResponse of
-        Ok { runs } ->
-            case List.head runs of
-                Just latestRun ->
-                    MaybeExtra.isNothing <| latestRun.stopped
+        Ok { latestRun } ->
+            case latestRun of
+                Just latestRunReal ->
+                    MaybeExtra.isNothing <| latestRunReal.stopped
 
                 _ ->
                     False
@@ -96,17 +96,17 @@ calculateIsRunning runResponse =
             False
 
 
-calculateNextRunId : RunExternalId -> Result HttpError JsonReadRuns -> RunExternalId
+calculateNextRunId : RunExternalId -> Result HttpError JsonReadRunsOverview -> RunExternalId
 calculateNextRunId currentRunId runResponse =
     case runResponse of
-        Ok { runs } ->
-            case List.head runs of
-                Just latestRun ->
+        Ok { latestRun } ->
+            case latestRun of
+                Just latestRunReal ->
                     if calculateIsRunning runResponse then
-                        RunExternalId latestRun.externalId
+                        RunExternalId latestRunReal.externalId
 
                     else
-                        increaseRunExternalId (RunExternalId latestRun.externalId)
+                        increaseRunExternalId (RunExternalId latestRunReal.externalId)
 
                 Nothing ->
                     currentRunId
@@ -117,7 +117,7 @@ calculateNextRunId currentRunId runResponse =
 
 receiveRuns : Model -> Cmd Msg
 receiveRuns model =
-    send RunsReceived (readRunsApiRunsBeamtimeIdGet model.beamtimeId Nothing Nothing)
+    send RunsReceived (readRunsOverviewApiRunsOverviewBeamtimeIdGet model.beamtimeId)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -159,14 +159,6 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        ExperimentIdChanged _ ->
-            ( model, Cmd.none )
-
-        CurrentExperimentTypeChanged newExperimentTypeId ->
-            ( model
-            , send ExperimentIdChanged (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch model.beamtimeId "current-experiment-type-id" (String.fromInt newExperimentTypeId))
-            )
-
         IndexingParametersReceived response ->
             case response of
                 Err requestError ->
@@ -206,6 +198,14 @@ update msg model =
         Refresh _ ->
             ( { model | refreshRequest = Loading }
             , receiveRuns model
+            )
+
+        ExperimentIdChanged _ ->
+            ( model, Cmd.none )
+
+        CurrentExperimentTypeChanged newExperimentTypeId ->
+            ( model
+            , send ExperimentIdChanged (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch model.beamtimeId "current-experiment-type-id" (String.fromInt newExperimentTypeId))
             )
 
         RunIdChanged int ->
@@ -254,7 +254,8 @@ viewChangeExperimentType model =
     case model.runs of
         Success rrc ->
             form_
-                [ select
+                [ p_ [ em_ [ text "One special case where you would change the experiment type here is when you do not have any runs yet, and are trying to start a run. A run needs an experiment type, so that won't work." ] ]
+                , select
                     [ class "form-select"
                     , id "current-experiment-type"
                     , onIntInput CurrentExperimentTypeChanged
@@ -278,7 +279,7 @@ viewRunControls : Model -> Html Msg
 viewRunControls model =
     div_
         [ h2_ [ icon { name = "arrow-left-right" }, text " Run controls" ]
-        , p [ class "lead" ] [ text "Explicitly start and stop runs. Normally not needed, only in emergencies." ]
+        , p_ [ em_ [ text "Explicitly start and stop runs. Normally not needed, only in emergencies." ] ]
         , form [ class "mb-3" ]
             [ div [ class "form-floating mb-3" ]
                 [ input_
@@ -302,7 +303,7 @@ viewOnlineIndexingParameters : Model -> Html Msg
 viewOnlineIndexingParameters model =
     div_
         [ h2_ [ icon { name = "briefcase" }, text " Online Indexing" ]
-        , p [ class "lead" ] [ text "These parameters will be used for every new run if CrystFEL online is activated." ]
+        , p_ [ em_ [ text "These parameters will be used for every new run if CrystFEL online is activated." ] ]
         , case model.onlineIndexingParameters of
             Loading ->
                 text ""
@@ -333,18 +334,18 @@ viewOnlineIndexingParameters model =
 view : Model -> Html Msg
 view model =
     div [ class "container" ]
-        [ viewRunControls model
+        [ h2_ [ icon { name = "alt" }, text " Change current experiment type" ]
+        , viewChangeExperimentType model
+        , hr_
+        , viewRunControls model
         , hr_
         , viewOnlineIndexingParameters model
         , hr_
-        , h2_ [ icon { name = "alt" }, text " Change current experiment type" ]
-        , viewChangeExperimentType model
-        , hr_
         , h2_ [ icon { name = "journals" }, text " Bulk update" ]
-        , p [ class "lead" ] [ text "Update the attributi of more than one run at once. First, select the runs you want to change and press \"Retrieve run attributi\". Then change them and press \"Update all runs\"." ]
+        , p_ [ em_ [ text "Update the attributi of more than one run at once. First, select the runs you want to change and press \"Retrieve run attributi\". Then change them and press \"Update all runs\"." ] ]
         , Html.map RunsBulkUpdateMsg <| RunsBulkUpdate.view model.bulkUpdateModel
         , h2 [ class "mt-3" ] [ icon { name = "file-earmark-spreadsheet" }, text " Export" ]
-        , p [ class "lead" ] [ text "Done with the experiment? Ready for more analyses? Just download the whole database with a single click!" ]
+        , p_ [ em_ [ text "Done with the experiment? Ready for more analyses? Just download the whole database with a single click!" ] ]
         , a [ href ("api/" ++ beamtimeIdToString model.beamtimeId ++ "/spreadsheet.zip"), class "btn btn-secondary" ] [ icon { name = "file-earmark-spreadsheet" }, text " Download spreadsheet" ]
         , p [ class "text-muted" ] [ text "Right-click and choose \"Save as\". The result will be a .zip file containing an Excel file and a list of attached files, if you have any." ]
         ]

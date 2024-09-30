@@ -129,6 +129,7 @@ module Api.Data exposing
     , JsonReadRuns
     , JsonReadRunsBulkInput
     , JsonReadRunsBulkOutput
+    , JsonReadRunsOverview
     , JsonReadSingleDataSetResults
     , JsonReadSingleMergeResult
     , JsonRefinementResult
@@ -271,6 +272,7 @@ module Api.Data exposing
     , encodeJsonReadRuns
     , encodeJsonReadRunsBulkInput
     , encodeJsonReadRunsBulkOutput
+    , encodeJsonReadRunsOverview
     , encodeJsonReadSingleDataSetResults
     , encodeJsonReadSingleMergeResult
     , encodeJsonRefinementResult
@@ -420,6 +422,7 @@ module Api.Data exposing
     , jsonReadRunsDecoder
     , jsonReadRunsBulkInputDecoder
     , jsonReadRunsBulkOutputDecoder
+    , jsonReadRunsOverviewDecoder
     , jsonReadSingleDataSetResultsDecoder
     , jsonReadSingleMergeResultDecoder
     , jsonRefinementResultDecoder
@@ -1461,17 +1464,12 @@ type alias JsonReadRunAnalysis =
 
 
 type alias JsonReadRuns =
-    { liveStream : Maybe JsonLiveStream
-    , filterDates : List String
+    { filterDates : List String
     , runs : List JsonRun
     , attributi : List JsonAttributo
-    , latestIndexingResult : Maybe JsonRunAnalysisIndexingResult
     , experimentTypes : List JsonExperimentType
-    , dataSetsWithFom : List JsonDataSetWithFom
     , events : List JsonEvent
     , chemicals : List JsonChemical
-    , userConfig : JsonUserConfig
-    , currentBeamtimeUser : Maybe String
     }
 
 
@@ -1487,6 +1485,20 @@ type alias JsonReadRunsBulkOutput =
     , attributiValues : List JsonAttributoBulkValue
     , experimentTypes : List JsonExperimentType
     , experimentTypeIds : List Int
+    }
+
+
+type alias JsonReadRunsOverview =
+    { liveStream : Maybe JsonLiveStream
+    , attributi : List JsonAttributo
+    , latestIndexingResult : Maybe JsonRunAnalysisIndexingResult
+    , latestRun : Maybe JsonRun
+    , fomsForThisDataSet : Maybe JsonDataSetWithFom
+    , experimentTypes : List JsonExperimentType
+    , events : List JsonEvent
+    , chemicals : List JsonChemical
+    , userConfig : JsonUserConfig
+    , currentBeamtimeUser : Maybe String
     }
 
 
@@ -1536,14 +1548,12 @@ type alias JsonRun =
     , files : List JsonFileOutput
     , summary : JsonIndexingFom
     , experimentTypeId : Int
-    , dataSetIds : List Int
-    , runningIndexingJobs : List Int
     }
 
 
 type alias JsonRunAnalysisIndexingResult =
     { runId : Int
-    , foms : List JsonIndexingFom
+    , foms : JsonIndexingFom
     , indexingStatistics : List JsonIndexingStatistic
     }
 
@@ -4366,17 +4376,12 @@ encodeJsonReadRunsPairs : JsonReadRuns -> List EncodedField
 encodeJsonReadRunsPairs model =
     let
         pairs =
-            [ maybeEncode "live_stream" encodeJsonLiveStream model.liveStream
-            , encode "filter_dates" (Json.Encode.list Json.Encode.string) model.filterDates
+            [ encode "filter_dates" (Json.Encode.list Json.Encode.string) model.filterDates
             , encode "runs" (Json.Encode.list encodeJsonRun) model.runs
             , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
-            , maybeEncode "latest_indexing_result" encodeJsonRunAnalysisIndexingResult model.latestIndexingResult
             , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
-            , encode "data_sets_with_fom" (Json.Encode.list encodeJsonDataSetWithFom) model.dataSetsWithFom
             , encode "events" (Json.Encode.list encodeJsonEvent) model.events
             , encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
-            , encode "user_config" encodeJsonUserConfig model.userConfig
-            , maybeEncode "current_beamtime_user" Json.Encode.string model.currentBeamtimeUser
             ]
     in
     pairs
@@ -4422,6 +4427,35 @@ encodeJsonReadRunsBulkOutputPairs model =
             , encode "attributi_values" (Json.Encode.list encodeJsonAttributoBulkValue) model.attributiValues
             , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
             , encode "experiment_type_ids" (Json.Encode.list Json.Encode.int) model.experimentTypeIds
+            ]
+    in
+    pairs
+
+
+encodeJsonReadRunsOverview : JsonReadRunsOverview -> Json.Encode.Value
+encodeJsonReadRunsOverview =
+    encodeObject << encodeJsonReadRunsOverviewPairs
+
+
+encodeJsonReadRunsOverviewWithTag : ( String, String ) -> JsonReadRunsOverview -> Json.Encode.Value
+encodeJsonReadRunsOverviewWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadRunsOverviewPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadRunsOverviewPairs : JsonReadRunsOverview -> List EncodedField
+encodeJsonReadRunsOverviewPairs model =
+    let
+        pairs =
+            [ maybeEncode "live_stream" encodeJsonLiveStream model.liveStream
+            , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
+            , maybeEncode "latest_indexing_result" encodeJsonRunAnalysisIndexingResult model.latestIndexingResult
+            , maybeEncode "latest_run" encodeJsonRun model.latestRun
+            , maybeEncode "foms_for_this_data_set" encodeJsonDataSetWithFom model.fomsForThisDataSet
+            , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
+            , encode "events" (Json.Encode.list encodeJsonEvent) model.events
+            , encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
+            , encode "user_config" encodeJsonUserConfig model.userConfig
+            , maybeEncode "current_beamtime_user" Json.Encode.string model.currentBeamtimeUser
             ]
     in
     pairs
@@ -4546,8 +4580,6 @@ encodeJsonRunPairs model =
             , encode "files" (Json.Encode.list encodeJsonFileOutput) model.files
             , encode "summary" encodeJsonIndexingFom model.summary
             , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
-            , encode "data_set_ids" (Json.Encode.list Json.Encode.int) model.dataSetIds
-            , encode "running_indexing_jobs" (Json.Encode.list Json.Encode.int) model.runningIndexingJobs
             ]
     in
     pairs
@@ -4568,7 +4600,7 @@ encodeJsonRunAnalysisIndexingResultPairs model =
     let
         pairs =
             [ encode "run_id" Json.Encode.int model.runId
-            , encode "foms" (Json.Encode.list encodeJsonIndexingFom) model.foms
+            , encode "foms" encodeJsonIndexingFom model.foms
             , encode "indexing_statistics" (Json.Encode.list encodeJsonIndexingStatistic) model.indexingStatistics
             ]
     in
@@ -6197,17 +6229,12 @@ jsonReadRunAnalysisDecoder =
 jsonReadRunsDecoder : Json.Decode.Decoder JsonReadRuns
 jsonReadRunsDecoder =
     Json.Decode.succeed JsonReadRuns
-        |> maybeDecode "live_stream" jsonLiveStreamDecoder Nothing
         |> decode "filter_dates" (Json.Decode.list Json.Decode.string) 
         |> decode "runs" (Json.Decode.list jsonRunDecoder) 
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
-        |> maybeDecode "latest_indexing_result" jsonRunAnalysisIndexingResultDecoder Nothing
         |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
-        |> decode "data_sets_with_fom" (Json.Decode.list jsonDataSetWithFomDecoder) 
         |> decode "events" (Json.Decode.list jsonEventDecoder) 
         |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
-        |> decode "user_config" jsonUserConfigDecoder 
-        |> maybeDecode "current_beamtime_user" Json.Decode.string Nothing
 
 
 jsonReadRunsBulkInputDecoder : Json.Decode.Decoder JsonReadRunsBulkInput
@@ -6225,6 +6252,21 @@ jsonReadRunsBulkOutputDecoder =
         |> decode "attributi_values" (Json.Decode.list jsonAttributoBulkValueDecoder) 
         |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
         |> decode "experiment_type_ids" (Json.Decode.list Json.Decode.int) 
+
+
+jsonReadRunsOverviewDecoder : Json.Decode.Decoder JsonReadRunsOverview
+jsonReadRunsOverviewDecoder =
+    Json.Decode.succeed JsonReadRunsOverview
+        |> maybeDecode "live_stream" jsonLiveStreamDecoder Nothing
+        |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
+        |> maybeDecode "latest_indexing_result" jsonRunAnalysisIndexingResultDecoder Nothing
+        |> maybeDecode "latest_run" jsonRunDecoder Nothing
+        |> maybeDecode "foms_for_this_data_set" jsonDataSetWithFomDecoder Nothing
+        |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
+        |> decode "events" (Json.Decode.list jsonEventDecoder) 
+        |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
+        |> decode "user_config" jsonUserConfigDecoder 
+        |> maybeDecode "current_beamtime_user" Json.Decode.string Nothing
 
 
 jsonReadSingleDataSetResultsDecoder : Json.Decode.Decoder JsonReadSingleDataSetResults
@@ -6279,15 +6321,13 @@ jsonRunDecoder =
         |> decode "files" (Json.Decode.list jsonFileOutputDecoder) 
         |> decode "summary" jsonIndexingFomDecoder 
         |> decode "experiment_type_id" Json.Decode.int 
-        |> decode "data_set_ids" (Json.Decode.list Json.Decode.int) 
-        |> decode "running_indexing_jobs" (Json.Decode.list Json.Decode.int) 
 
 
 jsonRunAnalysisIndexingResultDecoder : Json.Decode.Decoder JsonRunAnalysisIndexingResult
 jsonRunAnalysisIndexingResultDecoder =
     Json.Decode.succeed JsonRunAnalysisIndexingResult
         |> decode "run_id" Json.Decode.int 
-        |> decode "foms" (Json.Decode.list jsonIndexingFomDecoder) 
+        |> decode "foms" jsonIndexingFomDecoder 
         |> decode "indexing_statistics" (Json.Decode.list jsonIndexingStatisticDecoder) 
 
 
