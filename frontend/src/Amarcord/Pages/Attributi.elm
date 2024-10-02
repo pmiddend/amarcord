@@ -441,17 +441,21 @@ attributoTypeToToleranceHtml : AttributoType -> List (Html msg)
 attributoTypeToToleranceHtml x =
     case x of
         Number { tolerance, toleranceIsAbsolute } ->
-            case Maybe.map formatFloatHumanFriendly tolerance of
-                Nothing ->
-                    []
+            if toleranceIsAbsolute then
+                case tolerance of
+                    Nothing ->
+                        []
 
-                Just toleranceReal ->
-                    [ if toleranceIsAbsolute then
-                        text ("±" ++ toleranceReal)
+                    Just absoluteTolerance ->
+                        [ text ("±" ++ formatFloatHumanFriendly absoluteTolerance) ]
 
-                      else
-                        text (toleranceReal ++ "%")
-                    ]
+            else
+                case tolerance of
+                    Nothing ->
+                        []
+
+                    Just relativeTolerance ->
+                        [ text (formatFloatHumanFriendly (relativeTolerance * 100) ++ "%") ]
 
         _ ->
             []
