@@ -2,7 +2,7 @@ module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, 
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractInt)
+import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractChemical)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId, chemicalTypeToApi, convertChemicalFromApi)
@@ -77,6 +77,7 @@ type Msg
     | CancelDelete
     | AskDelete String ChemicalId
     | InitiateEdit (Chemical Int (AttributoMap AttributoValue) JsonFileOutput)
+    | InitiateClone (Chemical Int (AttributoMap AttributoValue) JsonFileOutput)
     | ConfirmDelete ChemicalId
     | AddChemical ChemicalType
     | EditChemicalName String
@@ -283,21 +284,21 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
     in
     form_ <|
         [ addOrEditHeadline
-        , p [ class "lead text-muted" ]
+        , p [ class "text-muted" ]
             [ text "If you prepared your crystals in "
             , em_ [ text "multiple batches" ]
             , text ", please create "
             , em_ [ text "one chemical per batch" ]
             , text ". This helps during analysis."
             ]
-        , p [ class "lead text-muted" ]
+        , p [ class " text-muted" ]
             [ text "If you want a quick "
             , em_ [ text "refinement step" ]
             , text " at the end of the merging (see the Analysis view), upload a "
             , em_ [ text "PDB file" ]
             , text " with a base model for the protein."
             ]
-        , p [ class "lead text-muted" ]
+        , p [ class " text-muted" ]
             [ text "For the details on the "
             , strong [ style "font-weight" "bold" ] [ text "cell description" ]
             , text " please refer to the "
@@ -466,25 +467,28 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
     in
     [ div [ style "margin-bottom" "4rem" ]
         [ h3_
-            [ div_
+            [ div [ class "hstack gap-3" ]
                 [ text chemical.name
-                , button [ class "btn btn-link", onClick (InitiateEdit chemical) ] [ icon { name = "pencil-square" } ]
-                , if Set.member chemical.id chemicalIsUsedInRun then
-                    button
-                        [ class "btn text-secondary btn-link"
-                        , style "pointer-events" "all"
-                        , style "cursor" "not-allowed"
-                        , disabled True
-                        , title "Chemical associated to one or more runs, can only be edited."
-                        ]
-                        [ icon { name = "trash" } ]
+                , div [ class "btn-group" ]
+                    [ button [ class "btn btn-sm btn-outline-secondary", onClick (InitiateEdit chemical) ] [ icon { name = "pencil-square" }, text " Edit" ]
+                    , button [ class "btn btn-sm btn-outline-info", onClick (InitiateClone chemical) ] [ icon { name = "terminal" }, text " Duplicate" ]
+                    , if Set.member chemical.id chemicalIsUsedInRun then
+                        button
+                            [ class "btn btn-sm btn-outline-danger"
+                            , style "pointer-events" "all"
+                            , style "cursor" "not-allowed"
+                            , disabled True
+                            , title "Chemical associated to one or more runs, can only be edited."
+                            ]
+                            [ icon { name = "trash" }, text " Delete" ]
 
-                  else
-                    button
-                        [ class "btn text-danger btn-link"
-                        , onClick (AskDelete chemical.name chemical.id)
-                        ]
-                        [ icon { name = "trash" } ]
+                      else
+                        button
+                            [ class "btn btn-sm btn-outline-danger"
+                            , onClick (AskDelete chemical.name chemical.id)
+                            ]
+                            [ icon { name = "trash" }, text " Delete" ]
+                    ]
                 ]
             ]
         , table [ class "table table-sm" ]
@@ -915,6 +919,20 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        InitiateClone chemical ->
+            case model.chemicals of
+                Success { attributi } ->
+                    ( { model
+                        | modifyRequest = NotAsked
+                        , chemicalDeleteRequest = NotAsked
+                        , editChemical = Just (editChemicalFromAttributiAndValues model.myTimeZone attributi (chemicalMapId (always Nothing) chemical))
+                      }
+                    , scrollToTop (always Nop)
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
         EditNewFileDescription newDescription ->
             let
                 oldFileUpload =
@@ -1009,7 +1027,7 @@ update msg model =
                     case runsResponse of
                         Ok rr ->
                             Set.fromList <|
-                                List.filterMap extractInt <|
+                                List.filterMap extractChemical <|
                                     List.concatMap (valuesFromAttributo rr.runs) <|
                                         List.filterMap (chemicalAttributoId << convertAttributoFromApi) rr.attributi
 
