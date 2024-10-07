@@ -281,6 +281,27 @@ class JsonReadChemicals(BaseModel):
     attributi: list[JsonAttributo]
 
 
+class JsonAttributoWithName(BaseModel):
+    id: int
+    name: str
+
+
+class JsonReadAllChemicals(BaseModel):
+    chemicals: list[JsonChemical]
+    beamtimes: list[JsonBeamtime]
+    attributi_names: list[JsonAttributoWithName]
+
+
+class JsonCopyChemicalInput(BaseModel):
+    chemical_id: int
+    target_beamtime_id: int
+    create_attributi: bool
+
+
+class JsonCopyChemicalOutput(BaseModel):
+    new_chemical_id: int
+
+
 class JsonIndexingParameters(BaseModel):
     id: None | int
     cell_description: None | str

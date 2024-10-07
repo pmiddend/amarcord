@@ -12,6 +12,7 @@ from sqlalchemy.sql import select
 from amarcord.cli.crystfel_index import CrystFELCellFile
 from amarcord.cli.crystfel_index import parse_cell_description
 from amarcord.db import orm
+from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.attributo_type import AttributoTypeBoolean
@@ -30,6 +31,7 @@ from amarcord.db.migrations.alembic_utilities import upgrade_to_head_connection
 from amarcord.util import sha256_file
 from amarcord.web.constants import ELVEFLOW_OB1_MAX_NUMBER_OF_CHANNELS
 from amarcord.web.json_models import JsonAttributoValue
+from amarcord.web.json_models import JsonBeamtime
 
 ATTRIBUTO_GROUP_MANUAL = "manual"
 
@@ -487,4 +489,18 @@ async def determine_run_indexing_metadata(
         cell_description=cell_description,
         chemical=channel_chemical,
         log_messages=log_messages,
+    )
+
+
+def encode_beamtime(bt: orm.Beamtime) -> JsonBeamtime:
+    return JsonBeamtime(
+        id=bt.id,
+        external_id=bt.external_id,
+        proposal=bt.proposal,
+        beamline=bt.beamline,
+        title=bt.title,
+        comment=bt.comment,
+        start=datetime_to_attributo_int(bt.start),
+        end=datetime_to_attributo_int(bt.end),
+        chemical_names=[chemical.name for chemical in bt.chemicals],
     )

@@ -30,6 +30,7 @@ module Api.Data exposing
     , JsonAttributo
     , JsonAttributoBulkValue
     , JsonAttributoValue
+    , JsonAttributoWithName
     , JsonBeamtime
     , JsonBeamtimeOutput
     , JsonBeamtimeSchedule
@@ -43,6 +44,8 @@ module Api.Data exposing
     , JsonChemicalIdAndName
     , JsonChemicalWithId
     , JsonChemicalWithoutId
+    , JsonCopyChemicalInput
+    , JsonCopyChemicalOutput
     , JsonCreateAttributiFromSchemaInput
     , JsonCreateAttributiFromSchemaOutput
     , JsonCreateAttributiFromSchemaSingleAttributo
@@ -114,6 +117,7 @@ module Api.Data exposing
     , JsonPolarisation
     , JsonQueueMergeJobInput
     , JsonQueueMergeJobOutput
+    , JsonReadAllChemicals
     , JsonReadAnalysisResults
     , JsonReadAttributi
     , JsonReadBeamtime
@@ -173,6 +177,7 @@ module Api.Data exposing
     , encodeJsonAttributo
     , encodeJsonAttributoBulkValue
     , encodeJsonAttributoValue
+    , encodeJsonAttributoWithName
     , encodeJsonBeamtime
     , encodeJsonBeamtimeOutput
     , encodeJsonBeamtimeSchedule
@@ -186,6 +191,8 @@ module Api.Data exposing
     , encodeJsonChemicalIdAndName
     , encodeJsonChemicalWithId
     , encodeJsonChemicalWithoutId
+    , encodeJsonCopyChemicalInput
+    , encodeJsonCopyChemicalOutput
     , encodeJsonCreateAttributiFromSchemaInput
     , encodeJsonCreateAttributiFromSchemaOutput
     , encodeJsonCreateAttributiFromSchemaSingleAttributo
@@ -257,6 +264,7 @@ module Api.Data exposing
     , encodeJsonPolarisation
     , encodeJsonQueueMergeJobInput
     , encodeJsonQueueMergeJobOutput
+    , encodeJsonReadAllChemicals
     , encodeJsonReadAnalysisResults
     , encodeJsonReadAttributi
     , encodeJsonReadBeamtime
@@ -323,6 +331,7 @@ module Api.Data exposing
     , jsonAttributoDecoder
     , jsonAttributoBulkValueDecoder
     , jsonAttributoValueDecoder
+    , jsonAttributoWithNameDecoder
     , jsonBeamtimeDecoder
     , jsonBeamtimeOutputDecoder
     , jsonBeamtimeScheduleDecoder
@@ -336,6 +345,8 @@ module Api.Data exposing
     , jsonChemicalIdAndNameDecoder
     , jsonChemicalWithIdDecoder
     , jsonChemicalWithoutIdDecoder
+    , jsonCopyChemicalInputDecoder
+    , jsonCopyChemicalOutputDecoder
     , jsonCreateAttributiFromSchemaInputDecoder
     , jsonCreateAttributiFromSchemaOutputDecoder
     , jsonCreateAttributiFromSchemaSingleAttributoDecoder
@@ -407,6 +418,7 @@ module Api.Data exposing
     , jsonPolarisationDecoder
     , jsonQueueMergeJobInputDecoder
     , jsonQueueMergeJobOutputDecoder
+    , jsonReadAllChemicalsDecoder
     , jsonReadAnalysisResultsDecoder
     , jsonReadAttributiDecoder
     , jsonReadBeamtimeDecoder
@@ -692,6 +704,12 @@ type alias JsonAttributoValue =
     }
 
 
+type alias JsonAttributoWithName =
+    { id : Int
+    , name : String
+    }
+
+
 type alias JsonBeamtime =
     { id : Int
     , externalId : String
@@ -788,6 +806,18 @@ type alias JsonChemicalWithoutId =
     , chemicalType : ChemicalType
     , attributi : List JsonAttributoValue
     , fileIds : List Int
+    }
+
+
+type alias JsonCopyChemicalInput =
+    { chemicalId : Int
+    , targetBeamtimeId : Int
+    , createAttributi : Bool
+    }
+
+
+type alias JsonCopyChemicalOutput =
+    { newChemicalId : Int
     }
 
 
@@ -1384,6 +1414,13 @@ type alias JsonQueueMergeJobInput =
 
 type alias JsonQueueMergeJobOutput =
     { mergeResultId : Int
+    }
+
+
+type alias JsonReadAllChemicals =
+    { chemicals : List JsonChemical
+    , beamtimes : List JsonBeamtime
+    , attributiNames : List JsonAttributoWithName
     }
 
 
@@ -2151,6 +2188,27 @@ encodeJsonAttributoValuePairs model =
     pairs
 
 
+encodeJsonAttributoWithName : JsonAttributoWithName -> Json.Encode.Value
+encodeJsonAttributoWithName =
+    encodeObject << encodeJsonAttributoWithNamePairs
+
+
+encodeJsonAttributoWithNameWithTag : ( String, String ) -> JsonAttributoWithName -> Json.Encode.Value
+encodeJsonAttributoWithNameWithTag (tagField, tag) model =
+    encodeObject (encodeJsonAttributoWithNamePairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonAttributoWithNamePairs : JsonAttributoWithName -> List EncodedField
+encodeJsonAttributoWithNamePairs model =
+    let
+        pairs =
+            [ encode "id" Json.Encode.int model.id
+            , encode "name" Json.Encode.string model.name
+            ]
+    in
+    pairs
+
+
 encodeJsonBeamtime : JsonBeamtime -> Json.Encode.Value
 encodeJsonBeamtime =
     encodeObject << encodeJsonBeamtimePairs
@@ -2440,6 +2498,48 @@ encodeJsonChemicalWithoutIdPairs model =
             , encode "chemical_type" encodeChemicalType model.chemicalType
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
             , encode "file_ids" (Json.Encode.list Json.Encode.int) model.fileIds
+            ]
+    in
+    pairs
+
+
+encodeJsonCopyChemicalInput : JsonCopyChemicalInput -> Json.Encode.Value
+encodeJsonCopyChemicalInput =
+    encodeObject << encodeJsonCopyChemicalInputPairs
+
+
+encodeJsonCopyChemicalInputWithTag : ( String, String ) -> JsonCopyChemicalInput -> Json.Encode.Value
+encodeJsonCopyChemicalInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonCopyChemicalInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonCopyChemicalInputPairs : JsonCopyChemicalInput -> List EncodedField
+encodeJsonCopyChemicalInputPairs model =
+    let
+        pairs =
+            [ encode "chemical_id" Json.Encode.int model.chemicalId
+            , encode "target_beamtime_id" Json.Encode.int model.targetBeamtimeId
+            , encode "create_attributi" Json.Encode.bool model.createAttributi
+            ]
+    in
+    pairs
+
+
+encodeJsonCopyChemicalOutput : JsonCopyChemicalOutput -> Json.Encode.Value
+encodeJsonCopyChemicalOutput =
+    encodeObject << encodeJsonCopyChemicalOutputPairs
+
+
+encodeJsonCopyChemicalOutputWithTag : ( String, String ) -> JsonCopyChemicalOutput -> Json.Encode.Value
+encodeJsonCopyChemicalOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonCopyChemicalOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonCopyChemicalOutputPairs : JsonCopyChemicalOutput -> List EncodedField
+encodeJsonCopyChemicalOutputPairs model =
+    let
+        pairs =
+            [ encode "new_chemical_id" Json.Encode.int model.newChemicalId
             ]
     in
     pairs
@@ -4106,6 +4206,28 @@ encodeJsonQueueMergeJobOutputPairs model =
     pairs
 
 
+encodeJsonReadAllChemicals : JsonReadAllChemicals -> Json.Encode.Value
+encodeJsonReadAllChemicals =
+    encodeObject << encodeJsonReadAllChemicalsPairs
+
+
+encodeJsonReadAllChemicalsWithTag : ( String, String ) -> JsonReadAllChemicals -> Json.Encode.Value
+encodeJsonReadAllChemicalsWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadAllChemicalsPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadAllChemicalsPairs : JsonReadAllChemicals -> List EncodedField
+encodeJsonReadAllChemicalsPairs model =
+    let
+        pairs =
+            [ encode "chemicals" (Json.Encode.list encodeJsonChemical) model.chemicals
+            , encode "beamtimes" (Json.Encode.list encodeJsonBeamtime) model.beamtimes
+            , encode "attributi_names" (Json.Encode.list encodeJsonAttributoWithName) model.attributiNames
+            ]
+    in
+    pairs
+
+
 encodeJsonReadAnalysisResults : JsonReadAnalysisResults -> Json.Encode.Value
 encodeJsonReadAnalysisResults =
     encodeObject << encodeJsonReadAnalysisResultsPairs
@@ -5359,6 +5481,13 @@ jsonAttributoValueDecoder =
         |> maybeDecode "attributo_value_list_bool" (Json.Decode.list Json.Decode.bool) Nothing
 
 
+jsonAttributoWithNameDecoder : Json.Decode.Decoder JsonAttributoWithName
+jsonAttributoWithNameDecoder =
+    Json.Decode.succeed JsonAttributoWithName
+        |> decode "id" Json.Decode.int 
+        |> decode "name" Json.Decode.string 
+
+
 jsonBeamtimeDecoder : Json.Decode.Decoder JsonBeamtime
 jsonBeamtimeDecoder =
     Json.Decode.succeed JsonBeamtime
@@ -5469,6 +5598,20 @@ jsonChemicalWithoutIdDecoder =
         |> decode "chemical_type" chemicalTypeDecoder 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
         |> decode "file_ids" (Json.Decode.list Json.Decode.int) 
+
+
+jsonCopyChemicalInputDecoder : Json.Decode.Decoder JsonCopyChemicalInput
+jsonCopyChemicalInputDecoder =
+    Json.Decode.succeed JsonCopyChemicalInput
+        |> decode "chemical_id" Json.Decode.int 
+        |> decode "target_beamtime_id" Json.Decode.int 
+        |> decode "create_attributi" Json.Decode.bool 
+
+
+jsonCopyChemicalOutputDecoder : Json.Decode.Decoder JsonCopyChemicalOutput
+jsonCopyChemicalOutputDecoder =
+    Json.Decode.succeed JsonCopyChemicalOutput
+        |> decode "new_chemical_id" Json.Decode.int 
 
 
 jsonCreateAttributiFromSchemaInputDecoder : Json.Decode.Decoder JsonCreateAttributiFromSchemaInput
@@ -6136,6 +6279,14 @@ jsonQueueMergeJobOutputDecoder : Json.Decode.Decoder JsonQueueMergeJobOutput
 jsonQueueMergeJobOutputDecoder =
     Json.Decode.succeed JsonQueueMergeJobOutput
         |> decode "merge_result_id" Json.Decode.int 
+
+
+jsonReadAllChemicalsDecoder : Json.Decode.Decoder JsonReadAllChemicals
+jsonReadAllChemicalsDecoder =
+    Json.Decode.succeed JsonReadAllChemicals
+        |> decode "chemicals" (Json.Decode.list jsonChemicalDecoder) 
+        |> decode "beamtimes" (Json.Decode.list jsonBeamtimeDecoder) 
+        |> decode "attributi_names" (Json.Decode.list jsonAttributoWithNameDecoder) 
 
 
 jsonReadAnalysisResultsDecoder : Json.Decode.Decoder JsonReadAnalysisResults

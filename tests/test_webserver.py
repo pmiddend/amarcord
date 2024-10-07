@@ -73,6 +73,8 @@ from amarcord.web.json_models import JsonCheckStandardUnitInput
 from amarcord.web.json_models import JsonCheckStandardUnitOutput
 from amarcord.web.json_models import JsonChemicalWithId
 from amarcord.web.json_models import JsonChemicalWithoutId
+from amarcord.web.json_models import JsonCopyChemicalInput
+from amarcord.web.json_models import JsonCopyChemicalOutput
 from amarcord.web.json_models import JsonCreateAttributiFromSchemaInput
 from amarcord.web.json_models import JsonCreateAttributiFromSchemaOutput
 from amarcord.web.json_models import JsonCreateAttributiFromSchemaSingleAttributo
@@ -939,6 +941,42 @@ def test_chemical_creation_with_invalid_attributo_value(
         ).dict(),
     )
     assert response.status_code // 100 == 4
+
+
+def test_chemical_copy_from_other_beamtime_with_copy_attributi(
+    client: TestClient,
+    # pylint: disable=unused-argument
+    cell_description_attributo_id: int,
+    # pylint: disable=unused-argument
+    point_group_attributo_id: int,
+    lyso_chemical_id: int,
+    # pylint: disable=unused-argument
+    beamtime_id: BeamtimeId,
+    second_beamtime_id: BeamtimeId,
+) -> None:
+    input_ = JsonCopyChemicalInput(
+        chemical_id=lyso_chemical_id,
+        target_beamtime_id=second_beamtime_id,
+        create_attributi=True,
+    ).dict()
+    response = JsonCopyChemicalOutput(
+        **client.post(
+            "/api/copy-chemical",
+            json=input_,
+        ).json()
+    )
+    assert response.new_chemical_id > 0
+
+    chemicals_in_second_beamtime = read_chemicals(client, second_beamtime_id)
+
+    # Crude to just assume we have one chemical. We should also test for the actual contents.
+    assert len(chemicals_in_second_beamtime.chemicals) == 1
+
+    attributi_response = JsonReadAttributi(
+        **client.get(f"/api/attributi/{second_beamtime_id}").json()
+    )
+    # A bit crude to hard-code 2 here, but we are expecting point group and cell description
+    assert len(attributi_response.attributi) == 2
 
 
 def test_create_and_delete_event_without_live_stream_and_files(

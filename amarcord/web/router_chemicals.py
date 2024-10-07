@@ -12,17 +12,22 @@ from amarcord.db import orm
 from amarcord.db.associated_table import AssociatedTable
 from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.beamtime_id import BeamtimeId
+from amarcord.db.orm_utils import encode_beamtime
 from amarcord.db.orm_utils import validate_json_attributo_return_error
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.fastapi_utils import json_attributo_to_chemical_orm_attributo
 from amarcord.web.fastapi_utils import update_attributi_from_json
 from amarcord.web.json_models import JsonAttributoValue
+from amarcord.web.json_models import JsonAttributoWithName
 from amarcord.web.json_models import JsonChemical
 from amarcord.web.json_models import JsonChemicalWithId
 from amarcord.web.json_models import JsonChemicalWithoutId
+from amarcord.web.json_models import JsonCopyChemicalInput
+from amarcord.web.json_models import JsonCopyChemicalOutput
 from amarcord.web.json_models import JsonCreateChemicalOutput
 from amarcord.web.json_models import JsonDeleteChemicalInput
 from amarcord.web.json_models import JsonDeleteChemicalOutput
+from amarcord.web.json_models import JsonReadAllChemicals
 from amarcord.web.json_models import JsonReadChemicals
 from amarcord.web.router_attributi import encode_attributo
 from amarcord.web.router_files import encode_file_output
@@ -217,3 +222,114 @@ async def read_chemicals(
             )
         ],
     )
+
+
+@router.get(
+    "/api/all-chemicals",
+    tags=["chemicals"],
+    response_model_exclude_defaults=True,
+)
+async def read_all_chemicals(
+    session: AsyncSession = Depends(get_orm_db),
+) -> JsonReadAllChemicals:
+    return JsonReadAllChemicals(
+        chemicals=[
+            encode_chemical(a)
+            for a in await session.scalars(
+                select(orm.Chemical)
+                .order_by(orm.Chemical.name, orm.Chemical.beamtime_id.desc())
+                .options(selectinload(orm.Chemical.files))
+            )
+        ],
+        beamtimes=[
+            encode_beamtime(a)
+            for a in await session.scalars(
+                select(orm.Beamtime).options(selectinload(orm.Beamtime.chemicals))
+            )
+        ],
+        attributi_names=[
+            JsonAttributoWithName(id=a.id, name=a.name)
+            for a in await session.scalars(
+                select(orm.Attributo).where(
+                    orm.Attributo.associated_table == AssociatedTable.CHEMICAL
+                )
+            )
+        ],
+    )
+
+
+@router.post(
+    "/api/copy-chemical",
+    tags=["chemicals"],
+    response_model_exclude_defaults=True,
+)
+async def copy_chemical(
+    copy_data: JsonCopyChemicalInput,
+    session: AsyncSession = Depends(get_orm_db),
+) -> JsonCopyChemicalOutput:
+    async with session.begin():
+        c: orm.Chemical = (
+            await session.scalars(
+                select(orm.Chemical)
+                .where(orm.Chemical.id == copy_data.chemical_id)
+                .options(selectinload(orm.Chemical.files))
+                .options(
+                    selectinload(orm.Chemical.attributo_values).selectinload(
+                        orm.ChemicalHasAttributoValue.attributo
+                    )
+                )
+            )
+        ).one()
+
+        this_beamtime_attributi: dict[str, orm.Attributo] = {
+            a.name: a
+            for a in await session.scalars(
+                select(orm.Attributo).where(
+                    orm.Attributo.beamtime_id == copy_data.target_beamtime_id
+                )
+            )
+        }
+
+        new_chemical = orm.Chemical(
+            beamtime_id=BeamtimeId(copy_data.target_beamtime_id),
+            name=c.name,
+            responsible_person=c.responsible_person,
+            type=c.type,
+            modified=datetime.datetime.now(datetime.timezone.utc),
+        )
+
+        for a in c.attributo_values:
+            new_attributo = this_beamtime_attributi.get(a.attributo.name)
+            if new_attributo is None and copy_data.create_attributi:
+                new_attributo = orm.Attributo(
+                    beamtime_id=BeamtimeId(copy_data.target_beamtime_id),
+                    name=a.attributo.name,
+                    description=a.attributo.description,
+                    group=a.attributo.group,
+                    associated_table=a.attributo.associated_table,
+                    json_schema=a.attributo.json_schema,
+                )
+                session.add(new_attributo)
+                await session.flush()
+            if new_attributo is not None:
+                new_chemical.attributo_values.append(
+                    orm.ChemicalHasAttributoValue(
+                        attributo_id=new_attributo.id,
+                        integer_value=a.integer_value,
+                        float_value=a.float_value,
+                        string_value=a.string_value,
+                        bool_value=a.bool_value,
+                        datetime_value=a.datetime_value,
+                        list_value=a.list_value,
+                    )
+                )
+
+        for f in c.files:
+            file_in_session = await session.get(orm.File, f.id)
+            assert file_in_session is not None
+            new_chemical.files.append(file_in_session)
+
+        session.add(new_chemical)
+        await session.commit()
+
+        return JsonCopyChemicalOutput(new_chemical_id=new_chemical.id)
