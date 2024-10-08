@@ -51,9 +51,10 @@ build-docker-image:
 
 nix-pin-latest:
   script:
-    - nix build --out-link ~/pipeline-pins/amarcord-python-package .#amarcord-python-package
+    - nix build --out-link ~/pipeline-pins/amarcord-python-package-$CI_COMMIT_REF_SLUG .#amarcord-python-package
   only:
     - main
+    - next-beamtime
 
 nix-pin-latest-manual:
   script:
