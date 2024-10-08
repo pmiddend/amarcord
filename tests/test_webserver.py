@@ -3108,14 +3108,22 @@ async def test_indexing_daemon_start_job_but_then_vanish_from_workload_manager(
     )
     # start the job
     await indexing_loop_iteration(
-        workload_manager, daemon_session, args, start_new_jobs=True
+        workload_manager=workload_manager,
+        session=daemon_session,
+        args=args,
+        start_new_jobs=True,
+        online_workload_manager=None,
     )
 
     # Remove the job from the workload manager
     workload_manager.jobs.clear()
 
     await indexing_loop_iteration(
-        workload_manager, daemon_session, args, start_new_jobs=False
+        workload_manager=workload_manager,
+        online_workload_manager=None,
+        session=daemon_session,
+        args=args,
+        start_new_jobs=False,
     )
 
     # Now get the indexing job from the DB and check that its status is indeed failed
@@ -3162,7 +3170,11 @@ async def test_indexing_daemon_start_job_with_run_that_is_missing_files(
 
     # Now start jobs
     await indexing_loop_iteration(
-        workload_manager, daemon_session, args, start_new_jobs=True
+        workload_manager=workload_manager,
+        online_workload_manager=None,
+        session=daemon_session,
+        args=args,
+        start_new_jobs=True,
     )
 
     assert not workload_manager.job_starts
@@ -3376,7 +3388,11 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
 
     # One iteration without starting jobs => shouldn't start jobs!
     await indexing_loop_iteration(
-        workload_manager, daemon_session, args, start_new_jobs=False
+        workload_manager=workload_manager,
+        online_workload_manager=None,
+        session=daemon_session,
+        args=args,
+        start_new_jobs=False,
     )
 
     print(
@@ -3400,7 +3416,11 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
 
     # Now start jobs
     await indexing_loop_iteration(
-        workload_manager, daemon_session, args, start_new_jobs=True
+        workload_manager=workload_manager,
+        online_workload_manager=None,
+        session=daemon_session,
+        args=args,
+        start_new_jobs=True,
     )
 
     assert len(workload_manager.job_starts) == 1
@@ -3420,7 +3440,11 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
 
     # To be sure: another start iteration shouldn't do anything now
     await indexing_loop_iteration(
-        workload_manager, daemon_session, args, start_new_jobs=True
+        workload_manager=workload_manager,
+        online_workload_manager=None,
+        session=daemon_session,
+        args=args,
+        start_new_jobs=True,
     )
 
     assert not workload_manager.job_starts
@@ -3428,7 +3452,11 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
 
     # Again, to be sure: another update shouldn't do anything
     await indexing_loop_iteration(
-        workload_manager, daemon_session, args, start_new_jobs=False
+        workload_manager=workload_manager,
+        online_workload_manager=None,
+        session=daemon_session,
+        args=args,
+        start_new_jobs=True,
     )
 
     # Now we just assume the job we just started failed on the workload manager (i.e. SLURM)
@@ -3443,7 +3471,11 @@ async def test_indexing_daemon_start_job_but_then_fail_unexpectedly(
     )
 
     await indexing_loop_iteration(
-        workload_manager, daemon_session, args, start_new_jobs=False
+        workload_manager=workload_manager,
+        online_workload_manager=None,
+        session=daemon_session,
+        args=args,
+        start_new_jobs=False,
     )
 
     # Now get the indexing job from the DB and check that its status is indeed failed

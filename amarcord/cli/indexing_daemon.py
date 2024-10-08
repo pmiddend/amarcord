@@ -77,11 +77,16 @@ class Arguments(Tap):
     # pylint: disable=consider-alternative-union-syntax
     beamtime_id: Optional[int] = None  # Can be used to filter indexing jobs by beamtime
     workload_manager_uri: str  # Determines how and where jobs are started; refer to the manual on how this URL should look like
+    online_workload_manager_uri: Optional[  # Determines how and where online jobs are started; refer to the manual on how this URL should look like. If this is missing, the workload-manager-uri parameter will be used for online results as well.
+        str
+    ] = None
     asapo_source: str  # The default source given to online indexing jobs
     # pylint: disable=consider-alternative-union-syntax
-    cpu_count_multiplier: Optional[  # Constant to give a multiplier to the number of CPUs in started jobs
-        float
-    ] = None
+    # fmt: off
+    cpu_count_multiplier: Optional[float] = (  # Constant to give a multiplier to the number of CPUs in started jobs
+        None
+    )
+    # fmt: on
 
 
 def _get_indexing_job_source_code(overwrite_interpreter_str: None | str) -> str:
@@ -314,7 +319,10 @@ async def start_online_indexing_job(
 
 
 async def _start_new_jobs(
-    session: aiohttp.ClientSession, workload_manager: WorkloadManager, args: Arguments
+    session: aiohttp.ClientSession,
+    workload_manager: WorkloadManager,
+    online_workload_manager: None | WorkloadManager,
+    args: Arguments,
 ) -> None:
     # withFiles means "also include the file path for every result". This is needed for the "offline indexing"
     # part of the job running. We need to give the offline indexing run the list of files to process.
@@ -340,7 +348,14 @@ async def _start_new_jobs(
         )
         new_status = (
             await start_online_indexing_job(
-                bound_logger, workload_manager, args, indexing_result
+                bound_logger,
+                (
+                    online_workload_manager
+                    if online_workload_manager is not None
+                    else workload_manager
+                ),
+                args,
+                indexing_result,
             )
             if indexing_result.is_online
             else await start_offline_indexing_job(
@@ -408,10 +423,16 @@ async def _start_new_jobs(
 async def _update_jobs(
     session: aiohttp.ClientSession,
     workload_manager: WorkloadManager,
+    online_workload_manager: None | WorkloadManager,
     amarcord_url: str,
     beamtime_id: None | BeamtimeId,
 ) -> None:
     jobs_on_workload_manager = {j.id: j for j in await workload_manager.list_jobs()}
+    jobs_on_online_workload_manager = (
+        {j.id: j for j in await online_workload_manager.list_jobs()}
+        if online_workload_manager is not None
+        else None
+    )
 
     async with session.get(
         f"{amarcord_url}/api/indexing?status={DBJobStatus.RUNNING.value}"
@@ -432,7 +453,15 @@ async def _update_jobs(
 
         bound_logger.info("job still running, checking on workload manager")
 
-        workload_job = jobs_on_workload_manager.get(indexing_result.job_id)
+        # This is a bit tricky: we don't want to look at either the
+        # online job "registry", if that's available and it's an
+        # online job, otherwise the offline one.
+        job_array = (
+            jobs_on_online_workload_manager
+            if indexing_result.is_online and jobs_on_online_workload_manager is not None
+            else jobs_on_workload_manager
+        )
+        workload_job = job_array.get(indexing_result.job_id)
         if workload_job is not None and workload_job.status not in (
             JobStatus.FAILED,
             JobStatus.SUCCESSFUL,
@@ -469,6 +498,7 @@ async def _update_jobs(
 
 async def indexing_loop_iteration(
     workload_manager: WorkloadManager,
+    online_workload_manager: None | WorkloadManager,
     session: aiohttp.ClientSession,
     args: Arguments,
     start_new_jobs: bool,
@@ -476,12 +506,13 @@ async def indexing_loop_iteration(
     # This is weird, I know, but it stems from the fact that the DESY Maxwell REST API has rate limiting included,
     # so we cannot just do two REST API requests back to back. Instead, we have this weird counter.
     if start_new_jobs:
-        await _start_new_jobs(session, workload_manager, args)
+        await _start_new_jobs(session, workload_manager, online_workload_manager, args)
 
     else:
         await _update_jobs(
             session,
             workload_manager,
+            online_workload_manager,
             amarcord_url=args.amarcord_url,
             beamtime_id=BeamtimeId(args.beamtime_id) if args.beamtime_id else None,
         )
@@ -493,6 +524,13 @@ async def _indexing_loop(args: Arguments) -> None:  # pragma: no cover
 
     workload_manager = create_workload_manager(
         parse_workload_manager_config(args.workload_manager_uri)
+    )
+    online_workload_manager = (
+        workload_manager
+        if args.online_workload_manager_uri is None
+        else create_workload_manager(
+            parse_workload_manager_config(args.online_workload_manager_uri)
+        )
     )
 
     # Why this? Well, uvicorn keeps closing the connection, although
@@ -511,7 +549,11 @@ async def _indexing_loop(args: Arguments) -> None:  # pragma: no cover
         counter = 0
         while True:
             await indexing_loop_iteration(
-                workload_manager, session, args, counter % 10 != 0
+                workload_manager,
+                online_workload_manager,
+                session,
+                args,
+                counter % 10 != 0,
             )
 
             counter += 1
