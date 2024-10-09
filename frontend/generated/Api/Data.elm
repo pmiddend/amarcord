@@ -140,6 +140,7 @@ module Api.Data exposing
     , JsonRefinementResultInternal
     , JsonRun
     , JsonRunAnalysisIndexingResult
+    , JsonRunFile
     , JsonRunId
     , JsonStartRunOutput
     , JsonStopRunOutput
@@ -287,6 +288,7 @@ module Api.Data exposing
     , encodeJsonRefinementResultInternal
     , encodeJsonRun
     , encodeJsonRunAnalysisIndexingResult
+    , encodeJsonRunFile
     , encodeJsonRunId
     , encodeJsonStartRunOutput
     , encodeJsonStopRunOutput
@@ -441,6 +443,7 @@ module Api.Data exposing
     , jsonRefinementResultInternalDecoder
     , jsonRunDecoder
     , jsonRunAnalysisIndexingResultDecoder
+    , jsonRunFileDecoder
     , jsonRunIdDecoder
     , jsonStartRunOutputDecoder
     , jsonStopRunOutputDecoder
@@ -661,6 +664,7 @@ type alias JsonAnalysisRun =
     { id : Int
     , externalId : Int
     , attributi : List JsonAttributoValue
+    , filePaths : List JsonRunFile
     }
 
 
@@ -1595,6 +1599,12 @@ type alias JsonRunAnalysisIndexingResult =
     }
 
 
+type alias JsonRunFile =
+    { glob : String
+    , source : String
+    }
+
+
 type alias JsonRunId =
     { internalRunId : Int
     , externalRunId : Int
@@ -2083,6 +2093,7 @@ encodeJsonAnalysisRunPairs model =
             [ encode "id" Json.Encode.int model.id
             , encode "external_id" Json.Encode.int model.externalId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
+            , encode "file_paths" (Json.Encode.list encodeJsonRunFile) model.filePaths
             ]
     in
     pairs
@@ -4729,6 +4740,27 @@ encodeJsonRunAnalysisIndexingResultPairs model =
     pairs
 
 
+encodeJsonRunFile : JsonRunFile -> Json.Encode.Value
+encodeJsonRunFile =
+    encodeObject << encodeJsonRunFilePairs
+
+
+encodeJsonRunFileWithTag : ( String, String ) -> JsonRunFile -> Json.Encode.Value
+encodeJsonRunFileWithTag (tagField, tag) model =
+    encodeObject (encodeJsonRunFilePairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonRunFilePairs : JsonRunFile -> List EncodedField
+encodeJsonRunFilePairs model =
+    let
+        pairs =
+            [ encode "glob" Json.Encode.string model.glob
+            , encode "source" Json.Encode.string model.source
+            ]
+    in
+    pairs
+
+
 encodeJsonRunId : JsonRunId -> Json.Encode.Value
 encodeJsonRunId =
     encodeObject << encodeJsonRunIdPairs
@@ -5435,6 +5467,7 @@ jsonAnalysisRunDecoder =
         |> decode "id" Json.Decode.int 
         |> decode "external_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
+        |> decode "file_paths" (Json.Decode.list jsonRunFileDecoder) 
 
 
 jsonAttributiIdAndRoleDecoder : Json.Decode.Decoder JsonAttributiIdAndRole
@@ -6480,6 +6513,13 @@ jsonRunAnalysisIndexingResultDecoder =
         |> decode "run_id" Json.Decode.int 
         |> decode "foms" jsonIndexingFomDecoder 
         |> decode "indexing_statistics" (Json.Decode.list jsonIndexingStatisticDecoder) 
+
+
+jsonRunFileDecoder : Json.Decode.Decoder JsonRunFile
+jsonRunFileDecoder =
+    Json.Decode.succeed JsonRunFile
+        |> decode "glob" Json.Decode.string 
+        |> decode "source" Json.Decode.string 
 
 
 jsonRunIdDecoder : Json.Decode.Decoder JsonRunId

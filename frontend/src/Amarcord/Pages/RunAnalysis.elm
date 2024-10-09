@@ -5,11 +5,11 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, Attr
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (div_, h1_, h5_, input_)
+import Amarcord.Html exposing (div_, h1_, h5_, input_, p_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
 import Amarcord.Util exposing (HereAndNow)
-import Api.Data exposing (JsonAnalysisRun, JsonDetectorShift, JsonFileOutput, JsonIndexingStatistic, JsonReadBeamtimeGeometryDetails, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult)
+import Api.Data exposing (JsonAnalysisRun, JsonDetectorShift, JsonFileOutput, JsonIndexingStatistic, JsonReadBeamtimeGeometryDetails, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult, JsonRunFile)
 import Api.Request.Analysis exposing (readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet, readRunAnalysisApiRunAnalysisBeamtimeIdGet)
 import Axis
 import Color
@@ -238,6 +238,22 @@ viewRunStatistics originalStats =
     viewHitRateAndIndexingGraphs originalStats
 
 
+viewRunFiles : List JsonRunFile -> Html msg
+viewRunFiles files =
+    case files of
+        [] ->
+            text ""
+
+        _ ->
+            div_
+                [ h5_ [ text "Files" ]
+                , table [ class "table table-sm table-striped" ]
+                    [ thead_ [ tr_ [ th_ [ text "Source" ], th_ [ text "Glob" ] ] ]
+                    , tbody_ (List.map (\{ glob, source } -> tr_ [ td_ [ text source ], td_ [ text glob ] ]) files)
+                    ]
+                ]
+
+
 viewRunTableRow :
     HereAndNow
     -> List (Attributo AttributoType)
@@ -248,7 +264,17 @@ viewRunTableRow :
 viewRunTableRow hereAndNow attributi chemicals run rar =
     let
         viewRun r =
-            viewDataSetTable attributi hereAndNow.zone (chemicalIdDict chemicals) (convertAttributoMapFromApi r.attributi) False False Nothing
+            div_
+                [ viewDataSetTable
+                    attributi
+                    hereAndNow.zone
+                    (chemicalIdDict chemicals)
+                    (convertAttributoMapFromApi r.attributi)
+                    False
+                    False
+                    Nothing
+                , viewRunFiles run.filePaths
+                ]
     in
     tr []
         [ td []
@@ -275,7 +301,13 @@ viewRunGraphs hereAndNow runIdInput attributi chemicals run rars =
         [ div [ class "hstack gap-3" ]
             [ button [ class "btn btn-outline-secondary", onClick (ChangeRunId (\r -> r - 1)) ] [ icon { name = "arrow-left" } ]
             , span [ class "form-text text-nowrap" ] [ text "Run ID" ]
-            , input_ [ type_ "text", value runIdInput, class "form-control", onInput ChangeRunIdText, onEnter ConfirmRunIdText ]
+            , input_
+                [ type_ "text"
+                , value runIdInput
+                , class "form-control"
+                , onInput ChangeRunIdText
+                , onEnter ConfirmRunIdText
+                ]
             , button [ class "btn btn-outline-secondary", onClick (ChangeRunId (\r -> r + 1)) ] [ icon { name = "arrow-right" } ]
             ]
         , case run of
@@ -284,7 +316,12 @@ viewRunGraphs hereAndNow runIdInput attributi chemicals run rars =
 
             Just runReal ->
                 table [ class "table table-striped" ]
-                    [ thead [] [ tr [] [ th [] [ text "Run Information" ], th [ style "width" "100%" ] [ text "Statistics" ] ] ]
+                    [ thead []
+                        [ tr []
+                            [ th [] [ text "Run Information" ]
+                            , th [ style "width" "100%" ] [ text "Statistics" ]
+                            ]
+                        ]
                     , tbody [] (List.map (viewRunTableRow hereAndNow attributi chemicals runReal) rars)
                     ]
         ]
@@ -295,6 +332,7 @@ viewInner hereAndNow { detectorShifts } model =
     [ h1_ [ text "Detector Shifts" ]
     , viewDetectorShifts detectorShifts
     , h1_ [ text "Indexing Details" ]
+    , p_ [ text "Enter a run ID to see details. Press Return to update." ]
     , case model.runAnalysisRequest of
         NotAsked ->
             text ""

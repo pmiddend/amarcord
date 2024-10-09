@@ -37,6 +37,7 @@ from amarcord.web.json_models import JsonReadRunAnalysis
 from amarcord.web.json_models import JsonReadSingleDataSetResults
 from amarcord.web.json_models import JsonReadSingleMergeResult
 from amarcord.web.json_models import JsonRunAnalysisIndexingResult
+from amarcord.web.json_models import JsonRunFile
 from amarcord.web.json_models import JsonRunId
 from amarcord.web.router_attributi import encode_attributo
 from amarcord.web.router_chemicals import encode_chemical
@@ -139,6 +140,10 @@ async def read_run_analysis(
                 id=run.id,
                 external_id=run.external_id,
                 attributi=[encode_run_attributo_value(v) for v in run.attributo_values],
+                file_paths=[
+                    JsonRunFile(glob=rf.glob, source=rf.source)
+                    for rf in await run.awaitable_attrs.files
+                ],
             )
             if run is not None
             else None

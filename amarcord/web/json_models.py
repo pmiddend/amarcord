@@ -496,10 +496,16 @@ class JsonUpdateRunsBulkOutput(BaseModel):
     result: bool
 
 
+class JsonRunFile(BaseModel):
+    glob: str
+    source: str
+
+
 class JsonAnalysisRun(BaseModel):
     id: int
     external_id: int
     attributi: list[JsonAttributoValue]
+    file_paths: list[JsonRunFile]
 
 
 class JsonIndexingFom(BaseModel):
