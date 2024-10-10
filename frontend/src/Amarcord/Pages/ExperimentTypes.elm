@@ -125,7 +125,7 @@ copyFromOtherBeamtimeView { zone, beamtimeRequest, copyRequest, selectedBeamtime
                         text ""
 
                     Success _ ->
-                        div [ class "badge text-bg-success" ] [ text "Copy complete! Please refresh." ]
+                        div [ class "mb-3" ] [ div [ class "badge text-bg-success" ] [ text "Copy complete! Please refresh." ] ]
 
                     Failure e ->
                         makeAlert [ AlertDanger ] <|

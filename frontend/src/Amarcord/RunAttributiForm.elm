@@ -12,7 +12,7 @@ import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.Util exposing (listContainsBy)
 import Api.Data exposing (ChemicalType(..), JsonAttributo, JsonExperimentType, JsonFileOutput, JsonRun, JsonUpdateRunOutput)
 import Api.Request.Runs exposing (updateRunApiRunsPatch)
-import Html exposing (Html, button, div, form, label, option, p, select, text, ul)
+import Html exposing (Html, button, div, form, label, option, select, text, ul)
 import Html.Attributes exposing (checked, class, disabled, for, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List
@@ -150,7 +150,7 @@ view { runExternalId, experimentTypeId, editableAttributi, showAllAttributi, sub
 
         submitSuccess =
             if isSuccess runEditRequest then
-                [ p [ class "text-success" ] [ text "Saved!" ] ]
+                [ div [ class "mb-3" ] [ div [ class "badge text-bg-success" ] [ text "Saved!" ] ] ]
 
             else
                 []

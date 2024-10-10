@@ -11,7 +11,7 @@ import Amarcord.Util exposing (HereAndNow)
 import Api.Data exposing (ChemicalType(..), JsonExperimentType, JsonFileOutput, JsonReadRunsBulkOutput, JsonUpdateRunsBulkOutput)
 import Api.Request.Runs exposing (readRunsBulkApiRunsBulkPost, updateRunsBulkApiRunsBulkPatch)
 import Dict
-import Html exposing (Html, button, div, label, option, p, select, text, ul)
+import Html exposing (Html, button, div, label, option, select, text, ul)
 import Html.Attributes exposing (class, disabled, for, id, placeholder, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Maybe.Extra as MaybeExtra
@@ -73,7 +73,7 @@ viewBulkAttributiForm editRequest submitErrorsList { chemicals, actualEditableAt
 
         submitSuccess =
             if isSuccess editRequest then
-                [ p [ class "text-success" ] [ text "Saved!" ] ]
+                [ div [ class "badge text-bg-success" ] [ text "Saved!" ] ]
 
             else
                 []

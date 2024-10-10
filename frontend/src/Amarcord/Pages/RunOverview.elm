@@ -593,7 +593,7 @@ updateRunOverviewRequest zone newRequest oldModel =
                     updateLatestRun zone latestRun newRequest
             in
             ( Success
-                { runsOverview = runsOverview
+                { runsOverview = Maybe.withDefault runsOverview (Result.toMaybe newRequest)
                 , latestRun = newLatestRun
                 }
             , cmds
