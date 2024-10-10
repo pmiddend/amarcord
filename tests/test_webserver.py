@@ -75,6 +75,8 @@ from amarcord.web.json_models import JsonChemicalWithId
 from amarcord.web.json_models import JsonChemicalWithoutId
 from amarcord.web.json_models import JsonCopyChemicalInput
 from amarcord.web.json_models import JsonCopyChemicalOutput
+from amarcord.web.json_models import JsonCopyExperimentTypesInput
+from amarcord.web.json_models import JsonCopyExperimentTypesOutput
 from amarcord.web.json_models import JsonCreateAttributiFromSchemaInput
 from amarcord.web.json_models import JsonCreateAttributiFromSchemaOutput
 from amarcord.web.json_models import JsonCreateAttributiFromSchemaSingleAttributo
@@ -381,6 +383,28 @@ def run_channel_1_chemical_attributo_id(
         associated_table=AssociatedTable.RUN,
         attributo_type_integer=JSONSchemaInteger(type="integer", format="chemical-id"),
         beamtime_id=beamtime_id,
+    ).dict()
+    response = JsonCreateAttributoOutput(
+        **client.post(
+            "/api/attributi",
+            json=input_,
+        ).json()
+    )
+    assert response.id > 0
+    return response.id
+
+
+@pytest.fixture
+def run_channel_1_chemical_attributo_id_in_second_beamtime(
+    client: TestClient, second_beamtime_id: BeamtimeId
+) -> int:
+    input_ = JsonCreateAttributoInput(
+        name="channel_1_chemical_id",
+        description="",
+        group=ATTRIBUTO_GROUP_MANUAL,
+        associated_table=AssociatedTable.RUN,
+        attributo_type_integer=JSONSchemaInteger(type="integer", format="chemical-id"),
+        beamtime_id=second_beamtime_id,
     ).dict()
     response = JsonCreateAttributoOutput(
         **client.post(
@@ -1124,6 +1148,47 @@ def test_create_experiment_type(
     assert len(read_ets_output.experiment_types) == 1
     ets = read_ets_output.experiment_types
     assert ets[0].id == chemical_experiment_type_id
+
+
+def test_copy_experiment_types_from_other_beamtime_where_attributi_are_missing(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    # pylint: disable=unused-argument
+    chemical_experiment_type_id: int,
+    second_beamtime_id: BeamtimeId,
+) -> None:
+    copy_ets_output = client.post(
+        "/api/copy-experiment-types",
+        json=JsonCopyExperimentTypesInput(
+            from_beamtime=beamtime_id, to_beamtime=second_beamtime_id
+        ).dict(),
+    )
+    assert copy_ets_output.status_code == 400
+
+
+def test_copy_experiment_types_from_other_beamtime_where_attributi_are_present(
+    client: TestClient,
+    beamtime_id: BeamtimeId,
+    # pylint: disable=unused-argument
+    chemical_experiment_type_id: int,
+    run_channel_1_chemical_attributo_id_in_second_beamtime: int,
+    second_beamtime_id: BeamtimeId,
+) -> None:
+    copy_ets_output = JsonCopyExperimentTypesOutput(
+        **client.post(
+            "/api/copy-experiment-types",
+            json=JsonCopyExperimentTypesInput(
+                from_beamtime=beamtime_id, to_beamtime=second_beamtime_id
+            ).dict(),
+        ).json()
+    )
+    assert len(copy_ets_output.to_beamtime_experiment_type_ids) == 1
+
+    read_ets_output = JsonReadExperimentTypes(
+        **client.get(f"/api/experiment-types/{second_beamtime_id}").json()
+    )
+
+    assert len(read_ets_output.experiment_types) == 1
 
 
 def test_create_or_update_run_fails_without_experiment_type(

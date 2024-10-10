@@ -930,3 +930,12 @@ class JsonMergeJob(BaseModel):
 
 class JsonReadMergeResultsOutput(BaseModel):
     merge_jobs: list[JsonMergeJob]
+
+
+class JsonCopyExperimentTypesInput(BaseModel):
+    from_beamtime: int
+    to_beamtime: int
+
+
+class JsonCopyExperimentTypesOutput(BaseModel):
+    to_beamtime_experiment_type_ids: list[int]

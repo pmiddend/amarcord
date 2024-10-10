@@ -46,6 +46,8 @@ module Api.Data exposing
     , JsonChemicalWithoutId
     , JsonCopyChemicalInput
     , JsonCopyChemicalOutput
+    , JsonCopyExperimentTypesInput
+    , JsonCopyExperimentTypesOutput
     , JsonCreateAttributiFromSchemaInput
     , JsonCreateAttributiFromSchemaOutput
     , JsonCreateAttributiFromSchemaSingleAttributo
@@ -194,6 +196,8 @@ module Api.Data exposing
     , encodeJsonChemicalWithoutId
     , encodeJsonCopyChemicalInput
     , encodeJsonCopyChemicalOutput
+    , encodeJsonCopyExperimentTypesInput
+    , encodeJsonCopyExperimentTypesOutput
     , encodeJsonCreateAttributiFromSchemaInput
     , encodeJsonCreateAttributiFromSchemaOutput
     , encodeJsonCreateAttributiFromSchemaSingleAttributo
@@ -349,6 +353,8 @@ module Api.Data exposing
     , jsonChemicalWithoutIdDecoder
     , jsonCopyChemicalInputDecoder
     , jsonCopyChemicalOutputDecoder
+    , jsonCopyExperimentTypesInputDecoder
+    , jsonCopyExperimentTypesOutputDecoder
     , jsonCreateAttributiFromSchemaInputDecoder
     , jsonCreateAttributiFromSchemaOutputDecoder
     , jsonCreateAttributiFromSchemaSingleAttributoDecoder
@@ -822,6 +828,17 @@ type alias JsonCopyChemicalInput =
 
 type alias JsonCopyChemicalOutput =
     { newChemicalId : Int
+    }
+
+
+type alias JsonCopyExperimentTypesInput =
+    { fromBeamtime : Int
+    , toBeamtime : Int
+    }
+
+
+type alias JsonCopyExperimentTypesOutput =
+    { toBeamtimeExperimentTypeIds : List Int
     }
 
 
@@ -2551,6 +2568,47 @@ encodeJsonCopyChemicalOutputPairs model =
     let
         pairs =
             [ encode "new_chemical_id" Json.Encode.int model.newChemicalId
+            ]
+    in
+    pairs
+
+
+encodeJsonCopyExperimentTypesInput : JsonCopyExperimentTypesInput -> Json.Encode.Value
+encodeJsonCopyExperimentTypesInput =
+    encodeObject << encodeJsonCopyExperimentTypesInputPairs
+
+
+encodeJsonCopyExperimentTypesInputWithTag : ( String, String ) -> JsonCopyExperimentTypesInput -> Json.Encode.Value
+encodeJsonCopyExperimentTypesInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonCopyExperimentTypesInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonCopyExperimentTypesInputPairs : JsonCopyExperimentTypesInput -> List EncodedField
+encodeJsonCopyExperimentTypesInputPairs model =
+    let
+        pairs =
+            [ encode "from_beamtime" Json.Encode.int model.fromBeamtime
+            , encode "to_beamtime" Json.Encode.int model.toBeamtime
+            ]
+    in
+    pairs
+
+
+encodeJsonCopyExperimentTypesOutput : JsonCopyExperimentTypesOutput -> Json.Encode.Value
+encodeJsonCopyExperimentTypesOutput =
+    encodeObject << encodeJsonCopyExperimentTypesOutputPairs
+
+
+encodeJsonCopyExperimentTypesOutputWithTag : ( String, String ) -> JsonCopyExperimentTypesOutput -> Json.Encode.Value
+encodeJsonCopyExperimentTypesOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonCopyExperimentTypesOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonCopyExperimentTypesOutputPairs : JsonCopyExperimentTypesOutput -> List EncodedField
+encodeJsonCopyExperimentTypesOutputPairs model =
+    let
+        pairs =
+            [ encode "to_beamtime_experiment_type_ids" (Json.Encode.list Json.Encode.int) model.toBeamtimeExperimentTypeIds
             ]
     in
     pairs
@@ -5645,6 +5703,19 @@ jsonCopyChemicalOutputDecoder : Json.Decode.Decoder JsonCopyChemicalOutput
 jsonCopyChemicalOutputDecoder =
     Json.Decode.succeed JsonCopyChemicalOutput
         |> decode "new_chemical_id" Json.Decode.int 
+
+
+jsonCopyExperimentTypesInputDecoder : Json.Decode.Decoder JsonCopyExperimentTypesInput
+jsonCopyExperimentTypesInputDecoder =
+    Json.Decode.succeed JsonCopyExperimentTypesInput
+        |> decode "from_beamtime" Json.Decode.int 
+        |> decode "to_beamtime" Json.Decode.int 
+
+
+jsonCopyExperimentTypesOutputDecoder : Json.Decode.Decoder JsonCopyExperimentTypesOutput
+jsonCopyExperimentTypesOutputDecoder =
+    Json.Decode.succeed JsonCopyExperimentTypesOutput
+        |> decode "to_beamtime_experiment_type_ids" (Json.Decode.list Json.Decode.int) 
 
 
 jsonCreateAttributiFromSchemaInputDecoder : Json.Decode.Decoder JsonCreateAttributiFromSchemaInput

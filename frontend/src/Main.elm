@@ -72,7 +72,7 @@ type Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
     | BeamtimeSelectionPageMsg BeamtimeSelection.Msg
     | DataSetsMsg DataSets.Msg
-    | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
+    | ExperimentTypesMsg ExperimentTypes.Msg
     | AnalysisOverviewPageMsg AnalysisOverview.Msg
     | AnalysisExperimentTypePageMsg AnalysisExperimentType.Msg
     | SingleDataSetPageMsg SingleDataSet.Msg
@@ -98,7 +98,7 @@ type Page
     | DataSetsPage DataSets.DataSetModel
     | SchedulePage Schedule.ScheduleModel
     | EventLogPage EventLog.Model
-    | ExperimentTypesPage ExperimentTypes.ExperimentTypeModel
+    | ExperimentTypesPage ExperimentTypes.Model
     | AnalysisOverviewPage AnalysisOverview.Model
     | AnalysisExperimentTypePage AnalysisExperimentType.Model
     | SingleDataSetPage SingleDataSet.Model
@@ -531,7 +531,7 @@ updateInner hereAndNow msg model =
         ( ExperimentTypesMsg subMsg, ExperimentTypesPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
-                    ExperimentTypes.updateExperimentType subMsg pageModel
+                    ExperimentTypes.update subMsg pageModel
             in
             ( { model | page = ExperimentTypesPage updatedPageModel }
             , Cmd.map ExperimentTypesMsg updatedCmd
@@ -818,7 +818,7 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.ExperimentTypes beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            ExperimentTypes.initExperimentType beamtimeId
+                            ExperimentTypes.init hereAndNow.zone beamtimeId
                     in
                     ( ExperimentTypesPage pageModel, Cmd.map ExperimentTypesMsg pageCmds )
 

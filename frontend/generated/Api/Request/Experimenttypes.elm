@@ -15,6 +15,7 @@
 
 module Api.Request.Experimenttypes exposing
     ( changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost
+    , copyExperimentTypesApiCopyExperimentTypesPost
     , createExperimentTypeApiExperimentTypesPost
     , deleteExperimentTypeApiExperimentTypesDelete
     , readExperimentTypesApiExperimentTypesBeamtimeIdGet
@@ -37,6 +38,18 @@ changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost jsonChangeRunEx
         []
         (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonChangeRunExperimentType jsonChangeRunExperimentType_body)))
         Api.Data.jsonChangeRunExperimentTypeOutputDecoder
+
+
+copyExperimentTypesApiCopyExperimentTypesPost : Api.Data.JsonCopyExperimentTypesInput -> Api.Request Api.Data.JsonCopyExperimentTypesOutput
+copyExperimentTypesApiCopyExperimentTypesPost jsonCopyExperimentTypesInput_body =
+    Api.request
+        "POST"
+        "/api/copy-experiment-types"
+        []
+        []
+        []
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonCopyExperimentTypesInput jsonCopyExperimentTypesInput_body)))
+        Api.Data.jsonCopyExperimentTypesOutputDecoder
 
 
 createExperimentTypeApiExperimentTypesPost : Api.Data.JsonCreateExperimentTypeInput -> Api.Request Api.Data.JsonCreateExperimentTypeOutput

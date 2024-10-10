@@ -3,23 +3,170 @@ module Amarcord.Pages.ExperimentTypes exposing (..)
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoType, attributoIsChemicalId, convertAttributoFromApi)
-import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewRemoteDataHttp)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (chemicalTypeFromApi, chemicalTypeToString)
-import Amarcord.Html exposing (br_, div_, form_, h1_, h5_, input_, li_, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.Html exposing (br_, div_, form_, h1_, h4_, h5_, input_, li_, onIntInput, tbody_, td_, th_, thead_, tr_, ul_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
-import Amarcord.Util exposing (forgetMsgInput)
-import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonCreateExperimentTypeOutput, JsonDeleteExperimentTypeOutput, JsonExperimentType, JsonExperimentTypeAndRuns, JsonReadExperimentTypes)
-import Api.Request.Experimenttypes exposing (createExperimentTypeApiExperimentTypesPost, deleteExperimentTypeApiExperimentTypesDelete, readExperimentTypesApiExperimentTypesBeamtimeIdGet)
-import Html exposing (Html, button, div, h4, input, label, table, td, text)
-import Html.Attributes exposing (checked, class, disabled, for, id, type_, value)
+import Amarcord.Util exposing (forgetMsgInput, monthToNumericString)
+import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonBeamtime, JsonCopyExperimentTypesOutput, JsonCreateExperimentTypeOutput, JsonDeleteExperimentTypeOutput, JsonExperimentType, JsonExperimentTypeAndRuns, JsonReadBeamtime, JsonReadExperimentTypes)
+import Api.Request.Beamtimes exposing (readBeamtimesApiBeamtimesGet)
+import Api.Request.Experimenttypes exposing (copyExperimentTypesApiCopyExperimentTypesPost, createExperimentTypeApiExperimentTypesPost, deleteExperimentTypeApiExperimentTypesDelete, readExperimentTypesApiExperimentTypesBeamtimeIdGet)
+import Html exposing (Html, button, div, h4, input, label, option, select, table, td, text)
+import Html.Attributes exposing (checked, class, disabled, for, id, selected, type_, value)
 import Html.Events exposing (onClick, onInput)
 import List.Extra as ListExtra
-import RemoteData exposing (RemoteData(..), fromResult)
+import Maybe.Extra exposing (isNothing)
+import RemoteData exposing (RemoteData(..), fromResult, isLoading)
 import Set exposing (Set)
 import String
+import Time exposing (Zone, millisToPosix, toMonth, toYear)
 
 
-type ExperimentTypeMsg
+type alias CopyFromOtherBeamtimeModel =
+    { beamtimeRequest : RemoteData HttpError JsonReadBeamtime
+    , copyRequest : RemoteData HttpError JsonCopyExperimentTypesOutput
+    , selectedBeamtime : Maybe BeamtimeId
+    , zone : Zone
+    , beamtimeId : BeamtimeId
+    }
+
+
+type CopyFromOtherBeamtimeMsg
+    = BeamtimesReceived (Result HttpError JsonReadBeamtime)
+    | SelectionChanged BeamtimeId
+    | CopyRequestReceived (Result HttpError JsonCopyExperimentTypesOutput)
+    | SubmitCopy
+    | CancelCopy
+
+
+copyFromOtherBeamtimeInit : Zone -> BeamtimeId -> ( CopyFromOtherBeamtimeModel, Cmd CopyFromOtherBeamtimeMsg )
+copyFromOtherBeamtimeInit zone beamtimeId =
+    ( { beamtimeRequest = Loading
+      , copyRequest = NotAsked
+      , selectedBeamtime = Nothing
+      , zone = zone
+      , beamtimeId = beamtimeId
+      }
+    , send BeamtimesReceived readBeamtimesApiBeamtimesGet
+    )
+
+
+copyFromOtherBeamtimeView : CopyFromOtherBeamtimeModel -> Html CopyFromOtherBeamtimeMsg
+copyFromOtherBeamtimeView { zone, beamtimeRequest, copyRequest, selectedBeamtime } =
+    let
+        viewBeamtime : JsonBeamtime -> Html CopyFromOtherBeamtimeMsg
+        viewBeamtime { id, title, start } =
+            let
+                startAsPosix =
+                    millisToPosix start
+            in
+            option
+                [ value (String.fromInt id)
+                , selected (selectedBeamtime == Just id)
+                ]
+                [ text <|
+                    title
+                        ++ " / "
+                        ++ String.fromInt
+                            (toYear zone startAsPosix)
+                        ++ "-"
+                        ++ monthToNumericString (toMonth zone startAsPosix)
+                ]
+    in
+    case beamtimeRequest of
+        NotAsked ->
+            text ""
+
+        Loading ->
+            text ""
+
+        Failure e ->
+            makeAlert [ AlertDanger ] <|
+                [ h4 [ class "alert-heading" ] [ text "Failed to retrieve beamtimes" ]
+                , showError e
+                ]
+
+        Success { beamtimes } ->
+            form_
+                [ h4_ [ icon { name = "terminal" }, text " Select beamtime to copy from" ]
+                , select
+                    [ id "beam-time-to-copy"
+                    , class "form-select mb-3"
+                    , onIntInput SelectionChanged
+                    ]
+                    (option
+                        [ disabled True
+                        , value ""
+                        , selected (isNothing selectedBeamtime)
+                        ]
+                        [ text "« choose a chemical »" ]
+                        :: List.map viewBeamtime beamtimes
+                    )
+                , div [ class "hstack gap-3 mb-3" ]
+                    [ button
+                        [ class "btn btn-primary"
+                        , onClick SubmitCopy
+                        , disabled (isNothing selectedBeamtime || isLoading copyRequest)
+                        , type_ "button"
+                        ]
+                        [ icon { name = "plus-lg" }, text " Copy into this beamtime" ]
+                    , button
+                        [ class "btn btn-secondary"
+                        , onClick CancelCopy
+                        , type_ "button"
+                        ]
+                        [ icon { name = "x-lg" }, text " Cancel" ]
+                    ]
+                , case copyRequest of
+                    Loading ->
+                        loadingBar "Copying..."
+
+                    NotAsked ->
+                        text ""
+
+                    Success _ ->
+                        div [ class "badge text-bg-success" ] [ text "Copy complete! Please refresh." ]
+
+                    Failure e ->
+                        makeAlert [ AlertDanger ] <|
+                            [ h4 [ class "alert-heading" ] [ text "Failed to copy!" ]
+                            , showError e
+                            ]
+                ]
+
+
+copyFromOtherBeamtimeUpdate : CopyFromOtherBeamtimeMsg -> CopyFromOtherBeamtimeModel -> ( CopyFromOtherBeamtimeModel, Cmd CopyFromOtherBeamtimeMsg )
+copyFromOtherBeamtimeUpdate msg model =
+    case msg of
+        BeamtimesReceived r ->
+            ( { model | beamtimeRequest = fromResult r }, Cmd.none )
+
+        SelectionChanged new ->
+            ( { model | selectedBeamtime = Just new }, Cmd.none )
+
+        CopyRequestReceived r ->
+            ( { model | copyRequest = fromResult r }, Cmd.none )
+
+        SubmitCopy ->
+            case model.selectedBeamtime of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just copySource ->
+                    ( { model | copyRequest = Loading }
+                    , send CopyRequestReceived
+                        (copyExperimentTypesApiCopyExperimentTypesPost
+                            { fromBeamtime = copySource
+                            , toBeamtime = model.beamtimeId
+                            }
+                        )
+                    )
+
+        CancelCopy ->
+            ( { model | copyRequest = NotAsked }, Cmd.none )
+
+
+type Msg
     = ExperimentTypeCreated (Result HttpError JsonCreateExperimentTypeOutput)
     | ExperimentTypeDeleted (Result HttpError JsonDeleteExperimentTypeOutput)
     | ExperimentTypesReceived (Result HttpError JsonReadExperimentTypes)
@@ -30,6 +177,8 @@ type ExperimentTypeMsg
     | AddOrRemoveAttributo AttributoId Bool
     | AddExperimentType
     | CancelAddExperimentType
+    | InitCopyFromOtherBeamtime
+    | CopyFromOtherBeamtimeMessage CopyFromOtherBeamtimeMsg
 
 
 type alias NewExperimentType =
@@ -40,29 +189,33 @@ type alias NewExperimentType =
     }
 
 
-type alias ExperimentTypeModel =
+type alias Model =
     { deleteRequest : RemoteData HttpError {}
     , experimentTypes : RemoteData HttpError JsonReadExperimentTypes
     , newExperimentType : Maybe NewExperimentType
     , beamtimeId : BeamtimeId
+    , zone : Zone
+    , copyFromOtherBeamtime : Maybe CopyFromOtherBeamtimeModel
     }
 
 
-initExperimentType : BeamtimeId -> ( ExperimentTypeModel, Cmd ExperimentTypeMsg )
-initExperimentType beamtimeId =
+init : Zone -> BeamtimeId -> ( Model, Cmd Msg )
+init zone beamtimeId =
     ( { deleteRequest = NotAsked
       , experimentTypes = Loading
       , newExperimentType = Nothing
       , beamtimeId = beamtimeId
+      , copyFromOtherBeamtime = Nothing
+      , zone = zone
       }
     , send ExperimentTypesReceived (readExperimentTypesApiExperimentTypesBeamtimeIdGet beamtimeId)
     )
 
 
 updateNewExperimentType :
-    ExperimentTypeModel
-    -> (NewExperimentType -> ( NewExperimentType, Cmd ExperimentTypeMsg ))
-    -> ( ExperimentTypeModel, Cmd ExperimentTypeMsg )
+    Model
+    -> (NewExperimentType -> ( NewExperimentType, Cmd Msg ))
+    -> ( Model, Cmd Msg )
 updateNewExperimentType model f =
     case model.newExperimentType of
         Nothing ->
@@ -76,9 +229,31 @@ updateNewExperimentType model f =
             ( { model | newExperimentType = Just result }, cmds )
 
 
-updateExperimentType : ExperimentTypeMsg -> ExperimentTypeModel -> ( ExperimentTypeModel, Cmd ExperimentTypeMsg )
-updateExperimentType msg model =
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
     case msg of
+        InitCopyFromOtherBeamtime ->
+            let
+                ( newModel, cmds ) =
+                    copyFromOtherBeamtimeInit model.zone model.beamtimeId
+            in
+            ( { model | copyFromOtherBeamtime = Just newModel }, Cmd.map CopyFromOtherBeamtimeMessage cmds )
+
+        CopyFromOtherBeamtimeMessage CancelCopy ->
+            ( { model | copyFromOtherBeamtime = Nothing }, Cmd.none )
+
+        CopyFromOtherBeamtimeMessage subMsg ->
+            case model.copyFromOtherBeamtime of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just copyFromOtherBeamtimeModel ->
+                    let
+                        ( newModel, cmds ) =
+                            copyFromOtherBeamtimeUpdate subMsg copyFromOtherBeamtimeModel
+                    in
+                    ( { model | copyFromOtherBeamtime = Just newModel }, Cmd.map CopyFromOtherBeamtimeMessage cmds )
+
         ExperimentTypeCreated result ->
             updateNewExperimentType model
                 (\newExperimentType ->
@@ -171,12 +346,12 @@ updateExperimentType msg model =
             ( { model | newExperimentType = Nothing }, Cmd.none )
 
 
-view : ExperimentTypeModel -> Html ExperimentTypeMsg
+view : Model -> Html Msg
 view model =
     div [ class "container" ] <| viewExperimentType model
 
 
-viewExperimentType : ExperimentTypeModel -> List (Html ExperimentTypeMsg)
+viewExperimentType : Model -> List (Html Msg)
 viewExperimentType model =
     let
         viewAttributoWithRole : List (Attributo AttributoType) -> JsonAttributiIdAndRole -> Html msg
@@ -192,7 +367,7 @@ viewExperimentType model =
                     else
                         li_ [ text name ]
 
-        viewRow : List (Attributo AttributoType) -> List JsonExperimentTypeAndRuns -> JsonExperimentType -> Html ExperimentTypeMsg
+        viewRow : List (Attributo AttributoType) -> List JsonExperimentTypeAndRuns -> JsonExperimentType -> Html Msg
         viewRow attributi etWithRuns et =
             let
                 runs =
@@ -216,7 +391,7 @@ viewExperimentType model =
                 , td_ [ button [ class "btn btn-danger btn-sm", onClick (ExperimentTypeDeleteSubmit et.id), disabled (not <| List.isEmpty runs) ] [ icon { name = "trash" } ] ]
                 ]
 
-        viewAttributoCheckbox : List AttributoId -> Attributo AttributoType -> Html ExperimentTypeMsg
+        viewAttributoCheckbox : List AttributoId -> Attributo AttributoType -> Html Msg
         viewAttributoCheckbox attributi a =
             div [ class "form-check" ]
                 [ input
@@ -233,7 +408,27 @@ viewExperimentType model =
         newExperimentTypeForm =
             case model.newExperimentType of
                 Nothing ->
-                    button [ onClick AddExperimentType, class "btn btn-primary mb-3", type_ "button" ] [ icon { name = "plus-lg" }, text " Add Experiment Type" ]
+                    case model.copyFromOtherBeamtime of
+                        Nothing ->
+                            div [ class "hstack gap-3 mb-3" ]
+                                [ button
+                                    [ onClick AddExperimentType
+                                    , class "btn btn-primary"
+                                    , type_ "button"
+                                    ]
+                                    [ icon { name = "plus-lg" }, text " Add Experiment Type" ]
+                                , div [ class "vr" ] []
+                                , button
+                                    [ class "btn btn-primary"
+                                    , onClick InitCopyFromOtherBeamtime
+                                    ]
+                                    [ icon { name = "terminal" }, text " Copy from prior beamtime" ]
+                                ]
+
+                        Just copyFromOtherBeamtimeModel ->
+                            Html.map
+                                CopyFromOtherBeamtimeMessage
+                                (copyFromOtherBeamtimeView copyFromOtherBeamtimeModel)
 
                 Just newExperimentType ->
                     form_
@@ -248,7 +443,7 @@ viewExperimentType model =
                                     attributiCheckboxes =
                                         List.map (viewAttributoCheckbox newExperimentType.attributi << convertAttributoFromApi) attributi
 
-                                    viewAttributoRoleRadio : Attributo AttributoType -> Html ExperimentTypeMsg
+                                    viewAttributoRoleRadio : Attributo AttributoType -> Html Msg
                                     viewAttributoRoleRadio a =
                                         if attributoIsChemicalId a.type_ && List.member a.id newExperimentType.attributi then
                                             tr_

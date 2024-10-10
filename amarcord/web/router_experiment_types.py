@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import delete
@@ -15,6 +16,8 @@ from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.json_models import JsonAttributiIdAndRole
 from amarcord.web.json_models import JsonChangeRunExperimentType
 from amarcord.web.json_models import JsonChangeRunExperimentTypeOutput
+from amarcord.web.json_models import JsonCopyExperimentTypesInput
+from amarcord.web.json_models import JsonCopyExperimentTypesOutput
 from amarcord.web.json_models import JsonCreateExperimentTypeInput
 from amarcord.web.json_models import JsonCreateExperimentTypeOutput
 from amarcord.web.json_models import JsonDeleteExperimentType
@@ -149,7 +152,7 @@ async def read_experiment_types(
             JsonExperimentTypeAndRuns(
                 id=et.id,
                 runs=format_run_id_intervals(r.external_id for r in et.runs),
-                number_of_runs=len(et.runs)
+                number_of_runs=len(et.runs),
             )
             for et in experiment_types
         ],
@@ -167,3 +170,52 @@ async def delete_experiment_type(
         await session.commit()
 
     return JsonDeleteExperimentTypeOutput(result=True)
+
+
+@router.post(
+    "/api/copy-experiment-types",
+    tags=["experimenttypes"],
+    response_model_exclude_defaults=True,
+)
+async def copy_experiment_types(
+    input_: JsonCopyExperimentTypesInput, session: AsyncSession = Depends(get_orm_db)
+) -> JsonCopyExperimentTypesOutput:
+    async with session.begin():
+        this_beamtime_attributi: dict[str, orm.Attributo] = {
+            a.name: a
+            for a in await session.scalars(
+                select(orm.Attributo).where(
+                    orm.Attributo.beamtime_id == BeamtimeId(input_.to_beamtime)
+                )
+            )
+        }
+
+        new_et_ids: list[int] = []
+        for et in await session.scalars(
+            select(orm.ExperimentType).where(
+                orm.ExperimentType.beamtime_id == input_.from_beamtime
+            )
+        ):
+            new_et = orm.ExperimentType(
+                beamtime_id=BeamtimeId(input_.to_beamtime), name=et.name
+            )
+            for a in et.attributi:
+                aname = (await a.awaitable_attrs.attributo).name
+                a_in_this_beamtime = this_beamtime_attributi.get(aname)
+                if a_in_this_beamtime is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"cannot copy experiment types: experiment type {et.name} has attributo that's not in this beamtime: {aname}",
+                    )
+                new_et.attributi.append(
+                    orm.ExperimentHasAttributo(
+                        attributo_id=a_in_this_beamtime.id,
+                        chemical_role=a.chemical_role,
+                    )
+                )
+            session.add(new_et)
+            await session.flush()
+            new_et_ids.append(new_et.id)
+
+        await session.commit()
+        return JsonCopyExperimentTypesOutput(to_beamtime_experiment_type_ids=new_et_ids)
