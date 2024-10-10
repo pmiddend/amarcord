@@ -66,6 +66,11 @@ type alias ScheduleModel =
     }
 
 
+pageTitle : ScheduleModel -> String
+pageTitle _ =
+    "Schedule"
+
+
 emptyJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRow
 emptyJsonBeamtimeScheduleRow =
     { users = "", date = "", shift = "", chemicals = [], comment = "", tdSupport = "" }

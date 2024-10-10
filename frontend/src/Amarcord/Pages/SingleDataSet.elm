@@ -1,4 +1,4 @@
-module Amarcord.Pages.SingleDataSet exposing (Model, Msg(..), init, subscriptions, update, view)
+module Amarcord.Pages.SingleDataSet exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId)
@@ -109,6 +109,16 @@ type alias Model =
     , currentProcessingParameters : Maybe ProcessingParametersInput
     , expandedIndexingParameterIds : Set Int
     }
+
+
+pageTitle : Model -> String
+pageTitle { dataSetId, analysisRequest } =
+    case analysisRequest of
+        Success { experimentType } ->
+            "Data Set ID " ++ String.fromInt dataSetId ++ " | " ++ experimentType.name
+
+        _ ->
+            "Data Set ID " ++ String.fromInt dataSetId
 
 
 init : Nav.Key -> HereAndNow -> BeamtimeId -> DataSetId -> ( Model, Cmd Msg )

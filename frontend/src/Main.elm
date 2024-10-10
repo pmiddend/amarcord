@@ -172,78 +172,73 @@ init localStorageStr url navKey =
     ( model, Cmd.batch [ Task.perform HereAndNowReceived retrieveHereAndNow, retrieveRouteBeamtime route ] )
 
 
+buildTitleForPage : Page -> String
+buildTitleForPage page =
+    case page of
+        RootPage ->
+            "Beamtime Selection"
+
+        AttributiPage model ->
+            Attributi.pageTitle model
+
+        ChemicalsPage model ->
+            Chemicals.pageTitle model
+
+        MergeResultPage model ->
+            MergeResult.pageTitle model
+
+        RunOverviewPage model ->
+            RunOverview.pageTitle model
+
+        RunsPage model ->
+            Runs.pageTitle model
+
+        AdvancedControlsPage model ->
+            AdvancedControls.pageTitle model
+
+        BeamtimeSelectionPage model ->
+            BeamtimeSelection.pageTitle model
+
+        DataSetsPage model ->
+            DataSets.pageTitle model
+
+        SchedulePage model ->
+            Schedule.pageTitle model
+
+        EventLogPage model ->
+            EventLog.pageTitle model
+
+        ExperimentTypesPage model ->
+            ExperimentTypes.pageTitle model
+
+        AnalysisOverviewPage model ->
+            AnalysisOverview.pageTitle model
+
+        AnalysisExperimentTypePage model ->
+            AnalysisExperimentType.pageTitle model
+
+        SingleDataSetPage model ->
+            SingleDataSet.pageTitle model
+
+        RunAnalysisPage model ->
+            RunAnalysis.pageTitle model
+
+
 buildTitle : Model -> String
 buildTitle model =
     case model.metadata.beamtimeRequest of
         Success { title } ->
             let
                 prefix =
-                    case model.route of
-                        Route.Chemicals _ ->
-                            "Chemicals — "
-
-                        Route.DataSets _ ->
-                            "Data Sets — "
-
-                        Route.Schedule _ ->
-                            "Schedule — "
-
-                        Route.EventLog _ ->
-                            "Events — "
-
-                        Route.ExperimentTypes _ ->
-                            "Experiment Types — "
-
-                        Route.MergeResult _ _ _ mrId ->
-                            "Merge Result " ++ String.fromInt mrId ++ " — "
-
-                        Route.Runs _ ->
-                            "Run Overview — "
-
-                        Route.RunOverview _ ->
-                            case model.page of
-                                RunOverviewPage runOverviewModel ->
-                                    case RunOverview.retrieveLatestRunExternalId runOverviewModel of
-                                        Just externalId ->
-                                            "Run " ++ String.fromInt externalId ++ " — "
-
-                                        _ ->
-                                            "Runs — "
-
-                                _ ->
-                                    "Runs — "
-
-                        Route.Attributi _ ->
-                            "Attributi — "
-
-                        Route.AdvancedControls _ ->
-                            "Advanced — "
-
-                        Route.AnalysisOverview _ ->
-                            "Analysis Overview — "
-
-                        Route.AnalysisExperimentType _ etId ->
-                            "Experiment Type " ++ String.fromInt etId ++ " — "
-
-                        Route.AnalysisDataSet _ dsId ->
-                            "Data Set " ++ String.fromInt dsId ++ " — "
-
-                        Route.RunAnalysis _ ->
-                            "Analysis by Run — "
-
-                        Route.Root _ ->
-                            ""
-
-                        Route.BeamtimeSelection ->
-                            "Beamtime Selection"
+                    buildTitleForPage model.page
 
                 suffix =
-                    " — AMARCORD"
+                    " | " ++ title ++ " | AMARCORD"
             in
-            prefix ++ title ++ suffix
+            prefix ++ suffix
 
         NotAsked ->
-            "AMARCORD — Beamtime Selection"
+            "AMARCORD | Beamtime Selection"
 
         _ ->
             "AMARCORD"

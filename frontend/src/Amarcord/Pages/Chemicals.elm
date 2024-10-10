@@ -1,4 +1,4 @@
-module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, init, update, view)
+module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.AssociatedTable as AssociatedTable
@@ -78,6 +78,11 @@ type alias Model =
     , typeFilter : Maybe ChemicalType
     , beamtimeId : BeamtimeId
     }
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Chemicals"
 
 
 type Msg

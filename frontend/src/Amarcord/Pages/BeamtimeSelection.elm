@@ -1,4 +1,4 @@
-module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg(..), init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (invalidBeamtimeId)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
@@ -24,6 +24,11 @@ type alias Model =
     , modifyRequest : RemoteData HttpError ()
     , zone : Zone
     }
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Beamtime Selection"
 
 
 type Msg

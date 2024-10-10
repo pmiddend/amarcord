@@ -199,6 +199,11 @@ type alias Model =
     }
 
 
+pageTitle : Model -> String
+pageTitle _ =
+    "Experiment Types"
+
+
 init : Zone -> BeamtimeId -> ( Model, Cmd Msg )
 init zone beamtimeId =
     ( { deleteRequest = NotAsked

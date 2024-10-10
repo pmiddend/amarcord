@@ -1,4 +1,4 @@
-module Amarcord.Pages.AnalysisExperimentType exposing (Model, Msg(..), init, subscriptions, update, view)
+module Amarcord.Pages.AnalysisExperimentType exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
 import Amarcord.API.Requests exposing (BeamtimeId)
@@ -51,6 +51,16 @@ type alias Model =
     , dataSetsSortingAscending : Bool
     , beamtimeId : BeamtimeId
     }
+
+
+pageTitle : Model -> String
+pageTitle { analysisRequest } =
+    case analysisRequest of
+        Success { experimentType } ->
+            experimentType.name
+
+        _ ->
+            "Loading experiment type..."
 
 
 init : Nav.Key -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> ( Model, Cmd Msg )

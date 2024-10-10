@@ -29,6 +29,11 @@ type alias Model =
     }
 
 
+pageTitle : Model -> String
+pageTitle _ =
+    "Event Log"
+
+
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
 init hereAndNow beamtimeId =
     ( { eventRequest = Loading

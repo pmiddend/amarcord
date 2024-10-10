@@ -1,4 +1,4 @@
-module Amarcord.Pages.MergeResult exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.MergeResult exposing (Model, Msg(..), init, pageTitle, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
@@ -35,6 +35,16 @@ type alias Model =
     , dataSetId : DataSetId
     , mergeResultId : MergeResultId
     }
+
+
+pageTitle : Model -> String
+pageTitle { mergeResultId, analysisRequest, dataSetId } =
+    case analysisRequest of
+        Success { experimentType } ->
+            "Merge Result ID " ++ String.fromInt mergeResultId ++ " | Data Set ID " ++ String.fromInt dataSetId ++ " | " ++ experimentType.name
+
+        _ ->
+            "Merge Result ID " ++ String.fromInt mergeResultId
 
 
 init : Nav.Key -> HereAndNow -> BeamtimeId -> ExperimentTypeId -> DataSetId -> MergeResultId -> ( Model, Cmd Msg )

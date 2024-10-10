@@ -67,6 +67,11 @@ type alias DataSetModel =
     }
 
 
+pageTitle : DataSetModel -> String
+pageTitle _ =
+    "Data Sets"
+
+
 readDataSetsWrapper : Int -> Cmd Msg
 readDataSetsWrapper beamtimeId =
     send DataSetsReceived (readDataSetsApiDataSetsBeamtimeIdGet beamtimeId)

@@ -1,4 +1,4 @@
-module Amarcord.Pages.AnalysisOverview exposing (Model, Msg(..), init, subscriptions, update, view)
+module Amarcord.Pages.AnalysisOverview exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, viewAlert)
@@ -34,6 +34,11 @@ type alias Model =
     , experimentTypesRequest : RemoteData HttpError JsonReadExperimentTypes
     , beamtimeId : BeamtimeId
     }
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Analysis by Experiment Type"
 
 
 init : Nav.Key -> HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )

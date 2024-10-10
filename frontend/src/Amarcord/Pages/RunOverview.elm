@@ -1,4 +1,4 @@
-module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, retrieveLatestRunExternalId, subscriptions, update, view)
+module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
 import Amarcord.API.Requests exposing (BeamtimeId, RunInternalId(..), runInternalIdToInt)
@@ -80,24 +80,29 @@ type alias Model =
     }
 
 
-retrieveLatestRunExternalId : Model -> Maybe Int
-retrieveLatestRunExternalId { loadedModel } =
-    case loadedModel of
-        Success { latestRun } ->
-            case latestRun of
-                Just { run } ->
-                    Just run.externalId
-
-                Nothing ->
-                    Nothing
-
-        _ ->
-            Nothing
-
-
 subscriptions : Model -> List (Sub Msg)
 subscriptions _ =
     [ Time.every 10000 Refresh ]
+
+
+pageTitle : Model -> String
+pageTitle { loadedModel } =
+    case loadedModel of
+        Success { latestRun } ->
+            case latestRun of
+                Nothing ->
+                    "⏲💤 Waiting for runs"
+
+                Just { run } ->
+                    case run.stopped of
+                        Nothing ->
+                            "🏃 Run " ++ String.fromInt run.externalId
+
+                        Just _ ->
+                            "🧍 Run " ++ String.fromInt run.externalId
+
+        _ ->
+            "⏲💤 Waiting for runs"
 
 
 init : HereAndNow -> Maybe LocalStorage -> BeamtimeId -> ( Model, Cmd Msg )

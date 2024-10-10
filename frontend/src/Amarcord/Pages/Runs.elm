@@ -1,4 +1,4 @@
-module Amarcord.Pages.Runs exposing (Model, Msg(..), init, subscriptions, update, view)
+module Amarcord.Pages.Runs exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (experimentTypeIdDict)
 import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunFilter, RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
@@ -41,6 +41,11 @@ type Msg
     | RunAttributiFormMsg RunAttributiForm.Msg
     | ResetDate
     | SetRunDateFilter RunEventDate
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Run Table"
 
 
 type alias RunFilterInfo =

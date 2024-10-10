@@ -1,4 +1,4 @@
-module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, subscriptions, update, view)
+module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentType)
 import Amarcord.API.Requests
@@ -42,6 +42,11 @@ type alias Model =
     , onlineIndexingParameters : RemoteData HttpError IndexingParameters.Model
     , updateOnlineIndexingParameters : RemoteData HttpError JsonUpdateOnlineIndexingParametersOutput
     }
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Advanced Controls"
 
 
 type Msg

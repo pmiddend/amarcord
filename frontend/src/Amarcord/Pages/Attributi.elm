@@ -1,4 +1,4 @@
-module Amarcord.Pages.Attributi exposing (Model, Msg, init, update, view)
+module Amarcord.Pages.Attributi exposing (Model, Msg, init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId, ConversionFlags)
 import Amarcord.AssociatedTable exposing (AssociatedTable(..), associatedTableToApi, associatedTableToString)
@@ -347,6 +347,11 @@ type alias Model =
     , toleranceChecker : ToleranceChecker
     , beamtimeId : BeamtimeId
     }
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Attributi"
 
 
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )

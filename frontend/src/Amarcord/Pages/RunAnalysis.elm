@@ -1,4 +1,4 @@
-module Amarcord.Pages.RunAnalysis exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.RunAnalysis exposing (Model, Msg(..), init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, convertAttributoFromApi, convertAttributoMapFromApi)
@@ -50,6 +50,11 @@ type alias Model =
     , geometryDetailsRequest : RemoteData HttpError JsonReadBeamtimeGeometryDetails
     , beamtimeId : BeamtimeId
     }
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Run Analysis"
 
 
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
