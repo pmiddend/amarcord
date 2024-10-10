@@ -37,15 +37,32 @@ import Html.Attributes exposing (..)
 import RemoteData exposing (RemoteData(..))
 import String exposing (contains, endsWith)
 import Task
-import Time exposing (Posix)
 import Url as URL exposing (Url)
 
 
 pageSubscriptions : Model -> List (Sub Msg)
 pageSubscriptions rootModel =
     case rootModel.page of
-        RunsPage runOverviewModel ->
-            List.map (Sub.map RunsPageMsg) (Runs.subscriptions runOverviewModel)
+        RunsPage model ->
+            List.map (Sub.map RunsPageMsg) (Runs.subscriptions model)
+
+        AdvancedControlsPage model ->
+            List.map (Sub.map AdvancedControlsPageMsg) (AdvancedControls.subscriptions model)
+
+        RunOverviewPage model ->
+            List.map (Sub.map RunOverviewPageMsg) (RunOverview.subscriptions model)
+
+        SingleDataSetPage model ->
+            List.map (Sub.map SingleDataSetPageMsg) (SingleDataSet.subscriptions model)
+
+        AnalysisOverviewPage model ->
+            List.map (Sub.map AnalysisOverviewPageMsg) (AnalysisOverview.subscriptions model)
+
+        AnalysisExperimentTypePage model ->
+            List.map (Sub.map AnalysisExperimentTypePageMsg) (AnalysisExperimentType.subscriptions model)
+
+        EventLogPage model ->
+            List.map (Sub.map EventLogPageMsg) (EventLog.subscriptions model)
 
         _ ->
             []
@@ -57,7 +74,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \model -> Sub.batch (Time.every 10000 RefreshMsg :: pageSubscriptions model)
+        , subscriptions = Sub.batch << pageSubscriptions
         , onUrlRequest = LinkClicked
         , onUrlChange = UrlChanged
         }
@@ -78,10 +95,9 @@ type Msg
     | SingleDataSetPageMsg SingleDataSet.Msg
     | RunAnalysisPageMsg RunAnalysis.Msg
     | ScheduleMsg Schedule.ScheduleMsg
-    | EventLogMsg EventLog.Msg
+    | EventLogPageMsg EventLog.Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
-    | RefreshMsg Posix
     | HereAndNowReceived HereAndNow
     | BeamtimeReceived (Result HttpError JsonBeamtime)
 
@@ -311,7 +327,7 @@ currentView model =
         EventLogPage sm ->
             div []
                 [ EventLog.view sm
-                    |> Html.map EventLogMsg
+                    |> Html.map EventLogPageMsg
                 ]
 
         ChemicalsPage pageModel ->
@@ -483,13 +499,13 @@ updateInner hereAndNow msg model =
             , Cmd.map ScheduleMsg updatedCmd
             )
 
-        ( EventLogMsg eventLogMsg, EventLogPage pageModel ) ->
+        ( EventLogPageMsg eventLogMsg, EventLogPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
                     EventLog.update eventLogMsg pageModel
             in
             ( { model | page = EventLogPage updatedPageModel }
-            , Cmd.map EventLogMsg updatedCmd
+            , Cmd.map EventLogPageMsg updatedCmd
             )
 
         ( RunsPageMsg subMsg, RunsPage pageModel ) ->
@@ -571,69 +587,6 @@ updateInner hereAndNow msg model =
             in
             ( { model | page = RunAnalysisPage updatedPageModel }
             , Cmd.map RunAnalysisPageMsg updatedCmd
-            )
-
-        ( RefreshMsg t, AnalysisOverviewPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    AnalysisOverview.update (AnalysisOverview.Refresh t) pageModel
-            in
-            ( { model | page = AnalysisOverviewPage updatedPageModel }
-            , Cmd.map AnalysisOverviewPageMsg updatedCmd
-            )
-
-        ( RefreshMsg t, AnalysisExperimentTypePage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    AnalysisExperimentType.update (AnalysisExperimentType.Refresh t) pageModel
-            in
-            ( { model | page = AnalysisExperimentTypePage updatedPageModel }
-            , Cmd.map AnalysisExperimentTypePageMsg updatedCmd
-            )
-
-        ( RefreshMsg t, SingleDataSetPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    SingleDataSet.update (SingleDataSet.Refresh t) pageModel
-            in
-            ( { model | page = SingleDataSetPage updatedPageModel }
-            , Cmd.map SingleDataSetPageMsg updatedCmd
-            )
-
-        ( RefreshMsg t, EventLogPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    EventLog.update (EventLog.Refresh t) pageModel
-            in
-            ( { model | page = EventLogPage updatedPageModel }
-            , Cmd.map EventLogMsg updatedCmd
-            )
-
-        ( RefreshMsg t, RunOverviewPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    RunOverview.update (RunOverview.Refresh t) pageModel
-            in
-            ( { model | page = RunOverviewPage updatedPageModel }
-            , Cmd.map RunOverviewPageMsg updatedCmd
-            )
-
-        ( RefreshMsg t, RunsPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    Runs.update (Runs.Refresh t) pageModel
-            in
-            ( { model | page = RunsPage updatedPageModel }
-            , Cmd.map RunsPageMsg updatedCmd
-            )
-
-        ( RefreshMsg t, AdvancedControlsPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    AdvancedControls.update (AdvancedControls.Refresh t) pageModel
-            in
-            ( { model | page = AdvancedControlsPage updatedPageModel }
-            , Cmd.map AdvancedControlsPageMsg updatedCmd
             )
 
         ( LinkClicked urlRequest, _ ) ->
@@ -813,7 +766,7 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                         ( pageModel, pageCmds ) =
                             EventLog.init hereAndNow beamtimeId
                     in
-                    ( EventLogPage pageModel, Cmd.map EventLogMsg pageCmds )
+                    ( EventLogPage pageModel, Cmd.map EventLogPageMsg pageCmds )
 
                 Route.ExperimentTypes beamtimeId ->
                     let

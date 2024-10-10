@@ -150,7 +150,7 @@ init { zone, now } localStorage beamtimeId =
 
 subscriptions : Model -> List (Sub Msg)
 subscriptions model =
-    [ ColumnChooser.subscriptions model.columnChooser ColumnChooserMessage ]
+    [ ColumnChooser.subscriptions model.columnChooser ColumnChooserMessage, Time.every 10000 Refresh ]
 
 
 attributiColumnHeaders : List (Attributo AttributoType) -> List (Html msg)

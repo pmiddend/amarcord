@@ -1,4 +1,4 @@
-module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, retrieveLatestRunExternalId, update, view)
+module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, retrieveLatestRunExternalId, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
 import Amarcord.API.Requests exposing (BeamtimeId, RunInternalId(..), runInternalIdToInt)
@@ -93,6 +93,11 @@ retrieveLatestRunExternalId { loadedModel } =
 
         _ ->
             Nothing
+
+
+subscriptions : Model -> List (Sub Msg)
+subscriptions _ =
+    [ Time.every 10000 Refresh ]
 
 
 init : HereAndNow -> Maybe LocalStorage -> BeamtimeId -> ( Model, Cmd Msg )
@@ -496,7 +501,8 @@ view model =
                     makeAlert [ AlertDanger ] <|
                         [ h4 [ class "alert-heading" ] [ text "Failed to retrieve run overview" ], showError e ]
 
-            Success lm -> viewInner model lm
+            Success lm ->
+                viewInner model lm
 
 
 withRunsResponse : Model -> (JsonReadRunsOverview -> ( Model, Cmd Msg )) -> ( Model, Cmd Msg )

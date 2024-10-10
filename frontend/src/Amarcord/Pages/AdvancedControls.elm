@@ -1,4 +1,4 @@
-module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.AdvancedControls exposing (Model, Msg(..), init, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentType)
 import Amarcord.API.Requests
@@ -59,6 +59,11 @@ type Msg
     | IndexingParametersMsg IndexingParameters.Msg
     | StartUpdateOnlineIndexingParameters
     | UpdateOnlineIndexingParametersDone (Result HttpError JsonUpdateOnlineIndexingParametersOutput)
+
+
+subscriptions : Model -> List (Sub Msg)
+subscriptions _ =
+    [ Time.every 10000 Refresh ]
 
 
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )

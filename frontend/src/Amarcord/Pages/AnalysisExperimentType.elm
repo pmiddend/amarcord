@@ -1,4 +1,4 @@
-module Amarcord.Pages.AnalysisExperimentType exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.AnalysisExperimentType exposing (Model, Msg(..), init, subscriptions, update, view)
 
 import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
 import Amarcord.API.Requests exposing (BeamtimeId)
@@ -22,6 +22,11 @@ import RemoteData exposing (RemoteData(..), fromResult)
 import Set exposing (Set)
 import String
 import Time exposing (Posix)
+
+
+subscriptions : Model -> List (Sub Msg)
+subscriptions _ =
+    [ Time.every 10000 Refresh ]
 
 
 type Msg

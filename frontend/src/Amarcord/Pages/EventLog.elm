@@ -12,6 +12,11 @@ import RemoteData exposing (RemoteData(..), fromResult)
 import Time exposing (Posix, Zone, millisToPosix)
 
 
+subscriptions : Model -> List (Sub Msg)
+subscriptions _ =
+    [ Time.every 10000 Refresh ]
+
+
 type Msg
     = EventsUpdated (Result HttpError JsonReadEvents)
     | Refresh Posix

@@ -1,4 +1,4 @@
-module Amarcord.Pages.SingleDataSet exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.SingleDataSet exposing (Model, Msg(..), init, subscriptions, update, view)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId)
@@ -31,6 +31,11 @@ import Set exposing (Set)
 import String
 import Task
 import Time exposing (Posix, millisToPosix, posixToMillis)
+
+
+subscriptions : Model -> List (Sub Msg)
+subscriptions _ =
+    [ Time.every 10000 Refresh ]
 
 
 type alias IndexingParametersId =
@@ -726,18 +731,20 @@ viewMergeResults model experimentType dataSet indexingParameters mergeResults =
     div_ <|
         [ case model.activatedMergeForm of
             Just { mergeParameters } ->
-              if Just mergeParameters.indexingParametersId == indexingParameters.id
-              then
-                div_
-                    [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
-                    , div [ class "mb-3 hstack gap-3" ]
-                        [ button [ type_ "button", class "btn btn-primary", onClick (SubmitMerge mergeParameters.dataSetId mergeParameters) ]
-                            [ icon { name = "send" }, text " Start Merge" ]
-                        , button [ type_ "button", class "btn btn-secondary", onClick CloseMergeForm ]
-                            [ icon { name = "x-lg" }, text " Cancel" ]
+                if Just mergeParameters.indexingParametersId == indexingParameters.id then
+                    div_
+                        [ Html.map CrystFELMergeMessage (CrystFELMerge.view mergeParameters)
+                        , div [ class "mb-3 hstack gap-3" ]
+                            [ button [ type_ "button", class "btn btn-primary", onClick (SubmitMerge mergeParameters.dataSetId mergeParameters) ]
+                                [ icon { name = "send" }, text " Start Merge" ]
+                            , button [ type_ "button", class "btn btn-secondary", onClick CloseMergeForm ]
+                                [ icon { name = "x-lg" }, text " Cancel" ]
+                            ]
                         ]
-                    ]
-              else text ""
+
+                else
+                    text ""
+
             Nothing ->
                 text ""
         , Maybe.withDefault (text "") <| Maybe.map (mergeActions dataSet model.mergeRequest) indexingParameters.id
