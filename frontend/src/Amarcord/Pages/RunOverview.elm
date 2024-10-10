@@ -82,7 +82,7 @@ type alias Model =
 
 subscriptions : Model -> List (Sub Msg)
 subscriptions _ =
-    [ Time.every 10000 Refresh ]
+    [ Time.every 5000 Refresh ]
 
 
 pageTitle : Model -> String
