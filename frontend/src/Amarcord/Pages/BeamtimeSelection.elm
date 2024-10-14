@@ -15,14 +15,14 @@ import Html.Events exposing (onClick, onInput)
 import List exposing (sort)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Result.Extra as ResultExtra
-import Time exposing (Zone, millisToPosix, posixToMillis, utc)
+import Time exposing (Zone, millisToPosix, posixToMillis)
 
 
 type alias Model =
     { beamtimeResult : RemoteData HttpError (List JsonBeamtime)
     , beamtimeEdit : Maybe JsonBeamtime
     , modifyRequest : RemoteData HttpError ()
-    , zone : Zone
+    , hereAndNow : HereAndNow
     }
 
 
@@ -47,18 +47,18 @@ init hereAndNow =
     ( { beamtimeResult = Loading
       , beamtimeEdit = Nothing
       , modifyRequest = NotAsked
-      , zone = hereAndNow.zone
+      , hereAndNow = hereAndNow
       }
     , send BeamtimesReceived readBeamtimesApiBeamtimesGet
     )
 
 
-emptyBeamtime : JsonBeamtime
-emptyBeamtime =
+emptyBeamtime : HereAndNow -> JsonBeamtime
+emptyBeamtime hereAndNow =
     { beamline = ""
     , comment = ""
-    , start = 0
-    , end = 0
+    , start = posixToMillis hereAndNow.now
+    , end = posixToMillis hereAndNow.now
     , externalId = ""
     , id = invalidBeamtimeId
     , proposal = ""
@@ -85,7 +85,7 @@ update msg model =
             ( { model | beamtimeResult = fromResult (Result.map .beamtimes response) }, Cmd.none )
 
         AddBeamtime ->
-            ( { model | beamtimeEdit = Just emptyBeamtime }, Cmd.none )
+            ( { model | beamtimeEdit = Just (emptyBeamtime model.hereAndNow) }, Cmd.none )
 
         EditBeamtimeStart bt ->
             ( { model | beamtimeEdit = Just bt }, scrollToTop (always Nop) )
@@ -194,8 +194,8 @@ viewBeamtimes zone beamtimes =
         ]
 
 
-viewEditForm : JsonBeamtime -> Html Msg
-viewEditForm bt =
+viewEditForm : Zone -> JsonBeamtime -> Html Msg
+viewEditForm zone bt =
     let
         addOrEditHeadline =
             h4_
@@ -236,7 +236,9 @@ viewEditForm bt =
                 [ id "beamtime-edit-start"
                 , type_ "datetime-local"
                 , class "form-control"
-                , value (formatPosixDateTimeCompatible utc (millisToPosix bt.start))
+
+                -- note here and below: local time zone!
+                , value (formatPosixDateTimeCompatible zone (millisToPosix bt.start))
                 , onInput
                     (\newValue ->
                         ChangeEditBeamtime
@@ -244,7 +246,7 @@ viewEditForm bt =
                                 ResultExtra.unwrap
                                     bt2
                                     (\newParsed -> { bt2 | start = posixToMillis newParsed })
-                                    (localDateTimeStringToPosix utc newValue)
+                                    (localDateTimeStringToPosix zone newValue)
                             )
                     )
                 ]
@@ -256,7 +258,9 @@ viewEditForm bt =
                 [ id "beamtime-edit-end"
                 , type_ "datetime-local"
                 , class "form-control"
-                , value (formatPosixDateTimeCompatible utc (millisToPosix bt.end))
+
+                -- note here and below: local time zone!
+                , value (formatPosixDateTimeCompatible zone (millisToPosix bt.end))
                 , onInput
                     (\newValue ->
                         ChangeEditBeamtime
@@ -264,7 +268,7 @@ viewEditForm bt =
                                 ResultExtra.unwrap
                                     bt2
                                     (\newParsed -> { bt2 | end = posixToMillis newParsed })
-                                    (localDateTimeStringToPosix utc newValue)
+                                    (localDateTimeStringToPosix zone newValue)
                             )
                     )
                 ]
@@ -318,7 +322,7 @@ view model =
 
             Just beamtime ->
                 div_
-                    [ viewEditForm beamtime
+                    [ viewEditForm model.hereAndNow.zone beamtime
                     ]
         , case model.modifyRequest of
             NotAsked ->
@@ -336,7 +340,7 @@ view model =
                     ]
         , case model.beamtimeResult of
             Success beamtimes ->
-                viewBeamtimes model.zone beamtimes
+                viewBeamtimes model.hereAndNow.zone beamtimes
 
             Failure e ->
                 div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
