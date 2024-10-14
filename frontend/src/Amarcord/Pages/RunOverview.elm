@@ -241,7 +241,7 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                                 ]
                             ]
                     in
-                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
+                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map (viewHitRateAndIndexingGraphs zone))
                     , div [ class "mb-3" ] indexingProgress
                     , h3_ [ text "Data Set", viewHelpButton "help-data-set" ]
                     , div [ id "help-data-set", class "collapse text-bg-light p-2" ]

@@ -28,6 +28,7 @@ import Segment
 import Shape
 import Statistics
 import SubPath
+import Time exposing (Zone)
 import Tuple
 import TypedSvg exposing (g, line, svg, text_)
 import TypedSvg.Attributes exposing (dominantBaseline, fill, stroke, strokeDasharray, textAnchor, transform, viewBox)
@@ -238,9 +239,9 @@ viewDetectorShifts r =
         ]
 
 
-viewRunStatistics : List JsonIndexingStatistic -> Html msg
-viewRunStatistics originalStats =
-    viewHitRateAndIndexingGraphs originalStats
+viewRunStatistics : Zone -> List JsonIndexingStatistic -> Html msg
+viewRunStatistics zone originalStats =
+    viewHitRateAndIndexingGraphs zone originalStats
 
 
 viewRunFiles : List JsonRunFile -> Html msg
@@ -288,7 +289,7 @@ viewRunTableRow hereAndNow attributi chemicals run rar =
             , viewRun run
             ]
         , td []
-            [ viewRunStatistics rar.indexingStatistics
+            [ viewRunStatistics hereAndNow.zone rar.indexingStatistics
             ]
         ]
 
