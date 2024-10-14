@@ -168,8 +168,10 @@ _INDEXING_RE: Final = re.compile(
     r"(\d+) images processed, (\d+) hits \([^)]+\), (\d+) indexable \([^)]+\), (\d+) crystals.*"
 )
 
-# The FPS killer monitors the indexing frame rate and kills jobs if they're too slow. This is purely a debugging thing though, so a constant is fitting.
-_FPS_KILLER: Final = False
+# The FPS killer monitors the indexing frame rate and kills jobs if
+# they're too slow. Set to zero to disable (statically, of course).
+_FPS_KILLER_ONLINE_SECONDS = 5 * 60
+_FPS_KILLER_OFFLINE: Final = False
 
 
 @contextmanager
@@ -1082,9 +1084,9 @@ def run_align_detector(
             )
             try:
                 align_detector_environ = os.environ.copy()
-                align_detector_environ[
-                    "PATH"
-                ] = f"{args.crystfel_path}/bin:{align_detector_environ['PATH']}"
+                align_detector_environ["PATH"] = (
+                    f"{args.crystfel_path}/bin:{align_detector_environ['PATH']}"
+                )
                 completed_process = subprocess.run(
                     align_detector_args,
                     check=False,
@@ -1265,9 +1267,9 @@ def run_online(args: OnlineArgs) -> None:
     logger.info(f"indexamajig command line: {shlex.join(cmd_line)}")
     early_exit = False
     indexamajig_environ = os.environ.copy()
-    indexamajig_environ[
-        "PATH"
-    ] = f"{args.crystfel_path}/bin:{indexamajig_environ['PATH']}"
+    indexamajig_environ["PATH"] = (
+        f"{args.crystfel_path}/bin:{indexamajig_environ['PATH']}"
+    )
     with subprocess.Popen(
         cmd_line,
         stdout=subprocess.PIPE,
@@ -1316,7 +1318,11 @@ def run_online(args: OnlineArgs) -> None:
                     # if the FPS is too low and we have the "fps
                     # killer" on, and the run has been going on for a
                     # while then we might as well kill it
-                    if fps < 2 and _FPS_KILLER and this_time - start_time > 5 * 60:
+                    if (
+                        fps < 2
+                        and _FPS_KILLER_ONLINE_SECONDS != 0  # type: ignore
+                        and this_time - start_time > _FPS_KILLER_ONLINE_SECONDS
+                    ):
                         logger.warning(
                             f"fps too low and fps killer is on: {fps}, killing process"
                         )
@@ -1466,9 +1472,9 @@ def run_secondary(args: SecondaryArgs) -> None:
         raise
     early_exit = False
     indexamajig_environ = os.environ.copy()
-    indexamajig_environ[
-        "PATH"
-    ] = f"{args.crystfel_path}/bin:{indexamajig_environ['PATH']}"
+    indexamajig_environ["PATH"] = (
+        f"{args.crystfel_path}/bin:{indexamajig_environ['PATH']}"
+    )
     with subprocess.Popen(
         cmd_line,
         stdout=subprocess.PIPE,
@@ -1501,7 +1507,7 @@ def run_secondary(args: SecondaryArgs) -> None:
                     image_diff = new_images - images
                     fps = image_diff / (this_time - previous_time)
 
-                    if fps < 2 and _FPS_KILLER:
+                    if fps < 2 and _FPS_KILLER_OFFLINE:
                         logger.warning(
                             f"fps too low and fps killer is on: {fps}, killing process"
                         )
