@@ -1319,7 +1319,7 @@ def run_online(args: OnlineArgs) -> None:
                     # killer" on, and the run has been going on for a
                     # while then we might as well kill it
                     if (
-                        fps < 2
+                        fps < 0.5
                         and _FPS_KILLER_ONLINE_SECONDS != 0  # type: ignore
                         and this_time - start_time > _FPS_KILLER_ONLINE_SECONDS
                     ):
@@ -1336,6 +1336,7 @@ def run_online(args: OnlineArgs) -> None:
             except:
                 logger.warning(f"indexing log line, but invalid format: {line}")
                 continue
+            previous_time = this_time
             logger.info(f"{images} image(s)")
 
             write_status_still_running(
