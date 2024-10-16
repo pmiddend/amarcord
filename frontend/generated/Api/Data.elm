@@ -1613,6 +1613,9 @@ type alias JsonRunAnalysisIndexingResult =
     { runId : Int
     , foms : JsonIndexingFom
     , indexingStatistics : List JsonIndexingStatistic
+    , running : Bool
+    , frames : Maybe Int
+    , totalFrames : Maybe Int
     }
 
 
@@ -4793,6 +4796,9 @@ encodeJsonRunAnalysisIndexingResultPairs model =
             [ encode "run_id" Json.Encode.int model.runId
             , encode "foms" encodeJsonIndexingFom model.foms
             , encode "indexing_statistics" (Json.Encode.list encodeJsonIndexingStatistic) model.indexingStatistics
+            , encode "running" Json.Encode.bool model.running
+            , maybeEncode "frames" Json.Encode.int model.frames
+            , maybeEncode "total_frames" Json.Encode.int model.totalFrames
             ]
     in
     pairs
@@ -6584,6 +6590,9 @@ jsonRunAnalysisIndexingResultDecoder =
         |> decode "run_id" Json.Decode.int 
         |> decode "foms" jsonIndexingFomDecoder 
         |> decode "indexing_statistics" (Json.Decode.list jsonIndexingStatisticDecoder) 
+        |> decode "running" Json.Decode.bool 
+        |> maybeDecode "frames" Json.Decode.int Nothing
+        |> maybeDecode "total_frames" Json.Decode.int Nothing
 
 
 jsonRunFileDecoder : Json.Decode.Decoder JsonRunFile

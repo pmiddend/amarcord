@@ -1033,7 +1033,7 @@ def determine_beamtime_json(args: OnlineArgs, p: Path) -> tuple[Path, dict[str, 
 
 def run_align_detector(
     args: PrimaryArgs | OnlineArgs,
-    millepede_files_dir: Path,
+    mille_files_dir: Path,
     geometry_file_destination: Path,
 ) -> None | tuple[float, float]:
     with TemporaryDirectory() as tempdir:
@@ -1046,24 +1046,30 @@ def run_align_detector(
                 return None
             mille_bin_files: list[Path] = []
 
-            if not millepede_files_dir.is_dir():
+            if not mille_files_dir.is_dir():
                 logger.info(
-                    f"directory {millepede_files_dir} does not exist - so we don't have any millepede output? listing files in cwd:"
+                    f"directory {mille_files_dir} does not exist - so we don't have any millepede output? listing files in cwd:"
                 )
                 for f in Path(".").iterdir():
                     logger.info(f"file {f}")
                 logger.info("listing done")
                 return None
 
-            logger.info(f"iterating over directories in files in {millepede_files_dir}")
+            logger.info(f"iterating over directories in files in {mille_files_dir}")
 
-            MILLE_BIN_GLOB = "mille-data-*.bin"
-            for mille_bin_dir in millepede_files_dir.iterdir():
+            MILLE_BIN_GLOB = "mille-data*.bin"
+            for mille_bin_dir in mille_files_dir.iterdir():
                 mille_bin_files.extend(mille_bin_dir.glob(MILLE_BIN_GLOB))
+            if not mille_bin_files:
+                logger.info(
+                    f"haven't found any files in directories below {mille_files_dir}; this might be just fine, I'll search for .bin files in the base directory"
+                )
+            mille_bin_files.extend(mille_files_dir.glob(MILLE_BIN_GLOB))
 
             if not mille_bin_files:
                 logger.info(f"found no files matching {MILLE_BIN_GLOB}")
                 return None
+            logger.info(f"found some files matching {MILLE_BIN_GLOB}")
 
             # Outputting all args, including the .bin files, is way too much log spam.
             align_detector_args_prefix: list[str] = [
@@ -1373,7 +1379,7 @@ def run_online(args: OnlineArgs) -> None:
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
         detector_shifts = run_align_detector(
             args,
-            millepede_files_dir=Path(
+            mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files"
             ).resolve(),
             geometry_file_destination=Path(geometry_file_destination),
@@ -1926,7 +1932,7 @@ def run_primary(args: PrimaryArgs) -> None:
         geometry_file_destination = str(args.stream_file.with_suffix(".geom").resolve())
         detector_shifts = run_align_detector(
             args,
-            millepede_files_dir=Path(
+            mille_files_dir=Path(
                 f"{args.amarcord_indexing_result_id}-millepede-files"
             ).resolve(),
             geometry_file_destination=Path(geometry_file_destination),
@@ -2037,7 +2043,8 @@ def parse_online_args() -> OnlineArgs:
             else None
         ),
         cell_description=os.environ.get(OFF_INDEX_ENVIRON_CELL_DESCRIPTION),
-        use_auto_geom_refinement="--mille" in OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS,
+        use_auto_geom_refinement="--mille"
+        in os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS],
         amarcord_indexing_result_id=amarcord_indexing_result_id,
         crystfel_path=Path(os.environ[OFF_INDEX_ENVIRON_CRYSTFEL_PATH]),
         indexamajig_params=shlex.split(

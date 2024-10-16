@@ -8,7 +8,7 @@ import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAle
 import Amarcord.Chemical exposing (chemicalIdDict, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm
-import Amarcord.Html exposing (form_, h1_, h3_, h4_, h5_, hr_, img_, input_, li_, p_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (form_, h1_, h3_, h4_, h5_, hr_, img_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
@@ -335,7 +335,7 @@ viewCurrentRun :
     -> JsonReadRunsOverview
     -> JsonRun
     -> List (Html Msg)
-viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest ({ userConfig, experimentTypes } as rrc) ({ externalId, started, stopped } as run) =
+viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest ({ userConfig, experimentTypes, latestIndexingResult } as rrc) ({ externalId, started, stopped } as run) =
     let
         autoPilot =
             [ div [ class "form-check form-switch mb-3" ]
@@ -353,6 +353,23 @@ viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType 
                 ]
             ]
 
+        processingBar { frames, totalFrames, running } =
+            Maybe.withDefault (text "") <|
+                Maybe.map2
+                    (\framesReal totalFramesReal ->
+                        div [ class "d-flex align-items-center mb-3" ]
+                            [ div [ class "me-1" ] [ span_ [ text "Frames processed:" ] ]
+                            , if running then
+                                div [ class "spinner-border spinner-border-sm me-1" ] []
+
+                              else
+                                text ""
+                            , text (formatIntHumanFriendly framesReal ++ "/" ++ formatIntHumanFriendly totalFramesReal)
+                            ]
+                    )
+                    frames
+                    totalFrames
+
         header =
             case stopped of
                 Nothing ->
@@ -361,12 +378,24 @@ viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType 
                         , text <| " Run " ++ String.fromInt externalId
                         ]
                     , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now (millisToPosix started) ]
+                    , case latestIndexingResult of
+                        Nothing ->
+                            text ""
+
+                        Just ir ->
+                            processingBar ir
                     ]
 
                 Just realStoppedTime ->
                     [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ String.fromInt externalId ]
                     , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendlyLongDurationsExact zone (millisToPosix realStoppedTime) now ]
                     , p_ [ text <| "Duration " ++ posixDiffHumanFriendly (millisToPosix started) (millisToPosix realStoppedTime) ]
+                    , case latestIndexingResult of
+                        Nothing ->
+                            text ""
+
+                        Just ir ->
+                            processingBar ir
                     ]
 
         viewExperimentTypeOption : JsonExperimentType -> Html msg

@@ -12,6 +12,7 @@ from amarcord.db.attributi import schema_dict_to_attributo_type
 from amarcord.db.attributo_id import AttributoId
 from amarcord.db.attributo_type import AttributoType
 from amarcord.db.beamtime_id import BeamtimeId
+from amarcord.db.db_job_status import DBJobStatus
 from amarcord.db.indexing_result import DBIndexingFOM
 from amarcord.db.indexing_result import empty_indexing_fom
 from amarcord.db.run_internal_id import RunInternalId
@@ -153,6 +154,13 @@ async def read_run_analysis(
                 run_id=run.external_id if run is not None else 0,
                 # foms = figures of merit
                 foms=encode_indexing_fom_to_json(extract_summary(indexing_result)),
+                # The only reason we're not setting this here is
+                # because it's not needed for the run overview and
+                # we're a bit lazy
+                frames=None,
+                total_frames=None,
+                running=indexing_result.job_status
+                in (DBJobStatus.RUNNING, DBJobStatus.QUEUED),
                 indexing_statistics=[
                     JsonIndexingStatistic(
                         time=datetime_to_attributo_int(stat.time),

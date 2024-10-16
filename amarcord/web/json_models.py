@@ -545,6 +545,9 @@ class JsonRunAnalysisIndexingResult(BaseModel):
     run_id: int
     foms: JsonIndexingFom
     indexing_statistics: list[JsonIndexingStatistic]
+    running: bool
+    frames: None | int
+    total_frames: None | int
 
 
 class JsonDetectorShift(BaseModel):

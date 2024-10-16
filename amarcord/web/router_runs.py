@@ -923,11 +923,27 @@ async def read_runs_overview(
         latest_statistics_orm = (
             await latest_indexing_result_orm.awaitable_attrs.statistics
         )
+        target_frames_count_attributi = [
+            a.id for a in attributi if a.name == "target_frame_count"
+        ]
+        total_frames_attributo = (
+            target_frames_count_attributi[0] if target_frames_count_attributi else None
+        )
         latest_indexing_result = JsonRunAnalysisIndexingResult(
             run_id=latest_run.id,
             foms=encode_indexing_fom_to_json(
                 fom_for_indexing_result(latest_indexing_result_orm)
             ),
+            frames=latest_indexing_result_orm.frames,
+            total_frames=next(
+                iter(
+                    a.integer_value
+                    for a in latest_run.attributo_values
+                    if a.attributo_id == total_frames_attributo
+                ),
+                None,
+            ),
+            running=latest_indexing_result_orm.job_status in (DBJobStatus.RUNNING, DBJobStatus.QUEUED),
             indexing_statistics=[
                 JsonIndexingStatistic(
                     time=datetime_to_attributo_int(stat.time),
