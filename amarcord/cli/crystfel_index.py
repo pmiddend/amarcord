@@ -23,8 +23,10 @@ from datetime import datetime
 from functools import reduce
 from itertools import islice
 from pathlib import Path
+from statistics import mean
 from tempfile import NamedTemporaryFile
 from tempfile import TemporaryDirectory
+from time import monotonic_ns
 from time import sleep
 from time import time
 from typing import IO
@@ -172,6 +174,38 @@ _INDEXING_RE: Final = re.compile(
 # they're too slow. Set to zero to disable (statically, of course).
 _FPS_KILLER_ONLINE_SECONDS = 5 * 60
 _FPS_KILLER_OFFLINE: Final = False
+_FPS_KILLER_THRESHOLD = 0.5
+
+
+@dataclass(frozen=True)
+class FpsValue:
+    fps: float
+    time: int
+
+
+def _ns_to_s(ns: int) -> int:
+    # / 1000 = us
+    # / 1000 = ms
+    # / 1000 = s
+    return ns // 1000 // 1000 // 1000
+
+
+class FpsKiller:
+    def __init__(self, duration_seconds: int) -> None:
+        self._fps_queue: list[FpsValue] = []
+        self._duration_seconds = duration_seconds
+
+    def add_new_fps(self, fps: float, time_s: None | int = None) -> None:
+        if self._duration_seconds == 0:
+            return
+        now = _ns_to_s(monotonic_ns()) if time_s is None else time_s
+        self._fps_queue.append(FpsValue(fps=fps, time=now))
+        self._fps_queue = [
+            x for x in self._fps_queue if x.time >= now - self._duration_seconds
+        ]
+
+    def avg_fps(self) -> None | float:
+        return None if not self._fps_queue else mean(x.fps for x in self._fps_queue)
 
 
 @contextmanager
@@ -1302,7 +1336,7 @@ def run_online(args: OnlineArgs) -> None:
         indexable = 0
         crystals = 0
         previous_time: None | float = None
-        start_time = time()
+        fps_killer = FpsKiller(duration_seconds=_FPS_KILLER_ONLINE_SECONDS)
         while True:
             assert proc.stdout is not None
             line = proc.stdout.readline()
@@ -1321,16 +1355,18 @@ def run_online(args: OnlineArgs) -> None:
                     image_diff = new_images - images
                     fps = image_diff / (this_time - previous_time)
 
-                    # if the FPS is too low and we have the "fps
-                    # killer" on, and the run has been going on for a
-                    # while then we might as well kill it
-                    if (
-                        fps < 0.5
-                        and _FPS_KILLER_ONLINE_SECONDS != 0  # type: ignore
-                        and this_time - start_time > _FPS_KILLER_ONLINE_SECONDS
-                    ):
+                    fps_killer.add_new_fps(fps)
+
+                    avg_fps = fps_killer.avg_fps()
+
+                    if fps < _FPS_KILLER_THRESHOLD:
                         logger.warning(
-                            f"fps too low and fps killer is on: {fps}, killing process"
+                            f"fps below threshold: {fps} < {_FPS_KILLER_THRESHOLD}"
+                        )
+
+                    if avg_fps is not None and avg_fps < _FPS_KILLER_THRESHOLD:
+                        logger.warning(
+                            f"fps too low and fps killer is on: {avg_fps}, killing process"
                         )
                         proc.send_signal(signal.SIGUSR1)
                         early_exit = True
