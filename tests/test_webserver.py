@@ -2147,7 +2147,7 @@ def test_start_two_runs_and_enable_auto_pilot(
     assert read_runs_output.runs[0].attributi[0].attributo_value_str == string_value
     assert read_runs_output.runs[1].stopped is not None
 
-    # Final test: create a third run. This was added later to simulate a bug: in the
+    # Another test: create a third run. This was added later to simulate a bug: in the
     # web server, we cannot use "one or none" to get the latest run: it will return more than one run!
     third_external_run_id = 1002
     third_run_id = JsonStartRunOutput(
@@ -2155,6 +2155,34 @@ def test_start_two_runs_and_enable_auto_pilot(
     ).run_internal_id
 
     assert third_run_id > second_run_id
+
+    fourth_external_run_id = 1003
+    # Now, we add a run, and provide the manual attributo directly. In
+    # this case, auto pilot shouldn't do anything and use the new attributo value
+    fourth_string_value = string_value+"new"
+    fourth_run_response = JsonCreateOrUpdateRunOutput(
+        **client.post(
+            f"/api/runs/{fourth_external_run_id}",
+            json=JsonCreateOrUpdateRun(
+                files=[],
+                beamtime_id=beamtime_id,
+                attributi=[JsonAttributoValue(
+                    attributo_id=run_string_attributo_id,
+                    attributo_value_str=fourth_string_value,
+                )],
+            ).dict(),
+        ).json()
+    )
+    assert fourth_run_response.run_created
+
+    read_runs_output_after_last_run = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+    assert len(read_runs_output_after_last_run.runs) == 4
+
+    fourth_attributi = read_runs_output_after_last_run.runs[0].attributi
+    fourth_manual_attributo = [x for x in fourth_attributi if x.attributo_id == run_string_attributo_id]
+    assert fourth_manual_attributo
+    assert fourth_manual_attributo[0].attributo_value_str == string_value+"new"
+
 
 
 def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(

@@ -238,6 +238,7 @@ async def create_or_update_run(
                     )
                 )
             }
+            attributo_ids_already_in_run: set[int] = set()
             for new_attributo in input_.attributi:
                 attributo_type = attributi_by_id.get(new_attributo.attributo_id)
                 if attributo_type is None:
@@ -259,11 +260,12 @@ async def create_or_update_run(
                 run_in_db.attributo_values.append(
                     json_attributo_to_run_orm_attributo(new_attributo)
                 )
+                attributo_ids_already_in_run.add(new_attributo.attributo_id)
             if latest_config.auto_pilot:
                 latest_run = await retrieve_latest_run(session, beamtime_id)
                 if latest_run is not None:
                     for latest_run_attributo in latest_run.attributo_values:
-                        if (
+                        if latest_run_attributo.attributo_id not in attributo_ids_already_in_run and (
                             await latest_run_attributo.awaitable_attrs.attributo
                         ).group == ATTRIBUTO_GROUP_MANUAL:
                             run_in_db.attributo_values.append(
