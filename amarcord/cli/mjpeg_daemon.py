@@ -19,12 +19,19 @@ class Arguments(Tap):
 
 
 async def _mjpeg_stream_loop(args: Arguments) -> None:
+    logger.info("starting mjpeg loop")
     async with aiohttp.ClientSession() as session:
         current_mjpeg_loop = None
 
+        previous_failure = False
         while True:
             try:
                 async with session.get(f"{args.amarcord_url}/api/beamtimes") as resp:
+                    # our loop could have just crashed while we were sleeping or doing the request.
+                    # treat this as if the loop is not in existence
+                    if current_mjpeg_loop is not None and current_mjpeg_loop.done():
+                        current_mjpeg_loop = None
+
                     beamtimes = JsonReadBeamtime(**(await resp.json()))
 
                     now = datetime.datetime.now(datetime.timezone.utc)
@@ -55,10 +62,15 @@ async def _mjpeg_stream_loop(args: Arguments) -> None:
                                     current_beamtime.id,
                                 )
                             )
+                if previous_failure:
+                    logger.info("server is back!")
+                    previous_failure = False
             except:
-                logger.exception(
-                    f"couldn't retrieve beam times from {args.amarcord_url}"
-                )
+                if not previous_failure:
+                    logger.exception(
+                        f"couldn't retrieve beam times from {args.amarcord_url}"
+                    )
+                    previous_failure = True
 
             await asyncio.sleep(5)
 
