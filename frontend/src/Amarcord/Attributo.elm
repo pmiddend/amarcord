@@ -505,6 +505,12 @@ attributoTypeToSchemaInt x =
         Int ->
             Just { type_ = JSONSchemaIntegerTypeInteger, format = Nothing }
 
+        ChemicalId ->
+            Just { type_ = JSONSchemaIntegerTypeInteger, format = Just JSONSchemaIntegerFormatChemicalId }
+
+        DateTime ->
+            Just { type_ = JSONSchemaIntegerTypeInteger, format = Just JSONSchemaIntegerFormatDateTime }
+
         _ ->
             Nothing
 
