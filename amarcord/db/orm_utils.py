@@ -477,7 +477,7 @@ async def determine_run_indexing_metadata(
         )
 
     cell_description: None | CrystFELCellFile
-    if cell_description_str is not None:
+    if cell_description_str is not None and cell_description_str:
         cell_description = parse_cell_description(cell_description_str)
         if cell_description is None:
             return f"cell description is invalid: {cell_description_str}"
@@ -485,7 +485,7 @@ async def determine_run_indexing_metadata(
         cell_description = None
 
     return RunIndexingMetadata(
-        point_group=point_group,
+        point_group=point_group if point_group else None,
         cell_description=cell_description,
         chemical=channel_chemical,
         log_messages=log_messages,
