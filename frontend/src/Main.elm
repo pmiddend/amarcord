@@ -46,6 +46,9 @@ pageSubscriptions rootModel =
         RunsPage model ->
             List.map (Sub.map RunsPageMsg) (Runs.subscriptions model)
 
+        SchedulePage model ->
+            List.map (Sub.map ScheduleMsg) (Schedule.subscriptions model)
+
         AdvancedControlsPage model ->
             List.map (Sub.map AdvancedControlsPageMsg) (AdvancedControls.subscriptions model)
 
@@ -752,7 +755,7 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.Schedule beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Schedule.initSchedule beamtimeId
+                            Schedule.initSchedule hereAndNow beamtimeId
                     in
                     ( SchedulePage pageModel, Cmd.map ScheduleMsg pageCmds )
 

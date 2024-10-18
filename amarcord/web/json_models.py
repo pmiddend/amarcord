@@ -691,6 +691,8 @@ class JsonBeamtimeScheduleRow(BaseModel):
     comment: str
     td_support: str
     chemicals: list[int]
+    start_posix: int
+    stop_posix: int
 
 
 class JsonBeamtimeSchedule(BaseModel):

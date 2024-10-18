@@ -2631,6 +2631,8 @@ def test_update_beamtime_schedule(
             comment="comment",
             td_support="td_support",
             chemicals=[lyso_chemical_id],
+            start_posix=0,
+            stop_posix=0,
         ),
         JsonBeamtimeScheduleRow(
             users="users2",
@@ -2639,6 +2641,8 @@ def test_update_beamtime_schedule(
             comment="comment2",
             td_support="td_support2",
             chemicals=[],
+            start_posix=0,
+            stop_posix=0,
         ),
     ]
     update_result = JsonBeamtimeScheduleOutput(

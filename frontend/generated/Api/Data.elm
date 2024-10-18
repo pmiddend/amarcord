@@ -755,6 +755,8 @@ type alias JsonBeamtimeScheduleRow =
     , comment : String
     , tdSupport : String
     , chemicals : List Int
+    , startPosix : Int
+    , stopPosix : Int
     }
 
 
@@ -2348,6 +2350,8 @@ encodeJsonBeamtimeScheduleRowPairs model =
             , encode "comment" Json.Encode.string model.comment
             , encode "td_support" Json.Encode.string model.tdSupport
             , encode "chemicals" (Json.Encode.list Json.Encode.int) model.chemicals
+            , encode "start_posix" Json.Encode.int model.startPosix
+            , encode "stop_posix" Json.Encode.int model.stopPosix
             ]
     in
     pairs
@@ -5626,6 +5630,8 @@ jsonBeamtimeScheduleRowDecoder =
         |> decode "comment" Json.Decode.string 
         |> decode "td_support" Json.Decode.string 
         |> decode "chemicals" (Json.Decode.list Json.Decode.int) 
+        |> decode "start_posix" Json.Decode.int 
+        |> decode "stop_posix" Json.Decode.int 
 
 
 jsonChangeRunExperimentTypeDecoder : Json.Decode.Decoder JsonChangeRunExperimentType

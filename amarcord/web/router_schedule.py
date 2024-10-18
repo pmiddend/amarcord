@@ -1,3 +1,6 @@
+import datetime
+
+import pytz
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
@@ -6,6 +9,7 @@ from sqlalchemy.sql import delete
 from sqlalchemy.sql import select
 
 from amarcord.db import orm
+from amarcord.db.attributi import datetime_to_attributo_int
 from amarcord.db.beamtime_id import BeamtimeId
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.json_models import JsonBeamtimeSchedule
@@ -26,6 +30,24 @@ router = APIRouter()
 async def get_beamtime_schedule(
     beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
 ) -> JsonBeamtimeSchedule:
+    current_tz = pytz.timezone("Europe/Berlin")
+
+    def convert_to_posix(date_time_str: str) -> int:
+        return datetime_to_attributo_int(
+            current_tz.localize(
+                datetime.datetime.strptime(date_time_str, "%Y-%m-%d %H:%M")
+            ).astimezone(pytz.utc)
+        )
+
+    def convert_start_end_to_posix(shift_dict: orm.BeamtimeSchedule) -> tuple[int, int]:
+        shift_parts = [x.strip() for x in shift_dict.shift.split("-", maxsplit=2)]
+        if len(shift_parts) != 2:
+            return 0, 0
+        shift_start, shift_end = shift_parts
+        return convert_to_posix(f"{shift_dict.date} {shift_start}"), convert_to_posix(
+            f"{shift_dict.date} {shift_end}"
+        )
+
     return JsonBeamtimeSchedule(
         schedule=[
             JsonBeamtimeScheduleRow(
@@ -35,6 +57,8 @@ async def get_beamtime_schedule(
                 comment=shift_dict.comment,
                 td_support=shift_dict.td_support,
                 chemicals=[c.id for c in shift_dict.chemicals],
+                start_posix=convert_start_end_to_posix(shift_dict)[0],
+                stop_posix=convert_start_end_to_posix(shift_dict)[1],
             )
             for shift_dict in await session.scalars(
                 select(orm.BeamtimeSchedule).where(
