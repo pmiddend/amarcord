@@ -63,14 +63,19 @@ async def read_beamtime_geometry_details(
         await session.scalars(
             select(orm.Run)
             .where((orm.Run.beamtime_id == beamtimeId))
-            .options(selectinload(orm.Run.indexing_results))
+            .options(
+                selectinload(orm.Run.indexing_results).selectinload(
+                    orm.IndexingResult.indexing_parameters
+                )
+            )
         )
     ).all()
     detector_shifts: list[JsonDetectorShift] = []
     for run in runs:
         for ir in run.indexing_results:
             if (
-                ir.detector_shift_x_mm is not None
+                ir.indexing_parameters.is_online
+                and ir.detector_shift_x_mm is not None
                 and ir.detector_shift_y_mm is not None
             ):
                 detector_shifts.append(
