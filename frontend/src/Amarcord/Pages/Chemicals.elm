@@ -2,8 +2,8 @@ module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, 
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractChemical)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
+import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractChemical, mapAttributo)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId, chemicalTypeToApi, convertChemicalFromApi)
 import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
@@ -1150,10 +1150,36 @@ update msg model =
         InitiateClone chemical ->
             case model.chemicals of
                 Success { attributi } ->
+                    let
+                        -- This code is a bit too long for its own
+                        -- good, but the premise is simple: Usually
+                        -- we're storing all attributi in the chemical
+                        -- together with the information: has this
+                        -- attributi been changed by the user. Then we
+                        -- use this information to only transmit the
+                        -- changes, not the whole set of attributi.
+                        -- However, if we duplicate a chemical, all
+                        -- attributi are automatically new, thus
+                        -- changed. So we have to dive deep into this
+                        -- structure and change the edit status.
+                        editChemicalOriginal =
+                            editChemicalFromAttributiAndValues model.myTimeZone attributi (chemicalMapId (always Nothing) chemical)
+
+                        mapEditableAttributo : EditableAttributo -> EditableAttributo
+                        mapEditableAttributo =
+                            mapAttributo (\attributoEditStatusAndEditValue -> { attributoEditStatusAndEditValue | editStatus = Edited })
+
+                        makeAlreadyEdited : EditableAttributiAndOriginal -> EditableAttributiAndOriginal
+                        makeAlreadyEdited editAndOrig =
+                            { editAndOrig | editableAttributi = List.map mapEditableAttributo editAndOrig.editableAttributi }
+
+                        editChemicalWithAllEdited =
+                            chemicalMapAttributi makeAlreadyEdited editChemicalOriginal
+                    in
                     ( { model
                         | modifyRequest = NotAsked
                         , chemicalDeleteRequest = NotAsked
-                        , editChemical = Just (editChemicalFromAttributiAndValues model.myTimeZone attributi (chemicalMapId (always Nothing) chemical))
+                        , editChemical = Just editChemicalWithAllEdited
                       }
                     , scrollToTop (always Nop)
                     )
