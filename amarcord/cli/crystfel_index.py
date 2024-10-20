@@ -2025,6 +2025,8 @@ def parse_primary_args() -> PrimaryArgs:
     use_slurm = os.environ[OFF_INDEX_ENVIRON_USE_SLURM] == "True"
     indexamajig_params = os.environ[OFF_INDEX_ENVIRON_INDEXAMAJIG_PARAMS]
     gnuplot_path = os.environ[OFF_INDEX_ENVIRON_GNUPLOT_PATH]
+    input_files = list(Path(p) for glob_ in glob_list for p in glob.glob(glob_))
+    master_files = [x for x in input_files if "_master.nx5" in x.name]
     return PrimaryArgs(
         use_slurm=use_slurm,
         slurm_partition_to_use=os.environ[OFF_INDEX_ENVIRON_SLURM_PARTITION_TO_USE],
@@ -2033,7 +2035,10 @@ def parse_primary_args() -> PrimaryArgs:
         ),
         stream_file=Path(os.environ[OFF_INDEX_ENVIRON_STREAM_FILE]),
         amarcord_api_url=os.environ.get(OFF_INDEX_ENVIRON_AMARCORD_API_URL),
-        input_files=list(Path(p) for glob_ in glob_list for p in glob.glob(glob_)),
+        # A little hack here: if we have a file "master", and possibly
+        # other data files (to which master links to), then just take
+        # the master file. Otherwise, consider all files
+        input_files=input_files if not master_files else master_files,
         geometry_file=(
             Path(os.environ[OFF_INDEX_ENVIRON_GEOMETRY_FILE])
             if OFF_INDEX_ENVIRON_GEOMETRY_FILE in os.environ
