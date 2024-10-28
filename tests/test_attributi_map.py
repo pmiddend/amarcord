@@ -13,7 +13,14 @@ STRING_ATTRIBUTO_ID = AttributoId(2)
 
 RUN_ATTRIBUTI_STRING_THERE_BOOL_MISSING: dict[AttributoId, orm.RunHasAttributoValue] = {
     STRING_ATTRIBUTO_ID: orm.RunHasAttributoValue(
-        run_id=1, attributo_id=STRING_ATTRIBUTO_ID, string_value="foo"
+        attributo_id=STRING_ATTRIBUTO_ID,
+        string_value="foo",
+        integer_value=None,
+        bool_value=None,
+        float_value=None,
+        datetime_value=None,
+        chemical_value=None,
+        list_value=None,
     )
 }
 
@@ -21,13 +28,24 @@ DS_ATTRIBUTI_STRING_THERE_BOOL_FALSE: dict[
     AttributoId, orm.DataSetHasAttributoValue
 ] = {
     STRING_ATTRIBUTO_ID: orm.DataSetHasAttributoValue(
-        data_set_id=1, attributo_id=STRING_ATTRIBUTO_ID, string_value="foo"
+        attributo_id=STRING_ATTRIBUTO_ID,
+        string_value="foo",
+        integer_value=None,
+        bool_value=None,
+        float_value=None,
+        datetime_value=None,
+        chemical_value=None,
+        list_value=None,
     ),
     BOOL_ATTRIBUTO_ID: orm.DataSetHasAttributoValue(
-        # Boolean has to be false (or missing!)
-        data_set_id=1,
         attributo_id=BOOL_ATTRIBUTO_ID,
         bool_value=False,
+        integer_value=None,
+        string_value=None,
+        float_value=None,
+        datetime_value=None,
+        chemical_value=None,
+        list_value=None,
     ),
 }
 

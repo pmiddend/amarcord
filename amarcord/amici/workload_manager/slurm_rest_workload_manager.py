@@ -118,10 +118,10 @@ class DynamicTokenRetriever:
         self._token_lifetime_seconds = 86400
         self._retriever = retriever
         self._token: None | str = None
-        self._last_retrieval = datetime.datetime.utcnow()
+        self._last_retrieval = datetime.datetime.now(datetime.timezone.utc)
 
     async def __call__(self) -> str:
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         if (
             self._token is None
             or (now - self._last_retrieval).total_seconds()
@@ -151,7 +151,9 @@ def _convert_job(job: JSONDict) -> None | Job:
     assert isinstance(job_id, int)
     return Job(
         status=parse_job_state(job_state),
-        started=datetime.datetime.utcfromtimestamp(job_start_time),
+        started=datetime.datetime.fromtimestamp(
+            job_start_time, tz=datetime.timezone.utc
+        ),
         metadata=JobMetadata({"job_id": job_id}),
         id=job_id,
     )
@@ -197,13 +199,16 @@ class SlurmRestWorkloadManager(WorkloadManager):
         rest_url: str,
         rest_user: None | str = None,
     ) -> None:
-        self._partition = partition
+        self.partition = partition
         self._reservation = reservation
         self._explicit_node = explicit_node
         self._token_retriever = token_retriever
         self._rest_url = rest_url
         self._rest_user = rest_user if rest_user is not None else getpass.getuser()
         self._request_wrapper = request_wrapper
+
+    def name(self) -> str:
+        return "Slurm REST"
 
     async def _headers(self) -> dict[str, str]:
         return {
@@ -212,12 +217,16 @@ class SlurmRestWorkloadManager(WorkloadManager):
             "X-SLURM-USER-TOKEN": await self._token_retriever(),
         }
 
+    async def get_token(self) -> str:
+        return await self._token_retriever()
+
     async def start_job(
         self,
         working_directory: Path,
         script: str,
         name: str,
         time_limit: datetime.timedelta,
+        environment: dict[str, str],
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
@@ -235,8 +244,9 @@ class SlurmRestWorkloadManager(WorkloadManager):
                 "SHELL": "/bin/bash",
                 "PATH": "/bin:/usr/bin:/usr/local/bin",
                 "LD_LIBRARY_PATH": "/lib/:/lib64/:/usr/local/lib",
-            },
-            "partition": self._partition,
+            }
+            | environment,
+            "partition": self.partition,
             "standard_output": (
                 str(working_directory / "stdout.txt") if stdout is None else str(stdout)
             ),

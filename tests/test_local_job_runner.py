@@ -13,6 +13,7 @@ async def test_main_loop(tmp_path: Path) -> None:
         working_directory=tmp_path,
         name="test-job",
         script='#!/bin/sh\n\necho "Done"',
+        environment={},
         time_limit=timedelta(),
     )
 

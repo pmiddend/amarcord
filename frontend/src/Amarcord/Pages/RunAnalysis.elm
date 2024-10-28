@@ -1,26 +1,25 @@
-module Amarcord.Pages.RunAnalysis exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.RunAnalysis exposing (Model, Msg(..), init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, AttributoValue, convertAttributoFromApi, convertAttributoMapFromApi)
-import Amarcord.Bootstrap exposing (AlertProperty(..), loadingBar, makeAlert)
+import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalIdDict, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (h1_, h5_)
+import Amarcord.Html exposing (div_, h1_, h5_, input_, p_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
 import Amarcord.Util exposing (HereAndNow)
-import Api exposing (send)
-import Api.Data exposing (JsonAnalysisRun, JsonFileOutput, JsonIndexingFom, JsonIndexingStatistic, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult)
-import Api.Request.Analysis exposing (readRunAnalysisApiRunAnalysisBeamtimeIdGet)
+import Api.Data exposing (JsonAnalysisRun, JsonDetectorShift, JsonFileOutput, JsonIndexingStatistic, JsonReadBeamtimeGeometryDetails, JsonReadRunAnalysis, JsonRunAnalysisIndexingResult, JsonRunFile)
+import Api.Request.Analysis exposing (readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet, readRunAnalysisApiRunAnalysisBeamtimeIdGet)
 import Axis
 import Color
-import Html exposing (Html, br, div, h4, span, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (class, style)
-import Http
+import Html exposing (Html, br, button, div, h4, span, table, tbody, td, text, th, thead, tr)
+import Html.Attributes exposing (class, style, type_, value)
+import Html.Events exposing (onClick, onInput)
+import Html.Events.Extra exposing (onEnter)
 import List exposing (head)
 import List.Extra as ListExtra
 import Maybe
-import Maybe.Extra as MaybeExtra
 import Path exposing (Path)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Scale exposing (ContinuousScale)
@@ -29,6 +28,7 @@ import Segment
 import Shape
 import Statistics
 import SubPath
+import Time exposing (Zone)
 import Tuple
 import TypedSvg exposing (g, line, svg, text_)
 import TypedSvg.Attributes exposing (dominantBaseline, fill, stroke, strokeDasharray, textAnchor, transform, viewBox)
@@ -37,23 +37,40 @@ import TypedSvg.Types exposing (AnchorAlignment(..), DominantBaseline(..), Paint
 
 
 type Msg
-    = RunAnalysisResultsReceived (Result Http.Error JsonReadRunAnalysis)
+    = GeometryDetailsReceived (Result HttpError JsonReadBeamtimeGeometryDetails)
+    | RunAnalysisResultsReceived (Result HttpError JsonReadRunAnalysis)
+    | ChangeRunId (Int -> Int)
+    | ChangeRunIdText String
+    | ConfirmRunIdText
 
 
 type alias Model =
     { hereAndNow : HereAndNow
-    , analysisRequest : RemoteData Http.Error JsonReadRunAnalysis
+    , runIdInput : String
+    , runAnalysisRequest : RemoteData HttpError JsonReadRunAnalysis
+    , geometryDetailsRequest : RemoteData HttpError JsonReadBeamtimeGeometryDetails
     , beamtimeId : BeamtimeId
     }
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Run Analysis"
 
 
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
 init hereAndNow beamtimeId =
     ( { hereAndNow = hereAndNow
-      , analysisRequest = Loading
+      , runIdInput = ""
+      , geometryDetailsRequest = Loading
+      , runAnalysisRequest = Loading
       , beamtimeId = beamtimeId
       }
-    , send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId)
+    , Cmd.batch
+        [ send GeometryDetailsReceived (readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet beamtimeId)
+        , send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId Nothing)
+        ]
+      -- ,
     )
 
 
@@ -67,7 +84,7 @@ yShiftColor =
     Maybe.withDefault Color.red <| ListExtra.last Scale.Color.colorblind
 
 
-viewDetectorShifts : List JsonRunAnalysisIndexingResult -> Html msg
+viewDetectorShifts : List JsonDetectorShift -> Html msg
 viewDetectorShifts r =
     let
         w : Float
@@ -103,7 +120,7 @@ viewDetectorShifts r =
         runIdScale : ContinuousScale Float
         runIdScale =
             r
-                |> List.map (\rr -> toFloat rr.runId)
+                |> List.map (\rr -> toFloat rr.runExternalId)
                 |> Statistics.extent
                 |> Maybe.withDefault ( 1, 2 )
                 |> Scale.linear ( 0.0, w - 2 * xPadding )
@@ -111,8 +128,7 @@ viewDetectorShifts r =
         shiftScale : ContinuousScale Float
         shiftScale =
             r
-                |> List.concatMap (\rr -> rr.foms)
-                |> List.concatMap (\fom -> MaybeExtra.toList fom.detectorShiftXMm ++ MaybeExtra.toList fom.detectorShiftYMm)
+                |> List.concatMap (\fom -> [ fom.shiftXMm, fom.shiftYMm ])
                 |> Statistics.extent
                 |> Maybe.withDefault ( 0, 0 )
                 |> Scale.linear ( h - yPadding, 0 )
@@ -122,19 +138,9 @@ viewDetectorShifts r =
         runIdLineGenerator scale ( runId, amount ) =
             Just ( Scale.convert runIdScale (toFloat runId), Scale.convert scale amount )
 
-        plotLine : ContinuousScale Float -> (JsonIndexingFom -> Maybe Float) -> Path
+        plotLine : ContinuousScale Float -> (JsonDetectorShift -> Float) -> Path
         plotLine scale accessor =
-            List.filterMap
-                (\rr ->
-                    Maybe.map
-                        (\sx -> ( rr.runId, sx ))
-                    <|
-                        List.head <|
-                            List.filterMap
-                                accessor
-                                rr.foms
-                )
-                r
+            List.map (\rr -> ( rr.runExternalId, accessor rr )) r
                 |> List.map (runIdLineGenerator scale)
                 |> Shape.line Shape.linearCurve
 
@@ -219,12 +225,12 @@ viewDetectorShifts r =
                 ]
             ]
         , g [ transform [ Translate xPadding topPadding ] ]
-            [ Path.element (plotLine shiftScale .detectorShiftXMm)
+            [ Path.element (plotLine shiftScale .shiftXMm)
                 [ stroke <| Paint <| xShiftColor
                 , strokeWidth 2
                 , fill PaintNone
                 ]
-            , Path.element (plotLine shiftScale .detectorShiftYMm)
+            , Path.element (plotLine shiftScale .shiftYMm)
                 [ stroke <| Paint <| yShiftColor
                 , strokeWidth 2
                 , fill PaintNone
@@ -233,86 +239,131 @@ viewDetectorShifts r =
         ]
 
 
-indexingRateColor : Color.Color
-indexingRateColor =
-    Color.green
+viewRunStatistics : Zone -> List JsonIndexingStatistic -> Html msg
+viewRunStatistics zone originalStats =
+    viewHitRateAndIndexingGraphs zone originalStats
 
 
-hitRateColor : Color.Color
-hitRateColor =
-    Color.red
+viewRunFiles : List JsonRunFile -> Html msg
+viewRunFiles files =
+    case files of
+        [] ->
+            text ""
 
-
-viewRunStatistics : List JsonIndexingStatistic -> Html msg
-viewRunStatistics originalStats =
-    viewHitRateAndIndexingGraphs originalStats
+        _ ->
+            div_
+                [ h5_ [ text "Files" ]
+                , table [ class "table table-sm table-striped" ]
+                    [ thead_ [ tr_ [ th_ [ text "Source" ], th_ [ text "Glob" ] ] ]
+                    , tbody_ (List.map (\{ glob, source } -> tr_ [ td_ [ text source ], td_ [ text glob ] ]) files)
+                    ]
+                ]
 
 
 viewRunTableRow :
     HereAndNow
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
-    -> List JsonAnalysisRun
+    -> JsonAnalysisRun
     -> JsonRunAnalysisIndexingResult
     -> Html msg
-viewRunTableRow hereAndNow attributi chemicals runs rar =
+viewRunTableRow hereAndNow attributi chemicals run rar =
     let
-        foundRun : Maybe JsonAnalysisRun
-        foundRun =
-            ListExtra.find (\r -> r.id == rar.runId) runs
-
         viewRun r =
-            viewDataSetTable attributi hereAndNow.zone (chemicalIdDict chemicals) (convertAttributoMapFromApi r.attributi) False False Nothing
+            div_
+                [ viewDataSetTable
+                    attributi
+                    hereAndNow.zone
+                    (chemicalIdDict chemicals)
+                    (convertAttributoMapFromApi r.attributi)
+                    False
+                    False
+                    Nothing
+                , viewRunFiles run.filePaths
+                ]
     in
     tr []
         [ td []
             [ h5_ [ text <| "Run " ++ String.fromInt rar.runId ]
             , br [] []
-            , Maybe.withDefault (text "") <| Maybe.map viewRun foundRun
+            , viewRun run
             ]
         , td []
-            [ viewRunStatistics rar.indexingStatistics
+            [ viewRunStatistics hereAndNow.zone rar.indexingStatistics
             ]
         ]
 
 
 viewRunGraphs :
     HereAndNow
+    -> String
     -> List (Attributo AttributoType)
     -> List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput)
-    -> List JsonAnalysisRun
+    -> Maybe JsonAnalysisRun
     -> List JsonRunAnalysisIndexingResult
-    -> Html msg
-viewRunGraphs hereAndNow attributi chemicals runs rars =
-    table [ class "table table-striped" ]
-        [ thead [] [ tr [] [ th [] [ text "Run Information" ], th [ style "width" "100%" ] [ text "Statistics" ] ] ]
-        , tbody [] (List.map (viewRunTableRow hereAndNow attributi chemicals runs) rars)
+    -> Html Msg
+viewRunGraphs hereAndNow runIdInput attributi chemicals run rars =
+    div_
+        [ div [ class "hstack gap-3" ]
+            [ button [ class "btn btn-outline-secondary", onClick (ChangeRunId (\r -> r - 1)) ] [ icon { name = "arrow-left" } ]
+            , span [ class "form-text text-nowrap" ] [ text "Run ID" ]
+            , input_
+                [ type_ "text"
+                , value runIdInput
+                , class "form-control"
+                , onInput ChangeRunIdText
+                , onEnter ConfirmRunIdText
+                ]
+            , button [ class "btn btn-outline-secondary", onClick (ChangeRunId (\r -> r + 1)) ] [ icon { name = "arrow-right" } ]
+            ]
+        , case run of
+            Nothing ->
+                text ""
+
+            Just runReal ->
+                table [ class "table table-striped" ]
+                    [ thead []
+                        [ tr []
+                            [ th [] [ text "Run Information" ]
+                            , th [ style "width" "100%" ] [ text "Statistics" ]
+                            ]
+                        ]
+                    , tbody [] (List.map (viewRunTableRow hereAndNow attributi chemicals runReal) rars)
+                    ]
         ]
 
 
-viewInner : HereAndNow -> JsonReadRunAnalysis -> List (Html Msg)
-viewInner hereAndNow { runs, attributi, chemicals, indexingResultsByRunId } =
+viewInner : HereAndNow -> JsonReadBeamtimeGeometryDetails -> Model -> List (Html Msg)
+viewInner hereAndNow { detectorShifts } model =
     [ h1_ [ text "Detector Shifts" ]
-    , viewDetectorShifts indexingResultsByRunId
-    , h1_ [ text "Online Indexing Statistics" ]
-    , div [ class "hstack gap-1" ]
-        [ span [] [ span [ style "color" (Color.toCssString indexingRateColor) ] [ text "■" ], text " Indexing rate" ]
-        , div [ class "vr" ] []
-        , span [] [ span [ style "color" (Color.toCssString hitRateColor) ] [ text "■" ], text " Hit rate" ]
-        ]
-    , viewRunGraphs
-        hereAndNow
-        (List.map convertAttributoFromApi attributi)
-        (List.map convertChemicalFromApi chemicals)
-        runs
-        indexingResultsByRunId
+    , viewDetectorShifts detectorShifts
+    , h1_ [ text "Indexing Details" ]
+    , p_ [ text "Enter a run ID to see details. Press Return to update." ]
+    , case model.runAnalysisRequest of
+        NotAsked ->
+            text ""
+
+        Loading ->
+            loadingBar "Loading analysis results..."
+
+        Failure e ->
+            makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve run analysis" ], showError e ]
+
+        Success { attributi, chemicals, run, indexingResults } ->
+            viewRunGraphs
+                hereAndNow
+                model.runIdInput
+                (List.map convertAttributoFromApi attributi)
+                (List.map convertChemicalFromApi chemicals)
+                run
+                indexingResults
     ]
 
 
 view : Model -> Html Msg
 view model =
     div [ class "container" ] <|
-        case model.analysisRequest of
+        case model.geometryDetailsRequest of
             NotAsked ->
                 List.singleton <| text ""
 
@@ -320,14 +371,60 @@ view model =
                 List.singleton <| loadingBar "Loading analysis results..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showHttpError e ]
+                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve Attributi" ], showError e ]
 
             Success r ->
-                viewInner model.hereAndNow r
+                viewInner model.hereAndNow r model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        GeometryDetailsReceived analysisResults ->
+            ( { model | geometryDetailsRequest = fromResult analysisResults }, Cmd.none )
+
         RunAnalysisResultsReceived analysisResults ->
-            ( { model | analysisRequest = fromResult analysisResults }, Cmd.none )
+            ( { model | runAnalysisRequest = fromResult analysisResults }, Cmd.none )
+
+        ChangeRunId changer ->
+            case model.runAnalysisRequest of
+                Success { runIds } ->
+                    case String.toInt model.runIdInput of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just realRunId ->
+                            let
+                                newRunId =
+                                    changer realRunId
+                            in
+                            case ListExtra.find (\runIdIntExt -> runIdIntExt.externalRunId == newRunId) runIds of
+                                Just { internalRunId } ->
+                                    ( { model | runIdInput = String.fromInt newRunId }, send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId)) )
+
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        ChangeRunIdText newText ->
+            ( { model | runIdInput = newText }, Cmd.none )
+
+        ConfirmRunIdText ->
+            case model.runAnalysisRequest of
+                Success { runIds } ->
+                    case String.toInt model.runIdInput of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just realRunId ->
+                            case ListExtra.find (\runIdIntExt -> runIdIntExt.externalRunId == realRunId) runIds of
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                                Just { internalRunId } ->
+                                    ( model, send RunAnalysisResultsReceived (readRunAnalysisApiRunAnalysisBeamtimeIdGet model.beamtimeId (Just internalRunId)) )
+
+                _ ->
+                    ( model, Cmd.none )

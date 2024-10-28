@@ -11,7 +11,7 @@
             "annaghi/dnd-list": "6.0.1",
             "avh4/elm-color": "1.0.0",
             "cuducos/elm-format-number": "9.0.1",
-            "dillonkearns/elm-markdown": "7.0.0",
+            "dillonkearns/elm-markdown": "7.0.1",
             "elm/browser": "1.0.2",
             "elm/bytes": "1.0.8",
             "elm/core": "1.0.5",
@@ -28,21 +28,23 @@
             "elm-community/typed-svg": "7.0.0",
             "elmcraft/core-extra": "2.0.0",
             "folkertdev/one-true-path-experiment": "6.0.0",
-            "gampleman/elm-visualization": "2.3.0",
-            "justinmimbs/date": "4.0.1",
-            "justinmimbs/time-extra": "1.1.1",
+            "gampleman/elm-visualization": "2.4.1",
+            "justinmimbs/date": "4.1.0",
+            "justinmimbs/time-extra": "1.2.0",
             "krisajenkins/remotedata": "6.0.1",
-            "terezka/elm-charts": "4.0.0"
+            "terezka/elm-charts": "4.0.0",
+            "ursi/elm-scroll": "1.0.0"
         },
         "indirect": {
             "K-Adam/elm-dom": "1.0.0",
             "danhandrea/elm-time-extra": "1.1.0",
             "elm/random": "1.0.0",
             "elm/svg": "1.0.1",
-            "elm/virtual-dom": "1.0.2",
+            "elm/virtual-dom": "1.0.3",
             "elm-community/list-extra": "8.7.0",
             "folkertdev/elm-deque": "3.0.1",
             "folkertdev/svg-path-lowlevel": "4.0.1",
+            "gampleman/elm-rosetree": "1.1.0",
             "ianmackenzie/elm-1d-parameter": "1.0.1",
             "ianmackenzie/elm-float-extra": "1.1.0",
             "ianmackenzie/elm-geometry": "3.11.0",
@@ -51,16 +53,17 @@
             "ianmackenzie/elm-units": "2.10.0",
             "ianmackenzie/elm-units-interval": "3.2.0",
             "ianmackenzie/elm-units-prefixed": "2.8.0",
-            "myrho/elm-round": "1.0.4",
+            "myrho/elm-round": "1.0.5",
             "rtfeldman/elm-hex": "1.0.0",
             "rtfeldman/elm-iso8601-date-strings": "1.1.4",
             "ryan-haskell/date-format": "1.0.0",
-            "ryannhg/date-format": "2.3.0",
             "terezka/intervals": "2.0.2"
         }
     },
     "test-dependencies": {
-        "direct": {},
+        "direct": {
+            "elm-explorations/test": "2.2.0"
+        },
         "indirect": {}
     }
 }

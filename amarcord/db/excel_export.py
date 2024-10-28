@@ -97,13 +97,13 @@ async def create_workbook(
             column=1,
             value=attributo.associated_table.value.capitalize(),
         )
-        attributi_sheet.cell(  # pyright: ignore[reportGeneralTypeIssues]
+        attributi_sheet.cell(  # pyright: ignore
             row=attributo_row_idx, column=2, value=attributo.name
         )
-        attributi_sheet.cell(  # pyright: ignore[reportGeneralTypeIssues]
+        attributi_sheet.cell(  # pyright: ignore
             row=attributo_row_idx, column=3, value=attributo.group
         )
-        attributi_sheet.cell(  # pyright: ignore[reportGeneralTypeIssues]
+        attributi_sheet.cell(  # pyright: ignore
             row=attributo_row_idx, column=4, value=attributo.description
         )
         attributi_sheet.cell(  # pyright: ignore

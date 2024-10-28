@@ -19,6 +19,8 @@ extensions = ["sphinxcontrib.mermaid", "myst_parser", "sphinxcontrib.spelling"]
 
 myst_fence_as_directive = ["mermaid"]
 
+mermaid_version = ""
+
 templates_path = ["_templates"]
 exclude_patterns = []
 
@@ -29,6 +31,8 @@ linkcheck_ignore = ["http://localhost.*"]
 spelling_lang = "en_US"
 
 html_logo = "./amarcord-logo-smaller.png"
+
+html_js_files = ["js/mermaid.min.js"]
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 

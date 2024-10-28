@@ -359,3 +359,13 @@ foldPairs xs f =
                     ( Just new, f ( prior, new ) :: second priorMaybeAndList )
     in
     second <| List.foldl transducer ( Nothing, [] ) xs
+
+
+join3 : a -> b -> c -> ( a, b, c )
+join3 a b c =
+    ( a, b, c )
+
+
+none : (a -> Bool) -> List a -> Bool
+none f xs =
+    not (List.any f xs)

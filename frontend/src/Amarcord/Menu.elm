@@ -54,7 +54,11 @@ viewMenuNode modelRoute x =
 
 menu : BeamtimeId -> List MenuNode
 menu bt =
-    [ Leaf { route = Route.RunOverview bt, description = "Overview", iconName = "card-list" }
+    [ Dropdown "Runs"
+        "card-list"
+        [ { route = Route.RunOverview bt, description = "Current Run", iconName = "caret-right" }
+        , { route = Route.Runs bt, description = "All Runs", iconName = "folder2" }
+        ]
     , Dropdown "Library"
         "collection"
         [ { route = Route.Chemicals bt, description = "Chemicals", iconName = "gem" }
@@ -62,7 +66,7 @@ menu bt =
         ]
     , Dropdown "Analysis"
         "bar-chart-steps"
-        [ { route = Route.Analysis bt, description = "By Experiment Type", iconName = "clipboard-check" }
+        [ { route = Route.AnalysisOverview bt, description = "By Experiment Type", iconName = "clipboard-check" }
         , { route = Route.RunAnalysis bt, description = "By Run", iconName = "card-list" }
         ]
     , Dropdown "Admin"

@@ -6,7 +6,7 @@ from sqlalchemy.sql import select
 
 from amarcord.db import orm
 from amarcord.db.attributi import datetime_from_attributo_int
-from amarcord.db.attributi import datetime_to_attributo_int
+from amarcord.db.orm_utils import encode_beamtime
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.json_models import JsonBeamtime
 from amarcord.web.json_models import JsonBeamtimeOutput
@@ -57,27 +57,13 @@ async def update_beamtime(
         return JsonBeamtimeOutput(id=input_.id)
 
 
-def _encode_beamtime(bt: orm.Beamtime) -> JsonBeamtime:
-    return JsonBeamtime(
-        id=bt.id,
-        external_id=bt.external_id,
-        proposal=bt.proposal,
-        beamline=bt.beamline,
-        title=bt.title,
-        comment=bt.comment,
-        start=datetime_to_attributo_int(bt.start),
-        end=datetime_to_attributo_int(bt.end),
-        chemical_names=[chemical.name for chemical in bt.chemicals],
-    )
-
-
 @router.get("/api/beamtimes", tags=["beamtimes"], response_model_exclude_defaults=True)
 async def read_beamtimes(
     session: AsyncSession = Depends(get_orm_db),
 ) -> JsonReadBeamtime:
     return JsonReadBeamtime(
         beamtimes=[
-            _encode_beamtime(bt)
+            encode_beamtime(bt)
             for bt in await session.scalars(
                 select(orm.Beamtime)
                 .options(selectinload(orm.Beamtime.chemicals))
@@ -95,7 +81,7 @@ async def read_beamtimes(
 async def read_beamtime(
     beamtimeId: int, session: AsyncSession = Depends(get_orm_db)
 ) -> JsonBeamtime:
-    return _encode_beamtime(
+    return encode_beamtime(
         (
             await session.scalars(
                 select(orm.Beamtime)

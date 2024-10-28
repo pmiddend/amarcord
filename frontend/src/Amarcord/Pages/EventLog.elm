@@ -1,29 +1,37 @@
 module Amarcord.Pages.EventLog exposing (..)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly)
-import Api exposing (send)
 import Api.Data exposing (JsonEvent, JsonReadEvents)
 import Api.Request.Events exposing (readEventsApiEventsBeamtimeIdGet)
 import Html exposing (Html, div, h1, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (class)
-import Http
 import RemoteData exposing (RemoteData(..), fromResult)
 import Time exposing (Posix, Zone, millisToPosix)
 
 
+subscriptions : Model -> List (Sub Msg)
+subscriptions _ =
+    [ Time.every 10000 Refresh ]
+
+
 type Msg
-    = EventsUpdated (Result Http.Error JsonReadEvents)
+    = EventsUpdated (Result HttpError JsonReadEvents)
     | Refresh Posix
 
 
 type alias Model =
-    { eventRequest : RemoteData Http.Error JsonReadEvents
+    { eventRequest : RemoteData HttpError JsonReadEvents
     , beamtimeId : BeamtimeId
     , hereAndNow : HereAndNow
     }
+
+
+pageTitle : Model -> String
+pageTitle _ =
+    "Event Log"
 
 
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
@@ -68,7 +76,7 @@ view model =
                     ]
 
             Failure e ->
-                showHttpError e
+                showError e
 
             _ ->
                 text "Loading..."

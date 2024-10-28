@@ -1,4 +1,4 @@
-#!/software/python/3.10/bin/python3
+#!/usr/bin/env python3
 import json
 import logging
 import math
@@ -43,18 +43,16 @@ RESCUT_MTZ = "input-mtz-rescut.mtz"
 DIMPLE_OUT_MTZ = "output-dimple.mtz"
 DIMPLE_OUT_PDB = "output-dimple.pdb"
 
-CCP4_PATH = "/opt/xray/ccp4-7.1"
 
-
-def ccp4_run(args: list[str], input_: None | str = None) -> str:
+def ccp4_run(ccp4_path: Path, args: list[str], input_: None | str = None) -> str:
     current_path = os.environ["PATH"]
     ccp4_env = {
-        "CLIBD": f"{CCP4_PATH}/lib/data",
-        "CLIBD_MON": f"{CCP4_PATH}/lib/data/monomers/",
-        "CINCL": f"{CCP4_PATH}/include",
+        "CLIBD": f"{ccp4_path}/lib/data",
+        "CLIBD_MON": f"{ccp4_path}/lib/data/monomers/",
+        "CINCL": f"{ccp4_path}/include",
         "CCP4_SCR": "/tmp",
-        "CCP4": CCP4_PATH,
-        "PATH": f"{CCP4_PATH}/bin:{current_path}",
+        "CCP4": ccp4_path,
+        "PATH": f"{ccp4_path}/bin:{current_path}",
     }
     logger.info(f"running {args}")
     try:
@@ -85,20 +83,23 @@ def extract_labels_from_mtzinfo(mtzinfo_output: str) -> list[str]:
     return input_mtz_labels_lines[0].split(" ")[1:]
 
 
-def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
+def uniqify(
+    ccp4_path: Path, rfree_mtz: Path, input_mtz: Path, resolution_cut: float
+) -> Path:
     ccp4_run(
+        ccp4_path,
         [
-            f"{CCP4_PATH}/bin/pointless",
+            f"{ccp4_path}/bin/pointless",
             "hklref",
             str(rfree_mtz),
             "hklin",
             str(input_mtz),
             "hklout",
             POINTLESS_MTZ,
-        ]
+        ],
     )
 
-    mtzinfo_input_mtz = ccp4_run([f"{CCP4_PATH}/bin/mtzinfo", POINTLESS_MTZ])
+    mtzinfo_input_mtz = ccp4_run(ccp4_path, [f"{ccp4_path}/bin/mtzinfo", POINTLESS_MTZ])
 
     input_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_input_mtz)
 
@@ -115,8 +116,9 @@ def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
             f'Input MTZ contains rfree flags in column "{input_mtz_rfree_labels[0]}", excluding those using mtzutils call'
         )
         ccp4_run(
+            ccp4_path,
             [
-                f"{CCP4_PATH}/bin/mtzutils",
+                f"{ccp4_path}/bin/mtzutils",
                 "hklin",
                 POINTLESS_MTZ,
                 "hklout",
@@ -137,7 +139,9 @@ def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
     xdata_line = re.split(r" +", xdata_lines[0])
     logger.info(f"xdata line is {xdata_lines[0]} ({len(xdata_line)} component(s))")
 
-    mtzinfo_rfree_mtz = ccp4_run([f"{CCP4_PATH}/bin/mtzinfo", str(rfree_mtz)])
+    mtzinfo_rfree_mtz = ccp4_run(
+        ccp4_path, [f"{ccp4_path}/bin/mtzinfo", str(rfree_mtz)]
+    )
     rfree_mtz_labels = extract_labels_from_mtzinfo(mtzinfo_rfree_mtz)
     rfree_mtz_rfree_labels = [
         label for label in rfree_mtz_labels if "free" in label.lower()
@@ -153,8 +157,9 @@ def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
     unique_cell_information = f"CELL {xdata_line[1]} {xdata_line[2]} {xdata_line[3]} {xdata_line[4]} {xdata_line[5]} {xdata_line[6]} {xdata_line[7]} SYMMETRY {xdata_line[9]}"
     logger.info(f"unique cell information: {unique_cell_information}")
     ccp4_run(
+        ccp4_path,
         [
-            f"{CCP4_PATH}/bin/unique",
+            f"{ccp4_path}/bin/unique",
             "HKLOUT",
             UNIQUE_MTZ,
         ],
@@ -170,8 +175,9 @@ def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
     LABIN FILE 3 E1 = {rfree_mtz_column}
     """
     ccp4_run(
+        ccp4_path,
         [
-            f"{CCP4_PATH}/bin/cad",
+            f"{ccp4_path}/bin/cad",
             "HKLIN1",
             EXCLUSION_MTZ,
             "HKLIN2",
@@ -185,8 +191,9 @@ def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
     )
 
     ccp4_run(
+        ccp4_path,
         [
-            f"{CCP4_PATH}/bin/freerflag",
+            f"{ccp4_path}/bin/freerflag",
             "HKLIN",
             CAD_MTZ,
             "HKLOUT",
@@ -198,8 +205,9 @@ def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
     )
 
     ccp4_run(
+        ccp4_path,
         [
-            f"{CCP4_PATH}/bin/mtzutils",
+            f"{ccp4_path}/bin/mtzutils",
             "hklin",
             FREER_MTZ,
             "hklout",
@@ -212,8 +220,9 @@ def uniqify(rfree_mtz: Path, input_mtz: Path, resolution_cut: float) -> Path:
     )
 
     ccp4_run(
+        ccp4_path,
         [
-            f"{CCP4_PATH}/bin/mtzutils",
+            f"{ccp4_path}/bin/mtzutils",
             "hklin",
             UNIQIFIED_MTZ,
             "hklout",
@@ -293,6 +302,7 @@ def parse_refmac_log(p: Path) -> RefinementFom:
 
 
 def quick_refine(
+    ccp4_path: Path,
     input_mtz: Path,
     resolution_cut: float,
     input_pdb: Path,
@@ -301,8 +311,9 @@ def quick_refine(
     logger.info("cutting resolution...")
 
     ccp4_run(
+        ccp4_path,
         [
-            f"{CCP4_PATH}/bin/mtzutils",
+            f"{ccp4_path}/bin/mtzutils",
             "hklin",
             str(input_mtz),
             "hklout",
@@ -316,8 +327,9 @@ def quick_refine(
     logging.info("running dimple now")
 
     ccp4_run(
+        ccp4_path,
         [
-            f"{CCP4_PATH}/bin/dimple",
+            f"{ccp4_path}/bin/dimple",
             "-f",
             "png",
             "--jelly",
@@ -374,6 +386,7 @@ class ParsedArgs:
     cell_file_id: int
     point_group: str
     hkl_file: Path
+    ccp4_path: None | Path
     partialator_additional: None | str
     crystfel_path: Path
     pdb_file_id: None | int
@@ -392,6 +405,17 @@ def parse_predefined(s: bytes) -> ParsedArgs:
     if not crystfel_path.is_dir():
         exit_with_error(
             None, f"CrystFEL path {crystfel_path} must be a valid directory"
+        )
+
+    ccp4_path_str = j.get("ccp4-path")
+    if ccp4_path_str is None:
+        exit_with_error(None, "ccp4-path missing in input")
+    if not isinstance(ccp4_path_str, str):
+        exit_with_error(None, f"ccp4-path not a string but {ccp4_path_str}")
+    ccp4_path = Path(ccp4_path_str) if ccp4_path_str else None
+    if ccp4_path and not ccp4_path.is_dir():
+        exit_with_error(
+            None, f"ccp4 path {ccp4_path} must be a valid directory or empty"
         )
 
     stream_files_raw = j.get("stream-files")
@@ -425,6 +449,7 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         merge_result_id=j.get("merge-result-id"),  # type: ignore
         cell_file_id=j.get("cell-file-id"),  # type: ignore
         point_group=j.get("point-group"),  # type: ignore
+        ccp4_path=ccp4_path,
         hkl_file=Path(
             j.get(
                 "hkl-file", "partialator.hkl"
@@ -508,7 +533,7 @@ def write_output_json(
             indent=2,
         ).encode("utf-8")
 
-    url = f"{args.api_url}/api/merging/finish/{args.merge_result_id}"
+    url = f"{args.api_url}/api/merging/{args.merge_result_id}/finish"
     logger.info(f"sending result to {url}")
     req = request.Request(
         url,
@@ -954,7 +979,7 @@ def generate_output(args: ParsedArgs) -> None:
         )
 
     refinement_result: None | RefinementResult = None
-    if args.pdb_file_id is not None:
+    if args.pdb_file_id is not None and args.ccp4_path is not None:
         try:
             pdb_file = retrieve_file(args, args.pdb_file_id, "base-model.pdb")
             restraints_cif_file = (
@@ -963,7 +988,7 @@ def generate_output(args: ParsedArgs) -> None:
                 else None
             )
             refinement_result = quick_refine(
-                mtz_path, highres_cut, pdb_file, restraints_cif_file
+                args.ccp4_path, mtz_path, highres_cut, pdb_file, restraints_cif_file
             )
         except:
             logger.exception("couldn't complete refinement")

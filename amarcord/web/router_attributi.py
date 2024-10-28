@@ -21,7 +21,7 @@ from amarcord.json_schema import JSONSchemaArray
 from amarcord.json_schema import JSONSchemaInteger
 from amarcord.json_schema import JSONSchemaNumber
 from amarcord.json_schema import JSONSchemaString
-from amarcord.web.fastapi_utils import AUTOMATIC_ATTRIBUTI_GROUP
+from amarcord.web.constants import AUTOMATIC_ATTRIBUTI_GROUP
 from amarcord.web.fastapi_utils import get_orm_db
 from amarcord.web.json_models import JsonAttributo
 from amarcord.web.json_models import JsonCreateAttributiFromSchemaInput

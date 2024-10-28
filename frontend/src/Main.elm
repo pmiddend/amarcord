@@ -5,12 +5,13 @@
 module Main exposing (main)
 
 import Amarcord.Bootstrap exposing (viewRemoteDataHttp)
-import Amarcord.ColumnChooser as ColumnChooser
 import Amarcord.Html exposing (h1_, img_)
+import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
-import Amarcord.Pages.Analysis as Analysis
+import Amarcord.Pages.AnalysisExperimentType as AnalysisExperimentType
+import Amarcord.Pages.AnalysisOverview as AnalysisOverview
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.BeamtimeSelection as BeamtimeSelection
 import Amarcord.Pages.Chemicals as Chemicals
@@ -18,32 +19,53 @@ import Amarcord.Pages.DataSets as DataSets
 import Amarcord.Pages.EventLog as EventLog
 import Amarcord.Pages.ExperimentTypes as ExperimentTypes
 import Amarcord.Pages.Help as Help
+import Amarcord.Pages.MergeResult as MergeResult
 import Amarcord.Pages.RunAnalysis as RunAnalysis
 import Amarcord.Pages.RunOverview as RunOverview
+import Amarcord.Pages.Runs as Runs
 import Amarcord.Pages.Schedule as Schedule
+import Amarcord.Pages.SingleDataSet as SingleDataSet
 import Amarcord.Route as Route exposing (Route)
 import Amarcord.Util exposing (HereAndNow, retrieveHereAndNow)
 import Amarcord.Version exposing (version)
-import Api exposing (send)
 import Api.Data exposing (JsonBeamtime)
 import Api.Request.Beamtimes exposing (readBeamtimeApiBeamtimesBeamtimeIdGet)
 import Browser exposing (Document, UrlRequest)
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Http
 import RemoteData exposing (RemoteData(..))
-import String exposing (contains)
+import String exposing (contains, endsWith)
 import Task
-import Time exposing (Posix)
 import Url as URL exposing (Url)
 
 
-maybeColumnChooser : Model -> List (Sub Msg)
-maybeColumnChooser rootModel =
+pageSubscriptions : Model -> List (Sub Msg)
+pageSubscriptions rootModel =
     case rootModel.page of
-        RunOverviewPage runOverviewModel ->
-            [ ColumnChooser.subscriptions runOverviewModel.columnChooser (RunOverviewPageMsg << RunOverview.ColumnChooserMessage) ]
+        RunsPage model ->
+            List.map (Sub.map RunsPageMsg) (Runs.subscriptions model)
+
+        SchedulePage model ->
+            List.map (Sub.map ScheduleMsg) (Schedule.subscriptions model)
+
+        AdvancedControlsPage model ->
+            List.map (Sub.map AdvancedControlsPageMsg) (AdvancedControls.subscriptions model)
+
+        RunOverviewPage model ->
+            List.map (Sub.map RunOverviewPageMsg) (RunOverview.subscriptions model)
+
+        SingleDataSetPage model ->
+            List.map (Sub.map SingleDataSetPageMsg) (SingleDataSet.subscriptions model)
+
+        AnalysisOverviewPage model ->
+            List.map (Sub.map AnalysisOverviewPageMsg) (AnalysisOverview.subscriptions model)
+
+        AnalysisExperimentTypePage model ->
+            List.map (Sub.map AnalysisExperimentTypePageMsg) (AnalysisExperimentType.subscriptions model)
+
+        EventLogPage model ->
+            List.map (Sub.map EventLogPageMsg) (EventLog.subscriptions model)
 
         _ ->
             []
@@ -55,7 +77,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \model -> Sub.batch (Time.every 10000 RefreshMsg :: maybeColumnChooser model)
+        , subscriptions = Sub.batch << pageSubscriptions
         , onUrlRequest = LinkClicked
         , onUrlChange = UrlChanged
         }
@@ -64,34 +86,41 @@ main =
 type Msg
     = AttributiPageMsg Attributi.Msg
     | ChemicalsPageMsg Chemicals.Msg
+    | MergeResultPageMsg MergeResult.Msg
     | RunOverviewPageMsg RunOverview.Msg
+    | RunsPageMsg Runs.Msg
     | AdvancedControlsPageMsg AdvancedControls.Msg
     | BeamtimeSelectionPageMsg BeamtimeSelection.Msg
     | DataSetsMsg DataSets.Msg
-    | ExperimentTypesMsg ExperimentTypes.ExperimentTypeMsg
-    | AnalysisPageMsg Analysis.Msg
+    | ExperimentTypesMsg ExperimentTypes.Msg
+    | AnalysisOverviewPageMsg AnalysisOverview.Msg
+    | AnalysisExperimentTypePageMsg AnalysisExperimentType.Msg
+    | SingleDataSetPageMsg SingleDataSet.Msg
     | RunAnalysisPageMsg RunAnalysis.Msg
     | ScheduleMsg Schedule.ScheduleMsg
-    | EventLogMsg EventLog.Msg
+    | EventLogPageMsg EventLog.Msg
     | LinkClicked UrlRequest
     | UrlChanged Url
-    | RefreshMsg Posix
     | HereAndNowReceived HereAndNow
-    | BeamtimeReceived (Result Http.Error JsonBeamtime)
+    | BeamtimeReceived (Result HttpError JsonBeamtime)
 
 
 type Page
     = RootPage
     | AttributiPage Attributi.Model
     | ChemicalsPage Chemicals.Model
+    | MergeResultPage MergeResult.Model
     | RunOverviewPage RunOverview.Model
+    | RunsPage Runs.Model
     | AdvancedControlsPage AdvancedControls.Model
     | BeamtimeSelectionPage BeamtimeSelection.Model
     | DataSetsPage DataSets.DataSetModel
     | SchedulePage Schedule.ScheduleModel
     | EventLogPage EventLog.Model
-    | ExperimentTypesPage ExperimentTypes.ExperimentTypeModel
-    | AnalysisPage Analysis.Model
+    | ExperimentTypesPage ExperimentTypes.Model
+    | AnalysisOverviewPage AnalysisOverview.Model
+    | AnalysisExperimentTypePage AnalysisExperimentType.Model
+    | SingleDataSetPage SingleDataSet.Model
     | RunAnalysisPage RunAnalysis.Model
 
 
@@ -105,7 +134,7 @@ type alias Model =
 
 type alias Metadata =
     { hereAndNow : Maybe HereAndNow
-    , beamtimeRequest : RemoteData Http.Error JsonBeamtime
+    , beamtimeRequest : RemoteData HttpError JsonBeamtime
     , localStorage : Maybe LocalStorage
     }
 
@@ -146,76 +175,73 @@ init localStorageStr url navKey =
     ( model, Cmd.batch [ Task.perform HereAndNowReceived retrieveHereAndNow, retrieveRouteBeamtime route ] )
 
 
+buildTitleForPage : Page -> String
+buildTitleForPage page =
+    case page of
+        RootPage ->
+            "Beamtime Selection"
+
+        AttributiPage model ->
+            Attributi.pageTitle model
+
+        ChemicalsPage model ->
+            Chemicals.pageTitle model
+
+        MergeResultPage model ->
+            MergeResult.pageTitle model
+
+        RunOverviewPage model ->
+            RunOverview.pageTitle model
+
+        RunsPage model ->
+            Runs.pageTitle model
+
+        AdvancedControlsPage model ->
+            AdvancedControls.pageTitle model
+
+        BeamtimeSelectionPage model ->
+            BeamtimeSelection.pageTitle model
+
+        DataSetsPage model ->
+            DataSets.pageTitle model
+
+        SchedulePage model ->
+            Schedule.pageTitle model
+
+        EventLogPage model ->
+            EventLog.pageTitle model
+
+        ExperimentTypesPage model ->
+            ExperimentTypes.pageTitle model
+
+        AnalysisOverviewPage model ->
+            AnalysisOverview.pageTitle model
+
+        AnalysisExperimentTypePage model ->
+            AnalysisExperimentType.pageTitle model
+
+        SingleDataSetPage model ->
+            SingleDataSet.pageTitle model
+
+        RunAnalysisPage model ->
+            RunAnalysis.pageTitle model
+
+
 buildTitle : Model -> String
 buildTitle model =
     case model.metadata.beamtimeRequest of
         Success { title } ->
             let
                 prefix =
-                    case model.route of
-                        Route.Chemicals _ ->
-                            "Chemicals — "
-
-                        Route.DataSets _ ->
-                            "Data Sets — "
-
-                        Route.Schedule _ ->
-                            "Schedule — "
-
-                        Route.EventLog _ ->
-                            "Events — "
-
-                        Route.ExperimentTypes _ ->
-                            "Experiment Types — "
-
-                        Route.RunOverview _ ->
-                            case model.page of
-                                RunOverviewPage runOverviewModel ->
-                                    case runOverviewModel.runs of
-                                        Success { runs } ->
-                                            case List.head runs of
-                                                Nothing ->
-                                                    "Runs — "
-
-                                                Just { externalId, stopped } ->
-                                                    case stopped of
-                                                        Nothing ->
-                                                            "🏃 Run " ++ String.fromInt externalId ++ " — "
-
-                                                        _ ->
-                                                            "Run " ++ String.fromInt externalId ++ " — "
-
-                                        _ ->
-                                            "Runs — "
-
-                                _ ->
-                                    "Runs — "
-
-                        Route.Attributi _ ->
-                            "Attributi — "
-
-                        Route.AdvancedControls _ ->
-                            "Advanced — "
-
-                        Route.Analysis _ ->
-                            "Analysis by Experiment Type — "
-
-                        Route.RunAnalysis _ ->
-                            "Analysis by Run — "
-
-                        Route.Root _ ->
-                            ""
-
-                        Route.BeamtimeSelection ->
-                            "Beamtime Selection"
+                    buildTitleForPage model.page
 
                 suffix =
-                    " — AMARCORD"
+                    " | " ++ title ++ " | AMARCORD"
             in
-            prefix ++ title ++ suffix
+            prefix ++ suffix
 
         NotAsked ->
-            "AMARCORD — Beamtime Selection"
+            "AMARCORD | Beamtime Selection"
 
         _ ->
             "AMARCORD"
@@ -299,7 +325,7 @@ currentView model =
         EventLogPage sm ->
             div []
                 [ EventLog.view sm
-                    |> Html.map EventLogMsg
+                    |> Html.map EventLogPageMsg
                 ]
 
         ChemicalsPage pageModel ->
@@ -308,16 +334,40 @@ currentView model =
                     |> Html.map ChemicalsPageMsg
                 ]
 
+        MergeResultPage pageModel ->
+            div []
+                [ MergeResult.view pageModel
+                    |> Html.map MergeResultPageMsg
+                ]
+
+        RunsPage pageModel ->
+            div []
+                [ Runs.view pageModel
+                    |> Html.map RunsPageMsg
+                ]
+
         RunOverviewPage pageModel ->
             div []
                 [ RunOverview.view pageModel
                     |> Html.map RunOverviewPageMsg
                 ]
 
-        AnalysisPage pageModel ->
+        AnalysisOverviewPage pageModel ->
             div []
-                [ Analysis.view pageModel
-                    |> Html.map AnalysisPageMsg
+                [ AnalysisOverview.view pageModel
+                    |> Html.map AnalysisOverviewPageMsg
+                ]
+
+        AnalysisExperimentTypePage pageModel ->
+            div []
+                [ AnalysisExperimentType.view pageModel
+                    |> Html.map AnalysisExperimentTypePageMsg
+                ]
+
+        SingleDataSetPage pageModel ->
+            div []
+                [ SingleDataSet.view pageModel
+                    |> Html.map SingleDataSetPageMsg
                 ]
 
         RunAnalysisPage pageModel ->
@@ -429,6 +479,15 @@ updateInner hereAndNow msg model =
             , Cmd.map ChemicalsPageMsg updatedCmd
             )
 
+        ( MergeResultPageMsg subMsg, MergeResultPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    MergeResult.update subMsg pageModel
+            in
+            ( { model | page = MergeResultPage updatedPageModel }
+            , Cmd.map MergeResultPageMsg updatedCmd
+            )
+
         ( ScheduleMsg scheduleMsg, SchedulePage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -438,13 +497,22 @@ updateInner hereAndNow msg model =
             , Cmd.map ScheduleMsg updatedCmd
             )
 
-        ( EventLogMsg eventLogMsg, EventLogPage pageModel ) ->
+        ( EventLogPageMsg eventLogMsg, EventLogPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
                     EventLog.update eventLogMsg pageModel
             in
             ( { model | page = EventLogPage updatedPageModel }
-            , Cmd.map EventLogMsg updatedCmd
+            , Cmd.map EventLogPageMsg updatedCmd
+            )
+
+        ( RunsPageMsg subMsg, RunsPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    Runs.update subMsg pageModel
+            in
+            ( { model | page = RunsPage updatedPageModel }
+            , Cmd.map RunsPageMsg updatedCmd
             )
 
         ( RunOverviewPageMsg subMsg, RunOverviewPage pageModel ) ->
@@ -477,19 +545,37 @@ updateInner hereAndNow msg model =
         ( ExperimentTypesMsg subMsg, ExperimentTypesPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
-                    ExperimentTypes.updateExperimentType subMsg pageModel
+                    ExperimentTypes.update subMsg pageModel
             in
             ( { model | page = ExperimentTypesPage updatedPageModel }
             , Cmd.map ExperimentTypesMsg updatedCmd
             )
 
-        ( AnalysisPageMsg subMsg, AnalysisPage pageModel ) ->
+        ( AnalysisOverviewPageMsg subMsg, AnalysisOverviewPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
-                    Analysis.update subMsg pageModel
+                    AnalysisOverview.update subMsg pageModel
             in
-            ( { model | page = AnalysisPage updatedPageModel }
-            , Cmd.map AnalysisPageMsg updatedCmd
+            ( { model | page = AnalysisOverviewPage updatedPageModel }
+            , Cmd.map AnalysisOverviewPageMsg updatedCmd
+            )
+
+        ( AnalysisExperimentTypePageMsg subMsg, AnalysisExperimentTypePage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    AnalysisExperimentType.update subMsg pageModel
+            in
+            ( { model | page = AnalysisExperimentTypePage updatedPageModel }
+            , Cmd.map AnalysisExperimentTypePageMsg updatedCmd
+            )
+
+        ( SingleDataSetPageMsg subMsg, SingleDataSetPage pageModel ) ->
+            let
+                ( updatedPageModel, updatedCmd ) =
+                    SingleDataSet.update subMsg pageModel
+            in
+            ( { model | page = SingleDataSetPage updatedPageModel }
+            , Cmd.map SingleDataSetPageMsg updatedCmd
             )
 
         ( RunAnalysisPageMsg subMsg, RunAnalysisPage pageModel ) ->
@@ -501,48 +587,12 @@ updateInner hereAndNow msg model =
             , Cmd.map RunAnalysisPageMsg updatedCmd
             )
 
-        ( RefreshMsg t, AnalysisPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    Analysis.update (Analysis.Refresh t) pageModel
-            in
-            ( { model | page = AnalysisPage updatedPageModel }
-            , Cmd.map AnalysisPageMsg updatedCmd
-            )
-
-        ( RefreshMsg t, EventLogPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    EventLog.update (EventLog.Refresh t) pageModel
-            in
-            ( { model | page = EventLogPage updatedPageModel }
-            , Cmd.map EventLogMsg updatedCmd
-            )
-
-        ( RefreshMsg t, RunOverviewPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    RunOverview.update (RunOverview.Refresh t) pageModel
-            in
-            ( { model | page = RunOverviewPage updatedPageModel }
-            , Cmd.map RunOverviewPageMsg updatedCmd
-            )
-
-        ( RefreshMsg t, AdvancedControlsPage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    AdvancedControls.update (AdvancedControls.Refresh t) pageModel
-            in
-            ( { model | page = AdvancedControlsPage updatedPageModel }
-            , Cmd.map AdvancedControlsPageMsg updatedCmd
-            )
-
         ( LinkClicked urlRequest, _ ) ->
             case urlRequest of
                 Browser.Internal url ->
                     -- Special case here; if this wasn't present, we'd try to open the /api prefix stuff and the
                     -- routing would fail.
-                    if contains "api/files/" url.path || contains "spreadsheet.zip" url.path then
+                    if contains "api/files/" url.path || endsWith "/log" url.path || endsWith "/errorlog" url.path || contains "spreadsheet.zip" url.path then
                         ( model, Nav.load (URL.toString url) )
 
                     else
@@ -558,6 +608,9 @@ updateInner hereAndNow msg model =
                     ( model, Nav.load url )
 
         ( UrlChanged url, _ ) ->
+            -- Here our URL changed. We might have switched beam times
+            -- (if we came from the overview, or something), so here
+            -- we have to check if we need another beam time request.
             let
                 newRoute =
                     Route.parseUrlFragment url
@@ -565,13 +618,25 @@ updateInner hereAndNow msg model =
                 beamtimeIdInRoute =
                     Route.beamtimeIdInRoute newRoute
 
+                oldBeamtimeId =
+                    case model.metadata.beamtimeRequest of
+                        Success { id } ->
+                            Just id
+
+                        _ ->
+                            Nothing
+
                 newBeamtimeRequest =
                     case beamtimeIdInRoute of
                         Nothing ->
                             NotAsked
 
-                        Just _ ->
-                            Loading
+                        Just newBeamtimeId ->
+                            if Just newBeamtimeId == oldBeamtimeId then
+                                model.metadata.beamtimeRequest
+
+                            else
+                                Loading
 
                 retrieveRouteBeamtimeCmd : Cmd Msg
                 retrieveRouteBeamtimeCmd =
@@ -580,7 +645,11 @@ updateInner hereAndNow msg model =
                             Cmd.none
 
                         Just btId ->
-                            send BeamtimeReceived (readBeamtimeApiBeamtimesBeamtimeIdGet btId)
+                            if Just btId == oldBeamtimeId then
+                                Cmd.none
+
+                            else
+                                send BeamtimeReceived (readBeamtimeApiBeamtimesBeamtimeIdGet btId)
 
                 oldMetadata =
                     model.metadata
@@ -588,7 +657,8 @@ updateInner hereAndNow msg model =
                 newMetadata =
                     { oldMetadata | beamtimeRequest = newBeamtimeRequest }
             in
-            ( { model | route = newRoute, metadata = newMetadata }, retrieveRouteBeamtimeCmd ) |> initCurrentPage model.metadata.localStorage hereAndNow
+            ( { model | route = newRoute, metadata = newMetadata }, retrieveRouteBeamtimeCmd )
+                |> initCurrentPage model.metadata.localStorage hereAndNow
 
         _ ->
             ( model, Cmd.none )
@@ -626,6 +696,20 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( ChemicalsPage pageModel, Cmd.map ChemicalsPageMsg pageCmds )
 
+                Route.MergeResult beamtimeId experimentTypeId dataSetId mergeResultId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            MergeResult.init model.navKey hereAndNow beamtimeId experimentTypeId dataSetId mergeResultId
+                    in
+                    ( MergeResultPage pageModel, Cmd.map MergeResultPageMsg pageCmds )
+
+                Route.Runs beamtimeId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            Runs.init hereAndNow localStorage beamtimeId
+                    in
+                    ( RunsPage pageModel, Cmd.map RunsPageMsg pageCmds )
+
                 Route.RunOverview beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
@@ -633,12 +717,26 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
 
-                Route.Analysis beamtimeId ->
+                Route.AnalysisOverview beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Analysis.init hereAndNow beamtimeId
+                            AnalysisOverview.init model.navKey hereAndNow beamtimeId
                     in
-                    ( AnalysisPage pageModel, Cmd.map AnalysisPageMsg pageCmds )
+                    ( AnalysisOverviewPage pageModel, Cmd.map AnalysisOverviewPageMsg pageCmds )
+
+                Route.AnalysisExperimentType beamtimeId etId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            AnalysisExperimentType.init model.navKey hereAndNow beamtimeId etId
+                    in
+                    ( AnalysisExperimentTypePage pageModel, Cmd.map AnalysisExperimentTypePageMsg pageCmds )
+
+                Route.AnalysisDataSet beamtimeId dsId ->
+                    let
+                        ( pageModel, pageCmds ) =
+                            SingleDataSet.init model.navKey hereAndNow beamtimeId dsId
+                    in
+                    ( SingleDataSetPage pageModel, Cmd.map SingleDataSetPageMsg pageCmds )
 
                 Route.RunAnalysis beamtimeId ->
                     let
@@ -657,7 +755,7 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                 Route.Schedule beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            Schedule.initSchedule beamtimeId
+                            Schedule.initSchedule hereAndNow beamtimeId
                     in
                     ( SchedulePage pageModel, Cmd.map ScheduleMsg pageCmds )
 
@@ -666,12 +764,12 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                         ( pageModel, pageCmds ) =
                             EventLog.init hereAndNow beamtimeId
                     in
-                    ( EventLogPage pageModel, Cmd.map EventLogMsg pageCmds )
+                    ( EventLogPage pageModel, Cmd.map EventLogPageMsg pageCmds )
 
                 Route.ExperimentTypes beamtimeId ->
                     let
                         ( pageModel, pageCmds ) =
-                            ExperimentTypes.initExperimentType beamtimeId
+                            ExperimentTypes.init hereAndNow.zone beamtimeId
                     in
                     ( ExperimentTypesPage pageModel, Cmd.map ExperimentTypesMsg pageCmds )
 

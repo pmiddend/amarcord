@@ -32,9 +32,9 @@ async def download_spreadsheet(
     workbook.save(workbook_bytes)
     zipfile_bytes = BytesIO()
     with ZipFile(zipfile_bytes, "w") as result_zip:
-        dirname = "amarcord-output-" + datetime.datetime.utcnow().strftime(
-            "%Y-%m-%d_%H-%M-%S"
-        )
+        dirname = "amarcord-output-" + datetime.datetime.now(
+            datetime.timezone.utc
+        ).strftime("%Y-%m-%d_%H-%M-%S")
         result_zip.writestr(f"{dirname}/tables.xlsx", workbook_bytes.getvalue())
         for file_ in workbook_output.files:
             result_zip.writestr(

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
-from typing import TypeAlias
 
 
 @dataclass(frozen=True, eq=True)
@@ -34,12 +33,3 @@ class DBIndexingResultDone:
     stream_file: Path
     job_error: None | str
     fom: DBIndexingFOM
-
-
-# The state of the indexing result can be "queued", "running" or "done". There used to be an enum for that here, plus
-# some variables that could all be "None". But that lead to some really weird code, where we check the enum and then
-# assert some variables to be not None. This solution is a bit more complicated, but safer to use, and it plays nice
-# with Python 3.10's match statement
-DBIndexingResultRuntimeStatus: TypeAlias = (
-    None | DBIndexingResultRunning | DBIndexingResultDone
-)

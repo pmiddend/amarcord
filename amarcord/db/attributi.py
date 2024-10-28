@@ -130,13 +130,13 @@ def datetime_to_attributo_int(d: datetime.datetime) -> int:
 
 
 def datetime_from_float_in_seconds(d: float) -> datetime.datetime:
-    return datetime.datetime.utcfromtimestamp(d)
+    return datetime.datetime.fromtimestamp(d, tz=datetime.timezone.utc)
 
 
 def datetime_from_attributo_int(d: int) -> datetime.datetime:
     # see
     # https://stackoverflow.com/questions/748491/how-do-i-create-a-datetime-in-python-from-milliseconds
-    return datetime.datetime.utcfromtimestamp(d // 1000).replace(
+    return datetime.datetime.fromtimestamp(d // 1000, tz=datetime.timezone.utc).replace(
         microsecond=d % 1000 * 1000
     )
 

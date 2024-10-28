@@ -1,42 +1,45 @@
-module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.BeamtimeSelection exposing (Model, Msg(..), init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (invalidBeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
 import Amarcord.Html exposing (div_, form_, h2_, h4_, strongText)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeLink)
 import Amarcord.Util exposing (HereAndNow, formatPosixDateTimeCompatible, formatPosixHumanFriendly, localDateTimeStringToPosix, scrollToTop)
-import Api exposing (send)
 import Api.Data exposing (JsonBeamtime, JsonReadBeamtime)
 import Api.Request.Beamtimes exposing (createBeamtimeApiBeamtimesPost, readBeamtimesApiBeamtimesGet, updateBeamtimeApiBeamtimesPatch)
 import Html exposing (Html, a, button, div, input, label, li, p, span, table, tbody, td, text, textarea, th, thead, tr, ul)
 import Html.Attributes as Attrs exposing (attribute, class, for, href, id, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List exposing (sort)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Result.Extra as ResultExtra
-import Time exposing (Zone, millisToPosix, posixToMillis, utc)
+import Time exposing (Zone, millisToPosix, posixToMillis)
 
 
 type alias Model =
-    { beamtimeResult : RemoteData Http.Error (List JsonBeamtime)
+    { beamtimeResult : RemoteData HttpError (List JsonBeamtime)
     , beamtimeEdit : Maybe JsonBeamtime
-    , modifyRequest : RemoteData Http.Error ()
-    , zone : Zone
+    , modifyRequest : RemoteData HttpError ()
+    , hereAndNow : HereAndNow
     }
 
 
+pageTitle : Model -> String
+pageTitle _ =
+    "Beamtime Selection"
+
+
 type Msg
-    = BeamtimesReceived (Result Http.Error JsonReadBeamtime)
+    = BeamtimesReceived (Result HttpError JsonReadBeamtime)
     | AddBeamtime
     | Nop
     | EditBeamtimeStart JsonBeamtime
     | EditBeamtimeSubmit
     | ChangeEditBeamtime (JsonBeamtime -> JsonBeamtime)
     | EditBeamtimeCancel
-    | EditBeamtimeFinished (Result Http.Error {})
+    | EditBeamtimeFinished (Result HttpError {})
 
 
 init : HereAndNow -> ( Model, Cmd Msg )
@@ -44,18 +47,18 @@ init hereAndNow =
     ( { beamtimeResult = Loading
       , beamtimeEdit = Nothing
       , modifyRequest = NotAsked
-      , zone = hereAndNow.zone
+      , hereAndNow = hereAndNow
       }
     , send BeamtimesReceived readBeamtimesApiBeamtimesGet
     )
 
 
-emptyBeamtime : JsonBeamtime
-emptyBeamtime =
+emptyBeamtime : HereAndNow -> JsonBeamtime
+emptyBeamtime hereAndNow =
     { beamline = ""
     , comment = ""
-    , start = 0
-    , end = 0
+    , start = posixToMillis hereAndNow.now
+    , end = posixToMillis hereAndNow.now
     , externalId = ""
     , id = invalidBeamtimeId
     , proposal = ""
@@ -82,7 +85,7 @@ update msg model =
             ( { model | beamtimeResult = fromResult (Result.map .beamtimes response) }, Cmd.none )
 
         AddBeamtime ->
-            ( { model | beamtimeEdit = Just emptyBeamtime }, Cmd.none )
+            ( { model | beamtimeEdit = Just (emptyBeamtime model.hereAndNow) }, Cmd.none )
 
         EditBeamtimeStart bt ->
             ( { model | beamtimeEdit = Just bt }, scrollToTop (always Nop) )
@@ -191,8 +194,8 @@ viewBeamtimes zone beamtimes =
         ]
 
 
-viewEditForm : JsonBeamtime -> Html Msg
-viewEditForm bt =
+viewEditForm : Zone -> JsonBeamtime -> Html Msg
+viewEditForm zone bt =
     let
         addOrEditHeadline =
             h4_
@@ -233,7 +236,9 @@ viewEditForm bt =
                 [ id "beamtime-edit-start"
                 , type_ "datetime-local"
                 , class "form-control"
-                , value (formatPosixDateTimeCompatible utc (millisToPosix bt.start))
+
+                -- note here and below: local time zone!
+                , value (formatPosixDateTimeCompatible zone (millisToPosix bt.start))
                 , onInput
                     (\newValue ->
                         ChangeEditBeamtime
@@ -241,7 +246,7 @@ viewEditForm bt =
                                 ResultExtra.unwrap
                                     bt2
                                     (\newParsed -> { bt2 | start = posixToMillis newParsed })
-                                    (localDateTimeStringToPosix utc newValue)
+                                    (localDateTimeStringToPosix zone newValue)
                             )
                     )
                 ]
@@ -253,7 +258,9 @@ viewEditForm bt =
                 [ id "beamtime-edit-end"
                 , type_ "datetime-local"
                 , class "form-control"
-                , value (formatPosixDateTimeCompatible utc (millisToPosix bt.end))
+
+                -- note here and below: local time zone!
+                , value (formatPosixDateTimeCompatible zone (millisToPosix bt.end))
                 , onInput
                     (\newValue ->
                         ChangeEditBeamtime
@@ -261,7 +268,7 @@ viewEditForm bt =
                                 ResultExtra.unwrap
                                     bt2
                                     (\newParsed -> { bt2 | end = posixToMillis newParsed })
-                                    (localDateTimeStringToPosix utc newValue)
+                                    (localDateTimeStringToPosix zone newValue)
                             )
                     )
                 ]
@@ -315,7 +322,7 @@ view model =
 
             Just beamtime ->
                 div_
-                    [ viewEditForm beamtime
+                    [ viewEditForm model.hereAndNow.zone beamtime
                     ]
         , case model.modifyRequest of
             NotAsked ->
@@ -325,7 +332,7 @@ view model =
                 p [] [ text "Request in progress..." ]
 
             Failure e ->
-                div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
 
             Success _ ->
                 div [ class "mt-3", id "beamtime-edit-success-alert" ]
@@ -333,10 +340,10 @@ view model =
                     ]
         , case model.beamtimeResult of
             Success beamtimes ->
-                viewBeamtimes model.zone beamtimes
+                viewBeamtimes model.hereAndNow.zone beamtimes
 
             Failure e ->
-                div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
 
             _ ->
                 text "Loading..."

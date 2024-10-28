@@ -118,6 +118,10 @@ def _comparison_filter(
     attributo_value: AttributoValue
     type_: AttributoType
     if aname == "id":
+        attributo_value = run.external_id
+        type_ = AttributoTypeInt()
+    # Synthetic attribute "internal_id". Hope we don't have any run attributes by that name! :)
+    elif aname == "internal_id":
         attributo_value = run.id
         type_ = AttributoTypeInt()
     else:

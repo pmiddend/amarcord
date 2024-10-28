@@ -6,6 +6,7 @@ from pathlib import Path
 
 from amarcord.amici.petra3.beamline_metadata import locate_beamtime_metadata
 from amarcord.amici.petra3.beamline_metadata import parse_beamline_metadata
+from amarcord.amici.workload_manager.local_workload_manager import LocalWorkloadManager
 from amarcord.amici.workload_manager.slurm_remote_workload_manager import (
     SlurmRemoteWorkloadManager,
 )
@@ -169,7 +170,7 @@ def create_workload_manager(
                 explicit_node=explicit_node,
             )
         case LocalWorkloadManagerConfig():
-            raise Exception("local workload manager not supported right now")
+            return LocalWorkloadManager()
         case SlurmRestWorkloadManagerConfig(
             partition=partition,
             reservation=reservation,

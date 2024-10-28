@@ -22,7 +22,7 @@ module Amarcord.Attributo exposing
     , convertAttributoValueFromApi
     , createAnnotatedAttributoMap
     , emptyAttributoMap
-    , extractInt
+    , extractChemical
     , mapAttributo
     , mapAttributoMaybe
     , prettyPrintAttributoValue
@@ -368,10 +368,10 @@ createAnnotatedAttributoMap attributi values =
     Dict.fromList bestValues
 
 
-extractInt : AttributoValue -> Maybe Int
-extractInt x =
+extractChemical : AttributoValue -> Maybe Int
+extractChemical x =
     case x of
-        ValueInt s ->
+        ValueChemical s ->
             Just s
 
         _ ->
@@ -504,6 +504,12 @@ attributoTypeToSchemaInt x =
     case x of
         Int ->
             Just { type_ = JSONSchemaIntegerTypeInteger, format = Nothing }
+
+        ChemicalId ->
+            Just { type_ = JSONSchemaIntegerTypeInteger, format = Just JSONSchemaIntegerFormatChemicalId }
+
+        DateTime ->
+            Just { type_ = JSONSchemaIntegerTypeInteger, format = Just JSONSchemaIntegerFormatDateTime }
 
         _ ->
             Nothing

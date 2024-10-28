@@ -9,11 +9,11 @@ import Chart as C
 import Chart.Attributes as CA
 import Html exposing (Html, div, em, img, text)
 import Html.Attributes exposing (class, id, src)
-import Time exposing (utc)
+import Time exposing (Zone)
 
 
-viewHitRateAndIndexingGraphs : List JsonIndexingStatistic -> Html msg
-viewHitRateAndIndexingGraphs stats =
+viewHitRateAndIndexingGraphs : Zone -> List JsonIndexingStatistic -> Html msg
+viewHitRateAndIndexingGraphs zone stats =
     let
         graphMarginMagnitude =
             30
@@ -59,7 +59,7 @@ viewHitRateAndIndexingGraphs stats =
             [ CA.height 200, CA.width 400, CA.margin graphMargins ]
             [ C.xAxis []
             , C.yAxis []
-            , C.xLabels [ CA.fontSize fontSize, CA.times utc ]
+            , C.xLabels [ CA.fontSize fontSize, CA.times zone ]
             , C.yLabels [ CA.withGrid, CA.fontSize fontSize ]
             , C.series (toFloat << .time)
                 [ C.interpolated .rate [] [] ]
@@ -70,7 +70,7 @@ viewHitRateAndIndexingGraphs stats =
             [ CA.height 200, CA.width 400, CA.margin graphMargins ]
             [ C.xAxis []
             , C.yAxis []
-            , C.xLabels [ CA.fontSize fontSize, CA.times utc ]
+            , C.xLabels [ CA.fontSize fontSize, CA.times zone ]
             , C.yLabels [ CA.withGrid, CA.fontSize fontSize ]
             , C.series (toFloat << .time)
                 [ C.interpolated .rate [ CA.color CA.red ] [] ]

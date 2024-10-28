@@ -1,8 +1,8 @@
 import pytest
 import structlog
 
-from amarcord.amici.crystfel.util import CrystFELCellFile
-from amarcord.amici.crystfel.util import parse_cell_description
+from amarcord.cli.crystfel_index import CrystFELCellFile
+from amarcord.cli.crystfel_index import parse_cell_description
 
 logger = structlog.stdlib.get_logger(__name__)
 

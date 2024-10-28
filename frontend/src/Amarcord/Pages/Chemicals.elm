@@ -1,32 +1,30 @@
-module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, init, update, view)
+module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, init, pageTitle, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractInt)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
+import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractChemical, mapAttributo)
+import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId, chemicalTypeToApi, convertChemicalFromApi)
 import Amarcord.Crystallography exposing (validateCellDescription, validatePointGroup)
 import Amarcord.Dialog as Dialog
-import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, img_, input_, li_, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, em_, form_, h2_, h3_, h4_, h5_, hr_, img_, input_, li_, onIntInput, p_, span_, strongText, sup_, tbody_, td_, th_, thead_, tr_, ul_)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
-import Amarcord.Util exposing (HereAndNow, scrollToTop)
-import Api exposing (send)
-import Api.Data exposing (ChemicalType(..), JsonChemicalWithId, JsonChemicalWithoutId, JsonCreateFileOutput, JsonDeleteChemicalInput, JsonDeleteChemicalOutput, JsonFileOutput, JsonReadChemicals, JsonReadRuns, JsonRun)
-import Api.Request.Chemicals exposing (createChemicalApiChemicalsPost, deleteChemicalApiChemicalsDelete, readChemicalsApiChemicalsBeamtimeIdGet, updateChemicalApiChemicalsPatch)
+import Amarcord.Util exposing (HereAndNow, monthToNumericString, scrollToTop)
+import Api.Data exposing (ChemicalType(..), JsonChemical, JsonChemicalWithId, JsonChemicalWithoutId, JsonCopyChemicalOutput, JsonCreateFileOutput, JsonDeleteChemicalInput, JsonDeleteChemicalOutput, JsonFileOutput, JsonReadAllChemicals, JsonReadChemicals, JsonReadRuns, JsonRun)
+import Api.Request.Chemicals exposing (copyChemicalApiCopyChemicalPost, createChemicalApiChemicalsPost, deleteChemicalApiChemicalsDelete, readAllChemicalsApiAllChemicalsGet, readChemicalsApiChemicalsBeamtimeIdGet, updateChemicalApiChemicalsPatch)
 import Api.Request.Files exposing (createFileApiFilesPost)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet)
 import Basics.Extra exposing (safeDivide)
 import Bytes
-import Dict
+import Dict exposing (Dict)
 import File as ElmFile
 import File.Select
 import Html exposing (..)
-import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, src, style, title, type_, value)
+import Html.Attributes exposing (attribute, checked, class, disabled, for, href, id, selected, src, style, title, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List exposing (isEmpty, length, singleton)
 import List.Extra as ListExtra
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
@@ -35,7 +33,7 @@ import Result.Extra as ResultExtra
 import Set exposing (Set)
 import String
 import Task
-import Time exposing (Zone)
+import Time exposing (Zone, millisToPosix, toMonth, toYear)
 
 
 type alias ChemicalsAndAttributi =
@@ -56,14 +54,23 @@ type alias NewFileUpload =
     }
 
 
+type alias CopyPriorChemicalData =
+    { priorChemicals : JsonReadAllChemicals
+    , selectedChemicalId : Maybe Int
+    , submitRequest : RemoteData HttpError JsonCopyChemicalOutput
+    , createAttributi : Bool
+    }
+
+
 type alias Model =
-    { chemicals : RemoteData Http.Error ChemicalsAndAttributi
+    { chemicals : RemoteData HttpError ChemicalsAndAttributi
     , chemicalsUsedInRuns : Set ChemicalId
+    , priorChemicals : RemoteData HttpError CopyPriorChemicalData
     , deleteModalOpen : Maybe ( String, ChemicalId )
-    , chemicalDeleteRequest : RemoteData Http.Error ()
-    , fileUploadRequest : RemoteData Http.Error ()
+    , chemicalDeleteRequest : RemoteData HttpError ()
+    , fileUploadRequest : RemoteData HttpError ()
     , editChemical : Maybe (Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput)
-    , modifyRequest : RemoteData Http.Error ()
+    , modifyRequest : RemoteData HttpError ()
     , myTimeZone : Zone
     , submitErrors : List (Html Msg)
     , newFileUpload : NewFileUpload
@@ -73,26 +80,39 @@ type alias Model =
     }
 
 
+pageTitle : Model -> String
+pageTitle _ =
+    "Chemicals"
+
+
 type Msg
-    = ChemicalsReceived (Result Http.Error JsonReadChemicals)
-    | RunsReceived (Result Http.Error JsonReadRuns)
+    = ChemicalsReceived (Result HttpError JsonReadChemicals)
+    | PriorChemicalsReceived (Result HttpError JsonReadAllChemicals)
+    | InitiateCopyFromPreviousBeamtime
+    | CancelCopyFromPreviousBeamtime
+    | ToggleCreateAttriutiForCopyFromPreviousBeamtime
+    | SubmitCopyFromPreviousBeamtime
+    | CopyFromPreviousBeamtimeIdChanged Int
+    | CopyFromPreviousBeamtimeFinished (Result HttpError JsonCopyChemicalOutput)
+    | RunsReceived (Result HttpError JsonReadRuns)
     | CancelDelete
     | AskDelete String ChemicalId
     | InitiateEdit (Chemical Int (AttributoMap AttributoValue) JsonFileOutput)
+    | InitiateClone (Chemical Int (AttributoMap AttributoValue) JsonFileOutput)
     | ConfirmDelete ChemicalId
     | AddChemical ChemicalType
     | EditChemicalName String
     | EditChemicalResponsiblePerson String
-    | ChemicalDeleteFinished (Result Http.Error JsonDeleteChemicalOutput)
+    | ChemicalDeleteFinished (Result HttpError JsonDeleteChemicalOutput)
     | EditChemicalSubmit
     | EditChemicalCancel
-    | EditChemicalFinished (Result Http.Error {})
+    | EditChemicalFinished (Result HttpError {})
     | EditChemicalAttributo AttributoNameWithValueUpdate
     | EditNewFileDescription String
     | EditNewFileFile ElmFile.File
     | EditNewFileWithBytes FileWithBytes
     | EditFileUpload
-    | EditFileUploadFinished (Result Http.Error JsonCreateFileOutput)
+    | EditFileUploadFinished (Result HttpError JsonCreateFileOutput)
     | EditFileDelete Int
     | EditResetNewFileUpload
     | EditNewFileOpenSelector
@@ -104,6 +124,7 @@ type Msg
 init : HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
 init { zone } beamtimeId =
     ( { chemicals = Loading
+      , priorChemicals = NotAsked
       , chemicalsUsedInRuns = Set.empty
       , deleteModalOpen = Nothing
       , chemicalDeleteRequest = NotAsked
@@ -129,7 +150,7 @@ getChemicalsAndRuns beamtimeId =
         ]
 
 
-viewFiles : RemoteData Http.Error () -> NewFileUpload -> List JsonFileOutput -> List (Html Msg)
+viewFiles : RemoteData HttpError () -> NewFileUpload -> List JsonFileOutput -> List (Html Msg)
 viewFiles fileUploadError newFile files =
     let
         viewFileRow : JsonFileOutput -> Html Msg
@@ -211,7 +232,7 @@ viewFiles fileUploadError newFile files =
         filesTable ++ uploadForm
 
 
-viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput) -> RemoteData Http.Error () -> List (Html Msg) -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput -> Html Msg
+viewEditForm : List (Chemical ChemicalId (AttributoMap AttributoValue) JsonFileOutput) -> RemoteData HttpError () -> List (Html Msg) -> NewFileUpload -> Chemical (Maybe Int) EditableAttributiAndOriginal JsonFileOutput -> Html Msg
 viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingChemical =
     let
         attributoFormMsgToMsg : AttributoFormMsg -> Msg
@@ -285,21 +306,21 @@ viewEditForm chemicals fileUploadRequest submitErrorsList newFileUpload editingC
     in
     form_ <|
         [ addOrEditHeadline
-        , p [ class "lead text-muted" ]
+        , p [ class "text-muted" ]
             [ text "If you prepared your crystals in "
             , em_ [ text "multiple batches" ]
             , text ", please create "
             , em_ [ text "one chemical per batch" ]
             , text ". This helps during analysis."
             ]
-        , p [ class "lead text-muted" ]
+        , p [ class " text-muted" ]
             [ text "If you want a quick "
             , em_ [ text "refinement step" ]
             , text " at the end of the merging (see the Analysis view), upload a "
             , em_ [ text "PDB file" ]
             , text " with a base model for the protein."
             ]
-        , p [ class "lead text-muted" ]
+        , p [ class " text-muted" ]
             [ text "For the details on the "
             , strong [ style "font-weight" "bold" ] [ text "cell description" ]
             , text " please refer to the "
@@ -468,25 +489,28 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
     in
     [ div [ style "margin-bottom" "4rem" ]
         [ h3_
-            [ div_
+            [ div [ class "hstack gap-3" ]
                 [ text chemical.name
-                , button [ class "btn btn-link", onClick (InitiateEdit chemical) ] [ icon { name = "pencil-square" } ]
-                , if Set.member chemical.id chemicalIsUsedInRun then
-                    button
-                        [ class "btn text-secondary btn-link"
-                        , style "pointer-events" "all"
-                        , style "cursor" "not-allowed"
-                        , disabled True
-                        , title "Chemical associated to one or more runs, can only be edited."
-                        ]
-                        [ icon { name = "trash" } ]
+                , div [ class "btn-group" ]
+                    [ button [ class "btn btn-sm btn-outline-secondary", onClick (InitiateEdit chemical) ] [ icon { name = "pencil-square" }, text " Edit" ]
+                    , button [ class "btn btn-sm btn-outline-info", onClick (InitiateClone chemical) ] [ icon { name = "terminal" }, text " Duplicate" ]
+                    , if Set.member chemical.id chemicalIsUsedInRun then
+                        button
+                            [ class "btn btn-sm btn-outline-danger"
+                            , style "pointer-events" "all"
+                            , style "cursor" "not-allowed"
+                            , disabled True
+                            , title "Chemical associated to one or more runs, can only be edited."
+                            ]
+                            [ icon { name = "trash" }, text " Delete" ]
 
-                  else
-                    button
-                        [ class "btn text-danger btn-link"
-                        , onClick (AskDelete chemical.name chemical.id)
-                        ]
-                        [ icon { name = "trash" } ]
+                      else
+                        button
+                            [ class "btn btn-sm btn-outline-danger"
+                            , onClick (AskDelete chemical.name chemical.id)
+                            ]
+                            [ icon { name = "trash" }, text " Delete" ]
+                    ]
                 ]
             ]
         , table [ class "table table-sm" ]
@@ -584,6 +608,119 @@ viewChemicalTypeIcon ct =
             icon { name = "droplet-fill" }
 
 
+viewPriorChemicals : Model -> List (Attributo AttributoType) -> CopyPriorChemicalData -> Html Msg
+viewPriorChemicals model attributi { priorChemicals, selectedChemicalId } =
+    let
+        viewPriorChemical { id, name, beamtimeId } =
+            let
+                title =
+                    case ListExtra.find (\bt -> bt.id == beamtimeId) priorChemicals.beamtimes of
+                        Nothing ->
+                            name
+
+                        Just { start } ->
+                            let
+                                startAsPosix =
+                                    millisToPosix start
+                            in
+                            name
+                                ++ " / "
+                                ++ String.fromInt
+                                    (toYear model.myTimeZone startAsPosix)
+                                ++ "-"
+                                ++ monthToNumericString (toMonth model.myTimeZone startAsPosix)
+            in
+            option
+                [ value (String.fromInt id)
+                , selected (selectedChemicalId == Just id)
+                ]
+                [ text title ]
+
+        attributiNamesInThisBeamtime : Set String
+        attributiNamesInThisBeamtime =
+            List.foldr (\a -> Set.insert a.name) Set.empty attributi
+
+        attributoIdToNameDict : Dict Int String
+        attributoIdToNameDict =
+            List.foldr (\{ id, name } -> Dict.insert id name) Dict.empty priorChemicals.attributiNames
+
+        attributoIdToName : Int -> String
+        attributoIdToName aid =
+            Dict.get aid attributoIdToNameDict |> Maybe.withDefault "INVALID"
+
+        viewAddedAttributiForChemical : JsonChemical -> Html Msg
+        viewAddedAttributiForChemical selectedChemical =
+            case
+                List.filter
+                    (\aname -> not <| Set.member aname attributiNamesInThisBeamtime)
+                    (List.map (attributoIdToName << .attributoId) selectedChemical.attributi)
+            of
+                [] ->
+                    text ""
+
+                addedAttributi ->
+                    div [ class "alert alert-warning" ]
+                        [ p_ [ text "This chemical has the following additional attributi: " ]
+                        , ul_ (List.map (\aname -> li_ [ text aname ]) addedAttributi)
+                        , div [ class "form-check" ]
+                            [ input_
+                                [ class "form-check-input"
+                                , type_ "checkbox"
+                                , id "add-additional-attributi"
+                                , onClick ToggleCreateAttriutiForCopyFromPreviousBeamtime
+                                ]
+                            , label
+                                [ for "add-additional-attributi"
+                                , class "form-check-label"
+                                ]
+                                [ text "Create and fill these attributi as well." ]
+                            , div [ class "form-text" ]
+                                [ text "Otherwise the attributi will be ignored — the newly copied chemical will not have these attributi. "
+                                , em_ [ text "If you are not sure what to do, leave this unchecked." ]
+                                ]
+                            ]
+                        ]
+
+        viewAddedAttributi : Html Msg
+        viewAddedAttributi =
+            ListExtra.find (\c -> Just c.id == selectedChemicalId) priorChemicals.chemicals
+                |> Maybe.map viewAddedAttributiForChemical
+                |> Maybe.withDefault (text "")
+    in
+    form_ <|
+        [ h4_ [ icon { name = "terminal" }, text " Select chemical to copy" ]
+        , select
+            [ id "chemical-to-copy"
+            , class "form-select mb-3"
+            , onIntInput CopyFromPreviousBeamtimeIdChanged
+            ]
+            (option
+                [ disabled True
+                , value ""
+                , selected (isNothing selectedChemicalId)
+                ]
+                [ text "« choose a chemical »" ]
+                :: List.map viewPriorChemical priorChemicals.chemicals
+            )
+        , viewAddedAttributi
+        , div [ class "hstack gap-3 mb-3" ]
+            [ button
+                [ class "btn btn-primary"
+                , onClick SubmitCopyFromPreviousBeamtime
+                , disabled (isNothing selectedChemicalId)
+                , type_ "button"
+                ]
+                [ icon { name = "plus-lg" }, text " Copy into this beamtime" ]
+            , button
+                [ class "btn btn-secondary"
+                , onClick CancelCopyFromPreviousBeamtime
+                , type_ "button"
+                ]
+                [ icon { name = "x-lg" }, text " Cancel" ]
+            ]
+        ]
+
+
 {-| view function for anything that's not the modal
 -}
 viewInner : Model -> List (Html Msg)
@@ -596,21 +733,28 @@ viewInner model =
             singleton <| loadingBar "Loading chemicals..."
 
         Failure e ->
-            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ], showHttpError e ]
+            singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve chemicals" ], showError e ]
 
         Success { chemicals, attributi } ->
             let
                 prefix =
-                    case model.editChemical of
-                        Nothing ->
-                            div [ class "hstack gap-3" ]
-                                [ button [ class "btn btn-primary", onClick (AddChemical ChemicalTypeCrystal) ] [ viewChemicalTypeIcon ChemicalTypeCrystal, text " Add crystals" ]
-                                , div [ class "vr" ] []
-                                , button [ class "btn btn-primary", onClick (AddChemical ChemicalTypeSolution) ] [ viewChemicalTypeIcon ChemicalTypeSolution, text " Add solution" ]
-                                ]
+                    case model.priorChemicals of
+                        Success chems ->
+                            viewPriorChemicals model attributi chems
 
-                        Just editChemical ->
-                            viewEditForm chemicals model.fileUploadRequest model.submitErrors model.newFileUpload editChemical
+                        _ ->
+                            case model.editChemical of
+                                Nothing ->
+                                    div [ class "hstack gap-3" ]
+                                        [ button [ class "btn btn-primary", onClick (AddChemical ChemicalTypeCrystal) ] [ viewChemicalTypeIcon ChemicalTypeCrystal, text " Add crystals" ]
+                                        , div [ class "vr" ] []
+                                        , button [ class "btn btn-primary", onClick (AddChemical ChemicalTypeSolution) ] [ viewChemicalTypeIcon ChemicalTypeSolution, text " Add solution" ]
+                                        , div [ class "vr" ] []
+                                        , button [ class "btn btn-primary", onClick InitiateCopyFromPreviousBeamtime ] [ icon { name = "terminal" }, text " Copy from prior beamtime" ]
+                                        ]
+
+                                Just editChemical ->
+                                    viewEditForm chemicals model.fileUploadRequest model.submitErrors model.newFileUpload editChemical
 
                 modifyRequestResult =
                     case model.modifyRequest of
@@ -621,7 +765,7 @@ viewInner model =
                             p [] [ text "Request in progress..." ]
 
                         Failure e ->
-                            div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                            div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -637,7 +781,7 @@ viewInner model =
                             p [] [ text "Request in progress..." ]
 
                         Failure e ->
-                            div [] [ makeAlert [ AlertDanger ] [ showHttpError e ] ]
+                            div [] [ makeAlert [ AlertDanger ] [ showError e ] ]
 
                         Success _ ->
                             div [ class "mt-3" ]
@@ -728,6 +872,92 @@ convertChemicalsResponse x =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ToggleCreateAttriutiForCopyFromPreviousBeamtime ->
+            case model.priorChemicals of
+                Success priorChemsSuccess ->
+                    ( { model
+                        | priorChemicals =
+                            Success
+                                { priorChemsSuccess
+                                    | createAttributi = not priorChemsSuccess.createAttributi
+                                }
+                      }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        InitiateCopyFromPreviousBeamtime ->
+            ( { model | priorChemicals = Loading }, send PriorChemicalsReceived readAllChemicalsApiAllChemicalsGet )
+
+        CopyFromPreviousBeamtimeIdChanged newId ->
+            case model.priorChemicals of
+                Success priorChemsSuccess ->
+                    ( { model | priorChemicals = Success { priorChemsSuccess | selectedChemicalId = Just newId } }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        PriorChemicalsReceived response ->
+            case response of
+                Ok v ->
+                    ( { model
+                        | priorChemicals =
+                            Success
+                                { priorChemicals = v
+                                , selectedChemicalId = Nothing
+                                , submitRequest = NotAsked
+                                , createAttributi = False
+                                }
+                      }
+                    , Cmd.none
+                    )
+
+                Err e ->
+                    ( { model | priorChemicals = Failure e }, Cmd.none )
+
+        SubmitCopyFromPreviousBeamtime ->
+            case model.priorChemicals of
+                Success priorChemsSuccess ->
+                    case priorChemsSuccess.selectedChemicalId of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just selectedChemicalId ->
+                            ( { model | priorChemicals = Success { priorChemsSuccess | submitRequest = Loading } }
+                            , send CopyFromPreviousBeamtimeFinished
+                                (copyChemicalApiCopyChemicalPost
+                                    { chemicalId = selectedChemicalId
+                                    , targetBeamtimeId = model.beamtimeId
+                                    , createAttributi = priorChemsSuccess.createAttributi
+                                    }
+                                )
+                            )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        CopyFromPreviousBeamtimeFinished finish ->
+            case model.priorChemicals of
+                Success priorChemsSuccess ->
+                    case finish of
+                        Err e ->
+                            ( { model | priorChemicals = Success { priorChemsSuccess | submitRequest = Failure e } }, Cmd.none )
+
+                        Ok _ ->
+                            ( { model | priorChemicals = NotAsked }
+                            , getChemicalsAndRuns model.beamtimeId
+                            )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        CancelCopyFromPreviousBeamtime ->
+            ( { model | priorChemicals = NotAsked }, Cmd.none )
+
         ChemicalsReceived response ->
             ( { model | chemicals = fromResult (Result.map convertChemicalsResponse response) }, Cmd.none )
 
@@ -917,6 +1147,46 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        InitiateClone chemical ->
+            case model.chemicals of
+                Success { attributi } ->
+                    let
+                        -- This code is a bit too long for its own
+                        -- good, but the premise is simple: Usually
+                        -- we're storing all attributi in the chemical
+                        -- together with the information: has this
+                        -- attributi been changed by the user. Then we
+                        -- use this information to only transmit the
+                        -- changes, not the whole set of attributi.
+                        -- However, if we duplicate a chemical, all
+                        -- attributi are automatically new, thus
+                        -- changed. So we have to dive deep into this
+                        -- structure and change the edit status.
+                        editChemicalOriginal =
+                            editChemicalFromAttributiAndValues model.myTimeZone attributi (chemicalMapId (always Nothing) chemical)
+
+                        mapEditableAttributo : EditableAttributo -> EditableAttributo
+                        mapEditableAttributo =
+                            mapAttributo (\attributoEditStatusAndEditValue -> { attributoEditStatusAndEditValue | editStatus = Edited })
+
+                        makeAlreadyEdited : EditableAttributiAndOriginal -> EditableAttributiAndOriginal
+                        makeAlreadyEdited editAndOrig =
+                            { editAndOrig | editableAttributi = List.map mapEditableAttributo editAndOrig.editableAttributi }
+
+                        editChemicalWithAllEdited =
+                            chemicalMapAttributi makeAlreadyEdited editChemicalOriginal
+                    in
+                    ( { model
+                        | modifyRequest = NotAsked
+                        , chemicalDeleteRequest = NotAsked
+                        , editChemical = Just editChemicalWithAllEdited
+                      }
+                    , scrollToTop (always Nop)
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
         EditNewFileDescription newDescription ->
             let
                 oldFileUpload =
@@ -1011,7 +1281,7 @@ update msg model =
                     case runsResponse of
                         Ok rr ->
                             Set.fromList <|
-                                List.filterMap extractInt <|
+                                List.filterMap extractChemical <|
                                     List.concatMap (valuesFromAttributo rr.runs) <|
                                         List.filterMap (chemicalAttributoId << convertAttributoFromApi) rr.attributi
 

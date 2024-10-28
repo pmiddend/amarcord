@@ -23,12 +23,17 @@ class JobStartError(Exception):
 
 class WorkloadManager(ABC):
     @abstractmethod
+    def name(self) -> str:
+        pass
+
+    @abstractmethod
     async def start_job(
         self,
         working_directory: Path,
         script: str,
         name: str,
         time_limit: datetime.timedelta,
+        environment: dict[str, str],
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult: ...

@@ -14,8 +14,10 @@
 
 
 module Api.Request.Chemicals exposing
-    ( createChemicalApiChemicalsPost
+    ( copyChemicalApiCopyChemicalPost
+    , createChemicalApiChemicalsPost
     , deleteChemicalApiChemicalsDelete
+    , readAllChemicalsApiAllChemicalsGet
     , readChemicalsApiChemicalsBeamtimeIdGet
     , updateChemicalApiChemicalsPatch
     )
@@ -26,6 +28,18 @@ import Dict
 import Http
 import Json.Decode
 import Json.Encode
+
+copyChemicalApiCopyChemicalPost : Api.Data.JsonCopyChemicalInput -> Api.Request Api.Data.JsonCopyChemicalOutput
+copyChemicalApiCopyChemicalPost jsonCopyChemicalInput_body =
+    Api.request
+        "POST"
+        "/api/copy-chemical"
+        []
+        []
+        []
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonCopyChemicalInput jsonCopyChemicalInput_body)))
+        Api.Data.jsonCopyChemicalOutputDecoder
+
 
 createChemicalApiChemicalsPost : Api.Data.JsonChemicalWithoutId -> Api.Request Api.Data.JsonCreateChemicalOutput
 createChemicalApiChemicalsPost jsonChemicalWithoutId_body =
@@ -49,6 +63,18 @@ deleteChemicalApiChemicalsDelete jsonDeleteChemicalInput_body =
         []
         (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonDeleteChemicalInput jsonDeleteChemicalInput_body)))
         Api.Data.jsonDeleteChemicalOutputDecoder
+
+
+readAllChemicalsApiAllChemicalsGet : Api.Request Api.Data.JsonReadAllChemicals
+readAllChemicalsApiAllChemicalsGet =
+    Api.request
+        "GET"
+        "/api/all-chemicals"
+        []
+        []
+        []
+        Nothing
+        Api.Data.jsonReadAllChemicalsDecoder
 
 
 readChemicalsApiChemicalsBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadChemicals

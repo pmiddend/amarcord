@@ -1,10 +1,9 @@
 module Amarcord.EventForm exposing (Model, Msg(..), init, update, updateLiveStreamAndShiftUser, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, makeAlert, viewMarkdownSupportText)
 import Amarcord.Html exposing (form_, h5_, input_, tbody_, td_, th_, thead_, tr_)
-import Api exposing (send)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Api.Data exposing (JsonCreateFileOutput, JsonEventTopLevelOutput, JsonFileOutput)
 import Api.Request.Events exposing (createEventApiEventsPost)
 import Api.Request.Files exposing (createFileApiFilesPost)
@@ -13,7 +12,6 @@ import File.Select
 import Html exposing (Html, button, div, h4, input, label, p, table, text, textarea, tr)
 import Html.Attributes exposing (checked, class, disabled, for, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List
 import RemoteData exposing (RemoteData(..), isLoading)
 import String
@@ -24,8 +22,8 @@ type alias Model =
     , currentShiftUserName : Maybe String
     , message : String
     , files : List JsonFileOutput
-    , fileUploadRequest : RemoteData Http.Error JsonCreateFileOutput
-    , eventRequest : RemoteData Http.Error JsonEventTopLevelOutput
+    , fileUploadRequest : RemoteData HttpError JsonCreateFileOutput
+    , eventRequest : RemoteData HttpError JsonEventTopLevelOutput
     , hasLiveStream : Bool
     , postWithLiveStream : Bool
     , beamtimeId : BeamtimeId
@@ -35,10 +33,10 @@ type alias Model =
 type Msg
     = NewModel Model
     | Submit
-    | SubmitFinished (Result Http.Error JsonEventTopLevelOutput)
+    | SubmitFinished (Result HttpError JsonEventTopLevelOutput)
     | OpenSelector (List String)
     | NewFile ElmFile.File
-    | FileUploadFinished (Result Http.Error JsonCreateFileOutput)
+    | FileUploadFinished (Result HttpError JsonCreateFileOutput)
     | FileDelete Int
     | TogglePostWithLiveStream
 
@@ -89,7 +87,7 @@ view { eventRequest, currentShiftUserName, currentUserNameInput, message, files,
                     p [ class "text-success" ] [ text "Message added!" ]
 
                 Failure e ->
-                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ], showHttpError e ]
+                    makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to add message!" ], showError e ]
 
                 _ ->
                     text ""
@@ -103,7 +101,7 @@ view { eventRequest, currentShiftUserName, currentUserNameInput, message, files,
                     text "Uploading"
 
                 Failure e ->
-                    showHttpError e
+                    showError e
 
                 Success _ ->
                     p [ class "text-success" ] [ text "File added!" ]

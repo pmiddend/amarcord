@@ -14,11 +14,11 @@
 
 
 module Api.Request.Analysis exposing
-    ( indexingJobUpdateApiIndexingIndexingResultIdPost
-    , readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet
-    , readIndexingJobsApiIndexingGet
-    , readMergeJobsApiMergingGet
+    ( readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet
+    , readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet
     , readRunAnalysisApiRunAnalysisBeamtimeIdGet
+    , readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet
+    , readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet
     )
 
 import Api
@@ -28,62 +28,62 @@ import Http
 import Json.Decode
 import Json.Encode
 
-indexingJobUpdateApiIndexingIndexingResultIdPost : Int -> Api.Data.JsonIndexingResultRootJson -> Api.Request Api.Data.JsonIndexingJobUpdateOutput
-indexingJobUpdateApiIndexingIndexingResultIdPost indexingResultId_path jsonIndexingResultRootJson_body =
-    Api.request
-        "POST"
-        "/api/indexing/{indexingResultId}"
-        [ ( "indexingResultId", String.fromInt indexingResultId_path ) ]
-        []
-        []
-        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonIndexingResultRootJson jsonIndexingResultRootJson_body)))
-        Api.Data.jsonIndexingJobUpdateOutputDecoder
-
-
-readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadAnalysisResults
-readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdGet beamtimeId_path =
+readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet : Int -> Int -> Api.Request Api.Data.JsonReadAnalysisResults
+readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet beamtimeId_path experimentTypeId_path =
     Api.request
         "GET"
-        "/api/analysis/analysis-results/{beamtimeId}"
-        [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
+        "/api/analysis/analysis-results/{beamtimeId}/{experimentTypeId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ), ( "experimentTypeId", String.fromInt experimentTypeId_path ) ]
         []
         []
         Nothing
         Api.Data.jsonReadAnalysisResultsDecoder
 
 
-readIndexingJobsApiIndexingGet : DBJobStatus -> Maybe Int -> Api.Request Api.Data.JsonReadIndexingResultsOutput
-readIndexingJobsApiIndexingGet status_query beamtimeId_query =
+readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet : Int -> Api.Request Api.Data.JsonReadBeamtimeGeometryDetails
+readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet beamtimeId_path =
     Api.request
         "GET"
-        "/api/indexing"
-        []
-        [ ( "status", Just <| Api.Data.stringFromDBJobStatus status_query ), ( "beamtimeId", Maybe.map String.fromInt beamtimeId_query ) ]
-        []
-        Nothing
-        Api.Data.jsonReadIndexingResultsOutputDecoder
-
-
-readMergeJobsApiMergingGet : DBJobStatus -> Api.Request Api.Data.JsonReadMergeResultsOutput
-readMergeJobsApiMergingGet status_query =
-    Api.request
-        "GET"
-        "/api/merging"
-        []
-        [ ( "status", Just <| Api.Data.stringFromDBJobStatus status_query ) ]
-        []
-        Nothing
-        Api.Data.jsonReadMergeResultsOutputDecoder
-
-
-readRunAnalysisApiRunAnalysisBeamtimeIdGet : Int -> Api.Request Api.Data.JsonReadRunAnalysis
-readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId_path =
-    Api.request
-        "GET"
-        "/api/run-analysis/{beamtimeId}"
+        "/api/run-analysis/{beamtimeId}/geometry"
         [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
         []
         []
         Nothing
+        Api.Data.jsonReadBeamtimeGeometryDetailsDecoder
+
+
+readRunAnalysisApiRunAnalysisBeamtimeIdGet : Int -> Maybe Int -> Api.Request Api.Data.JsonReadRunAnalysis
+readRunAnalysisApiRunAnalysisBeamtimeIdGet beamtimeId_path runId_query =
+    Api.request
+        "GET"
+        "/api/run-analysis/{beamtimeId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
+        [ ( "run_id", Maybe.map String.fromInt runId_query ) ]
+        []
+        Nothing
         Api.Data.jsonReadRunAnalysisDecoder
+
+
+readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet : Int -> Int -> Api.Request Api.Data.JsonReadSingleDataSetResults
+readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet beamtimeId_path dataSetId_path =
+    Api.request
+        "GET"
+        "/api/analysis/single-data-set/{beamtimeId}/{dataSetId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ), ( "dataSetId", String.fromInt dataSetId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonReadSingleDataSetResultsDecoder
+
+
+readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet : Int -> Int -> Int -> Api.Request Api.Data.JsonReadSingleMergeResult
+readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet beamtimeId_path experimentTypeId_path mergeResultId_path =
+    Api.request
+        "GET"
+        "/api/analysis/merge-result/{beamtimeId}/{experimentTypeId}/{mergeResultId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ), ( "experimentTypeId", String.fromInt experimentTypeId_path ), ( "mergeResultId", String.fromInt mergeResultId_path ) ]
+        []
+        []
+        Nothing
+        Api.Data.jsonReadSingleMergeResultDecoder
 

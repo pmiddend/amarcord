@@ -1,39 +1,33 @@
-module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, update, view)
+module Amarcord.Pages.RunOverview exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
-import Amarcord.API.ExperimentType exposing (ExperimentTypeId, experimentTypeIdDict)
-import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunExternalId(..), RunFilter, RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, runInternalIdToInt, runInternalIdToString, specificRunEventDateFilter)
-import Amarcord.API.RequestsHtml exposing (showHttpError)
-import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoType(..), attributoExposureTime, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
-import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
+import Amarcord.API.ExperimentType exposing (ExperimentTypeId)
+import Amarcord.API.Requests exposing (BeamtimeId, RunInternalId(..), runInternalIdToInt)
+import Amarcord.Attributo exposing (attributoExposureTime, convertAttributoFromApi, convertAttributoMapFromApi, retrieveFloatAttributoValue)
+import Amarcord.AttributoHtml exposing (formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, spinner, viewCloseHelpButton, viewHelpButton, viewRemoteDataHttp)
-import Amarcord.Chemical exposing (Chemical, chemicalIdDict, convertChemicalFromApi)
-import Amarcord.ColumnChooser as ColumnChooser
-import Amarcord.Constants exposing (manualAttributiGroup, manualGlobalAttributiGroup)
+import Amarcord.Chemical exposing (chemicalIdDict, convertChemicalFromApi)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.EventForm as EventForm
-import Amarcord.Html exposing (form_, h1_, h2_, h3_, h5_, hr_, img_, input_, li_, onIntInput, p_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (form_, h1_, h3_, h4_, h5_, hr_, img_, input_, li_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
+import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (Route(..), makeFilesLink, makeLink)
+import Amarcord.RunAttributiForm as RunAttributiForm
 import Amarcord.RunStatistics exposing (viewHitRateAndIndexingGraphs)
-import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly, formatPosixTimeOfDayHumanFriendly, listContainsBy, posixBefore, posixDiffHumanFriendly, scrollToTop, secondsDiffHumanFriendly)
-import Api exposing (send)
-import Api.Data exposing (ChemicalType(..), JsonAttributiIdAndRole, JsonChangeRunExperimentTypeOutput, JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonExperimentType, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput, JsonUserConfigurationSingleOutput)
+import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly, posixDiffHumanFriendly, secondsDiffHumanFriendly)
+import Api.Data exposing (JsonChangeRunExperimentTypeOutput, JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonExperimentType, JsonFileOutput, JsonReadRunsOverview, JsonRun, JsonUserConfigurationSingleOutput)
 import Api.Request.Config exposing (updateUserConfigurationSingleApiUserConfigBeamtimeIdKeyValuePatch)
 import Api.Request.Datasets exposing (createDataSetFromRunApiDataSetsFromRunPost)
 import Api.Request.Events exposing (deleteEventApiEventsDelete)
 import Api.Request.Experimenttypes exposing (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost)
-import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet, updateRunApiRunsPatch)
+import Api.Request.Runs exposing (readRunsOverviewApiRunsOverviewBeamtimeIdGet)
 import Basics.Extra exposing (safeDivide)
-import Date
-import Dict exposing (Dict)
-import Html exposing (Html, a, button, div, em, figcaption, figure, form, h4, label, option, p, select, span, table, td, text, tr, ul)
-import Html.Attributes exposing (checked, class, colspan, disabled, for, href, id, selected, src, style, type_, value)
+import Html exposing (Html, a, button, div, em, figcaption, figure, h4, label, option, p, select, span, table, text, ul)
+import Html.Attributes exposing (checked, class, disabled, for, href, id, selected, src, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
-import List exposing (head)
-import List.Extra as ListExtra exposing (find)
+import List
+import List.Extra as ListExtra
 import Maybe
 import Maybe.Extra as MaybeExtra exposing (isNothing)
 import RemoteData exposing (RemoteData(..), fromResult, isLoading, isSuccess)
@@ -42,296 +36,100 @@ import Time exposing (Posix, Zone, millisToPosix, posixToMillis)
 
 
 type Msg
-    = RunsReceived (Result Http.Error JsonReadRuns)
+    = RunsReceived (Result HttpError JsonReadRunsOverview)
+    | RunAttributiFormMsg RunAttributiForm.Msg
     | Refresh Posix
-    | EventDelete Int
-    | EventDeleteFinished (Result Http.Error JsonDeleteEventOutput)
     | EventFormMsg EventForm.Msg
-    | RunEditInfoValueUpdate AttributoNameWithValueUpdate
-    | RunEditInfoExperimentTypeIdChanged Int
-    | RunEditSubmit
-    | RunEditFinished (Result Http.Error JsonUpdateRunOutput)
-    | RunInitiateEdit JsonRun
-    | RunEditCancel
-    | Nop
+    | EventDelete Int
+    | EventDeleteFinished (Result HttpError JsonDeleteEventOutput)
     | SelectedExperimentTypeChanged String
     | ChangeCurrentExperimentType
-    | ColumnChooserMessage ColumnChooser.Msg
     | ChangeAutoPilot Bool
     | ChangeOnlineCrystFEL Bool
-    | ChangeShowAllAttributi Bool
-    | AutoPilotToggled (Result Http.Error JsonUserConfigurationSingleOutput)
-    | OnlineCrystFELToggled (Result Http.Error JsonUserConfigurationSingleOutput)
+    | AutoPilotToggled (Result HttpError JsonUserConfigurationSingleOutput)
+    | OnlineCrystFELToggled (Result HttpError JsonUserConfigurationSingleOutput)
     | CreateDataSetFromRun RunInternalId
-    | CreateDataSetFromRunFinished (Result Http.Error JsonCreateDataSetFromRunOutput)
-    | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result Http.Error JsonChangeRunExperimentTypeOutput)
-    | ResetDate
-    | SetRunDateFilter RunEventDate
+    | CreateDataSetFromRunFinished (Result HttpError JsonCreateDataSetFromRunOutput)
+    | ChangeCurrentExperimentTypeFinished (Maybe ExperimentTypeId) (Result HttpError JsonChangeRunExperimentTypeOutput)
 
 
-type alias RunEditInfo =
-    { runId : RunInternalId
-    , runExternalId : RunExternalId
-    , started : Posix
-    , stopped : Maybe Posix
-    , experimentTypeId : Int
-    , editableAttributi : EditableAttributiAndOriginal
-
-    -- This is to handle a tricky case: usually we want to stay with the latest run so we can quickly change settings.
-    -- If we manually click on an older run to edit it, we don't want to then jump to the latest one.
-    , initiatedManually : Bool
-    , showAllAttributi : Bool
+type alias LatestRun =
+    { run : JsonRun
+    , runEditInfo : RunAttributiForm.Model
     }
 
 
-type alias RunFilterInfo =
-    { runFilter : RunFilter
-    , nextRunFilter : String
-    , runFilterRequest : RemoteData Http.Error JsonReadRuns
+type alias LoadedModel =
+    { runsOverview : JsonReadRunsOverview
+    , latestRun : Maybe LatestRun
     }
-
-
-type alias RunDateFilterInfo =
-    { runDateFilter : RunEventDateFilter }
-
-
-initRunFilter : RunFilterInfo
-initRunFilter =
-    { runFilter = emptyRunFilter
-    , nextRunFilter = ""
-    , runFilterRequest = NotAsked
-    }
-
-
-initRunDateFilter : RunDateFilterInfo
-initRunDateFilter =
-    { runDateFilter = emptyRunEventDateFilter
-    }
-
-
-
--- viewRunFilter : RunFilterInfo -> Html RunFilterMsg
--- viewRunFilter model =
---     form_
---         [ h5_ [ text "Run filter" ]
---         , div [ class "input-group mb-3" ]
---             [ input_
---                 [ type_ "text"
---                 , class "form-control"
---                 , value model.nextRunFilter
---                 , onInput RunFilterEdit
---                 , disabled (isLoading model.runFilterRequest)
---                 , onEnter RunFilterSubmit
---                 ]
---             , button
---                 [ class "btn btn-outline-secondary"
---                 , onClick RunFilterReset
---                 , type_ "button"
---                 ]
---                 [ text "Reset" ]
---             , button
---                 [ class "btn btn-secondary"
---                 , disabled (isLoading model.runFilterRequest)
---                 , type_ "button"
---                 , onClick RunFilterSubmit
---                 ]
---                 [ icon { name = "save" }, text " Update" ]
---             ]
---         , case model.runFilterRequest of
---             Failure e ->
---                 div [ class "mb-3" ] [ div_ [ makeAlert [ AlertDanger ] [ showHttpError e ] ] ]
---             _ ->
---                 text ""
---         ]
 
 
 type alias Model =
-    { runs : RemoteData Http.Error JsonReadRuns
-    , myTimeZone : Zone
-    , refreshRequest : RemoteData Http.Error ()
+    { loadedModel : RemoteData HttpError LoadedModel
+    , zone : Zone
+    , refreshRequest : RemoteData HttpError ()
     , eventForm : EventForm.Model
     , now : Posix
-    , runDateFilter : RunDateFilterInfo
-    , runDates : List RunEventDate
-    , runEditInfo : Maybe RunEditInfo
-    , runEditRequest : RemoteData Http.Error JsonUpdateRunOutput
-    , runFilter : RunFilterInfo
-    , submitErrors : List String
     , currentExperimentType : Maybe JsonExperimentType
     , selectedExperimentType : Maybe JsonExperimentType
-    , columnChooser : ColumnChooser.Model
     , localStorage : Maybe LocalStorage
-    , dataSetFromRunRequest : RemoteData Http.Error JsonCreateDataSetFromRunOutput
-    , changeExperimentTypeRequest : RemoteData Http.Error JsonChangeRunExperimentTypeOutput
+    , dataSetFromRunRequest : RemoteData HttpError JsonCreateDataSetFromRunOutput
+    , changeExperimentTypeRequest : RemoteData HttpError JsonChangeRunExperimentTypeOutput
     , beamtimeId : BeamtimeId
     }
 
 
+subscriptions : Model -> List (Sub Msg)
+subscriptions _ =
+    [ Time.every 5000 Refresh ]
+
+
+pageTitle : Model -> String
+pageTitle { loadedModel } =
+    case loadedModel of
+        Success { latestRun } ->
+            case latestRun of
+                Nothing ->
+                    "⏲💤 Waiting for runs"
+
+                Just { run } ->
+                    case run.stopped of
+                        Nothing ->
+                            "🏃 Run " ++ String.fromInt run.externalId
+
+                        Just _ ->
+                            "🧍 Run " ++ String.fromInt run.externalId
+
+        _ ->
+            "⏲💤 Waiting for runs"
+
+
 init : HereAndNow -> Maybe LocalStorage -> BeamtimeId -> ( Model, Cmd Msg )
 init { zone, now } localStorage beamtimeId =
-    ( { runs = Loading
-      , myTimeZone = zone
+    ( { loadedModel = Loading
+      , zone = zone
       , refreshRequest = NotAsked
       , eventForm = EventForm.init beamtimeId "User"
       , now = now
-      , runDates = []
-      , runDateFilter = initRunDateFilter
-      , runEditInfo = Nothing
-      , runEditRequest = NotAsked
-      , runFilter = initRunFilter
-      , submitErrors = []
       , currentExperimentType = Nothing
       , selectedExperimentType = Nothing
-      , columnChooser = ColumnChooser.init localStorage []
       , localStorage = localStorage
       , dataSetFromRunRequest = NotAsked
       , changeExperimentTypeRequest = NotAsked
       , beamtimeId = beamtimeId
       }
-    , send RunsReceived
-        (readRunsApiRunsBeamtimeIdGet
-            beamtimeId
-            (Maybe.map runEventDateToString <| runEventDateFilter emptyRunEventDateFilter)
-            (Just <| runFilterToString emptyRunFilter)
-        )
+    , send RunsReceived (readRunsOverviewApiRunsOverviewBeamtimeIdGet beamtimeId)
     )
-
-
-attributiColumnHeaders : List (Attributo AttributoType) -> List (Html msg)
-attributiColumnHeaders =
-    List.map (th_ << makeAttributoHeader)
-
-
-attributiColumns : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> List (Html Msg)
-attributiColumns zone chemicalIds experimentTypeIds attributi run =
-    let
-        viewCell : Attributo AttributoType -> Maybe (Html Msg)
-        viewCell a =
-            if a.associatedTable == AssociatedTable.Run then
-                Just <|
-                    if a.name == virtualExperimentTypeAttributoName then
-                        viewRunExperimentTypeCell (Maybe.withDefault "unknown experiment type" <| Dict.get run.experimentTypeId experimentTypeIds)
-
-                    else
-                        viewAttributoCell
-                            { shortDateTime = True
-                            , colorize = True
-                            , withUnit = False
-                            , withTolerance = False
-                            }
-                            zone
-                            chemicalIds
-                            (convertAttributoMapFromApi run.attributi)
-                            a
-
-            else
-                Nothing
-    in
-    List.filterMap viewCell attributi
-
-
-viewRunRow : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> Html Msg
-viewRunRow zone chemicalIds experimentTypeIds attributi r =
-    tr [ style "white-space" "nowrap" ] <|
-        td_ [ strongText (String.fromInt r.externalId) ]
-            :: td_ [ text (String.fromInt r.id) ]
-            :: td_ [ text <| formatPosixTimeOfDayHumanFriendly zone (millisToPosix r.started) ]
-            :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatPosixTimeOfDayHumanFriendly zone) (Maybe.map millisToPosix r.stopped) ]
-            :: attributiColumns zone chemicalIds experimentTypeIds attributi r
-            ++ [ td_
-                    [ button
-                        [ class "btn btn-link amarcord-small-link-button"
-                        , onClick (RunInitiateEdit r)
-                        ]
-                        [ icon { name = "pencil-square" } ]
-                    ]
-               ]
-
-
-viewEventRow : Zone -> Int -> JsonEvent -> Html Msg
-viewEventRow zone attributoColumnCount e =
-    let
-        viewFile : JsonFileOutput -> Html Msg
-        viewFile { type__, fileName, id } =
-            li_
-                [ mimeTypeToIcon type__
-                , text " "
-                , a [ href (makeFilesLink id) ] [ text fileName ]
-                ]
-
-        maybeFiles =
-            if List.isEmpty e.files then
-                [ text "" ]
-
-            else
-                [ ul [ class "me-0" ] (List.map viewFile e.files) ]
-
-        mainContent =
-            [ button [ class "btn btn-sm btn-link amarcord-small-link-button", type_ "button", onClick (EventDelete e.id) ] [ icon { name = "trash" } ]
-            , strongText <| " " ++ e.source ++ " "
-            , markupWithoutErrors e.text
-            ]
-                ++ maybeFiles
-    in
-    tr [ class "bg-light" ]
-        [ td_ []
-        , td_ [ text <| formatPosixTimeOfDayHumanFriendly zone (millisToPosix e.created) ]
-        , td [ colspan attributoColumnCount ] mainContent
-        ]
-
-
-viewRunAndEventRows : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> List JsonRun -> List JsonEvent -> List (Html Msg)
-viewRunAndEventRows zone chemicalIds experimentTypeIds attributi runs events =
-    case ( head runs, head events ) of
-        -- No elements, neither runs nor events, left anymore
-        ( Nothing, Nothing ) ->
-            []
-
-        -- Only runs left
-        ( Just _, Nothing ) ->
-            List.map (viewRunRow zone chemicalIds experimentTypeIds attributi) runs
-
-        -- Only events left
-        ( Nothing, Just _ ) ->
-            List.map (viewEventRow zone (List.length attributi)) events
-
-        -- We have events and runs and have to compare the dates
-        ( Just run, Just event ) ->
-            if posixBefore (millisToPosix event.created) (millisToPosix run.started) then
-                viewRunRow zone chemicalIds experimentTypeIds attributi run :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi (List.drop 1 runs) events
-
-            else
-                viewEventRow zone (List.length attributi) event :: viewRunAndEventRows zone chemicalIds experimentTypeIds attributi runs (List.drop 1 events)
-
-
-viewRunsTable : Zone -> List (Attributo AttributoType) -> JsonReadRuns -> Html Msg
-viewRunsTable zone chosenColumns { runs, events, chemicals, experimentTypes } =
-    let
-        runRows : List (Html Msg)
-        runRows =
-            viewRunAndEventRows zone (chemicalIdDict <| List.map convertChemicalFromApi chemicals) (experimentTypeIdDict experimentTypes) chosenColumns runs events
-    in
-    table [ class "table amarcord-table-fix-head table-bordered table-hover" ]
-        [ thead_
-            [ tr [ class "align-top" ] <|
-                th_ [ text "ID" ]
-                    :: th_ [ text "Internal ID" ]
-                    :: th_ [ text "Started" ]
-                    :: th_ [ text "Stopped" ]
-                    :: attributiColumnHeaders chosenColumns
-                    ++ [ th_ [ text "Actions" ] ]
-            ]
-        , tbody_ runRows
-        ]
 
 
 dataSetInformation :
     Zone
     -> BeamtimeId
     -> JsonRun
-    -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
+    -> RemoteData HttpError JsonCreateDataSetFromRunOutput
     -> Maybe JsonExperimentType
-    -> JsonReadRuns
+    -> JsonReadRunsOverview
     -> List (Html Msg)
 dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTypeMaybe rrc =
     case currentExperimentTypeMaybe of
@@ -339,7 +137,7 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
             [ p [ class "text-muted" ] [ text "No experiment type selected, cannot display data set information." ] ]
 
         Just currentExperimentType ->
-            case find (\ds -> ds.experimentTypeId == currentExperimentType.id && List.member ds.id run.dataSets) rrc.dataSets of
+            case rrc.fomsForThisDataSet of
                 Nothing ->
                     [ p [ class "text-muted" ]
                         [ text <| "Run is not part of any data set in \"" ++ currentExperimentType.name ++ "\". You can automatically create a data set that matches the current run's attributi."
@@ -354,17 +152,12 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                     , viewRemoteDataHttp "Data set created" dataSetFromRunRequest
                     ]
 
-                Just ds ->
+                Just dsWithFom ->
                     let
                         indexingProgress =
                             let
                                 progressSummary =
-                                    case ds.summary of
-                                        Nothing ->
-                                            run.summary
-
-                                        Just dsSummary ->
-                                            dsSummary
+                                    dsWithFom.fom
 
                                 etaFor10kFrames =
                                     let
@@ -448,9 +241,9 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                                 ]
                             ]
                     in
-                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map viewHitRateAndIndexingGraphs)
+                    [ Maybe.withDefault (text "") (Maybe.map .indexingStatistics rrc.latestIndexingResult |> Maybe.map (viewHitRateAndIndexingGraphs zone))
                     , div [ class "mb-3" ] indexingProgress
-                    , h3_ [ text "Data set", viewHelpButton "help-data-set" ]
+                    , h3_ [ text "Data Set", viewHelpButton "help-data-set" ]
                     , div [ id "help-data-set", class "collapse text-bg-light p-2" ]
                         [ p_
                             [ em [] [ text "Data sets" ]
@@ -510,10 +303,15 @@ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentTy
                     , viewDataSetTable (List.map convertAttributoFromApi rrc.attributi)
                         zone
                         (chemicalIdDict (List.map convertChemicalFromApi rrc.chemicals))
-                        (convertAttributoMapFromApi ds.attributi)
+                        (convertAttributoMapFromApi dsWithFom.dataSet.attributi)
                         True
                         True
                         Nothing
+                    , a
+                        [ href
+                            (makeLink (AnalysisDataSet beamtimeId dsWithFom.dataSet.id))
+                        ]
+                        [ text "→ Go to processing results" ]
                     ]
 
 
@@ -532,386 +330,200 @@ viewCurrentRun :
     -> Posix
     -> Maybe JsonExperimentType
     -> Maybe JsonExperimentType
-    -> RemoteData Http.Error JsonChangeRunExperimentTypeOutput
-    -> RemoteData Http.Error JsonCreateDataSetFromRunOutput
-    -> JsonReadRuns
+    -> RemoteData HttpError JsonChangeRunExperimentTypeOutput
+    -> RemoteData HttpError JsonCreateDataSetFromRunOutput
+    -> JsonReadRunsOverview
+    -> JsonRun
     -> List (Html Msg)
-viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest rrc =
-    -- Here, we assume runs are ordered so the first one is the latest one.
-    case head rrc.runs of
-        Nothing ->
-            List.singleton <| text ""
-
-        Just ({ id, externalId, started, stopped } as run) ->
-            let
-                autoPilot =
-                    [ div [ class "form-check form-switch mb-3" ]
-                        [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked rrc.userConfig.autoPilot, onInput (always (ChangeAutoPilot (not rrc.userConfig.autoPilot))) ]
-                        , label [ class "form-check-label", for "auto-pilot" ] [ text "Auto pilot" ]
-                        , viewHelpButton "help-auto-pilot"
-                        ]
-                    , div [ Html.Attributes.id "help-auto-pilot", class "collapse text-bg-light p-2" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
-                    ]
-
-                onlineCrystFEL =
-                    [ div [ class "form-check form-switch mb-3" ]
-                        [ input_ [ type_ "checkbox", Html.Attributes.id "crystfel-online", class "form-check-input", checked rrc.userConfig.onlineCrystfel, onInput (always (ChangeOnlineCrystFEL (not rrc.userConfig.onlineCrystfel))) ]
-                        , label [ class "form-check-label", for "crystfel-online" ] [ text "Use CrystFEL Online" ]
-                        ]
-                    , runningIndexingJobsIndicator
-                    ]
-
-                runIdsWithRunningIndexingJobs =
-                    List.filterMap
-                        (\r ->
-                            if List.isEmpty r.runningIndexingJobs then
-                                Nothing
-
-                            else if r.id == id then
-                                Maybe.map (\_ -> r.externalId) stopped
-
-                            else if r.id < id then
-                                Just r.externalId
-
-                            else
-                                Nothing
-                        )
-                        rrc.runs
-
-                runningIndexingJobsIndicator =
-                    if List.isEmpty runIdsWithRunningIndexingJobs then
-                        div [] []
-
-                    else
-                        div [ class "pb-3 pt-1", style "display" "flex" ]
-                            [ div [ class "text-secondary ", style "flex" "0 0 5%" ]
-                                [ spinner True ]
-                            , div [ class "text-secondary align-bottom", style "flex" "1" ]
-                                [ text
-                                    (String.join ", " (List.map String.fromInt runIdsWithRunningIndexingJobs)
-                                        |> (++) " CrystFEL online indexing jobs still running for following runs: "
-                                    )
-                                ]
-                            ]
-
-                header =
-                    case stopped of
-                        Nothing ->
-                            [ h1_
-                                [ span [ class "text-success" ] [ spinner False ]
-                                , text <| " Run " ++ String.fromInt externalId
-                                ]
-                            , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now (millisToPosix started) ]
-                            ]
-
-                        Just realStoppedTime ->
-                            [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ String.fromInt externalId ]
-                            , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendlyLongDurationsExact zone (millisToPosix realStoppedTime) now ]
-                            , p_ [ text <| "Duration " ++ posixDiffHumanFriendly (millisToPosix started) (millisToPosix realStoppedTime) ]
-                            ]
-
-                viewExperimentTypeOption : JsonExperimentType -> Html msg
-                viewExperimentTypeOption experimentType =
-                    option [ selected (Just experimentType.id == Maybe.map .id currentExperimentType), value (String.fromInt experimentType.id) ] [ text experimentType.name ]
-
-                dataSetSelection =
-                    [ form_
-                        [ div [ class "input-group mb-3" ]
-                            [ div [ class "form-floating flex-grow-1" ]
-                                [ select
-                                    [ class "form-select"
-                                    , Html.Attributes.id "current-experiment-type"
-                                    , onInput SelectedExperimentTypeChanged
-                                    ]
-                                    (option [ selected (isNothing selectedExperimentType), value "" ] [ text "«no value»" ] :: List.map viewExperimentTypeOption rrc.experimentTypes)
-                                , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
-                                ]
-                            , button
-                                [ class "btn btn-primary"
-                                , type_ "button"
-                                , disabled (currentExperimentType == selectedExperimentType || isLoading changeExperimentTypeRequest)
-                                , onClick ChangeCurrentExperimentType
-                                ]
-                                [ icon { name = "save" }, text " Change" ]
-                            ]
-                        ]
-                    ]
-            in
-            header ++ autoPilot ++ onlineCrystFEL ++ dataSetSelection ++ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentType rrc
-
-
-viewRunAttributiForm :
-    Maybe (List JsonAttributiIdAndRole)
-    -> Maybe JsonRun
-    -> List String
-    -> RemoteData Http.Error JsonUpdateRunOutput
-    -> List (Chemical Int a b)
-    -> Maybe RunEditInfo
-    -> List JsonExperimentType
-    -> List (Html Msg)
-viewRunAttributiForm currentExperimentTypeAttributi latestRun submitErrorsList runEditRequest chemicals rei experimentTypes =
-    case rei of
-        Nothing ->
-            []
-
-        Just { runId, experimentTypeId, editableAttributi, showAllAttributi } ->
-            let
-                matchesCurrentExperiment a x =
-                    case x of
-                        Nothing ->
-                            True
-
-                        Just attributi ->
-                            listContainsBy (\otherAttributo -> otherAttributo.id == a.id) attributi
-
-                -- For ergonomic reasons, we want chemical attributi to be on top - everything else should be
-                -- sorted alphabetically
-                attributoSortKey a =
-                    ( if isEditValueChemicalId a.type_.editValue then
-                        0
-
-                      else
-                        1
-                    , a.name
-                    )
-
-                attributoFilterFunction a =
-                    a.associatedTable
-                        == AssociatedTable.Run
-                        && (showAllAttributi || a.group == manualGlobalAttributiGroup || a.group == manualAttributiGroup && matchesCurrentExperiment a currentExperimentTypeAttributi)
-                        && not (List.member a.name [ "started", "stopped" ])
-
-                filteredAttributi : List EditableAttributo
-                filteredAttributi =
-                    List.sortBy attributoSortKey <| List.filter attributoFilterFunction editableAttributi.editableAttributi
-
-                viewAttributoFormWithRole : EditableAttributo -> Html AttributoFormMsg
-                viewAttributoFormWithRole e =
-                    viewAttributoForm chemicals
-                        (Maybe.withDefault ChemicalTypeSolution <|
-                            Maybe.map .role <|
-                                ListExtra.find (\awr -> awr.id == e.id) <|
-                                    Maybe.withDefault [] currentExperimentTypeAttributi
-                        )
-                        e
-
-                submitErrors =
-                    case submitErrorsList of
-                        [] ->
-                            [ text "" ]
-
-                        errors ->
-                            [ p_ [ strongText "There were submission errors:" ]
-                            , ul [ class "text-danger" ] <| List.map (\e -> li_ [ text e ]) errors
-                            ]
-
-                submitSuccess =
-                    if isSuccess runEditRequest then
-                        [ p [ class "text-success" ] [ text "Saved!" ] ]
-
-                    else
-                        []
-
-                buttons =
-                    [ button
-                        [ class "btn btn-secondary me-2"
-                        , disabled (isLoading runEditRequest)
-                        , type_ "button"
-                        , onClick RunEditSubmit
-                        ]
-                        [ icon { name = "save" }, text " Save changes" ]
-                    , button
-                        [ class "btn btn-outline-secondary"
-                        , type_ "button"
-                        , onClick RunEditCancel
-                        ]
-                        [ icon { name = "x-lg" }, text " Cancel" ]
-                    ]
-
-                isLatestRun =
-                    Just runId == Maybe.map (RunInternalId << .id) latestRun
-
-                attributoFormMsgToMsg : AttributoFormMsg -> Msg
-                attributoFormMsgToMsg x =
-                    case x of
-                        AttributoFormValueUpdate vu ->
-                            RunEditInfoValueUpdate vu
-
-                        AttributoFormSubmit ->
-                            RunEditSubmit
-
-                viewExperimentTypeOption : JsonExperimentType -> Html msg
-                viewExperimentTypeOption experimentType =
-                    option
-                        [ selected (experimentType.id == experimentTypeId)
-                        , value (String.fromInt experimentType.id)
-                        ]
-                        [ text experimentType.name ]
-            in
-            [ h2_
-                [ text <|
-                    if isLatestRun then
-                        "Edit run"
-
-                    else
-                        "Edit run " ++ runInternalIdToString runId
+viewCurrentRun zone beamtimeId now selectedExperimentType currentExperimentType changeExperimentTypeRequest dataSetFromRunRequest ({ userConfig, experimentTypes, latestIndexingResult } as rrc) ({ externalId, started, stopped } as run) =
+    let
+        autoPilot =
+            [ div [ class "form-check form-switch mb-3" ]
+                [ input_ [ type_ "checkbox", Html.Attributes.id "auto-pilot", class "form-check-input", checked userConfig.autoPilot, onInput (always (ChangeAutoPilot (not userConfig.autoPilot))) ]
+                , label [ class "form-check-label", for "auto-pilot" ] [ text "Auto pilot" ]
+                , viewHelpButton "help-auto-pilot"
                 ]
-            , if not isLatestRun then
-                p [ class "text-warning" ] [ text "You are currently editing an older run!" ]
+            , div [ Html.Attributes.id "help-auto-pilot", class "collapse text-bg-light p-2" ] [ text "Manual attributi will be copied over from the previous run. Be careful not to change experimental conditions if this is active." ]
+            ]
 
-              else
-                text ""
-            , form [ class "mb-3" ] <|
-                div [ class "form-check form-switch mb-3" ]
-                    [ input_ [ type_ "checkbox", Html.Attributes.id "show-all-attributi", class "form-check-input", checked showAllAttributi, onInput (always (ChangeShowAllAttributi (not showAllAttributi))) ]
-                    , label [ class "form-check-label", for "show-all-attributi" ] [ text "Show all attributi" ]
+        onlineCrystFEL =
+            [ div [ class "form-check form-switch mb-3" ]
+                [ input_ [ type_ "checkbox", Html.Attributes.id "crystfel-online", class "form-check-input", checked userConfig.onlineCrystfel, onInput (always (ChangeOnlineCrystFEL (not userConfig.onlineCrystfel))) ]
+                , label [ class "form-check-label", for "crystfel-online" ] [ text "Use CrystFEL Online" ]
+                ]
+            ]
+
+        processingBar { frames, totalFrames, running } =
+            Maybe.withDefault (text "") <|
+                Maybe.map2
+                    (\framesReal totalFramesReal ->
+                        div [ class "d-flex align-items-center mb-3" ]
+                            [ div [ class "me-1" ] [ span_ [ text "Frames processed:" ] ]
+                            , if running then
+                                div [ class "spinner-border spinner-border-sm me-1" ] []
+
+                              else
+                                text ""
+                            , text (formatIntHumanFriendly framesReal ++ "/" ++ formatIntHumanFriendly totalFramesReal)
+                            ]
+                    )
+                    frames
+                    totalFrames
+
+        header =
+            case stopped of
+                Nothing ->
+                    [ h1_
+                        [ span [ class "text-success" ] [ spinner False ]
+                        , text <| " Run " ++ String.fromInt externalId
+                        ]
+                    , p [ class "lead text-success" ] [ strongText "Running", text <| " for " ++ posixDiffHumanFriendly now (millisToPosix started) ]
+                    , case latestIndexingResult of
+                        Nothing ->
+                            text ""
+
+                        Just ir ->
+                            processingBar ir
                     ]
-                    :: div [ class "form-floating" ]
+
+                Just realStoppedTime ->
+                    [ h1_ [ icon { name = "stop-circle" }, text <| " Run " ++ String.fromInt externalId ]
+                    , p [ class "lead" ] [ strongText "Stopped", text <| " " ++ posixDiffHumanFriendlyLongDurationsExact zone (millisToPosix realStoppedTime) now ]
+                    , p_ [ text <| "Duration " ++ posixDiffHumanFriendly (millisToPosix started) (millisToPosix realStoppedTime) ]
+                    , case latestIndexingResult of
+                        Nothing ->
+                            text ""
+
+                        Just ir ->
+                            processingBar ir
+                    ]
+
+        viewExperimentTypeOption : JsonExperimentType -> Html msg
+        viewExperimentTypeOption experimentType =
+            option [ selected (Just experimentType.id == Maybe.map .id currentExperimentType), value (String.fromInt experimentType.id) ] [ text experimentType.name ]
+
+        dataSetSelection =
+            [ form_
+                [ div [ class "input-group mb-3" ]
+                    [ div [ class "form-floating flex-grow-1" ]
                         [ select
                             [ class "form-select"
-                            , Html.Attributes.id "current-experiment-type-for-specific-run"
-                            , onIntInput RunEditInfoExperimentTypeIdChanged
+                            , Html.Attributes.id "current-experiment-type"
+                            , onInput SelectedExperimentTypeChanged
                             ]
-                            (List.map viewExperimentTypeOption experimentTypes)
+                            (option [ selected (isNothing selectedExperimentType), value "" ] [ text "«no value»" ] :: List.map viewExperimentTypeOption experimentTypes)
                         , label [ for "current-experiment-type" ] [ text "Experiment Type" ]
                         ]
-                    :: (List.map (Html.map attributoFormMsgToMsg << viewAttributoFormWithRole) filteredAttributi ++ submitErrors ++ submitSuccess ++ buttons)
+                    , button
+                        [ class "btn btn-primary"
+                        , type_ "button"
+                        , disabled (currentExperimentType == selectedExperimentType || isLoading changeExperimentTypeRequest)
+                        , onClick ChangeCurrentExperimentType
+                        ]
+                        [ icon { name = "save" }, text " Change" ]
+                    ]
+                ]
             ]
+    in
+    header
+        ++ autoPilot
+        ++ onlineCrystFEL
+        ++ dataSetSelection
+        ++ dataSetInformation zone beamtimeId run dataSetFromRunRequest currentExperimentType rrc
 
 
-viewInner : Model -> JsonReadRuns -> List (Html Msg)
-viewInner model rrc =
+viewEventRow : Zone -> JsonEvent -> Html Msg
+viewEventRow zone e =
+    let
+        viewFile : JsonFileOutput -> Html Msg
+        viewFile { type__, fileName, id } =
+            li_
+                [ mimeTypeToIcon type__
+                , text " "
+                , a [ href (makeFilesLink id) ] [ text fileName ]
+                ]
+
+        maybeFiles =
+            if List.isEmpty e.files then
+                [ text "" ]
+
+            else
+                [ ul [ class "me-0" ] (List.map viewFile e.files) ]
+
+        mainContent =
+            [ button [ class "btn btn-sm btn-link amarcord-small-link-button", type_ "button", onClick (EventDelete e.id) ] [ icon { name = "trash" } ]
+            , strongText <| " " ++ e.source ++ " "
+            , markupWithoutErrors e.text
+            ]
+                ++ maybeFiles
+    in
+    tr_
+        [ td_ [ text <| formatPosixHumanFriendly zone (millisToPosix e.created) ]
+        , td_ mainContent
+        ]
+
+
+viewInner : Model -> LoadedModel -> List (Html Msg)
+viewInner model { runsOverview, latestRun } =
     [ div [ class "container" ]
-        [ div
-            [ class "row" ]
-            [ div [ class "col-lg-6" ]
-                (viewCurrentRun
-                    model.myTimeZone
-                    model.beamtimeId
-                    model.now
-                    model.selectedExperimentType
-                    model.currentExperimentType
-                    model.changeExperimentTypeRequest
-                    model.dataSetFromRunRequest
-                    rrc
-                )
-            , div [ class "col-lg-6" ]
-                (viewRunAttributiForm
-                    (model.currentExperimentType
-                        |> Maybe.andThen (\a -> ListExtra.find (\et -> et.id == a.id) rrc.experimentTypes)
-                        |> Maybe.map .attributi
-                    )
-                    (head rrc.runs)
-                    model.submitErrors
-                    model.runEditRequest
-                    (List.map convertChemicalFromApi rrc.chemicals)
-                    model.runEditInfo
-                    rrc.experimentTypes
-                )
-            ]
+        [ case latestRun of
+            Nothing ->
+                loadingBar "Waiting for some runs to appear..."
+
+            Just { run, runEditInfo } ->
+                div
+                    [ class "row" ]
+                    [ div [ class "col-lg-6" ]
+                        (viewCurrentRun
+                            model.zone
+                            model.beamtimeId
+                            model.now
+                            model.selectedExperimentType
+                            model.currentExperimentType
+                            model.changeExperimentTypeRequest
+                            model.dataSetFromRunRequest
+                            runsOverview
+                            run
+                        )
+                    , div [ class "col-lg-6" ]
+                        [ Html.map RunAttributiFormMsg <| RunAttributiForm.view runEditInfo ]
+                    ]
         ]
     , hr_
-    , case rrc.liveStreamFileId of
+    , case runsOverview.liveStream of
         Nothing ->
             Html.map EventFormMsg (EventForm.view model.eventForm)
 
-        Just jetStreamId ->
+        Just { fileId, modified } ->
             div [ class "row" ]
                 [ div [ class "col-lg-6" ] [ Html.map EventFormMsg (EventForm.view model.eventForm) ]
                 , div [ class "col-lg-6 text-center" ]
                     [ figure [ class "figure" ]
-                        [ a [ href (makeFilesLink jetStreamId) ] [ img_ [ src (makeFilesLink jetStreamId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
+                        [ a [ href (makeFilesLink fileId) ] [ img_ [ src (makeFilesLink fileId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
                         , figcaption [ class "figure-caption" ]
-                            [ text "Live stream image"
+                            [ text <| "Live stream image (updated " ++ formatPosixHumanFriendly model.zone (millisToPosix modified) ++ ")"
                             ]
                         ]
                     ]
                 ]
-    , hr_
-
-    -- , Html.map RunFilterSubMsg <| viewRunFilter model.runFilter
-    , div [ class "row" ]
-        [ div [ class "col-6" ] (runDatesGroup model)
-        , div [ class "col-6" ] [ Html.map ColumnChooserMessage (ColumnChooser.view model.columnChooser) ]
-        ]
-    , div [ class "row" ]
-        [ p_ [ span [ class "text-info" ] [ text "Colored columns" ], text " belong to manually entered attributi." ]
-        , viewRunsTable model.myTimeZone (ColumnChooser.resolveChosen model.columnChooser) rrc
-        ]
-    ]
-
-
-runDatesGroup : Model -> List (Html Msg)
-runDatesGroup model =
-    if List.isEmpty model.runDates then
-        []
-
-    else
-        [ div [ class "btn-group" ] (dateFilterButtons model) ]
-
-
-runDateFilterIsNothing : RunEventDateFilter -> Bool
-runDateFilterIsNothing rdf =
-    case runEventDateFilter rdf of
-        Nothing ->
-            True
-
-        Maybe.Just _ ->
-            False
-
-
-dateEqualsDateInFilter : RunEventDate -> RunEventDateFilter -> Bool
-dateEqualsDateInFilter rd rdf =
-    case runEventDateFilter rdf of
-        Nothing ->
-            False
-
-        Maybe.Just a ->
-            a == rd
-
-
-dateFilterButtons : Model -> List (Html Msg)
-dateFilterButtons model =
-    List.concat
-        [ [ input_
-                [ type_ "radio"
-                , class "btn-check"
-                , id "all_dates"
-                , checked
-                    (runDateFilterIsNothing model.runDateFilter.runDateFilter)
-                , onClick ResetDate
+    , h4_ [ text "Logbook entries" ]
+    , table [ class "table" ]
+        [ thead_
+            [ tr_
+                [ th_ [ text "Date" ]
+                , th_ [ text "Message" ]
                 ]
-          , label [ class "btn btn-outline-primary", for "all_dates" ] [ text "All dates" ]
-          ]
-        , List.concatMap (dateRadioOption model) model.runDates
+            ]
+        , tbody_ (List.map (viewEventRow model.zone) runsOverview.events)
         ]
-
-
-dateRadioOption : Model -> RunEventDate -> List (Html Msg)
-dateRadioOption model runEventDate =
-    [ input_ [ type_ "radio", class "btn-check", id ("filter" ++ runEventDateToString runEventDate), checked (dateEqualsDateInFilter runEventDate model.runDateFilter.runDateFilter), onClick (SetRunDateFilter runEventDate) ]
-    , label [ class "btn btn-outline-primary", for ("filter" ++ runEventDateToString runEventDate) ] [ text (formattedOrEmptyDate runEventDate) ]
+    , a [ href (makeLink (Runs model.beamtimeId)) ] [ text "→ Go to runs table" ]
     ]
-
-
-formattedOrEmptyDate : RunEventDate -> String
-formattedOrEmptyDate runEventDate =
-    let
-        date =
-            runEventDateToString runEventDate
-    in
-    case Date.fromIsoString date of
-        Ok v ->
-            Date.format "EE, d MMM y" v
-
-        Err _ ->
-            "Unreadable date <" ++ date ++ ">"
 
 
 view : Model -> Html Msg
 view model =
     div [ class "container" ] <|
-        case model.runs of
+        case model.loadedModel of
             NotAsked ->
                 List.singleton <| text "Impossible state reached: time zone, but no runs in progress?"
 
@@ -919,116 +531,19 @@ view model =
                 List.singleton <| loadingBar "Loading runs..."
 
             Failure e ->
-                List.singleton <| makeAlert [ AlertDanger ] <| [ h4 [ class "alert-heading" ] [ text "Failed to retrieve runs" ], showHttpError e ]
+                List.singleton <|
+                    makeAlert [ AlertDanger ] <|
+                        [ h4 [ class "alert-heading" ] [ text "Failed to retrieve run overview" ], showError e ]
 
-            Success a ->
-                case model.refreshRequest of
-                    Loading ->
-                        viewInner model a ++ [ loadingBar "Refreshing..." ]
-
-                    _ ->
-                        viewInner model a
+            Success lm ->
+                viewInner model lm
 
 
-updateRunEditInfoFromContent : Zone -> Maybe RunEditInfo -> JsonReadRuns -> Maybe RunEditInfo
-updateRunEditInfoFromContent zone runEditInfoRaw { runs, attributi } =
-    case runEditInfoRaw of
-        -- We have no previous edit info
-        Nothing ->
-            head runs
-                |> Maybe.map
-                    (\latestRun ->
-                        { runId = RunInternalId latestRun.id
-                        , runExternalId = RunExternalId latestRun.externalId
-                        , started = millisToPosix latestRun.started
-                        , stopped = Maybe.map millisToPosix latestRun.stopped
-                        , experimentTypeId = latestRun.experimentTypeId
-                        , editableAttributi = createEditableAttributi zone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi latestRun.attributi)
-                        , initiatedManually = False
-                        , showAllAttributi = False
-                        }
-                    )
-
-        -- We have previous edit info
-        Just runEditInfo ->
-            -- We have unsaved changes to the previous run
-            -- OR we have a manually edited run
-            if runEditInfo.initiatedManually || unsavedAttributoChanges runEditInfo.editableAttributi.editableAttributi then
-                Just runEditInfo
-
-            else
-                -- We have no unsaved changes and a run
-                head runs
-                    |> Maybe.map
-                        (\latestRun ->
-                            { runId = RunInternalId latestRun.id
-                            , runExternalId = RunExternalId latestRun.externalId
-                            , started = millisToPosix latestRun.started
-                            , stopped = Maybe.map millisToPosix latestRun.stopped
-                            , experimentTypeId = latestRun.experimentTypeId
-                            , editableAttributi = createEditableAttributi zone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi latestRun.attributi)
-                            , initiatedManually = False
-                            , showAllAttributi = False
-                            }
-                        )
-
-
-updateRunEditInfo : Zone -> Maybe RunEditInfo -> Result Http.Error JsonReadRuns -> Maybe RunEditInfo
-updateRunEditInfo zone runEditInfoRaw responseRaw =
-    case responseRaw of
-        Ok content ->
-            updateRunEditInfoFromContent zone runEditInfoRaw content
-
-        Err _ ->
-            runEditInfoRaw
-
-
-virtualExperimentTypeAttributoName : String
-virtualExperimentTypeAttributoName =
-    "experiment_type"
-
-
-updateColumnChooser : Maybe LocalStorage -> ColumnChooser.Model -> RemoteData Http.Error JsonReadRuns -> Result Http.Error JsonReadRuns -> ColumnChooser.Model
-updateColumnChooser localStorage ccm currentRuns runsResponse =
-    case ( currentRuns, runsResponse ) of
-        ( _, Ok { attributi } ) ->
-            -- Inject "virtual" attributo experiment type here
-            let
-                experimentTypeAttributo =
-                    { id = -1
-                    , name = virtualExperimentTypeAttributoName
-                    , description = "Experiment Type"
-                    , group = "manual"
-                    , associatedTable = AssociatedTable.Run
-                    , type_ = String
-                    }
-            in
-            ColumnChooser.updateAttributi ccm (List.map convertAttributoFromApi attributi ++ [ experimentTypeAttributo ])
-
-        ( _, Err _ ) ->
-            ColumnChooser.init localStorage []
-
-
-extractRunDates : Result Http.Error JsonReadRuns -> List RunEventDate
-extractRunDates runDates =
-    case runDates of
-        Err _ ->
-            []
-
-        Ok { filterDates } ->
-            List.map RunEventDate filterDates
-
-
-updateRunDateFilter : RunDateFilterInfo -> RunEventDate -> RunDateFilterInfo
-updateRunDateFilter runDateFilterInfo runDate =
-    { runDateFilterInfo | runDateFilter = specificRunEventDateFilter runDate }
-
-
-withRunsResponse : Model -> (JsonReadRuns -> ( Model, Cmd Msg )) -> ( Model, Cmd Msg )
+withRunsResponse : Model -> (JsonReadRunsOverview -> ( Model, Cmd Msg )) -> ( Model, Cmd Msg )
 withRunsResponse model f =
-    case model.runs of
-        Success rrc ->
-            f rrc
+    case model.loadedModel of
+        Success { runsOverview } ->
+            f runsOverview
 
         _ ->
             ( model, Cmd.none )
@@ -1036,39 +551,120 @@ withRunsResponse model f =
 
 retrieveRuns : Model -> Cmd Msg
 retrieveRuns model =
-    send RunsReceived
-        (readRunsApiRunsBeamtimeIdGet model.beamtimeId
-            (Maybe.map runEventDateToString <| runEventDateFilter <| model.runDateFilter.runDateFilter)
-            (Just <| runFilterToString model.runFilter.runFilter)
-        )
+    send RunsReceived (readRunsOverviewApiRunsOverviewBeamtimeIdGet model.beamtimeId)
+
+
+updateLatestRun : Zone -> Maybe LatestRun -> Result HttpError JsonReadRunsOverview -> ( Maybe LatestRun, Cmd Msg )
+updateLatestRun zone oldLatestRunMaybe newRequest =
+    case newRequest of
+        Err _ ->
+            -- We've got an error in the latest run request: take old latest run - should be fine
+            ( oldLatestRunMaybe, Cmd.none )
+
+        Ok { attributi, experimentTypes, chemicals, latestRun } ->
+            case latestRun of
+                Just newRun ->
+                    let
+                        reiInitData =
+                            { zone = zone
+                            , attributi = attributi
+                            , chemicals = List.map convertChemicalFromApi chemicals
+                            , experimentTypes = experimentTypes
+                            }
+                    in
+                    case oldLatestRunMaybe of
+                        Nothing ->
+                            -- We didn't have a run before, but now we do.
+                            let
+                                ( newRunEditInfo, subCmds ) =
+                                    RunAttributiForm.init reiInitData newRun
+                            in
+                            ( Just { run = newRun, runEditInfo = newRunEditInfo }, Cmd.map RunAttributiFormMsg subCmds )
+
+                        Just oldLatestRun ->
+                            -- We have a latest und and a previous latest run. Update!
+                            if oldLatestRun.run.id == newRun.id then
+                                -- This is the same run, so we need to update.
+                                let
+                                    ( newRunEditInfo, subCmds ) =
+                                        RunAttributiForm.update
+                                            (RunAttributiForm.UpdateRun newRun)
+                                            oldLatestRun.runEditInfo
+                                in
+                                ( Just
+                                    { run = newRun
+                                    , runEditInfo = newRunEditInfo
+                                    }
+                                , Cmd.map RunAttributiFormMsg subCmds
+                                )
+
+                            else
+                                -- If we switch to a new run, ignore any changes
+                                let
+                                    ( newRunEditInfo, subCmds ) =
+                                        RunAttributiForm.init reiInitData newRun
+                                in
+                                ( Just { run = newRun, runEditInfo = newRunEditInfo }, Cmd.map RunAttributiFormMsg subCmds )
+
+                Nothing ->
+                    -- We've received new information telling us that we don't have a latest run anymore.
+                    -- Then forget our previous latest run.
+                    ( Nothing, Cmd.none )
+
+
+updateRunOverviewRequest : Zone -> Result HttpError JsonReadRunsOverview -> RemoteData HttpError LoadedModel -> ( RemoteData HttpError LoadedModel, Cmd Msg )
+updateRunOverviewRequest zone newRequest oldModel =
+    case oldModel of
+        Success { runsOverview, latestRun } ->
+            -- We had a model previously, and have one now, so let's update our structures
+            let
+                ( newLatestRun, cmds ) =
+                    updateLatestRun zone latestRun newRequest
+            in
+            ( Success
+                { runsOverview = Maybe.withDefault runsOverview (Result.toMaybe newRequest)
+                , latestRun = newLatestRun
+                }
+            , cmds
+            )
+
+        _ ->
+            -- We didn't have a loaded model previously, so we can create new structures
+            case newRequest of
+                Ok runsOverview ->
+                    -- The request was successful
+                    case runsOverview.latestRun of
+                        -- We don't have any runs yet.
+                        Nothing ->
+                            ( Success { runsOverview = runsOverview, latestRun = Nothing }, Cmd.none )
+
+                        Just latestRunReal ->
+                            -- We do have runs!
+                            let
+                                reiInitData =
+                                    { zone = zone
+                                    , attributi = runsOverview.attributi
+                                    , chemicals = List.map convertChemicalFromApi runsOverview.chemicals
+                                    , experimentTypes = runsOverview.experimentTypes
+                                    }
+
+                                ( latestRunModel, subCmds ) =
+                                    RunAttributiForm.init reiInitData latestRunReal
+                            in
+                            ( Success
+                                { runsOverview = runsOverview
+                                , latestRun = Just { run = latestRunReal, runEditInfo = latestRunModel }
+                                }
+                            , Cmd.map RunAttributiFormMsg subCmds
+                            )
+
+                Err e ->
+                    ( Failure e, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ResetDate ->
-            let
-                newModel =
-                    { model
-                        | runDateFilter = initRunDateFilter
-                    }
-            in
-            ( newModel
-            , retrieveRuns newModel
-            )
-
-        SetRunDateFilter runDate ->
-            let
-                newRunDateFilter =
-                    updateRunDateFilter model.runDateFilter runDate
-
-                newModel =
-                    { model | runDateFilter = newRunDateFilter }
-            in
-            ( newModel
-            , retrieveRuns newModel
-            )
-
         RunsReceived response ->
             let
                 hasLiveStream =
@@ -1076,8 +672,8 @@ update msg model =
                         Err _ ->
                             False
 
-                        Ok { liveStreamFileId } ->
-                            MaybeExtra.isJust liveStreamFileId
+                        Ok { liveStream } ->
+                            MaybeExtra.isJust liveStream
 
                 shiftUser =
                     case response of
@@ -1094,19 +690,20 @@ update msg model =
                 newCurrentExperimentType =
                     case response of
                         Ok { experimentTypes, userConfig } ->
-                            userConfig.currentExperimentTypeId |> Maybe.andThen (\cet -> ListExtra.find (\et -> et.id == cet) experimentTypes)
+                            userConfig.currentExperimentTypeId
+                                |> Maybe.andThen (\cet -> ListExtra.find (\et -> et.id == cet) experimentTypes)
 
                         _ ->
                             model.currentExperimentType
+
+                ( newRunOverviewRequest, subCmds ) =
+                    updateRunOverviewRequest model.zone response model.loadedModel
             in
             ( { model
-                | runs = fromResult response
-                , runDates = extractRunDates response
-                , runEditInfo = updateRunEditInfo model.myTimeZone model.runEditInfo response
-                , columnChooser = updateColumnChooser model.localStorage model.columnChooser model.runs response
+                | loadedModel = newRunOverviewRequest
                 , eventForm = newEventForm
                 , refreshRequest =
-                    if isSuccess model.runs then
+                    if isSuccess model.loadedModel then
                         Success ()
 
                     else
@@ -1141,11 +738,11 @@ update msg model =
                     else
                         newCurrentExperimentType
               }
-            , Cmd.none
+            , subCmds
             )
 
         Refresh now ->
-            case ( model.refreshRequest, model.runs ) of
+            case ( model.refreshRequest, model.loadedModel ) of
                 ( Loading, _ ) ->
                     ( model, Cmd.none )
 
@@ -1174,149 +771,6 @@ update msg model =
                 ]
             )
 
-        EventDelete eventId ->
-            ( model, send EventDeleteFinished (deleteEventApiEventsDelete { id = eventId }) )
-
-        EventDeleteFinished result ->
-            case result of
-                Ok _ ->
-                    ( model, retrieveRuns model )
-
-                _ ->
-                    ( model, Cmd.none )
-
-        RunEditInfoExperimentTypeIdChanged v ->
-            case model.runEditInfo of
-                -- This is the unlikely case that we have an "attributo was edited" message, but chemical is edited
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just oldRunEditInfo ->
-                    let
-                        newRunEditInfo =
-                            { oldRunEditInfo | experimentTypeId = v }
-                    in
-                    ( { model | runEditInfo = Just newRunEditInfo }, Cmd.none )
-
-        RunEditInfoValueUpdate v ->
-            case model.runEditInfo of
-                -- This is the unlikely case that we have an "attributo was edited" message, but chemical is edited
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just oldRunEditInfo ->
-                    let
-                        newEditable =
-                            editEditableAttributi oldRunEditInfo.editableAttributi.editableAttributi v
-
-                        newRunEditInfo =
-                            { oldRunEditInfo | editableAttributi = { editableAttributi = newEditable, originalAttributi = oldRunEditInfo.editableAttributi.originalAttributi } }
-                    in
-                    ( { model | runEditInfo = Just newRunEditInfo }, Cmd.none )
-
-        ChangeShowAllAttributi newValue ->
-            case model.runEditInfo of
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just oldRunEditInfo ->
-                    let
-                        newRunEditInfo =
-                            { oldRunEditInfo | showAllAttributi = newValue }
-                    in
-                    ( { model | runEditInfo = Just newRunEditInfo }, Cmd.none )
-
-        RunEditSubmit ->
-            case model.runEditInfo of
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just runEditInfo ->
-                    case convertEditValues model.myTimeZone runEditInfo.editableAttributi of
-                        Err errorList ->
-                            ( { model | submitErrors = List.map (\( attributoId, errorMessage ) -> String.fromInt attributoId ++ ": " ++ errorMessage) errorList }, Cmd.none )
-
-                        Ok editedAttributi ->
-                            ( { model | runEditRequest = Loading }
-                            , send RunEditFinished
-                                (updateRunApiRunsPatch
-                                    { id = runInternalIdToInt runEditInfo.runId
-                                    , experimentTypeId = runEditInfo.experimentTypeId
-                                    , attributi = attributoMapToListOfAttributi editedAttributi
-                                    }
-                                )
-                            )
-
-        RunEditFinished result ->
-            case result of
-                Err e ->
-                    ( { model | runEditRequest = Failure e }, Cmd.none )
-
-                Ok editRequestResult ->
-                    case model.runs of
-                        Success _ ->
-                            let
-                                resetEditedFlags : RunEditInfo -> RunEditInfo
-                                resetEditedFlags rei =
-                                    { runId = rei.runId
-                                    , runExternalId = rei.runExternalId
-                                    , started = rei.started
-                                    , stopped = rei.stopped
-                                    , experimentTypeId = rei.experimentTypeId
-                                    , editableAttributi =
-                                        { originalAttributi = rei.editableAttributi.originalAttributi
-                                        , editableAttributi = List.map resetEditableAttributo rei.editableAttributi.editableAttributi
-                                        }
-
-                                    -- Reset manual edit flag, so we automatically jump to the latest run again
-                                    , initiatedManually = False
-                                    , showAllAttributi = False
-                                    }
-                            in
-                            ( { model | runEditRequest = Success editRequestResult, submitErrors = [], runEditInfo = Maybe.map resetEditedFlags model.runEditInfo }
-                            , retrieveRuns model
-                            )
-
-                        _ ->
-                            -- Super unlikely case, we don't really have a successful runs request, after finishing editing a run?
-                            ( { model | runEditRequest = Success editRequestResult, submitErrors = [], runEditInfo = Nothing }
-                            , retrieveRuns model
-                            )
-
-        RunInitiateEdit run ->
-            case model.runs of
-                Success { attributi } ->
-                    ( { model
-                        | runEditInfo =
-                            Just
-                                { runId = RunInternalId run.id
-                                , runExternalId = RunExternalId run.externalId
-                                , started = millisToPosix run.started
-                                , stopped = Maybe.map millisToPosix run.stopped
-                                , experimentTypeId = run.experimentTypeId
-                                , editableAttributi = createEditableAttributi model.myTimeZone (List.map convertAttributoFromApi attributi) (convertAttributoMapFromApi run.attributi)
-                                , initiatedManually = True
-                                , showAllAttributi = False
-                                }
-                        , runEditRequest = NotAsked
-                      }
-                    , scrollToTop (always Nop)
-                    )
-
-                _ ->
-                    ( model, Cmd.none )
-
-        RunEditCancel ->
-            case model.runs of
-                Success response ->
-                    ( { model | runEditInfo = updateRunEditInfoFromContent model.myTimeZone Nothing response, submitErrors = [], runEditRequest = NotAsked }, Cmd.none )
-
-                _ ->
-                    ( { model | runEditInfo = Nothing }, Cmd.none )
-
-        Nop ->
-            ( model, Cmd.none )
-
         SelectedExperimentTypeChanged etIdStr ->
             withRunsResponse model <|
                 \response ->
@@ -1327,13 +781,6 @@ update msg model =
                       }
                     , Cmd.none
                     )
-
-        ColumnChooserMessage columnChooserMessage ->
-            let
-                ( newColumnChooser, cmds ) =
-                    ColumnChooser.update model.columnChooser columnChooserMessage
-            in
-            ( { model | columnChooser = newColumnChooser }, Cmd.map ColumnChooserMessage cmds )
 
         ChangeAutoPilot newValue ->
             ( model
@@ -1382,20 +829,25 @@ update msg model =
             ( { model | dataSetFromRunRequest = fromResult result }, retrieveRuns model )
 
         ChangeCurrentExperimentType ->
-            case model.runEditInfo of
-                Nothing ->
-                    ( model, Cmd.none )
+            case model.loadedModel of
+                Success { latestRun } ->
+                    case latestRun of
+                        Nothing ->
+                            ( model, Cmd.none )
 
-                Just ei ->
-                    ( { model | changeExperimentTypeRequest = Loading }
-                    , send
-                        (ChangeCurrentExperimentTypeFinished (Maybe.map .id model.selectedExperimentType))
-                        (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost
-                            { experimentTypeId = Maybe.map .id model.selectedExperimentType
-                            , runInternalId = runInternalIdToInt ei.runId
-                            }
-                        )
-                    )
+                        Just { run } ->
+                            ( { model | changeExperimentTypeRequest = Loading }
+                            , send
+                                (ChangeCurrentExperimentTypeFinished (Maybe.map .id model.selectedExperimentType))
+                                (changeCurrentRunExperimentTypeApiExperimentTypesChangeForRunPost
+                                    { experimentTypeId = Maybe.map .id model.selectedExperimentType
+                                    , runInternalId = run.id
+                                    }
+                                )
+                            )
+
+                _ ->
+                    ( model, Cmd.none )
 
         ChangeCurrentExperimentTypeFinished selectedExperimentType result ->
             withRunsResponse model <|
@@ -1406,3 +858,47 @@ update msg model =
                       }
                     , retrieveRuns model
                     )
+
+        EventDelete eventId ->
+            ( model, send EventDeleteFinished (deleteEventApiEventsDelete { id = eventId }) )
+
+        EventDeleteFinished result ->
+            case result of
+                Ok _ ->
+                    ( model, retrieveRuns model )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        RunAttributiFormMsg subMsg ->
+            case model.loadedModel of
+                Success ({ latestRun } as oldLoadedModel) ->
+                    case latestRun of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just ({ runEditInfo } as oldLatestRun) ->
+                            let
+                                ( newEditInfo, subCmd ) =
+                                    RunAttributiForm.update subMsg runEditInfo
+
+                                cmd =
+                                    case subMsg of
+                                        RunAttributiForm.SubmitFinished _ ->
+                                            Cmd.batch [ Cmd.map RunAttributiFormMsg subCmd, retrieveRuns model ]
+
+                                        _ ->
+                                            Cmd.map RunAttributiFormMsg subCmd
+
+                                newLatestRun =
+                                    Just { oldLatestRun | runEditInfo = newEditInfo }
+
+                                newLoadedModel =
+                                    Success { oldLoadedModel | latestRun = newLatestRun }
+                            in
+                            ( { model | loadedModel = newLoadedModel }
+                            , cmd
+                            )
+
+                _ ->
+                    ( model, Cmd.none )

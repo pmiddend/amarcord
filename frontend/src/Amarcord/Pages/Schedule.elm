@@ -5,8 +5,9 @@ import Amarcord.Attributo exposing (Attributo, AttributoMap, AttributoType, Attr
 import Amarcord.Bootstrap exposing (icon)
 import Amarcord.Chemical exposing (Chemical, ChemicalId)
 import Amarcord.Html exposing (input_, li_)
+import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.Pages.Chemicals exposing (convertChemicalsResponse)
-import Api exposing (send)
+import Amarcord.Util exposing (HereAndNow)
 import Api.Data exposing (JsonBeamtimeSchedule, JsonBeamtimeScheduleOutput, JsonBeamtimeScheduleRow, JsonFileOutput, JsonReadChemicals)
 import Api.Request.Chemicals exposing (readChemicalsApiChemicalsBeamtimeIdGet)
 import Api.Request.Schedule exposing (getBeamtimeScheduleApiScheduleBeamtimeIdGet, updateBeamtimeScheduleApiSchedulePost)
@@ -15,15 +16,15 @@ import Dict exposing (Dict)
 import Html exposing (Html, button, div, em, h3, input, label, span, table, tbody, td, text, th, thead, tr, ul)
 import Html.Attributes exposing (attribute, checked, class, disabled, for, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Http
 import List.Extra
 import Regex
 import RemoteData exposing (RemoteData(..), fromResult)
+import Time exposing (Posix, posixToMillis)
 
 
 type ScheduleMsg
-    = ScheduleUpdated (Result Http.Error JsonBeamtimeScheduleOutput)
-    | ScheduleReceived (Result Http.Error JsonBeamtimeSchedule)
+    = ScheduleUpdated (Result HttpError JsonBeamtimeScheduleOutput)
+    | ScheduleReceived (Result HttpError JsonBeamtimeSchedule)
     | SubmitShift
     | ModifyShift ShiftId
     | SubmitModifiedShift ShiftId
@@ -35,7 +36,13 @@ type ScheduleMsg
     | UpdateToModifyShiftChemical String
     | ResetToModifyShift
     | ResetToDeleteShift
-    | ChemicalsReceived (Result Http.Error JsonReadChemicals)
+    | ChemicalsReceived (Result HttpError JsonReadChemicals)
+    | Refresh Posix
+
+
+subscriptions : ScheduleModel -> List (Sub ScheduleMsg)
+subscriptions _ =
+    [ Time.every 10000 Refresh ]
 
 
 type ChemicalDropdownMode
@@ -62,14 +69,20 @@ type alias ScheduleModel =
     , newJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRow
     , editingJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowToModify
     , deletingJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRowToModify
-    , chemicals : RemoteData Http.Error ChemicalsAndAttributi
+    , chemicals : RemoteData HttpError ChemicalsAndAttributi
     , beamtimeId : BeamtimeId
+    , hereAndNow : HereAndNow
     }
+
+
+pageTitle : ScheduleModel -> String
+pageTitle _ =
+    "Schedule"
 
 
 emptyJsonBeamtimeScheduleRow : JsonBeamtimeScheduleRow
 emptyJsonBeamtimeScheduleRow =
-    { users = "", date = "", shift = "", chemicals = [], comment = "", tdSupport = "" }
+    { users = "", date = "", shift = "", chemicals = [], comment = "", tdSupport = "", startPosix = 0, stopPosix = 0 }
 
 
 emptyJsonBeamtimeScheduleRowToModify : JsonBeamtimeScheduleRowToModify
@@ -112,10 +125,11 @@ styleColumn column =
             style "width" "8%"
 
 
-initSchedule : BeamtimeId -> ( ScheduleModel, Cmd ScheduleMsg )
-initSchedule beamtimeId =
+initSchedule : HereAndNow -> BeamtimeId -> ( ScheduleModel, Cmd ScheduleMsg )
+initSchedule hereAndNow beamtimeId =
     ( { chemicals = Loading
       , schedule = Dict.empty
+      , hereAndNow = hereAndNow
       , newJsonBeamtimeScheduleRow = emptyJsonBeamtimeScheduleRow
       , editingJsonBeamtimeScheduleRow = emptyJsonBeamtimeScheduleRowToModify
       , deletingJsonBeamtimeScheduleRow = emptyJsonBeamtimeScheduleRowToModify
@@ -133,7 +147,7 @@ view model =
     div [ class "container" ]
         [ h3 [] [ text "Beamtime Schedule" ]
         , div []
-            [ table [ class "table table-striped" ]
+            [ table [ class "table" ]
                 [ thead [ class "thead-light" ]
                     [ tr []
                         [ th [ styleColumn Date ] [ text "Date" ]
@@ -351,7 +365,18 @@ deleteJsonBeamtimeScheduleRowView model entry =
 
 readOnlyJsonBeamtimeScheduleRowView : ScheduleModel -> JsonBeamtimeScheduleRow -> ShiftId -> Html ScheduleMsg
 readOnlyJsonBeamtimeScheduleRowView model entry shiftId =
-    tr [] <|
+    let
+        rowClass =
+            if entry.startPosix <= posixToMillis model.hereAndNow.now && entry.stopPosix >= posixToMillis model.hereAndNow.now then
+                "table-info"
+
+            else if entry.startPosix > posixToMillis model.hereAndNow.now then
+                ""
+
+            else
+                "table-secondary"
+    in
+    tr [ class rowClass ] <|
         shiftSubview model entry
             ++ [ td [ styleColumn Actions ]
                     [ div [ class "form-control-sm" ]
@@ -566,6 +591,9 @@ scheduleDictFromScheduleList shifts =
 updateSchedule : ScheduleMsg -> ScheduleModel -> ( ScheduleModel, Cmd ScheduleMsg )
 updateSchedule msg model =
     case msg of
+        Refresh now ->
+            ( { model | hereAndNow = { zone = model.hereAndNow.zone, now = now } }, Cmd.none )
+
         ScheduleUpdated _ ->
             ( model, send ScheduleReceived (getBeamtimeScheduleApiScheduleBeamtimeIdGet model.beamtimeId) )
 
@@ -766,7 +794,9 @@ updateSchedule msg model =
 
 updateJsonBeamtimeScheduleRowByColumn : JsonBeamtimeScheduleRow -> TableColumn -> String -> JsonBeamtimeScheduleRow
 updateJsonBeamtimeScheduleRowByColumn se column data =
-    { date =
+    { startPosix = se.startPosix
+    , stopPosix = se.stopPosix
+    , date =
         case column of
             Date ->
                 data

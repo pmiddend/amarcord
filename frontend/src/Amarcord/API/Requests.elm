@@ -1,6 +1,8 @@
 module Amarcord.API.Requests exposing
     ( BeamtimeId
     , ConversionFlags
+    , ExperimentTypeId
+    , MergeResultId
     , RunEventDate(..)
     , RunEventDateFilter(..)
     , RunExternalId(..)
@@ -19,12 +21,19 @@ module Amarcord.API.Requests exposing
     , runExternalIdToString
     , runFilterToString
     , runInternalIdToInt
-    , runInternalIdToString
     , specificRunEventDateFilter
     )
 
 
 type alias BeamtimeId =
+    Int
+
+
+type alias ExperimentTypeId =
+    Int
+
+
+type alias MergeResultId =
     Int
 
 
@@ -45,11 +54,6 @@ type RunInternalId
 runInternalIdToInt : RunInternalId -> Int
 runInternalIdToInt (RunInternalId x) =
     x
-
-
-runInternalIdToString : RunInternalId -> String
-runInternalIdToString (RunInternalId x) =
-    String.fromInt x
 
 
 type RunExternalId
