@@ -1310,105 +1310,106 @@ def run_online(args: OnlineArgs) -> None:
     indexamajig_environ["PATH"] = (
         f"{args.crystfel_path}/bin:{indexamajig_environ['PATH']}"
     )
-    with subprocess.Popen(
-        cmd_line,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        encoding="utf-8",
-        bufsize=1,
-        env=indexamajig_environ,
-    ) as proc:
-        logger.info("process started, reading lines")
-        write_status_still_running(
-            args,
-            geometry_hash,
-            IndexingFom(
-                frames=0,
-                hits=0,
-                indexed_frames=0,
-                indexed_crystals=0,
-                detector_shift_x_mm=None,
-                detector_shift_y_mm=None,
-            ),
-        )
-        images = 0
-        hits = 0
-        indexable = 0
-        crystals = 0
-        previous_time: None | float = None
-        fps_killer = FpsKiller(duration_seconds=_FPS_KILLER_ONLINE_SECONDS)
-        start_time = time()
-        while True:
-            assert proc.stdout is not None
-            line = proc.stdout.readline()
-            if not line:
-                break
-            this_time = time()
-            logger.info(line)
-            match = _INDEXING_RE.search(line)
-            if match is None:
-                continue
-            try:
-                new_images = int(match.group(1))
-                if previous_time is None:
-                    previous_time = this_time
-                else:
-                    image_diff = new_images - images
-                    fps = image_diff / (this_time - previous_time)
-
-                    fps_killer.add_new_fps(fps)
-
-                    avg_fps = fps_killer.avg_fps()
-
-                    if fps < _FPS_KILLER_THRESHOLD:
-                        logger.warning(
-                            f"fps below threshold: {fps} < {_FPS_KILLER_THRESHOLD}"
-                        )
-
-                    if avg_fps is not None and avg_fps < _FPS_KILLER_THRESHOLD and this_time - start_time > 30:
-                        logger.warning(
-                            f"fps too low and fps killer is on: {avg_fps}, killing process"
-                        )
-                        proc.send_signal(signal.SIGUSR1)
-                        early_exit = True
-                        break
-                images = new_images
-                hits = int(match.group(2))
-                indexable = int(match.group(3))
-                crystals = int(match.group(4))
-            except:
-                logger.warning(f"indexing log line, but invalid format: {line}")
-                continue
-            previous_time = this_time
-            logger.info(f"{images} image(s)")
-
+    with Path("stderr.txt").open("w", encoding="utf-8") as stderr_file:
+        with subprocess.Popen(
+            cmd_line,
+            stdout=stderr_file,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            bufsize=1,
+            env=indexamajig_environ,
+        ) as proc:
+            logger.info("process started, reading lines")
             write_status_still_running(
                 args,
                 geometry_hash,
                 IndexingFom(
-                    frames=images,
-                    hits=hits,
-                    indexed_frames=indexable,
-                    indexed_crystals=crystals,
+                    frames=0,
+                    hits=0,
+                    indexed_frames=0,
+                    indexed_crystals=0,
                     detector_shift_x_mm=None,
                     detector_shift_y_mm=None,
                 ),
             )
+            images = 0
+            hits = 0
+            indexable = 0
+            crystals = 0
+            previous_time: None | float = None
+            fps_killer = FpsKiller(duration_seconds=_FPS_KILLER_ONLINE_SECONDS)
+            start_time = time()
+            while True:
+                assert proc.stderr is not None
+                line = proc.stderr.readline()
+                if not line:
+                    break
+                this_time = time()
+                logger.info(line)
+                match = _INDEXING_RE.search(line)
+                if match is None:
+                    continue
+                try:
+                    new_images = int(match.group(1))
+                    if previous_time is None:
+                        previous_time = this_time
+                    else:
+                        image_diff = new_images - images
+                        fps = image_diff / (this_time - previous_time)
 
-        proc.wait()
-        if not early_exit and proc.returncode != 0:
-            exit_with_error(
-                args, f"indexamajig process return code is {proc.returncode}"
+                        fps_killer.add_new_fps(fps)
+
+                        avg_fps = fps_killer.avg_fps()
+
+                        if fps < _FPS_KILLER_THRESHOLD:
+                            logger.warning(
+                                f"fps below threshold: {fps} < {_FPS_KILLER_THRESHOLD}"
+                            )
+
+                        if avg_fps is not None and avg_fps < _FPS_KILLER_THRESHOLD and this_time - start_time > 30:
+                            logger.warning(
+                                f"fps too low and fps killer is on: {avg_fps}, killing process"
+                            )
+                            proc.send_signal(signal.SIGUSR1)
+                            early_exit = True
+                            break
+                    images = new_images
+                    hits = int(match.group(2))
+                    indexable = int(match.group(3))
+                    crystals = int(match.group(4))
+                except:
+                    logger.warning(f"indexing log line, but invalid format: {line}")
+                    continue
+                previous_time = this_time
+                logger.info(f"{images} image(s)")
+
+                write_status_still_running(
+                    args,
+                    geometry_hash,
+                    IndexingFom(
+                        frames=images,
+                        hits=hits,
+                        indexed_frames=indexable,
+                        indexed_crystals=crystals,
+                        detector_shift_x_mm=None,
+                        detector_shift_y_mm=None,
+                    ),
+                )
+
+            proc.wait()
+            if not early_exit and proc.returncode != 0:
+                exit_with_error(
+                    args, f"indexamajig process return code is {proc.returncode}"
+                )
+
+            final_fom = IndexingFom(
+                frames=images,
+                hits=hits,
+                indexed_frames=indexable,
+                indexed_crystals=crystals,
+                detector_shift_x_mm=None,
+                detector_shift_y_mm=None,
             )
-
-        final_fom = IndexingFom(
-            frames=images,
-            hits=hits,
-            indexed_frames=indexable,
-            indexed_crystals=crystals,
-            detector_shift_x_mm=None,
-            detector_shift_y_mm=None,
-        )
     logger.info("process completed")
 
     if args.use_auto_geom_refinement:
