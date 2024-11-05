@@ -69,7 +69,6 @@ module Api.Data exposing
     , JsonDataSet
     , JsonDataSetWithFom
     , JsonDataSetWithIndexingResults
-    , JsonDataSetWithoutIndexingResults
     , JsonDeleteAttributoInput
     , JsonDeleteAttributoOutput
     , JsonDeleteChemicalInput
@@ -120,7 +119,6 @@ module Api.Data exposing
     , JsonQueueMergeJobInput
     , JsonQueueMergeJobOutput
     , JsonReadAllChemicals
-    , JsonReadAnalysisResults
     , JsonReadAttributi
     , JsonReadBeamtime
     , JsonReadBeamtimeGeometryDetails
@@ -131,6 +129,8 @@ module Api.Data exposing
     , JsonReadIndexingParametersOutput
     , JsonReadIndexingResultsOutput
     , JsonReadMergeResultsOutput
+    , JsonReadNewAnalysisInput
+    , JsonReadNewAnalysisOutput
     , JsonReadRunAnalysis
     , JsonReadRuns
     , JsonReadRunsBulkInput
@@ -219,7 +219,6 @@ module Api.Data exposing
     , encodeJsonDataSet
     , encodeJsonDataSetWithFom
     , encodeJsonDataSetWithIndexingResults
-    , encodeJsonDataSetWithoutIndexingResults
     , encodeJsonDeleteAttributoInput
     , encodeJsonDeleteAttributoOutput
     , encodeJsonDeleteChemicalInput
@@ -270,7 +269,6 @@ module Api.Data exposing
     , encodeJsonQueueMergeJobInput
     , encodeJsonQueueMergeJobOutput
     , encodeJsonReadAllChemicals
-    , encodeJsonReadAnalysisResults
     , encodeJsonReadAttributi
     , encodeJsonReadBeamtime
     , encodeJsonReadBeamtimeGeometryDetails
@@ -281,6 +279,8 @@ module Api.Data exposing
     , encodeJsonReadIndexingParametersOutput
     , encodeJsonReadIndexingResultsOutput
     , encodeJsonReadMergeResultsOutput
+    , encodeJsonReadNewAnalysisInput
+    , encodeJsonReadNewAnalysisOutput
     , encodeJsonReadRunAnalysis
     , encodeJsonReadRuns
     , encodeJsonReadRunsBulkInput
@@ -376,7 +376,6 @@ module Api.Data exposing
     , jsonDataSetDecoder
     , jsonDataSetWithFomDecoder
     , jsonDataSetWithIndexingResultsDecoder
-    , jsonDataSetWithoutIndexingResultsDecoder
     , jsonDeleteAttributoInputDecoder
     , jsonDeleteAttributoOutputDecoder
     , jsonDeleteChemicalInputDecoder
@@ -427,7 +426,6 @@ module Api.Data exposing
     , jsonQueueMergeJobInputDecoder
     , jsonQueueMergeJobOutputDecoder
     , jsonReadAllChemicalsDecoder
-    , jsonReadAnalysisResultsDecoder
     , jsonReadAttributiDecoder
     , jsonReadBeamtimeDecoder
     , jsonReadBeamtimeGeometryDetailsDecoder
@@ -438,6 +436,8 @@ module Api.Data exposing
     , jsonReadIndexingParametersOutputDecoder
     , jsonReadIndexingResultsOutputDecoder
     , jsonReadMergeResultsOutputDecoder
+    , jsonReadNewAnalysisInputDecoder
+    , jsonReadNewAnalysisOutputDecoder
     , jsonReadRunAnalysisDecoder
     , jsonReadRunsDecoder
     , jsonReadRunsBulkInputDecoder
@@ -995,13 +995,6 @@ type alias JsonDataSetWithIndexingResults =
     }
 
 
-type alias JsonDataSetWithoutIndexingResults =
-    { dataSet : JsonDataSet
-    , internalRunIds : List Int
-    , runs : List String
-    }
-
-
 type alias JsonDeleteAttributoInput =
     { id : Int
     }
@@ -1447,14 +1440,6 @@ type alias JsonReadAllChemicals =
     }
 
 
-type alias JsonReadAnalysisResults =
-    { attributi : List JsonAttributo
-    , chemicalIdToName : List JsonChemicalIdAndName
-    , experimentType : JsonExperimentType
-    , dataSets : List JsonDataSetWithoutIndexingResults
-    }
-
-
 type alias JsonReadAttributi =
     { attributi : List JsonAttributo
     }
@@ -1511,6 +1496,20 @@ type alias JsonReadIndexingResultsOutput =
 
 type alias JsonReadMergeResultsOutput =
     { mergeJobs : List JsonMergeJob
+    }
+
+
+type alias JsonReadNewAnalysisInput =
+    { attributiFilter : List JsonAttributoValue
+    }
+
+
+type alias JsonReadNewAnalysisOutput =
+    { attributi : List JsonAttributo
+    , chemicalIdToName : List JsonChemicalIdAndName
+    , experimentTypes : List JsonExperimentType
+    , filteredDataSets : List JsonDataSet
+    , attributiValues : List JsonAttributoValue
     }
 
 
@@ -3087,28 +3086,6 @@ encodeJsonDataSetWithIndexingResultsPairs model =
     pairs
 
 
-encodeJsonDataSetWithoutIndexingResults : JsonDataSetWithoutIndexingResults -> Json.Encode.Value
-encodeJsonDataSetWithoutIndexingResults =
-    encodeObject << encodeJsonDataSetWithoutIndexingResultsPairs
-
-
-encodeJsonDataSetWithoutIndexingResultsWithTag : ( String, String ) -> JsonDataSetWithoutIndexingResults -> Json.Encode.Value
-encodeJsonDataSetWithoutIndexingResultsWithTag (tagField, tag) model =
-    encodeObject (encodeJsonDataSetWithoutIndexingResultsPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonDataSetWithoutIndexingResultsPairs : JsonDataSetWithoutIndexingResults -> List EncodedField
-encodeJsonDataSetWithoutIndexingResultsPairs model =
-    let
-        pairs =
-            [ encode "data_set" encodeJsonDataSet model.dataSet
-            , encode "internal_run_ids" (Json.Encode.list Json.Encode.int) model.internalRunIds
-            , encode "runs" (Json.Encode.list Json.Encode.string) model.runs
-            ]
-    in
-    pairs
-
-
 encodeJsonDeleteAttributoInput : JsonDeleteAttributoInput -> Json.Encode.Value
 encodeJsonDeleteAttributoInput =
     encodeObject << encodeJsonDeleteAttributoInputPairs
@@ -4304,29 +4281,6 @@ encodeJsonReadAllChemicalsPairs model =
     pairs
 
 
-encodeJsonReadAnalysisResults : JsonReadAnalysisResults -> Json.Encode.Value
-encodeJsonReadAnalysisResults =
-    encodeObject << encodeJsonReadAnalysisResultsPairs
-
-
-encodeJsonReadAnalysisResultsWithTag : ( String, String ) -> JsonReadAnalysisResults -> Json.Encode.Value
-encodeJsonReadAnalysisResultsWithTag (tagField, tag) model =
-    encodeObject (encodeJsonReadAnalysisResultsPairs model ++ [ encode tagField Json.Encode.string tag ])
-
-
-encodeJsonReadAnalysisResultsPairs : JsonReadAnalysisResults -> List EncodedField
-encodeJsonReadAnalysisResultsPairs model =
-    let
-        pairs =
-            [ encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
-            , encode "chemical_id_to_name" (Json.Encode.list encodeJsonChemicalIdAndName) model.chemicalIdToName
-            , encode "experiment_type" encodeJsonExperimentType model.experimentType
-            , encode "data_sets" (Json.Encode.list encodeJsonDataSetWithoutIndexingResults) model.dataSets
-            ]
-    in
-    pairs
-
-
 encodeJsonReadAttributi : JsonReadAttributi -> Json.Encode.Value
 encodeJsonReadAttributi =
     encodeObject << encodeJsonReadAttributiPairs
@@ -4531,6 +4485,50 @@ encodeJsonReadMergeResultsOutputPairs model =
     let
         pairs =
             [ encode "merge_jobs" (Json.Encode.list encodeJsonMergeJob) model.mergeJobs
+            ]
+    in
+    pairs
+
+
+encodeJsonReadNewAnalysisInput : JsonReadNewAnalysisInput -> Json.Encode.Value
+encodeJsonReadNewAnalysisInput =
+    encodeObject << encodeJsonReadNewAnalysisInputPairs
+
+
+encodeJsonReadNewAnalysisInputWithTag : ( String, String ) -> JsonReadNewAnalysisInput -> Json.Encode.Value
+encodeJsonReadNewAnalysisInputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadNewAnalysisInputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadNewAnalysisInputPairs : JsonReadNewAnalysisInput -> List EncodedField
+encodeJsonReadNewAnalysisInputPairs model =
+    let
+        pairs =
+            [ encode "attributi_filter" (Json.Encode.list encodeJsonAttributoValue) model.attributiFilter
+            ]
+    in
+    pairs
+
+
+encodeJsonReadNewAnalysisOutput : JsonReadNewAnalysisOutput -> Json.Encode.Value
+encodeJsonReadNewAnalysisOutput =
+    encodeObject << encodeJsonReadNewAnalysisOutputPairs
+
+
+encodeJsonReadNewAnalysisOutputWithTag : ( String, String ) -> JsonReadNewAnalysisOutput -> Json.Encode.Value
+encodeJsonReadNewAnalysisOutputWithTag (tagField, tag) model =
+    encodeObject (encodeJsonReadNewAnalysisOutputPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonReadNewAnalysisOutputPairs : JsonReadNewAnalysisOutput -> List EncodedField
+encodeJsonReadNewAnalysisOutputPairs model =
+    let
+        pairs =
+            [ encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
+            , encode "chemical_id_to_name" (Json.Encode.list encodeJsonChemicalIdAndName) model.chemicalIdToName
+            , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
+            , encode "filtered_data_sets" (Json.Encode.list encodeJsonDataSet) model.filteredDataSets
+            , encode "attributi_values" (Json.Encode.list encodeJsonAttributoValue) model.attributiValues
             ]
     in
     pairs
@@ -5902,14 +5900,6 @@ jsonDataSetWithIndexingResultsDecoder =
         |> decode "indexing_results" (Json.Decode.list jsonIndexingParametersWithResultsDecoder) 
 
 
-jsonDataSetWithoutIndexingResultsDecoder : Json.Decode.Decoder JsonDataSetWithoutIndexingResults
-jsonDataSetWithoutIndexingResultsDecoder =
-    Json.Decode.succeed JsonDataSetWithoutIndexingResults
-        |> decode "data_set" jsonDataSetDecoder 
-        |> decode "internal_run_ids" (Json.Decode.list Json.Decode.int) 
-        |> decode "runs" (Json.Decode.list Json.Decode.string) 
-
-
 jsonDeleteAttributoInputDecoder : Json.Decode.Decoder JsonDeleteAttributoInput
 jsonDeleteAttributoInputDecoder =
     Json.Decode.succeed JsonDeleteAttributoInput
@@ -6405,15 +6395,6 @@ jsonReadAllChemicalsDecoder =
         |> decode "attributi_names" (Json.Decode.list jsonAttributoWithNameDecoder) 
 
 
-jsonReadAnalysisResultsDecoder : Json.Decode.Decoder JsonReadAnalysisResults
-jsonReadAnalysisResultsDecoder =
-    Json.Decode.succeed JsonReadAnalysisResults
-        |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
-        |> decode "chemical_id_to_name" (Json.Decode.list jsonChemicalIdAndNameDecoder) 
-        |> decode "experiment_type" jsonExperimentTypeDecoder 
-        |> decode "data_sets" (Json.Decode.list jsonDataSetWithoutIndexingResultsDecoder) 
-
-
 jsonReadAttributiDecoder : Json.Decode.Decoder JsonReadAttributi
 jsonReadAttributiDecoder =
     Json.Decode.succeed JsonReadAttributi
@@ -6481,6 +6462,22 @@ jsonReadMergeResultsOutputDecoder : Json.Decode.Decoder JsonReadMergeResultsOutp
 jsonReadMergeResultsOutputDecoder =
     Json.Decode.succeed JsonReadMergeResultsOutput
         |> decode "merge_jobs" (Json.Decode.list jsonMergeJobDecoder) 
+
+
+jsonReadNewAnalysisInputDecoder : Json.Decode.Decoder JsonReadNewAnalysisInput
+jsonReadNewAnalysisInputDecoder =
+    Json.Decode.succeed JsonReadNewAnalysisInput
+        |> decode "attributi_filter" (Json.Decode.list jsonAttributoValueDecoder) 
+
+
+jsonReadNewAnalysisOutputDecoder : Json.Decode.Decoder JsonReadNewAnalysisOutput
+jsonReadNewAnalysisOutputDecoder =
+    Json.Decode.succeed JsonReadNewAnalysisOutput
+        |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
+        |> decode "chemical_id_to_name" (Json.Decode.list jsonChemicalIdAndNameDecoder) 
+        |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
+        |> decode "filtered_data_sets" (Json.Decode.list jsonDataSetDecoder) 
+        |> decode "attributi_values" (Json.Decode.list jsonAttributoValueDecoder) 
 
 
 jsonReadRunAnalysisDecoder : Json.Decode.Decoder JsonReadRunAnalysis

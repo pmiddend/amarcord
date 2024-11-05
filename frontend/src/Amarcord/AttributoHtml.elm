@@ -1,6 +1,6 @@
 module Amarcord.AttributoHtml exposing (AttributoEditValue(..), AttributoEditValueWithStatus, AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributi, EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, emptyEditableAttributiAndOriginal, extractStringAttributo, findEditableAttributo, formatFloatHumanFriendly, formatIntHumanFriendly, isEditValueChemicalId, makeAttributoHeader, resetEditableAttributo, unsavedAttributoChanges, viewAttributoCell, viewAttributoForm, viewRunExperimentTypeCell)
 
-import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, prettyPrintAttributoValue, retrieveAttributoValue, updateAttributoMap)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoName, AttributoType(..), AttributoValue(..), ChemicalNameDict, createAnnotatedAttributoMap, emptyAttributoMap, mapAttributo, prettyPrintAttributoValue, retrieveAttributoValue, updateAttributoMap)
 import Amarcord.Chemical exposing (Chemical)
 import Amarcord.Html exposing (br_, em_, input_, span_, strongText)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
@@ -65,7 +65,7 @@ viewRunExperimentTypeCell experimentType =
     td [ class manualCellClass ] [ text experimentType ]
 
 
-viewAttributoCell : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
+viewAttributoCell : ViewAttributoValueProperties -> Zone -> ChemicalNameDict -> AttributoMap AttributoValue -> Attributo AttributoType -> Html msg
 viewAttributoCell props zone chemicalIds attributiValues { id, group, type_ } =
     td
         [ class
@@ -103,7 +103,7 @@ possiblyAddSuffix props prefix possibleSuffix =
         )
 
 
-viewAttributoValue : ViewAttributoValueProperties -> Zone -> Dict Int String -> AttributoType -> AttributoValue -> Html msg
+viewAttributoValue : ViewAttributoValueProperties -> Zone -> ChemicalNameDict -> AttributoType -> AttributoValue -> Html msg
 viewAttributoValue props zone chemicalIds type_ value =
     case value of
         ValueNone ->
@@ -711,7 +711,7 @@ attributoValueToEditValue zone attributoId attributi value =
                             { subType = subType
                             , minLength = minLength
                             , maxLength = maxLength
-                            , editValue = join "," <| List.map prettyPrintAttributoValue xs
+                            , editValue = join "," <| List.map (prettyPrintAttributoValue Nothing) xs
                             }
                         )
 

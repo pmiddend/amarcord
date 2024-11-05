@@ -10,7 +10,6 @@ import Amarcord.HttpError exposing (HttpError, send)
 import Amarcord.LocalStorage exposing (LocalStorage, decodeLocalStorage)
 import Amarcord.Menu exposing (viewMenu)
 import Amarcord.Pages.AdvancedControls as AdvancedControls
-import Amarcord.Pages.AnalysisExperimentType as AnalysisExperimentType
 import Amarcord.Pages.AnalysisOverview as AnalysisOverview
 import Amarcord.Pages.Attributi as Attributi
 import Amarcord.Pages.BeamtimeSelection as BeamtimeSelection
@@ -61,9 +60,6 @@ pageSubscriptions rootModel =
         AnalysisOverviewPage model ->
             List.map (Sub.map AnalysisOverviewPageMsg) (AnalysisOverview.subscriptions model)
 
-        AnalysisExperimentTypePage model ->
-            List.map (Sub.map AnalysisExperimentTypePageMsg) (AnalysisExperimentType.subscriptions model)
-
         EventLogPage model ->
             List.map (Sub.map EventLogPageMsg) (EventLog.subscriptions model)
 
@@ -94,7 +90,6 @@ type Msg
     | DataSetsMsg DataSets.Msg
     | ExperimentTypesMsg ExperimentTypes.Msg
     | AnalysisOverviewPageMsg AnalysisOverview.Msg
-    | AnalysisExperimentTypePageMsg AnalysisExperimentType.Msg
     | SingleDataSetPageMsg SingleDataSet.Msg
     | RunAnalysisPageMsg RunAnalysis.Msg
     | ScheduleMsg Schedule.ScheduleMsg
@@ -119,7 +114,6 @@ type Page
     | EventLogPage EventLog.Model
     | ExperimentTypesPage ExperimentTypes.Model
     | AnalysisOverviewPage AnalysisOverview.Model
-    | AnalysisExperimentTypePage AnalysisExperimentType.Model
     | SingleDataSetPage SingleDataSet.Model
     | RunAnalysisPage RunAnalysis.Model
 
@@ -216,9 +210,6 @@ buildTitleForPage page =
 
         AnalysisOverviewPage model ->
             AnalysisOverview.pageTitle model
-
-        AnalysisExperimentTypePage model ->
-            AnalysisExperimentType.pageTitle model
 
         SingleDataSetPage model ->
             SingleDataSet.pageTitle model
@@ -356,12 +347,6 @@ currentView model =
             div []
                 [ AnalysisOverview.view pageModel
                     |> Html.map AnalysisOverviewPageMsg
-                ]
-
-        AnalysisExperimentTypePage pageModel ->
-            div []
-                [ AnalysisExperimentType.view pageModel
-                    |> Html.map AnalysisExperimentTypePageMsg
                 ]
 
         SingleDataSetPage pageModel ->
@@ -560,15 +545,6 @@ updateInner hereAndNow msg model =
             , Cmd.map AnalysisOverviewPageMsg updatedCmd
             )
 
-        ( AnalysisExperimentTypePageMsg subMsg, AnalysisExperimentTypePage pageModel ) ->
-            let
-                ( updatedPageModel, updatedCmd ) =
-                    AnalysisExperimentType.update subMsg pageModel
-            in
-            ( { model | page = AnalysisExperimentTypePage updatedPageModel }
-            , Cmd.map AnalysisExperimentTypePageMsg updatedCmd
-            )
-
         ( SingleDataSetPageMsg subMsg, SingleDataSetPage pageModel ) ->
             let
                 ( updatedPageModel, updatedCmd ) =
@@ -723,13 +699,6 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                             AnalysisOverview.init model.navKey hereAndNow beamtimeId
                     in
                     ( AnalysisOverviewPage pageModel, Cmd.map AnalysisOverviewPageMsg pageCmds )
-
-                Route.AnalysisExperimentType beamtimeId etId ->
-                    let
-                        ( pageModel, pageCmds ) =
-                            AnalysisExperimentType.init model.navKey hereAndNow beamtimeId etId
-                    in
-                    ( AnalysisExperimentTypePage pageModel, Cmd.map AnalysisExperimentTypePageMsg pageCmds )
 
                 Route.AnalysisDataSet beamtimeId dsId ->
                     let

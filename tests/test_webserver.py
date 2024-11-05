@@ -117,7 +117,6 @@ from amarcord.web.json_models import JsonMergeParameters
 from amarcord.web.json_models import JsonPolarisation
 from amarcord.web.json_models import JsonQueueMergeJobInput
 from amarcord.web.json_models import JsonQueueMergeJobOutput
-from amarcord.web.json_models import JsonReadAnalysisResults
 from amarcord.web.json_models import JsonReadAttributi
 from amarcord.web.json_models import JsonReadBeamtime
 from amarcord.web.json_models import JsonReadChemicals
@@ -126,6 +125,8 @@ from amarcord.web.json_models import JsonReadEvents
 from amarcord.web.json_models import JsonReadExperimentTypes
 from amarcord.web.json_models import JsonReadIndexingResultsOutput
 from amarcord.web.json_models import JsonReadMergeResultsOutput
+from amarcord.web.json_models import JsonReadNewAnalysisInput
+from amarcord.web.json_models import JsonReadNewAnalysisOutput
 from amarcord.web.json_models import JsonReadRuns
 from amarcord.web.json_models import JsonReadRunsBulkInput
 from amarcord.web.json_models import JsonReadRunsBulkOutput
@@ -1614,28 +1615,34 @@ def test_update_indexing_job(
     assert summary.detector_shift_y_mm == pytest.approx(-0.5, 0.01)
 
     # Another place is the analysis view
-    analysis_response = JsonReadAnalysisResults(
-        **client.get(
-            f"/api/analysis/analysis-results/{beamtime_id}/{chemical_experiment_type_id}"
+    analysis_response = JsonReadNewAnalysisOutput(
+        **client.post(
+            f"/api/analysis/analysis-results/{beamtime_id}",
+            json=JsonReadNewAnalysisInput(
+                attributi_filter=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    )
+                ]
+            ).dict(),
         ).json()
     )
 
-    assert len(analysis_response.data_sets) == 1
+    assert len(analysis_response.filtered_data_sets) == 1
     assert (
-        analysis_response.data_sets[0].data_set.experiment_type_id
+        analysis_response.filtered_data_sets[0].experiment_type_id
         == chemical_experiment_type_id
     )
     assert (
-        analysis_response.data_sets[0].data_set.id
+        analysis_response.filtered_data_sets[0].id
         == create_data_set_response.data_set_id
     )
-    assert len(analysis_response.data_sets[0].runs) == 1
-    assert analysis_response.data_sets[0].runs[0] == str(external_run_id)
 
     # Another place is the analysis view
     single_data_set_result = JsonReadSingleDataSetResults(
         **client.get(
-            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.data_sets[0].data_set.id}"
+            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.filtered_data_sets[0].id}"
         ).json()
     )
 
@@ -2004,18 +2011,26 @@ def test_queue_then_start_then_finish_merge_job(
     assert finish_merge_job_response.result
 
     # Get the analysis view and find our result!
-    analysis_response = JsonReadAnalysisResults(
-        **client.get(
-            f"/api/analysis/analysis-results/{beamtime_id}/{chemical_experiment_type_id}"
+    analysis_response = JsonReadNewAnalysisOutput(
+        **client.post(
+            f"/api/analysis/analysis-results/{beamtime_id}",
+            json=JsonReadNewAnalysisInput(
+                attributi_filter=[
+                    JsonAttributoValue(
+                        attributo_id=run_channel_1_chemical_attributo_id,
+                        attributo_value_chemical=lyso_chemical_id,
+                    )
+                ]
+            ).dict(),
         ).json()
     )
 
-    assert len(analysis_response.data_sets) == 1
+    assert len(analysis_response.filtered_data_sets) == 1
 
     # Another place is the analysis view
     single_data_set_result = JsonReadSingleDataSetResults(
         **client.get(
-            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.data_sets[0].data_set.id}"
+            f"/api/analysis/single-data-set/{beamtime_id}/{analysis_response.filtered_data_sets[0].id}"
         ).json()
     )
 
@@ -2159,30 +2174,35 @@ def test_start_two_runs_and_enable_auto_pilot(
     fourth_external_run_id = 1003
     # Now, we add a run, and provide the manual attributo directly. In
     # this case, auto pilot shouldn't do anything and use the new attributo value
-    fourth_string_value = string_value+"new"
+    fourth_string_value = string_value + "new"
     fourth_run_response = JsonCreateOrUpdateRunOutput(
         **client.post(
             f"/api/runs/{fourth_external_run_id}",
             json=JsonCreateOrUpdateRun(
                 files=[],
                 beamtime_id=beamtime_id,
-                attributi=[JsonAttributoValue(
-                    attributo_id=run_string_attributo_id,
-                    attributo_value_str=fourth_string_value,
-                )],
+                attributi=[
+                    JsonAttributoValue(
+                        attributo_id=run_string_attributo_id,
+                        attributo_value_str=fourth_string_value,
+                    )
+                ],
             ).dict(),
         ).json()
     )
     assert fourth_run_response.run_created
 
-    read_runs_output_after_last_run = JsonReadRuns(**client.get(f"/api/runs/{beamtime_id}").json())
+    read_runs_output_after_last_run = JsonReadRuns(
+        **client.get(f"/api/runs/{beamtime_id}").json()
+    )
     assert len(read_runs_output_after_last_run.runs) == 4
 
     fourth_attributi = read_runs_output_after_last_run.runs[0].attributi
-    fourth_manual_attributo = [x for x in fourth_attributi if x.attributo_id == run_string_attributo_id]
+    fourth_manual_attributo = [
+        x for x in fourth_attributi if x.attributo_id == run_string_attributo_id
+    ]
     assert fourth_manual_attributo
-    assert fourth_manual_attributo[0].attributo_value_str == string_value+"new"
-
+    assert fourth_manual_attributo[0].attributo_value_str == string_value + "new"
 
 
 def test_start_two_runs_and_enable_auto_pilot_using_create_or_update_run(

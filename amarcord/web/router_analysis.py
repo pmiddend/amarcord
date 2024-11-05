@@ -1,6 +1,10 @@
+from typing import Iterable
+
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
+from sqlalchemy import false
+from sqlalchemy import intersect_all
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import select
@@ -25,15 +29,16 @@ from amarcord.web.fastapi_utils import orm_encode_merge_result_to_json
 from amarcord.web.fastapi_utils import orm_indexing_parameters_to_json
 from amarcord.web.fastapi_utils import orm_indexing_result_to_json
 from amarcord.web.json_models import JsonAnalysisRun
+from amarcord.web.json_models import JsonAttributoValue
 from amarcord.web.json_models import JsonChemicalIdAndName
 from amarcord.web.json_models import JsonDataSet
 from amarcord.web.json_models import JsonDataSetWithIndexingResults
-from amarcord.web.json_models import JsonDataSetWithoutIndexingResults
 from amarcord.web.json_models import JsonDetectorShift
 from amarcord.web.json_models import JsonIndexingParametersWithResults
 from amarcord.web.json_models import JsonIndexingStatistic
-from amarcord.web.json_models import JsonReadAnalysisResults
 from amarcord.web.json_models import JsonReadBeamtimeGeometryDetails
+from amarcord.web.json_models import JsonReadNewAnalysisInput
+from amarcord.web.json_models import JsonReadNewAnalysisOutput
 from amarcord.web.json_models import JsonReadRunAnalysis
 from amarcord.web.json_models import JsonReadSingleDataSetResults
 from amarcord.web.json_models import JsonReadSingleMergeResult
@@ -179,120 +184,6 @@ async def read_run_analysis(
             )
             for indexing_result in indexing_results
         ],
-    )
-
-
-@router.get(
-    "/api/analysis/analysis-results/{beamtimeId}/{experimentTypeId}",
-    tags=["analysis"],
-    response_model_exclude_defaults=True,
-)
-async def read_analysis_results(
-    beamtimeId: BeamtimeId,
-    experimentTypeId: int,
-    session: AsyncSession = Depends(get_orm_db),
-) -> JsonReadAnalysisResults:
-    attributi = list(
-        (
-            await session.scalars(
-                select(orm.Attributo)
-                .where(orm.Attributo.beamtime_id == beamtimeId)
-                .order_by(orm.Attributo.name)
-            )
-        ).all()
-    )
-
-    chemical_id_to_name = [
-        JsonChemicalIdAndName(chemical_id=x.id, name=x.name)
-        for x in await session.scalars(
-            select(orm.Chemical).where(orm.Chemical.beamtime_id == beamtimeId)
-        )
-    ]
-
-    experiment_type = encode_experiment_type(
-        (
-            await session.scalars(
-                select(orm.ExperimentType).where(
-                    orm.ExperimentType.id == experimentTypeId
-                )
-            )
-        ).one()
-    )
-
-    data_sets = list(
-        (
-            await session.scalars(
-                select(orm.DataSet)
-                .join(orm.DataSet.experiment_type)
-                .where(
-                    (orm.ExperimentType.beamtime_id == beamtimeId)
-                    & (orm.ExperimentType.id == experimentTypeId)
-                )
-            )
-        ).all()
-    )
-    # We have to explicitly get runs, because we cannot, with the DB,
-    # associate runs to a data set. We have to do it in software.
-    runs = {
-        r.id: r
-        for r in await session.scalars(
-            select(orm.Run).where(
-                (orm.Run.beamtime_id == beamtimeId)
-                & (orm.Run.experiment_type_id == experimentTypeId)
-            )
-        )
-    }
-    run_attributi_maps: dict[
-        RunInternalId,
-        dict[AttributoId, None | orm.RunHasAttributoValue],
-    ] = {
-        r.id: {ra.attributo_id: ra for ra in r.attributo_values} for r in runs.values()
-    }
-    ds_attributi_maps: dict[
-        int,
-        dict[AttributoId, None | orm.DataSetHasAttributoValue],
-    ] = {
-        ds.id: {dsa.attributo_id: dsa for dsa in ds.attributo_values}
-        for ds in data_sets
-    }
-    attributo_types: dict[AttributoId, AttributoType] = {
-        a.id: schema_dict_to_attributo_type(a.json_schema) for a in attributi
-    }
-
-    data_set_to_runs: dict[int, list[orm.Run]] = {
-        ds.id: [
-            r
-            for r in runs.values()
-            if r.experiment_type_id == ds.experiment_type_id
-            and run_matches_dataset(
-                attributo_types,
-                run_attributi_maps[r.id],
-                ds_attributi_maps[ds.id],
-            )
-        ]
-        for ds in data_sets
-    }
-
-    def _build_data_set_result(ds: orm.DataSet) -> JsonDataSetWithoutIndexingResults:
-        runs_in_ds: list[orm.Run] = data_set_to_runs.get(ds.id, [])
-
-        return JsonDataSetWithoutIndexingResults(
-            data_set=JsonDataSet(
-                id=ds.id,
-                experiment_type_id=ds.experiment_type_id,
-                attributi=[
-                    encode_data_set_attributo_value(v) for v in ds.attributo_values
-                ],
-            ),
-            internal_run_ids=[r.id for r in runs_in_ds],
-            runs=format_run_id_intervals(r.external_id for r in runs_in_ds),
-        )
-
-    return JsonReadAnalysisResults(
-        attributi=[encode_attributo(a) for a in attributi],
-        chemical_id_to_name=chemical_id_to_name,
-        experiment_type=experiment_type,
-        data_sets=[_build_data_set_result(ds) for ds in data_sets],
     )
 
 
@@ -517,4 +408,183 @@ async def read_single_merge_result(
     return JsonReadSingleMergeResult(
         result=orm_encode_merge_result_to_json(merge_result),
         experiment_type=experiment_type,
+    )
+
+
+@router.post(
+    "/api/analysis/analysis-results/{beamtimeId}",
+    tags=["analysis"],
+    response_model_exclude_defaults=True,
+)
+async def read_analysis_results(
+    beamtimeId: BeamtimeId,
+    input_: JsonReadNewAnalysisInput,
+    session: AsyncSession = Depends(get_orm_db),
+) -> JsonReadNewAnalysisOutput:
+    attributi = list(
+        (
+            await session.scalars(
+                select(orm.Attributo).where(orm.Attributo.beamtime_id == beamtimeId)
+            )
+        ).all()
+    )
+
+    experiment_types = list(
+        (
+            await session.scalars(
+                select(orm.ExperimentType).where(
+                    orm.ExperimentType.beamtime_id == beamtimeId
+                )
+            )
+        ).all()
+    )
+
+    chemical_id_to_name = [
+        JsonChemicalIdAndName(chemical_id=x.id, name=x.name)
+        for x in await session.scalars(
+            select(orm.Chemical).where(orm.Chemical.beamtime_id == beamtimeId)
+        )
+    ]
+
+    # One part of the response is the list of all attributi values,
+    # per attributo, so we can filter based on that. Here we do a
+    # distinct to filter out duplicate tuples.
+    attributi_values_select = (
+        select(
+            orm.DataSetHasAttributoValue.attributo_id,
+            orm.DataSetHasAttributoValue.integer_value,
+            orm.DataSetHasAttributoValue.float_value,
+            orm.DataSetHasAttributoValue.string_value,
+            orm.DataSetHasAttributoValue.bool_value,
+            orm.DataSetHasAttributoValue.datetime_value,
+            orm.DataSetHasAttributoValue.list_value,
+            orm.DataSetHasAttributoValue.chemical_value,
+        )
+        .join(orm.DataSetHasAttributoValue.data_set)
+        .join(orm.DataSet.experiment_type)
+        .where((orm.ExperimentType.beamtime_id == beamtimeId))
+        .distinct()
+    )
+
+    attributi_values = await session.execute(attributi_values_select)
+
+    filter_by_id: dict[int, list[JsonAttributoValue]] = group_by(
+        input_.attributi_filter, lambda a: a.attributo_id
+    )
+
+    # This function constructs a WHERE clause that looks like this:
+    # attributo_id = $id AND (comparison1 OR comparison2)
+    #
+    # Since we want to filter with a combination of AND and OR.
+    def filter_clause_for_group(attributo_id: int, values: list[JsonAttributoValue]):
+        sub_base = false()
+        for value in values:
+            if value.attributo_value_bool is not None:
+                sub_base = sub_base | (
+                    orm.DataSetHasAttributoValue.bool_value
+                    == value.attributo_value_bool
+                )
+            elif value.attributo_value_chemical is not None:
+                sub_base = sub_base | (
+                    orm.DataSetHasAttributoValue.chemical_value
+                    == value.attributo_value_chemical
+                )
+            elif value.attributo_value_datetime is not None:
+                sub_base = sub_base | (
+                    orm.DataSetHasAttributoValue.datetime_value
+                    == value.attributo_value_datetime
+                )
+            elif value.attributo_value_float is not None:
+                sub_base = sub_base | (
+                    orm.DataSetHasAttributoValue.float_value
+                    == value.attributo_value_float
+                )
+            elif value.attributo_value_int is not None:
+                sub_base = sub_base | (
+                    orm.DataSetHasAttributoValue.integer_value
+                    == value.attributo_value_int
+                )
+            elif value.attributo_value_str is not None:
+                sub_base = sub_base | (
+                    orm.DataSetHasAttributoValue.string_value
+                    == value.attributo_value_str
+                )
+            else:
+                raise Exception("list filters aren't supported right now")
+        return (orm.DataSetHasAttributoValue.attributo_id == attributo_id) & sub_base
+
+    compound_select = []
+    for aid, values in filter_by_id.items():
+        compound_select.append(
+            select(orm.DataSetHasAttributoValue.data_set_id).join(orm.Attributo)
+            # This beamtime ID works for now, but in principle, we
+            # want to select all attributi values for data sets
+            # where the _data set_ is in the beamtime, not the
+            # attributo. But that needs two joins:
+            #
+            # ds has attributo value -> ds
+            # ds -> experiment type
+            #
+            # ....and we're too lazy for that right now.
+            .where(
+                (orm.Attributo.beamtime_id == beamtimeId)
+                & filter_clause_for_group(aid, values)
+            )
+        )
+
+    filtered_data_sets: Iterable[orm.DataSet]
+    if filter_by_id:
+        ds_select_statement = select(orm.DataSet).where(
+            orm.DataSet.id.in_(
+                intersect_all(
+                    *(
+                        select(orm.DataSetHasAttributoValue.data_set_id)
+                        .join(orm.Attributo)
+                        .join(orm.DataSetHasAttributoValue.data_set)
+                        .join(orm.DataSet.experiment_type)
+                        .where(
+                            (orm.ExperimentType.beamtime_id == beamtimeId)
+                            & filter_clause_for_group(aid, values)
+                        )
+                        for aid, values in filter_by_id.items()
+                    )
+                )
+            )
+        )
+
+        filtered_data_sets = await session.scalars(ds_select_statement)
+    else:
+        filtered_data_sets = []
+
+    return JsonReadNewAnalysisOutput(
+        attributi=[encode_attributo(a) for a in attributi],
+        chemical_id_to_name=chemical_id_to_name,
+        experiment_types=[encode_experiment_type(et) for et in experiment_types],
+        filtered_data_sets=[
+            JsonDataSet(
+                id=ds.id,
+                experiment_type_id=ds.experiment_type_id,
+                attributi=[
+                    encode_data_set_attributo_value(dsa) for dsa in ds.attributo_values
+                ],
+            )
+            for ds in filtered_data_sets
+        ],
+        attributi_values=[
+            JsonAttributoValue(
+                attributo_id=a.attributo_id,
+                attributo_value_str=a.string_value,
+                attributo_value_int=a.integer_value,
+                attributo_value_chemical=a.chemical_value,
+                attributo_value_datetime=a.datetime_value,
+                attributo_value_float=a.float_value,
+                attributo_value_bool=a.bool_value,
+                # At some point: grab into attributo list and check
+                # which type of list it is
+                attributo_value_list_str=None,
+                attributo_value_list_float=None,
+                attributo_value_list_bool=None,
+            )
+            for a in attributi_values
+        ],
     )

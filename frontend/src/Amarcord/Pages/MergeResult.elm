@@ -153,7 +153,7 @@ modalBodyShells beamtimeId experimentType dataSetId mergeResultId fom shells ref
                 [ li [ class "breadcrumb-item active" ]
                     [ text "/ ", a [ href (makeLink (AnalysisOverview beamtimeId)) ] [ text "Analysis Overview" ] ]
                 , li [ class "breadcrumb-item active" ]
-                    [ a [ href (makeLink (AnalysisExperimentType beamtimeId experimentType.id)) ] [ text experimentType.name ]
+                    [ text experimentType.name
                     ]
                 , li [ class "breadcrumb-item active" ]
                     [ a [ href (makeLink (AnalysisDataSet beamtimeId dataSetId)) ] [ text ("Data Set ID " ++ String.fromInt dataSetId) ]

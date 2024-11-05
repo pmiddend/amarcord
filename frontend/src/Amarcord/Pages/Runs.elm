@@ -3,7 +3,7 @@ module Amarcord.Pages.Runs exposing (Model, Msg(..), init, pageTitle, subscripti
 import Amarcord.API.ExperimentType exposing (experimentTypeIdDict)
 import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunFilter, RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoType(..), convertAttributoFromApi, convertAttributoMapFromApi)
+import Amarcord.Attributo exposing (Attributo, AttributoType(..), ChemicalNameDict, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (makeAttributoHeader, viewAttributoCell, viewRunExperimentTypeCell)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon)
 import Amarcord.Chemical exposing (chemicalIdDict, convertChemicalFromApi)
@@ -163,7 +163,7 @@ attributiColumnHeaders =
     List.map (th_ << makeAttributoHeader)
 
 
-attributiColumns : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> List (Html Msg)
+attributiColumns : Zone -> ChemicalNameDict -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> List (Html Msg)
 attributiColumns zone chemicalIds experimentTypeIds attributi run =
     let
         viewCell : Attributo AttributoType -> Maybe (Html Msg)
@@ -193,7 +193,7 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
 
 viewRunRow :
     Zone
-    -> Dict Int String
+    -> ChemicalNameDict
     -> Dict Int String
     -> List (Attributo AttributoType)
     -> Maybe RunAttributiForm.Model
@@ -268,7 +268,7 @@ viewEventRow zone attributoColumnCount e =
 
 viewRunAndEventRows :
     Zone
-    -> Dict Int String
+    -> ChemicalNameDict
     -> Dict Int String
     -> List (Attributo AttributoType)
     -> Int

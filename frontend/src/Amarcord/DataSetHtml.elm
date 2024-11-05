@@ -1,6 +1,6 @@
 module Amarcord.DataSetHtml exposing (..)
 
-import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType, AttributoValue, attributoMapIds)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType, AttributoValue, ChemicalNameDict, attributoMapIds )
 import Amarcord.AttributoHtml exposing (viewAttributoCell)
 import Amarcord.Html exposing (tbody_, th_, thead_, tr_)
 import Dict
@@ -10,7 +10,7 @@ import List.Extra exposing (find)
 import Time exposing (Zone)
 
 
-viewDataSetTable : List (Attributo AttributoType) -> Zone -> Dict.Dict Int String -> AttributoMap AttributoValue -> Bool -> Bool -> Maybe (Html msg) -> Html msg
+viewDataSetTable : List (Attributo AttributoType) -> Zone -> ChemicalNameDict -> AttributoMap AttributoValue -> Bool -> Bool -> Maybe (Html msg) -> Html msg
 viewDataSetTable attributi zone chemicalIdToName attributoMap withHeader withTolerance footer =
     let
         viewAttributiValueRow : Int -> AttributoMap AttributoValue -> Int -> AttributoId -> Html msg

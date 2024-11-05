@@ -2,7 +2,7 @@ module Amarcord.Pages.SingleDataSet exposing (Model, Msg(..), init, pageTitle, s
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId)
-import Amarcord.Attributo exposing (Attributo, AttributoType, convertAttributoFromApi, convertAttributoMapFromApi)
+import Amarcord.Attributo exposing (Attributo, AttributoType, ChemicalNameDict, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert, viewHelpButton)
 import Amarcord.CommandLineParser exposing (coparseCommandLine)
@@ -19,7 +19,7 @@ import Api.Request.Merging exposing (queueMergeJobApiMergingPost)
 import Api.Request.Processing exposing (indexingJobQueueForDataSetApiIndexingPost, readIndexingParametersApiIndexingParametersDataSetIdGet)
 import Basics.Extra exposing (safeDivide)
 import Browser.Navigation as Nav
-import Dict exposing (Dict)
+import Dict
 import Html exposing (Html, a, button, dd, div, dl, dt, em, figcaption, figure, form, h4, img, li, nav, ol, p, small, span, sup, table, td, text, tr)
 import Html.Attributes exposing (class, colspan, disabled, href, id, src, style, type_)
 import Html.Events exposing (onClick)
@@ -948,7 +948,7 @@ viewDataSet :
     Model
     -> JsonExperimentType
     -> List (Attributo AttributoType)
-    -> Dict Int String
+    -> ChemicalNameDict
     -> JsonDataSetWithIndexingResults
     -> List (Html Msg)
 viewDataSet model experimentType attributi chemicalIdsToName { dataSet, runs, indexingResults } =
@@ -1023,11 +1023,7 @@ view model =
                         [ li [ class "breadcrumb-item active" ]
                             [ text "/ ", a [ href (makeLink (AnalysisOverview model.beamtimeId)) ] [ text "Analysis Overview" ] ]
                         , li [ class "breadcrumb-item active" ]
-                            [ a
-                                [ href
-                                    (makeLink (AnalysisExperimentType model.beamtimeId experimentType.id))
-                                ]
-                                [ text experimentType.name ]
+                            [ text experimentType.name
                             ]
                         , li [ class "breadcrumb-item" ] [ text <| "Data Set ID " ++ String.fromInt model.dataSetId ]
                         ]

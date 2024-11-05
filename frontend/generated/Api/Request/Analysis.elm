@@ -14,7 +14,7 @@
 
 
 module Api.Request.Analysis exposing
-    ( readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet
+    ( readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdPost
     , readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet
     , readRunAnalysisApiRunAnalysisBeamtimeIdGet
     , readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet
@@ -28,16 +28,16 @@ import Http
 import Json.Decode
 import Json.Encode
 
-readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet : Int -> Int -> Api.Request Api.Data.JsonReadAnalysisResults
-readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdExperimentTypeIdGet beamtimeId_path experimentTypeId_path =
+readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdPost : Int -> Api.Data.JsonReadNewAnalysisInput -> Api.Request Api.Data.JsonReadNewAnalysisOutput
+readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdPost beamtimeId_path jsonReadNewAnalysisInput_body =
     Api.request
-        "GET"
-        "/api/analysis/analysis-results/{beamtimeId}/{experimentTypeId}"
-        [ ( "beamtimeId", String.fromInt beamtimeId_path ), ( "experimentTypeId", String.fromInt experimentTypeId_path ) ]
+        "POST"
+        "/api/analysis/analysis-results/{beamtimeId}"
+        [ ( "beamtimeId", String.fromInt beamtimeId_path ) ]
         []
         []
-        Nothing
-        Api.Data.jsonReadAnalysisResultsDecoder
+        (Maybe.map Http.jsonBody (Just (Api.Data.encodeJsonReadNewAnalysisInput jsonReadNewAnalysisInput_body)))
+        Api.Data.jsonReadNewAnalysisOutputDecoder
 
 
 readBeamtimeGeometryDetailsApiRunAnalysisBeamtimeIdGeometryGet : Int -> Api.Request Api.Data.JsonReadBeamtimeGeometryDetails

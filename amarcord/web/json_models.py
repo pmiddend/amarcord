@@ -868,18 +868,23 @@ class JsonDataSetWithIndexingResults(BaseModel):
     indexing_results: list[JsonIndexingParametersWithResults]
 
 
-class JsonReadAnalysisResults(BaseModel):
-    attributi: list[JsonAttributo]
-    chemical_id_to_name: list[JsonChemicalIdAndName]
-    experiment_type: JsonExperimentType
-    data_sets: list[JsonDataSetWithoutIndexingResults]
-
-
 class JsonReadSingleDataSetResults(BaseModel):
     attributi: list[JsonAttributo]
     chemical_id_to_name: list[JsonChemicalIdAndName]
     experiment_type: JsonExperimentType
     data_set: JsonDataSetWithIndexingResults
+
+
+class JsonReadNewAnalysisInput(BaseModel):
+    attributi_filter: list[JsonAttributoValue]
+
+
+class JsonReadNewAnalysisOutput(BaseModel):
+    attributi: list[JsonAttributo]
+    chemical_id_to_name: list[JsonChemicalIdAndName]
+    experiment_types: list[JsonExperimentType]
+    filtered_data_sets: list[JsonDataSet]
+    attributi_values: list[JsonAttributoValue]
 
 
 class JsonReadSingleMergeResult(BaseModel):

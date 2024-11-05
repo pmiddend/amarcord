@@ -18,7 +18,6 @@ type Route
     | Attributi BeamtimeId
     | AdvancedControls BeamtimeId
     | AnalysisOverview BeamtimeId
-    | AnalysisExperimentType BeamtimeId ExperimentTypeId
     | AnalysisDataSet BeamtimeId Int
     | MergeResult BeamtimeId ExperimentTypeId DataSetId MergeResultId
     | RunAnalysis BeamtimeId
@@ -63,9 +62,6 @@ beamtimeIdInRoute x =
 
         AnalysisOverview btId ->
             Just btId
-
-        AnalysisExperimentType btid _ ->
-            Just btid
 
         AnalysisDataSet btid _ ->
             Just btid
@@ -141,9 +137,6 @@ makeLink x =
         AnalysisOverview beamtimeId ->
             routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
 
-        AnalysisExperimentType beamtimeId etId ->
-            routePrefix ++ "/data-sets/" ++ beamtimeIdToString beamtimeId ++ "/" ++ String.fromInt etId
-
         AnalysisDataSet beamtimeId dsId ->
             routePrefix ++ "/data-set/" ++ beamtimeIdToString beamtimeId ++ "/" ++ String.fromInt dsId
 
@@ -201,7 +194,6 @@ matchRoute =
         , map EventLog (s "event-log" </> int)
         , map AdvancedControls (s "advancedcontrols" </> int)
         , map AnalysisOverview (s "analysis" </> int)
-        , map AnalysisExperimentType (s "data-sets" </> int </> int)
         , map AnalysisDataSet (s "data-set" </> int </> int)
         , map MergeResult (s "mergeresult" </> int </> int </> int </> int)
         , map RunAnalysis (s "runanalysis" </> int)
