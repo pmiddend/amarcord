@@ -86,8 +86,17 @@ async def read_beamtime_geometry_details(
                 detector_shifts.append(
                     JsonDetectorShift(
                         run_external_id=run.external_id,
+                        run_start=datetime_to_attributo_int(run.started),
+                        run_end=(
+                            datetime_to_attributo_int(run.stopped)
+                            if run.stopped is not None
+                            else None
+                        ),
                         shift_x_mm=ir.detector_shift_x_mm,
                         shift_y_mm=ir.detector_shift_y_mm,
+                        geometry_hash=(
+                            ir.geometry_hash if ir.geometry_hash is not None else ""
+                        ),
                     )
                 )
 

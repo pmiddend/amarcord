@@ -552,8 +552,11 @@ class JsonRunAnalysisIndexingResult(BaseModel):
 
 class JsonDetectorShift(BaseModel):
     run_external_id: int
+    run_start: int
+    run_end: None | int
     shift_x_mm: float
     shift_y_mm: float
+    geometry_hash: str
 
 
 class JsonReadBeamtimeGeometryDetails(BaseModel):

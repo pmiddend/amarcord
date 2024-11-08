@@ -1057,8 +1057,11 @@ type alias JsonDeleteFileOutput =
 
 type alias JsonDetectorShift =
     { runExternalId : Int
+    , runStart : Int
+    , runEnd : Maybe Int
     , shiftXMm : Float
     , shiftYMm : Float
+    , geometryHash : String
     }
 
 
@@ -3341,8 +3344,11 @@ encodeJsonDetectorShiftPairs model =
     let
         pairs =
             [ encode "run_external_id" Json.Encode.int model.runExternalId
+            , encode "run_start" Json.Encode.int model.runStart
+            , maybeEncode "run_end" Json.Encode.int model.runEnd
             , encode "shift_x_mm" Json.Encode.float model.shiftXMm
             , encode "shift_y_mm" Json.Encode.float model.shiftYMm
+            , encode "geometry_hash" Json.Encode.string model.geometryHash
             ]
     in
     pairs
@@ -5976,8 +5982,11 @@ jsonDetectorShiftDecoder : Json.Decode.Decoder JsonDetectorShift
 jsonDetectorShiftDecoder =
     Json.Decode.succeed JsonDetectorShift
         |> decode "run_external_id" Json.Decode.int 
+        |> decode "run_start" Json.Decode.int 
+        |> maybeDecode "run_end" Json.Decode.int Nothing
         |> decode "shift_x_mm" Json.Decode.float 
         |> decode "shift_y_mm" Json.Decode.float 
+        |> decode "geometry_hash" Json.Decode.string 
 
 
 jsonEventDecoder : Json.Decode.Decoder JsonEvent
