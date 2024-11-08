@@ -1,9 +1,11 @@
 import datetime
+import os
 import re
 from dataclasses import dataclass
 from typing import Any
 from typing import Iterable
 from typing import Mapping
+from zoneinfo import ZoneInfo
 
 import structlog
 from fastapi import APIRouter
@@ -265,9 +267,14 @@ async def create_or_update_run(
                 latest_run = await retrieve_latest_run(session, beamtime_id)
                 if latest_run is not None:
                     for latest_run_attributo in latest_run.attributo_values:
-                        if latest_run_attributo.attributo_id not in attributo_ids_already_in_run and (
-                            await latest_run_attributo.awaitable_attrs.attributo
-                        ).group == ATTRIBUTO_GROUP_MANUAL:
+                        if (
+                            latest_run_attributo.attributo_id
+                            not in attributo_ids_already_in_run
+                            and (
+                                await latest_run_attributo.awaitable_attrs.attributo
+                            ).group
+                            == ATTRIBUTO_GROUP_MANUAL
+                        ):
                             run_in_db.attributo_values.append(
                                 duplicate_run_attributo(latest_run_attributo)
                             )
@@ -634,7 +641,9 @@ async def update_runs_bulk(
 async def _find_schedule_entry(
     session: AsyncSession, beamtime_id: BeamtimeId
 ) -> None | orm.BeamtimeSchedule:
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(
+        ZoneInfo(os.environ.get("AMARCORD_TZ", "Europe/Berlin"))
+    )
     minutes_since_midnight_now = now.hour * 60 + now.minute
     for schedule_entry in await session.scalars(
         select(orm.BeamtimeSchedule).where(
@@ -945,7 +954,8 @@ async def read_runs_overview(
                 ),
                 None,
             ),
-            running=latest_indexing_result_orm.job_status in (DBJobStatus.RUNNING, DBJobStatus.QUEUED),
+            running=latest_indexing_result_orm.job_status
+            in (DBJobStatus.RUNNING, DBJobStatus.QUEUED),
             indexing_statistics=[
                 JsonIndexingStatistic(
                     time=datetime_to_attributo_int(stat.time),

@@ -1,4 +1,5 @@
 import datetime
+import os
 
 import pytz
 import structlog
@@ -30,7 +31,7 @@ router = APIRouter()
 async def get_beamtime_schedule(
     beamtimeId: BeamtimeId, session: AsyncSession = Depends(get_orm_db)
 ) -> JsonBeamtimeSchedule:
-    current_tz = pytz.timezone("Europe/Berlin")
+    current_tz = pytz.timezone(os.environ.get("AMARCORD_TZ", "Europe/Berlin"))
 
     def convert_to_posix(date_time_str: str) -> int:
         return datetime_to_attributo_int(
