@@ -1,0 +1,36 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: AMARCORD
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Philipp
+    family-names: Middendorf
+    email: philipp.middendorf@desy.de
+    affiliation: DESY
+    orcid: 'https://orcid.org/0000-0002-5243-8384'
+  - given-names: Alessandra
+    family-names: Henkel
+    email: alessandra.henkel@cfel.de
+    affiliation: CFEL
+    orcid: 'https://orcid.org/0000-0002-9288-5373'
+  - name: Center for Free Electron Laser Science (CFEL)
+    address: Luruper Chausee 149
+    city: Hamburg
+    post-code: '22607'
+    location: Building 99
+repository-code: 'https://gitlab.desy.de/cfel-sc-public/amarcord-serial'
+abstract: >-
+  Free and open-source database application designed to
+  gather metadata about chemicals, runs and analysis results
+  of serial crystallography (SX) experiments.
+keywords:
+  - crystallography
+  - science
+  - databases
+  - metadata
+license: AGPL-3.0-or-later
