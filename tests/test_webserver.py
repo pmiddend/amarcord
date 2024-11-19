@@ -1617,14 +1617,15 @@ def test_update_indexing_job(
     # Another place is the analysis view
     analysis_response = JsonReadNewAnalysisOutput(
         **client.post(
-            f"/api/analysis/analysis-results/{beamtime_id}",
+            "/api/analysis/analysis-results",
             json=JsonReadNewAnalysisInput(
                 attributi_filter=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
                     )
-                ]
+                ],
+                beamtime_id=beamtime_id,
             ).dict(),
         ).json()
     )
@@ -2013,14 +2014,15 @@ def test_queue_then_start_then_finish_merge_job(
     # Get the analysis view and find our result!
     analysis_response = JsonReadNewAnalysisOutput(
         **client.post(
-            f"/api/analysis/analysis-results/{beamtime_id}",
+            "/api/analysis/analysis-results",
             json=JsonReadNewAnalysisInput(
                 attributi_filter=[
                     JsonAttributoValue(
                         attributo_id=run_channel_1_chemical_attributo_id,
                         attributo_value_chemical=lyso_chemical_id,
-                    )
-                ]
+                    ),
+                ],
+                beamtime_id=beamtime_id,
             ).dict(),
         ).json()
     )

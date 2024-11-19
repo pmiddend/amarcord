@@ -880,12 +880,19 @@ class JsonReadSingleDataSetResults(BaseModel):
 
 class JsonReadNewAnalysisInput(BaseModel):
     attributi_filter: list[JsonAttributoValue]
+    beamtime_id: None | int
+
+
+class JsonExperimentTypeWithBeamtimeInformation(BaseModel):
+    experiment_type: JsonExperimentType
+    beamtime: JsonBeamtime
 
 
 class JsonReadNewAnalysisOutput(BaseModel):
+    searchable_attributi: list[JsonAttributo]
     attributi: list[JsonAttributo]
     chemical_id_to_name: list[JsonChemicalIdAndName]
-    experiment_types: list[JsonExperimentType]
+    experiment_types: list[JsonExperimentTypeWithBeamtimeInformation]
     filtered_data_sets: list[JsonDataSet]
     attributi_values: list[JsonAttributoValue]
 

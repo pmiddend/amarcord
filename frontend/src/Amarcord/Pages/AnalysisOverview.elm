@@ -1,27 +1,28 @@
 module Amarcord.Pages.AnalysisOverview exposing (Model, Msg(..), init, pageTitle, subscriptions, update, view)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
-import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType, AttributoValue, ChemicalNameDict, attributoValueToJson, convertAttributoFromApi, convertAttributoMapFromApi, convertAttributoValueFromApi, prettyPrintAttributoValue)
+import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType, AttributoValue(..), ChemicalNameDict, attributoValueToJson, convertAttributoFromApi, convertAttributoMapFromApi, convertAttributoValueFromApi, prettyPrintAttributoValue)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (div_, h4_, li_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, h4_, li_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
+import Amarcord.Indexing.Util exposing (viewFormCheck)
 import Amarcord.MultiDict as MultiDict exposing (MultiDict)
 import Amarcord.Route exposing (Route(..), makeLink)
-import Amarcord.Util exposing (HereAndNow)
-import Api.Data exposing (JsonDataSet, JsonExperimentType, JsonReadNewAnalysisOutput)
-import Api.Request.Analysis exposing (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdPost)
+import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly)
+import Api.Data exposing (JsonDataSet, JsonExperimentTypeWithBeamtimeInformation, JsonReadNewAnalysisOutput)
+import Api.Request.Analysis exposing (readAnalysisResultsApiAnalysisAnalysisResultsPost)
 import AssocSet
 import Browser.Navigation as Nav
 import Dict
-import Html exposing (Html, a, button, div, h4, input, label, li, nav, small, span, table, td, text, ul)
+import Html exposing (Html, a, button, div, em, h4, input, label, li, nav, small, span, table, td, text, ul)
 import Html.Attributes exposing (attribute, checked, class, colspan, disabled, href, id, style, type_)
 import Html.Events exposing (onClick, onInput)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Scroll exposing (scrollY)
-import String
+import String exposing (toLower)
 import Task
-import Time exposing (Posix)
+import Time exposing (Posix, millisToPosix, posixToMillis)
 
 
 subscriptions : Model -> List (Sub Msg)
@@ -40,6 +41,7 @@ type Msg
     | UpdateFilter
     | Scroll String
     | Nop
+    | ToggleIgnoreBeamtimeId
 
 
 type alias AttributoWithValues =
@@ -54,6 +56,7 @@ type alias Model =
     , experimentTypesRequest : RemoteData HttpError JsonReadNewAnalysisOutput
     , beamtimeId : BeamtimeId
     , attributoValueFilters : MultiDict AttributoId AttributoValue
+    , ignoreBeamtimeId : Bool
     }
 
 
@@ -69,24 +72,30 @@ init navKey hereAndNow beamtimeId =
       , experimentTypesRequest = Loading
       , beamtimeId = beamtimeId
       , attributoValueFilters = MultiDict.empty
+      , ignoreBeamtimeId = False
       }
-    , send ExperimentTypesReceived (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdPost beamtimeId { attributiFilter = [] })
+    , send ExperimentTypesReceived
+        (readAnalysisResultsApiAnalysisAnalysisResultsPost
+            { attributiFilter = []
+            , beamtimeId = Just beamtimeId
+            }
+        )
     )
 
 
-viewExperimentTypeHeading : MultiDict Int JsonDataSet -> JsonExperimentType -> Html Msg
-viewExperimentTypeHeading byExperimentType { id, name } =
+viewExperimentTypeHeading : MultiDict Int JsonDataSet -> JsonExperimentTypeWithBeamtimeInformation -> Html Msg
+viewExperimentTypeHeading byExperimentType { experimentType, beamtime } =
     li
         [ class
             "nav-item"
         ]
         [ button
-            [ onClick (Scroll ("et-" ++ String.fromInt id))
+            [ onClick (Scroll ("et-" ++ String.fromInt experimentType.id))
             , class "btn btn-link w-100"
             , type_ "button"
-            , disabled (not (MultiDict.member id byExperimentType))
+            , disabled (not (MultiDict.member experimentType.id byExperimentType))
             ]
-            [ text name ]
+            [ text experimentType.name, br_, small [] [ em [] [ text beamtime.title ] ] ]
         ]
 
 
@@ -113,11 +122,11 @@ buildAttributiWithValues attributoValues attributoTypes =
                 Just atype ->
                     { attributo = atype, values = values } :: prevValues
     in
-    MultiDict.foldr foldMultidict [] attributoValuesDict
+    List.sortBy (\a -> toLower a.attributo.name) <| MultiDict.foldr foldMultidict [] attributoValuesDict
 
 
 buildAttributiWithValuesFromRequest : JsonReadNewAnalysisOutput -> List AttributoWithValues
-buildAttributiWithValuesFromRequest { attributi, attributiValues } =
+buildAttributiWithValuesFromRequest { searchableAttributi, attributiValues } =
     let
         convertedAttributiValues : List ( AttributoId, AttributoValue )
         convertedAttributiValues =
@@ -125,7 +134,7 @@ buildAttributiWithValuesFromRequest { attributi, attributiValues } =
 
         convertedAttributiTypes : List (Attributo AttributoType)
         convertedAttributiTypes =
-            List.map convertAttributoFromApi attributi
+            List.map convertAttributoFromApi searchableAttributi
     in
     buildAttributiWithValues convertedAttributiValues convertedAttributiTypes
 
@@ -183,9 +192,40 @@ viewAllNoneResetCheckButton attributo valuesForAttributo =
 viewDropdownForAttributoValues : ChemicalNameDict -> AttributoValueSet -> AttributoWithValues -> Html Msg
 viewDropdownForAttributoValues chemicalIdsToName selectedValues { attributo, values } =
     let
+        attributoValueComparator : AttributoValue -> AttributoValue -> Order
+        attributoValueComparator x y =
+            case ( x, y ) of
+                ( ValueInt i, ValueInt j ) ->
+                    compare i j
+
+                ( ValueChemical i, ValueChemical j ) ->
+                    compare (Maybe.withDefault "" (Dict.get i chemicalIdsToName)) (Maybe.withDefault "" (Dict.get j chemicalIdsToName))
+
+                ( ValueDateTime i, ValueDateTime j ) ->
+                    compare (posixToMillis i) (posixToMillis j)
+
+                ( ValueString i, ValueString j ) ->
+                    compare i j
+
+                ( ValueNumber i, ValueNumber j ) ->
+                    compare i j
+
+                ( ValueBoolean i, ValueBoolean j ) ->
+                    if i == j then
+                        EQ
+
+                    else if i == False then
+                        LT
+
+                    else
+                        GT
+
+                _ ->
+                    EQ
+
         viewValueCheckboxes : AssocSet.Set AttributoValue -> List (Html Msg)
         viewValueCheckboxes =
-            List.map (viewCheckboxForOneAttributoValue chemicalIdsToName attributo selectedValues) << AssocSet.toList
+            List.map (viewCheckboxForOneAttributoValue chemicalIdsToName attributo selectedValues) << List.sortWith attributoValueComparator << AssocSet.toList
 
         checkboxes =
             viewValueCheckboxes values
@@ -240,8 +280,8 @@ viewDataSet model attributi chemicalIdsToName dataSet =
     ]
 
 
-viewFilterForm : MultiDict AttributoId AttributoValue -> JsonReadNewAnalysisOutput -> Html Msg
-viewFilterForm attributoValueFilters request =
+viewFilterForm : Bool -> MultiDict AttributoId AttributoValue -> JsonReadNewAnalysisOutput -> Html Msg
+viewFilterForm ignoreBeamtimeId attributoValueFilters request =
     let
         -- These will be _all_ attributi and values, whereas attributoValueFilters will only be the selected ones
         attributiWithValues =
@@ -265,7 +305,9 @@ viewFilterForm attributoValueFilters request =
         [ class "pb-3"
         , style "border-bottom" "1pt solid lightgray"
         ]
-        [ h4_ [ icon { name = "card-list" }, text " Attributi Filter " ]
+        [ h4_ [ icon { name = "gear" }, text " Search settings " ]
+        , viewFormCheck "ignore-beamtime-id" "Search across beam times" (Just (text "After checking this, you have to press “Update” again to see all attributi values.")) ignoreBeamtimeId (always ToggleIgnoreBeamtimeId)
+        , h4 [ class "mt-3" ] [ icon { name = "card-list" }, text " Attributi Filter " ]
         , div [ class "form-text mb-2" ] [ small [] [ text "Note: Dropdowns will only be shown if there is more than one attributo value in a data set." ] ]
         , div_ attributiFilters
         , button
@@ -277,13 +319,21 @@ viewFilterForm attributoValueFilters request =
         ]
 
 
-viewDataSetForExperimentType : Model -> JsonReadNewAnalysisOutput -> JsonExperimentType -> AssocSet.Set JsonDataSet -> List (Html Msg)
+viewDataSetForExperimentType : Model -> JsonReadNewAnalysisOutput -> JsonExperimentTypeWithBeamtimeInformation -> AssocSet.Set JsonDataSet -> List (Html Msg)
 viewDataSetForExperimentType model analysisResults et dataSets =
     if AssocSet.isEmpty dataSets then
         []
 
     else
-        tr_ [ td [ colspan 2 ] [ h4 [ id ("et-" ++ String.fromInt et.id) ] [ text et.name ] ] ]
+        tr_
+            [ td [ colspan 2 ]
+                [ h4 [ id ("et-" ++ String.fromInt et.experimentType.id) ] [ text et.experimentType.name ]
+                , div [ class "form-text" ]
+                    [ text (formatPosixHumanFriendly model.hereAndNow.zone (millisToPosix et.beamtime.start))
+                    , text (" - " ++ et.beamtime.title)
+                    ]
+                ]
+            ]
             :: List.concatMap
                 (viewDataSet
                     model
@@ -298,31 +348,35 @@ viewDataSetForExperimentType model analysisResults et dataSets =
 
 viewDataSets : Model -> JsonReadNewAnalysisOutput -> MultiDict Int JsonDataSet -> Html Msg
 viewDataSets model analysisResults byExperimentType =
-    table [ class "table amarcord-table-fix-head table-borderless" ]
-        [ thead_
-            [ tr_
-                [ th_
-                    [ text "ID"
+    if List.isEmpty analysisResults.filteredDataSets then
+        div [ class "alert alert-info mt-3" ] [ text "No results yet. Please select filters and press “Update”." ]
+
+    else
+        table [ class "table amarcord-table-fix-head table-borderless" ]
+            [ thead_
+                [ tr_
+                    [ th_
+                        [ text "ID"
+                        ]
+                    , th_ [ text "Attributi" ]
                     ]
-                , th_ [ text "Attributi" ]
                 ]
+            , tbody_ <|
+                List.concatMap
+                    (\et -> viewDataSetForExperimentType model analysisResults et (MultiDict.get et.experimentType.id byExperimentType))
+                    analysisResults.experimentTypes
             ]
-        , tbody_ <|
-            List.concatMap
-                (\et -> viewDataSetForExperimentType model analysisResults et (MultiDict.get et.id byExperimentType))
-                analysisResults.experimentTypes
-        ]
 
 
 viewResults : Model -> JsonReadNewAnalysisOutput -> Html Msg
-viewResults ({ attributoValueFilters } as model) analysisResults =
+viewResults ({ attributoValueFilters, ignoreBeamtimeId } as model) analysisResults =
     let
         byExperimentType : MultiDict Int JsonDataSet
         byExperimentType =
             List.foldr (\newDataSet -> MultiDict.insert newDataSet.experimentTypeId newDataSet) MultiDict.empty analysisResults.filteredDataSets
     in
     div_
-        [ viewFilterForm attributoValueFilters analysisResults
+        [ viewFilterForm ignoreBeamtimeId attributoValueFilters analysisResults
         , div [ class "row" ]
             [ div [ class "col-4" ]
                 [ nav [ id "analysis-nav", class "navbar h-100 flex-column align-items-stretch pe-4 border-end" ]
@@ -360,6 +414,9 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        ToggleIgnoreBeamtimeId ->
+            ( { model | ignoreBeamtimeId = not model.ignoreBeamtimeId }, Cmd.none )
+
         Nop ->
             ( model, Cmd.none )
 
@@ -392,8 +449,7 @@ update msg model =
             ( model
             , send
                 ExperimentTypesReceived
-                (readAnalysisResultsApiAnalysisAnalysisResultsBeamtimeIdPost
-                    model.beamtimeId
+                (readAnalysisResultsApiAnalysisAnalysisResultsPost
                     { attributiFilter =
                         MultiDict.foldr
                             (\attributoId attributoValues priorFilters ->
@@ -401,6 +457,12 @@ update msg model =
                             )
                             []
                             model.attributoValueFilters
+                    , beamtimeId =
+                        if model.ignoreBeamtimeId then
+                            Nothing
+
+                        else
+                            Just model.beamtimeId
                     }
                 )
             )

@@ -492,7 +492,7 @@ async def determine_run_indexing_metadata(
     )
 
 
-def encode_beamtime(bt: orm.Beamtime) -> JsonBeamtime:
+def encode_beamtime(bt: orm.Beamtime, with_chemicals: bool = True) -> JsonBeamtime:
     return JsonBeamtime(
         id=bt.id,
         external_id=bt.external_id,
@@ -502,5 +502,7 @@ def encode_beamtime(bt: orm.Beamtime) -> JsonBeamtime:
         comment=bt.comment,
         start=datetime_to_attributo_int(bt.start),
         end=datetime_to_attributo_int(bt.end),
-        chemical_names=[chemical.name for chemical in bt.chemicals],
+        chemical_names=(
+            [chemical.name for chemical in bt.chemicals] if with_chemicals else []
+        ),
     )

@@ -88,6 +88,7 @@ module Api.Data exposing
     , JsonEventTopLevelOutput
     , JsonExperimentType
     , JsonExperimentTypeAndRuns
+    , JsonExperimentTypeWithBeamtimeInformation
     , JsonFileOutput
     , JsonIndexingFom
     , JsonIndexingJob
@@ -238,6 +239,7 @@ module Api.Data exposing
     , encodeJsonEventTopLevelOutput
     , encodeJsonExperimentType
     , encodeJsonExperimentTypeAndRuns
+    , encodeJsonExperimentTypeWithBeamtimeInformation
     , encodeJsonFileOutput
     , encodeJsonIndexingFom
     , encodeJsonIndexingJob
@@ -395,6 +397,7 @@ module Api.Data exposing
     , jsonEventTopLevelOutputDecoder
     , jsonExperimentTypeDecoder
     , jsonExperimentTypeAndRunsDecoder
+    , jsonExperimentTypeWithBeamtimeInformationDecoder
     , jsonFileOutputDecoder
     , jsonIndexingFomDecoder
     , jsonIndexingJobDecoder
@@ -1109,6 +1112,12 @@ type alias JsonExperimentTypeAndRuns =
     }
 
 
+type alias JsonExperimentTypeWithBeamtimeInformation =
+    { experimentType : JsonExperimentType
+    , beamtime : JsonBeamtime
+    }
+
+
 type alias JsonFileOutput =
     { id : Int
     , description : String
@@ -1504,13 +1513,15 @@ type alias JsonReadMergeResultsOutput =
 
 type alias JsonReadNewAnalysisInput =
     { attributiFilter : List JsonAttributoValue
+    , beamtimeId : Maybe Int
     }
 
 
 type alias JsonReadNewAnalysisOutput =
-    { attributi : List JsonAttributo
+    { searchableAttributi : List JsonAttributo
+    , attributi : List JsonAttributo
     , chemicalIdToName : List JsonChemicalIdAndName
-    , experimentTypes : List JsonExperimentType
+    , experimentTypes : List JsonExperimentTypeWithBeamtimeInformation
     , filteredDataSets : List JsonDataSet
     , attributiValues : List JsonAttributoValue
     }
@@ -3488,6 +3499,27 @@ encodeJsonExperimentTypeAndRunsPairs model =
     pairs
 
 
+encodeJsonExperimentTypeWithBeamtimeInformation : JsonExperimentTypeWithBeamtimeInformation -> Json.Encode.Value
+encodeJsonExperimentTypeWithBeamtimeInformation =
+    encodeObject << encodeJsonExperimentTypeWithBeamtimeInformationPairs
+
+
+encodeJsonExperimentTypeWithBeamtimeInformationWithTag : ( String, String ) -> JsonExperimentTypeWithBeamtimeInformation -> Json.Encode.Value
+encodeJsonExperimentTypeWithBeamtimeInformationWithTag (tagField, tag) model =
+    encodeObject (encodeJsonExperimentTypeWithBeamtimeInformationPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonExperimentTypeWithBeamtimeInformationPairs : JsonExperimentTypeWithBeamtimeInformation -> List EncodedField
+encodeJsonExperimentTypeWithBeamtimeInformationPairs model =
+    let
+        pairs =
+            [ encode "experiment_type" encodeJsonExperimentType model.experimentType
+            , encode "beamtime" encodeJsonBeamtime model.beamtime
+            ]
+    in
+    pairs
+
+
 encodeJsonFileOutput : JsonFileOutput -> Json.Encode.Value
 encodeJsonFileOutput =
     encodeObject << encodeJsonFileOutputPairs
@@ -4511,6 +4543,7 @@ encodeJsonReadNewAnalysisInputPairs model =
     let
         pairs =
             [ encode "attributi_filter" (Json.Encode.list encodeJsonAttributoValue) model.attributiFilter
+            , maybeEncode "beamtime_id" Json.Encode.int model.beamtimeId
             ]
     in
     pairs
@@ -4530,9 +4563,10 @@ encodeJsonReadNewAnalysisOutputPairs : JsonReadNewAnalysisOutput -> List Encoded
 encodeJsonReadNewAnalysisOutputPairs model =
     let
         pairs =
-            [ encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
+            [ encode "searchable_attributi" (Json.Encode.list encodeJsonAttributo) model.searchableAttributi
+            , encode "attributi" (Json.Encode.list encodeJsonAttributo) model.attributi
             , encode "chemical_id_to_name" (Json.Encode.list encodeJsonChemicalIdAndName) model.chemicalIdToName
-            , encode "experiment_types" (Json.Encode.list encodeJsonExperimentType) model.experimentTypes
+            , encode "experiment_types" (Json.Encode.list encodeJsonExperimentTypeWithBeamtimeInformation) model.experimentTypes
             , encode "filtered_data_sets" (Json.Encode.list encodeJsonDataSet) model.filteredDataSets
             , encode "attributi_values" (Json.Encode.list encodeJsonAttributoValue) model.attributiValues
             ]
@@ -6039,6 +6073,13 @@ jsonExperimentTypeAndRunsDecoder =
         |> decode "number_of_runs" Json.Decode.int 
 
 
+jsonExperimentTypeWithBeamtimeInformationDecoder : Json.Decode.Decoder JsonExperimentTypeWithBeamtimeInformation
+jsonExperimentTypeWithBeamtimeInformationDecoder =
+    Json.Decode.succeed JsonExperimentTypeWithBeamtimeInformation
+        |> decode "experiment_type" jsonExperimentTypeDecoder 
+        |> decode "beamtime" jsonBeamtimeDecoder 
+
+
 jsonFileOutputDecoder : Json.Decode.Decoder JsonFileOutput
 jsonFileOutputDecoder =
     Json.Decode.succeed JsonFileOutput
@@ -6477,14 +6518,16 @@ jsonReadNewAnalysisInputDecoder : Json.Decode.Decoder JsonReadNewAnalysisInput
 jsonReadNewAnalysisInputDecoder =
     Json.Decode.succeed JsonReadNewAnalysisInput
         |> decode "attributi_filter" (Json.Decode.list jsonAttributoValueDecoder) 
+        |> maybeDecode "beamtime_id" Json.Decode.int Nothing
 
 
 jsonReadNewAnalysisOutputDecoder : Json.Decode.Decoder JsonReadNewAnalysisOutput
 jsonReadNewAnalysisOutputDecoder =
     Json.Decode.succeed JsonReadNewAnalysisOutput
+        |> decode "searchable_attributi" (Json.Decode.list jsonAttributoDecoder) 
         |> decode "attributi" (Json.Decode.list jsonAttributoDecoder) 
         |> decode "chemical_id_to_name" (Json.Decode.list jsonChemicalIdAndNameDecoder) 
-        |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeDecoder) 
+        |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeWithBeamtimeInformationDecoder) 
         |> decode "filtered_data_sets" (Json.Decode.list jsonDataSetDecoder) 
         |> decode "attributi_values" (Json.Decode.list jsonAttributoValueDecoder) 
 
