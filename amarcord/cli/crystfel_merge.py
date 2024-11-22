@@ -12,9 +12,15 @@ import sys
 from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
+from random import Random
+from tempfile import NamedTemporaryFile
 from typing import Any
+from typing import BinaryIO
 from typing import Final
+from typing import Generator
+from typing import Iterable
 from typing import NoReturn
+from typing import TypeVar
 from urllib import request
 
 _NUMBER_OF_COLUMNS_IN_COMPARE_SHELL_FILE: Final = 6
@@ -391,6 +397,7 @@ class ParsedArgs:
     crystfel_path: Path
     pdb_file_id: None | int
     restraints_cif_file_id: None | int
+    random_cut_length: None | int
 
 
 def parse_predefined(s: bytes) -> ParsedArgs:
@@ -463,6 +470,7 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         restraints_cif_file_id=j.get(
             "restraints-cif-file-id"
         ),  # pyright: ignore [reportUnknownArgumentType]
+        random_cut_length=j.get("random-cut-length"),  # type: ignore
     )
 
 
@@ -872,13 +880,138 @@ def create_mtz(args: ParsedArgs, output_path: Path, cell_file: Path) -> None:
         exit_with_error(args, "error running get_hkl")
 
 
+@dataclass(frozen=True)
+class Chunk:
+    file: Path
+    start: int
+    length: int
+    indexed_by: str
+
+
+_INDEXED_BY_PREFIX: Final = "indexed_by = "
+
+
+def read_chunks(files: Iterable[Path]) -> Generator[Chunk, None, None]:
+    for p in files:
+        with p.open("r", encoding="utf-8") as f:
+            start: None | int = None
+            indexed_by: None | str = None
+            line_number = 0
+            # see
+            # https://stackoverflow.com/questions/29618936/how-to-solve-oserror-telling-position-disabled-by-next-call
+            while line := f.readline():
+                line_number += 1
+                if line.startswith("----- Begin chunk"):
+                    # This wrongfully assumes characters are always 1 byte long.
+                    start = f.tell() - len(line)
+                    indexed_by = None
+                elif line.startswith("----- End chunk"):
+                    end = f.tell()
+
+                    if indexed_by is None:
+                        logger.warning(
+                            f"{p}:{line_number}: chunk without indexed_by, start {start}, end {end}: {line}"
+                        )
+                    elif start is None:
+                        logger.warning(
+                            f"{p}:{line_number}: chunk end without start, end {end}: {line}"
+                        )
+                    else:
+                        yield Chunk(
+                            file=p,
+                            start=start,
+                            length=end - start,
+                            indexed_by=indexed_by,
+                        )
+                        start = None
+                        indexed_by = None
+                elif line.startswith(_INDEXED_BY_PREFIX):
+                    if start is None:
+                        logger.warning(
+                            f"{p}:{line_number}: indexed_by without chunk found: {line}"
+                        )
+                    else:
+                        indexed_by = line[len(_INDEXED_BY_PREFIX) :].strip()
+
+
+T = TypeVar("T")
+
+
+def reservoir_sample(xs: Iterable[T], max_items: int, rng_seed: int) -> list[T]:
+    rng = Random(rng_seed)
+
+    result: list[T] = []
+    for x in xs:
+        chunk_len = len(result)
+        if chunk_len < max_items:
+            result.append(x)
+        else:
+            j = rng.randint(1, chunk_len)
+            if j <= max_items:
+                result[j - 1] = x
+
+    return result
+
+
+def write_random_chunks(
+    file_list: list[Path], max_chunks: int, target: BinaryIO
+) -> None:
+    current_file_obj: None | BinaryIO = None
+    try:
+        current_file_path: None | Path = None
+
+        for chunk in reservoir_sample(
+            (x for x in read_chunks(file_list) if x.indexed_by != "none"),
+            max_chunks,
+            sum(
+                bytearray(
+                    "".join(str(single_file) for single_file in file_list),
+                    encoding="utf-8",
+                )
+            ),
+        ):
+            if chunk.file != current_file_path:
+                if current_file_obj is not None:
+                    current_file_obj.close()
+                current_file_obj = chunk.file.open("rb")
+                current_file_path = chunk.file
+
+            assert current_file_obj is not None
+
+            current_file_obj.seek(chunk.start)
+            target.write(current_file_obj.read(chunk.length))
+    finally:
+        if current_file_obj is not None:
+            current_file_obj.close()
+
+
 def generate_output(args: ParsedArgs) -> None:
     merge_subdirectory = Path(f"./merging-{args.merge_result_id}")
 
     merge_subdirectory.mkdir(parents=True, exist_ok=True)
     os.chdir(merge_subdirectory)
 
-    run_partialator(args)
+    if args.random_cut_length is not None:
+        with NamedTemporaryFile(dir=os.getcwd()) as random_chunks_file:
+            with args.stream_files[0].open("r", encoding="utf-8") as first_file:
+                header = ""
+                for line in first_file:
+                    if line.startswith("----- Begin chunk"):
+                        break
+                    header += line
+
+            random_chunks_file.write(header.encode("utf-8"))
+            write_random_chunks(
+                file_list=args.stream_files,
+                max_chunks=args.random_cut_length,
+                # How do you type the output of NamedTemporaryFile? It's obviously a binary file object
+                # in the default mode.
+                target=random_chunks_file,  # type: ignore
+            )
+            random_chunks_file.flush()
+            run_partialator(args, Path(random_chunks_file.name))
+    else:
+        run_partialator(args, None)
 
     cell_file = retrieve_file(args, args.cell_file_id, "cell")
 
@@ -1200,7 +1333,7 @@ def calculate_highres_cut(args: ParsedArgs) -> tuple[float, int]:
     # )
 
 
-def run_partialator(args: ParsedArgs) -> None:
+def run_partialator(args: ParsedArgs, random_cut_file: None | Path) -> None:
     partialator_command_line_args = [
         f"{args.crystfel_path}/bin/partialator",
         "-y",
@@ -1212,8 +1345,17 @@ def run_partialator(args: ParsedArgs) -> None:
     ]
     if args.partialator_additional:
         partialator_command_line_args.extend(shlex.split(args.partialator_additional))
-    for f in args.stream_files:
-        partialator_command_line_args.extend(["-i", str(f)])
+    # This is implemented a little lazily, to be honest. If we have a "random cut file", meaning we stitched
+    # together stream fils into a temporary new stream file, then run partialator on that
+    # otherwise run it on the input stream files.
+    #
+    # This is lazy, because this file choosing should really be in this funciton, rather than the one on top of
+    # it. But there you go.
+    if random_cut_file is not None:
+        partialator_command_line_args.extend(["-i", str(random_cut_file)])
+    else:
+        for f in args.stream_files:
+            partialator_command_line_args.extend(["-i", str(f)])
     logging.info(
         f"starting partialator with command line: {partialator_command_line_args}"
     )
