@@ -240,7 +240,7 @@ viewEventRow zone attributoColumnCount e =
             li_
                 [ mimeTypeToIcon type__
                 , text " "
-                , a [ href (makeFilesLink id) ] [ text fileName ]
+                , a [ href (makeFilesLink id Nothing) ] [ text fileName ]
                 ]
 
         maybeFiles =

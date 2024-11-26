@@ -231,7 +231,7 @@ def _do_content_disposition(mime_type: str, extension: str) -> bool:
 # This isn't really something the user should call. Rather, it's used in hyperlinks, so we don't include it in the schema.
 @router.get("/api/files/{fileId}", tags=["files"], include_in_schema=False)
 async def read_file(
-    fileId: int, session: AsyncSession = Depends(get_orm_db)
+    fileId: int, suggested_name: None | str = None, session: AsyncSession = Depends(get_orm_db)
 ) -> StreamingResponse:
     file_ = (
         await session.scalars(select(orm.File).where(orm.File.id == fileId))
@@ -252,7 +252,7 @@ async def read_file(
         async_generator(),
         media_type=file_.type,
         headers=(
-            {"Content-Disposition": f'attachment; filename="{file_.file_name}"'}
+            {"Content-Disposition": f'attachment; filename="{file_.file_name if suggested_name is None else suggested_name}"'}
             if _do_content_disposition(file_.type, Path(file_.file_name).suffix[1:])
             else {}
         ),

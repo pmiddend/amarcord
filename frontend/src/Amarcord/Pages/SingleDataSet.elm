@@ -361,7 +361,7 @@ viewMergeResultRow mergeRowHeaders hereAndNow beamtimeId experimentTypeId dataSe
                         , td_ [ text <| Maybe.withDefault "" <| Maybe.map formatFloatHumanFriendly fom.wilson ]
                         , td_
                             [ icon { name = "file-binary" }
-                            , a [ href (makeFilesLink mtzFileId) ] [ text "MTZ" ]
+                            , a [ href (makeFilesLink mtzFileId (Just ("merge-result-" ++ String.fromInt id ++ ".mtz"))) ] [ text "MTZ" ]
                             ]
                         , td_
                             [ icon { name = "card-list" }
@@ -420,9 +420,9 @@ viewIndexingResults now results =
         viewHistogram fileId =
             div [ class "col" ]
                 [ a
-                    [ href (makeFilesLink fileId)
+                    [ href (makeFilesLink fileId Nothing)
                     ]
-                    [ img [ src (makeFilesLink fileId), class "img-fluid" ] [] ]
+                    [ img [ src (makeFilesLink fileId Nothing), class "img-fluid" ] [] ]
                 ]
 
         viewJobDuration started stopped =

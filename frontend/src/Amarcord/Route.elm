@@ -167,9 +167,11 @@ makeLink x =
             routePrefix ++ "/event-log/" ++ beamtimeIdToString beamtimeId
 
 
-makeFilesLink : Int -> String
-makeFilesLink id =
-    "api/files/" ++ String.fromInt id
+makeFilesLink : Int -> Maybe String -> String
+makeFilesLink id suggestedNameMaybe =
+    case suggestedNameMaybe of
+        Nothing -> "api/files/" ++ String.fromInt id
+        Just suggestedName -> "api/files/" ++ String.fromInt id ++ "?suggested_name=" ++ suggestedName
 
 
 makeIndexingIdLogLink : Int -> String

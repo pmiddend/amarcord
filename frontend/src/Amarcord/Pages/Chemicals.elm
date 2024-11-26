@@ -406,12 +406,12 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
         viewFile { id, type__, fileName, description } =
             li [ class "list-group-item" ] <|
                 if String.startsWith "image/" type__ then
-                    [ figure [ class "figure" ] [ img_ [ src (makeFilesLink id), style "width" "20em" ], figcaption [ class "figure-caption" ] [ a [ href (makeFilesLink id) ] [ text description ] ] ] ]
+                    [ figure [ class "figure" ] [ img_ [ src (makeFilesLink id Nothing), style "width" "20em" ], figcaption [ class "figure-caption" ] [ a [ href (makeFilesLink id Nothing) ] [ text description ] ] ] ]
 
                 else
                     [ mimeTypeToIcon type__
                     , text " "
-                    , span [ attribute "data-tooltip" description, class "align-top" ] [ a [ href (makeFilesLink id) ] [ text fileName ] ]
+                    , span [ attribute "data-tooltip" description, class "align-top" ] [ a [ href (makeFilesLink id Nothing) ] [ text fileName ] ]
                     ]
 
         files =

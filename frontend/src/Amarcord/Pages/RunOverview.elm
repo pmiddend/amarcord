@@ -440,7 +440,7 @@ viewEventRow zone e =
             li_
                 [ mimeTypeToIcon type__
                 , text " "
-                , a [ href (makeFilesLink id) ] [ text fileName ]
+                , a [ href (makeFilesLink id Nothing) ] [ text fileName ]
                 ]
 
         maybeFiles =
@@ -499,7 +499,7 @@ viewInner model { runsOverview, latestRun } =
                 [ div [ class "col-lg-6" ] [ Html.map EventFormMsg (EventForm.view model.eventForm) ]
                 , div [ class "col-lg-6 text-center" ]
                     [ figure [ class "figure" ]
-                        [ a [ href (makeFilesLink fileId) ] [ img_ [ src (makeFilesLink fileId ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
+                        [ a [ href (makeFilesLink fileId Nothing) ] [ img_ [ src (makeFilesLink fileId Nothing ++ "?timestamp=" ++ String.fromInt (posixToMillis model.now)), style "width" "35em" ] ]
                         , figcaption [ class "figure-caption" ]
                             [ text <| "Live stream image (updated " ++ formatPosixHumanFriendly model.zone (millisToPosix modified) ++ ")"
                             ]
