@@ -2,8 +2,17 @@ module Amarcord.Route exposing (..)
 
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, MergeResultId, beamtimeIdToString)
+import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
+import Time exposing (millisToPosix, posixToMillis)
 import Url
-import Url.Parser exposing ((</>), Parser, int, map, oneOf, parse, s, top)
+import Url.Parser exposing ((</>), (<?>), Parser, int, map, oneOf, parse, s, top)
+import Url.Parser.Query as Query
+
+
+type alias AnalysisFilter =
+    { id : AttributoId
+    , value : AttributoValue
+    }
 
 
 type Route
@@ -17,7 +26,7 @@ type Route
     | RunOverview BeamtimeId
     | Attributi BeamtimeId
     | AdvancedControls BeamtimeId
-    | AnalysisOverview BeamtimeId
+    | AnalysisOverview BeamtimeId (List AnalysisFilter) Bool
     | AnalysisDataSet BeamtimeId Int
     | MergeResult BeamtimeId ExperimentTypeId DataSetId MergeResultId
     | RunAnalysis BeamtimeId
@@ -60,7 +69,7 @@ beamtimeIdInRoute x =
         AdvancedControls btid ->
             Just btid
 
-        AnalysisOverview btId ->
+        AnalysisOverview btId _ _ ->
             Just btId
 
         AnalysisDataSet btid _ ->
@@ -134,8 +143,28 @@ makeLink x =
         Chemicals beamtimeId ->
             routePrefix ++ "/chemicals/" ++ beamtimeIdToString beamtimeId
 
-        AnalysisOverview beamtimeId ->
+        AnalysisOverview beamtimeId [] across ->
             routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
+                ++ (if across then
+                        "?across=1"
+
+                    else
+                        ""
+                   )
+
+        AnalysisOverview beamtimeId filters acrossBeamtimes ->
+            routePrefix
+                ++ "/analysis/"
+                ++ beamtimeIdToString beamtimeId
+                ++ "?filter="
+                ++ (String.join "&filter=" <| filtersSerializer filters)
+                ++ "&across="
+                ++ (if acrossBeamtimes then
+                        "1"
+
+                    else
+                        "0"
+                   )
 
         AnalysisDataSet beamtimeId dsId ->
             routePrefix ++ "/data-set/" ++ beamtimeIdToString beamtimeId ++ "/" ++ String.fromInt dsId
@@ -170,8 +199,11 @@ makeLink x =
 makeFilesLink : Int -> Maybe String -> String
 makeFilesLink id suggestedNameMaybe =
     case suggestedNameMaybe of
-        Nothing -> "api/files/" ++ String.fromInt id
-        Just suggestedName -> "api/files/" ++ String.fromInt id ++ "?suggested_name=" ++ suggestedName
+        Nothing ->
+            "api/files/" ++ String.fromInt id
+
+        Just suggestedName ->
+            "api/files/" ++ String.fromInt id ++ "?suggested_name=" ++ suggestedName
 
 
 makeIndexingIdLogLink : Int -> String
@@ -182,6 +214,98 @@ makeIndexingIdLogLink id =
 makeIndexingIdErrorLogLink : Int -> String
 makeIndexingIdErrorLogLink id =
     "api/indexing/" ++ String.fromInt id ++ "/errorlog"
+
+
+filtersParser : List String -> List AnalysisFilter
+filtersParser strings =
+    let
+        valueParser : String -> String -> Maybe AttributoValue
+        valueParser type_ valueStr =
+            case type_ of
+                "i" ->
+                    Maybe.map ValueInt (String.toInt valueStr)
+
+                "c" ->
+                    Maybe.map ValueChemical (String.toInt valueStr)
+
+                "dt" ->
+                    Maybe.map (ValueDateTime << millisToPosix) (String.toInt valueStr)
+
+                "s" ->
+                    Just (ValueString valueStr)
+
+                -- lists not supported for now (too lazy)
+                "l" ->
+                    Nothing
+
+                "n" ->
+                    Maybe.map ValueNumber (String.toFloat valueStr)
+
+                "b" ->
+                    Just (ValueBoolean (valueStr == "true"))
+
+                "x" ->
+                    Just ValueNone
+
+                _ ->
+                    Nothing
+
+        filterParser : String -> Maybe AnalysisFilter
+        filterParser s =
+            case String.split "," s of
+                [ idStr, valueType, valueStr ] ->
+                    String.toInt idStr
+                        |> Maybe.andThen (\id -> valueParser valueType valueStr |> Maybe.map (\value -> { id = id, value = value }))
+
+                _ ->
+                    Nothing
+    in
+    List.filterMap filterParser strings
+
+
+filtersSerializer : List AnalysisFilter -> List String
+filtersSerializer filters =
+    let
+        filterSerializer : AnalysisFilter -> String
+        filterSerializer { id, value } =
+            case value of
+                ValueInt n ->
+                    String.join "," [ String.fromInt id, "i", String.fromInt n ]
+
+                ValueChemical n ->
+                    String.join "," [ String.fromInt id, "c", String.fromInt n ]
+
+                ValueDateTime posix ->
+                    String.join "," [ String.fromInt id, "dt", String.fromInt (posixToMillis posix) ]
+
+                ValueString s ->
+                    String.join "," [ String.fromInt id, "s", s ]
+
+                ValueList _ ->
+                    String.join "," [ String.fromInt id, "l", "" ]
+
+                ValueNumber n ->
+                    String.join "," [ String.fromInt id, "n", String.fromFloat n ]
+
+                ValueBoolean b ->
+                    String.join ","
+                        [ String.fromInt id
+                        , "n"
+                        , if b then
+                            "true"
+
+                          else
+                            "false"
+                        ]
+
+                ValueNone ->
+                    String.join ","
+                        [ String.fromInt id
+                        , "x"
+                        , ""
+                        ]
+    in
+    List.map filterSerializer filters
 
 
 matchRoute : Parser (Route -> a) a
@@ -195,7 +319,11 @@ matchRoute =
         , map Schedule (s "schedule" </> int)
         , map EventLog (s "event-log" </> int)
         , map AdvancedControls (s "advancedcontrols" </> int)
-        , map AnalysisOverview (s "analysis" </> int)
+        , map
+            AnalysisOverview
+            ((s "analysis" </> int <?> Query.custom "filter" filtersParser)
+                <?> Query.map (\x -> x == Just 1) (Query.int "across")
+            )
         , map AnalysisDataSet (s "data-set" </> int </> int)
         , map MergeResult (s "mergeresult" </> int </> int </> int </> int)
         , map RunAnalysis (s "runanalysis" </> int)

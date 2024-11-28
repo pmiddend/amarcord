@@ -1021,7 +1021,7 @@ view model =
                 [ nav []
                     [ ol [ class "breadcrumb" ]
                         [ li [ class "breadcrumb-item active" ]
-                            [ text "/ ", a [ href (makeLink (AnalysisOverview model.beamtimeId)) ] [ text "Analysis Overview" ] ]
+                            [ text "/ ", a [ href (makeLink (AnalysisOverview model.beamtimeId [] False)) ] [ text "Analysis Overview" ] ]
                         , li [ class "breadcrumb-item active" ]
                             [ text experimentType.name
                             ]

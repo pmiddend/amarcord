@@ -8,7 +8,7 @@ import Amarcord.Html exposing (br_, div_, h4_, li_, tbody_, td_, th_, thead_, tr
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Indexing.Util exposing (viewFormCheck)
 import Amarcord.MultiDict as MultiDict exposing (MultiDict)
-import Amarcord.Route exposing (Route(..), makeLink)
+import Amarcord.Route as Route exposing (Route(..), makeLink)
 import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly)
 import Api.Data exposing (JsonDataSet, JsonExperimentTypeWithBeamtimeInformation, JsonReadNewAnalysisOutput)
 import Api.Request.Analysis exposing (readAnalysisResultsApiAnalysisAnalysisResultsPost)
@@ -56,7 +56,7 @@ type alias Model =
     , experimentTypesRequest : RemoteData HttpError JsonReadNewAnalysisOutput
     , beamtimeId : BeamtimeId
     , attributoValueFilters : MultiDict AttributoId AttributoValue
-    , ignoreBeamtimeId : Bool
+    , searchAcrossBeamtimes : Bool
     }
 
 
@@ -65,21 +65,54 @@ pageTitle _ =
     "Analysis Overview"
 
 
-init : Nav.Key -> HereAndNow -> BeamtimeId -> ( Model, Cmd Msg )
-init navKey hereAndNow beamtimeId =
+{-| The 'Route' uses a list, while the 'Model' here uses MultiDict, so we need two conversion functions between the two.
+-}
+filterListToMultidict : List Route.AnalysisFilter -> MultiDict AttributoId AttributoValue
+filterListToMultidict =
+    List.foldr (\{ id, value } -> MultiDict.insert id value) MultiDict.empty
+
+
+{-| The 'Route' uses a list, while the 'Model' here uses MultiDict, so we need two conversion functions between the two.
+-}
+multidictToFilterList : MultiDict AttributoId AttributoValue -> List Route.AnalysisFilter
+multidictToFilterList =
+    MultiDict.foldr (\key values oldList -> List.map (\value -> { id = key, value = value }) (AssocSet.toList values) ++ oldList) []
+
+
+sendUpdateRequest : Maybe Int -> MultiDict Int AttributoValue -> Cmd Msg
+sendUpdateRequest beamtimeId filters =
+    send ExperimentTypesReceived
+        (readAnalysisResultsApiAnalysisAnalysisResultsPost
+            -- Here we have another conversion function, this time to the request data type from our 'MultiDict'
+            { attributiFilter =
+                MultiDict.foldr
+                    (\attributoId attributoValues priorFilters ->
+                        AssocSet.foldr (\newAttributoValue priorList -> attributoValueToJson attributoId newAttributoValue :: priorList) priorFilters attributoValues
+                    )
+                    []
+                    filters
+            , beamtimeId = beamtimeId
+            }
+        )
+
+
+init : Nav.Key -> HereAndNow -> BeamtimeId -> List Route.AnalysisFilter -> Bool -> ( Model, Cmd Msg )
+init navKey hereAndNow beamtimeId filters across =
     ( { hereAndNow = hereAndNow
       , navKey = navKey
       , experimentTypesRequest = Loading
       , beamtimeId = beamtimeId
-      , attributoValueFilters = MultiDict.empty
-      , ignoreBeamtimeId = False
+      , attributoValueFilters = filterListToMultidict filters
+      , searchAcrossBeamtimes = across
       }
-    , send ExperimentTypesReceived
-        (readAnalysisResultsApiAnalysisAnalysisResultsPost
-            { attributiFilter = []
-            , beamtimeId = Just beamtimeId
-            }
+    , sendUpdateRequest
+        (if across then
+            Nothing
+
+         else
+            Just beamtimeId
         )
+        (filterListToMultidict filters)
     )
 
 
@@ -281,7 +314,7 @@ viewDataSet model attributi chemicalIdsToName dataSet =
 
 
 viewFilterForm : Bool -> MultiDict AttributoId AttributoValue -> JsonReadNewAnalysisOutput -> Html Msg
-viewFilterForm ignoreBeamtimeId attributoValueFilters request =
+viewFilterForm searchAcrossBeamtimes attributoValueFilters request =
     let
         -- These will be _all_ attributi and values, whereas attributoValueFilters will only be the selected ones
         attributiWithValues =
@@ -306,7 +339,11 @@ viewFilterForm ignoreBeamtimeId attributoValueFilters request =
         , style "border-bottom" "1pt solid lightgray"
         ]
         [ h4_ [ icon { name = "gear" }, text " Search settings " ]
-        , viewFormCheck "ignore-beamtime-id" "Search across beam times" (Just (text "After checking this, you have to press “Update” again to see all attributi values.")) ignoreBeamtimeId (always ToggleIgnoreBeamtimeId)
+        , viewFormCheck "ignore-beamtime-id"
+            "Search across beam times"
+            (Just (text "After checking this, you have to press “Update” again to see all attributi values."))
+            searchAcrossBeamtimes
+            (always ToggleIgnoreBeamtimeId)
         , h4 [ class "mt-3" ] [ icon { name = "card-list" }, text " Attributi Filter " ]
         , div [ class "form-text mb-2" ] [ small [] [ text "Note: Dropdowns will only be shown if there is more than one attributo value in a data set." ] ]
         , div_ attributiFilters
@@ -369,14 +406,14 @@ viewDataSets model analysisResults byExperimentType =
 
 
 viewResults : Model -> JsonReadNewAnalysisOutput -> Html Msg
-viewResults ({ attributoValueFilters, ignoreBeamtimeId } as model) analysisResults =
+viewResults ({ attributoValueFilters, searchAcrossBeamtimes } as model) analysisResults =
     let
         byExperimentType : MultiDict Int JsonDataSet
         byExperimentType =
             List.foldr (\newDataSet -> MultiDict.insert newDataSet.experimentTypeId newDataSet) MultiDict.empty analysisResults.filteredDataSets
     in
     div_
-        [ viewFilterForm ignoreBeamtimeId attributoValueFilters analysisResults
+        [ viewFilterForm searchAcrossBeamtimes attributoValueFilters analysisResults
         , div [ class "row" ]
             [ div [ class "col-4" ]
                 [ nav [ id "analysis-nav", class "navbar h-100 flex-column align-items-stretch pe-4 border-end" ]
@@ -415,7 +452,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ToggleIgnoreBeamtimeId ->
-            ( { model | ignoreBeamtimeId = not model.ignoreBeamtimeId }, Cmd.none )
+            ( { model | searchAcrossBeamtimes = not model.searchAcrossBeamtimes }, Cmd.none )
 
         Nop ->
             ( model, Cmd.none )
@@ -447,22 +484,13 @@ update msg model =
 
         UpdateFilter ->
             ( model
-            , send
-                ExperimentTypesReceived
-                (readAnalysisResultsApiAnalysisAnalysisResultsPost
-                    { attributiFilter =
-                        MultiDict.foldr
-                            (\attributoId attributoValues priorFilters ->
-                                AssocSet.foldr (\newAttributoValue priorList -> attributoValueToJson attributoId newAttributoValue :: priorList) priorFilters attributoValues
-                            )
-                            []
-                            model.attributoValueFilters
-                    , beamtimeId =
-                        if model.ignoreBeamtimeId then
-                            Nothing
-
-                        else
-                            Just model.beamtimeId
-                    }
+              -- This will reload the page and put the new URL in the browser history, allowing for easy going forward and backward.
+            , Nav.pushUrl model.navKey
+                (makeLink
+                    (AnalysisOverview
+                        model.beamtimeId
+                        (multidictToFilterList model.attributoValueFilters)
+                        model.searchAcrossBeamtimes
+                    )
                 )
             )

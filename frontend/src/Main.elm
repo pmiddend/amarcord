@@ -693,10 +693,10 @@ initCurrentPage localStorage hereAndNow ( model, existingCmds ) =
                     in
                     ( RunOverviewPage pageModel, Cmd.map RunOverviewPageMsg pageCmds )
 
-                Route.AnalysisOverview beamtimeId ->
+                Route.AnalysisOverview beamtimeId filters across ->
                     let
                         ( pageModel, pageCmds ) =
-                            AnalysisOverview.init model.navKey hereAndNow beamtimeId
+                            AnalysisOverview.init model.navKey hereAndNow beamtimeId filters across
                     in
                     ( AnalysisOverviewPage pageModel, Cmd.map AnalysisOverviewPageMsg pageCmds )
 

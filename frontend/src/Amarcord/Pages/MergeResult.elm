@@ -151,7 +151,7 @@ modalBodyShells beamtimeId experimentType dataSetId mergeResultId fom shells ref
         [ nav []
             [ ol [ class "breadcrumb" ]
                 [ li [ class "breadcrumb-item active" ]
-                    [ text "/ ", a [ href (makeLink (AnalysisOverview beamtimeId)) ] [ text "Analysis Overview" ] ]
+                    [ text "/ ", a [ href (makeLink (AnalysisOverview beamtimeId [] False)) ] [ text "Analysis Overview" ] ]
                 , li [ class "breadcrumb-item active" ]
                     [ text experimentType.name
                     ]
