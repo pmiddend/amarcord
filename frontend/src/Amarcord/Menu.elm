@@ -2,7 +2,7 @@ module Amarcord.Menu exposing (viewMenu)
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Bootstrap exposing (icon)
-import Amarcord.Route as Route exposing (Route)
+import Amarcord.Route as Route exposing (MergeFilter(..), Route)
 import Html exposing (Html, a, div, h3, li, text, ul)
 import Html.Attributes exposing (attribute, class, href, target)
 import Html.Attributes.Extra exposing (role)
@@ -66,7 +66,7 @@ menu bt =
         ]
     , Dropdown "Analysis"
         "bar-chart-steps"
-        [ { route = Route.AnalysisOverview bt [] False, description = "By Experiment Type", iconName = "clipboard-check" }
+        [ { route = Route.AnalysisOverview bt [] False Both, description = "By Experiment Type", iconName = "clipboard-check" }
         , { route = Route.RunAnalysis bt, description = "By Run", iconName = "card-list" }
         ]
     , Dropdown "Admin"

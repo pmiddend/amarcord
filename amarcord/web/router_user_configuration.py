@@ -50,7 +50,10 @@ async def read_indexing_parameters(
 ) -> JsonIndexingParameters:
     async with session.begin():
         user_configuration = await retrieve_latest_config(session, beamtimeId)
-        if await user_configuration.awaitable_attrs.current_online_indexing_parameters is None:
+        if (
+            await user_configuration.awaitable_attrs.current_online_indexing_parameters
+            is None
+        ):
             parameters = default_online_indexing_parameters()
         else:
             parameters = (
@@ -102,7 +105,9 @@ async def update_online_indexing_parameters(
         session.add(new_config)
         if new_config.current_online_indexing_parameters is None:
             current_online_indexing_parameters = default_online_indexing_parameters()
-            new_config.current_online_indexing_parameters = current_online_indexing_parameters
+            new_config.current_online_indexing_parameters = (
+                current_online_indexing_parameters
+            )
         else:
             current_online_indexing_parameters = (
                 new_config.current_online_indexing_parameters

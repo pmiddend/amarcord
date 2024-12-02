@@ -3,6 +3,7 @@ module Amarcord.Route exposing (..)
 import Amarcord.API.DataSet exposing (DataSetId)
 import Amarcord.API.Requests exposing (BeamtimeId, ExperimentTypeId, MergeResultId, beamtimeIdToString)
 import Amarcord.Attributo exposing (AttributoId, AttributoValue(..))
+import Dict
 import Time exposing (millisToPosix, posixToMillis)
 import Url
 import Url.Parser exposing ((</>), (<?>), Parser, int, map, oneOf, parse, s, top)
@@ -13,6 +14,12 @@ type alias AnalysisFilter =
     { id : AttributoId
     , value : AttributoValue
     }
+
+
+type MergeFilter
+    = Merged
+    | Unmerged
+    | Both
 
 
 type Route
@@ -26,7 +33,7 @@ type Route
     | RunOverview BeamtimeId
     | Attributi BeamtimeId
     | AdvancedControls BeamtimeId
-    | AnalysisOverview BeamtimeId (List AnalysisFilter) Bool
+    | AnalysisOverview BeamtimeId (List AnalysisFilter) Bool MergeFilter
     | AnalysisDataSet BeamtimeId Int
     | MergeResult BeamtimeId ExperimentTypeId DataSetId MergeResultId
     | RunAnalysis BeamtimeId
@@ -69,7 +76,7 @@ beamtimeIdInRoute x =
         AdvancedControls btid ->
             Just btid
 
-        AnalysisOverview btId _ _ ->
+        AnalysisOverview btId _ _ _ ->
             Just btId
 
         AnalysisDataSet btid _ ->
@@ -119,6 +126,29 @@ routePrefix =
     "index.html#"
 
 
+addQuery : List String -> String
+addQuery xs =
+    case xs of
+        [] ->
+            ""
+
+        xss ->
+            "?" ++ String.join "&" xss
+
+
+mergeFilterToString : MergeFilter -> String
+mergeFilterToString x =
+    case x of
+        Both ->
+            "both"
+
+        Merged ->
+            "merged"
+
+        Unmerged ->
+            "unmerged"
+
+
 makeLink : Route -> String
 makeLink x =
     case x of
@@ -143,28 +173,22 @@ makeLink x =
         Chemicals beamtimeId ->
             routePrefix ++ "/chemicals/" ++ beamtimeIdToString beamtimeId
 
-        AnalysisOverview beamtimeId [] across ->
-            routePrefix ++ "/analysis/" ++ beamtimeIdToString beamtimeId
-                ++ (if across then
-                        "?across=1"
-
-                    else
-                        ""
-                   )
-
-        AnalysisOverview beamtimeId filters acrossBeamtimes ->
+        AnalysisOverview beamtimeId filters acrossBeamtimes mergeFilter ->
             routePrefix
                 ++ "/analysis/"
                 ++ beamtimeIdToString beamtimeId
-                ++ "?filter="
-                ++ (String.join "&filter=" <| filtersSerializer filters)
-                ++ "&across="
-                ++ (if acrossBeamtimes then
-                        "1"
+                ++ addQuery
+                    (("across="
+                        ++ (if acrossBeamtimes then
+                                "1"
 
-                    else
-                        "0"
-                   )
+                            else
+                                "0"
+                           )
+                     )
+                        :: ("merge=" ++ mergeFilterToString mergeFilter)
+                        :: List.map (\filterString -> "filter=" ++ filterString) (filtersSerializer filters)
+                    )
 
         AnalysisDataSet beamtimeId dsId ->
             routePrefix ++ "/data-set/" ++ beamtimeIdToString beamtimeId ++ "/" ++ String.fromInt dsId
@@ -323,6 +347,15 @@ matchRoute =
             AnalysisOverview
             ((s "analysis" </> int <?> Query.custom "filter" filtersParser)
                 <?> Query.map (\x -> x == Just 1) (Query.int "across")
+                <?> Query.map (Maybe.withDefault Both)
+                        (Query.enum "merge"
+                            (Dict.fromList
+                                [ ( "both", Both )
+                                , ( "merged", Merged )
+                                , ( "unmerged", Unmerged )
+                                ]
+                            )
+                        )
             )
         , map AnalysisDataSet (s "data-set" </> int </> int)
         , map MergeResult (s "mergeresult" </> int </> int </> int </> int)

@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel
 from pydantic import Field
 
@@ -579,7 +581,15 @@ class JsonReadRunAnalysis(BaseModel):
 class JsonDataSet(BaseModel):
     id: int
     experiment_type_id: int
+    beamtime_id: int
     attributi: list[JsonAttributoValue]
+
+
+class JsonDataSetStatistics(BaseModel):
+    data_set_id: int
+    run_count: int
+    merge_results_count: int
+    indexed_frames: int
 
 
 class JsonRun(BaseModel):
@@ -878,9 +888,16 @@ class JsonReadSingleDataSetResults(BaseModel):
     data_set: JsonDataSetWithIndexingResults
 
 
+class JsonMergeStatus(str, Enum):
+    BOTH = "both"
+    UNMERGED = "unmerged"
+    MERGED = "merged"
+
+
 class JsonReadNewAnalysisInput(BaseModel):
     attributi_filter: list[JsonAttributoValue]
     beamtime_id: None | int
+    merge_status: JsonMergeStatus
 
 
 class JsonExperimentTypeWithBeamtimeInformation(BaseModel):
@@ -894,6 +911,7 @@ class JsonReadNewAnalysisOutput(BaseModel):
     chemical_id_to_name: list[JsonChemicalIdAndName]
     experiment_types: list[JsonExperimentTypeWithBeamtimeInformation]
     filtered_data_sets: list[JsonDataSet]
+    data_set_statistics: list[JsonDataSetStatistics]
     attributi_values: list[JsonAttributoValue]
 
 

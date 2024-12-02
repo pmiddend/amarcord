@@ -2,21 +2,22 @@ module Amarcord.Pages.AnalysisOverview exposing (Model, Msg(..), init, pageTitle
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType, AttributoValue(..), ChemicalNameDict, attributoValueToJson, convertAttributoFromApi, convertAttributoMapFromApi, convertAttributoValueFromApi, prettyPrintAttributoValue)
+import Amarcord.AttributoHtml exposing (formatIntHumanFriendly)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert)
 import Amarcord.DataSetHtml exposing (viewDataSetTable)
-import Amarcord.Html exposing (br_, div_, h4_, li_, tbody_, td_, th_, thead_, tr_)
+import Amarcord.Html exposing (br_, div_, h4_, input_, li_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
 import Amarcord.Indexing.Util exposing (viewFormCheck)
 import Amarcord.MultiDict as MultiDict exposing (MultiDict)
-import Amarcord.Route as Route exposing (Route(..), makeLink)
+import Amarcord.Route as Route exposing (MergeFilter(..), Route(..), makeLink)
 import Amarcord.Util exposing (HereAndNow, formatPosixHumanFriendly)
-import Api.Data exposing (JsonDataSet, JsonExperimentTypeWithBeamtimeInformation, JsonReadNewAnalysisOutput)
+import Api.Data exposing (JsonDataSet, JsonDataSetStatistics, JsonExperimentTypeWithBeamtimeInformation, JsonMergeStatus(..), JsonReadNewAnalysisOutput)
 import Api.Request.Analysis exposing (readAnalysisResultsApiAnalysisAnalysisResultsPost)
 import AssocSet
 import Browser.Navigation as Nav
-import Dict
-import Html exposing (Html, a, button, div, em, h4, input, label, li, nav, small, span, table, td, text, ul)
-import Html.Attributes exposing (attribute, checked, class, colspan, disabled, href, id, style, type_)
+import Dict exposing (Dict)
+import Html exposing (Html, a, button, div, em, h4, input, label, li, nav, p, small, span, table, td, text, ul)
+import Html.Attributes exposing (attribute, checked, class, colspan, disabled, for, href, id, style, type_)
 import Html.Events exposing (onClick, onInput)
 import RemoteData exposing (RemoteData(..), fromResult)
 import Scroll exposing (scrollY)
@@ -40,6 +41,7 @@ type Msg
     | UpdateAttributoValueFilter (Attributo AttributoType) (AttributoValueSet -> AttributoValueSet)
     | UpdateFilter
     | Scroll String
+    | ChangeMergeFilter MergeFilter
     | Nop
     | ToggleIgnoreBeamtimeId
 
@@ -57,6 +59,7 @@ type alias Model =
     , beamtimeId : BeamtimeId
     , attributoValueFilters : MultiDict AttributoId AttributoValue
     , searchAcrossBeamtimes : Bool
+    , mergeFilter : MergeFilter
     }
 
 
@@ -79,8 +82,8 @@ multidictToFilterList =
     MultiDict.foldr (\key values oldList -> List.map (\value -> { id = key, value = value }) (AssocSet.toList values) ++ oldList) []
 
 
-sendUpdateRequest : Maybe Int -> MultiDict Int AttributoValue -> Cmd Msg
-sendUpdateRequest beamtimeId filters =
+sendUpdateRequest : Maybe Int -> MergeFilter -> MultiDict Int AttributoValue -> Cmd Msg
+sendUpdateRequest beamtimeId mergeFilter filters =
     send ExperimentTypesReceived
         (readAnalysisResultsApiAnalysisAnalysisResultsPost
             -- Here we have another conversion function, this time to the request data type from our 'MultiDict'
@@ -91,19 +94,30 @@ sendUpdateRequest beamtimeId filters =
                     )
                     []
                     filters
+            , mergeStatus =
+                case mergeFilter of
+                    Unmerged ->
+                        JsonMergeStatusUnmerged
+
+                    Merged ->
+                        JsonMergeStatusMerged
+
+                    Both ->
+                        JsonMergeStatusBoth
             , beamtimeId = beamtimeId
             }
         )
 
 
-init : Nav.Key -> HereAndNow -> BeamtimeId -> List Route.AnalysisFilter -> Bool -> ( Model, Cmd Msg )
-init navKey hereAndNow beamtimeId filters across =
+init : Nav.Key -> HereAndNow -> BeamtimeId -> List Route.AnalysisFilter -> Bool -> MergeFilter -> ( Model, Cmd Msg )
+init navKey hereAndNow beamtimeId filters across mergeFilter =
     ( { hereAndNow = hereAndNow
       , navKey = navKey
       , experimentTypesRequest = Loading
       , beamtimeId = beamtimeId
       , attributoValueFilters = filterListToMultidict filters
       , searchAcrossBeamtimes = across
+      , mergeFilter = mergeFilter
       }
     , sendUpdateRequest
         (if across then
@@ -112,6 +126,7 @@ init navKey hereAndNow beamtimeId filters across =
          else
             Just beamtimeId
         )
+        mergeFilter
         (filterListToMultidict filters)
     )
 
@@ -285,8 +300,9 @@ viewDataSet :
     -> List (Attributo AttributoType)
     -> ChemicalNameDict
     -> JsonDataSet
+    -> Maybe JsonDataSetStatistics
     -> List (Html Msg)
-viewDataSet model attributi chemicalIdsToName dataSet =
+viewDataSet model attributi chemicalIdsToName dataSet dataSetStatistics =
     [ tr_
         [ td_ [ text (String.fromInt dataSet.id) ]
         , td_
@@ -299,12 +315,77 @@ viewDataSet model attributi chemicalIdsToName dataSet =
                 Nothing
             ]
         ]
+    , tr_ [ td [ colspan 2 ] [] ]
     , tr_
         [ td [ colspan 2 ]
             [ div [ class "mb-5" ]
-                [ a
+                [ case dataSetStatistics of
+                    Nothing ->
+                        text ""
+
+                    Just { runCount, mergeResultsCount, indexedFrames } ->
+                        p [ class "hstack gap-1" ] <|
+                            (if runCount == 0 then
+                                span [ class "badge text-bg-warning" ] [ text "no runs" ]
+
+                             else
+                                span [ class "badge text-bg-secondary" ]
+                                    [ text
+                                        (String.fromInt runCount
+                                            ++ " run"
+                                            ++ (if runCount > 1 then
+                                                    "s"
+
+                                                else
+                                                    ""
+                                               )
+                                        )
+                                    ]
+                            )
+                                :: (let
+                                        tooLittleIndexed level =
+                                            span [ class ("badge text-bg-" ++ level) ] [ text (formatIntHumanFriendly indexedFrames ++ " indexed") ]
+
+                                        unmerged level =
+                                            span [ class ("badge text-bg-" ++ level) ] [ text "unmerged" ]
+
+                                        mergeResults level =
+                                            span [ class ("badge text-bg-" ++ level) ]
+                                                [ text
+                                                    (String.fromInt mergeResultsCount
+                                                        ++ " merge result"
+                                                        ++ (if mergeResultsCount > 1 then
+                                                                "s"
+
+                                                            else
+                                                                ""
+                                                           )
+                                                    )
+                                                ]
+                                    in
+                                    case ( runCount == 0, indexedFrames < 500, mergeResultsCount == 0 ) of
+                                        ( True, _, _ ) ->
+                                            []
+
+                                        ( _, True, True ) ->
+                                            [ tooLittleIndexed "warning"
+                                            , unmerged "secondary"
+                                            ]
+
+                                        ( _, True, False ) ->
+                                            [ tooLittleIndexed "secondary"
+                                            , mergeResults "success"
+                                            ]
+
+                                        ( _, False, True ) ->
+                                            [ tooLittleIndexed "secondary", unmerged "warning" ]
+
+                                        ( _, False, False ) ->
+                                            [ tooLittleIndexed "secondary", mergeResults "success" ]
+                                   )
+                , a
                     [ href
-                        (makeLink (AnalysisDataSet model.beamtimeId dataSet.id))
+                        (makeLink (AnalysisDataSet dataSet.beamtimeId dataSet.id))
                     ]
                     [ text "→ Go to processing results" ]
                 ]
@@ -313,8 +394,8 @@ viewDataSet model attributi chemicalIdsToName dataSet =
     ]
 
 
-viewFilterForm : Bool -> MultiDict AttributoId AttributoValue -> JsonReadNewAnalysisOutput -> Html Msg
-viewFilterForm searchAcrossBeamtimes attributoValueFilters request =
+viewFilterForm : Bool -> MergeFilter -> MultiDict AttributoId AttributoValue -> JsonReadNewAnalysisOutput -> Html Msg
+viewFilterForm searchAcrossBeamtimes mergeFilter attributoValueFilters request =
     let
         -- These will be _all_ attributi and values, whereas attributoValueFilters will only be the selected ones
         attributiWithValues =
@@ -333,17 +414,50 @@ viewFilterForm searchAcrossBeamtimes attributoValueFilters request =
                         attributoWithValues
                 )
                 attributiWithValues
+
+        viewMergedOption =
+            div [ class "btn-group" ]
+                [ input_
+                    [ type_ "radio"
+                    , class "btn-check"
+                    , id "merged-filter-merged"
+                    , checked (mergeFilter == Merged)
+                    , onClick (ChangeMergeFilter Merged)
+                    ]
+                , label [ class "btn btn-outline-primary", for "merged-filter-merged" ] [ text "Only merged" ]
+                , input_
+                    [ type_ "radio"
+                    , class "btn-check"
+                    , id "merged-filter-unmerged"
+                    , checked (mergeFilter == Unmerged)
+                    , onClick (ChangeMergeFilter Unmerged)
+                    ]
+                , label [ class "btn btn-outline-primary", for "merged-filter-unmerged" ] [ text "Only unmerged" ]
+                , input_
+                    [ type_ "radio"
+                    , class "btn-check"
+                    , id "merged-filter-both"
+                    , checked (mergeFilter == Both)
+                    , onClick (ChangeMergeFilter Both)
+                    ]
+                , label [ class "btn btn-outline-primary", for "merged-filter-both" ] [ text "All" ]
+                ]
     in
     div
         [ class "pb-3"
         , style "border-bottom" "1pt solid lightgray"
         ]
         [ h4_ [ icon { name = "gear" }, text " Search settings " ]
-        , viewFormCheck "ignore-beamtime-id"
-            "Search across beam times"
-            (Just (text "After checking this, you have to press “Update” again to see all attributi values."))
-            searchAcrossBeamtimes
-            (always ToggleIgnoreBeamtimeId)
+        , div [ class "row" ]
+            [ div [ class "col-lg-6" ]
+                [ viewFormCheck "ignore-beamtime-id"
+                    "Search across beam times"
+                    (Just (text "After checking this, you have to press “Update” again to see all attributi values."))
+                    searchAcrossBeamtimes
+                    (always ToggleIgnoreBeamtimeId)
+                ]
+            , div [ class "col-lg-6" ] [ text "Merge status:", br_, viewMergedOption ]
+            ]
         , h4 [ class "mt-3" ] [ icon { name = "card-list" }, text " Attributi Filter " ]
         , div [ class "form-text mb-2" ] [ small [] [ text "Note: Dropdowns will only be shown if there is more than one attributo value in a data set." ] ]
         , div_ attributiFilters
@@ -356,8 +470,8 @@ viewFilterForm searchAcrossBeamtimes attributoValueFilters request =
         ]
 
 
-viewDataSetForExperimentType : Model -> JsonReadNewAnalysisOutput -> JsonExperimentTypeWithBeamtimeInformation -> AssocSet.Set JsonDataSet -> List (Html Msg)
-viewDataSetForExperimentType model analysisResults et dataSets =
+viewDataSetForExperimentType : Model -> JsonReadNewAnalysisOutput -> JsonExperimentTypeWithBeamtimeInformation -> Dict Int JsonDataSetStatistics -> AssocSet.Set JsonDataSet -> List (Html Msg)
+viewDataSetForExperimentType model analysisResults et dsStatistics dataSets =
     if AssocSet.isEmpty dataSets then
         []
 
@@ -372,19 +486,22 @@ viewDataSetForExperimentType model analysisResults et dataSets =
                 ]
             ]
             :: List.concatMap
-                (viewDataSet
-                    model
-                    (List.map convertAttributoFromApi analysisResults.attributi)
-                    (List.foldr (\{ chemicalId, name } -> Dict.insert chemicalId name)
-                        Dict.empty
-                        analysisResults.chemicalIdToName
-                    )
+                (\ds ->
+                    viewDataSet
+                        model
+                        (List.map convertAttributoFromApi analysisResults.attributi)
+                        (List.foldr (\{ chemicalId, name } -> Dict.insert chemicalId name)
+                            Dict.empty
+                            analysisResults.chemicalIdToName
+                        )
+                        ds
+                        (Dict.get ds.id dsStatistics)
                 )
                 (AssocSet.toList dataSets)
 
 
-viewDataSets : Model -> JsonReadNewAnalysisOutput -> MultiDict Int JsonDataSet -> Html Msg
-viewDataSets model analysisResults byExperimentType =
+viewDataSets : Model -> JsonReadNewAnalysisOutput -> Dict Int JsonDataSetStatistics -> MultiDict Int JsonDataSet -> Html Msg
+viewDataSets model analysisResults dsStatistics byExperimentType =
     if List.isEmpty analysisResults.filteredDataSets then
         div [ class "alert alert-info mt-3" ] [ text "No results yet. Please select filters and press “Update”." ]
 
@@ -400,27 +517,38 @@ viewDataSets model analysisResults byExperimentType =
                 ]
             , tbody_ <|
                 List.concatMap
-                    (\et -> viewDataSetForExperimentType model analysisResults et (MultiDict.get et.experimentType.id byExperimentType))
+                    (\et ->
+                        viewDataSetForExperimentType
+                            model
+                            analysisResults
+                            et
+                            dsStatistics
+                            (MultiDict.get et.experimentType.id byExperimentType)
+                    )
                     analysisResults.experimentTypes
             ]
 
 
 viewResults : Model -> JsonReadNewAnalysisOutput -> Html Msg
-viewResults ({ attributoValueFilters, searchAcrossBeamtimes } as model) analysisResults =
+viewResults ({ attributoValueFilters, searchAcrossBeamtimes, mergeFilter } as model) analysisResults =
     let
         byExperimentType : MultiDict Int JsonDataSet
         byExperimentType =
             List.foldr (\newDataSet -> MultiDict.insert newDataSet.experimentTypeId newDataSet) MultiDict.empty analysisResults.filteredDataSets
+
+        dsStatistics : Dict Int JsonDataSetStatistics
+        dsStatistics =
+            List.foldr (\newStatistic -> Dict.insert newStatistic.dataSetId newStatistic) Dict.empty analysisResults.dataSetStatistics
     in
     div_
-        [ viewFilterForm searchAcrossBeamtimes attributoValueFilters analysisResults
+        [ viewFilterForm searchAcrossBeamtimes mergeFilter attributoValueFilters analysisResults
         , div [ class "row" ]
             [ div [ class "col-4" ]
                 [ nav [ id "analysis-nav", class "navbar h-100 flex-column align-items-stretch pe-4 border-end" ]
                     [ ul [ class "nav nav-pills flex-column" ] (List.map (viewExperimentTypeHeading byExperimentType) analysisResults.experimentTypes) ]
                 ]
             , div [ class "col-8" ]
-                [ viewDataSets model analysisResults byExperimentType
+                [ viewDataSets model analysisResults dsStatistics byExperimentType
                 ]
             ]
         ]
@@ -457,6 +585,9 @@ update msg model =
         Nop ->
             ( model, Cmd.none )
 
+        ChangeMergeFilter newMergeFilter ->
+            ( { model | mergeFilter = newMergeFilter }, Cmd.none )
+
         Scroll destination ->
             ( model, Task.attempt (always Nop) (scrollY destination 0 0) )
 
@@ -491,6 +622,7 @@ update msg model =
                         model.beamtimeId
                         (multidictToFilterList model.attributoValueFilters)
                         model.searchAcrossBeamtimes
+                        model.mergeFilter
                     )
                 )
             )

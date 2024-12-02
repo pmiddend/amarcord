@@ -48,11 +48,12 @@ def _run_has_attributo_to_data_set_has_attributo(
     )
 
 
-def encode_orm_data_set_to_json(a: orm.DataSet) -> JsonDataSet:
+def encode_orm_data_set_to_json(a: orm.DataSet, beamtime_id: BeamtimeId) -> JsonDataSet:
     return JsonDataSet(
         id=a.id,
         experiment_type_id=a.experiment_type_id,
         attributi=[encode_data_set_attributo_value(v) for v in a.attributo_values],
+        beamtime_id=beamtime_id,
     )
 
 
@@ -174,7 +175,7 @@ async def read_data_sets(
 ) -> JsonReadDataSets:
     return JsonReadDataSets(
         data_sets=[
-            encode_orm_data_set_to_json(a)
+            encode_orm_data_set_to_json(a, beamtimeId)
             for a in await session.scalars(
                 select(orm.DataSet, orm.ExperimentType)
                 .join(orm.DataSet.experiment_type)

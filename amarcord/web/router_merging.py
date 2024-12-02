@@ -57,9 +57,7 @@ async def merge_job_started(
         merge_result.job_id = json_result.job_id
         merge_result.started = datetime_from_attributo_int(json_result.time)
         merge_result.job_status = DBJobStatus.RUNNING
-        job_logger.info(
-            f"merge result now has job id {json_result.job_id}, is running"
-        )
+        job_logger.info(f"merge result now has job id {json_result.job_id}, is running")
         await session.commit()
     return JsonMergeJobStartedOutput(
         time=datetime_to_attributo_int(datetime.datetime.now(datetime.timezone.utc))
@@ -126,9 +124,7 @@ async def merge_job_finished(
                 EventLogLevel.INFO,
                 "API",
             )
-            job_logger.error(
-                f"semantic error in json content: {json_result.error}"
-            )
+            job_logger.error(f"semantic error in json content: {json_result.error}")
             current_merge_result_status.job_error = json_result.error
             current_merge_result_status.job_status = DBJobStatus.DONE
             return JsonMergeJobFinishOutput(result=False)

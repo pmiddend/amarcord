@@ -11,7 +11,7 @@ import Amarcord.DataSetHtml exposing (viewDataSetTable)
 import Amarcord.Html exposing (br_, code_, div_, em_, h5_, p_, span_, strongText, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError(..), send, showError)
 import Amarcord.IndexingParameters as IndexingParameters
-import Amarcord.Route exposing (Route(..), makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink)
+import Amarcord.Route exposing (MergeFilter(..), Route(..), makeFilesLink, makeIndexingIdErrorLogLink, makeIndexingIdLogLink, makeLink)
 import Amarcord.Util exposing (HereAndNow, posixDiffHumanFriendly, posixDiffMinutes)
 import Api.Data exposing (DBJobStatus(..), JsonCreateIndexingForDataSetOutput, JsonDataSet, JsonDataSetWithIndexingResults, JsonExperimentType, JsonIndexingParameters, JsonIndexingParametersWithResults, JsonIndexingResult, JsonMergeParameters, JsonMergeResult, JsonMergeResultStateDone, JsonMergeResultStateError, JsonMergeResultStateQueued, JsonMergeResultStateRunning, JsonPolarisation, JsonQueueMergeJobOutput, JsonReadIndexingParametersOutput, JsonReadSingleDataSetResults, ScaleIntensities(..))
 import Api.Request.Analysis exposing (readSingleDataSetResultsApiAnalysisSingleDataSetBeamtimeIdDataSetIdGet)
@@ -477,7 +477,7 @@ viewIndexingResults now results =
                      else
                         [ text (formatIntHumanFriendly indexedFrames)
                         , br_
-                        , viewRate indexedFrames hits
+                        , viewRate indexedFrames frames
                         ]
                     )
                 , td_
@@ -1021,7 +1021,7 @@ view model =
                 [ nav []
                     [ ol [ class "breadcrumb" ]
                         [ li [ class "breadcrumb-item active" ]
-                            [ text "/ ", a [ href (makeLink (AnalysisOverview model.beamtimeId [] False)) ] [ text "Analysis Overview" ] ]
+                            [ text "/ ", a [ href (makeLink (AnalysisOverview model.beamtimeId [] False Both)) ] [ text "Analysis Overview" ] ]
                         , li [ class "breadcrumb-item active" ]
                             [ text experimentType.name
                             ]

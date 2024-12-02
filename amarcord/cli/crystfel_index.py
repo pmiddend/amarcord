@@ -1366,7 +1366,11 @@ def run_online(args: OnlineArgs) -> None:
                                 f"fps below threshold: {fps} < {_FPS_KILLER_THRESHOLD}"
                             )
 
-                        if avg_fps is not None and avg_fps < _FPS_KILLER_THRESHOLD and this_time - start_time > 30:
+                        if (
+                            avg_fps is not None
+                            and avg_fps < _FPS_KILLER_THRESHOLD
+                            and this_time - start_time > 30
+                        ):
                             logger.warning(
                                 f"fps too low and fps killer is on: {avg_fps}, killing process"
                             )

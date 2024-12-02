@@ -67,6 +67,7 @@ module Api.Data exposing
     , JsonCreateOrUpdateRun
     , JsonCreateOrUpdateRunOutput
     , JsonDataSet
+    , JsonDataSetStatistics
     , JsonDataSetWithFom
     , JsonDataSetWithIndexingResults
     , JsonDeleteAttributoInput
@@ -116,6 +117,7 @@ module Api.Data exposing
     , JsonMergeResultStateError
     , JsonMergeResultStateQueued
     , JsonMergeResultStateRunning
+    , JsonMergeStatus(..), jsonMergeStatusVariants
     , JsonPolarisation
     , JsonQueueMergeJobInput
     , JsonQueueMergeJobOutput
@@ -218,6 +220,7 @@ module Api.Data exposing
     , encodeJsonCreateOrUpdateRun
     , encodeJsonCreateOrUpdateRunOutput
     , encodeJsonDataSet
+    , encodeJsonDataSetStatistics
     , encodeJsonDataSetWithFom
     , encodeJsonDataSetWithIndexingResults
     , encodeJsonDeleteAttributoInput
@@ -267,6 +270,7 @@ module Api.Data exposing
     , encodeJsonMergeResultStateError
     , encodeJsonMergeResultStateQueued
     , encodeJsonMergeResultStateRunning
+    , encodeJsonMergeStatus
     , encodeJsonPolarisation
     , encodeJsonQueueMergeJobInput
     , encodeJsonQueueMergeJobOutput
@@ -320,6 +324,7 @@ module Api.Data exposing
     , stringFromChemicalType
     , stringFromDBJobStatus
     , stringFromJSONSchemaArraySubtype
+    , stringFromJsonMergeStatus
     , stringFromMergeModel
     , stringFromMergeNegativeHandling
     , stringFromScaleIntensities
@@ -376,6 +381,7 @@ module Api.Data exposing
     , jsonCreateOrUpdateRunDecoder
     , jsonCreateOrUpdateRunOutputDecoder
     , jsonDataSetDecoder
+    , jsonDataSetStatisticsDecoder
     , jsonDataSetWithFomDecoder
     , jsonDataSetWithIndexingResultsDecoder
     , jsonDeleteAttributoInputDecoder
@@ -425,6 +431,7 @@ module Api.Data exposing
     , jsonMergeResultStateErrorDecoder
     , jsonMergeResultStateQueuedDecoder
     , jsonMergeResultStateRunningDecoder
+    , jsonMergeStatusDecoder
     , jsonPolarisationDecoder
     , jsonQueueMergeJobInputDecoder
     , jsonQueueMergeJobOutputDecoder
@@ -980,7 +987,16 @@ type alias JsonCreateOrUpdateRunOutput =
 type alias JsonDataSet =
     { id : Int
     , experimentTypeId : Int
+    , beamtimeId : Int
     , attributi : List JsonAttributoValue
+    }
+
+
+type alias JsonDataSetStatistics =
+    { dataSetId : Int
+    , runCount : Int
+    , mergeResultsCount : Int
+    , indexedFrames : Int
     }
 
 
@@ -1426,6 +1442,22 @@ type alias JsonMergeResultStateRunning =
     }
 
 
+{-| An enumeration.
+-}
+type JsonMergeStatus
+    = JsonMergeStatusBoth
+    | JsonMergeStatusUnmerged
+    | JsonMergeStatusMerged
+
+
+jsonMergeStatusVariants : List JsonMergeStatus
+jsonMergeStatusVariants =
+    [ JsonMergeStatusBoth
+    , JsonMergeStatusUnmerged
+    , JsonMergeStatusMerged
+    ]
+
+
 type alias JsonPolarisation =
     { angle : Int
     , percent : Int
@@ -1514,6 +1546,7 @@ type alias JsonReadMergeResultsOutput =
 type alias JsonReadNewAnalysisInput =
     { attributiFilter : List JsonAttributoValue
     , beamtimeId : Maybe Int
+    , mergeStatus : JsonMergeStatus
     }
 
 
@@ -1523,6 +1556,7 @@ type alias JsonReadNewAnalysisOutput =
     , chemicalIdToName : List JsonChemicalIdAndName
     , experimentTypes : List JsonExperimentTypeWithBeamtimeInformation
     , filteredDataSets : List JsonDataSet
+    , dataSetStatistics : List JsonDataSetStatistics
     , attributiValues : List JsonAttributoValue
     }
 
@@ -3050,7 +3084,31 @@ encodeJsonDataSetPairs model =
         pairs =
             [ encode "id" Json.Encode.int model.id
             , encode "experiment_type_id" Json.Encode.int model.experimentTypeId
+            , encode "beamtime_id" Json.Encode.int model.beamtimeId
             , encode "attributi" (Json.Encode.list encodeJsonAttributoValue) model.attributi
+            ]
+    in
+    pairs
+
+
+encodeJsonDataSetStatistics : JsonDataSetStatistics -> Json.Encode.Value
+encodeJsonDataSetStatistics =
+    encodeObject << encodeJsonDataSetStatisticsPairs
+
+
+encodeJsonDataSetStatisticsWithTag : ( String, String ) -> JsonDataSetStatistics -> Json.Encode.Value
+encodeJsonDataSetStatisticsWithTag (tagField, tag) model =
+    encodeObject (encodeJsonDataSetStatisticsPairs model ++ [ encode tagField Json.Encode.string tag ])
+
+
+encodeJsonDataSetStatisticsPairs : JsonDataSetStatistics -> List EncodedField
+encodeJsonDataSetStatisticsPairs model =
+    let
+        pairs =
+            [ encode "data_set_id" Json.Encode.int model.dataSetId
+            , encode "run_count" Json.Encode.int model.runCount
+            , encode "merge_results_count" Json.Encode.int model.mergeResultsCount
+            , encode "indexed_frames" Json.Encode.int model.indexedFrames
             ]
     in
     pairs
@@ -4233,6 +4291,24 @@ encodeJsonMergeResultStateRunningPairs model =
     pairs
 
 
+stringFromJsonMergeStatus : JsonMergeStatus -> String
+stringFromJsonMergeStatus model =
+    case model of
+        JsonMergeStatusBoth ->
+            "both"
+
+        JsonMergeStatusUnmerged ->
+            "unmerged"
+
+        JsonMergeStatusMerged ->
+            "merged"
+
+
+encodeJsonMergeStatus : JsonMergeStatus -> Json.Encode.Value
+encodeJsonMergeStatus =
+    Json.Encode.string << stringFromJsonMergeStatus
+
+
 encodeJsonPolarisation : JsonPolarisation -> Json.Encode.Value
 encodeJsonPolarisation =
     encodeObject << encodeJsonPolarisationPairs
@@ -4544,6 +4620,7 @@ encodeJsonReadNewAnalysisInputPairs model =
         pairs =
             [ encode "attributi_filter" (Json.Encode.list encodeJsonAttributoValue) model.attributiFilter
             , maybeEncode "beamtime_id" Json.Encode.int model.beamtimeId
+            , encode "merge_status" encodeJsonMergeStatus model.mergeStatus
             ]
     in
     pairs
@@ -4568,6 +4645,7 @@ encodeJsonReadNewAnalysisOutputPairs model =
             , encode "chemical_id_to_name" (Json.Encode.list encodeJsonChemicalIdAndName) model.chemicalIdToName
             , encode "experiment_types" (Json.Encode.list encodeJsonExperimentTypeWithBeamtimeInformation) model.experimentTypes
             , encode "filtered_data_sets" (Json.Encode.list encodeJsonDataSet) model.filteredDataSets
+            , encode "data_set_statistics" (Json.Encode.list encodeJsonDataSetStatistics) model.dataSetStatistics
             , encode "attributi_values" (Json.Encode.list encodeJsonAttributoValue) model.attributiValues
             ]
     in
@@ -5921,7 +5999,17 @@ jsonDataSetDecoder =
     Json.Decode.succeed JsonDataSet
         |> decode "id" Json.Decode.int 
         |> decode "experiment_type_id" Json.Decode.int 
+        |> decode "beamtime_id" Json.Decode.int 
         |> decode "attributi" (Json.Decode.list jsonAttributoValueDecoder) 
+
+
+jsonDataSetStatisticsDecoder : Json.Decode.Decoder JsonDataSetStatistics
+jsonDataSetStatisticsDecoder =
+    Json.Decode.succeed JsonDataSetStatistics
+        |> decode "data_set_id" Json.Decode.int 
+        |> decode "run_count" Json.Decode.int 
+        |> decode "merge_results_count" Json.Decode.int 
+        |> decode "indexed_frames" Json.Decode.int 
 
 
 jsonDataSetWithFomDecoder : Json.Decode.Decoder JsonDataSetWithFom
@@ -6415,6 +6503,26 @@ jsonMergeResultStateRunningDecoder =
         |> decode "latest_log" Json.Decode.string 
 
 
+jsonMergeStatusDecoder : Json.Decode.Decoder JsonMergeStatus
+jsonMergeStatusDecoder =
+    Json.Decode.string
+        |> Json.Decode.andThen
+            (\value ->
+                case value of
+                    "both" ->
+                        Json.Decode.succeed JsonMergeStatusBoth
+
+                    "unmerged" ->
+                        Json.Decode.succeed JsonMergeStatusUnmerged
+
+                    "merged" ->
+                        Json.Decode.succeed JsonMergeStatusMerged
+
+                    other ->
+                        Json.Decode.fail <| "Unknown type: " ++ other
+            )
+
+
 jsonPolarisationDecoder : Json.Decode.Decoder JsonPolarisation
 jsonPolarisationDecoder =
     Json.Decode.succeed JsonPolarisation
@@ -6519,6 +6627,7 @@ jsonReadNewAnalysisInputDecoder =
     Json.Decode.succeed JsonReadNewAnalysisInput
         |> decode "attributi_filter" (Json.Decode.list jsonAttributoValueDecoder) 
         |> maybeDecode "beamtime_id" Json.Decode.int Nothing
+        |> decode "merge_status" jsonMergeStatusDecoder 
 
 
 jsonReadNewAnalysisOutputDecoder : Json.Decode.Decoder JsonReadNewAnalysisOutput
@@ -6529,6 +6638,7 @@ jsonReadNewAnalysisOutputDecoder =
         |> decode "chemical_id_to_name" (Json.Decode.list jsonChemicalIdAndNameDecoder) 
         |> decode "experiment_types" (Json.Decode.list jsonExperimentTypeWithBeamtimeInformationDecoder) 
         |> decode "filtered_data_sets" (Json.Decode.list jsonDataSetDecoder) 
+        |> decode "data_set_statistics" (Json.Decode.list jsonDataSetStatisticsDecoder) 
         |> decode "attributi_values" (Json.Decode.list jsonAttributoValueDecoder) 
 
 

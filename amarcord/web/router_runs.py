@@ -669,10 +669,10 @@ async def _find_schedule_entry(
 
 
 def encode_data_set_with_fom(
-    ds: orm.DataSet, fom: None | DBIndexingFOM
+    ds: orm.DataSet, fom: None | DBIndexingFOM, beamtime_id: BeamtimeId
 ) -> JsonDataSetWithFom:
     return JsonDataSetWithFom(
-        data_set=encode_orm_data_set_to_json(ds),
+        data_set=encode_orm_data_set_to_json(ds, beamtime_id),
         fom=encode_indexing_fom_to_json(fom if fom is not None else empty_indexing_fom),
     )
 
@@ -1013,7 +1013,7 @@ async def read_runs_overview(
         experiment_types=[encode_experiment_type(a) for a in experiment_types],
         foms_for_this_data_set=(
             encode_data_set_with_fom(
-                data_set_for_latest_run, summary_from_foms(foms_in_this_ds)
+                data_set_for_latest_run, summary_from_foms(foms_in_this_ds), beamtimeId
             )
             if data_set_for_latest_run
             else None

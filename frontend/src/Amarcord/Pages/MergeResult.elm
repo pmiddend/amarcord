@@ -7,7 +7,7 @@ import Amarcord.AttributoHtml exposing (formatFloatHumanFriendly, formatIntHuman
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, viewAlert)
 import Amarcord.Html exposing (div_, h5_, span_, tbody_, td_, th_, thead_, tr_)
 import Amarcord.HttpError exposing (HttpError, send, showError)
-import Amarcord.Route exposing (Route(..), makeFilesLink, makeLink)
+import Amarcord.Route exposing (MergeFilter(..), Route(..), makeFilesLink, makeLink)
 import Amarcord.Util exposing (HereAndNow)
 import Api.Data exposing (JsonExperimentType, JsonMergeResultFom, JsonMergeResultShell, JsonReadSingleMergeResult, JsonRefinementResult)
 import Api.Request.Analysis exposing (readSingleMergeResultApiAnalysisMergeResultBeamtimeIdExperimentTypeIdMergeResultIdGet)
@@ -151,7 +151,7 @@ modalBodyShells beamtimeId experimentType dataSetId mergeResultId fom shells ref
         [ nav []
             [ ol [ class "breadcrumb" ]
                 [ li [ class "breadcrumb-item active" ]
-                    [ text "/ ", a [ href (makeLink (AnalysisOverview beamtimeId [] False)) ] [ text "Analysis Overview" ] ]
+                    [ text "/ ", a [ href (makeLink (AnalysisOverview beamtimeId [] False Both)) ] [ text "Analysis Overview" ] ]
                 , li [ class "breadcrumb-item active" ]
                     [ text experimentType.name
                     ]

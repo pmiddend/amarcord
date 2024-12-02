@@ -114,6 +114,7 @@ from amarcord.web.json_models import JsonIndexingResultFinishWithError
 from amarcord.web.json_models import JsonIndexingResultStillRunning
 from amarcord.web.json_models import JsonMergeJobFinishOutput
 from amarcord.web.json_models import JsonMergeParameters
+from amarcord.web.json_models import JsonMergeStatus
 from amarcord.web.json_models import JsonPolarisation
 from amarcord.web.json_models import JsonQueueMergeJobInput
 from amarcord.web.json_models import JsonQueueMergeJobOutput
@@ -1626,6 +1627,7 @@ def test_update_indexing_job(
                     )
                 ],
                 beamtime_id=beamtime_id,
+                merge_status=JsonMergeStatus.BOTH,
             ).dict(),
         ).json()
     )
@@ -2023,6 +2025,7 @@ def test_queue_then_start_then_finish_merge_job(
                     ),
                 ],
                 beamtime_id=beamtime_id,
+                merge_status=JsonMergeStatus.BOTH,
             ).dict(),
         ).json()
     )
