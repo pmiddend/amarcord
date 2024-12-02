@@ -343,12 +343,12 @@ viewRunsTable zone chosenColumns runEditInfo { runs, events, chemicals, experime
     table [ class "table amarcord-table-fix-head table-bordered table-hover" ]
         [ thead_
             [ tr [ class "align-top" ] <|
-                th_ [ text "ID" ]
+                th_ [ text "Actions" ]
+                    :: th_ [ text "ID" ]
                     :: th_ [ text "Internal ID" ]
                     :: th_ [ text "Started" ]
                     :: th_ [ text "Stopped" ]
                     :: attributiColumnHeaders chosenColumns
-                    ++ [ th_ [ text "Actions" ] ]
             ]
         , tbody_ runRows
         ]
