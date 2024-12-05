@@ -120,9 +120,9 @@ modalBodyShells beamtimeId experimentType dataSetId mergeResultId fom shells ref
                 [ uglymol pdbFileId mtzFileId ("refinement-" ++ String.fromInt id)
                 , div [ class "hstack gap-3 mt-2" ]
                     [ span_ [ text "Refinement files:" ]
-                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId) ] [ text "PDB" ] ]
+                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink pdbFileId (Just ("merge-result-" ++ String.fromInt id ++ "-refined.pdb"))) ] [ text "PDB" ] ]
                     , div [ class "vr" ] []
-                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink mtzFileId) ] [ text "MTZ" ] ]
+                    , span_ [ icon { name = "file-binary" }, a [ href (makeFilesLink mtzFileId (Just ("merge-result-" ++ String.fromInt mergeResultId ++ "-refined.mtz"))) ] [ text "MTZ" ] ]
                     ]
                 , p [ class "text-muted" ] [ text "Note: this MTZ file is different from the one in the overview. It was created during refinement, not by CrystFEL." ]
                 , div_
@@ -151,9 +151,9 @@ modalBodyShells beamtimeId experimentType dataSetId mergeResultId fom shells ref
         [ nav []
             [ ol [ class "breadcrumb" ]
                 [ li [ class "breadcrumb-item active" ]
-                    [ text "/ ", a [ href (makeLink (AnalysisOverview beamtimeId)) ] [ text "Analysis Overview" ] ]
+                    [ text "/ ", a [ href (makeLink (AnalysisOverview beamtimeId [] False)) ] [ text "Analysis Overview" ] ]
                 , li [ class "breadcrumb-item active" ]
-                    [ a [ href (makeLink (AnalysisExperimentType beamtimeId experimentType.id)) ] [ text experimentType.name ]
+                    [ text experimentType.name
                     ]
                 , li [ class "breadcrumb-item active" ]
                     [ a [ href (makeLink (AnalysisDataSet beamtimeId dataSetId)) ] [ text ("Data Set ID " ++ String.fromInt dataSetId) ]

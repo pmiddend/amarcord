@@ -3,7 +3,7 @@ module Amarcord.Pages.Runs exposing (Model, Msg(..), init, pageTitle, subscripti
 import Amarcord.API.ExperimentType exposing (experimentTypeIdDict)
 import Amarcord.API.Requests exposing (BeamtimeId, RunEventDate(..), RunEventDateFilter, RunFilter, RunInternalId(..), emptyRunEventDateFilter, emptyRunFilter, runEventDateFilter, runEventDateToString, runFilterToString, specificRunEventDateFilter)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo exposing (Attributo, AttributoType(..), convertAttributoFromApi, convertAttributoMapFromApi)
+import Amarcord.Attributo exposing (Attributo, AttributoType(..), ChemicalNameDict, convertAttributoFromApi, convertAttributoMapFromApi)
 import Amarcord.AttributoHtml exposing (makeAttributoHeader, viewAttributoCell, viewRunExperimentTypeCell)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon)
 import Amarcord.Chemical exposing (chemicalIdDict, convertChemicalFromApi)
@@ -14,7 +14,7 @@ import Amarcord.LocalStorage exposing (LocalStorage)
 import Amarcord.MarkdownUtil exposing (markupWithoutErrors)
 import Amarcord.Route exposing (makeFilesLink)
 import Amarcord.RunAttributiForm as RunAttributiForm
-import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore, scrollToTop)
+import Amarcord.Util exposing (HereAndNow, formatPosixTimeOfDayHumanFriendly, posixBefore)
 import Api.Data exposing (JsonCreateDataSetFromRunOutput, JsonDeleteEventOutput, JsonEvent, JsonFileOutput, JsonReadRuns, JsonRun, JsonUpdateRunOutput)
 import Api.Request.Events exposing (deleteEventApiEventsDelete)
 import Api.Request.Runs exposing (readRunsApiRunsBeamtimeIdGet)
@@ -36,7 +36,6 @@ type Msg
     | EventDelete Int
     | EventDeleteFinished (Result HttpError JsonDeleteEventOutput)
     | RunInitiateEdit JsonRun
-    | Nop
     | ColumnChooserMessage ColumnChooser.Msg
     | RunAttributiFormMsg RunAttributiForm.Msg
     | ResetDate
@@ -163,7 +162,7 @@ attributiColumnHeaders =
     List.map (th_ << makeAttributoHeader)
 
 
-attributiColumns : Zone -> Dict Int String -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> List (Html Msg)
+attributiColumns : Zone -> ChemicalNameDict -> Dict Int String -> List (Attributo AttributoType) -> JsonRun -> List (Html Msg)
 attributiColumns zone chemicalIds experimentTypeIds attributi run =
     let
         viewCell : Attributo AttributoType -> Maybe (Html Msg)
@@ -193,7 +192,7 @@ attributiColumns zone chemicalIds experimentTypeIds attributi run =
 
 viewRunRow :
     Zone
-    -> Dict Int String
+    -> ChemicalNameDict
     -> Dict Int String
     -> List (Attributo AttributoType)
     -> Maybe RunAttributiForm.Model
@@ -202,19 +201,18 @@ viewRunRow :
     -> List (Html Msg)
 viewRunRow zone chemicalIds experimentTypeIds attributi runEditInfo attributoColumnCount r =
     tr [ style "white-space" "nowrap" ]
-        (td_ [ strongText (String.fromInt r.externalId) ]
+        (td_
+            [ button
+                [ class "btn btn-link amarcord-small-link-button"
+                , onClick (RunInitiateEdit r)
+                ]
+                [ icon { name = "pencil-square" } ]
+            ]
+            :: td_ [ strongText (String.fromInt r.externalId) ]
             :: td_ [ text (String.fromInt r.id) ]
             :: td_ [ text <| formatPosixTimeOfDayHumanFriendly zone (millisToPosix r.started) ]
             :: td_ [ text <| Maybe.withDefault "" <| Maybe.map (formatPosixTimeOfDayHumanFriendly zone) (Maybe.map millisToPosix r.stopped) ]
             :: attributiColumns zone chemicalIds experimentTypeIds attributi r
-            ++ [ td_
-                    [ button
-                        [ class "btn btn-link amarcord-small-link-button"
-                        , onClick (RunInitiateEdit r)
-                        ]
-                        [ icon { name = "pencil-square" } ]
-                    ]
-               ]
         )
         :: (case runEditInfo of
                 Nothing ->
@@ -242,7 +240,7 @@ viewEventRow zone attributoColumnCount e =
             li_
                 [ mimeTypeToIcon type__
                 , text " "
-                , a [ href (makeFilesLink id) ] [ text fileName ]
+                , a [ href (makeFilesLink id Nothing) ] [ text fileName ]
                 ]
 
         maybeFiles =
@@ -268,7 +266,7 @@ viewEventRow zone attributoColumnCount e =
 
 viewRunAndEventRows :
     Zone
-    -> Dict Int String
+    -> ChemicalNameDict
     -> Dict Int String
     -> List (Attributo AttributoType)
     -> Int
@@ -588,17 +586,11 @@ update msg model =
                                 run
                     in
                     ( { model | runEditInfo = Just editInfo }
-                    , Cmd.batch
-                        [ scrollToTop (always Nop)
-                        , Cmd.map RunAttributiFormMsg editInfoCmd
-                        ]
+                    , Cmd.map RunAttributiFormMsg editInfoCmd
                     )
 
                 _ ->
                     ( model, Cmd.none )
-
-        Nop ->
-            ( model, Cmd.none )
 
         ColumnChooserMessage columnChooserMessage ->
             let

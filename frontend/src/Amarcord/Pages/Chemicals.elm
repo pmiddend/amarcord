@@ -2,7 +2,7 @@ module Amarcord.Pages.Chemicals exposing (Model, Msg, convertChemicalsResponse, 
 
 import Amarcord.API.Requests exposing (BeamtimeId)
 import Amarcord.AssociatedTable as AssociatedTable
-import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractChemical, mapAttributo)
+import Amarcord.Attributo as Attributo exposing (Attributo, AttributoId, AttributoMap, AttributoType(..), AttributoValue, ChemicalNameDict, attributoMapToListOfAttributi, convertAttributoFromApi, convertAttributoMapFromApi, emptyAttributoMap, extractChemical, mapAttributo)
 import Amarcord.AttributoHtml exposing (AttributoFormMsg(..), AttributoNameWithValueUpdate, EditStatus(..), EditableAttributiAndOriginal, EditableAttributo, convertEditValues, createEditableAttributi, editEditableAttributi, extractStringAttributo, findEditableAttributo, viewAttributoCell, viewAttributoForm)
 import Amarcord.Bootstrap exposing (AlertProperty(..), icon, loadingBar, makeAlert, mimeTypeToIcon, viewRemoteDataHttp)
 import Amarcord.Chemical exposing (Chemical, ChemicalId, chemicalMapAttributi, chemicalMapId, chemicalTypeToApi, convertChemicalFromApi)
@@ -406,12 +406,12 @@ viewChemicalRow zone attributi chemicalIsUsedInRun chemical =
         viewFile { id, type__, fileName, description } =
             li [ class "list-group-item" ] <|
                 if String.startsWith "image/" type__ then
-                    [ figure [ class "figure" ] [ img_ [ src (makeFilesLink id), style "width" "20em" ], figcaption [ class "figure-caption" ] [ a [ href (makeFilesLink id) ] [ text description ] ] ] ]
+                    [ figure [ class "figure" ] [ img_ [ src (makeFilesLink id Nothing), style "width" "20em" ], figcaption [ class "figure-caption" ] [ a [ href (makeFilesLink id Nothing) ] [ text description ] ] ] ]
 
                 else
                     [ mimeTypeToIcon type__
                     , text " "
-                    , span [ attribute "data-tooltip" description, class "align-top" ] [ a [ href (makeFilesLink id) ] [ text fileName ] ]
+                    , span [ attribute "data-tooltip" description, class "align-top" ] [ a [ href (makeFilesLink id Nothing) ] [ text fileName ] ]
                     ]
 
         files =
@@ -1032,7 +1032,7 @@ update msg model =
                                 case convertEditValues model.myTimeZone editChemical.attributi of
                                     Err errorList ->
                                         let
-                                            attributoIdToName : Dict.Dict Int String
+                                            attributoIdToName : ChemicalNameDict
                                             attributoIdToName =
                                                 List.foldr (\editableAttributo -> Dict.insert editableAttributo.id editableAttributo.name) Dict.empty editChemical.attributi.editableAttributi
                                         in

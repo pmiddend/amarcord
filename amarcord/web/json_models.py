@@ -552,8 +552,11 @@ class JsonRunAnalysisIndexingResult(BaseModel):
 
 class JsonDetectorShift(BaseModel):
     run_external_id: int
+    run_start: int
+    run_end: None | int
     shift_x_mm: float
     shift_y_mm: float
+    geometry_hash: str
 
 
 class JsonReadBeamtimeGeometryDetails(BaseModel):
@@ -868,18 +871,30 @@ class JsonDataSetWithIndexingResults(BaseModel):
     indexing_results: list[JsonIndexingParametersWithResults]
 
 
-class JsonReadAnalysisResults(BaseModel):
-    attributi: list[JsonAttributo]
-    chemical_id_to_name: list[JsonChemicalIdAndName]
-    experiment_type: JsonExperimentType
-    data_sets: list[JsonDataSetWithoutIndexingResults]
-
-
 class JsonReadSingleDataSetResults(BaseModel):
     attributi: list[JsonAttributo]
     chemical_id_to_name: list[JsonChemicalIdAndName]
     experiment_type: JsonExperimentType
     data_set: JsonDataSetWithIndexingResults
+
+
+class JsonReadNewAnalysisInput(BaseModel):
+    attributi_filter: list[JsonAttributoValue]
+    beamtime_id: None | int
+
+
+class JsonExperimentTypeWithBeamtimeInformation(BaseModel):
+    experiment_type: JsonExperimentType
+    beamtime: JsonBeamtime
+
+
+class JsonReadNewAnalysisOutput(BaseModel):
+    searchable_attributi: list[JsonAttributo]
+    attributi: list[JsonAttributo]
+    chemical_id_to_name: list[JsonChemicalIdAndName]
+    experiment_types: list[JsonExperimentTypeWithBeamtimeInformation]
+    filtered_data_sets: list[JsonDataSet]
+    attributi_values: list[JsonAttributoValue]
 
 
 class JsonReadSingleMergeResult(BaseModel):

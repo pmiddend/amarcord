@@ -51,7 +51,7 @@ viewHitRateAndIndexingGraphs zone stats =
             [ p_ [ text "The “hit rate” is defined as the fraction of total frames that are considered “hits”:  What consitutes a “hit” depends on a lot of configuration parameters, but generally is a frame that has enough “peaks” (bright spots that might be Bragg peaks). " ]
             , p_ [ text "The following example with 100,000 images illustrates the CrystFEL data flow:" ]
             , img [ src "hits-and-indexing.svg", class "img-fluid mb-2 mt-2" ] []
-            , p_ [ text "Here, a run was taken with 100,000 frames total. Of that, only 10,000 frames are considered “hits”. Of those 10,000 frames, 3,000 are considered “indexable”. Thus, we get a hit rate of 10%, and an indexing rate of 30% (because we take the hits as a reference, not the total number of frames)." ]
+            , p_ [ text "Here, a run was taken with 100,000 frames total. Of that, only 10,000 frames are considered “hits”. Of those 10,000 frames, 3,000 are considered “indexable”. Thus, we get a hit rate of 10%, and an indexing rate of 3%." ]
             , p_ [ text "Since only indexed frames are useful for merging (and thus for the electron density), you can see that not every hit is useful in the end. Consequently, when you are acquiring data, the ", em [] [ text "number of indexed frames" ], text " is the more important quantity to shoot for." ]
             , viewCloseHelpButton "help-hit-rate"
             ]

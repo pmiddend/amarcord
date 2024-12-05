@@ -1,6 +1,6 @@
 module Amarcord.Chemical exposing (..)
 
-import Amarcord.Attributo exposing (AttributoMap, AttributoValue, convertAttributoMapFromApi)
+import Amarcord.Attributo exposing (AttributoMap, AttributoValue, ChemicalNameDict, convertAttributoMapFromApi)
 import Api.Data exposing (ChemicalType(..), JsonChemical, JsonFileOutput)
 import Dict
 import Json.Decode as Decode
@@ -73,7 +73,7 @@ chemicalMapId f { id, name, responsiblePerson, type_, attributi, files } =
     { id = f id, name = name, responsiblePerson = responsiblePerson, type_ = type_, attributi = attributi, files = files }
 
 
-chemicalIdDict : List (Chemical Int b c) -> Dict.Dict Int String
+chemicalIdDict : List (Chemical Int b c) -> ChemicalNameDict
 chemicalIdDict =
     List.foldr (\s -> Dict.insert s.id s.name) Dict.empty
 

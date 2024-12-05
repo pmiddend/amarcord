@@ -243,6 +243,7 @@ async def start_merge_job(
                 "crystfel-path": str(args.crystfel_path),
                 "pdb-file-id": pdb_file_id,
                 "restraints-cif-file-id": restraints_cif_file_id,
+                "random-cut-length": merge_result.parameters.stop_after,
             }
             parent_logger.info(
                 "command line for this job is "

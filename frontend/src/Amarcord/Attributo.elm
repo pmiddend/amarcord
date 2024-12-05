@@ -5,6 +5,7 @@ module Amarcord.Attributo exposing
     , AttributoName
     , AttributoType(..)
     , AttributoValue(..)
+    , ChemicalNameDict
     , attributoExposureTime
     , attributoIsChemicalId
     , attributoIsNumber
@@ -17,6 +18,7 @@ module Amarcord.Attributo exposing
     , attributoTypeToSchemaInt
     , attributoTypeToSchemaNumber
     , attributoTypeToSchemaString
+    , attributoValueToJson
     , convertAttributoFromApi
     , convertAttributoMapFromApi
     , convertAttributoValueFromApi
@@ -41,6 +43,10 @@ import List exposing (filterMap)
 import Maybe
 import Maybe.Extra as MaybeExtra
 import Time exposing (Posix, millisToPosix, posixToMillis)
+
+
+type alias ChemicalNameDict =
+    Dict Int String
 
 
 type AttributoValue
@@ -161,8 +167,8 @@ attributoValueToJson aid a =
 
 {-| This is used for the comma-separated "list of xy" input field
 -}
-prettyPrintAttributoValue : AttributoValue -> String
-prettyPrintAttributoValue x =
+prettyPrintAttributoValue : Maybe ChemicalNameDict -> AttributoValue -> String
+prettyPrintAttributoValue chemicalIdsToName x =
     case x of
         ValueNone ->
             ""
@@ -180,14 +186,24 @@ prettyPrintAttributoValue x =
         ValueDateTime posix ->
             String.fromInt (posixToMillis posix)
 
-        ValueChemical int ->
-            String.fromInt int
+        ValueChemical chemicalId ->
+            case chemicalIdsToName of
+                Nothing ->
+                    String.fromInt chemicalId
+
+                Just chemicalIdsToNameReal ->
+                    case Dict.get chemicalId chemicalIdsToNameReal of
+                        Just chemicalName ->
+                            chemicalName
+
+                        Nothing ->
+                            "unknown chemical " ++ String.fromInt chemicalId
 
         ValueString string ->
             string
 
         ValueList attributoValues ->
-            String.join "," <| List.map prettyPrintAttributoValue attributoValues
+            String.join "," <| List.map (prettyPrintAttributoValue chemicalIdsToName) attributoValues
 
         ValueNumber float ->
             String.fromFloat float
@@ -274,6 +290,8 @@ type alias Attributo a =
     }
 
 
+{-| Maps attributo IDs to attributo types. This is used when displaying the runs/chemicals, for example
+-}
 type alias AttributoMap a =
     Dict AttributoId a
 

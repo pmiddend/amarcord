@@ -3,7 +3,7 @@ module Amarcord.CrystFELMerge exposing (Model, Msg, init, mergeModelToString, mo
 import Amarcord.Html exposing (enumSelect, input_, onFloatInput, onIntInput, sup_)
 import Amarcord.PointGroupChooser as PointGroupChooser exposing (pointGroupToString)
 import Api.Data exposing (JsonPolarisation, JsonQueueMergeJobInput, MergeModel(..), MergeNegativeHandling(..), ScaleIntensities(..))
-import Html exposing (Html, button, div, form, h2, label, span, text)
+import Html exposing (Html, button, div, form, h2, label, small, span, text)
 import Html.Attributes exposing (checked, class, classList, disabled, for, id, type_, value)
 import Html.Events exposing (onClick)
 import Maybe.Extra as MaybeExtra exposing (isJust, isNothing)
@@ -470,10 +470,11 @@ view model =
                         ]
                     ]
                 , div [ class "col" ]
-                    [ div [ class "d-flex align-items-center" ]
+                    [ div [ class "d-flex align-items-start" ]
                         [ div [ class "form-check me-3" ]
                             [ input_ [ type_ "checkbox", class "form-check-input", id "stop-after-label", onClick ToggleStopAfter ]
                             , label [ for "stop-after-label", class "form-check-label text-nowrap" ] [ text "Stop after amount of crystals" ]
+                            , div [ class "form-text" ] [ small [] [ text "This will randomly take, from all processing results, the specified number of crystals. Running it multiple times with the same processing inputs will use the same random images (i.e. we don't reshuffle every time)." ] ]
                             ]
                         , input_
                             [ type_ "number"
