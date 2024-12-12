@@ -130,7 +130,7 @@
 
             copyToRoot = pkgs.buildEnv {
               name = "amarcord-docker-root";
-              paths = [ (pkgs.build-amarcord-production-webserver amarcord-frontend) ];
+              paths = [ (pkgs.build-amarcord-production-webserver amarcord-frontend) (pkgs.amarcord-python-package amarcord-frontend) ];
               pathsToLink = [ "/bin" ];
             };
 
@@ -139,8 +139,10 @@
             name = "amarcord";
             tag = "latest";
 
-            contents = [ (pkgs.build-amarcord-production-webserver amarcord-frontend) ];
-
+            contents = [
+              (pkgs.build-amarcord-production-webserver amarcord-frontend)
+              (pkgs.amarcord-python-package amarcord-frontend)
+            ];
           };
         };
 

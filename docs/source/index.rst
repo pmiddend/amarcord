@@ -6,10 +6,13 @@
 Welcome to AMARCORD's documentation!
 ====================================
 
+Welcome to AMARCORD's documentation. Please head over to "Introduction" to learn more about it.
+
 .. toctree::
    :maxdepth: 3
-   :caption: Contents:
 
+   intro
+   quickstart
    directories
    executables
    database

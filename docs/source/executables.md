@@ -13,9 +13,13 @@ This just takes a database URL and will run all migrations, in order to upgrade 
 
 Generate an `openapi.json` file to use, for example, to generate Elm code for the frontend. See the [OpenAPI section](OpenAPI) section for more information.
 
-## `daemon`
+## `indexing_daemon`
 
-Meta-executable for all daemons.
+Daemon which retrieves queued indexing jobs from the DB and starts them on the workload manager.
+
+## `merge_daemon`
+
+Daemon which retrieves queued merge jobs from the DB and starts them on the workload manager.
 
 ## `crystfel_merge`
 

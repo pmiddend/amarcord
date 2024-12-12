@@ -34,6 +34,8 @@ fastapi = "0.111.0"
 aiosqlite = "0.20.0"
 # asynchronous db client
 asyncmy = "0.2.9"
+# asynchronous db client
+asyncpg = "0.30.0"
 
 # for time zone detection and conversion of timestamps in attributi
 pytz = "2024.1"
@@ -127,9 +129,10 @@ ignore_undeclared = ["amarcord", "hypothesis", "pytest", "pytest_asyncio", "pyte
 # python-magic is imported a little weirdly
 # greenlet is for explicit version forcing
 # pymysql for the migration script
+# asyncpg for the migration script
 # uvicorn is our web server (same for gunicorn)
 # python-multipart is for the web server internals (file upload, see FastAPI docs)
-ignore_unused = ["aiosqlite", "asyncmy", "cryptography", "fawltydeps", "python-magic", "greenlet", "pymysql", "uvicorn", "python-multipart", "gunicorn"]
+ignore_unused = ["aiosqlite", "asyncmy", "cryptography", "fawltydeps", "python-magic", "greenlet", "pymysql", "uvicorn", "python-multipart", "gunicorn", "asyncpg"]
 
 [tool.pyright]
 include = ["amarcord", "tests"]
