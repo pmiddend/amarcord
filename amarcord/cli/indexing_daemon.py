@@ -87,6 +87,9 @@ class Arguments(Tap):
         None
     )
     # fmt: on
+    # fmt: off
+    max_parallel_offline_jobs: int = 3  # Maximum number of offline jobs started in parallel (to not deadlock yourself when the primary jobs are all started and none of the secondary jobs)
+    # fmt: on
 
 
 def _get_indexing_job_source_code(overwrite_interpreter_str: None | str) -> str:
@@ -336,8 +339,28 @@ async def _start_new_jobs(
             **await response.json()
         ).indexing_jobs
 
+    if not indexing_results:
+        return
+
+    # To not start too many jobs, in addition to the queued ones, we
+    # get the running ones.
+    async with session.get(
+        f"{args.amarcord_url}/api/indexing?status={DBJobStatus.RUNNING.value}"
+        + (f"&beamtimeId={args.beamtime_id}" if args.beamtime_id is not None else "")
+    ) as response:
+        number_of_running_jobs = len(
+            JsonReadIndexingResultsOutput(**await response.json()).indexing_jobs
+        )
+
+    max_jobs_to_start = args.max_parallel_offline_jobs - number_of_running_jobs
+
+    if max_jobs_to_start <= 0:
+        return
+
     if indexing_results:
-        logger.info(f"there are {len(indexing_results)} job(s) to start")
+        logger.info(
+            f"there are {len(indexing_results)} job(s) to start, will start {max_jobs_to_start} (because of limit)"
+        )
 
     number_of_started_jobs = 0
     for indexing_result in indexing_results:
@@ -412,6 +435,11 @@ async def _start_new_jobs(
             f"new indexing job submitted, taking a {_long_break_duration_seconds()}s break"
         )
         await asyncio.sleep(_long_break_duration_seconds())
+        if number_of_started_jobs > max_jobs_to_start:
+            logger.info(
+                f"not starting any more jobs, since we have a {args.max_parallel_offline_jobs} limit set"
+            )
+            break
     if number_of_started_jobs == 0:
         # Usually too spammy
         # logger.info(
