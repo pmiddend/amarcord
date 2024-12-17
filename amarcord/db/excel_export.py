@@ -60,6 +60,10 @@ async def create_workbook(
     wb = Workbook(iso_dates=True)
 
     runs_sheet = wb.active
+
+    if runs_sheet is None:
+        raise Exception("workbook doesn't have an active work sheet")
+
     runs_sheet.title = "Runs"
     attributi_sheet = wb.create_sheet("Attributi")
     chemicals_sheet = wb.create_sheet("Chemicals")

@@ -1,8 +1,7 @@
 module Amarcord.API.ExperimentType exposing (..)
 
-import Amarcord.API.AttributoWithRole exposing (AttributoWithRole, attributoWithRoleDecoder)
+import Amarcord.API.AttributoWithRole exposing (AttributoWithRole)
 import Dict
-import Json.Decode as Decode
 
 
 type alias ExperimentTypeId =
@@ -14,14 +13,6 @@ type alias ExperimentType =
     , name : String
     , attributi : List AttributoWithRole
     }
-
-
-experimentTypeDecoder : Decode.Decoder ExperimentType
-experimentTypeDecoder =
-    Decode.map3 ExperimentType
-        (Decode.field "id" Decode.int)
-        (Decode.field "name" Decode.string)
-        (Decode.field "attributi" <| Decode.list attributoWithRoleDecoder)
 
 
 experimentTypeIdDict : List ExperimentType -> Dict.Dict Int String

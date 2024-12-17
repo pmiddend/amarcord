@@ -666,11 +666,11 @@ _conversion_matrix.update(
         (AttributoTypeInt, AttributoTypeInt): _convert_int_to_int,
         (AttributoTypeInt, AttributoTypeList): _convert_int_to_int_list,
         (AttributoTypeInt, AttributoTypeDecimal): _convert_int_to_double,
-        (AttributoTypeInt, AttributoTypeString): lambda before, after, flags, v: str(v),
+        (AttributoTypeInt, AttributoTypeString): lambda before, after, flags, v: str(v), # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         # start list
         (AttributoTypeList, AttributoTypeList): _convert_list_to_list,
         # start string
-        (AttributoTypeString, AttributoTypeString): lambda before, after, flags, v: v,
+        (AttributoTypeString, AttributoTypeString): lambda before, after, flags, v: v, # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         (AttributoTypeString, AttributoTypeInt): _convert_string_to_int,
         (AttributoTypeString, AttributoTypeDateTime): _convert_string_to_datetime,
         (AttributoTypeString, AttributoTypeChoice): _convert_string_to_choice,
@@ -683,13 +683,13 @@ _conversion_matrix.update(
         (
             AttributoTypeDecimal,
             AttributoTypeString,
-        ): lambda before, after, flags, v: str(v),
+        ): lambda before, after, flags, v: str(v), # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         # start bool
-        (AttributoTypeBoolean, AttributoTypeBoolean): lambda before, after, flags, v: v,
+        (AttributoTypeBoolean, AttributoTypeBoolean): lambda before, after, flags, v: v, # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         (
             AttributoTypeBoolean,
             AttributoTypeString,
-        ): lambda before, after, flags, v: str(v),
+        ): lambda before, after, flags, v: str(v), # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         (
             AttributoTypeString,
             AttributoTypeBoolean,
@@ -714,21 +714,21 @@ _conversion_matrix.update(
         (
             AttributoTypeChemical,
             AttributoTypeChemical,
-        ): lambda before, after, flags, v: v,
+        ): lambda before, after, flags, v: v, # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         # start datetime
         (
             AttributoTypeDateTime,
             AttributoTypeDateTime,
-        ): lambda before, after, flags, v: v,
+        ): lambda before, after, flags, v: v, # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
         (
             AttributoTypeDateTime,
             AttributoTypeString,
-        ): lambda before, after, flags, v: datetime_to_attributo_string(
+        ): lambda before, after, flags, v: datetime_to_attributo_string( # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
             v  # type: ignore
         ),
         # start choice
         (AttributoTypeChoice, AttributoTypeChoice): _convert_choice_to_choice,
-        (AttributoTypeChoice, AttributoTypeString): lambda before, after, flags, v: v,
+        (AttributoTypeChoice, AttributoTypeString): lambda before, after, flags, v: v, # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     }
 )
 
@@ -841,7 +841,7 @@ def run_matches_dataset(
             )
             if not run_has_bool_value and data_set_value.bool_value is False:
                 continue
-            if not run_has_bool_value and data_set_value is True:
+            if not run_has_bool_value and data_set_value.bool_value is True:
                 return False
         if isinstance(run_value_type, AttributoTypeDecimal):
             if not decimal_attributi_match(

@@ -4,7 +4,7 @@ default:
 
 pyright:
   script:
-    - nix develop --command pyright
+    - nix develop --command basedpyright
 
 pylint:
   script:

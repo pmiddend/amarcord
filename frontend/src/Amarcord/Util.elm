@@ -1,8 +1,6 @@
 module Amarcord.Util exposing (..)
 
 import Browser.Dom
-import Http
-import Json.Decode as Decode
 import List exposing (foldr)
 import List.Extra as ListExtra
 import Maybe.Extra exposing (isJust)
@@ -36,42 +34,6 @@ collectResults xs =
                             Err (newError :: previousErrors)
     in
     foldr g (Ok []) xs
-
-
-resultToJsonDecoder : Result String a -> Decode.Decoder a
-resultToJsonDecoder x =
-    case x of
-        Err e ->
-            Decode.fail e
-
-        Ok v ->
-            Decode.succeed v
-
-
-httpDelete : { a | url : String, body : Http.Body, expect : Http.Expect msg } -> Cmd msg
-httpDelete { url, body, expect } =
-    Http.request
-        { method = "DELETE"
-        , headers = []
-        , url = url
-        , body = body
-        , expect = expect
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-
-
-httpPatch : { a | url : String, body : Http.Body, expect : Http.Expect msg } -> Cmd msg
-httpPatch { url, body, expect } =
-    Http.request
-        { method = "PATCH"
-        , headers = []
-        , url = url
-        , body = body
-        , expect = expect
-        , timeout = Nothing
-        , tracker = Nothing
-        }
 
 
 monthToNumericString : Month -> String
@@ -364,8 +326,3 @@ foldPairs xs f =
 join3 : a -> b -> c -> ( a, b, c )
 join3 a b c =
     ( a, b, c )
-
-
-none : (a -> Bool) -> List a -> Bool
-none f xs =
-    not (List.any f xs)

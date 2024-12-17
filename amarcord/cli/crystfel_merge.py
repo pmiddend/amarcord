@@ -52,12 +52,12 @@ DIMPLE_OUT_PDB = "output-dimple.pdb"
 
 def ccp4_run(ccp4_path: Path, args: list[str], input_: None | str = None) -> str:
     current_path = os.environ["PATH"]
-    ccp4_env = {
+    ccp4_env: dict[str, str] = {
         "CLIBD": f"{ccp4_path}/lib/data",
         "CLIBD_MON": f"{ccp4_path}/lib/data/monomers/",
         "CINCL": f"{ccp4_path}/include",
         "CCP4_SCR": "/tmp",
-        "CCP4": ccp4_path,
+        "CCP4": str(ccp4_path),
         "PATH": f"{ccp4_path}/bin:{current_path}",
     }
     logger.info(f"running {args}")

@@ -882,7 +882,6 @@ async def read_runs_overview(
         None,
     )
 
-    foms_in_this_ds: list[DBIndexingFOM] = []
     if latest_run is not None and data_set_for_latest_run is not None:
         # Now we know the run and its data set. Unforunately, we have to
         # now query _all_ runs, so we can show full-dataset statistics.

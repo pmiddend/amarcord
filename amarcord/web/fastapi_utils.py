@@ -5,6 +5,7 @@ from typing import Any
 from typing import AsyncGenerator
 from typing import Callable
 from typing import Iterable
+from typing import cast
 
 import structlog
 from fastapi import HTTPException
@@ -427,7 +428,7 @@ def orm_encode_merge_result_to_json(
                         )
                         for rr in mr.refinement_results
                     ],
-                    mtz_file_id=mr.mtz_file_id,
+                    mtz_file_id=cast(int, mr.mtz_file_id),
                     fom=JsonMergeResultFom(
                         snr=mr.fom_snr,  # type: ignore
                         wilson=mr.fom_wilson,

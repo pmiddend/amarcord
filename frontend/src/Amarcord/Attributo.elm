@@ -10,7 +10,6 @@ module Amarcord.Attributo exposing
     , attributoIsChemicalId
     , attributoIsNumber
     , attributoIsString
-    , attributoMapDecoder
     , attributoMapIds
     , attributoMapToListOfAttributi
     , attributoTypeToSchemaArray
@@ -37,8 +36,6 @@ import Amarcord.AssociatedTable exposing (AssociatedTable, associatedTableFromAp
 import Amarcord.NumericRange as NumericRange exposing (NumericRange, emptyNumericRange, numericRangeExclusiveMaximum, numericRangeExclusiveMinimum, numericRangeMaximum, numericRangeMinimum)
 import Api.Data exposing (JSONSchemaArray, JSONSchemaArraySubtype(..), JSONSchemaArrayType(..), JSONSchemaBoolean, JSONSchemaBooleanType(..), JSONSchemaInteger, JSONSchemaIntegerFormat(..), JSONSchemaIntegerType(..), JSONSchemaNumber, JSONSchemaNumberFormat(..), JSONSchemaNumberType(..), JSONSchemaString, JSONSchemaStringType(..), JsonAttributo, JsonAttributoValue)
 import Dict exposing (Dict)
-import Json.Decode as Decode
-import Json.Decode.Extra as JsonExtra
 import List exposing (filterMap)
 import Maybe
 import Maybe.Extra as MaybeExtra
@@ -209,18 +206,6 @@ prettyPrintAttributoValue chemicalIdsToName x =
             String.fromFloat float
 
 
-attributoValueDecoder : Decode.Decoder AttributoValue
-attributoValueDecoder =
-    Decode.oneOf
-        [ Decode.map ValueString Decode.string
-        , Decode.map ValueInt Decode.int
-        , Decode.map ValueNumber Decode.float
-        , Decode.map ValueBoolean Decode.bool
-        , Decode.null ValueNone
-        , Decode.map ValueList (Decode.list (Decode.lazy (\_ -> attributoValueDecoder)))
-        ]
-
-
 type AttributoType
     = Int
     | DateTime
@@ -294,31 +279,6 @@ type alias Attributo a =
 -}
 type alias AttributoMap a =
     Dict AttributoId a
-
-
-generalAttributoMapDecoder : Decode.Decoder value -> Decode.Decoder (AttributoMap value)
-generalAttributoMapDecoder valueDecoder =
-    let
-        transducer : String -> value -> Result String (AttributoMap value) -> Result String (AttributoMap value)
-        transducer stringKey value previousDict =
-            case previousDict of
-                Err e ->
-                    Err e
-
-                Ok v ->
-                    case String.toInt stringKey of
-                        Nothing ->
-                            Err ("couldn't convert attributo ID " ++ stringKey ++ " to integer")
-
-                        Just intKey ->
-                            Ok <| Dict.insert intKey value v
-    in
-    Decode.dict valueDecoder |> Decode.andThen (JsonExtra.fromResult << Dict.foldr transducer (Ok Dict.empty))
-
-
-attributoMapDecoder : Decode.Decoder (AttributoMap AttributoValue)
-attributoMapDecoder =
-    generalAttributoMapDecoder attributoValueDecoder
 
 
 attributoMapIds : AttributoMap a -> List AttributoId

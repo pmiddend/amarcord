@@ -1,9 +1,7 @@
 {
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
-  inputs.nixpkgs.url = "nixpkgs/nixos-24.05";
-  # It's very important to have at least 7.3.0 of this generator - otherwise generating Python code doesn't work properly
-  inputs.nixpkgs-openapi-generator.url = "github:NixOS/nixpkgs";
+  inputs.nixpkgs.url = "nixpkgs/nixos-24.11";
   inputs.poetry2nix = {
     url = "github:nix-community/poetry2nix";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -14,7 +12,7 @@
     inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-openapi-generator, poetry2nix, uglymol, mkElmDerivation }:
+  outputs = { self, nixpkgs, poetry2nix, uglymol, mkElmDerivation }:
     let
       system = "x86_64-linux";
       pypkgs-build-requirements = {
@@ -22,10 +20,11 @@
         fawltydeps = [ "poetry" ];
         pyprojroot = [ "setuptools" ];
         autoimport = [ "pdm-pep517" "pdm-backend" ];
-        openpyxl-stubs = [ "setuptools" ];
+        types-openpyxl = [ "setuptools" ];
         randomname = [ "setuptools" ];
         alabaster = [ "flit-core" ];
         sphinx-autobuild = [ "flit-core" ];
+        pyyaml = [ "setuptools" ];
         sphinxcontrib-mermaid = [ "setuptools" ];
       };
       p2n-overrides = final: prev: prev.poetry2nix.defaultPoetryOverrides.extend (self: super:
@@ -45,12 +44,28 @@
         (final: prev:
           let
             poetryOverrides = p2n-overrides final prev;
+            # Fix taken from https://github.com/fpletz/authentik-nix/blob/24907f67ee4850179e46c19ce89334568d2b05c6/components/pythonEnv.nix
+            # issue is
+            # https://github.com/NixOS/nixpkgs/pull/361930
+            python = prev.python312.override {
+              self = python;
+              packageOverrides = finalRec: prevRec: {
+                wheel = prevRec.wheel.overridePythonAttrs (oA: rec {
+                  version = "0.45.0";
+                  src = oA.src.override (oA: {
+                    rev = "refs/tags/${version}";
+                    hash = "sha256-SkviTE0tRB++JJoJpl+CWhi1kEss0u8iwyShFArV+vw=";
+                  });
+                });
+              };
+            };
           in
           rec {
             # The application
             amarcord-python-package = frontend:
               prev.poetry2nix.mkPoetryApplication {
                 projectDir = ./.;
+                inherit python;
                 postPatch = ''
                   sed -e 's#^hardcoded_static_folder.*#hardcoded_static_folder = "${frontend}"#' -i   amarcord/cli/webserver.py
                 '';
@@ -64,6 +79,7 @@
               ${(amarcord-python-package frontend).dependencyEnv}/bin/gunicorn amarcord.cli.webserver:app  --worker-class uvicorn.workers.UvicornWorker "$@"
             '';
             amarcord-python-env = prev.poetry2nix.mkPoetryEnv {
+              inherit python;
               projectDir = ./.;
               overrides = poetryOverrides;
               editablePackageSources = {
@@ -153,22 +169,18 @@
             overlays = [ overlay ];
           };
 
-          pkgs-openapi-generator = import nixpkgs-openapi-generator {
-            inherit system;
-          };
-
           # External as in "not provided by poetry"
           externalDependencies = [
             pkgs.poetry
             pkgs.skopeo
             pkgs.shellcheck
-            pkgs.nodePackages.pyright
+            pkgs.basedpyright
             # for docs
             pkgs.glibcLocales
             pkgs.mermaid-cli
             pkgs.gnumake
             # For generating Elm code
-            pkgs-openapi-generator.openapi-generator-cli
+            pkgs.openapi-generator-cli
             # To generate the DB diagrams
             pkgs.schemacrawler
           ];

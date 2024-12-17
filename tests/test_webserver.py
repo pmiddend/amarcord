@@ -2938,6 +2938,8 @@ def test_download_spreadsheet(
 
             ws = wb.active
 
+            assert ws is not None
+
             # This test is highly incomplete. Let's add more conditions once we encounter bugs in this thing (yes, that's how testing works!)
             assert ws.title == "Runs"
             assert ws["A1"].value == "ID"
