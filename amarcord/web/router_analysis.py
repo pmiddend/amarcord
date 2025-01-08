@@ -608,7 +608,8 @@ async def read_analysis_results(
     compound_select = []
     for aid, values in filter_by_id.items():
         compound_select.append(
-            select(orm.DataSetHasAttributoValue.data_set_id).join(orm.Attributo)
+            select(orm.DataSetHasAttributoValue.data_set_id)
+            .join(orm.Attributo)
             # This beamtime ID works for now, but in principle, we
             # want to select all attributi values for data sets
             # where the _data set_ is in the beamtime, not the

@@ -1742,9 +1742,7 @@ set style fill solid border lt 6
 plot inputfile using (bin(column(6), bin_width)):(1.0) smooth freq with boxes notitle
 
 unset multiplot
-        """.encode(
-            "utf-8"
-        )
+        """.encode("utf-8")
     )
 
 

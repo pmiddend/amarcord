@@ -12,7 +12,6 @@ try:
         return magic.from_buffer(b, mime=mime)  # type: ignore
 
 except ImportError:
-
     # pylint: disable=unused-argument
     def from_file(p: Path, mime: bool) -> str:
         return HARDCODED_MAGIC_VALUE

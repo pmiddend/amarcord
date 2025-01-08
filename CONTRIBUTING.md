@@ -15,9 +15,8 @@ AMARCORD isn't in widespread use, so it is likely that you will encounter rather
 The continuous integration pipelines should take care of catching any style or code quality issues. In general, take care of installing and using the following tools (per language):
 
 - Python
-  - `black` to ensure proper _formatting_
-  - `isort` to put every `import` into a single line, so merge conflicts are easier to solve
-  - `pyright` and `pylint` to catch bugs and typing issues
+  - `ruff` to ensure proper _formatting_
+  - `basedpyright` and `pylint` to catch bugs and typing issues
   - (optional) `mypy` to catch even more typing issues
   - `fawltydeps` to catch dependency issues
 - Elm

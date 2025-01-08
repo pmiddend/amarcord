@@ -180,9 +180,7 @@ async def create_workbook(
         ["ID", "started", "stopped"] + [a.name for a in run_attributi],
         start=1,
     ):
-        cell = runs_sheet.cell(
-            row=1, column=run_column, value=str(run_header_name)
-        )  # pyright: ignore
+        cell = runs_sheet.cell(row=1, column=run_column, value=str(run_header_name))  # pyright: ignore
         new_font = copy(cell.font)  # pyright: ignore
         cell.font = new_font  # pyright: ignore
 

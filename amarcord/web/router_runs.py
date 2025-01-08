@@ -352,9 +352,7 @@ async def create_or_update_run(
                 f"creating CrystFEL online job for chemical {run_indexing_metadata.chemical.id}"
             )
             latest_user_config = await retrieve_latest_config(session, beamtime_id)
-            current_online_indexing_parameters = (
-                await latest_user_config.awaitable_attrs.current_online_indexing_parameters
-            )
+            current_online_indexing_parameters = await latest_user_config.awaitable_attrs.current_online_indexing_parameters
             if current_online_indexing_parameters is None:
                 current_online_indexing_parameters = (
                     default_online_indexing_parameters()
@@ -712,7 +710,8 @@ async def read_runs(
     ).all()
     all_runs = (
         await session.scalars(
-            select(orm.Run).where(orm.Run.beamtime_id == beamtimeId)
+            select(orm.Run)
+            .where(orm.Run.beamtime_id == beamtimeId)
             # Sort by inverse chronological order
             .order_by(orm.Run.started.desc())
         )

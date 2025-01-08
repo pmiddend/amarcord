@@ -56,9 +56,7 @@ async def read_indexing_parameters(
         ):
             parameters = default_online_indexing_parameters()
         else:
-            parameters = (
-                await user_configuration.awaitable_attrs.current_online_indexing_parameters
-            )
+            parameters = await user_configuration.awaitable_attrs.current_online_indexing_parameters
         return orm_indexing_parameters_to_json(parameters)
 
 

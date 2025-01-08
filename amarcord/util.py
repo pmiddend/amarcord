@@ -192,7 +192,8 @@ def last_line_of_file(p: Path) -> str:
 
 
 def safe_max(
-    xs: Iterable[T], key: Callable[[T], U]  # pyright: ignore[reportInvalidTypeVarUse]
+    xs: Iterable[T],
+    key: Callable[[T], U],  # pyright: ignore[reportInvalidTypeVarUse]
 ) -> T | None:
     try:
         # mypy wants Callable[[T], Union[SupportsDunderLT, SupportsDunderGT]] but that's internal

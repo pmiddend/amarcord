@@ -1,94 +1,88 @@
-[tool.poetry]
+[project]
 name = "amarcord"
 version = "1.0.0"
 description = "A ModulAR CollectOR of metaData - serial edition"
-authors = ["Philipp Middendorf <philipp.middendorf@desy.de>", "CFEL-SC <sc@cfel.de>"]
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  {name = "Philipp Middendorf", email = "philipp.middendorf@desy.de"},
+  {name = "CFEL-SC", email = "sc@cfel.de"}
+]
 license = "GPL-3.0-or-later"
+dependencies = [
+    # For http requests
+    "aiohttp==3.9.5",
+    # asynchronous db client
+    "aiosqlite==0.20.0",
+    "alembic==1.13.1",
+    # asynchronous db client
+    "asyncpg==0.30.0",
+    # for the webserver
+    "fastapi==0.111.0",
+    "gunicorn==22.0.0",
+    "uvicorn==0.30.1",
+    # For parsing the filter expressions
+    "lark==1.1.9",
+    # For the Excel spreadsheet export
+    "openpyxl==3.1.5",
+    # For validating units
+    "pint==0.23",
+    # For the config file
+    "pydantic==1.10.19",
+    # asynchronous db client
+    "pymysql==1.1.1",
+    "asyncmy==0.2.10",
+    # for correcting UTC timezone for dates
+    "python-dateutil==2.8.2",
+    # For the file upload in the web server
+    # see https://fastapi.tiangolo.com/tutorial/request-files/
+    "python-multipart==0.0.9",
+    # for time zone detection and conversion of timestamps in attributi
+    "pytz==2024.2",
+    # for general DB access
+    "sqlalchemy==2.0.36",
+    "structlog-overtime==1.0.1",
+    "structlog==24.2.0",
+    # For parsing the arguments for programs (always required basically)
+    "typed-argument-parser==1.10.1",
+    # needed for MySQL with certain auth methods
+    "cryptography==44.0.0",
+    "python-magic==0.4.27",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9, <3.13"
+[dependency-groups]
+dev = [
+    "fawltydeps==0.18.0",
+    # for FastAPI tests, see
+    # https://fastapi.tiangolo.com/tutorial/testing/
+    "httpx==0.27.0",
+    "hypothesis==6.103.1",
+    "myst-parser==2.0.0",
+    "pyfakefs==5.5.0",
+    "pylint==3.3.2",
+    "pytest-aiohttp==1.0.5",
+    "pytest-asyncio==0.23.7",
+    "pytest-bdd==7.2.0",
+    "pytest-cov==5.0.0",
+    "pytest-subprocess==1.5.0",
+    "pytest-xdist==3.6.1",
+    "pytest==8.2.2",
+    "ruff==0.8.6",
+    # documentation
+    "sphinx-autobuild==2024.2.4",
+    "sphinx==7.2.6",
+    "sphinxcontrib-mermaid==0.9.2",
+    "sphinxcontrib-spelling==8.0.0",
+    "types-openpyxl==3.1.5.20241126",
+    "types-python-dateutil==2.8.3",
+    "types-pytz==2024.1.0.20240417",
+    # slurm
+    "types-requests==2.32.0.20240602",
+    "vulture==2.11",
+]
 
-# for general DB access
-SQLAlchemy = "2.0.36"
-gunicorn = "22.0.0"
-# for caching_sha2_password access in MySQL
-cryptography = '42.0.8'
-# For parsing the arguments for programs (always required basically)
-typed-argument-parser = "1.10.0"
 
-# For the config file
-pydantic = "1.10.19"
-# For validating units
-pint = '0.23'
-
-pymysql = '1.1.1'
-
-# For the Excel spreadsheet export
-openpyxl = "3.1.5"
-
-# for correcting UTC timezone for dates
-python-dateutil = "2.8.2"
-# for the webserver
-fastapi = "0.111.0"
-# asynchronous db client
-aiosqlite = "0.20.0"
-# asynchronous db client
-asyncmy = "0.2.9"
-# asynchronous db client
-asyncpg = "0.30.0"
-
-# for time zone detection and conversion of timestamps in attributi
-pytz = "2024.1"
-# to test incoming files for their mime types
-python-magic = "0.4.27"
-
-# For http requests
-aiohttp = "3.9.5"
-
-alembic = "1.13.1"
-# For the production-ready server
-uvicorn = "0.30.1"
-# For the file upload in the web server
-# see https://fastapi.tiangolo.com/tutorial/request-files/
-python-multipart = "0.0.9"
-
-# For parsing the filter expressions
-lark = "1.1.9"
-structlog = "24.2.0"
-structlog-overtime = "1.0.1"
-
-[tool.poetry.dev-dependencies]
-# for FastAPI tests, see
-# https://fastapi.tiangolo.com/tutorial/testing/
-httpx = "0.27.0"
-pytest-bdd = "7.2.0"
-# documentation
-sphinx = "7.2.6"
-# for markdown in documentation
-myst-parser = "2.0.0"
-sphinxcontrib-mermaid = "0.9.2"
-sphinx-autobuild = "2024.2.4"
-pytest-aiohttp = "1.0.5"
-sphinxcontrib-spelling = "8.0.0"
-black = '24.4.2'
-types-pytz = "2024.1.0.20240417"
-vulture = "2.11"
-pylint = "3.3.2"
-pyfakefs = '5.5.0'
-types-openpyxl = "3.1.5.20241126"
-pytest = '8.2.2'
-hypothesis = '6.103.1'
-pytest-cov = '5.0.0'
-types-python-dateutil = "2.8.3"
-# slurm
-types-requests = "2.32.0.20240602"
-pytest-asyncio = "0.23.7"
-isort = "5.13.2"
-pytest-subprocess = "1.5.0"
-pytest-xdist = "3.6.1"
-fawltydeps = "0.18.0"
-
-[tool.poetry.scripts]
+[project.scripts]
 # These are not all files in cli/, but the ones we definitely intend to keep.
 amarcord-mjpeg-daemon = "amarcord.cli.mjpeg_daemon:main"
 amarcord-indexing-daemon = "amarcord.cli.indexing_daemon:main"
@@ -97,8 +91,12 @@ amarcord-upgrade-db-to-latest = "amarcord.cli.upgrade_db_to_latest:main"
 amarcord-slurm-runner = "amarcord.cli.slurm_runner:main"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+# This is a hack, to fix the uv2nix flake thing.
+no-binary-package = ["python-magic"]
 
 [tool.isort]
 profile = "black"

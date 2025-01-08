@@ -436,7 +436,8 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         if not isinstance(sf, str):
             exit_with_error(None, f"stream-files[{idx}] not a string but {sf}")
     stream_files = [
-        Path(p) for p in stream_files_raw  # pyright: ignore [reportUnknownArgumentType]
+        Path(p)  # pyright: ignore [reportUnknownArgumentType]
+        for p in stream_files_raw
     ]
     if not stream_files:
         exit_with_error(None, "no input stream files given")
@@ -458,18 +459,12 @@ def parse_predefined(s: bytes) -> ParsedArgs:
         point_group=j.get("point-group"),  # type: ignore
         ccp4_path=ccp4_path,
         hkl_file=Path(
-            j.get(
-                "hkl-file", "partialator.hkl"
-            )  # pyright: ignore [reportUnknownArgumentType]
+            j.get("hkl-file", "partialator.hkl")  # pyright: ignore [reportUnknownArgumentType]
         ),
-        partialator_additional=j.get(
-            "partialator-additional"
-        ),  # pyright: ignore [reportUnknownArgumentType]
+        partialator_additional=j.get("partialator-additional"),  # pyright: ignore [reportUnknownArgumentType]
         crystfel_path=crystfel_path,
         pdb_file_id=j.get("pdb-file-id"),  # pyright: ignore [reportUnknownArgumentType]
-        restraints_cif_file_id=j.get(
-            "restraints-cif-file-id"
-        ),  # pyright: ignore [reportUnknownArgumentType]
+        restraints_cif_file_id=j.get("restraints-cif-file-id"),  # pyright: ignore [reportUnknownArgumentType]
         random_cut_length=j.get("random-cut-length"),  # type: ignore
     )
 

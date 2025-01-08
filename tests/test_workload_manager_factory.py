@@ -110,7 +110,7 @@ def test_parse_workload_manager_config(
         | LocalWorkloadManagerConfig
         | SlurmRestWorkloadManagerConfig
         | RemotePetraSlurmWorkloadManagerConfig,
-    ]
+    ],
 ) -> None:
     if input_type_and_value[1] is None:
         with pytest.raises(Exception):

@@ -234,9 +234,7 @@ class SlurmRemoteWorkloadManager(WorkloadManager):
         stdout: None | Path = None,
         stderr: None | Path = None,
     ) -> JobStartResult:
-        assert (
-            not environment
-        ), f"environment options are not supoprted with the slurm remote sbatch manager yet, got {environment}"
+        assert not environment, f"environment options are not supoprted with the slurm remote sbatch manager yet, got {environment}"
         try:
             job_id = await run_remote_sbatch(
                 parent_logger=logger,

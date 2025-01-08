@@ -2,10 +2,11 @@
 """initial tables
 
 Revision ID: 341b2d1ddb48
-Revises: 
+Revises:
 Create Date: 2022-03-23 16:33:43.172942
 
 """
+
 from enum import Enum
 from typing import Any
 

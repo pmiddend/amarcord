@@ -3,9 +3,6 @@
 set -eu
 set -o pipefail
 
-# without-hashes because:
-# https://github.com/python-poetry/poetry/issues/3472
-poetry export --with dev --without-hashes -o requirements-dev-new.txt
-poetry export --without-hashes -o requirements-new.txt
-diff requirements.txt requirements-new.txt
-diff requirements-dev.txt requirements-dev-new.txt
+uv pip compile pyproject.toml -o requirements-new.txt
+# Thanks https://unix.stackexchange.com/questions/17040/how-to-diff-files-ignoring-comments-lines-starting-with
+diff -u -B <(grep -vE '^\s*(#|$)' requirements.txt)  <(grep -vE '^\s*(#|$)' requirements-new.txt)

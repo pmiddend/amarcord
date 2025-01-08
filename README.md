@@ -24,28 +24,16 @@ AMARCORD is a free and open-source database application designed to gather metad
 # Python setup
 
 ## Poetry
-AMARCORD uses [Poetry](https://python-poetry.org/) for managing its dependencies. So either install that and run:
+AMARCORD uses [uv](https://docs.astral.sh/uv/) for managing its dependencies. So either install that and run:
 
 ```
-poetry install
+uv venv
 ```
 
-to install the dependencies. Running programs is then simply
+to create a venv with all dependencies installed. Running programs is then simply
 
 ```
-poetry run amarcord-<program-name> <arguments>
-```
-
-To get into a shell with the poetry virtual environment:
-
-```
-poetry shell
-```
-
-where you can use Python to start programs:
-
-```
-python amarcord/cli/webserver.py
+uv run amarcord-<program-name> <arguments>
 ```
 
 ## Plain pip
@@ -55,10 +43,8 @@ Since we have `requirements.txt` files, as long as you don’t want to add new d
 ```
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 ```
-
-`requirements-dev.txt` also contains test dependencies and mypy types.
 
 ## Notes for Microsoft Windows users
 

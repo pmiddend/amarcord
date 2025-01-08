@@ -146,7 +146,9 @@ class LocalWorkloadManager(WorkloadManager):
                     status=(
                         JobStatus.SUCCESSFUL
                         if rc is not None and rc == 0
-                        else JobStatus.RUNNING if rc is None else JobStatus.FAILED
+                        else JobStatus.RUNNING
+                        if rc is None
+                        else JobStatus.FAILED
                     ),
                     started=wrapped_process.started,
                     metadata=JobMetadata({"pid": wrapped_process.process.pid}),

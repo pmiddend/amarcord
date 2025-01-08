@@ -1,70 +1,183 @@
-aiohttp==3.9.5 ; python_version >= "3.9" and python_version < "3.13"
-aiosignal==1.3.1 ; python_version >= "3.9" and python_version < "3.13"
-aiosqlite==0.20.0 ; python_version >= "3.9" and python_version < "3.13"
-alembic==1.13.1 ; python_version >= "3.9" and python_version < "3.13"
-anyio==3.7.1 ; python_version >= "3.9" and python_version < "3.13"
-async-timeout==4.0.3 ; python_version >= "3.9" and python_version < "3.11.0"
-asyncmy==0.2.9 ; python_version >= "3.9" and python_version < "3.13"
-asyncpg==0.30.0 ; python_version >= "3.9" and python_version < "3.13"
-attrs==23.1.0 ; python_version >= "3.9" and python_version < "3.13"
-certifi==2023.11.17 ; python_version >= "3.9" and python_version < "3.13"
-cffi==1.16.0 ; python_version >= "3.9" and python_version < "3.13" and platform_python_implementation != "PyPy"
-click==8.1.7 ; python_version >= "3.9" and python_version < "3.13"
-colorama==0.4.6 ; python_version >= "3.9" and python_version < "3.13" and (sys_platform == "win32" or platform_system == "Windows")
-cryptography==42.0.8 ; python_version >= "3.9" and python_version < "3.13"
-dnspython==2.6.1 ; python_version >= "3.9" and python_version < "3.13"
-docstring-parser==0.16 ; python_version >= "3.9" and python_version < "3.13"
-email-validator==2.1.1 ; python_version >= "3.9" and python_version < "3.13"
-et-xmlfile==1.1.0 ; python_version >= "3.9" and python_version < "3.13"
-exceptiongroup==1.2.0 ; python_version >= "3.9" and python_version < "3.11"
-fastapi-cli==0.0.4 ; python_version >= "3.9" and python_version < "3.13"
-fastapi==0.111.0 ; python_version >= "3.9" and python_version < "3.13"
-frozenlist==1.4.0 ; python_version >= "3.9" and python_version < "3.13"
-greenlet==3.1.1 ; python_version < "3.13" and (platform_machine == "aarch64" or platform_machine == "ppc64le" or platform_machine == "x86_64" or platform_machine == "amd64" or platform_machine == "AMD64" or platform_machine == "win32" or platform_machine == "WIN32") and python_version >= "3.9"
-gunicorn==22.0.0 ; python_version >= "3.9" and python_version < "3.13"
-h11==0.14.0 ; python_version >= "3.9" and python_version < "3.13"
-httpcore==1.0.2 ; python_version >= "3.9" and python_version < "3.13"
-httptools==0.6.1 ; python_version >= "3.9" and python_version < "3.13"
-httpx==0.27.0 ; python_version >= "3.9" and python_version < "3.13"
-idna==3.6 ; python_version >= "3.9" and python_version < "3.13"
-jinja2==3.1.3 ; python_version >= "3.9" and python_version < "3.13"
-lark==1.1.9 ; python_version >= "3.9" and python_version < "3.13"
-mako==1.3.0 ; python_version >= "3.9" and python_version < "3.13"
-markdown-it-py==3.0.0 ; python_version >= "3.9" and python_version < "3.13"
-markupsafe==2.1.3 ; python_version >= "3.9" and python_version < "3.13"
-mdurl==0.1.2 ; python_version >= "3.9" and python_version < "3.13"
-multidict==6.0.4 ; python_version >= "3.9" and python_version < "3.13"
-mypy-extensions==1.0.0 ; python_version >= "3.9" and python_version < "3.13"
-openpyxl==3.1.5 ; python_version >= "3.9" and python_version < "3.13"
-orjson==3.10.3 ; python_version >= "3.9" and python_version < "3.13"
-packaging==24.2 ; python_version >= "3.9" and python_version < "3.13"
-pint==0.23 ; python_version >= "3.9" and python_version < "3.13"
-pycparser==2.21 ; python_version >= "3.9" and python_version < "3.13" and platform_python_implementation != "PyPy"
-pydantic==1.10.19 ; python_version >= "3.9" and python_version < "3.13"
-pygments==2.17.2 ; python_version >= "3.9" and python_version < "3.13"
-pymysql==1.1.1 ; python_version >= "3.9" and python_version < "3.13"
-python-dateutil==2.8.2 ; python_version >= "3.9" and python_version < "3.13"
-python-dotenv==1.0.1 ; python_version >= "3.9" and python_version < "3.13"
-python-magic==0.4.27 ; python_version >= "3.9" and python_version < "3.13"
-python-multipart==0.0.9 ; python_version >= "3.9" and python_version < "3.13"
-pytz==2024.1 ; python_version >= "3.9" and python_version < "3.13"
-pyyaml==6.0.2 ; python_version >= "3.9" and python_version < "3.13"
-rich==13.7.1 ; python_version >= "3.9" and python_version < "3.13"
-shellingham==1.5.4 ; python_version >= "3.9" and python_version < "3.13"
-six==1.16.0 ; python_version >= "3.9" and python_version < "3.13"
-sniffio==1.3.0 ; python_version >= "3.9" and python_version < "3.13"
-sqlalchemy==2.0.36 ; python_version >= "3.9" and python_version < "3.13"
-starlette==0.37.2 ; python_version >= "3.9" and python_version < "3.13"
-structlog-overtime==1.0.1 ; python_version >= "3.9" and python_version < "3.13"
-structlog==24.2.0 ; python_version >= "3.9" and python_version < "3.13"
-typed-argument-parser==1.10.0 ; python_version >= "3.9" and python_version < "3.13"
-typer==0.12.3 ; python_version >= "3.9" and python_version < "3.13"
-typing-extensions==4.8.0 ; python_version >= "3.9" and python_version < "3.13"
-typing-inspect==0.9.0 ; python_version >= "3.9" and python_version < "3.13"
-ujson==5.10.0 ; python_version >= "3.9" and python_version < "3.13"
-uvicorn==0.30.1 ; python_version >= "3.9" and python_version < "3.13"
-uvicorn[standard]==0.30.1 ; python_version >= "3.9" and python_version < "3.13"
-uvloop==0.19.0 ; (sys_platform != "win32" and sys_platform != "cygwin") and platform_python_implementation != "PyPy" and python_version >= "3.9" and python_version < "3.13"
-watchfiles==0.22.0 ; python_version >= "3.9" and python_version < "3.13"
-websockets==12.0 ; python_version >= "3.9" and python_version < "3.13"
-yarl==1.9.3 ; python_version >= "3.9" and python_version < "3.13"
+# This file was autogenerated by uv via the following command:
+#    uv pip compile pyproject.toml -o requirements.txt
+aiohttp==3.9.5
+    # via amarcord (pyproject.toml)
+aiosignal==1.3.2
+    # via aiohttp
+aiosqlite==0.20.0
+    # via amarcord (pyproject.toml)
+alembic==1.13.1
+    # via amarcord (pyproject.toml)
+anyio==4.8.0
+    # via
+    #   httpx
+    #   starlette
+    #   watchfiles
+asyncmy==0.2.10
+    # via amarcord (pyproject.toml)
+asyncpg==0.30.0
+    # via amarcord (pyproject.toml)
+attrs==24.3.0
+    # via aiohttp
+certifi==2024.12.14
+    # via
+    #   httpcore
+    #   httpx
+cffi==1.17.1
+    # via cryptography
+click==8.1.8
+    # via
+    #   rich-toolkit
+    #   typer
+    #   uvicorn
+cryptography==44.0.0
+    # via amarcord (pyproject.toml)
+dnspython==2.7.0
+    # via email-validator
+docstring-parser==0.16
+    # via typed-argument-parser
+email-validator==2.2.0
+    # via fastapi
+et-xmlfile==2.0.0
+    # via openpyxl
+fastapi==0.111.0
+    # via amarcord (pyproject.toml)
+fastapi-cli==0.0.7
+    # via fastapi
+frozenlist==1.5.0
+    # via
+    #   aiohttp
+    #   aiosignal
+greenlet==3.1.1
+    # via sqlalchemy
+gunicorn==22.0.0
+    # via amarcord (pyproject.toml)
+h11==0.14.0
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.7
+    # via httpx
+httptools==0.6.4
+    # via uvicorn
+httpx==0.28.1
+    # via fastapi
+idna==3.10
+    # via
+    #   anyio
+    #   email-validator
+    #   httpx
+    #   yarl
+jinja2==3.1.5
+    # via fastapi
+lark==1.1.9
+    # via amarcord (pyproject.toml)
+mako==1.3.8
+    # via alembic
+markdown-it-py==3.0.0
+    # via rich
+markupsafe==3.0.2
+    # via
+    #   jinja2
+    #   mako
+mdurl==0.1.2
+    # via markdown-it-py
+multidict==6.1.0
+    # via
+    #   aiohttp
+    #   yarl
+mypy-extensions==1.0.0
+    # via typing-inspect
+openpyxl==3.1.5
+    # via amarcord (pyproject.toml)
+orjson==3.10.13
+    # via fastapi
+packaging==24.2
+    # via
+    #   gunicorn
+    #   typed-argument-parser
+pint==0.23
+    # via amarcord (pyproject.toml)
+propcache==0.2.1
+    # via yarl
+pycparser==2.22
+    # via cffi
+pydantic==1.10.19
+    # via
+    #   amarcord (pyproject.toml)
+    #   fastapi
+pygments==2.19.1
+    # via rich
+pymysql==1.1.1
+    # via amarcord (pyproject.toml)
+python-dateutil==2.8.2
+    # via amarcord (pyproject.toml)
+python-dotenv==1.0.1
+    # via uvicorn
+python-magic==0.4.27
+    # via amarcord (pyproject.toml)
+python-multipart==0.0.9
+    # via
+    #   amarcord (pyproject.toml)
+    #   fastapi
+pytz==2024.2
+    # via amarcord (pyproject.toml)
+pyyaml==6.0.2
+    # via uvicorn
+rich==13.9.4
+    # via
+    #   rich-toolkit
+    #   typer
+rich-toolkit==0.12.0
+    # via fastapi-cli
+shellingham==1.5.4
+    # via typer
+six==1.17.0
+    # via python-dateutil
+sniffio==1.3.1
+    # via anyio
+sqlalchemy==2.0.36
+    # via
+    #   amarcord (pyproject.toml)
+    #   alembic
+starlette==0.37.2
+    # via fastapi
+structlog==24.2.0
+    # via
+    #   amarcord (pyproject.toml)
+    #   structlog-overtime
+structlog-overtime==1.0.1
+    # via amarcord (pyproject.toml)
+typed-argument-parser==1.10.1
+    # via amarcord (pyproject.toml)
+typer==0.15.1
+    # via fastapi-cli
+typing-extensions==4.12.2
+    # via
+    #   aiosqlite
+    #   alembic
+    #   anyio
+    #   fastapi
+    #   pint
+    #   pydantic
+    #   rich-toolkit
+    #   sqlalchemy
+    #   typer
+    #   typing-inspect
+typing-inspect==0.9.0
+    # via typed-argument-parser
+ujson==5.10.0
+    # via fastapi
+uvicorn==0.30.1
+    # via
+    #   amarcord (pyproject.toml)
+    #   fastapi
+    #   fastapi-cli
+uvloop==0.21.0
+    # via uvicorn
+watchfiles==1.0.3
+    # via uvicorn
+websockets==14.1
+    # via uvicorn
+yarl==1.18.3
+    # via aiohttp

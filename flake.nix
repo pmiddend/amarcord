@@ -2,103 +2,120 @@
   description = "Flake for AMARCORD - a web server, frontend tools for storing metadata for serial crystallography";
 
   inputs.nixpkgs.url = "nixpkgs/nixos-24.11";
-  inputs.poetry2nix = {
-    url = "github:nix-community/poetry2nix";
-    inputs.nixpkgs.follows = "nixpkgs";
-  };
   inputs.uglymol.url = "git+https://gitlab.desy.de/cfel-sc-public/uglymol.git";
   inputs.mkElmDerivation = {
     url = "github:jeslie0/mkElmDerivation";
     inputs.nixpkgs.follows = "nixpkgs";
   };
+  inputs.pyproject-nix = {
+    url = "github:pyproject-nix/pyproject.nix";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
 
-  outputs = { self, nixpkgs, poetry2nix, uglymol, mkElmDerivation }:
+  inputs.uv2nix = {
+    url = "github:pyproject-nix/uv2nix";
+    inputs.pyproject-nix.follows = "pyproject-nix";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  inputs.pyproject-build-systems = {
+    url = "github:pyproject-nix/build-system-pkgs";
+    inputs.pyproject-nix.follows = "pyproject-nix";
+    inputs.uv2nix.follows = "uv2nix";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+
+  outputs = { self, nixpkgs, uv2nix, pyproject-nix, pyproject-build-systems, uglymol, mkElmDerivation }:
     let
       system = "x86_64-linux";
-      pypkgs-build-requirements = {
-        structlog-overtime = [ "setuptools" ];
-        fawltydeps = [ "poetry" ];
-        pyprojroot = [ "setuptools" ];
-        autoimport = [ "pdm-pep517" "pdm-backend" ];
-        types-openpyxl = [ "setuptools" ];
-        randomname = [ "setuptools" ];
-        alabaster = [ "flit-core" ];
-        sphinx-autobuild = [ "flit-core" ];
-        pyyaml = [ "setuptools" ];
-        sphinxcontrib-mermaid = [ "setuptools" ];
-      };
-      p2n-overrides = final: prev: prev.poetry2nix.defaultPoetryOverrides.extend (self: super:
-        builtins.mapAttrs
-          (package: build-requirements:
-            (builtins.getAttr package super).overridePythonAttrs (old: {
-              buildInputs = (old.buildInputs or [ ]) ++ (builtins.map (pkg: if builtins.isString pkg then builtins.getAttr pkg super else pkg) build-requirements);
-            })
-          )
-          pypkgs-build-requirements
-      );
-    in
-    rec {
-      # Nixpkgs overlay providing the application
-      overlay = nixpkgs.lib.composeManyExtensions [
-        poetry2nix.overlays.default
-        (final: prev:
-          let
-            poetryOverrides = p2n-overrides final prev;
-            # Fix taken from https://github.com/fpletz/authentik-nix/blob/24907f67ee4850179e46c19ce89334568d2b05c6/components/pythonEnv.nix
-            # issue is
-            # https://github.com/NixOS/nixpkgs/pull/361930
-            python = prev.python312.override {
-              self = python;
-              packageOverrides = finalRec: prevRec: {
-                wheel = prevRec.wheel.overridePythonAttrs (oA: rec {
-                  version = "0.45.0";
-                  src = oA.src.override (oA: {
-                    rev = "refs/tags/${version}";
-                    hash = "sha256-SkviTE0tRB++JJoJpl+CWhi1kEss0u8iwyShFArV+vw=";
-                  });
-                });
-              };
-            };
-          in
-          rec {
-            # The application
-            amarcord-python-package = frontend:
-              prev.poetry2nix.mkPoetryApplication {
-                projectDir = ./.;
-                inherit python;
-                postPatch = ''
-                  sed -e 's#^hardcoded_static_folder.*#hardcoded_static_folder = "${frontend}"#' -i   amarcord/cli/webserver.py
-                '';
-                overrides = poetryOverrides;
-              };
-            # super annoying: .dependencyEnv gives us an env with the "python" and "uvicorn" executables, which then search upwards and sidewards
-            # to find dependencies. uvicorn, however, still uses the current working directory as a search path. However, the current working directory
-            # is the wrong directory, since the hardcoded_static_folder isn't replaced yet. This is breaking isolation, so we override the behavior with
-            # the --app dir explicitly
-            build-amarcord-production-webserver = frontend: prev.writeShellScriptBin "amarcord-production-webserver" ''
-              ${(amarcord-python-package frontend).dependencyEnv}/bin/gunicorn amarcord.cli.webserver:app  --worker-class uvicorn.workers.UvicornWorker "$@"
-            '';
-            amarcord-python-env = prev.poetry2nix.mkPoetryEnv {
-              inherit python;
-              projectDir = ./.;
-              overrides = poetryOverrides;
-              editablePackageSources = {
-                amarcord = ./amarcord;
-              };
-            };
-          })
-      ];
+      inherit (nixpkgs) lib;
 
+      # Load a uv workspace from a workspace root.
+      # Uv2nix treats all uv projects as workspace projects.
+      workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
+
+      # Create package overlay from workspace.
+      overlay = workspace.mkPyprojectOverlay {
+        # Prefer prebuilt binary wheels as a package source.
+        # Sdists are less likely to "just work" because of the metadata missing from uv.lock.
+        # Binary wheels are more likely to, but may still require overrides for library dependencies.
+        sourcePreference = "wheel"; # or sourcePreference = "sdist";
+        # Optionally customise PEP 508 environment
+        # environ = {
+        #   platform_release = "5.10.65";
+        # };
+      };
+
+      # Extend generated overlay with build fixups
+      #
+      # Uv2nix can only work with what it has, and uv.lock is missing essential metadata to perform some builds.
+      # This is an additional overlay implementing build fixups.
+      # See:
+      # - https://pyproject-nix.github.io/uv2nix/FAQ.html
+      pyprojectOverrides = final: prev: {
+        python-magic = prev.python-magic.overrideAttrs (old:
+          let
+            libPath = "${lib.getLib pkgs.file}/lib/libmagic${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}";
+            fixupScriptText = ''
+              substituteInPlace magic/loader.py \
+                --replace-warn "find_library('magic')" "'${libPath}'"
+            '';
+            isWheel = old.src.isWheel or false;
+          in
+          {
+            buildInputs = [ prev.setuptools ];
+            postPatch = lib.optionalString (!isWheel) fixupScriptText;
+            postFixup = lib.optionalString isWheel ''
+              cd $out/${final.python.sitePackages}
+              ${fixupScriptText}
+            '';
+            pythonImportsCheck = old.pythonImportsCheck or [ ] ++ [ "magic" ];
+          }
+        );
+
+        # pyenchant = prev.pyenchant.overrideAttrs (old: {
+        #   buildInputs = [ prev.setuptools ];
+        # });
+      };
+
+
+      # let
+      #   inherit (final) resolveBuildSystem;
+      #   inherit (builtins) mapAttrs;
+      #   buildSystemOverrides = { python-magic.setuptools = [ ]; };
+      # in
+      # mapAttrs (name: spec: prev.${name}.overrideAttrs (old: { nativeBuildInputs = old.nativeBuildInputs ++ resolveBuildSystem spec; })) buildSystemOverrides
+
+      # This example is only using x86_64-linux
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [
+          # overlay
+          mkElmDerivation.overlays.mkElmDerivation
+        ];
+      };
+
+      # Use Python 3.12 from nixpkgs
+      python = pkgs.python312;
+
+      # Construct package set
+      pythonSet =
+        # Use base package set from pyproject.nix builders
+        (pkgs.callPackage pyproject-nix.build.packages {
+          inherit python;
+        }).overrideScope
+          (
+            lib.composeManyExtensions [
+              pyproject-build-systems.overlays.default
+              overlay
+              pyprojectOverrides
+            ]
+          );
+    in
+    {
       packages.${system} =
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [
-              overlay
-              mkElmDerivation.overlays.mkElmDerivation
-            ];
-          };
-
           amarcord-frontend =
             let
               corePackage = pkgs.mkElmDerivation {
@@ -136,17 +153,23 @@
             };
 
         in
-        {
-          amarcord-python-package = pkgs.amarcord-python-package amarcord-frontend;
-          amarcord-production-webserver = pkgs.build-amarcord-production-webserver amarcord-frontend;
+        rec {
           inherit amarcord-frontend;
+
+          amarcord-python-package = pythonSet.mkVirtualEnv "amarcord-serial-env" workspace.deps.default;
+
+          amarcord-production-webserver = pkgs.writeShellScriptBin "amarcord-production-webserver" ''
+            export AMARCORD_STATIC_PATH="${amarcord-frontend}"
+            ${amarcord-python-package}/bin/gunicorn amarcord.cli.webserver:app  --worker-class uvicorn.workers.UvicornWorker "$@"
+          '';
+
           amarcord-docker-image-no-stream = pkgs.dockerTools.buildImage {
             name = "amarcord";
             tag = "latest";
 
             copyToRoot = pkgs.buildEnv {
               name = "amarcord-docker-root";
-              paths = [ (pkgs.build-amarcord-production-webserver amarcord-frontend) (pkgs.amarcord-python-package amarcord-frontend) ];
+              paths = [ amarcord-production-webserver ];
               pathsToLink = [ "/bin" ];
             };
 
@@ -156,65 +179,107 @@
             tag = "latest";
 
             contents = [
-              (pkgs.build-amarcord-production-webserver amarcord-frontend)
-              (pkgs.amarcord-python-package amarcord-frontend)
+              amarcord-production-webserver
             ];
           };
         };
 
-      devShells.${system} =
-        let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ overlay ];
-          };
-
-          # External as in "not provided by poetry"
-          externalDependencies = [
-            pkgs.poetry
-            pkgs.skopeo
-            pkgs.shellcheck
-            pkgs.basedpyright
-            # for docs
-            pkgs.glibcLocales
-            pkgs.mermaid-cli
-            pkgs.gnumake
-            # For generating Elm code
-            pkgs.openapi-generator-cli
-            # To generate the DB diagrams
-            pkgs.schemacrawler
+      devShells.${system} = {
+        # It is of course perfectly OK to keep using an impure virtualenv workflow and only use uv2nix to build packages.
+        # This devShell simply adds Python and undoes the dependency leakage done by Nixpkgs Python infrastructure.
+        impure = pkgs.mkShell {
+          packages = [
+            python
+            pkgs.uv
           ];
+          shellHook = ''
+            unset PYTHONPATH
+            export UV_PYTHON_DOWNLOADS=never
+            # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
+            export PYENCHANT_LIBRARY_PATH="${pkgs.enchant}/lib/libenchant-2.so";
+            # This is also more or less a hack, see
+            # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
+            export ASPELL_CONF="dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";            
+          '';
+        };
 
-        in
-        {
-          default = pkgs.amarcord-python-env.env.overrideAttrs
-            (oldAttrs: {
-              buildInputs = externalDependencies;
-              PYTHONPATH = "./";
+        # This devShell uses uv2nix to construct a virtual environment purely from Nix, using the same dependency specification as the application.
+        # The notable difference is that we also apply another overlay here enabling editable mode ( https://setuptools.pypa.io/en/latest/userguide/development_mode.html ).
+        #
+        # This means that any changes done to your local files do not require a rebuild.
+        default =
+          let
+            # Create an overlay enabling editable mode for all local dependencies.
+            editableOverlay = workspace.mkEditablePyprojectOverlay {
+              # Use environment variable
+              root = "$REPO_ROOT";
+              # Optional: Only enable editable for these packages
+              # members = [ "hello-world" ];
+            };
+
+            # Override previous set with our overrideable overlay.
+            editablePythonSet = pythonSet.overrideScope editableOverlay;
+
+            # Build virtual environment, with local packages being editable.
+            #
+            # Enable all optional dependencies for development.
+            virtualenv = editablePythonSet.mkVirtualEnv "amarcord-serial-dev-env" workspace.deps.all;
+
+          in
+          pkgs.mkShell {
+            packages = [
+              virtualenv
+              pkgs.uv
+              pkgs.skopeo
+              pkgs.basedpyright
+              # for docs
+              pkgs.glibcLocales
+              pkgs.mermaid-cli
+              pkgs.gnumake
+              # For generating Elm code
+              pkgs.openapi-generator-cli
+              # To generate the DB diagrams
+              pkgs.schemacrawler
+              pkgs.shellcheck
+            ];
+            shellHook = ''
+              # Undo dependency propagation by nixpkgs.
+              unset PYTHONPATH
+
+              # Don't create venv using uv
+              export UV_NO_SYNC=1
+
+              # Prevent uv from downloading managed Python's
+              export UV_PYTHON_DOWNLOADS=never
+
+              # Get repository root using git. This is expanded at runtime by the editable `.pth` machinery.
+              export REPO_ROOT=$(git rev-parse --show-toplevel)
+
               # sphinxcontrib-spelling wants enchant and uses dlopen, so for now: hack
-              LD_LIBRARY_PATH = "${pkgs.enchant}/lib";
+              export PYENCHANT_LIBRARY_PATH="${pkgs.enchant}/lib/libenchant-2.so";
               # This is also more or less a hack, see
               # https://discourse.nixos.org/t/aspell-dictionaries-are-not-available-to-enchant/39254
-              ASPELL_CONF = "dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";
-            });
+              export ASPELL_CONF="dict-dir ${(pkgs.aspellWithDicts (ps: with ps; [ en ]))}/lib/aspell";            
+            '';
+          };
 
-          frontend =
-            let
-              elm-language-server = (import ./frontend/elm-language-server { inherit pkgs; })."@elm-tooling/elm-language-server";
-            in
-            pkgs.mkShell {
-              buildInputs = [
-                pkgs.elmPackages.elm
-                pkgs.elmPackages.elm-review
-                pkgs.elmPackages.elm-format
-                pkgs.elmPackages.elm-json
-                pkgs.elmPackages.elm-test
-                elm-language-server
-                pkgs.nodejs
-                pkgs.elm2nix
-              ];
-            };
-        };
+        frontend =
+          let
+            elm-language-server = (import ./frontend/elm-language-server { inherit pkgs; })."@elm-tooling/elm-language-server";
+          in
+          pkgs.mkShell {
+            buildInputs = [
+              pkgs.elmPackages.elm
+              pkgs.elmPackages.elm-review
+              pkgs.elmPackages.elm-format
+              pkgs.elmPackages.elm-json
+              pkgs.elmPackages.elm-test
+              elm-language-server
+              pkgs.nodejs
+              pkgs.elm2nix
+            ];
+          };
+      };
     };
 
 }
