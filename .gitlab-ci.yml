@@ -12,7 +12,12 @@ pylint:
 
 format:
   script:
+    # ruff has two modes:
+    # "format --check" which checks if the formatting is correct,
+    # and "ruff check" which checks if the rules are followed, which can
+    # include "semantic" changes to the code.
     - nix develop --command ruff format --check amarcord tests
+    - nix develop --command ruff check amarcord tests
 
 fawltydeps:
   script:

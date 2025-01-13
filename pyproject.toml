@@ -102,6 +102,20 @@ no-binary-package = ["python-magic"]
 profile = "black"
 force_single_line = "true"
 
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint]
+# to turn this:
+#
+# from X import y,z
+#
+# into
+#
+# from X import y
+# from X import z
+select = ["I001"]
+
 [tool.pylint."TYPECHECK"]
 ignored-modules = ["alembic.op","alembic.context"]
 generated-members = ["SUB","SUBSCRIBE","EVENT_DISCONNECTED","EVENT_HANDSHAKE_SUCCEEDED","REQ","RCVTIMEO","EVENT_CONNECTED","PUB"]
